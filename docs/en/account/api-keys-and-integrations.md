@@ -13,8 +13,8 @@ But if you want to connect Initiative to a script, another tool, or an AI assist
 
 ## Creating one
 
-1. **User settings → Security**.
-2. Under **Generate an API key**, give it a clear **name** — `weekly-report-script`, so future-you remembers what it's for.
+1. **My Settings → Security**, and choose **New API key** under **API keys**. The rest happens in a dialog.
+2. Give it a clear **name** — `weekly-report-script`, so future-you remembers what it's for.
 3. Choose its limits (below).
 4. Generate it, and **copy it right now** — it's shown exactly once. Lost it already? No drama at all: delete it and make another.
 
@@ -34,7 +34,9 @@ A read-only key pinned to a single community is the safest default going: it can
 
 ## Managing keys
 
-**Existing keys** shows each key's name, a short prefix (never the whole key), its scope, when it was last used, and when it expires. **Delete** revokes one immediately. Resetting your password revokes all of them at once, which is the fast way to shut everything down.
+**API keys** lists each key's name, a short prefix (never the whole key), its scope, when it was last used, and when it expires. **Delete** asks first, then revokes it. Resetting your password revokes all of them at once, which is the fast way to shut everything down.
+
+A key marked **Disabled** has been switched off for you: a moderator revoked it, or you pressed [This wasn't me](profile-and-preferences.md#this-wasnt-me) in one of your account emails. It stays on your list so you can see what happened. It won't come back on, so make a new one.
 
 ## Connecting an AI assistant (MCP)
 
@@ -44,7 +46,7 @@ Worth knowing:
 
 - It's **off unless whoever runs your server turns it on**.
 - Every action runs **as you**, scoped by your key. An assistant reaches only what *you* could reach.
-- The surface is **curated** — any key can read the initiatives you belong to and every kind of tool they hold (projects and tasks, documents, wikis, queues, counters, calendars, galleries, notices and dashboards), the comments on any of them, and what any of them is linked to. It can also run the same **search** the app's own search page runs, ranked across the lot.
+- The surface is **curated** — any key can read the initiatives you belong to and every kind of tool they hold (projects and tasks, files, wikis, queues, counters, calendars, galleries, notices and dashboards), the comments on any of them, and what any of them is linked to. It can also run the same **search** the app's own search page runs, ranked across the lot.
 - A **full-access** key can create and edit those same things, link two of them together, move a task between statuses, and tick a checklist item off. Deleting (a link included), archiving, bulk edits, sharing and AI generation are never exposed, and a read-only key can't write at all.
 
 !!! tip "Read-only, single-community, for assistants"

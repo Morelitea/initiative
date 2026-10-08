@@ -27,7 +27,6 @@
     "reloadNow": "Reload now"
   },
   "operator": {
-    "title": "Announcements",
     "subtitle": "Notices shown to people using this deployment. Each one is shown once and remembered per person.",
     "new": "New announcement",
     "newTitle": "New announcement",
@@ -58,7 +57,7 @@
     "publishedOn": "Published {{date}}",
     "notPublished": "Not published",
     "audience": "{{role}} and above",
-    "guildAdminsOnly": "Community admins only",
+    "communityAdminsOnly": "Community admins only",
     "status": {
       "draft": "Draft",
       "scheduled": "Scheduled",
@@ -78,8 +77,8 @@
       "category": "Category",
       "minRole": "Minimum platform role",
       "minRoleHint": "Only people at this rung or above are shown it.",
-      "guildAdminsOnly": "Community admins only",
-      "guildAdminsOnlyHint": "Show it only to people who administer at least one community.",
+      "communityAdminsOnly": "Community admins only",
+      "communityAdminsOnlyHint": "Show it only to people who administer at least one community.",
       "publishedAt": "Publish at",
       "expiresAt": "Stop showing at",
       "expiresHint": "Leave empty to keep showing it. An end date also takes it off the announcements page.",

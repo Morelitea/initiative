@@ -14,7 +14,7 @@ from app.api.deps import (
     ActorUserDep,
     RLSSessionDep,
     SessionDep,
-    app_scope,
+    plugin_scope,
     get_current_active_user,
     GuildContextDep,
 )
@@ -53,9 +53,9 @@ initiative_router = APIRouter(
     route_class=ActorRoute,
 )
 
-#: The routes an installed app may call. A status column is its project's, so
+#: The routes an installed plug-in may call. A status column is its project's, so
 #: it answers to the projects scopes.
-ProjectsRead = Annotated[ActorContext, Depends(app_scope("projects:read"))]
+ProjectsRead = Annotated[ActorContext, Depends(plugin_scope("projects:read"))]
 
 
 def _sorted(statuses: List[TaskStatus]) -> List[TaskStatus]:
@@ -455,7 +455,7 @@ async def _require_initiative_reader(
 ) -> None:
     """Resolve the initiative in this guild and confirm the caller is in it.
 
-    An installed app is in the initiatives it is placed in; any other is not
+    An installed plug-in is in the initiatives it is placed in; any other is not
     found, as an initiative it cannot reach reads everywhere else.
     """
     if isinstance(guild_context, InstallContext):

@@ -9,7 +9,7 @@ that guild's routed context, and merges by ``last_viewed_at``. Opening a tab
 navigates into the entity's guild (which sets the server-held context) before
 any content is fetched.
 
-Opening and closing a tab are guild-addressed (``/c/{guild_id}/recents/…``):
+Opening and closing a tab are guild-addressed (``/c/{community_id}/recents/…``):
 per-schema ids are only unique within a guild.
 """
 
@@ -31,7 +31,7 @@ from app.api.deps import (
 )
 from app.core.tools import Tool
 from app.services.tenant.tags import TOOL_TAG_LINKS
-from app.models.tenant.document import Document
+from app.models.tenant.file import File
 from app.models.platform.guild import GuildMembership
 from app.models.tenant.recent_view import RecentView
 from app.models.platform.user import User
@@ -43,7 +43,7 @@ from app.services.tenant.recent_views import RecentEntityType
 
 router = APIRouter()
 # Guild-scoped sub-router: opening and closing a tab mount under
-# /c/{guild_id}/recents. The cross-guild tabs-bar list stays on the top-level
+# /c/{community_id}/recents. The cross-guild tabs-bar list stays on the top-level
 # router above — fully separate endpoints.
 guild_router = APIRouter()
 
@@ -64,13 +64,12 @@ class RecentToolSpec:
     extra: Callable[[Any], Dict[str, Any]] | None = None
 
 
-def _document_extra(document: Document) -> Dict[str, Any]:
+def _file_extra(file: File) -> Dict[str, Any]:
+    version = file.current_version
     return {
-        "document_type": (
-            document.document_type.value if document.document_type is not None else None
-        ),
-        "mime_type": document.file_content_type,
-        "original_filename": document.original_filename,
+        "file_type": (file.file_type.value if file.file_type is not None else None),
+        "mime_type": getattr(version, "file_content_type", None),
+        "original_filename": getattr(version, "original_filename", None),
     }
 
 
@@ -79,7 +78,7 @@ def _document_extra(document: Document) -> Dict[str, Any]:
 # column — is derived below, so adding a tool needs no edit in this module.
 _RECENT_EXTRAS: dict[Tool, Callable[[Any], Dict[str, Any]]] = {
     Tool.project: lambda project: {"icon": project.icon},
-    Tool.document: _document_extra,
+    Tool.file: _file_extra,
 }
 
 RECENT_TOOL_SPECS: dict[Tool, RecentToolSpec] = {
@@ -141,7 +140,7 @@ async def _enrich_recent_rows(
                 # what the serializer is later handed.
                 entity_type=RecentEntityType(tool.value),
                 entity_id=entity.id,
-                guild_id=context.guild_id,
+                community_id=context.guild_id,
                 initiative_id=getattr(entity, "initiative_id", None),
                 name=getattr(entity, spec.name_attr),
                 last_viewed_at=row.last_viewed_at,
@@ -235,7 +234,7 @@ async def clear_recent(
 ) -> None:
     """Close a tab: delete the caller's own recent-view row.
 
-    Guild-scoped — mounted under /c/{guild_id}/recents because a tab can belong
+    Guild-scoped — mounted under /c/{community_id}/recents because a tab can belong
     to any of the user's guilds and per-schema ids are only unique within a
     guild. Idempotent.
     """

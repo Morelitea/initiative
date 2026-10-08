@@ -11,8 +11,6 @@ image. ``app.core.image_headers`` explains why.
 
 from __future__ import annotations
 
-import hashlib
-from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from typing import TYPE_CHECKING
@@ -21,16 +19,10 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import delete, select
 
-from app.core.config import API_V1_STR
-from app.core.image_headers import read_image_header
-from app.core.messages import GuildMessages, UserMessages
-from app.models.platform.user_avatar import (
-    AVATAR_ASPECT_TOLERANCE,
-    AVATAR_CONTENT_TYPES,
-    AVATAR_MAX_BYTES,
-    AVATAR_MAX_DIMENSION,
-    UserAvatar,
-)
+from app.core.config import API_V1_STR, PLUGIN_SERVER_URL
+from app.core.image_headers import ImageRejected, ValidatedImage, validate_image
+from app.core.messages import ImageMessages, UserMessages
+from app.models.platform.user_avatar import AVATAR_SPEC, UserAvatar
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.platform.user import User
@@ -43,37 +35,41 @@ _HEX_DIGITS = frozenset("0123456789abcdef")
 _DIGEST_LENGTH = 64
 
 
-class AvatarRejected(Exception):
-    """An upload that will not be stored, carrying the code naming why.
-
-    A domain error rather than an ``HTTPException`` so the service stays
-    callable from somewhere that is not a request; the endpoint maps ``code``
-    onto the response.
-    """
-
-    def __init__(self, code: str) -> None:
-        super().__init__(code)
-        self.code = code
+#: The profile picture's own wording for the refusals ``validate_image`` names.
+AVATAR_REJECTIONS: dict[str, str] = {
+    ImageMessages.IMAGE_INVALID: UserMessages.AVATAR_INVALID_IMAGE,
+    ImageMessages.IMAGE_WRONG_SIZE: UserMessages.AVATAR_TOO_LARGE_DIMENSIONS,
+    ImageMessages.IMAGE_WRONG_RATIO: UserMessages.AVATAR_NOT_SQUARE,
+}
 
 
-@dataclass(frozen=True)
-class ValidatedAvatar:
-    """An upload that passed every check, ready to store."""
-
-    data: bytes
-    sha256: str
-    content_type: str
-    width: int
-    height: int
-
-    @property
-    def byte_size(self) -> int:
-        return len(self.data)
+def validate_avatar(data: bytes) -> ValidatedImage:
+    """Hold ``data`` to the profile-picture spec, refusing in the picture's
+    own wording."""
+    try:
+        return validate_image(AVATAR_SPEC, data)
+    except ImageRejected as rejected:
+        raise ImageRejected(
+            AVATAR_REJECTIONS.get(rejected.code, rejected.code)
+        ) from None
 
 
 def avatar_url(user_id: int, sha256: str) -> str:
     """The serving path for one stored avatar."""
     return f"{AVATAR_URL_PREFIX}{user_id}/avatar/{sha256}"
+
+
+def uploaded_digest(user_id: int, url: str | None) -> str | None:
+    """The digest of ``user_id``'s uploaded picture when ``url`` serves it, or
+    ``None`` for a picture hosted somewhere else, or none."""
+    digest = (url or "").removeprefix(avatar_url(user_id, ""))
+    return digest if digest != url and is_valid_digest(digest) else None
+
+
+def member_avatar_url(person: str, sha256: str) -> str:
+    """Where an installed plug-in is served a member's uploaded picture: under the
+    plug-in API, by the install's ``person`` reference rather than the row id."""
+    return f"{PLUGIN_SERVER_URL}/members/{person}/avatar/{sha256}"
 
 
 def is_avatar_url(value: str) -> bool:
@@ -89,37 +85,6 @@ def is_valid_digest(value: str) -> bool:
     return len(value) == _DIGEST_LENGTH and all(c in _HEX_DIGITS for c in value)
 
 
-def validate_avatar(data: bytes) -> ValidatedAvatar:
-    """Check an uploaded image and describe it, or raise ``AvatarRejected``.
-
-    The content type recorded is the one the header proves, never the one the
-    client claimed, because it is served back in a ``Content-Type``.
-    """
-    if not data:
-        raise AvatarRejected(UserMessages.AVATAR_INVALID_IMAGE)
-    if len(data) > AVATAR_MAX_BYTES:
-        raise AvatarRejected(GuildMessages.IMAGE_TOO_LARGE)
-
-    header = read_image_header(data)
-    if header is None or header.content_type not in AVATAR_CONTENT_TYPES:
-        raise AvatarRejected(UserMessages.AVATAR_INVALID_IMAGE)
-
-    if header.width > AVATAR_MAX_DIMENSION or header.height > AVATAR_MAX_DIMENSION:
-        raise AvatarRejected(UserMessages.AVATAR_TOO_LARGE_DIMENSIONS)
-
-    longest = max(header.width, header.height)
-    if abs(header.width - header.height) / longest > AVATAR_ASPECT_TOLERANCE:
-        raise AvatarRejected(UserMessages.AVATAR_NOT_SQUARE)
-
-    return ValidatedAvatar(
-        data=data,
-        sha256=hashlib.sha256(data).hexdigest(),
-        content_type=header.content_type,
-        width=header.width,
-        height=header.height,
-    )
-
-
 async def get_avatar(session: AsyncSession, *, user_id: int) -> UserAvatar | None:
     return (
         await session.exec(select(UserAvatar).where(UserAvatar.user_id == user_id))
@@ -127,7 +92,7 @@ async def get_avatar(session: AsyncSession, *, user_id: int) -> UserAvatar | Non
 
 
 async def store_avatar(
-    session: AsyncSession, *, user: "User", avatar: ValidatedAvatar
+    session: AsyncSession, *, user: "User", avatar: ValidatedImage
 ) -> str:
     """Write ``avatar`` as the user's picture, replacing any it had.
 

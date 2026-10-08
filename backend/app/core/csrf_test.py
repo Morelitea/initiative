@@ -209,13 +209,16 @@ def test_same_site_is_not_taken_as_proof(client):
 def test_a_header_authenticated_client_is_not_asked_for_anything(client):
     # Bearer tokens, API keys and device tokens are out of scope here; asking
     # them for an Origin would break API scripts and mobile shells for nothing.
+    # Another scheme authenticates nothing, so beside it the cookie is still
+    # what the request is authenticated by, and it is asked.
     _cookie(client)
 
-    response = client.post(
-        "/write", json={}, headers={"authorization": "Bearer a-token"}
-    )
+    bearer = client.post("/write", json={}, headers={"authorization": "bearer a-token"})
+    basic = client.post("/write", json={}, headers={"authorization": "Basic a-token"})
 
-    assert response.status_code == 200
+    assert bearer.status_code == 200
+    assert basic.status_code == 403
+    assert basic.json()["detail"] == CSRF_ERROR_CODE
 
 
 def test_an_anonymous_request_is_not_refused_here(client):
@@ -296,7 +299,7 @@ async def _handshake(scope: dict) -> list[dict]:
         sent.append(message)
 
     await CsrfOriginMiddleware(app)(scope, receive, send)
-    return [*sent, {"reached_app": connected["value"]}]
+    return [*sent, {"reached_plugin": connected["value"]}]
 
 
 async def test_a_cross_site_websocket_with_a_session_cookie_is_refused(monkeypatch):
@@ -309,7 +312,7 @@ async def test_a_cross_site_websocket_with_a_session_cookie_is_refused(monkeypat
     )
 
     assert result[0]["type"] == "websocket.close"
-    assert result[-1]["reached_app"] is False
+    assert result[-1]["reached_plugin"] is False
 
 
 async def test_a_same_origin_websocket_connects(monkeypatch):
@@ -319,7 +322,7 @@ async def test_a_same_origin_websocket_connects(monkeypatch):
         _ws_scope(cookie=f"{SESSION_COOKIE_NAME}=a-session", origin=SERVED)
     )
 
-    assert result[-1]["reached_app"] is True
+    assert result[-1]["reached_plugin"] is True
 
 
 async def test_a_plain_http_websocket_connects_on_the_host_comparison(monkeypatch):
@@ -335,7 +338,7 @@ async def test_a_plain_http_websocket_connects_on_the_host_comparison(monkeypatc
         )
     )
 
-    assert result[-1]["reached_app"] is True
+    assert result[-1]["reached_plugin"] is True
 
 
 async def test_a_websocket_from_another_origin_on_the_same_host_is_refused(monkeypatch):
@@ -350,7 +353,7 @@ async def test_a_websocket_from_another_origin_on_the_same_host_is_refused(monke
     )
 
     assert result[0]["type"] == "websocket.close"
-    assert result[-1]["reached_app"] is False
+    assert result[-1]["reached_plugin"] is False
 
 
 async def test_a_websocket_without_a_session_cookie_is_not_this_rule_s_business(
@@ -362,4 +365,4 @@ async def test_a_websocket_without_a_session_cookie_is_not_this_rule_s_business(
 
     result = await _handshake(_ws_scope(origin="https://attacker.test"))
 
-    assert result[-1]["reached_app"] is True
+    assert result[-1]["reached_plugin"] is True

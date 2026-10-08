@@ -4,6 +4,8 @@ from typing import Optional
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, Text
 from sqlmodel import Field, SQLModel
 
+from app.core.encryption import FERNET_SALT, SALT_OIDC_CLIENT_SECRET
+
 
 class AuthProviderSecret(SQLModel, table=True):
     """The client secret for one auth provider — kept OUT of ``auth_providers``.
@@ -15,7 +17,7 @@ class AuthProviderSecret(SQLModel, table=True):
     1:1 with the provider — ``provider_id`` is the PK and an FK to
     ``auth_providers.id`` (``ON DELETE CASCADE``).
     ``client_secret_encrypted`` is Fernet-encrypted at rest with
-    ``SALT_OIDC_CLIENT_SECRET`` (registered in the secret-key rotation registry);
+    ``SALT_OIDC_CLIENT_SECRET`` (declared on the column for the SECRET_KEY rotation);
     it is ``NULL`` for public / PKCE-only providers with no secret.
     """
 
@@ -30,7 +32,10 @@ class AuthProviderSecret(SQLModel, table=True):
     )
 
     client_secret_encrypted: Optional[str] = Field(
-        default=None, sa_column=Column(Text, nullable=True)
+        default=None,
+        sa_column=Column(
+            Text, nullable=True, info={FERNET_SALT: SALT_OIDC_CLIENT_SECRET}
+        ),
     )
 
     created_at: datetime = Field(

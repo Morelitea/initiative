@@ -16,7 +16,7 @@ from sqlalchemy import update
 from app.core.tools import Tool
 from app.models.tenant._mixins import archive_models
 from app.models.tenant.project import Project
-from app.models.tenant.project_activity import ProjectFavorite
+from app.models.tenant.project_favorite import ProjectFavorite
 from app.models.tenant.recent_view import RecentView
 from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.models.tenant.task import (

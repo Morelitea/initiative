@@ -11,7 +11,7 @@ Short answers to what people actually ask, with a pointer to the longer version 
 ??? question "Do I need to know project management to use this?"
     No, and please don't go and learn any first. A project is a board. A task is a to-do on it. That is genuinely enough to run real work, and always has been.
 
-    Roles, tools, dashboards, apps — all there when you need them, silent until then. See [Getting started](getting-started/index.md).
+    Roles, tools, dashboards, plug-ins — all there when you need them, silent until then. See [Getting started](getting-started/index.md).
 
 ??? question "There's a lot here. Where do I begin?"
     Make a community. Make one initiative in it, named after what you're doing. Make one project. Put some tasks on it.
@@ -26,14 +26,14 @@ Short answers to what people actually ask, with a pointer to the longer version 
 ??? question "Is all of it open source?"
     The part you run is, under the AGPL — the app, every tool in it, the mobile builds.
 
-    So are the [app SDK](https://github.com/Morelitea/initiative-app-sdk) and the [GitHub app](https://github.com/Morelitea/initiative-developer/tree/main/apps/github), under MIT, if you fancy building an app of your own.
+    So are the [plug-in SDK](https://github.com/beyonders-studio/initiative-plugin-sdk) and the [GitHub plug-in](https://github.com/beyonders-studio/initiative-developer/tree/main/plugins/github), under MIT, if you fancy building a plug-in of your own.
 
     The pieces that exist only to run the hosted service are ours and stay closed. Nothing you self-host waits on them.
 
 ??? question "Can I add tools that aren't built in?"
-    Yes — the **marketplace** has ready-made dashboards and apps, and adding one takes a couple of clicks and no code. It holds what ships with Initiative plus whatever the person running your server has approved, so if something's missing, they're who to ask. See [Apps & the marketplace](guides/apps-and-marketplace.md).
+    Yes — the **marketplace** has ready-made dashboards and plug-ins, and adding one takes a couple of clicks and no code. It holds what ships with Initiative plus whatever the person running your server has approved, so if something's missing, they're who to ask. See [Plug-ins & the marketplace](guides/plugins-and-marketplace.md).
 
-    A few apps need a program running alongside Initiative before they work. The **GitHub integration** is one, and it's open source — you can stand it up yourself, though it's a real deployment rather than a setting. **Automations** are ours and live only on the hosted service. See [Apps that need something running behind them](self-host-or-hosted.md#apps-that-need-something-running-behind-them).
+    A few plug-ins need a program running alongside Initiative before they work. The **GitHub integration** is one, and it's open source — you can stand it up yourself, though it's a real deployment rather than a setting. **Automations** are ours and live only on the hosted service. See [Plug-ins that need something running behind them](self-host-or-hosted.md#plug-ins-that-need-something-running-behind-them).
 
 ## Getting in
 
@@ -47,11 +47,13 @@ Short answers to what people actually ask, with a pointer to the longer version 
 ??? question "I don't see 'Join a community'"
     The directory is a server-wide feature that starts switched **off**, so plenty of servers don't have one. Everything there is invite-only.
 
+??? question "My invite link doesn't work"
     Links can expire, run out of uses, or be switched off by an admin. None of this is a judgement on you as a person. Ask for a fresh one — it takes them about four seconds.
 
 ??? question "I don't see a 'Create community' button"
     Some servers turn community creation off on purpose so people join through invites instead. Ask a community admin to invite you, or whoever runs the server to make one for you.
 
+??? question "The email never arrived"
     Give it a few minutes, then check spam. It is almost always spam.
 
     If it still hasn't turned up, the server may not have email configured at all — ask whoever runs it. Reset links also go stale, so if yours has been sitting there since Tuesday, request another. See [Signing in](getting-started/signing-in.md).
@@ -72,7 +74,7 @@ Short answers to what people actually ask, with a pointer to the longer version 
     You're asked once. The answer sticks to your account, so the second community asks nothing.
 
 ??? question "What happens to the date?"
-    We work out whether you're old enough, then throw it away. Your account records **that** you answered — never the date. It isn't sold, shared, or stored anywhere.
+    It's kept, encrypted, and used only to check age limits — a community's, or a plug-in's, which can differ by country. It's never shown back to anyone, you included, and it isn't sold or shared. Deleting your account deletes it.
 
 ??? question "It was just an invite from a friend. Why was I asked?"
     Because the community it leads to is a listed one — anyone signed in can find it. The question follows the community, not the way in.
@@ -108,7 +110,7 @@ Short answers to what people actually ask, with a pointer to the longer version 
 
 ## Finding things
 
-??? question "I can't find a project or document I know exists"
+??? question "I can't find a project or file I know exists"
     Two likely reasons: you're in a **different community** (check the rail down the far-left edge), or it hasn't been **shared** with you. Fastest way to check is search — ++cmd+k++ / ++ctrl+k++ and type its name. See [Search & shortcuts](guides/search-and-shortcuts.md).
 
 ??? question "A link to something says 'not found' and I know it's there"
@@ -126,33 +128,35 @@ Short answers to what people actually ask, with a pointer to the longer version 
     Yes, as many as you like. See [Projects & tasks](guides/projects-and-tasks.md).
 
 ??? question "I moved a task to another project and its status changed"
-    Expected. Projects can each have their own statuses, so a moved task restarts at **Backlog**. Set the new one and carry on.
+    Expected. Projects can each have their own statuses, so a moved task lands on the new project's default status. Set the one you want and carry on.
 
 ??? question "How do I clear out finished tasks without deleting them?"
     **Archive** them. There's a one-click "Archive done tasks", and you can filter archived tasks back into view whenever you want. Nothing is lost.
 
+??? question "I deleted something by accident"
     It's fine. It's in the **Trash** — Community settings for shared things, your own Trash for your own items — and it sits there for a good while before going anywhere permanent.
 
     Go and get it back, and then go and have a cup of tea. See [Trash and retention](guides/communities.md#trash-and-retention).
 
 ??? question "An import didn't match people to their accounts"
-    Exports and imports identify people by **handle** (`foobar#1234`), because a handle is the same in every community and an email address isn't. A file exported before that was true names people by email and won't match. Export it again. See [Exporting a project](guides/projects-and-tasks.md#exporting-a-project).
+    Exports and imports identify people by **handle** (`foobar#1234`), because a handle is the same in every community and an email address isn't. A file that names people by email address won't match anyone, so export it from Initiative again. See [Exporting a project](guides/projects-and-tasks.md#exporting-a-project).
 
 ## Your account
 
 ??? question "Can I change my username?"
-    Not on your own — your handle is how people find and mention you, so changing it is a job for whoever runs the server. Your **display name** is yours to change any time under [Profile & preferences](account/profile-and-preferences.md).
+    Not on your own — your handle is how people find and mention you, so changing it is a job for whoever runs the server. What you *can* change any time is your **display name**, one per community — see [Your name in a community](guides/communities.md#your-name-in-a-community).
 
 ??? question "Why does my name show in one community and not another?"
-    Each community decides whether it shows real names or just handles. In a handles-only community your display name isn't rendered to anyone there.
+    A display name belongs to the community you set it in. Every other community shows your handle until you set one there too, with **Set your display name** at the top of its **Members** page.
 
-    Your **timezone** is wrong. It's almost always the timezone. Fix it in **User settings → Interface** and everything snaps back into place.
+??? question "Due dates and reminders are a few hours off"
+    Your **timezone** is wrong. It's almost always the timezone. Fix it in **My Settings → Preferences** and everything snaps back into place.
 
 ??? question "I'm getting too many (or too few) emails"
-    Tune them category by category in **User settings → Notifications** — each has its own email and mobile switch, and there's no minimum. The in-app bell keeps working regardless. See [Notifications](guides/notifications.md).
+    Tune them category by category in **My Settings → Notifications** — each has its own **Bell**, **Email**, **Mobile** and **Desktop** switch, and there's no minimum. **Do not disturb**, further down, has **Quiet hours** and **Pause notifications**. See [Notifications](guides/notifications.md).
 
 ??? question "How do I leave a group?"
-    On the community rail, open the community's menu and choose **Leave community**. If you're the last admin, you'll be made to promote somebody else first — you can't simply slip out and leave nobody holding it.
+    On the community rail, open the community's menu and choose **Leave community**. Members and admins leave freely. If you're the community's only **superadmin**, you'll be made to hand the seat to somebody else first — you can't simply slip out and leave nobody holding the keys.
 
 ??? question "My account says it's suspended"
     You can sign in, and you get one screen: that you're suspended, the reason the moderator gave if they gave one, and who to contact. Nothing else opens while it lasts — not your communities, not your own settings.
@@ -172,12 +176,12 @@ Short answers to what people actually ask, with a pointer to the longer version 
 ??? question "Can everyone in my community see everything in it?"
     No. Being in a community doesn't hand you its contents.
 
-    An **initiative** is only visible to the people added to it, and individual projects and documents narrow it down further still. The one exception is a **community admin**, who can see everything in their own community, because somebody has to be able to. See [Sharing & access](sharing/index.md).
+    An **initiative** is only visible to the people added to it, and individual projects and files narrow it down further still. The one exception is a **community admin**, who can see everything in their own community, because somebody has to be able to. See [Sharing & access](sharing/index.md).
 
 ??? question "How do I keep something visible to just two or three people?"
     Put it in an initiative with only those people in it.
 
-    That's the strongest everyday boundary in the whole app, and it needs no configuration whatsoever — everybody else simply doesn't have it. To narrow further inside an initiative, share the specific project or document.
+    That's the strongest everyday boundary in the whole app, and it needs no configuration whatsoever — everybody else simply doesn't have it. To narrow further inside an initiative, share the specific project or file.
 
 ??? question "Can other groups on the same server see our stuff?"
     No. Each community's data is separated at the database level. See [How your data is kept separate](security/how-your-data-is-kept-separate.md).
@@ -194,11 +198,16 @@ Short answers to what people actually ask, with a pointer to the longer version 
 ??? question "Why don't my messages show up on my new phone?"
     Because there's no copy on the server for it to catch up from — that's what end-to-end encryption costs. Each device keeps its own history from the moment it joined a conversation, and signing out takes that device's copy with it. See [Your messages live on your devices](guides/messages.md#your-messages-live-on-your-devices).
 
+??? question "Somebody posted something that shouldn't be there"
+    Use **Report** on it. It's on comments, notices, pictures, profiles and directory listings, and it goes to the right people by itself: anything a community holds reaches that community's moderators, and anything about an account reaches whoever runs the server.
+
+    Private messages are never moderated, so they carry no Report. To stop hearing from somebody there, ignore them under **My Settings → Privacy → Ignored accounts**.
+
 ??? question "Where is my data stored?"
     If you host Initiative yourself: wherever your server runs, and that's your call. If we host it: where our service runs. Either way it stays yours. See [Data & compliance](security/data-and-compliance.md).
 
 ??? question "Can I get my data out?"
-    Yes. Projects export to a portable file, spreadsheets to CSV or Excel, calendars to `.ics`. See [Getting your data out](security/data-and-compliance.md#getting-your-data-out).
+    Yes. Every tool you own exports from its **Settings → Advanced**: projects to a portable file, spreadsheets to CSV or Excel, calendars to `.ics`, and so on. See [Getting your data out](security/data-and-compliance.md#getting-your-data-out).
 
 ## If you run the server
 
@@ -212,6 +221,8 @@ Short answers to what people actually ask, with a pointer to the longer version 
     Yes — Initiative speaks OIDC, including mapping your provider's groups to communities and roles. See [Single sign-on](running-a-server/single-sign-on.md).
 
 ## Still stuck?
+
+Look at the bottom of the sidebar. The question mark opens these pages, and where there's somebody to ask — a community that takes help requests, or a server with an address to write to — the lifebuoy beside it is **Ask for help**.
 
 If it looks like the software rather than your account, see [Reporting a problem](security/reporting-a-problem.md).
 

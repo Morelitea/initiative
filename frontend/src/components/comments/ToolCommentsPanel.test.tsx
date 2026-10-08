@@ -4,7 +4,7 @@ import { HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 
 import { buildComment } from "@/__tests__/factories/comment.factory";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
@@ -16,7 +16,7 @@ import { ToolCommentsPanel } from "./ToolCommentsPanel";
 const captureList = () => {
   const seen: URLSearchParams[] = [];
   server.use(
-    guildHttp.get("/comments/", ({ request }) => {
+    communityHttp.get("/comments/", ({ request }) => {
       const params = new URL(request.url).searchParams;
       seen.push(params);
       return HttpResponse.json(

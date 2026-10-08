@@ -102,10 +102,11 @@ describe("MyTasksPage grouping", () => {
 
 describe("MyTasksPage status changes", () => {
   /**
-   * One task per guild so the per-row rules are observable: checking either
-   * must not take the other away.
+   * One task per community so the per-row rules are observable: checking either
+   * must not take the other away. The PATCH never answers, so each test reads
+   * the row while its save is in flight.
    */
-  function stubTwoTasksAndStatuses({ patchDelayMs = 0 } = {}) {
+  function stubTwoTasksAndStatuses() {
     const todo = buildProjectTaskStatus({
       id: 10,
       project_id: 5,
@@ -125,7 +126,7 @@ describe("MyTasksPage status changes", () => {
       buildTask({
         id: 101,
         title: "Write the thing",
-        guild_id: 3,
+        community_id: 3,
         project_id: 5,
         task_status_id: todo.id,
         task_status: todo,
@@ -133,13 +134,12 @@ describe("MyTasksPage status changes", () => {
       buildTask({
         id: 102,
         title: "Read the thing",
-        guild_id: 3,
+        community_id: 3,
         project_id: 5,
         task_status_id: todo.id,
         task_status: todo,
       }),
     ];
-    let patched = 0;
     server.use(
       // Only the table's page carries these rows. The focus summary reads the
       // same endpoint with a page size of its own, and answering it too would
@@ -154,21 +154,14 @@ describe("MyTasksPage status changes", () => {
           has_next: false,
         });
       }),
-      http.get("/api/v1/c/:guildId/projects/:projectId/task-statuses", () =>
+      http.get("/api/v1/c/:communityId/projects/:projectId/task-statuses", () =>
         HttpResponse.json([todo, done])
       ),
-      http.patch("/api/v1/c/:guildId/tasks/:taskId", async () => {
-        patched += 1;
-        if (patchDelayMs > 0) await delay(patchDelayMs);
-        return HttpResponse.json({
-          ...items[0],
-          task_status_id: done.id,
-          task_status: done,
-          assignees: [],
-        });
+      http.patch("/api/v1/c/:communityId/tasks/:taskId", async () => {
+        await delay("infinite");
+        return new HttpResponse(null, { status: 204 });
       })
     );
-    return { patchCount: () => patched };
   }
 
   /** The table's Done checkboxes, in row order. */
@@ -182,7 +175,7 @@ describe("MyTasksPage status changes", () => {
 
   it("shows the row checked before the server answers", async () => {
     const user = userEvent.setup();
-    stubTwoTasksAndStatuses({ patchDelayMs: 1_000 });
+    stubTwoTasksAndStatuses();
     renderMyTasks();
 
     await waitFor(() => expect(screen.getByRole("table")).toBeInTheDocument());
@@ -193,13 +186,13 @@ describe("MyTasksPage status changes", () => {
     await user.click(first);
 
     // The check lands on the optimistic write, with the PATCH still in flight
-    // and the cross-guild list not yet refetched.
+    // and the cross-community list not yet refetched.
     await waitFor(() => expect(doneBoxes()[0]).toBeChecked());
   });
 
   it("leaves every other row usable while one is saving", async () => {
     const user = userEvent.setup();
-    stubTwoTasksAndStatuses({ patchDelayMs: 1_000 });
+    stubTwoTasksAndStatuses();
     renderMyTasks();
 
     await waitFor(() => expect(screen.getByRole("table")).toBeInTheDocument());
@@ -218,7 +211,7 @@ describe("MyTasksPage status changes", () => {
 describe("MyTasksPage priority", () => {
   it("saves a priority change to the task's own community", async () => {
     const user = userEvent.setup();
-    const task = buildTask({ id: 101, title: "Write the thing", guild_id: 3, priority: "low" });
+    const task = buildTask({ id: 101, title: "Write the thing", community_id: 3, priority: "low" });
     const patched: string[] = [];
     server.use(
       http.get("/api/v1/me/tasks", ({ request }) => {
@@ -231,8 +224,8 @@ describe("MyTasksPage priority", () => {
           has_next: false,
         });
       }),
-      http.patch("/api/v1/c/:guildId/tasks/:taskId", ({ params }) => {
-        patched.push(`${params.guildId}/${params.taskId}`);
+      http.patch("/api/v1/c/:communityId/tasks/:taskId", ({ params }) => {
+        patched.push(`${params.communityId}/${params.taskId}`);
         return HttpResponse.json({ ...task, priority: "high" });
       })
     );

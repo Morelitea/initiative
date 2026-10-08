@@ -16,6 +16,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import usernames
+from app.core.messages import UsernameMessages
 from app.core.usernames import UsernameError
 from app.models.platform.user import User
 
@@ -63,7 +64,7 @@ async def allocate(session: AsyncSession, *, name: str) -> tuple[str, int]:
         if number not in taken
     ]
     if not free:
-        raise UsernameError("USERNAME_UNAVAILABLE")
+        raise UsernameError(UsernameMessages.UNAVAILABLE)
     return validated, secrets.choice(free)
 
 
@@ -153,7 +154,7 @@ async def claim_for_user(
         except IntegrityError:
             continue
         return
-    raise UsernameError("USERNAME_UNAVAILABLE")
+    raise UsernameError(UsernameMessages.UNAVAILABLE)
 
 
 async def insert_with_handle(
@@ -184,7 +185,7 @@ async def insert_with_handle(
             taken.add(candidate)
             continue
         return
-    raise UsernameError("USERNAME_UNAVAILABLE")
+    raise UsernameError(UsernameMessages.UNAVAILABLE)
 
 
 def _is_handle_conflict(exc: IntegrityError) -> bool:
@@ -234,4 +235,4 @@ async def set_for_user(
                 raise
             continue
         return
-    raise UsernameError("USERNAME_UNAVAILABLE")
+    raise UsernameError(UsernameMessages.UNAVAILABLE)

@@ -15,7 +15,8 @@ from app.services.auth import addresses
 from app.services.platform import dm_settings
 from app.services.platform.usernames import allocate_from_seed
 
-#: ``(email, full name, timezone, colour theme[, platform tier])``.
+#: ``(email, name, timezone, colour theme[, platform tier])``. The name keys
+#: the account in this seed and is what its handle is drawn from.
 #:
 #: user1..8 are ALWAYS regular community members (several are initiative PMs);
 #: admin1..4 carry every community-admin membership instead, on the member
@@ -61,24 +62,24 @@ MONDAY_WEEK = {
 
 
 async def seed(session: AsyncSession, ids: dict[str, list]) -> dict[str, User]:
-    """Every seeded account by full name, the bootstrap owner as "Admin User"."""
+    """Every seeded account by name, the bootstrap owner as "Admin User"."""
     owner = await _find_superuser(session)
     owner.timezone = "America/Los_Angeles"
     owner.color_theme = "kobold"
     owner.week_starts_on = 0
     session.add(owner)
     users = {"Admin User": owner}
-    for email, full_name, tz, theme, *tier in USERS:
-        users[full_name] = await _account(
+    for email, name, tz, theme, *tier in USERS:
+        users[name] = await _account(
             session,
             email,
-            full_name=full_name,
+            name,
             timezone=tz,
             color_theme=theme,
             role=tier[0] if tier else UserRole.member,
-            week_starts_on=1 if full_name in MONDAY_WEEK else 0,
+            week_starts_on=1 if name in MONDAY_WEEK else 0,
         )
-        ids["users"].append(users[full_name].id)
+        ids["users"].append(users[name].id)
     await session.flush()
     return users
 
@@ -97,7 +98,7 @@ async def _find_superuser(session: AsyncSession) -> User:
     return user
 
 
-async def _account(session: AsyncSession, email: str, **fields) -> User:
+async def _account(session: AsyncSession, email: str, name: str, **fields) -> User:
     """One seeded account, made or picked back up.
 
     A prior interrupted seed run may have committed this user (users commit
@@ -106,11 +107,9 @@ async def _account(session: AsyncSession, email: str, **fields) -> User:
     """
     user = await addresses.account_holding(session, email)
     if user is None:
-        # Seeded people get a handle the way a real account does: from their
-        # name, with the number drawn for them.
-        handle, discriminator = await allocate_from_seed(
-            session, seed=fields["full_name"]
-        )
+        # The handle is drawn from the seed's name, with the number drawn for
+        # them.
+        handle, discriminator = await allocate_from_seed(session, seed=name)
         user = User(
             username=handle,
             discriminator=discriminator,
@@ -128,9 +127,7 @@ async def _account(session: AsyncSession, email: str, **fields) -> User:
     # direct-message policy; an account seeded before addresses were rows of
     # their own catches up here. Asked of every row the account holds rather
     # than the proven ones, so a claim already recorded is left alone.
-    if hash_email(addresses.normalize(email)) not in await addresses.held_hashes(
-        session, user_id=user.id
-    ):
+    if hash_email(email) not in await addresses.held_hashes(session, user_id=user.id):
         addresses.record_address(
             session,
             user_id=user.id,

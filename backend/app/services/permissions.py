@@ -29,6 +29,7 @@ from typing import Any
 
 from fastapi import HTTPException, status
 from sqlalchemy import ColumnElement, false, func, inspect, true
+from sqlalchemy.orm import joinedload, undefer
 from sqlmodel import select
 
 from app.core.audit_events import AuditEventType
@@ -44,6 +45,7 @@ from app.db.authorization import standing_arg
 from app.core.messages import (
     CommonMessages,
     ExportMessages,
+    InitiativeMessages,
     SharingMessages,
     ProjectMessages,
 )
@@ -94,7 +96,7 @@ def granted_scope_clause(
     :func:`listing_scope_clause`.
     """
     if isinstance(context, InstallContext):
-        # An installed app is granted to by name or through its placements,
+        # An installed plug-in is granted to by name or through its placements,
         # and is an admin only by a standing its token asked for: the table's
         # own policy answers exactly what reaches it.
         return true()
@@ -164,7 +166,7 @@ def writable_scope_clause(
         return true()
     if user_id is None:
         # Spanning initiatives, what may be changed is read from grants to a
-        # person; an installed app asks one initiative at a time.
+        # person; an installed plug-in asks one initiative at a time.
         return false()
     return func.resource_granted(tool.value, id_col, user_id, True, standing_arg())
 
@@ -210,17 +212,16 @@ def _grant_level(level: Any) -> str:
     return level.value if hasattr(level, "value") else level
 
 
-#: The scope that lets an installed app see a resource's sharing.
+#: The scope that lets an installed plug-in see a resource's sharing.
 SHARING_READ = "sharing:read"
 
 
 def serialize_grants(row: Any, *, context: ActorContext | None) -> list:
     """Serialize a resource's eager-loaded ``grants`` into the unified grant list
     — one ``ResourceGrantSchema`` per ``resource_grants`` row (user, role,
-    all-initiative-members, the dashboard a published view reads it
-    through, or an installed app), owner included.
+    all-initiative-members, or an installed plug-in), owner included.
 
-    An installed app sees the list only with ``sharing:read``; without it the
+    An installed plug-in sees the list only with ``sharing:read``; without it the
     list is empty. Who owns the resource is reported beside it either way."""
     from app.schemas.tenant.resource_grant import ResourceGrantSchema
 
@@ -232,8 +233,7 @@ def serialize_grants(row: Any, *, context: ActorContext | None) -> list:
             user_id=g.user_id,
             role_id=g.role_id,
             all_initiative_members=bool(getattr(g, "all_initiative_members", False)),
-            dashboard_id=getattr(g, "dashboard_id", None),
-            app_install_id=getattr(g, "app_install_id", None),
+            plugin_install_id=getattr(g, "plugin_install_id", None),
         )
         for g in getattr(row, "grants", None) or []
     ]
@@ -268,16 +268,12 @@ _Grantee = tuple[str, int | None]
 def _levels_by_grantee(grants: Any) -> dict[_Grantee, str]:
     """The level each grantee holds, from a set of ``resource_grants`` rows.
 
-    Owner rows, published-view rows and app-install rows are left out: none
-    is part of the list a share is rebuilt from.
+    Owner rows and plugin-install rows are left out: neither is part of the list
+    a share is rebuilt from.
     """
     levels: dict[_Grantee, str] = {}
     for g in grants:
-        if (
-            _grant_level(g.level) == "owner"
-            or g.dashboard_id is not None
-            or g.app_install_id is not None
-        ):
+        if _grant_level(g.level) == "owner" or g.plugin_install_id is not None:
             continue
         if g.user_id is not None:
             key: _Grantee = ("user", g.user_id)
@@ -347,32 +343,23 @@ async def replace_resource_grants(
     membership; role grants are not resolvable (see below).
 
     ``owner_id`` is the person holding the owner grant, or None when nobody
-    does or an installed app does; a named grantee equal to it is skipped.
+    does or an installed plug-in does; a named grantee equal to it is skipped.
 
     ``actor_user_id`` is who is making the change; pass it on any request path
     and the move of every grantee whose level actually changed is recorded in
-    the same transaction. ``by_install`` records an installed app's change the
+    the same transaction. ``by_install`` records an installed plug-in's change the
     same way, with no person as its actor. Left at neither, nothing is
     recorded."""
     all_members_level: str | None = None
     user_levels: dict[int, str] = {}
     role_levels: dict[int, str] = {}
     for g in grants:
-        if getattr(g, "dashboard_id", None) is not None:
-            # Reported by this shape, never taken by it: a published view is
-            # made against the dashboard that publishes it. Silently dropping
-            # one here would let a caller believe they had made a share that
-            # was never written.
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=SharingMessages.DASHBOARD_GRANT_NOT_SET_HERE,
-            )
-        if getattr(g, "app_install_id", None) is not None:
-            # Reported by this shape, never taken by it: what an installed app
+        if getattr(g, "plugin_install_id", None) is not None:
+            # Reported by this shape, never taken by it: what an installed plug-in
             # may reach is granted by the community's seat.
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=SharingMessages.APP_INSTALL_GRANT_NOT_SET_HERE,
+                detail=SharingMessages.PLUGIN_INSTALL_GRANT_NOT_SET_HERE,
             )
         level = g.level
         if level not in ("read", "write"):
@@ -475,14 +462,8 @@ async def replace_resource_grants(
     for g in existing:
         if _grant_level(g.level) == "owner":
             continue
-        if g.dashboard_id is not None:
-            # A published view is not in this list, and is not this call's to
-            # rebuild: a client that does not know about one would delete every
-            # one of them by saving the panel. Revoking one is its own act,
-            # made by the owner against the dashboard that published it.
-            continue
-        if g.app_install_id is not None:
-            # An installed app's grant is the seat's, not this list's, and
+        if g.plugin_install_id is not None:
+            # An installed plug-in's grant is the seat's, not this list's, and
             # stays whatever the panel sends.
             continue
         await session.delete(g)
@@ -583,6 +564,15 @@ def actions_of(row: Any) -> frozenset[str]:
     return frozenset(row.actions or ())
 
 
+def with_tool(relation: Any) -> Any:
+    """The load option for a row's tool, ``relation``, as authorizing it
+    reads it: its initiative and its ``actions``."""
+    tool = relation.property.mapper.class_
+    return joinedload(relation).options(
+        joinedload(tool.initiative), undefer(tool.actions)
+    )
+
+
 def allows(row: Any, action: Action) -> bool:
     """Whether the request may take ``action`` on ``row``."""
     return action.value in actions_of(row)
@@ -594,9 +584,18 @@ def _refusal(
     """Which refusal a missing ``action`` is. Only names it: the database
     already decided."""
     if action is Action.export:
+        initiative = (
+            None
+            if "initiative" in inspect(row).unloaded
+            else getattr(row, "initiative", None)
+        )
         return HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=ExportMessages.EXPORT_OWNER_REQUIRED,
+            detail=(
+                InitiativeMessages.CONTENT_KEPT_IN
+                if initiative is not None and initiative.keep_content_in
+                else ExportMessages.EXPORT_OWNER_REQUIRED
+            ),
         )
     if context is not None and context.content_read_only:
         return HTTPException(

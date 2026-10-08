@@ -28,7 +28,7 @@ trap 'rm -rf "$work"' EXIT
 # gives Settings the same placeholder key.
 docker run --rm --entrypoint python \
   -e SECRET_KEY=0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0 \
-  "docker.io/morelitea/initiative:${release#v}" \
+  "ghcr.io/beyonders-studio/initiative:${release#v}" \
   -c 'import json; from app.main import app; print(json.dumps(app.openapi()))' \
   > "$work/release.json"
 cp "$ACCEPTED" "$work/accepted.md"

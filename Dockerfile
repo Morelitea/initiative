@@ -9,6 +9,10 @@ FROM frontend-deps AS frontend-build
 COPY frontend .
 COPY VERSION /VERSION
 COPY MIN_NATIVE_VERSION /MIN_NATIVE_VERSION
+COPY MIN_DESKTOP_VERSION /MIN_DESKTOP_VERSION
+# The artwork credits, which every build writes into THIRD_PARTY_NOTICES.txt
+# (frontend/scripts/third-party-notices.mjs reads ../NOTICE.md).
+COPY NOTICE.md /NOTICE.md
 ARG VITE_API_URL=/api/v1
 ARG VITE_VERSION_SUFFIX=
 # The dev signing key's public half: the dev app accepts updates signed with it.
@@ -18,6 +22,8 @@ ENV VITE_VERSION_SUFFIX=$VITE_VERSION_SUFFIX
 ENV VITE_OTA_DEV_PUBLIC_KEY=$VITE_OTA_DEV_PUBLIC_KEY
 # Browser SPA build (base "/") served by the backend at /app/static.
 RUN pnpm run build
+# The document editor for the server (backend/app/services/editor_engine.py).
+RUN pnpm build:editor-server
 # Capacitor-flavored OTA bundle (base "", __IS_CAPACITOR__=true) shipped at /app/ota so the
 # native app can download the web bundle matching this backend version. build:capacitor
 # overwrites dist/, so stash the browser build first, then zip the capacitor build with
@@ -32,7 +38,7 @@ RUN cp -r dist /tmp/browser-dist \
 # the release key as the secret `ota_signing_key` (see scripts/sign-ota.mjs).
 RUN --mount=type=secret,id=ota_signing_key \
     node scripts/sign-ota.mjs /ota "$(cat /VERSION)${VITE_VERSION_SUFFIX}" \
-      "$(cat /MIN_NATIVE_VERSION)" /run/secrets/ota_signing_key
+      "$(cat /MIN_NATIVE_VERSION)" "$(cat /MIN_DESKTOP_VERSION)" /run/secrets/ota_signing_key
 
 # The virtualenv is built in a stage of its own, on the same base, and copied
 # into the runtime below. It depends on the lockfile alone, so a build reuses it
@@ -40,8 +46,11 @@ RUN --mount=type=secret,id=ota_signing_key \
 # package refresh, which every published build runs again, and was rebuilt
 # (and stored in the build cache again) every time. uv never reaches the image.
 FROM python:3.12-slim@sha256:f77ac9e44ae96ef2c90b8053ea08c31f8be030f824196b0ae4db6d462c84e51f AS backend-deps
-# uv binary (pinned) for native, lockfile-based dependency installs
-COPY --from=ghcr.io/astral-sh/uv:0.11.21@sha256:ff07b86af50d4d9391d9daf4ff89ce427bc544f9aae87057e69a1cc0aa369946 /uv /uvx /bin/
+# uv (pinned, hash-checked) for native, lockfile-based dependency installs.
+# From PyPI rather than uv's ghcr.io image, which refused pulls under load.
+COPY backend/uv-requirements.txt /tmp/
+RUN pip install --no-cache-dir --disable-pip-version-check --root-user-action=ignore \
+        --only-binary=:all: --require-hashes -r /tmp/uv-requirements.txt
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_PREFERENCE=only-system
 WORKDIR /app
 # No app source needed: this is a package=false project. --no-dev keeps
@@ -104,8 +113,14 @@ COPY backend/ .
 ENV PATH="/app/.venv/bin:$PATH"
 COPY VERSION ./VERSION
 COPY MIN_NATIVE_VERSION ./MIN_NATIVE_VERSION
+COPY MIN_DESKTOP_VERSION ./MIN_DESKTOP_VERSION
+# Which build this is. The dev build passes `dev`, and only a dev image names the
+# dev app in its passkey association files (app/core/native_apps.py).
+ARG IMAGE_CHANNEL=release
+RUN echo "$IMAGE_CHANNEL" > ./IMAGE_CHANNEL
 COPY CHANGELOG.md ./CHANGELOG.md
 COPY --from=frontend-build /frontend/dist ./static
+COPY --from=frontend-build /frontend/dist-editor/editor.js ./editor/editor.js
 COPY --from=frontend-build /ota/ ./ota/
 COPY backend/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh && mkdir -p /app/uploads

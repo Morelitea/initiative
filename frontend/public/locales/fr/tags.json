@@ -1,14 +1,14 @@
 {
   "detail": {
     "notFound": "Étiquette introuvable",
-    "notFoundDescription": "Cette étiquette a peut-être été supprimée ou vous avez suivi un lien invalide.",
+    "notFoundDescription": "Cette étiquette a peut-être été supprimée, ou le lien que vous avez suivi est rompu.",
     "backToTags": "← Retour à l'accueil",
     "taggedItems_one": "{{count}} élément étiqueté",
     "taggedItems_other": "{{count}} éléments étiquetés",
     "edit": "Modifier",
     "delete": "Supprimer",
     "deleteTitle": "Supprimer l'étiquette ?",
-    "deleteDescription": "L'étiquette « {{name}} » sera envoyée à la corbeille et masquée de toutes les tâches, projets et documents qui l'utilisent. Vous pouvez la restaurer depuis Paramètres → Corbeille avant la fin de la période de rétention.",
+    "deleteDescription": "L'étiquette « {{name}} » sera envoyée à la corbeille et masquée de toutes les tâches, projets et fichiers qui l'utilisent. Vous pouvez la restaurer depuis Paramètres → Corbeille avant la fin de la période de rétention.",
     "deleted": "Étiquette supprimée",
     "saving": "Enregistrement…",
     "save": "Enregistrer",
@@ -25,20 +25,20 @@
     "color": "Couleur",
     "deleteSelected": "Supprimer la sélection ({{count}})",
     "bulkDeleteTitle": "Supprimer les étiquettes sélectionnées ?",
-    "bulkDeleteDescription_one": "{{count}} étiquette sera envoyée à la corbeille et masquée de toutes les tâches, projets et documents qui l'utilisent. Vous pouvez la restaurer depuis Paramètres → Corbeille avant la fin de la période de rétention.",
-    "bulkDeleteDescription_other": "{{count}} étiquettes seront envoyées à la corbeille et masquées de toutes les tâches, projets et documents qui les utilisent. Vous pouvez les restaurer depuis Paramètres → Corbeille avant la fin de la période de rétention.",
+    "bulkDeleteDescription_one": "{{count}} étiquette sera envoyée à la corbeille et masquée de toutes les tâches, projets et fichiers qui l'utilisent. Vous pouvez la restaurer depuis Paramètres → Corbeille avant la fin de la période de rétention.",
+    "bulkDeleteDescription_other": "{{count}} étiquettes seront envoyées à la corbeille et masquées de toutes les tâches, projets et fichiers qui les utilisent. Vous pouvez les restaurer depuis Paramètres → Corbeille avant la fin de la période de rétention.",
     "bulkDeleted_one": "{{count}} étiquette supprimée.",
     "bulkDeleted_other": "{{count}} étiquettes supprimées.",
     "bulkDeleteError": "Certaines étiquettes n'ont pas pu être supprimées.",
     "selectAll": "Sélectionner toutes les étiquettes"
   },
   "picker": {
-    "defaultPlaceholder": "Ajouter des étiquettes...",
-    "createHeading": "Créer une nouvelle étiquette",
+    "defaultPlaceholder": "Ajouter des étiquettes…",
+    "createHeading": "Créer une étiquette",
     "namePlaceholder": "Nom de l'étiquette",
     "creating": "Création en cours…",
     "create": "Créer",
-    "searchPlaceholder": "Rechercher ou créer des étiquettes...",
+    "searchPlaceholder": "Rechercher ou créer des étiquettes…",
     "loading": "Chargement…",
     "existingTags": "Étiquettes existantes",
     "noTagsFound": "Aucune étiquette trouvée.",
@@ -48,9 +48,9 @@
     "anyTag": "N'importe quel tag"
   },
   "tree": {
-    "notTagged": "Non étiqueté",
-    "collapse": "Réduire",
-    "expand": "Développer"
+    "notTagged": "Sans étiquette",
+    "collapse": "Replier",
+    "expand": "Déplier"
   },
   "badge": {
     "remove": "Supprimer l'étiquette {{name}}",

@@ -22,8 +22,7 @@ community, and what leaves a community on its behalf, is a :class:`Rule` in
    can answer it, and a writer who already answers it themselves.
 4. Write, and record each rule that moved. One that did not move records
    nothing.
-5. Follow up and commit: a shorter session limit reaches device tokens
-   already issued, and switching push off drops the tokens it was sent to.
+5. Follow up and commit: switching push off drops the tokens it was sent to.
 
 A community's rule applies only while it holds the option the rule needs
 (``guild_administration.auth_options``), and every point that enforces
@@ -50,9 +49,9 @@ from app.core.login_methods import (
     SecondFactorRequirement,
     methods_from_values,
 )
-from app.core.guild_auth_options import GuildAuthOption
+from app.core.guild_auth_options import CommunityAuthOption
 from app.core.messages import AuthMessages, GuildMessages, SettingsMessages
-from app.core.security import AUTH_POLICY_UNMET_HEADER
+from app.core.security import AUTH_POLICY_UNMET_HEADER, has_usable_password
 from app.models.platform.app_setting import AppSetting
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.guild import Guild
@@ -64,7 +63,6 @@ from app.services import audit as audit_service
 from app.services import email as email_service
 from app.services.auth import guild_provider_connections as guild_connections
 from app.services.auth import identity as identity_service
-from app.services.auth import session_lifetime
 from app.services.auth.platform_provider import is_login_ready
 from app.services.platform import app_settings as app_settings_service
 from app.services.platform import guild_entitlements
@@ -97,6 +95,19 @@ async def resolve_login_methods(session: AsyncSession) -> frozenset[LoginMethod]
 async def login_method_allowed(session: AsyncSession, method: LoginMethod) -> bool:
     """Whether one method may be used to open a session right now."""
     return method in await resolve_login_methods(session)
+
+
+async def password_confirms(session: AsyncSession, user: User) -> bool:
+    """Whether a confirmation asks this account for its password.
+
+    It holds one, and this deployment signs people in with passwords. Where it
+    does not, the password is not a way in, and a recent sign-in answers
+    instead. What the settings surfaces read to decide whether to show the
+    field.
+    """
+    return has_usable_password(user.hashed_password) and await login_method_allowed(
+        session, LoginMethod.password
+    )
 
 
 def requirement_from_row(row: AppSetting) -> SecondFactorRequirement:
@@ -329,7 +340,7 @@ async def answers_the_rule(session: AsyncSession, *, user: User) -> bool:
     from app.core import auth_context
     from app.services.auth.assurance import SECOND_FACTOR_AMR
 
-    if SECOND_FACTOR_AMR in auth_context.session_amr():
+    if SECOND_FACTOR_AMR in auth_context.current().session_amr:
         return True
     return await holds_second_factor(session, user_id=user.id)
 
@@ -420,7 +431,7 @@ class Rule:
     key: str
     area: str
     loose: Any = None
-    entitlement: GuildAuthOption | None = None
+    entitlement: CommunityAuthOption | None = None
     follow_up: FollowUp | None = None
 
     async def read(self, ctx: RuleContext) -> Any:
@@ -449,34 +460,14 @@ class Rule:
         names = [k for k, rule in _rules(ctx).items() if rule.area == self.area]
         if self.key != next(k for k in names if k in moved):
             return
-        before = {k: moved[k][0] for k in names if k in moved}
-        after = {k: moved[k][1] for k in names if k in moved}
-        actor_id = ctx.actor.id if ctx.actor else None
-        if ctx.guild_id is None:
-            await app_settings_service.record_settings_area(
-                ctx.session,
-                actor_user_id=actor_id,
-                area=self.area,
-                before=before,
-                row=ctx.settings,
-                fields=tuple(after),
-            )
-        else:
-            await guilds_service.record_settings_change(
-                ctx.session,
-                guild_id=ctx.guild_id,
-                actor_user_id=actor_id,
-                area=self.area,
-                before=before,
-                after=after,
-            )
-
-
-async def _sweep_device_tokens(ctx: RuleContext, before: Any, after: Any) -> None:
-    # A device token carries its deadline in its own expiry, so the new limit
-    # is written into the ones already issued rather than read back on every
-    # native request.
-    await session_lifetime.apply_to_device_tokens(ctx.system)
+        await audit_service.record_settings_change(
+            ctx.session,
+            guild_id=ctx.guild_id,
+            actor_user_id=ctx.actor.id if ctx.actor else None,
+            area=self.area,
+            before={k: moved[k][0] for k in names if k in moved},
+            after={k: moved[k][1] for k in names if k in moved},
+        )
 
 
 async def _drop_push_tokens(ctx: RuleContext, before: Any, after: Any) -> None:
@@ -691,7 +682,7 @@ class _SignInRequirement(Rule):
         ):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=GuildMessages.GUILD_AUTH_POLICY_INVALID_PROVIDER,
+                detail=GuildMessages.COMMUNITY_AUTH_POLICY_INVALID_PROVIDER,
             )
 
     async def offered(self, ctx: RuleContext, after: Any) -> None:
@@ -708,7 +699,7 @@ class _SignInRequirement(Rule):
             ):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=GuildMessages.GUILD_AUTH_POLICY_INVALID_PROVIDER,
+                    detail=GuildMessages.COMMUNITY_AUTH_POLICY_INVALID_PROVIDER,
                 )
         for method in sorted(after.methods & _FACTOR_REQUIREMENTS):
             if not await login_method_allowed(ctx.system, method):
@@ -718,10 +709,11 @@ class _SignInRequirement(Rule):
         from app.core import auth_context
         from app.services.auth.assurance import SECOND_FACTOR_AMR, carries_passkey
 
-        amr = auth_context.session_amr()
+        recorded = auth_context.current()
+        amr = recorded.session_amr
         if (
             after.provider_id is not None
-            and after.provider_id not in auth_context.satisfied_providers()
+            and after.provider_id not in recorded.satisfied_providers
         ):
             raise self_unsatisfied("provider")
         # Coming in by any of the community's own providers is also proof it
@@ -792,7 +784,7 @@ class _CommunityFactor(Rule):
             raise self_unsatisfied(LoginMethod.totp.value)
 
 
-_RESTRICTIONS = GuildAuthOption.restrictions
+_RESTRICTIONS = CommunityAuthOption.restrictions
 
 #: The deployment's rules, by the field that names each.
 PLATFORM_RULES: dict[str, Rule] = {
@@ -800,11 +792,7 @@ PLATFORM_RULES: dict[str, Rule] = {
     for rule in (
         _LoginMethods("login_methods", area="login_methods"),
         _FactorRequirement("second_factor_requirement", area="second_factor"),
-        Rule(
-            "session_max_hours",
-            area="session_lifetime",
-            follow_up=_sweep_device_tokens,
-        ),
+        Rule("session_max_hours", area="session_lifetime"),
         Rule("session_idle_minutes", area="session_lifetime"),
         Rule(
             "push_notifications_enabled",
@@ -822,7 +810,7 @@ COMMUNITY_RULES: dict[str, Rule] = {
     rule.key: rule
     for rule in (
         _SignInRequirement(
-            "auth_policy", area="auth_policy", entitlement=GuildAuthOption.providers
+            "auth_policy", area="auth_policy", entitlement=CommunityAuthOption.providers
         ),
         _CommunityFactor(
             "require_second_factor",
@@ -835,10 +823,6 @@ COMMUNITY_RULES: dict[str, Rule] = {
             area="session_limit",
             loose=False,
             entitlement=_RESTRICTIONS,
-            follow_up=_sweep_device_tokens,
-        ),
-        Rule(
-            "allow_api_keys", area="api_access", loose=True, entitlement=_RESTRICTIONS
         ),
         Rule(
             "allow_push_notifications",
@@ -876,7 +860,7 @@ async def _load(ctx: RuleContext) -> None:
     if guild is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=GuildMessages.GUILD_NOT_FOUND,
+            detail=GuildMessages.COMMUNITY_NOT_FOUND,
         )
     ctx.guild = guild
     ctx.policy = await ctx.session.get(GuildAuthPolicy, ctx.guild_id)

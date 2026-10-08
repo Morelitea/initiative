@@ -6,16 +6,16 @@
  * the complete set is retrieved by walking pages until `has_next` is false.
  * No single response is ever unbounded, and nothing is silently truncated.
  *
- * Works with any Orval-generated list fetcher — pass it inline as the
- * queryFn, no per-resource wrapper needed:
+ * Takes any list fetcher bound to its path, inline as the queryFn:
  *
- *   queryFn: () => fetchAllPages(listTasksApiV1CGuildIdTasksGet, guildId, params)
+ *   queryFn: () => fetchAllPages((p) => listTasks(communityId, p), params)
  *
  * A positive `page_size` passes straight through as a single request, so the
  * same line serves paginated and fetch-all callers alike; only
  * `page_size: 0` triggers the window walk, and the merged result comes back
- * response-shaped (`has_next: false`) so cached data looks exactly like a
- * complete single-page response to every consumer.
+ * response-shaped so cached data looks exactly like a single-page response
+ * to every consumer: `has_next: false` once every window is in, and still
+ * true where the walk stopped at its bound.
  */
 
 type WindowedListResponse = {
@@ -34,18 +34,21 @@ const MAX_PAGES = 50;
 const idOf = (item: unknown): number | string | undefined =>
   (item as { id?: number | string } | null)?.id;
 
-export const fetchAllPages = async <
+/**
+ * Every page of a list, walked from page 1 at the page size `params` asks for
+ * until `has_next` is false (at most {@link MAX_PAGES} pages), merged into one
+ * response-shaped result whose `has_next` says whether pages remain. For a
+ * list whose server has no `page_size=0` window of its own.
+ */
+export const walkPages = async <
   TParams extends ListWindowParams,
   TResponse extends WindowedListResponse,
 >(
-  fetcher: (guildId: number, params?: TParams) => Promise<TResponse>,
-  guildId: number,
+  fetcher: (params: TParams) => Promise<TResponse>,
   params: TParams
 ): Promise<TResponse> => {
-  if (params.page_size !== 0) return fetcher(guildId, params);
-
   let page = 1;
-  let response = await fetcher(guildId, { ...params, page });
+  let response = await fetcher({ ...params, page });
   if (!response.has_next) return response;
 
   const merged = [...response.items];
@@ -55,7 +58,7 @@ export const fetchAllPages = async <
 
   while (response.has_next && page < MAX_PAGES) {
     page += 1;
-    response = await fetcher(guildId, { ...params, page });
+    response = await fetcher({ ...params, page });
     for (const item of response.items) {
       const id = idOf(item);
       if (id !== undefined) {
@@ -71,5 +74,14 @@ export const fetchAllPages = async <
     console.warn(`fetchAllPages: stopped after ${MAX_PAGES} pages with has_next still true`);
   }
 
-  return { ...response, items: merged, has_next: false, has_prev: false, page: 1 } as TResponse;
+  return { ...response, items: merged, has_prev: false, page: 1 } as TResponse;
 };
+
+/** `page_size: 0` walks the server's windows; any other size is one request. */
+export const fetchAllPages = <
+  TParams extends ListWindowParams,
+  TResponse extends WindowedListResponse,
+>(
+  fetcher: (params: TParams) => Promise<TResponse>,
+  params: TParams
+): Promise<TResponse> => (params.page_size === 0 ? walkPages(fetcher, params) : fetcher(params));

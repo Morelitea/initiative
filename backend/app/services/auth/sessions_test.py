@@ -8,10 +8,14 @@ detection behaviour the refresh endpoint will depend on.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import uuid
 from datetime import datetime, timedelta, timezone
 
+
+from sqlalchemy.ext.asyncio import async_sessionmaker
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.auth_session import AuthSession
 from app.services.auth import sessions as session_service
@@ -59,6 +63,8 @@ async def test_create_session_persists_hash_and_returns_raw(session):
     assert stored.satisfied_providers == [7]
     assert stored.revoked_at is None
     assert stored.parent_id is None
+    # A browser's session: the deployment's 30-day window.
+    assert stored.device is False
     assert stored.expires_at == _at(days=30)
     assert str(stored.ip) == "203.0.113.9"
 
@@ -72,8 +78,11 @@ async def test_rotate_spends_parent_and_carries_context(session):
         satisfied_providers=[3],
         provider_auth={"3": {"auth_time": 1757600000, "amr": ["mfa"]}},
         device_name="Pixel",
+        device=True,
         now=_at(),
     )
+    # A device's session stands 90 days unused, where a browser's stands 30.
+    assert first.session.expires_at == _at(days=90)
 
     second = await _rotate_ok(session, first.refresh_token, _at(minutes=5))
 
@@ -87,8 +96,9 @@ async def test_rotate_spends_parent_and_carries_context(session):
         "3": {"auth_time": 1757600000, "amr": ["mfa"]}
     }
     assert second.session.device_name == "Pixel"
-    # Sliding window: the child expires 30d from the rotation, not from creation.
-    assert second.session.expires_at == _at(days=30, minutes=5)
+    assert second.session.device is True
+    # Sliding window: the child expires 90d from the rotation, not from creation.
+    assert second.session.expires_at == _at(days=90, minutes=5)
 
     await session.refresh(first.session)
     assert first.session.revoked_at == _at(minutes=5)
@@ -139,6 +149,40 @@ async def test_rotate_expired_token_returns_expired(session):
         session, raw_refresh_token=issued.refresh_token, now=_at(minutes=11)
     )
     assert result.outcome is RefreshOutcome.EXPIRED
+
+
+async def test_rotate_runs_the_idle_window_from_the_last_input(session):
+    """A renewal keeps the session for the window after the person's last input,
+    not after the renewal, and ends one whose window has already run out."""
+    user = await create_user(session)
+    first = await session_service.create_session(
+        session,
+        user_id=user.id,
+        amr=["pwd"],
+        satisfied_providers=[],
+        refresh_ttl=timedelta(minutes=15),
+        now=_at(),
+    )
+
+    second = await _rotate_ok(
+        session,
+        first.refresh_token,
+        _at(minutes=14),
+        refresh_ttl=timedelta(minutes=15),
+        idle=timedelta(minutes=4),
+    )
+    assert second.session.expires_at == _at(minutes=25)
+
+    result = await session_service.rotate_session(
+        session,
+        raw_refresh_token=second.refresh_token,
+        refresh_ttl=timedelta(minutes=15),
+        idle=timedelta(minutes=15),
+        now=_at(minutes=24),
+    )
+    assert result.outcome is RefreshOutcome.EXPIRED
+    await session.refresh(second.session)
+    assert second.session.revoked_at == _at(minutes=24)
 
 
 async def test_reuse_of_spent_token_revokes_whole_chain(session):
@@ -213,16 +257,26 @@ async def test_revoke_all_for_user_scoped_to_that_user(session):
         session, user_id=other.id, amr=["pwd"], satisfied_providers=[], now=_at()
     )
 
-    revoked = await session_service.revoke_all_for_user(
-        session, user_id=user.id, now=_at(minutes=1)
+    # The sign-in asking is spared, renewals of it included.
+    kept = await session_service.create_session(
+        session, user_id=user.id, amr=["pwd"], satisfied_providers=[], now=_at()
     )
-    assert revoked == 2
+    kept_renewal = await _rotate_ok(session, kept.refresh_token, _at(minutes=1))
+
+    revoked = await session_service.revoke_all_for_user(
+        session,
+        user_id=user.id,
+        now=_at(minutes=1),
+        except_session_id=str(kept.session.id),
+    )
+    assert set(revoked) == {a.session.id, b.session.id}
 
     for issued in (a, b):
         await session.refresh(issued.session)
         assert issued.session.revoked_at == _at(minutes=1)
-    await session.refresh(c.session)
-    assert c.session.revoked_at is None
+    for spared in (c, kept_renewal):
+        await session.refresh(spared.session)
+        assert spared.session.revoked_at is None
 
 
 async def test_revoke_chain_from_any_member_revokes_all(session):
@@ -238,18 +292,53 @@ async def test_revoke_chain_from_any_member_revokes_all(session):
     revoked = await session_service.revoke_chain(
         session, session_id=r2.session.id, now=_at(minutes=3)
     )
-    assert revoked == 1  # only r3 was still live
+    assert revoked == {r3.session.id}  # only r3 was still live
 
     for issued in (r1, r2, r3):
         await session.refresh(issued.session)
         assert issued.session.revoked_at is not None
 
 
+async def test_revoke_chain_takes_a_renewal_committed_while_it_ran(session, engine):
+    """A renewal that had claimed the live row before the revocation began holds
+    it until it commits. The revocation waits for it, and the row the renewal
+    opened is ended too rather than left live."""
+    user = await create_user(session)
+    first = await session_service.create_session(
+        session, user_id=user.id, amr=["pwd"], satisfied_providers=[]
+    )
+    await session.commit()
+    maker = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
+
+    async with maker() as renewing, maker() as revoking:
+        renewed = await session_service.rotate_session(
+            renewing, raw_refresh_token=first.refresh_token
+        )
+        assert renewed.ok and renewed.issued is not None
+
+        async def revoke() -> set[uuid.UUID]:
+            ended = await session_service.revoke_chain(
+                revoking, session_id=first.session.id
+            )
+            await revoking.commit()
+            return ended
+
+        revocation = asyncio.create_task(revoke())
+        await asyncio.sleep(0.3)  # long enough for it to be waiting on the row
+        await renewing.commit()
+        ended = await revocation
+
+    child = renewed.issued.session.id
+    assert ended == {child}
+    stored = await session.get(AuthSession, child, populate_existing=True)
+    assert stored is not None and stored.revoked_at is not None
+
+
 async def test_revoke_chain_missing_id_is_noop(session):
     revoked = await session_service.revoke_chain(
         session, session_id=uuid.uuid4(), now=_at()
     )
-    assert revoked == 0
+    assert revoked == set()
 
 
 async def test_purge_removes_dead_sessions_and_keeps_live_ones(session):

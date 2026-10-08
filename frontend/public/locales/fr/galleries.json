@@ -1,13 +1,8 @@
 {
-  "title": "Galeries",
-  "gallery": "Galerie",
-  "galleries": "Galeries",
   "createGallery": "Nouvelle galerie",
   "createGalleryDescription": "Une collection d’images — maquettes, captures, exports de design. Nommez-la maintenant ; les images s’ajoutent sur sa page, quarante d’un coup si vous voulez.",
   "creating": "Création...",
-  "name": "Nom",
   "namePlaceholder": "Visuels boutique, Écran principal tour 4...",
-  "description": "Description",
   "descriptionPlaceholder": "Ce que montrent ces images",
   "initiative": "Initiative",
   "selectInitiative": "Sélectionner une initiative",
@@ -24,8 +19,6 @@
   "noAccessDescription": "Vous n’avez pas la permission de voir cette galerie.",
   "backToGalleries": "Retour aux galeries",
   "addPictures": "Ajouter des images",
-  "pictureCount_one": "{{count}} image",
-  "pictureCount_other": "{{count}} images",
   "noPictures": "Rien ici pour l’instant",
   "noPicturesDescription": "Déposez des images n’importe où sur cette page, ou ajoutez-les avec le bouton. PNG, JPEG, WebP et GIF, jusqu’à 25 Mo chacune.",
   "noPicturesReadOnly": "Personne n’a encore ajouté d’image à cette galerie.",
@@ -33,7 +26,6 @@
   "views": {
     "label": "Vue",
     "masonry": "Mosaïque",
-    "grid": "Grille",
     "timeline": "Chronologie"
   },
   "groups": {
@@ -42,8 +34,6 @@
     "count_other": "{{count}} images"
   },
   "card": {
-    "pictures_one": "{{count}} image",
-    "pictures_other": "{{count}} images",
     "comments_one": "{{count}} commentaire",
     "comments_other": "{{count}} commentaires",
     "updated": "Mise à jour {{date}}"
@@ -66,7 +56,6 @@
     "refusedSize": "plus de 25 Mo"
   },
   "filters": {
-    "heading": "Filtres",
     "searchLabel": "Nom ou description",
     "searchGalleries": "Rechercher des galeries...",
     "noMatchingGalleries": "Aucune galerie ne correspond à vos filtres.",
@@ -77,11 +66,7 @@
     "oldestFirst": "Plus anciennes d’abord",
     "noMatchingPictures": "Aucune image ne correspond à vos filtres."
   },
-  "lightbox": {
-    "details": "Détails"
-  },
   "sheet": {
-    "title": "Image",
     "description": "Le nom de cette image, qui l’a ajoutée et son historique.",
     "titleLabel": "Titre",
     "titlePlaceholder": "Qu’est-ce que c’est ?",
@@ -124,24 +109,5 @@
     "deleteTitle_one": "Retirer {{count}} image ?",
     "deleteTitle_other": "Retirer {{count}} images ?",
     "deleteDescription": "Elles partent à la corbeille avec toutes leurs versions et peuvent être restaurées avant la fin de la période de conservation."
-  },
-  "bulkTags": {
-    "title": "Modifier les étiquettes",
-    "descriptionAdd_one": "Ajouter des étiquettes à {{count}} image sélectionnée.",
-    "descriptionAdd_other": "Ajouter des étiquettes à {{count}} images sélectionnées.",
-    "descriptionRemove_one": "Supprimer des étiquettes de {{count}} image sélectionnée.",
-    "descriptionRemove_other": "Supprimer des étiquettes de {{count}} images sélectionnées.",
-    "tabAdd": "Ajouter",
-    "tabRemove": "Supprimer",
-    "addPlaceholder": "Sélectionner des étiquettes à ajouter...",
-    "removePlaceholder": "Sélectionner des étiquettes à supprimer...",
-    "noTags": "Aucune étiquette sur les images sélectionnées.",
-    "applying": "Application en cours…",
-    "apply": "Appliquer",
-    "tagsAdded_one": "Étiquettes ajoutées à {{count}} image",
-    "tagsAdded_other": "Étiquettes ajoutées à {{count}} images",
-    "tagsRemoved_one": "Étiquettes supprimées de {{count}} image",
-    "tagsRemoved_other": "Étiquettes supprimées de {{count}} images",
-    "updateError": "Impossible de mettre à jour les étiquettes pour l'instant."
   }
 }

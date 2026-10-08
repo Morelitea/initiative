@@ -13,19 +13,19 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import AuthProviderMessages
 from app.models.platform.auth_provider import AuthProvider
-from app.models.platform.guild import Guild, GuildStatus
+from app.models.platform.guild import Guild, CommunityStatus
 from app.models.platform.guild_provider_connection import GuildProviderConnection
-from app.schemas.platform.settings import GuildNarrowingPending
+from app.schemas.platform.settings import CommunityNarrowingPending
 from app.services.auth import narrowing_approval
 
 
 def _pending(
     connection: GuildProviderConnection, guild: Guild, provider: AuthProvider
-) -> GuildNarrowingPending:
-    return GuildNarrowingPending(
+) -> CommunityNarrowingPending:
+    return CommunityNarrowingPending(
         connection_id=connection.id,
-        guild_id=connection.guild_id,
-        guild_name=guild.name,
+        community_id=connection.guild_id,
+        community_name=guild.name,
         provider_display_name=provider.display_name,
         claim=connection.claim or "",
         claim_values=list(connection.claim_values or ()),
@@ -36,7 +36,7 @@ def _pending(
 
 async def pending_for_guild(
     session: AsyncSession, *, guild_id: int
-) -> list[GuildNarrowingPending]:
+) -> list[CommunityNarrowingPending]:
     """Every narrowing this community has written, answered or not."""
     guild = await session.get(Guild, guild_id)
     if guild is None:
@@ -49,7 +49,7 @@ async def pending_for_guild(
             .order_by(GuildProviderConnection.id)
         )
     ).all()
-    out: list[GuildNarrowingPending] = []
+    out: list[CommunityNarrowingPending] = []
     for row in rows:
         provider = await session.get(AuthProvider, row.provider_id)
         if provider is not None:
@@ -57,7 +57,7 @@ async def pending_for_guild(
     return out
 
 
-async def unanswered(session: AsyncSession) -> list[GuildNarrowingPending]:
+async def unanswered(session: AsyncSession) -> list[CommunityNarrowingPending]:
     """Every community's claim still waiting for an answer, oldest first.
 
     One list across the deployment, so whoever answers them does not have to
@@ -72,7 +72,7 @@ async def unanswered(session: AsyncSession) -> list[GuildNarrowingPending]:
                 GuildProviderConnection.enabled.is_(True),
                 GuildProviderConnection.claim.is_not(None),
                 GuildProviderConnection.narrowing_approved_at.is_(None),
-                Guild.status != GuildStatus.deleted,
+                Guild.status != CommunityStatus.deleted,
             )
             .order_by(GuildProviderConnection.created_at, GuildProviderConnection.id)
         )
@@ -87,7 +87,7 @@ async def agree(
     connection_id: int,
     agreed: bool,
     actor_user_id: int,
-) -> GuildNarrowingPending:
+) -> CommunityNarrowingPending:
     """Answer one community's claim. 404 where the connection is not theirs."""
     row = (
         await session.exec(

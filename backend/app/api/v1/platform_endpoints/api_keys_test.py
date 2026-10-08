@@ -1,7 +1,7 @@
 """
 Integration tests for user-scoped API key endpoints.
 
-Tests the API key endpoints at /api/v1/users/me/api-keys including:
+Tests the API key endpoints at /api/v1/me/api-keys including:
 - Listing API keys
 - Creating API keys
 - Deleting API keys
@@ -16,7 +16,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.api_key import UserApiKey
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.testing.factories import (
     create_guild,
     create_guild_membership,
@@ -30,7 +30,7 @@ async def test_list_api_keys_empty(client: AsyncClient, session: AsyncSession):
     user = await create_user(session, email="test@example.com")
     headers = get_auth_headers(user)
 
-    response = await client.get("/api/v1/users/me/api-keys", headers=headers)
+    response = await client.get("/api/v1/me/api-keys", headers=headers)
 
     assert response.status_code == 200
     data = response.json()
@@ -47,9 +47,7 @@ async def test_create_api_key(client: AsyncClient, session: AsyncSession):
         "expires_at": None,
     }
 
-    response = await client.post(
-        "/api/v1/users/me/api-keys", headers=headers, json=payload
-    )
+    response = await client.post("/api/v1/me/api-keys", headers=headers, json=payload)
 
     assert response.status_code == 201
     data = response.json()
@@ -74,9 +72,7 @@ async def test_create_api_key_with_expiration(
         "expires_at": expires.isoformat(),
     }
 
-    response = await client.post(
-        "/api/v1/users/me/api-keys", headers=headers, json=payload
-    )
+    response = await client.post("/api/v1/me/api-keys", headers=headers, json=payload)
 
     assert response.status_code == 201
     data = response.json()
@@ -92,18 +88,18 @@ async def test_list_api_keys_after_creation(client: AsyncClient, session: AsyncS
 
     # Create two API keys
     await client.post(
-        "/api/v1/users/me/api-keys",
+        "/api/v1/me/api-keys",
         headers=headers,
         json={"name": "Key 1"},
     )
     await client.post(
-        "/api/v1/users/me/api-keys",
+        "/api/v1/me/api-keys",
         headers=headers,
         json={"name": "Key 2"},
     )
 
     # List keys
-    response = await client.get("/api/v1/users/me/api-keys", headers=headers)
+    response = await client.get("/api/v1/me/api-keys", headers=headers)
 
     assert response.status_code == 200
     data = response.json()
@@ -120,7 +116,7 @@ async def test_delete_api_key(client: AsyncClient, session: AsyncSession):
 
     # Create a key
     create_response = await client.post(
-        "/api/v1/users/me/api-keys",
+        "/api/v1/me/api-keys",
         headers=headers,
         json={"name": "To Delete"},
     )
@@ -128,14 +124,14 @@ async def test_delete_api_key(client: AsyncClient, session: AsyncSession):
 
     # Delete it
     delete_response = await client.delete(
-        f"/api/v1/users/me/api-keys/{api_key_id}",
+        f"/api/v1/me/api-keys/{api_key_id}",
         headers=headers,
     )
 
     assert delete_response.status_code == 204
 
     # Verify it's gone
-    list_response = await client.get("/api/v1/users/me/api-keys", headers=headers)
+    list_response = await client.get("/api/v1/me/api-keys", headers=headers)
     assert len(list_response.json()["keys"]) == 0
 
 
@@ -144,7 +140,7 @@ async def test_delete_nonexistent_api_key(client: AsyncClient, session: AsyncSes
     user = await create_user(session, email="test@example.com")
     headers = get_auth_headers(user)
 
-    response = await client.delete("/api/v1/users/me/api-keys/99999", headers=headers)
+    response = await client.delete("/api/v1/me/api-keys/99999", headers=headers)
 
     assert response.status_code == 404
     assert response.json()["detail"] == "USER_API_KEY_NOT_FOUND"
@@ -162,7 +158,7 @@ async def test_cannot_delete_other_users_api_key(
 
     # User 1 creates a key
     create_response = await client.post(
-        "/api/v1/users/me/api-keys",
+        "/api/v1/me/api-keys",
         headers=headers1,
         json={"name": "User 1 Key"},
     )
@@ -170,7 +166,7 @@ async def test_cannot_delete_other_users_api_key(
 
     # User 2 tries to delete User 1's key
     delete_response = await client.delete(
-        f"/api/v1/users/me/api-keys/{api_key_id}",
+        f"/api/v1/me/api-keys/{api_key_id}",
         headers=headers2,
     )
 
@@ -179,12 +175,12 @@ async def test_cannot_delete_other_users_api_key(
 
 async def test_authenticate_with_api_key(client: AsyncClient, session: AsyncSession):
     """Test that API keys can be used for authentication."""
-    user = await create_user(session, email="test@example.com", full_name="Test User")
+    user = await create_user(session, email="test@example.com")
     headers = get_auth_headers(user)
 
     # Create an API key
     create_response = await client.post(
-        "/api/v1/users/me/api-keys",
+        "/api/v1/me/api-keys",
         headers=headers,
         json={"name": "Auth Test Key"},
     )
@@ -192,12 +188,11 @@ async def test_authenticate_with_api_key(client: AsyncClient, session: AsyncSess
 
     # Use API key to authenticate
     api_key_headers = {"Authorization": f"Bearer {api_key_secret}"}
-    auth_response = await client.get("/api/v1/users/me", headers=api_key_headers)
+    auth_response = await client.get("/api/v1/me", headers=api_key_headers)
 
     assert auth_response.status_code == 200
     data = auth_response.json()
     assert data["email"] == "test@example.com"
-    assert data["full_name"] == "Test User"
 
     # Use is recorded, but a key used again within the hour is not rewritten.
     key = (
@@ -205,14 +200,14 @@ async def test_authenticate_with_api_key(client: AsyncClient, session: AsyncSess
     ).one()
     first_use = key.last_used_at
     assert first_use is not None
-    await client.get("/api/v1/users/me", headers=api_key_headers)
+    await client.get("/api/v1/me", headers=api_key_headers)
     await session.refresh(key)
     assert key.last_used_at == first_use
 
     key.last_used_at = first_use - timedelta(hours=2)
     session.add(key)
     await session.commit()
-    await client.get("/api/v1/users/me", headers=api_key_headers)
+    await client.get("/api/v1/me", headers=api_key_headers)
     await session.refresh(key)
     assert key.last_used_at > first_use
 
@@ -233,7 +228,7 @@ async def test_api_key_works_for_platform_members(
 
     # Member creates an API key
     create_response = await client.post(
-        "/api/v1/users/me/api-keys",
+        "/api/v1/me/api-keys",
         headers=headers,
         json={"name": "Member Key"},
     )
@@ -243,7 +238,7 @@ async def test_api_key_works_for_platform_members(
 
     # Use the API key to authenticate
     api_key_headers = {"Authorization": f"Bearer {api_key_secret}"}
-    auth_response = await client.get("/api/v1/users/me", headers=api_key_headers)
+    auth_response = await client.get("/api/v1/me", headers=api_key_headers)
 
     assert auth_response.status_code == 200
     assert auth_response.json()["email"] == "member@example.com"
@@ -253,21 +248,21 @@ async def test_create_api_key_requires_authentication(client: AsyncClient):
     """Test that creating API keys requires authentication."""
     payload = {"name": "Unauthorized Key"}
 
-    response = await client.post("/api/v1/users/me/api-keys", json=payload)
+    response = await client.post("/api/v1/me/api-keys", json=payload)
 
     assert response.status_code == 401
 
 
 async def test_list_api_keys_requires_authentication(client: AsyncClient):
     """Test that listing API keys requires authentication."""
-    response = await client.get("/api/v1/users/me/api-keys")
+    response = await client.get("/api/v1/me/api-keys")
 
     assert response.status_code == 401
 
 
 async def test_delete_api_key_requires_authentication(client: AsyncClient):
     """Test that deleting API keys requires authentication."""
-    response = await client.delete("/api/v1/users/me/api-keys/1")
+    response = await client.delete("/api/v1/me/api-keys/1")
 
     assert response.status_code == 401
 
@@ -281,7 +276,7 @@ async def test_api_key_prefix_is_masked_in_list(
 
     # Create a key
     create_response = await client.post(
-        "/api/v1/users/me/api-keys",
+        "/api/v1/me/api-keys",
         headers=headers,
         json={"name": "Test Key"},
     )
@@ -289,7 +284,7 @@ async def test_api_key_prefix_is_masked_in_list(
     expected_prefix = full_secret[:12]  # ppk_ plus 8 chars
 
     # List keys
-    list_response = await client.get("/api/v1/users/me/api-keys", headers=headers)
+    list_response = await client.get("/api/v1/me/api-keys", headers=headers)
     keys = list_response.json()["keys"]
 
     assert len(keys) == 1
@@ -309,14 +304,14 @@ async def test_create_api_key_without_expiry_never_expires(
     headers = get_auth_headers(user)
 
     forever = await client.post(
-        "/api/v1/users/me/api-keys", headers=headers, json={"name": "Forever"}
+        "/api/v1/me/api-keys", headers=headers, json={"name": "Forever"}
     )
     assert forever.status_code == 201
     assert forever.json()["api_key"]["expires_at"] is None
 
     far = (datetime.now(timezone.utc) + timedelta(days=3650)).isoformat()
     long_lived = await client.post(
-        "/api/v1/users/me/api-keys",
+        "/api/v1/me/api-keys",
         headers=headers,
         json={"name": "Far", "expires_at": far},
     )
@@ -333,7 +328,7 @@ async def test_read_only_key_blocks_writes_allows_reads(
     headers = get_auth_headers(user)
 
     create = await client.post(
-        "/api/v1/users/me/api-keys",
+        "/api/v1/me/api-keys",
         headers=headers,
         json={"name": "RO", "read_only": True},
     )
@@ -342,12 +337,12 @@ async def test_read_only_key_blocks_writes_allows_reads(
     ro_headers = {"Authorization": f"Bearer {create.json()['secret']}"}
 
     # Safe read works.
-    read = await client.get("/api/v1/users/me", headers=ro_headers)
+    read = await client.get("/api/v1/me", headers=ro_headers)
     assert read.status_code == 200
 
     # A write (creating another key) is refused at the auth layer.
     write = await client.post(
-        "/api/v1/users/me/api-keys", headers=ro_headers, json={"name": "nope"}
+        "/api/v1/me/api-keys", headers=ro_headers, json={"name": "nope"}
     )
     assert write.status_code == 403
     assert write.json()["detail"] == "USER_API_KEY_READ_ONLY"
@@ -362,19 +357,19 @@ async def test_guild_bound_key_is_pinned_to_its_guild(
     guild_a = await create_guild(session, creator=user)
     guild_b = await create_guild(session, creator=user)
     await create_guild_membership(
-        session, user=user, guild=guild_a, role=GuildRole.member
+        session, user=user, guild=guild_a, role=CommunityRole.member
     )
     await create_guild_membership(
-        session, user=user, guild=guild_b, role=GuildRole.member
+        session, user=user, guild=guild_b, role=CommunityRole.member
     )
     headers = get_auth_headers(user)
 
     create = await client.post(
-        "/api/v1/users/me/api-keys",
+        "/api/v1/me/api-keys",
         headers=headers,
-        json={"name": "GuildA", "guild_id": guild_a.id},
+        json={"name": "GuildA", "community_id": guild_a.id},
     )
-    assert create.json()["api_key"]["guild_id"] == guild_a.id
+    assert create.json()["api_key"]["community_id"] == guild_a.id
     key_headers = {"Authorization": f"Bearer {create.json()['secret']}"}
 
     # Reaches its own guild.
@@ -386,7 +381,7 @@ async def test_guild_bound_key_is_pinned_to_its_guild(
         f"/api/v1/c/{guild_b.id}/initiatives/", headers=key_headers
     )
     assert other.status_code == 403
-    assert other.json()["detail"] == "GUILD_ACCESS_DENIED"
+    assert other.json()["detail"] == "COMMUNITY_ACCESS_DENIED"
 
     # The same user's session JWT reaches guild B — so the block was the key
     # pin, not a membership problem.
@@ -407,12 +402,12 @@ async def test_create_guild_bound_key_rejects_non_member(
     headers = get_auth_headers(user)
 
     response = await client.post(
-        "/api/v1/users/me/api-keys",
+        "/api/v1/me/api-keys",
         headers=headers,
-        json={"name": "Sneaky", "guild_id": guild.id},
+        json={"name": "Sneaky", "community_id": guild.id},
     )
     assert response.status_code == 403
-    assert response.json()["detail"] == "USER_API_KEY_GUILD_FORBIDDEN"
+    assert response.json()["detail"] == "USER_API_KEY_COMMUNITY_FORBIDDEN"
 
 
 async def test_create_guild_bound_key_rejects_unknown_guild(
@@ -423,22 +418,22 @@ async def test_create_guild_bound_key_rejects_unknown_guild(
     headers = get_auth_headers(user)
 
     response = await client.post(
-        "/api/v1/users/me/api-keys",
+        "/api/v1/me/api-keys",
         headers=headers,
-        json={"name": "Ghost", "guild_id": 999999},
+        json={"name": "Ghost", "community_id": 999999},
     )
     assert response.status_code == 403
-    assert response.json()["detail"] == "USER_API_KEY_GUILD_FORBIDDEN"
+    assert response.json()["detail"] == "USER_API_KEY_COMMUNITY_FORBIDDEN"
 
 
 @pytest.mark.parametrize(
     ("method", "path", "body"),
     [
-        ("POST", "/api/v1/users/me/api-keys", {"name": "Wider"}),
-        ("DELETE", "/api/v1/users/me/api-keys/1", None),
-        ("POST", "/api/v1/users/me/emails", {"email": "elsewhere@example.com"}),
-        ("DELETE", "/api/v1/users/me/emails/1", None),
-        ("PUT", "/api/v1/users/me/emails/1/primary", None),
+        ("POST", "/api/v1/me/api-keys", {"name": "Wider"}),
+        ("DELETE", "/api/v1/me/api-keys/1", None),
+        ("POST", "/api/v1/me/emails", {"email": "elsewhere@example.com"}),
+        ("POST", "/api/v1/me/emails/1/remove", {}),
+        ("PUT", "/api/v1/me/emails/1/primary", {}),
     ],
 )
 async def test_a_key_does_not_manage_keys_or_addresses(
@@ -453,9 +448,9 @@ async def test_a_key_does_not_manage_keys_or_addresses(
     guild = await create_guild(session, creator=user)
     await create_guild_membership(session, user=user, guild=guild)
     create = await client.post(
-        "/api/v1/users/me/api-keys",
+        "/api/v1/me/api-keys",
         headers=get_auth_headers(user),
-        json={"name": "Pinned", "guild_id": guild.id},
+        json={"name": "Pinned", "community_id": guild.id},
     )
     assert create.status_code == 201, create.text
     key_headers = {"Authorization": f"Bearer {create.json()['secret']}"}
@@ -475,17 +470,17 @@ async def test_password_change_deactivates_api_keys(
     headers = get_auth_headers(user)
 
     create = await client.post(
-        "/api/v1/users/me/api-keys", headers=headers, json={"name": "Doomed"}
+        "/api/v1/me/api-keys", headers=headers, json={"name": "Doomed"}
     )
     key_headers = {"Authorization": f"Bearer {create.json()['secret']}"}
 
     # The key works before the reset.
-    before = await client.get("/api/v1/users/me", headers=key_headers)
+    before = await client.get("/api/v1/me", headers=key_headers)
     assert before.status_code == 200
 
     # Reset the password with the required current password.
     changed = await client.patch(
-        "/api/v1/users/me",
+        "/api/v1/me",
         headers=headers,
         json={
             "password": "brand-new-secret-123",
@@ -495,5 +490,5 @@ async def test_password_change_deactivates_api_keys(
     assert changed.status_code == 200
 
     # The key no longer authenticates.
-    after = await client.get("/api/v1/users/me", headers=key_headers)
+    after = await client.get("/api/v1/me", headers=key_headers)
     assert after.status_code == 401

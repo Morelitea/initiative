@@ -1,10 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 
-import {
-  getAppConfigApiV1ConfigGet,
-  getGetAppConfigApiV1ConfigGetQueryKey,
-} from "@/api/generated/config/config";
+import { getAppConfig, getGetAppConfigQueryKey } from "@/api/generated/config/config";
 import { useServer } from "@/hooks/useServer";
 import { setAccentFaviconColors, syncFaviconWithTheme } from "@/lib/favicon";
 
@@ -106,8 +103,8 @@ export const useInterfaceColors = () => {
 
   // The colours are part of the public config the SPA boots with.
   const query = useQuery({
-    queryKey: getGetAppConfigApiV1ConfigGetQueryKey(),
-    queryFn: () => getAppConfigApiV1ConfigGet(),
+    queryKey: getGetAppConfigQueryKey(),
+    queryFn: () => getAppConfig(),
     staleTime: 1000 * 60 * 10,
     // Don't fetch until server is configured (matters on native platforms)
     enabled: isServerConfigured && !serverLoading,

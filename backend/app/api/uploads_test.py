@@ -180,7 +180,7 @@ async def test_scoped_upload_token_rejected_as_general_api_credential(
     user = await create_user(session)
     token, _ = create_upload_token(user_id=user.id)
     response = await client.get(
-        "/api/v1/users/me", headers={"Authorization": f"Bearer {token}"}
+        "/api/v1/me", headers={"Authorization": f"Bearer {token}"}
     )
     assert response.status_code == 401
 
@@ -217,6 +217,31 @@ async def test_issue_upload_token_endpoint(
         f"/uploads/{guild.id}/test_minted_token.txt?token={token}"
     )
     assert response.status_code == 200
+
+
+async def test_an_upload_token_ends_with_the_session_that_asked(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """A session with two minutes left gets an upload token for two minutes at
+    most, not the usual ten."""
+    from datetime import timedelta
+
+    import jwt
+
+    from app.testing.factories import get_auth_token
+
+    user = await create_user(session)
+    access = get_auth_token(user, expires_in=timedelta(minutes=2))
+    mint = await client.post(
+        "/api/v1/auth/upload-token", headers={"Authorization": f"Bearer {access}"}
+    )
+    assert mint.status_code == 200, mint.text
+    assert 0 < mint.json()["expires_in"] <= 120
+    minted = jwt.decode(
+        mint.json()["upload_token"], options={"verify_signature": False}
+    )
+    asked_with = jwt.decode(access, options={"verify_signature": False})
+    assert minted["exp"] <= asked_with["exp"]
 
 
 async def test_issue_upload_token_requires_auth(client: AsyncClient) -> None:
@@ -411,7 +436,7 @@ async def test_upload_suspended_guild_member_404_grant_still_served(
     from datetime import datetime, timedelta, timezone
 
     from app.models.platform.access_grant import AccessGrant
-    from app.models.platform.guild import GuildStatus
+    from app.models.platform.guild import CommunityStatus
 
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
@@ -426,7 +451,7 @@ async def test_upload_suspended_guild_member_404_grant_still_served(
         initiative_id=initiative.id,
         claimed_at=datetime.now(timezone.utc),
     )
-    guild.status = GuildStatus.suspended.value
+    guild.status = CommunityStatus.suspended.value
     await session.commit()
 
     resp = await client.get(
@@ -491,7 +516,7 @@ async def test_an_upload_is_reached_the_way_the_community_is(
     await create_guild_auth_policy(session, guild, provider)
     resp = await client.get(path, headers=get_auth_headers(user))
     assert resp.status_code == 401
-    assert resp.json()["detail"] == "GUILD_AUTH_STEP_UP_REQUIRED"
+    assert resp.json()["detail"] == "COMMUNITY_AUTH_STEP_UP_REQUIRED"
 
 
 async def test_a_served_upload_is_typed_from_its_row(

@@ -1,13 +1,8 @@
 {
-  "title": "Galerien",
-  "gallery": "Galerie",
-  "galleries": "Galerien",
   "createGallery": "Neue Galerie",
   "createGalleryDescription": "Eine Bildersammlung – Mockups, Screenshots, exportierte Entwürfe. Gib ihr jetzt einen Namen; die Bilder kommen auf ihrer Seite hinein, gern vierzig auf einmal.",
   "creating": "Wird erstellt...",
-  "name": "Name",
   "namePlaceholder": "Store-Assets, Live-Screen Runde 4...",
-  "description": "Beschreibung",
   "descriptionPlaceholder": "Wovon diese Bilder sind",
   "initiative": "Initiative",
   "selectInitiative": "Initiative auswählen",
@@ -24,8 +19,6 @@
   "noAccessDescription": "Du hast keine Berechtigung, diese Galerie anzusehen.",
   "backToGalleries": "Zurück zu den Galerien",
   "addPictures": "Bilder hinzufügen",
-  "pictureCount_one": "{{count}} Bild",
-  "pictureCount_other": "{{count}} Bilder",
   "noPictures": "Noch nichts hier",
   "noPicturesDescription": "Zieh Bilder irgendwo auf diese Seite oder füge sie über die Schaltfläche hinzu. PNG, JPEG, WebP und GIF, jeweils bis 25 MB.",
   "noPicturesReadOnly": "Noch niemand hat dieser Galerie ein Bild hinzugefügt.",
@@ -33,7 +26,6 @@
   "views": {
     "label": "Ansicht",
     "masonry": "Mauerwerk",
-    "grid": "Raster",
     "timeline": "Zeitleiste"
   },
   "groups": {
@@ -42,8 +34,6 @@
     "count_other": "{{count}} Bilder"
   },
   "card": {
-    "pictures_one": "{{count}} Bild",
-    "pictures_other": "{{count}} Bilder",
     "comments_one": "{{count}} Kommentar",
     "comments_other": "{{count}} Kommentare",
     "updated": "Aktualisiert {{date}}"
@@ -66,7 +56,6 @@
     "refusedSize": "größer als 25 MB"
   },
   "filters": {
-    "heading": "Filter",
     "searchLabel": "Name oder Beschreibung",
     "searchGalleries": "Galerien durchsuchen...",
     "noMatchingGalleries": "Keine Galerien entsprechen deinen Filtern.",
@@ -77,11 +66,7 @@
     "oldestFirst": "Älteste zuerst",
     "noMatchingPictures": "Keine Bilder entsprechen deinen Filtern."
   },
-  "lightbox": {
-    "details": "Details"
-  },
   "sheet": {
-    "title": "Bild",
     "description": "Wie dieses Bild heißt, wer es hinzugefügt hat und sein Verlauf.",
     "titleLabel": "Titel",
     "titlePlaceholder": "Was ist das?",
@@ -124,24 +109,5 @@
     "deleteTitle_one": "{{count}} Bild entfernen?",
     "deleteTitle_other": "{{count}} Bilder entfernen?",
     "deleteDescription": "Sie wandern samt Versionen in den Papierkorb und können bis zum Ende der Aufbewahrungsfrist wiederhergestellt werden."
-  },
-  "bulkTags": {
-    "title": "Tags bearbeiten",
-    "descriptionAdd_one": "Tags zu {{count}} ausgewählten Bild hinzufügen.",
-    "descriptionAdd_other": "Tags zu {{count}} ausgewählten Bildern hinzufügen.",
-    "descriptionRemove_one": "Tags von {{count}} ausgewählten Bild entfernen.",
-    "descriptionRemove_other": "Tags von {{count}} ausgewählten Bildern entfernen.",
-    "tabAdd": "Hinzufügen",
-    "tabRemove": "Entfernen",
-    "addPlaceholder": "Tags zum Hinzufügen auswählen...",
-    "removePlaceholder": "Tags zum Entfernen auswählen...",
-    "noTags": "Keine Tags auf den ausgewählten Bildern.",
-    "applying": "Wird angewendet…",
-    "apply": "Anwenden",
-    "tagsAdded_one": "Tags zu {{count}} Bild hinzugefügt",
-    "tagsAdded_other": "Tags zu {{count}} Bildern hinzugefügt",
-    "tagsRemoved_one": "Tags von {{count}} Bild entfernt",
-    "tagsRemoved_other": "Tags von {{count}} Bildern entfernt",
-    "updateError": "Tags können derzeit nicht aktualisiert werden."
   }
 }

@@ -4,7 +4,8 @@ import { endOfMonth, startOfDay, startOfMonth } from "date-fns";
 import { HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { buildDefaultTaskStatuses } from "@/__tests__/factories";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
@@ -15,7 +16,7 @@ import { EMPTY_TASK_FILTERS, taskSpecConditions } from "@/lib/filters/taskFilter
 import { ExportWizard } from "./ExportWizard";
 
 vi.mock("@/lib/csv", () => ({ downloadBlob: vi.fn() }));
-vi.mock("@/lib/chesterToast", () => ({
+vi.mock("@/lib/mascotToast", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
@@ -24,7 +25,7 @@ import { downloadBlob } from "@/lib/csv";
 const ESTIMATE = {
   tools: {
     project: { count: 3, disabled: false },
-    document: { count: 5, disabled: false },
+    file: { count: 5, disabled: false },
     queue: { count: 0, disabled: true },
     counter_group: { count: 2, disabled: false },
     calendar: { count: 4, disabled: false },
@@ -38,20 +39,20 @@ const ESTIMATE = {
 };
 
 function stubEstimate(estimate = ESTIMATE) {
-  server.use(guildHttp.get("/exports/estimate", () => HttpResponse.json(estimate)));
+  server.use(communityHttp.get("/exports/estimate", () => HttpResponse.json(estimate)));
 }
 
 function stubJobLifecycle(capture: (url: URL) => void) {
   server.use(
-    guildHttp.get("/exports/community", ({ request }) => {
+    communityHttp.get("/exports/community", ({ request }) => {
       capture(new URL(request.url));
       return HttpResponse.json({ id: 77, status: "queued" }, { status: 202 });
     }),
-    guildHttp.get("/exports/initiative", ({ request }) => {
+    communityHttp.get("/exports/initiative", ({ request }) => {
       capture(new URL(request.url));
       return HttpResponse.json({ id: 77, status: "queued" }, { status: 202 });
     }),
-    guildHttp.get("/exports/:jobId", ({ params }) => {
+    communityHttp.get("/exports/jobs/:jobId", ({ params }) => {
       // Fall through for the literal sibling routes (/exports/estimate,
       // /exports/community, /exports/initiative) — only numeric ids are jobs.
       if (Number.isNaN(Number(params.jobId))) {
@@ -59,9 +60,9 @@ function stubJobLifecycle(capture: (url: URL) => void) {
       }
       return HttpResponse.json({
         id: 77,
-        guild_id: 1,
+        community_id: 1,
         created_by: 1,
-        source: "guild",
+        source: "community",
         template_id: "data-table",
         format: "zip",
         params: {},
@@ -72,11 +73,11 @@ function stubJobLifecycle(capture: (url: URL) => void) {
         updated_at: new Date().toISOString(),
       });
     }),
-    guildHttp.get("/exports/:jobId/download", () =>
+    communityHttp.get("/exports/jobs/:jobId/download", () =>
       HttpResponse.text("PK-zip", {
         headers: {
           "Content-Type": "application/zip",
-          "Content-Disposition": 'attachment; filename="guild-backup.zip"',
+          "Content-Disposition": 'attachment; filename="community-backup.zip"',
         },
       })
     )
@@ -96,7 +97,9 @@ describe("ExportWizard", () => {
       sent = url;
     });
 
-    renderWithProviders(<ExportWizard scope={{ kind: "guild" }} open onOpenChange={() => {}} />);
+    renderWithProviders(
+      <ExportWizard scope={{ kind: "community" }} open onOpenChange={() => {}} />
+    );
 
     await userEvent.click(screen.getByRole("button", { name: /importable backup/i }));
 
@@ -114,7 +117,7 @@ describe("ExportWizard", () => {
 
     // The confirm summary matches the payload: the deselected tool AND the
     // disabled tool (Queues) are absent from the "will export" list.
-    const summary = screen.getByText(/documents/i, { selector: "p" });
+    const summary = screen.getByText(/files ·/i, { selector: "p" });
     expect(summary.textContent).not.toMatch(/queues/i);
     expect(summary.textContent).not.toMatch(/counters/i);
     expect(summary.textContent).toMatch(/projects/i);
@@ -127,7 +130,7 @@ describe("ExportWizard", () => {
     expect(params.get("include_uploads")).toBe("true");
     expect(JSON.parse(params.get("include")!)).toMatchObject({
       project: true,
-      document: true,
+      file: true,
       counter_group: false,
       // Disabled tools submit as excluded — matching their locked-off switch.
       queue: false,
@@ -139,7 +142,7 @@ describe("ExportWizard", () => {
     expect(await screen.findByText(/export ready/i)).toBeInTheDocument();
   });
 
-  it("submits per-tool report formats including the document per-type map", async () => {
+  it("submits per-tool report formats including the file per-type map", async () => {
     let sent: URL | null = null;
     stubJobLifecycle((url) => {
       sent = url;
@@ -167,7 +170,7 @@ describe("ExportWizard", () => {
     expect(params.get("mode")).toBe("report");
     const formats = JSON.parse(params.get("formats")!);
     expect(formats.project).toBe("csv");
-    expect(formats.document).toEqual({ native: "pdf", spreadsheet: "xlsx" });
+    expect(formats.file).toEqual({ native: "pdf", spreadsheet: "xlsx" });
     expect(formats.calendar).toBe("ics");
     expect(params.get("include_uploads")).toBeNull();
   });
@@ -175,19 +178,19 @@ describe("ExportWizard", () => {
   it("resumes the running job's progress view on re-open instead of offering a new flow", async () => {
     stubEstimate();
     server.use(
-      guildHttp.get("/exports/community", () =>
+      communityHttp.get("/exports/community", () =>
         HttpResponse.json({ id: 88, status: "queued" }, { status: 202 })
       ),
       // The job never finishes during this test — it stays queued.
-      guildHttp.get("/exports/:jobId", ({ params }) => {
+      communityHttp.get("/exports/jobs/:jobId", ({ params }) => {
         if (Number.isNaN(Number(params.jobId))) {
           return undefined;
         }
         return HttpResponse.json({
           id: 88,
-          guild_id: 1,
+          community_id: 1,
           created_by: 1,
-          source: "guild",
+          source: "community",
           template_id: "data-table",
           format: "zip",
           params: {},
@@ -201,7 +204,7 @@ describe("ExportWizard", () => {
     );
 
     const { rerender } = renderWithProviders(
-      <ExportWizard scope={{ kind: "guild" }} open onOpenChange={() => {}} />
+      <ExportWizard scope={{ kind: "community" }} open onOpenChange={() => {}} />
     );
     await userEvent.click(screen.getByRole("button", { name: /importable backup/i }));
     await screen.findByText("3 items");
@@ -212,8 +215,8 @@ describe("ExportWizard", () => {
     // Close while the job still renders, then re-open: the wizard must land
     // on the progress view for the running job, not the mode step — a second
     // walk-through couldn't start a new job and would silently track this one.
-    rerender(<ExportWizard scope={{ kind: "guild" }} open={false} onOpenChange={() => {}} />);
-    rerender(<ExportWizard scope={{ kind: "guild" }} open onOpenChange={() => {}} />);
+    rerender(<ExportWizard scope={{ kind: "community" }} open={false} onOpenChange={() => {}} />);
+    rerender(<ExportWizard scope={{ kind: "community" }} open onOpenChange={() => {}} />);
 
     expect(await screen.findByText(/preparing your export/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /importable backup/i })).not.toBeInTheDocument();
@@ -246,7 +249,9 @@ describe("ExportWizard", () => {
       max_upload_bytes: 268_435_456,
     });
 
-    renderWithProviders(<ExportWizard scope={{ kind: "guild" }} open onOpenChange={() => {}} />);
+    renderWithProviders(
+      <ExportWizard scope={{ kind: "community" }} open onOpenChange={() => {}} />
+    );
     await userEvent.click(screen.getByRole("button", { name: /importable backup/i }));
 
     expect(await screen.findByText(/exceed the 256 MB limit/i)).toBeInTheDocument();
@@ -262,7 +267,7 @@ describe("ExportWizard", () => {
   it("sends each tool's filters with the estimate and the export, archived left out by default", async () => {
     const estimates: URLSearchParams[] = [];
     server.use(
-      guildHttp.get("/exports/estimate", ({ request }) => {
+      communityHttp.get("/exports/estimate", ({ request }) => {
         estimates.push(new URL(request.url).searchParams);
         return HttpResponse.json({
           ...ESTIMATE,
@@ -276,7 +281,9 @@ describe("ExportWizard", () => {
     });
     const user = userEvent.setup();
 
-    renderWithProviders(<ExportWizard scope={{ kind: "guild" }} open onOpenChange={() => {}} />);
+    renderWithProviders(
+      <ExportWizard scope={{ kind: "community" }} open onOpenChange={() => {}} />
+    );
     await user.click(screen.getByRole("button", { name: /importable backup/i }));
     await screen.findByText("3 items");
 
@@ -319,10 +326,10 @@ describe("ExportWizard", () => {
     expect(JSON.parse(sent!.searchParams.get("filters")!)).toEqual(expected);
   });
 
-  it("narrows projects and documents by templates, and documents to untagged ones", async () => {
+  it("narrows projects and files by templates, and files to untagged ones", async () => {
     const estimates: URLSearchParams[] = [];
     server.use(
-      guildHttp.get("/exports/estimate", ({ request }) => {
+      communityHttp.get("/exports/estimate", ({ request }) => {
         estimates.push(new URL(request.url).searchParams);
         return HttpResponse.json(ESTIMATE);
       })
@@ -333,7 +340,9 @@ describe("ExportWizard", () => {
     });
     const user = userEvent.setup();
 
-    renderWithProviders(<ExportWizard scope={{ kind: "guild" }} open onOpenChange={() => {}} />);
+    renderWithProviders(
+      <ExportWizard scope={{ kind: "community" }} open onOpenChange={() => {}} />
+    );
     await user.click(screen.getByRole("button", { name: /importable backup/i }));
     await screen.findByText("3 items");
 
@@ -345,29 +354,27 @@ describe("ExportWizard", () => {
       })
     );
 
-    const documents = screen.getByRole("group", { name: "Documents" });
-    await user.click(within(documents).getByRole("button", { name: "Filter Documents" }));
+    const files = screen.getByRole("group", { name: "Files" });
+    await user.click(within(files).getByRole("button", { name: "Filter Files" }));
     await user.click(
-      within(within(documents).getByRole("radiogroup", { name: "Templates" })).getByRole("radio", {
+      within(within(files).getByRole("radiogroup", { name: "Templates" })).getByRole("radio", {
         name: "Without templates",
       })
     );
-    await user.click(within(documents).getByRole("switch", { name: "Untagged only" }));
+    await user.click(within(files).getByRole("switch", { name: "Untagged only" }));
 
     const expected = {
       project: { is_template: true },
-      document: { is_template: false, untagged: true },
+      file: { is_template: false, untagged: true },
     };
     await waitFor(() =>
       expect(JSON.parse(estimates.at(-1)?.get("filters") ?? "null")).toEqual(expected)
     );
-    expect(within(documents).getByRole("button", { name: "Filter Documents" })).toHaveTextContent(
-      "2"
-    );
+    expect(within(files).getByRole("button", { name: "Filter Files" })).toHaveTextContent("2");
 
     await user.click(screen.getByRole("button", { name: "Next" }));
     expect(screen.getByText("Projects: Templates only")).toBeInTheDocument();
-    expect(screen.getByText("Documents: Without templates · Untagged only")).toBeInTheDocument();
+    expect(screen.getByText("Files: Without templates · Untagged only")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /start export/i }));
     await waitFor(() => expect(sent).not.toBeNull());
@@ -377,7 +384,7 @@ describe("ExportWizard", () => {
   it("narrows each project's tasks by the task list's filters", async () => {
     const estimates: URLSearchParams[] = [];
     server.use(
-      guildHttp.get("/exports/estimate", ({ request }) => {
+      communityHttp.get("/exports/estimate", ({ request }) => {
         estimates.push(new URL(request.url).searchParams);
         return HttpResponse.json({
           ...ESTIMATE,
@@ -441,7 +448,7 @@ describe("ExportWizard", () => {
   it("exports named calendars in the chosen format, narrowed to a date range", async () => {
     let sent: URLSearchParams | null = null;
     server.use(
-      guildHttp.get("/exports/calendar", ({ request }) => {
+      communityHttp.get("/exports/calendar", ({ request }) => {
         sent = new URL(request.url).searchParams;
         return new HttpResponse("BEGIN:VCALENDAR", {
           headers: { "Content-Type": "text/calendar" },
@@ -484,7 +491,7 @@ describe("ExportWizard", () => {
   it("exports named projects in the chosen format, narrowed to the filtered tasks", async () => {
     let sent: URLSearchParams | null = null;
     server.use(
-      guildHttp.get("/exports/project", ({ request }) => {
+      communityHttp.get("/exports/project", ({ request }) => {
         sent = new URL(request.url).searchParams;
         return new HttpResponse("a,b", { headers: { "Content-Type": "text/csv" } });
       })
@@ -530,10 +537,57 @@ describe("ExportWizard", () => {
     await waitFor(() => expect(downloadBlob).toHaveBeenCalledTimes(1));
   });
 
+  it("starts a project's export from the exporting person's own view of it", async () => {
+    let sent: URLSearchParams | null = null;
+    server.use(
+      communityHttp.get("/exports/project", ({ request }) => {
+        sent = new URL(request.url).searchParams;
+        return new HttpResponse("a,b", { headers: { "Content-Type": "text/csv" } });
+      })
+    );
+    const user = userEvent.setup();
+    const tasks = {
+      ...EMPTY_TASK_FILTERS,
+      status_categories: ["done" as const],
+      include_archived: true,
+    };
+    const taskSorting = [{ field: "status_position", dir: "asc" as const }];
+
+    renderWithProviders(
+      <ExportWizard
+        scope={{
+          kind: "entities",
+          tool: Tool.project,
+          ids: [3],
+          formats: TOOL_EXPORT_FORMATS[Tool.project] ?? [],
+          filenameStem: "projects",
+          content: { tasks, taskSorting, taskStatuses: buildDefaultTaskStatuses(3) },
+        }}
+        open
+        onOpenChange={() => {}}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "CSV" }));
+    expect(screen.getByRole("switch", { name: "Show archived" })).toBeChecked();
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    expect(screen.getByText("Tasks (1 status, with archived)")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /start export/i }));
+
+    await waitFor(() => expect(sent).not.toBeNull());
+    expect(JSON.parse(sent!.get("filters")!)).toEqual({
+      tasks: {
+        conditions: JSON.stringify(taskSpecConditions(tasks)),
+        sorting: JSON.stringify(taskSorting),
+        include_archived: true,
+      },
+    });
+  });
+
   it("goes from format to confirm for a tool whose content has no filter", async () => {
     let sent: URLSearchParams | null = null;
     server.use(
-      guildHttp.get("/exports/queue", ({ request }) => {
+      communityHttp.get("/exports/queue", ({ request }) => {
         sent = new URL(request.url).searchParams;
         return new HttpResponse("a,b", { headers: { "Content-Type": "text/csv" } });
       })

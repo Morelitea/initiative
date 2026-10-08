@@ -1,35 +1,34 @@
 import { Link } from "@tanstack/react-router";
-import { CalendarClock, Eye, MailOpen, MessageSquare, Pin, PinOff } from "lucide-react";
+import { CalendarClock, Eye, MailOpen, MessageSquare } from "lucide-react";
 import { memo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { type PostRead, ReactionTarget, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { PinnedBanner } from "@/components/initiativeTools/posts/PinnedBanner";
 import { PostBody } from "@/components/initiativeTools/posts/PostBody";
+import { PostByline } from "@/components/initiativeTools/posts/PostByline";
+import { PostPinButton } from "@/components/initiativeTools/posts/PostPinButton";
 import { PostPoll } from "@/components/initiativeTools/posts/PostPoll";
 import { PostReadersDialog } from "@/components/initiativeTools/posts/PostReadersDialog";
 import { ReportButton } from "@/components/moderation/ReportButton";
 import { UnreadDot } from "@/components/notifications/UnreadDot";
 import { ReactionBar } from "@/components/reactions/ReactionBar";
 import { TagBadge } from "@/components/tags/TagBadge";
-import { UserHandle } from "@/components/UserHandle";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { RelativeTime } from "@/components/ui/relative-time";
-import { ProfileAvatar } from "@/components/user/ProfileAvatar";
 import { useAuth } from "@/hooks/useAuth";
 import { useMarkReadOnScreen, usePostReadTracker } from "@/hooks/usePostReadTracker";
-import { useMarkPostUnread, useSetPostPin, useUpdatePost } from "@/hooks/usePosts";
+import { useMarkPostUnread, useUpdatePost } from "@/hooks/usePosts";
 import { useUnreadTree } from "@/hooks/useUnreadTree";
-import { toast } from "@/lib/chesterToast";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { formatDateTime } from "@/lib/formatDate";
-import { useGuildPath } from "@/lib/guildUrl";
+import { toast } from "@/lib/mascotToast";
 import { toolDetailRoute } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
 interface PostCardProps {
   post: PostRead;
-  /** Whether this reader may pin — guild admin or an initiative manager. The
+  /** Whether this reader may pin — community admin or an initiative manager. The
    *  server decides again on the request; this only decides what is offered. */
   canPin?: boolean;
   className?: string;
@@ -53,12 +52,7 @@ interface PostCardProps {
  */
 const PostCardInner = ({ post, canPin = false, className }: PostCardProps) => {
   const { t } = useTranslation(["posts", "common"]);
-  const gp = useGuildPath();
-  const setPin = useSetPostPin(post.id, {
-    onSuccess: (updated) =>
-      toast.success(updated.is_pinned ? t("pin.pinnedToast") : t("pin.unpinnedToast")),
-  });
-
+  const gp = useCommunityPath();
   // Clearing the schedule is what publishes: the same call the author would
   // make by editing, so there is no second route for "now".
   const publishNow = useUpdatePost(post.id, {
@@ -120,30 +114,7 @@ const PostCardInner = ({ post, canPin = false, className }: PostCardProps) => {
             </Button>
           </div>
         )}
-        {/* Signed, above the headline. A notice is somebody saying something,
-            and a board that shows only what was said makes every notice read
-            as the app's own announcement. */}
-        {post.author ? (
-          <div className="flex min-w-0 items-center gap-2">
-            <ProfileAvatar
-              user={post.author}
-              decorations={post.author.profile_decorations}
-              presence={post.author.presence}
-              className="size-8 shrink-0"
-            />
-            <div className="min-w-0">
-              <UserHandle
-                user={post.author}
-                className="font-medium text-sm"
-                nameClassName="min-w-0 truncate"
-              />
-              <RelativeTime
-                date={post.published_at ?? post.created_at}
-                className="block text-muted-foreground text-xs"
-              />
-            </div>
-          </div>
-        ) : null}
+        <PostByline post={post} />
         <div className="flex items-start gap-2">
           {/* The headline takes whatever the controls leave, so the controls
               stay together at the end of the row. Spacing them apart instead
@@ -152,26 +123,12 @@ const PostCardInner = ({ post, canPin = false, className }: PostCardProps) => {
             <Link to={detailRoute} className="hover:underline">
               {post.name}
             </Link>
-            {unread.hasResource(post.guild_id, Tool.post, post.id) ? (
+            {unread.hasResource(post.community_id, Tool.post, post.id) ? (
               <UnreadDot className="ml-2 inline-block align-middle" />
             ) : null}
           </CardTitle>
           <div className="flex shrink-0 items-center gap-1">
-            {canPin && (
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={setPin.isPending}
-                aria-label={post.is_pinned ? t("pin.unpin") : t("pin.pin")}
-                onClick={() => setPin.mutate({ pinned: !post.is_pinned })}
-              >
-                {post.is_pinned ? (
-                  <PinOff className="h-4 w-4" aria-hidden />
-                ) : (
-                  <Pin className="h-4 w-4" aria-hidden />
-                )}
-              </Button>
-            )}
+            {canPin && <PostPinButton post={post} />}
             <ReportButton targetType="post" targetId={post.id} authorId={post.created_by} />
           </div>
         </div>

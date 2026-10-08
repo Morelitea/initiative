@@ -26,14 +26,14 @@ interface DrawingCanvasProps {
 }
 
 /** The whiteboard editor, on one drawing. Saving hands back the scene in the
- * shape a whiteboard document stores; cancelling hands back nothing. */
+ * shape a whiteboard file stores; cancelling hands back nothing. */
 export default function DrawingCanvas({
   initialData,
   theme,
   onSave,
   onCancel,
 }: DrawingCanvasProps) {
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation("editor");
   const api = useRef<ExcalidrawImperativeAPI | null>(null);
 
   const handleSave = () => {
@@ -44,7 +44,7 @@ export default function DrawingCanvas({
     }
     const elements = current.getSceneElements();
     const allFiles = current.getFiles();
-    // The same trimmed form a whiteboard document saves: what is on the
+    // The same trimmed form a whiteboard file saves: what is on the
     // canvas, the view settings worth keeping, and only the pictures still
     // in use.
     const serialized = JSON.parse(
@@ -77,9 +77,9 @@ export default function DrawingCanvas({
       </div>
       <div className="flex justify-end gap-2 border-t p-2">
         <Button variant="outline" onClick={onCancel}>
-          {t("editor.cancelDrawing")}
+          {t("cancelDrawing")}
         </Button>
-        <Button onClick={handleSave}>{t("editor.saveDrawing")}</Button>
+        <Button onClick={handleSave}>{t("saveDrawing")}</Button>
       </div>
     </div>
   );

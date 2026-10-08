@@ -10,9 +10,9 @@ import zlib
 
 import pytest
 
-from app.core.image_headers import read_image_header
-from app.core.messages import GuildMessages, UserMessages
-from app.models.platform.user_avatar import AVATAR_MAX_BYTES
+from app.core.image_headers import ImageRejected, read_image_header, validate_image
+from app.core.messages import ImageMessages
+from app.models.platform.user_avatar import AVATAR_SPEC
 from app.services.platform import user_avatars as service
 
 
@@ -58,7 +58,7 @@ def webp(width: int, height: int) -> bytes:
     [(png, "image/png"), (jpeg, "image/jpeg"), (webp, "image/webp")],
 )
 def test_accepts_each_supported_format(builder, expected) -> None:
-    validated = service.validate_avatar(builder(256, 256))
+    validated = validate_image(AVATAR_SPEC, builder(256, 256))
 
     assert validated.content_type == expected
     assert (validated.width, validated.height) == (256, 256)
@@ -67,7 +67,7 @@ def test_accepts_each_supported_format(builder, expected) -> None:
 def test_content_type_comes_from_the_header_not_the_caller() -> None:
     """The recorded type is served back in a Content-Type, so it is the one the
     bytes prove rather than anything a client asserted."""
-    assert service.validate_avatar(webp(64, 64)).content_type == "image/webp"
+    assert validate_image(AVATAR_SPEC, webp(64, 64)).content_type == "image/webp"
 
 
 def test_digest_is_of_these_exact_bytes() -> None:
@@ -75,7 +75,7 @@ def test_digest_is_of_these_exact_bytes() -> None:
 
     data = png(128, 128)
 
-    assert service.validate_avatar(data).sha256 == hashlib.sha256(data).hexdigest()
+    assert validate_image(AVATAR_SPEC, data).sha256 == hashlib.sha256(data).hexdigest()
 
 
 def test_refuses_svg() -> None:
@@ -83,54 +83,59 @@ def test_refuses_svg() -> None:
     format has no safe way to be served."""
     svg = b'<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"/>'
 
-    with pytest.raises(service.AvatarRejected) as excinfo:
-        service.validate_avatar(svg)
+    with pytest.raises(ImageRejected) as excinfo:
+        validate_image(AVATAR_SPEC, svg)
 
-    assert excinfo.value.code == UserMessages.AVATAR_INVALID_IMAGE
+    assert excinfo.value.code == ImageMessages.IMAGE_INVALID
 
 
 def test_refuses_a_gif_even_though_it_is_a_raster() -> None:
     gif = b"GIF89a" + struct.pack("<HH", 256, 256) + b"\x00" * 20
 
-    with pytest.raises(service.AvatarRejected):
-        service.validate_avatar(gif)
+    with pytest.raises(ImageRejected):
+        validate_image(AVATAR_SPEC, gif)
 
 
 def test_refuses_oversized_dimensions() -> None:
-    with pytest.raises(service.AvatarRejected) as excinfo:
-        service.validate_avatar(png(512, 512))
+    with pytest.raises(ImageRejected) as excinfo:
+        validate_image(AVATAR_SPEC, png(512, 512))
 
-    assert excinfo.value.code == UserMessages.AVATAR_TOO_LARGE_DIMENSIONS
+    assert excinfo.value.code == ImageMessages.IMAGE_WRONG_SIZE
 
 
 def test_refuses_a_non_square_image() -> None:
-    with pytest.raises(service.AvatarRejected) as excinfo:
-        service.validate_avatar(png(256, 100))
+    with pytest.raises(ImageRejected) as excinfo:
+        validate_image(AVATAR_SPEC, png(256, 100))
 
-    assert excinfo.value.code == UserMessages.AVATAR_NOT_SQUARE
+    assert excinfo.value.code == ImageMessages.IMAGE_WRONG_RATIO
 
 
 def test_allows_a_pixel_of_rounding_off_square() -> None:
     """A canvas resize lands on 1:1; the tolerance is for images prepared
-    elsewhere, so one pixel out is not a refusal."""
-    assert service.validate_avatar(png(256, 255)).width == 256
+    elsewhere, so one pixel out is not a refusal, and the allowance is a share
+    of the longer side whichever side that is."""
+    assert validate_image(AVATAR_SPEC, png(256, 255)).width == 256
+    assert validate_image(AVATAR_SPEC, png(200, 196)).width == 200
+    assert validate_image(AVATAR_SPEC, png(196, 200)).width == 196
 
 
 def test_refuses_bytes_over_the_cap() -> None:
-    with pytest.raises(service.AvatarRejected) as excinfo:
-        service.validate_avatar(png(256, 256, pad=AVATAR_MAX_BYTES))
+    with pytest.raises(ImageRejected) as excinfo:
+        validate_image(AVATAR_SPEC, png(256, 256, pad=AVATAR_SPEC.max_bytes))
 
-    assert excinfo.value.code == GuildMessages.IMAGE_TOO_LARGE
+    assert excinfo.value.code == ImageMessages.IMAGE_TOO_LARGE
 
 
 def test_refuses_an_empty_body() -> None:
-    with pytest.raises(service.AvatarRejected):
-        service.validate_avatar(b"")
+    with pytest.raises(ImageRejected) as excinfo:
+        validate_image(AVATAR_SPEC, b"")
+
+    assert excinfo.value.code == ImageMessages.IMAGE_EMPTY
 
 
 def test_refuses_a_truncated_header() -> None:
-    with pytest.raises(service.AvatarRejected):
-        service.validate_avatar(png(256, 256)[:12])
+    with pytest.raises(ImageRejected):
+        validate_image(AVATAR_SPEC, png(256, 256)[:12])
 
 
 def test_riff_that_is_not_webp_is_not_an_image() -> None:

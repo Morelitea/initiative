@@ -10,7 +10,7 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.testing import create_resource_grant, guild_of
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.services.tenant import filter_presets as filter_presets_service
 from app.testing.factories import create_project
@@ -32,7 +32,9 @@ async def _seed(session: AsyncSession, project):
 async def test_list_returns_the_seeded_defaults(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     await _seed(session, a.project)
 
     response = await client.get(_url(a.project), headers=a.headers)
@@ -53,7 +55,9 @@ async def test_list_does_not_seed(
 ):
     """A GET must not write: a read-only PAM grantee and a frozen guild both
     route into a SELECT-only role, and a mutating read would fail for them."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
 
     response = await client.get(_url(a.project), headers=a.headers)
 
@@ -68,7 +72,9 @@ async def test_a_project_without_presets_heals_on_the_next_write(
     """The read path never seeds — a read-only grantee routes into a
     SELECT-only role and could not — so writing a task is what repairs a
     project the backfill never reached."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     assert await filter_presets_service.list_presets(session, a.project.id) == []
 
     created = await client.post(
@@ -94,10 +100,10 @@ async def test_initiative_manager_may_manage_without_a_grant(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     owner = await acting_user(
-        guild_role=GuildRole.member, initiative=True, project=True
+        guild_role=CommunityRole.member, initiative=True, project=True
     )
     pm = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=owner.guild,
         initiative=owner.initiative,
         initiative_role="project_manager",
@@ -121,7 +127,9 @@ async def test_initiative_manager_may_manage_without_a_grant(
 async def test_project_owner_may_manage(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     await _seed(session, a.project)
 
     response = await client.post(
@@ -135,9 +143,9 @@ async def test_guild_admin_may_manage(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     owner = await acting_user(
-        guild_role=GuildRole.member, initiative=True, project=True
+        guild_role=CommunityRole.member, initiative=True, project=True
     )
-    admin = await acting_user(guild_role=GuildRole.admin, guild=owner.guild)
+    admin = await acting_user(guild_role=CommunityRole.admin, guild=owner.guild)
     await _seed(session, owner.project)
 
     response = await client.post(
@@ -151,10 +159,10 @@ async def test_plain_write_access_is_not_enough(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     owner = await acting_user(
-        guild_role=GuildRole.member, initiative=True, project=True
+        guild_role=CommunityRole.member, initiative=True, project=True
     )
     editor = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=owner.guild,
         initiative=owner.initiative,
         initiative_role="member",
@@ -190,10 +198,10 @@ async def test_read_access_cannot_mutate(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     owner = await acting_user(
-        guild_role=GuildRole.member, initiative=True, project=True
+        guild_role=CommunityRole.member, initiative=True, project=True
     )
     viewer = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=owner.guild,
         initiative=owner.initiative,
         initiative_role="member",
@@ -216,9 +224,9 @@ async def test_non_member_of_the_initiative_gets_404(
     """RLS hides the initiative's content from a guild member who isn't in it,
     so this is a 404 rather than a 403."""
     owner = await acting_user(
-        guild_role=GuildRole.member, initiative=True, project=True
+        guild_role=CommunityRole.member, initiative=True, project=True
     )
-    outsider = await acting_user(guild_role=GuildRole.member, guild=owner.guild)
+    outsider = await acting_user(guild_role=CommunityRole.member, guild=owner.guild)
     await _seed(session, owner.project)
 
     listed = await client.get(_url(owner.project), headers=outsider.headers)
@@ -236,7 +244,9 @@ async def test_non_member_of_the_initiative_gets_404(
 async def test_create_derives_a_unique_slug(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     await _seed(session, a.project)
 
     first = await client.post(_url(a.project), json={"name": "Mine"}, headers=a.headers)
@@ -251,7 +261,9 @@ async def test_create_derives_a_unique_slug(
 async def test_create_as_default_demotes_the_previous_one(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     await _seed(session, a.project)
 
     created = await client.post(
@@ -269,7 +281,9 @@ async def test_patch_cannot_change_the_slug(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """A slug is what a shared link carries, so renaming must not move it."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     presets = await _seed(session, a.project)
     mine = next(p for p in presets if p.slug == "mine")
 
@@ -287,7 +301,9 @@ async def test_patch_cannot_change_the_slug(
 async def test_deleting_the_default_promotes_a_survivor(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     presets = await _seed(session, a.project)
     all_preset = next(p for p in presets if p.slug == "all")
 
@@ -304,7 +320,9 @@ async def test_deleting_the_default_promotes_a_survivor(
 async def test_reorder_rejects_a_duplicate_id(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     presets = await _seed(session, a.project)
 
     response = await client.post(
@@ -325,7 +343,9 @@ async def test_reorder_rejects_a_duplicate_id(
 async def test_reorder_persists_positions(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     presets = await _seed(session, a.project)
     reversed_ids = [p.id for p in reversed(presets)]
 
@@ -361,7 +381,9 @@ async def test_a_preset_is_refused_unless_every_filter_is_one_we_serve(
     filters: dict[str, list[str]],
 ):
     """Keys and their values are both held to the vocabulary."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     await _seed(session, a.project)
 
     response = await client.post(
@@ -374,7 +396,9 @@ async def test_a_preset_is_refused_unless_every_filter_is_one_we_serve(
 
 
 async def test_preset_limit(client: AsyncClient, session: AsyncSession, acting_user):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     await _seed(session, a.project)
     for index in range(filter_presets_service.MAX_PRESETS_PER_PROJECT - 4):
         created = await client.post(
@@ -393,7 +417,9 @@ async def test_preset_limit(client: AsyncClient, session: AsyncSession, acting_u
 async def test_presets_are_scoped_to_their_project(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     other = await create_project(session, a.initiative, a.user, name="Other")
     presets = await _seed(session, a.project)
 

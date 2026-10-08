@@ -31,6 +31,10 @@ at most once in that window.
 ``/metrics`` answers Prometheus's text format for a scrape presenting
 ``METRICS_TOKEN`` as a bearer token, and ``404`` while no token is set. What it
 reports is described in :mod:`app.core.metrics`.
+
+``/page-views`` counts a page the SPA opened, by its route template, for that
+scrape to report, and counts nothing while no token is set. It is rate
+limited like any other route.
 """
 
 from __future__ import annotations
@@ -39,16 +43,19 @@ import asyncio
 import logging
 import secrets
 import time
+from datetime import timedelta
 from typing import Awaitable, Callable
 
 import anyio
 from fastapi import APIRouter, Request, Response, status
+from pydantic import BaseModel, Field
 from prometheus_client import CONTENT_TYPE_LATEST, REGISTRY, generate_latest
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from app.core import metrics
 from app.core.config import settings
+from app.core.identify import bearer_token
 from app.core.rate_limit import limiter
 from app.models.platform.auth_session import AuthSession
 from app.models.platform.guild import Guild
@@ -107,8 +114,9 @@ async def _notify_bus() -> None:
 
 async def _rate_limit_store() -> None:
     # ``check()`` is a round trip for a shared store and a no-op for the
-    # in-process default. It is synchronous either way.
-    if not await anyio.to_thread.run_sync(limiter.limiter.storage.check):
+    # in-process default. It is synchronous either way. It asks the configured
+    # store, not the in-memory one the limiter counts in while that is down.
+    if not await anyio.to_thread.run_sync(limiter._storage.check):
         raise RuntimeError("unavailable")
 
 
@@ -186,15 +194,9 @@ async def readyz(response: Response) -> dict[str, object]:
     return body
 
 
-def _presents_token(request: Request, token: str) -> bool:
-    scheme, _, credentials = request.headers.get("authorization", "").partition(" ")
-    if scheme.lower() != "bearer":
-        return False
-    return secrets.compare_digest(credentials.strip().encode(), token.encode())
-
-
 async def _count_platform_totals() -> None:
-    """Count accounts, communities and live sign-ins for this scrape.
+    """Count accounts, communities, live sign-ins and active accounts for this
+    scrape.
 
     Read on the system engine, off the module at call time like the readiness
     checks. A count that fails leaves the previous one standing and says why
@@ -218,10 +220,23 @@ async def _count_platform_totals() -> None:
                     AuthSession.expires_at > func.now(),
                 )
             )
+            active = (
+                await connection.execute(
+                    select(
+                        *(
+                            func.count().filter(
+                                User.last_active_at > func.now() - timedelta(days=days)
+                            )
+                            for days in metrics.ACTIVE_WINDOWS.values()
+                        )
+                    )
+                )
+            ).one()
         metrics.record_platform_totals(
             users_by_status={value.value: n for value, n in users},
             guilds_by_status={value: n for value, n in guilds},
             live_sessions=live_sessions or 0,
+            active_by_window=dict(zip(metrics.ACTIVE_WINDOWS, active)),
         )
 
     try:
@@ -236,10 +251,25 @@ async def prometheus_metrics(request: Request) -> Response:
     token = settings.METRICS_TOKEN
     if token is None:
         return Response(status_code=status.HTTP_404_NOT_FOUND)
-    if not _presents_token(request, token):
+    presented = bearer_token(request.headers)
+    if presented is None or not secrets.compare_digest(
+        presented.strip().encode(), token.encode()
+    ):
         return Response(
             status_code=status.HTTP_401_UNAUTHORIZED,
             headers={"WWW-Authenticate": "Bearer"},
         )
     await _count_platform_totals()
     return Response(generate_latest(REGISTRY), media_type=CONTENT_TYPE_LATEST)
+
+
+class PageView(BaseModel):
+    #: The route template of the page, as the SPA's router names it.
+    route: str = Field(max_length=256)
+
+
+@router.post("/page-views", status_code=status.HTTP_204_NO_CONTENT)
+async def record_page_view(view: PageView) -> Response:
+    if settings.METRICS_TOKEN is not None:
+        metrics.record_page_view(view.route)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

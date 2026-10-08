@@ -1,4 +1,5 @@
 import { hour12Option } from "@/lib/timeFormat";
+import type { TranslateFn } from "@/types/i18n";
 
 // A bare calendar date (no time, no zone) — how the API sends DATE columns.
 const DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -43,6 +44,49 @@ export const formatDate = (value: unknown): string => format(value, false);
 
 /** {@link formatDate} plus a short time (e.g. "Aug 3, 2026, 9:15 PM"). */
 export const formatDateTime = (value: unknown): string => format(value, true);
+
+const pad2 = (value: number): string => String(value).padStart(2, "0");
+
+const dayKeyOf = (date: Date): string =>
+  `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+
+/**
+ * The reader's local calendar day an instant falls on, as `YYYY-MM-DD`, or
+ * `""` when it is missing or unparsable. Keys compare and sort as days, and
+ * {@link formatDayHeading} takes one back.
+ *
+ * Local, not UTC: an evening message west of Greenwich is already tomorrow in
+ * UTC, and grouping by that would file it under the wrong day.
+ */
+export const localDayKey = (value: string | null | undefined): string => {
+  const date = parseDateValue(value);
+  return date ? dayKeyOf(date) : "";
+};
+
+/**
+ * What to head a day with in a list grouped by day: "Today", "Yesterday", or
+ * the date (e.g. "Wed, Jul 22, 2026"). Takes a {@link localDayKey} or an
+ * instant; `""` when it is neither.
+ *
+ * The two days somebody is most likely to be reading are named rather than
+ * dated: "Wed, Jul 22" is a fact to work out, and "Today" is one to recognise.
+ */
+export const formatDayHeading = (value: string, t: TranslateFn): string => {
+  const date = parseDateValue(value);
+  if (!date) return "";
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  const key = dayKeyOf(date);
+  if (key === dayKeyOf(today)) return t("common:days.today");
+  if (key === dayKeyOf(yesterday)) return t("common:days.yesterday");
+  return new Intl.DateTimeFormat(undefined, {
+    weekday: "short",
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  }).format(date);
+};
 
 // A `YYYY-MM` period, as a timeline groups by. Built as a local date on the
 // first of the month for the same reason `toDate` builds date-only values

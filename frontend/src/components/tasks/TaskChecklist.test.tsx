@@ -4,7 +4,7 @@ import { HttpResponse } from "msw";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { buildTask } from "@/__tests__/factories";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { createTestQueryClient, renderPage } from "@/__tests__/helpers/render";
 import type { ChecklistItem } from "@/api/generated/initiativeAPI.schemas";
@@ -23,7 +23,7 @@ function stubWrites() {
   const ticks: { itemId: string; body: unknown }[] = [];
   const listWrites: unknown[] = [];
   server.use(
-    guildHttp.patch("/tasks/:taskId/checklist/:itemId", async ({ request, params }) => {
+    communityHttp.patch("/tasks/:taskId/checklist/:itemId", async ({ request, params }) => {
       const body = await request.json();
       ticks.push({ itemId: String(params.itemId), body });
       return HttpResponse.json(
@@ -32,7 +32,7 @@ function stubWrites() {
         )
       );
     }),
-    guildHttp.patch("/tasks/:taskId", async ({ request }) => {
+    communityHttp.patch("/tasks/:taskId", async ({ request }) => {
       const body = (await request.json()) as { checklist?: unknown };
       listWrites.push(body.checklist);
       return HttpResponse.json(buildTask({ id: TASK_ID }));

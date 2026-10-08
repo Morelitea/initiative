@@ -2,44 +2,44 @@ import { screen } from "@testing-library/react";
 import { HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 
-import { buildGuild } from "@/__tests__/factories";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { buildCommunity } from "@/__tests__/factories";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
-import type { useGuilds } from "@/hooks/useGuilds";
+import type { useCommunities } from "@/hooks/useCommunities";
 
 import { CommunityExportCard } from "./CommunityExportCard";
 
-vi.mock("@/lib/chesterToast", () => ({
+vi.mock("@/lib/mascotToast", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 vi.mock("@/lib/exportDownload", () => ({
   downloadExportArtifact: vi.fn(),
 }));
 
-const activeGuild = buildGuild({ id: 1, name: "Test Community", role: "superadmin" });
-const guildsValue: ReturnType<typeof useGuilds> = {
-  guilds: [activeGuild],
-  activeGuildId: 1,
-  activeGuild,
-  activeGuildReadOnly: false,
+const activeCommunity = buildCommunity({ id: 1, name: "Test Community", role: "superadmin" });
+const communitiesValue: ReturnType<typeof useCommunities> = {
+  communities: [activeCommunity],
+  activeCommunityId: 1,
+  activeCommunity,
+  activeCommunityReadOnly: false,
   loading: false,
   error: null,
-  refreshGuilds: vi.fn(),
-  switchGuild: vi.fn(),
-  syncGuildFromUrl: vi.fn(),
-  createGuild: vi.fn(),
-  updateGuildInState: vi.fn(),
-  reorderGuilds: vi.fn(),
-  canCreateGuilds: true,
+  refreshCommunities: vi.fn(),
+  switchCommunity: vi.fn(),
+  syncCommunityFromUrl: vi.fn(),
+  createCommunity: vi.fn(),
+  updateCommunityInState: vi.fn(),
+  reorderCommunities: vi.fn(),
+  canCreateCommunities: true,
 };
 
 // Taking the whole community out in one file is the seat's errand, and the
 // card says so itself rather than resting on which tab it sits in. Partial:
-// the render helper reaches for ``GuildContext`` from this module.
-vi.mock(import("@/hooks/useGuilds"), async (importOriginal) => ({
+// the render helper reaches for ``CommunityContext`` from this module.
+vi.mock(import("@/hooks/useCommunities"), async (importOriginal) => ({
   ...(await importOriginal()),
-  useGuilds: () => guildsValue,
+  useCommunities: () => communitiesValue,
 }));
 
 const now = new Date();
@@ -47,9 +47,9 @@ const iso = (offsetMs: number) => new Date(now.getTime() + offsetMs).toISOString
 
 const job = (o: Record<string, unknown> = {}) => ({
   id: 7,
-  guild_id: 1,
+  community_id: 1,
   created_by: 1,
-  source: "guild",
+  source: "community",
   template_id: "backup",
   format: "zip",
   params: {},
@@ -63,7 +63,7 @@ const job = (o: Record<string, unknown> = {}) => ({
 });
 
 const status = (o: Record<string, unknown> = {}) =>
-  guildHttp.get("/exports/community/status", () =>
+  communityHttp.get("/exports/community/status", () =>
     HttpResponse.json({
       cooldown_hours: 48,
       next_available_at: null,

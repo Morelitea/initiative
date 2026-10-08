@@ -2,8 +2,8 @@
  * One card for any kind of thing.
  *
  * What is worth asserting is that it draws *something* for every kind — a
- * picture, an emoji, a colour, or the kind's own mark — that a document picks
- * the mark matching what sort of document it is, and that the two things it
+ * picture, an emoji, a colour, or the kind's own mark — that a file picks
+ * the mark matching what sort of file it is, and that the two things it
  * must not get wrong: offering a link it cannot build, and offering to unlink
  * something nobody may unlink by hand.
  */
@@ -16,18 +16,18 @@ import { type RelatedEnd, SearchEntityType, Tool } from "@/api/generated/initiat
 import { EntityCard } from "./EntityCard";
 
 const end = (overrides: Partial<RelatedEnd> = {}): RelatedEnd => ({
-  type: SearchEntityType.document,
+  type: SearchEntityType.file,
   id: 4,
   title: "Onboarding checklist",
   initiative_id: 3,
   updated_at: null,
-  tool: Tool.document,
+  tool: Tool.file,
   tool_id: 4,
   tool_title: null,
   image_urls: [],
   icon: null,
   color: null,
-  document_type: "native",
+  file_type: "native",
   mime_type: null,
   original_filename: null,
   smart_link_url: null,
@@ -42,7 +42,7 @@ describe("EntityCard", () => {
   it("links to the thing it names", async () => {
     renderCard();
     const link = await screen.findByRole("link", { name: /Onboarding checklist/ });
-    expect(link.getAttribute("href")).toContain("/documents/4");
+    expect(link.getAttribute("href")).toContain("/files/4");
   });
 
   it("still reaches a thing whose parent did not come back", async () => {

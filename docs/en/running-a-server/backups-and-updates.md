@@ -12,7 +12,7 @@ Neither is hard. Both matter far more than they feel like they do, right up unti
 
 There are exactly **two** things to back up:
 
-1. **The database** — every project, task, document, comment and setting.
+1. **The database** — every project, task, comment and setting, and everything written in Files.
 2. **The uploads** — the files people attached, at `/app/uploads` unless you've moved them to [object storage](object-storage.md).
 
 Back up both **together and regularly**, and keep copies somewhere that isn't the server.
@@ -56,7 +56,7 @@ Back up first anyway. It's the cheapest insurance available to you and it takes 
 
 - **`latest`** tracks the newest release.
 - **`stable`** tracks a release we have promoted after it spent a few days out in the world without a reported regression. See [Docker images](installation.md#docker-images).
-- **Pin one** (`morelitea/initiative:0.65`) if you'd rather update deliberately and read the changelog first.
+- **Pin one** (`ghcr.io/beyonders-studio/initiative:0.65`) if you'd rather update deliberately and read the changelog first.
 
 Initiative follows semantic versioning, and the changelog lists what changed in each release. Worth a skim before a jump, especially across minor versions.
 
@@ -84,7 +84,7 @@ docker compose logs --no-log-prefix initiative | awk '
   END { printf "%s", report }'
 ```
 
-It lists the version, how the database is set up, where the migrations stopped, and the error. The passwords and keys the server is configured with are taken out, but give it a read before you post it. Then paste it into [an issue](https://github.com/Morelitea/initiative/issues).
+It lists the version, how the database is set up, where the migrations stopped, and the error. The passwords and keys the server is configured with are taken out, but give it a read before you post it. Then paste it into [an issue](https://github.com/beyonders-studio/initiative/issues).
 
 The fix is almost always a newer release, which picks up from exactly where this one stopped. Going back to the older version means restoring the backup you took before updating. You took one. It was one command.
 

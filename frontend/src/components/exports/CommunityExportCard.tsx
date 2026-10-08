@@ -3,8 +3,8 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
-  getReadGuildExportStatusApiV1CGuildIdExportsCommunityStatusGetQueryKey,
-  useReadGuildExportStatusApiV1CGuildIdExportsCommunityStatusGet,
+  getReadCommunityExportStatusQueryKey,
+  useReadCommunityExportStatus,
 } from "@/api/generated/exports/exports";
 import type { ExportJobRead } from "@/api/generated/initiativeAPI.schemas";
 import { ExportWizard } from "@/components/exports/ExportWizard";
@@ -12,8 +12,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { RelativeTime } from "@/components/ui/relative-time";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
-import { useGuilds } from "@/hooks/useGuilds";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
+import { useCommunities } from "@/hooks/useCommunities";
 import { downloadExportArtifact } from "@/lib/exportDownload";
 import { queryClient } from "@/lib/queryClient";
 
@@ -48,17 +48,17 @@ function displayStatus(job: ExportJobRead): string {
  * out by being refused. */
 export function CommunityExportCard() {
   const { t } = useTranslation("exports");
-  const guildId = useActiveGuildId();
-  const { activeGuild } = useGuilds();
+  const communityId = useActiveCommunityId();
+  const { activeCommunity } = useCommunities();
   const [wizardOpen, setWizardOpen] = useState(false);
 
   // Taking the whole community out in one file is the seat's errand, which
   // the server checks on request and again when the job renders. The card
   // says the same thing, rather than resting on which tab it happens to sit
   // in.
-  const heldBySeat = Boolean(activeGuild?.can.seat);
+  const heldBySeat = Boolean(activeCommunity?.can.seat);
 
-  const statusQuery = useReadGuildExportStatusApiV1CGuildIdExportsCommunityStatusGet(guildId, {
+  const statusQuery = useReadCommunityExportStatus(communityId, {
     query: {
       refetchInterval: (query) =>
         ACTIVE.has(query.state.data?.latest?.status ?? "") ? POLL_MS : false,
@@ -77,7 +77,7 @@ export function CommunityExportCard() {
     setWizardOpen(open);
     if (!open) {
       void queryClient.invalidateQueries({
-        queryKey: getReadGuildExportStatusApiV1CGuildIdExportsCommunityStatusGetQueryKey(guildId),
+        queryKey: getReadCommunityExportStatusQueryKey(communityId),
       });
     }
   };
@@ -89,8 +89,8 @@ export function CommunityExportCard() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{t("entry.guildTitle")}</CardTitle>
-        <CardDescription>{t("entry.guildDescription")}</CardDescription>
+        <CardTitle>{t("entry.communityTitle")}</CardTitle>
+        <CardDescription>{t("entry.communityDescription")}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {status != null && (
@@ -119,7 +119,7 @@ export function CommunityExportCard() {
                         size="sm"
                         onClick={() =>
                           void downloadExportArtifact(
-                            guildId,
+                            communityId,
                             latest.id,
                             t as (key: string, options?: Record<string, unknown>) => string,
                             latest.source,
@@ -177,7 +177,7 @@ export function CommunityExportCard() {
       </CardContent>
       {/* Mounted outside the open check so a job started here keeps polling
           (and delivers its download) after the dialog closes. */}
-      <ExportWizard scope={{ kind: "guild" }} open={wizardOpen} onOpenChange={closeWizard} />
+      <ExportWizard scope={{ kind: "community" }} open={wizardOpen} onOpenChange={closeWizard} />
     </Card>
   );
 }

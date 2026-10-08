@@ -10,7 +10,7 @@
 import { createContext, type ReactNode, useContext } from "react";
 
 import type {
-  OwnerAppSummary,
+  OwnerPluginSummary,
   PropertySummary,
   ResourceGrantSchema,
   TagSummary,
@@ -18,10 +18,11 @@ import type {
   ToolCan,
 } from "@/api/generated/initiativeAPI.schemas";
 import type { ExportExtraAction, ExportFormatOption } from "@/components/exports/ExportButton";
+import type { ExportContentSeed } from "@/components/exports/ExportWizard";
 
 /**
  * The slice of a tool's read schema its settings need. Every tool — queues,
- * counter groups, calendars, dashboards, projects, and documents — satisfies
+ * counter groups, calendars, dashboards, projects, and files — satisfies
  * it as-is.
  */
 export interface ToolSettingsEntity {
@@ -37,34 +38,32 @@ export interface ToolSettingsEntity {
   archived_at: string | null;
   /** What this viewer may do to it, as the server answers it. */
   can: ToolCan;
-  /** Projects and documents only: a template, which read is enough to copy. */
+  /** Projects and files only: a template, which read is enough to copy. */
   is_template?: boolean;
   /**
-   * Posts only: reactions hang off comments and off posts and off nothing
-   * else, so this is the one tool with a switch of its own for them. Absent
-   * on every other entity, which is why it is optional rather than a union.
-   */
-  reactions_enabled?: boolean;
-  /**
-   * The installed app that owns it, where the tool's read model names one
-   * (projects and documents). Elsewhere the sharing control finds the app
+   * The installed plug-in that owns it, where the tool's read model names one
+   * (projects and files). Elsewhere the sharing control finds the plug-in
    * from the owner grant.
    */
-  owner_app?: OwnerAppSummary | null;
+  owner_plugin?: OwnerPluginSummary | null;
 }
 
 /**
  * What a tool's export card offers when the tool's registry formats are not
- * the whole answer — a document's formats follow its type, and a whiteboard
- * adds pictures only the browser can draw.
+ * the whole answer — a file's formats follow its type, a whiteboard adds
+ * pictures only the browser can draw, and a project starts from the
+ * exporting person's view of its tasks.
  */
 export interface ToolExportOptions {
   formats?: ExportFormatOption[];
   extraActions?: ExportExtraAction[];
+  /** The exporting person's own view of its content, which the export
+   *  starts from: a project's task filters and order. */
+  content?: ExportContentSeed;
 }
 
 /** Per-call callbacks so the sections — not each wrapper — own toasts and routing. */
-export type ToolSettingsMutateOptions = { onSuccess?: () => void };
+export type ToolSettingsMutateOptions = { onSuccess?: () => void; onError?: () => void };
 
 export interface ToolMutation<TVars> {
   mutate: (vars: TVars, options?: ToolSettingsMutateOptions) => void;
@@ -76,15 +75,19 @@ export interface ToolSettingsContextValue {
   /** Always loaded: the layout renders no section until the entity is in hand. */
   entity: ToolSettingsEntity;
   /**
-   * The rename/describe mutation. Absent for tools that save those fields
-   * elsewhere — projects through their own richer form, a document's name in
-   * the editor.
+   * The rename/describe mutation. Absent for a file, whose name is edited
+   * in the editor.
    */
   update?: ToolMutation<{ name?: string; description?: string | null }>;
+  /** Marks it a template or takes it back. Only tools with templates pass it. */
+  template?: ToolMutation<{ is_template: boolean }>;
   setGrants: ToolMutation<ResourceGrantSchema[]>;
   remove: ToolMutation<number>;
-  /** Extra cards for the Details section, e.g. a project's dates or a calendar's color. */
+  /** Extra cards for the Details section, e.g. a calendar's color. */
   detailsExtra?: ReactNode;
+  /** Extra fields inside the Details card itself, below the description. Each
+   *  saves on its own; the card's Save button is for the name and description. */
+  detailsInline?: ReactNode;
   /** Extra cards for the Advanced section, e.g. duplicate or archive. */
   advancedExtra?: ReactNode;
   /** Overrides for the Advanced section's export card. */

@@ -5,21 +5,28 @@ from typing import Optional
 
 from app.core.identity_boundary import PersonId
 from app.core.tools import COMMENT_TARGETS
-from pydantic import ConfigDict, Field, computed_field, field_validator, model_validator
+from pydantic import (
+    ConfigDict,
+    Field,
+    computed_field,
+    create_model,
+    field_validator,
+    model_validator,
+)
 
-from app.schemas.base import RichTextStr, SanitizedBaseModel
+from app.schemas.base import RichMentionStr, RichTextStr, SanitizedBaseModel
 from app.schemas.tenant.reaction import ReactionGroup
 from app.models.platform.user import Presence
-from app.schemas.platform.user import AvatarUrl, ProfileDecorations
+from app.models.tenant.comment import CommentAudience
+from app.schemas.platform.user import PersonShape, ProfileDecorations
 from app.services.platform import presence
 
 
-class CommentAuthor(SanitizedBaseModel):
+class CommentAuthor(PersonShape):
     """Who wrote a comment.
 
     An address never reaches a guild, so there is none here; the handle names
-    the author, and ``full_name`` arrives only from a guild that shows real
-    names.
+    the author, and ``display_name`` is the name they set in this guild.
 
     It carries what a picture needs to be drawn the way it is drawn everywhere
     else — the decorations and how they are appearing — because a comment is
@@ -32,8 +39,8 @@ class CommentAuthor(SanitizedBaseModel):
     id: PersonId
     username: str
     discriminator: int
-    full_name: Optional[str] = None
-    avatar_url: AvatarUrl = None
+    display_name: Optional[str] = None
+    avatar_url: Optional[str] = None
     profile_decorations: ProfileDecorations = Field(default_factory=ProfileDecorations)
 
     @computed_field(return_type=Presence)  # type: ignore[misc]
@@ -51,7 +58,7 @@ class CommentAuthor(SanitizedBaseModel):
 
 
 class CommentBase(SanitizedBaseModel):
-    content: RichTextStr
+    content: RichMentionStr
 
     @field_validator("content")
     @classmethod
@@ -70,20 +77,26 @@ COMMENT_TARGET_FIELDS: tuple[str, ...] = tuple(
     f"{target}_id" for target in COMMENT_TARGETS
 )
 
+_CommentCreateTargets = create_model(
+    "_CommentCreateTargets",
+    __base__=CommentBase,
+    **{
+        field: (Optional[int], Field(default=None, gt=0))
+        for field in COMMENT_TARGET_FIELDS
+    },
+)
+_CommentReadParents = create_model(
+    "_CommentReadParents",
+    __base__=CommentBase,
+    **{field: (Optional[int], None) for field in COMMENT_TARGET_FIELDS},
+)
 
-class CommentCreate(CommentBase):
-    task_id: Optional[int] = Field(default=None, gt=0)
-    wiki_page_id: Optional[int] = Field(default=None, gt=0)
-    document_id: Optional[int] = Field(default=None, gt=0)
-    project_id: Optional[int] = Field(default=None, gt=0)
-    queue_id: Optional[int] = Field(default=None, gt=0)
-    counter_group_id: Optional[int] = Field(default=None, gt=0)
-    calendar_id: Optional[int] = Field(default=None, gt=0)
-    dashboard_id: Optional[int] = Field(default=None, gt=0)
-    post_id: Optional[int] = Field(default=None, gt=0)
-    gallery_id: Optional[int] = Field(default=None, gt=0)
-    wiki_id: Optional[int] = Field(default=None, gt=0)
+
+class CommentCreate(_CommentCreateTargets):
     parent_comment_id: Optional[int] = Field(default=None, gt=0)
+    #: Who it is said to. ``filer`` only on an operations case somebody filed,
+    #: where it is the reply they are shown; ``members`` everywhere else.
+    audience: CommentAudience = CommentAudience.members
 
     @model_validator(mode="after")
     def validate_target(self) -> "CommentCreate":
@@ -116,23 +129,16 @@ class CommentUpdate(CommentBase):
     pass
 
 
-class CommentRead(CommentBase):
+class CommentRead(_CommentReadParents):
+    """One comment. ``project_id`` is its own for a comment on a project and
+    the task's for a task comment (filled by the service's serializer)."""
+
     model_config = ConfigDict(
         from_attributes=True, json_schema_serialization_defaults_required=True
     )
 
     id: int
     created_by: Optional[PersonId] = None
-    task_id: Optional[int] = None
-    wiki_page_id: Optional[int] = None
-    document_id: Optional[int] = None
-    queue_id: Optional[int] = None
-    counter_group_id: Optional[int] = None
-    calendar_id: Optional[int] = None
-    dashboard_id: Optional[int] = None
-    post_id: Optional[int] = None
-    gallery_id: Optional[int] = None
-    wiki_id: Optional[int] = None
     parent_comment_id: Optional[int] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
@@ -142,14 +148,21 @@ class CommentRead(CommentBase):
     # the author's, with no avatar and no profile link, because it names a
     # person rather than an account. Null on everything written in this app.
     imported_author_name: Optional[str] = None
-    # The project this comment lives under: its own for a comment ON a
-    # project, the task's for a task comment (filled by the service's
-    # serializer).
-    project_id: Optional[int] = None
     # Reactions ride along with the comment rather than costing a request per
     # row: a thread renders its chips from one list call. Empty until the
     # loader stamps them (see ``comments_service.attach_reactions``).
     reactions: list[ReactionGroup] = Field(default_factory=list)
+    # Whether the reader may delete this comment: their own, or anybody's
+    # where they administer the community or manage the initiative. Filled by
+    # the service's serializer from the same rule the delete route applies.
+    can_remove: bool = False
+    # Who it is said to. ``filer`` on the part of an operations case that is
+    # said to the person who filed it; ``members`` on everything else.
+    audience: CommentAudience = CommentAudience.members
+    # What the platform posted it as, on a note the platform wrote on an
+    # operations case. Null on everything a person or a plug-in wrote — which
+    # is how a client tells the platform's notes from a plug-in's.
+    system_kind: Optional[str] = None
 
 
 class CommentListResponse(SanitizedBaseModel):
@@ -174,15 +187,11 @@ class RecentActivityEntry(SanitizedBaseModel):
     content: RichTextStr
     created_at: datetime
     author: Optional[CommentAuthor] = None
-    task_id: Optional[int] = None
-    task_title: Optional[str] = None
-    document_id: Optional[int] = None
-    document_name: Optional[str] = None
+    # The project a task comment's task is in. None for any other parent.
     project_id: Optional[int] = None
     project_name: Optional[str] = None
-    # What the comment is on, uniformly: "task" or a Tool value, with the
-    # entity's id and display name. The task/document/project fields above
-    # stay filled for those parents.
+    # What the comment is on: "task", "wiki_page" or a Tool value, with the
+    # entity's id and display name.
     entity_type: Optional[str] = None
     entity_id: Optional[int] = None
     entity_name: Optional[str] = None

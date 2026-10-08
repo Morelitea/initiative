@@ -4,7 +4,7 @@
  * and what it returns is the only thing the session openers take.
  */
 
-import { readDirectoryApiV1UsersUserIdDmDevicesGet as readDirectory } from "@/api/generated/direct-messages/direct-messages";
+import { readDirectory } from "@/api/generated/direct-messages/direct-messages";
 import type { DmSessionKey } from "@/api/generated/initiativeAPI.schemas";
 
 import { ratchet } from "./client";
@@ -58,6 +58,8 @@ export type DirectoryEntry = Pick<
 export interface PeerDirectory {
   devices: TrustedDevice[];
   held: TrustedDevice[];
+  /** The directory could not be read, which is not the same as it being empty. */
+  unavailable?: boolean;
 }
 
 async function trust(

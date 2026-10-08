@@ -19,13 +19,13 @@ import {
   ToolDisableDialog,
   ToolEnableDialog,
 } from "@/components/initiatives/ToolAudienceDialogs";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useGrantToolToRoles, useInitiativeRoles } from "@/hooks/useInitiativeRoles";
 import { useInitiativeSettings } from "@/hooks/useInitiativeSettings";
 import { useUpdateInitiative } from "@/hooks/useInitiatives";
 import { useServerForm } from "@/hooks/useServerForm";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import { isToolEnabled, TOOLS, toolCamelPlural, toolViewPermission } from "@/lib/tools";
 
 const DEFAULT_INITIATIVE_COLOR = "#6366F1";
@@ -34,7 +34,7 @@ export const InitiativeSettingsDetailsPage = () => {
   const { t } = useTranslation(["initiatives", "common"]);
   const { initiativeId, initiative, canManageMembers } = useInitiativeSettings();
 
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const navigate = useNavigate();
   // Only once the roster has actually landed: an empty list while it loads (or
   // after it fails) would read as "no role can see this", which is the very
@@ -176,8 +176,8 @@ export const InitiativeSettingsDetailsPage = () => {
         onGrantToEveryone={grantToEveryone}
         onManageRoles={() =>
           navigate({
-            to: "/c/$guildId/i/$initiativeId/settings/roles",
-            params: { guildId: String(guildId), initiativeId: String(initiativeId) },
+            to: "/c/$communityId/i/$initiativeId/settings/roles",
+            params: { communityId: String(communityId), initiativeId: String(initiativeId) },
           })
         }
       />

@@ -75,13 +75,13 @@ type SidebarContextProps = {
   startResize: (event: React.PointerEvent<HTMLElement>) => void;
   /** Back to the width it has always had. */
   resetWidth: () => void;
-  /** Suppress the next navigation-triggered auto-close (e.g. switching guilds
+  /** Suppress the next navigation-triggered auto-close (e.g. switching communities
    * navigates but should leave the sidebar open). Consumed once. */
   suppressNextAutoClose: () => void;
   /** Read-and-reset the suppression flag. Used by useAutoCloseSidebar. */
   consumeAutoCloseSuppression: () => boolean;
   /** Temporarily disable the mobile drawer's swipe-to-close — e.g. while a
-   * guild reorder drag is in progress so the two gestures don't fight. */
+   * community reorder drag is in progress so the two gestures don't fight. */
   setSwipeCloseLocked: (locked: boolean) => void;
   /** Whether swipe-to-close is currently locked. Read by the drawer gesture. */
   isSwipeCloseLocked: () => boolean;
@@ -235,7 +235,7 @@ const SidebarProvider = React.forwardRef<
       return isMobile ? setOpenMobile((open) => !open) : setOpen((open) => !open);
     }, [isMobile, setOpen, setOpenMobile]);
 
-    // One-shot flag so a navigation can opt out of the auto-close (e.g. a guild
+    // One-shot flag so a navigation can opt out of the auto-close (e.g. a community
     // switch). Set synchronously before navigating; consumed by the auto-close
     // effect when the resulting pathname change fires.
     const suppressAutoCloseRef = React.useRef(false);
@@ -248,7 +248,7 @@ const SidebarProvider = React.forwardRef<
       return suppressed;
     }, []);
 
-    // Lets a nested drag gesture (e.g. reordering guilds in the rail) suspend
+    // Lets a nested drag gesture (e.g. reordering communities in the rail) suspend
     // the drawer's swipe-to-close so the two don't fight.
     const swipeCloseLockedRef = React.useRef(false);
     const setSwipeCloseLocked = React.useCallback((locked: boolean) => {
@@ -509,7 +509,7 @@ const MobileSidebar = ({
     const state = closeGesture.current;
     if (!state.active) return;
     if (isSwipeCloseLocked()) {
-      // A nested drag (e.g. reordering guilds) owns this gesture.
+      // A nested drag (e.g. reordering communities) owns this gesture.
       state.active = false;
       return;
     }
@@ -585,15 +585,15 @@ const MobileSidebar = ({
           style={{
             width: sidebarWidthMobile,
             maxWidth: sidebarWidthMobile,
-            height: "100vh",
-            maxHeight: "100vh",
+            height: "100dvh",
+            maxHeight: "100dvh",
             transform,
             transition: dragging ? "none" : `transform ${SIDEBAR_TRANSITION_MS}ms ease-out`,
             animation: "none",
           }}
           side={side}
           // Don't pull focus into the drawer on open: Radix would focus the
-          // first control (the guild expand toggle), and its focus-triggered
+          // first control (the community expand toggle), and its focus-triggered
           // tooltip would then stay stuck open until the user taps elsewhere.
           onOpenAutoFocus={(e) => e.preventDefault()}
           // Don't let the Sheet dismiss itself on outside interaction. Nested

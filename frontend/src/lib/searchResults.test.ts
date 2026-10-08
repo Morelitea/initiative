@@ -89,11 +89,11 @@ describe("searchHitPath", () => {
         target({
           entity_type: COMMENT_ENTITY_TYPE,
           entity_id: 3,
-          tool: Tool.document,
+          tool: Tool.file,
           tool_id: 9,
         })
       )
-    ).toBe("/i/5/documents/9");
+    ).toBe("/i/5/files/9");
     expect(
       searchHitPath(
         target({
@@ -106,13 +106,13 @@ describe("searchHitPath", () => {
     ).toBe("/i/5/projects/7");
   });
 
-  it("gives a tag the guild address it has — tags belong to no initiative", () => {
+  it("gives a tag the community address it has — tags belong to no initiative", () => {
     expect(searchHitPath(target({ entity_type: TAG_ENTITY_TYPE, entity_id: 12 }))).toBe("/tags/12");
   });
 
-  it("keeps a guild-level entity on its guild route", () => {
-    // An app-installed calendar has no initiative; `null` means "address me at
-    // the guild route", not "initiative unknown".
+  it("keeps a community-level entity on its community route", () => {
+    // An plugin-installed calendar has no initiative; `null` means "address me at
+    // the community route", not "initiative unknown".
     expect(
       searchHitPath(
         target({
@@ -135,7 +135,7 @@ describe("searchHitPath", () => {
 });
 
 describe("categories", () => {
-  it("puts everything but comments and the guild's vocabulary under tools", () => {
+  it("puts everything but comments and the community's vocabulary under tools", () => {
     for (const entityType of TOOL_ENTITY_TYPES) {
       expect(hitCategory(target({ entity_type: entityType }))).toBe("tool");
     }
@@ -190,9 +190,7 @@ describe("hitIcon", () => {
     expect(hitIcon(target({ entity_type: SearchEntityType.gallery }))).toBe(
       TOOL_ICONS[Tool.gallery]
     );
-    expect(hitIcon(target({ entity_type: SearchEntityType.document }))).toBe(
-      TOOL_ICONS[Tool.document]
-    );
+    expect(hitIcon(target({ entity_type: SearchEntityType.file }))).toBe(TOOL_ICONS[Tool.file]);
   });
 
   it("still takes the tool a hit names", () => {
@@ -207,7 +205,7 @@ describe("hitIcon", () => {
     );
   });
 
-  it("leaves the guild's vocabulary as a label", () => {
+  it("leaves the community's vocabulary as a label", () => {
     expect(hitIcon(target({ entity_type: SearchEntityType.tag }))).toBe(Tag);
   });
 });

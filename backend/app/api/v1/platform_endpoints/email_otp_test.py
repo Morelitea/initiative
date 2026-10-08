@@ -37,8 +37,10 @@ def _catch_codes(monkeypatch) -> list[tuple[str, str]]:
     return caught
 
 
-async def _ask(client: AsyncClient, address: str, *, native: bool = False) -> str:
-    response = await client.post(SEND_URL, json={"email": address, "native": native})
+async def _ask(
+    client: AsyncClient, address: str, *, headers: dict[str, str] | None = None
+) -> str:
+    response = await client.post(SEND_URL, json={"email": address}, headers=headers)
     assert response.status_code == 200, response.text
     return response.json()["challenge"]
 
@@ -353,12 +355,16 @@ REGISTER_URL = "/api/v1/auth/email-otp/register"
 
 
 async def _sign_up_to_ticket(
-    client: AsyncClient, caught, address: str, *, native: bool = False
+    client: AsyncClient,
+    caught,
+    address: str,
+    *,
+    headers: dict[str, str] | None = None,
 ) -> str:
     """Ask at an unheld address, answer the code, and take the ticket."""
-    handle = await _ask(client, address, native=native)
+    handle = await _ask(client, address, headers=headers)
     answered = await client.post(
-        VERIFY_URL, json={"challenge": handle, "code": caught[-1][1]}
+        VERIFY_URL, json={"challenge": handle, "code": caught[-1][1]}, headers=headers
     )
     assert answered.status_code == 202, answered.text
     return answered.json()["registration_ticket"]
@@ -413,6 +419,8 @@ async def test_the_ticket_makes_the_account_and_signs_it_in(
 
     assert made.status_code == 201, made.text
     assert made.json()["access_token"]
+    # A browser keeps its refresh token in a cookie, not the body.
+    assert not made.json().get("refresh_token")
     account = (
         await session.exec(select(User).where(User.username == "arrival"))
     ).scalar_one()
@@ -427,12 +435,15 @@ async def test_the_app_signing_up_keeps_its_session(
     await _permit(session)
     _catch_codes(monkeypatch)
     caught = _catch_sign_ups(monkeypatch)
+    app = {"Origin": "https://studio.beyonders.initiative"}
     ticket = await _sign_up_to_ticket(
-        client, caught, "app-arrival@example.com", native=True
+        client, caught, "app-arrival@example.com", headers=app
     )
 
     made = await client.post(
-        REGISTER_URL, json={"registration_ticket": ticket, "username": "apparrival"}
+        REGISTER_URL,
+        json={"registration_ticket": ticket, "username": "apparrival"},
+        headers=app,
     )
 
     assert made.status_code == 201, made.text

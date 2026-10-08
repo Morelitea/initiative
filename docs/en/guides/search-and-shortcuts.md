@@ -20,11 +20,11 @@ Arrow keys move through results. ++enter++ jumps. For more than a quick jump, hi
 
 Everything in the community you're in:
 
-- **Tools** — projects, queues, counter groups, calendars, dashboards, posts.
-- **What's inside them** — tasks, queue items, counters, calendar events.
-- **Documents, and their actual contents.** Not just titles: the words inside a text document, the text on a whiteboard, the cells and sheet names in a spreadsheet.
+- **Tools** — projects, queues, counter groups, calendars, dashboards, posts, galleries, wikis.
+- **What's inside them** — tasks, queue items, counters, calendar events, pictures, wiki pages.
+- **Files, and their actual contents.** Not just titles: the words inside a text document, the text on a whiteboard, the cells and sheet names in a spreadsheet.
 - **Comments** on any of the above.
-- **Tags** and **people**.
+- **Tags** and **people**. Search for somebody's display name or handle and you also find what mentions them — type it in whole words.
 
 It only ever returns things you already have access to. Search will never quietly reveal that something exists by refusing to show it to you.
 
@@ -34,7 +34,7 @@ It names the community it's searching, so there's never any confusion about whic
 
 Results are grouped into tabs — **Tools**, **Members**, **Comments**, **Tags** — opening on Tools, where most things live. Every tab stays clickable so you can check for yourself, and an empty one says it's empty rather than going mysteriously grey.
 
-Each result shows the line that matched, with your words highlighted, so you can tell which of five similarly-named documents is the right one *before* opening any of them.
+Each result shows the line that matched, with your words highlighted, so you can tell which of five similarly-named files is the right one *before* opening any of them.
 
 **Archived things** are left out unless you switch **Include archived** on.
 
@@ -49,13 +49,13 @@ Same goes for people's names. You do not have to memorise how your colleague spe
 
 ### The same search is behind every picker
 
-Mentioning something with `#`, linking documents with `[[`, attaching a document to a project, choosing what a smart chip points at — all the same search underneath, ranking and forgiving typos in exactly the same way. See [Mentions & links](mentions-and-links.md).
+Mentioning something with `#`, linking with `[[`, attaching a file to a project, choosing what a smart chip points at — all the same search underneath, ranking and forgiving typos in exactly the same way. See [Mentions & links](mentions-and-links.md).
 
 ## The recent-items tab bar
 
-Projects, tasks and documents stack up as **tabs** along the top, like browser tabs. Click to go back to one; close it when you're done.
+Projects, tasks and files stack up as **tabs** along the top, like browser tabs. Click to go back to one; close it when you're done.
 
-You can cap how many it keeps (1 to 100) in **User settings → Interface**, if you'd like that limit enforced rather than merely intended.
+You can cap how many it keeps (1 to 100) in **My Settings → Preferences**, if you'd like that limit enforced rather than merely intended.
 
 ## Keystrokes worth knowing
 
@@ -68,6 +68,6 @@ You can cap how many it keeps (1 to 100) in **User settings → Interface**, if 
 There's a fuller list on the [keyboard shortcuts](../reference/keyboard-shortcuts.md) page.
 
 !!! tip "When in doubt, search"
-    Can't remember which initiative a document ended up in? Don't go looking for it — that way lies twenty minutes and a bad mood.
+    Can't remember which initiative a file ended up in? Don't go looking for it — that way lies twenty minutes and a bad mood.
 
     ++cmd+k++, a few letters, done. Faster than the sidebar essentially every time, and about four days from becoming muscle memory.

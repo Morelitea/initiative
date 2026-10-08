@@ -14,9 +14,7 @@ import { useTranslation } from "react-i18next";
 
 import { type CounterRead, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { CounterFormDialog } from "@/components/initiativeTools/counters/CounterFormDialog";
-import { CounterNumberView } from "@/components/initiativeTools/counters/views/CounterNumberView";
-import { CounterProgressBarView } from "@/components/initiativeTools/counters/views/CounterProgressBarView";
-import { CounterSegmentedClockView } from "@/components/initiativeTools/counters/views/CounterSegmentedClockView";
+import { CounterView } from "@/components/initiativeTools/counters/views/CounterView";
 import { CounterFocusSkeleton } from "@/components/skeletons/PageSkeletons";
 import { ToolAccessStatus } from "@/components/ToolAccessStatus";
 import { Button } from "@/components/ui/button";
@@ -33,10 +31,10 @@ import {
   useSetCount,
   useSteppedCount,
 } from "@/hooks/useCounters";
-import { useCounterGroupRealtime } from "@/hooks/useResourceRealtime";
+import { useToolRealtime } from "@/hooks/useResourceRealtime";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { getContrastingTextColor } from "@/lib/counter-color";
 import { isAtMax, isAtMin } from "@/lib/counter-math";
-import { useGuildPath } from "@/lib/guildUrl";
 import { counterRoute, toolDetailRoute, toolListRoute } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
@@ -45,15 +43,15 @@ const SWIPE_THRESHOLD_PX = 60;
 export function CounterDetailPage() {
   const { t } = useTranslation(["counterGroups", "common"]);
   const navigate = useNavigate();
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
   const {
-    guildId,
+    communityId,
     counterGroupId: groupIdParam,
     counterId: counterIdParam,
   } = useParams({
     strict: false,
   }) as {
-    guildId?: string;
+    communityId?: string;
     counterGroupId?: string;
     counterId?: string;
   };
@@ -62,7 +60,7 @@ export function CounterDetailPage() {
   const counterId = counterIdParam ? Number(counterIdParam) : null;
 
   const groupQuery = useCounterGroup(groupId);
-  useCounterGroupRealtime(groupId);
+  useToolRealtime(Tool.counter_group, groupId);
 
   const setCount = useSetCount(groupId ?? 0);
   const stepper = useSteppedCount(groupId ?? 0);
@@ -90,7 +88,7 @@ export function CounterDetailPage() {
   const canWrite = Boolean(group?.can.edit);
 
   const goToCounter = (index: number) => {
-    if (counters.length === 0 || !guildId || !groupId) return;
+    if (counters.length === 0 || !communityId || !groupId) return;
     const wrapped = ((index % counters.length) + counters.length) % counters.length;
     const next = counters[wrapped];
     if (!next) return;
@@ -155,7 +153,6 @@ export function CounterDetailPage() {
   const bg = counter.color ?? "hsl(var(--background))";
   const fg = getContrastingTextColor(counter.color) ?? "hsl(var(--foreground))";
   const isLight = fg === "#0F172A";
-  const hasBounds = counter.min !== null && counter.max !== null;
 
   const stepButtonClass = isLight
     ? "bg-black/15 hover:bg-black/25 active:bg-black/35"
@@ -164,58 +161,6 @@ export function CounterDetailPage() {
   const chromeButtonClass = isLight
     ? "hover:bg-black/10 focus-visible:bg-black/10"
     : "hover:bg-white/10 focus-visible:bg-white/10";
-
-  let viewElement: React.ReactNode;
-  if (counter.view_mode === "progress_bar" && hasBounds) {
-    viewElement = (
-      <CounterProgressBarView
-        count={counter.count}
-        min={counter.min!}
-        max={counter.max!}
-        step={counter.step}
-        disabled={!canWrite}
-        textColor={fg}
-        onCommit={(value) => {
-          stepper.cancel(counter.id);
-          setCount.mutate({ counterId: counter.id, data: { count: value } });
-        }}
-        ariaLabel={counter.name}
-        size="2xl"
-      />
-    );
-  } else if (counter.view_mode === "segmented_clock" && hasBounds) {
-    viewElement = (
-      <CounterSegmentedClockView
-        count={counter.count}
-        min={counter.min!}
-        max={counter.max!}
-        step={counter.step}
-        disabled={!canWrite}
-        textColor={fg}
-        onCommit={(value) => {
-          stepper.cancel(counter.id);
-          setCount.mutate({ counterId: counter.id, data: { count: value } });
-        }}
-        ariaLabel={counter.name}
-        size="2xl"
-      />
-    );
-  } else {
-    viewElement = (
-      <CounterNumberView
-        count={counter.count}
-        step={counter.step}
-        disabled={!canWrite}
-        textColor={fg}
-        onCommit={(value) => {
-          stepper.cancel(counter.id);
-          setCount.mutate({ counterId: counter.id, data: { count: value } });
-        }}
-        ariaLabel={counter.name}
-        size="2xl"
-      />
-    );
-  }
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col" style={{ background: bg, color: fg }}>
@@ -306,7 +251,16 @@ export function CounterDetailPage() {
         onTouchEnd={handleTouchEnd}
       >
         <div className="flex w-full max-w-sm items-center justify-center sm:max-w-md">
-          {viewElement}
+          <CounterView
+            counter={counter}
+            disabled={!canWrite}
+            textColor={fg}
+            onCommit={(value) => {
+              stepper.cancel(counter.id);
+              setCount.mutate({ counterId: counter.id, data: { count: value } });
+            }}
+            size="2xl"
+          />
         </div>
       </div>
 

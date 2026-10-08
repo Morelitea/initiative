@@ -12,13 +12,12 @@ Signing up is a few short questions, then the account. Every question has an ans
 
 Two ways you've probably arrived:
 
-- **Somebody sent you an invite link.** Click it. It already knows which group you're joining, so it skips straight to your name and your account, and you land inside the group. This is the easy path and we wholeheartedly recommend it.
+- **Somebody sent you an invite link.** Click it. It already knows which group you're joining, so it skips straight to your handle and your account, and you land inside the group. This is the easy path and we wholeheartedly recommend it.
 - **Somebody sent you a web address.** Something like `initiative.yourteam.com`. Open it and press **Start a community** — it asks first, so this works even if you only came to join one.
 
 ![The Initiative sign-in screen](../images/getting-started/sign-in-screen.png)
 
-!!! screenshot "Wanted: the first question"
-    The **What brings you here?** screen with all four answers showing. Save as `docs/en/images/getting-started/what-brings-you-here.png`.
+![What brings you here? The four ways to start](../images/getting-started/what-brings-you-here.png)
 
 ## Step 2: Say what you're here for
 
@@ -39,9 +38,9 @@ Each path asks one or two things — a name for your space, what you're into, wh
 
 - **Your handle.** The name people find you by, with a number on the end that Initiative picks so nobody has to settle for `jordan7`. Stuck? Tap one of the suggestions under the box. Nobody here has those yet.
 - **Your timezone.** Guessed from your browser, and usually right.
-- **Your date of birth**, on servers that ask for one. Communities anyone can find and join are for people 16 and over, so it's required if you picked **Join a community** and optional otherwise. It's only used to check your age, and it isn't shared with anyone.
+- **Your date of birth**, on servers that ask for one. Communities anyone can find and join are for people 16 and over, so it's required if you picked **Join a community** and optional otherwise. It's kept encrypted, only used to check age limits, and never sold or shared. If you skip it here, you'll be asked once when you first sign in.
 
-Picked **Join a community**? Choose as many interests as you like, and the directory opens on all of them.
+Picked **Join a community**? Say where you are, if you like, and the communities near you come first. Nobody else sees it, and nothing far away is hidden. Then choose as many interests as you like, and the directory opens on all of them.
 
 ## Step 4: Create your account
 

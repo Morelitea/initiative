@@ -54,10 +54,10 @@
     "redactedItem": "Se te asignó una tarea"
   },
   "mention": {
-    "document": {
-      "subject": "Te mencionaron en {{document}}",
+    "file": {
+      "subject": "Te mencionaron en {{file}}",
       "title": "Te mencionaron",
-      "body": "<strong>{{actor}}</strong> te mencionó en <strong>{{document}}</strong>"
+      "body": "<strong>{{actor}}</strong> te mencionó en <strong>{{file}}</strong>"
     },
     "comment": {
       "subject": "Te mencionaron en un comentario",
@@ -254,6 +254,11 @@
       "subject": "La verificación en dos pasos está desactivada",
       "title": "La verificación en dos pasos está desactivada",
       "body": "Tu cuenta ya no pide un código al iniciar sesión y se han descartado los códigos de recuperación que tenías. Se ha cerrado tu sesión en todos los demás dispositivos."
+    },
+    "disableHeld": {
+      "subject": "Se va a desactivar la autenticación en dos pasos",
+      "title": "Se va a desactivar la autenticación en dos pasos",
+      "body": "La autenticación en dos pasos se desactivará el <strong>{{date}}</strong>. Hasta entonces tu cuenta sigue pidiendo un código al iniciar sesión, y puedes cancelarlo en Seguridad, dentro de tus ajustes."
     }
   },
   "passwordRemoved": {
@@ -279,7 +284,43 @@
       "subject": "Se ha eliminado una clave de acceso de tu cuenta",
       "title": "Se ha eliminado una clave de acceso de tu cuenta",
       "body": "La clave de acceso <strong>{{passkey}}</strong> ya no sirve para iniciar sesión. Las demás formas de entrar siguen igual y tu sesión continúa abierta allí donde lo estaba."
+    },
+    "removalHeld": {
+      "subject": "Se va a quitar tu última clave de acceso",
+      "title": "Se va a quitar tu última clave de acceso",
+      "body": "La clave de acceso <strong>{{passkey}}</strong>, la última de tu cuenta, se quitará el <strong>{{date}}</strong>. Hasta entonces sigue sirviendo para iniciar sesión, y puedes cancelarlo en Seguridad, dentro de tus ajustes."
     }
+  },
+  "address": {
+    "fallbackText": "Si no has sido tú, inicia sesión y revisa las direcciones de tu cuenta de inmediato, y ponte en contacto con quien administra este sitio.",
+    "proved": {
+      "subject": "Se añadió una dirección a tu cuenta",
+      "title": "Se añadió una dirección a tu cuenta",
+      "body": "<strong>{{address}}</strong> está ahora confirmada en tu cuenta y se puede usar para iniciar sesión."
+    },
+    "primary": {
+      "subject": "Tu dirección de correo principal ha cambiado",
+      "title": "Tu dirección de correo principal ha cambiado",
+      "body": "<strong>{{address}}</strong> es ahora la dirección principal de tu cuenta. Los restablecimientos de contraseña y los códigos de inicio de sesión llegan primero allí."
+    },
+    "removed": {
+      "subject": "Se eliminó una dirección de tu cuenta",
+      "title": "Se eliminó una dirección de tu cuenta",
+      "body": "<strong>{{address}}</strong> se eliminó de tu cuenta y ya no se puede usar para iniciar sesión."
+    },
+    "primaryHeld": {
+      "subject": "Tu dirección de correo principal va a cambiar",
+      "title": "Tu dirección de correo principal va a cambiar",
+      "body": "<strong>{{address}}</strong> pasará a ser la dirección principal de tu cuenta el <strong>{{date}}</strong>. Hasta entonces no cambia nada, y puedes cancelarlo en Cuenta, dentro de tus ajustes."
+    },
+    "removalHeld": {
+      "subject": "Se va a quitar una dirección de tu cuenta",
+      "title": "Se va a quitar una dirección de tu cuenta",
+      "body": "<strong>{{address}}</strong> se quitará de tu cuenta el <strong>{{date}}</strong>. Hasta entonces sigue sirviendo para iniciar sesión, y puedes cancelarlo en Cuenta, dentro de tus ajustes."
+    }
+  },
+  "accountNotice": {
+    "notMe": "No he sido yo"
   },
   "digest": {
     "hourly": {
@@ -370,23 +411,17 @@
   "communityOnHold": {
     "subject": "{{community}} está en pausa",
     "title": "{{community}} está en pausa",
-    "greeting": "Hola:",
     "body": "<strong>{{community}}</strong> está en pausa, así que por ahora nadie puede abrirla, ni sus miembros ni sus administradores. No se ha cambiado ni eliminado nada.",
     "bodyDeleting": "<strong>{{community}}</strong> está en pausa y se eliminará el <strong>{{date}}</strong> a menos que se restablezca su plan. Hasta entonces nadie puede abrirla, ni sus miembros ni sus administradores, y no se ha cambiado ni eliminado nada.",
     "bodyDeletingUnlessLifted": "<strong>{{community}}</strong> está en pausa y se eliminará el <strong>{{date}}</strong> a menos que se levante la pausa. Hasta entonces nadie puede abrirla, ni sus miembros ni sus administradores, y no se ha cambiado ni eliminado nada.",
     "contact": "Ponte en contacto con <strong>{{contact}}</strong> para resolverlo.",
     "contactNobody": "Ponte en contacto con quien gestiona este servidor para resolverlo.",
-    "textBody": "{{community}} está en pausa, así que por ahora nadie puede abrirla. No se ha cambiado ni eliminado nada.",
-    "textBodyDeleting": "{{community}} está en pausa y se eliminará el {{date}} a menos que se restablezca su plan. Hasta entonces nadie puede abrirla, y no se ha cambiado ni eliminado nada.",
-    "textBodyDeletingUnlessLifted": "{{community}} está en pausa y se eliminará el {{date}} a menos que se levante la pausa. Hasta entonces nadie puede abrirla, y no se ha cambiado ni eliminado nada.",
-    "textContact": "Ponte en contacto con {{contact}} para resolverlo.",
-    "textContactNobody": "Ponte en contacto con quien gestiona este servidor para resolverlo.",
     "buttonLabel": "Restablecer el plan"
   },
   "communityTrialEnding": {
     "subject": "La prueba de {{community}} termina el {{date}}",
     "title": "La prueba de {{community}} termina el {{date}}",
-    "body": "La prueba de <strong>{{community}}</strong> termina el <strong>{{date}}</strong>. Suscríbete en el portal de facturación antes de esa fecha para seguir editando; después, la comunidad pasará a ser de solo lectura hasta que se elija un plan.",
+    "body": "La prueba de <strong>{{community}}</strong> termina el <strong>{{date}}</strong>. Después, su plan continúa y se cobra al método de pago registrado. Revisa tus datos de facturación o cancela antes de esa fecha si no quieres continuar.",
     "buttonLabel": "Abrir el portal de facturación"
   },
   "communityTrialEnded": {

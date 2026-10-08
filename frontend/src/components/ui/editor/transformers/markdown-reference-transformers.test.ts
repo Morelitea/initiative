@@ -9,7 +9,7 @@ import {
 } from "lexical";
 import { describe, expect, it } from "vitest";
 
-import { documentExtension } from "@/components/documents/editor/document-extension";
+import { documentExtension } from "@/components/ui/editor/document-extension";
 import { MARKDOWN_TRANSFORMERS } from "@/components/ui/editor/extensions/markdown-shortcuts-extension";
 import {
   $createEntityMentionNode,
@@ -75,13 +75,14 @@ describe("references in markdown", () => {
     });
 
     const markdown = toMarkdown(editor);
+    // The person goes by id alone: their name is read when the chip is drawn.
     expect(markdown).toBe(
-      "Ask @[Ada](4) about [[task:12|Roll call]], now [[task:12:status|Roll call]] and [[calendar_event:3:when|Kickoff]]"
+      "Ask @[](4) about [[task:12|Roll call]], now [[task:12:status|Roll call]] and [[calendar_event:3:when|Kickoff]]"
     );
 
     expect(inline(fromMarkdown(markdown))).toEqual([
       "text Ask ",
-      "person 4 Ada",
+      "person 4 ",
       "text  about ",
       "link task:12 Roll call",
       "text , now ",
@@ -103,14 +104,20 @@ describe("references in markdown", () => {
     expect(inline(fromMarkdown(toMarkdown(editor)))).toEqual(["link task:12 A  B [draft"]);
   });
 
-  it("leave a mention from before people had ids as one", () => {
+  it("keep the name of somebody with no account, and drop it for somebody with one", () => {
     expect(inline(fromMarkdown("Hi @[Ada]()"))).toEqual(["text Hi ", "person null Ada"]);
+    expect(inline(fromMarkdown("Hi @[Ada](4)"))).toEqual(["text Hi ", "person 4 "]);
+    expect(toMarkdown(fromMarkdown("Hi @[Ada]() and @[Ada](4)"))).toBe("Hi @[Ada]() and @[](4)");
   });
 
   it("leave something this build cannot show as the words it was written as", () => {
     expect(inline(fromMarkdown("[[task:12:mood|Roll call]]"))).toEqual([
       "text [[task:12:mood|Roll call]]",
     ]);
+  });
+
+  it("read a kind stored under its earlier spelling as today's", () => {
+    expect(inline(fromMarkdown("[[document:12|Brief]]"))).toEqual(["link file:12 Brief"]);
   });
 
   it("leave an embed an embed", () => {

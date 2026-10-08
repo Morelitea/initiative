@@ -18,7 +18,7 @@ from app.api import content_socket
 from app.api.content_socket import MSG_AUTH, read_auth_frame, serve_tool_stream
 from app.core.security import SESSION_COOKIE_NAME
 from app.core.tools import Tool
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.services.content_sockets import resource_room, sockets
 from app.testing import create_queue, get_auth_token
 from app.testing.sockets import settle
@@ -27,9 +27,15 @@ from app.testing.sockets import settle
 class InboundWebSocket:
     """A client that sends ``frames`` and then waits for the server."""
 
-    def __init__(self, frames: list[dict], cookies: Optional[dict] = None) -> None:
+    def __init__(
+        self,
+        frames: list[dict],
+        cookies: Optional[dict] = None,
+        headers: Optional[dict] = None,
+    ) -> None:
         self._frames = list(frames)
         self.cookies = cookies or {}
+        self.headers = headers or {}
         self.accepted = False
         self.closed: Optional[int] = None
         self.sent: list[dict] = []
@@ -83,13 +89,20 @@ async def test_the_first_frame_carries_the_token(frame) -> None:
 
 
 async def test_a_session_cookie_stands_in_for_a_null_token() -> None:
-    websocket = InboundWebSocket(
-        [_binary({"token": None})], cookies={SESSION_COOKIE_NAME: "from-cookie"}
+    cookies = {SESSION_COOKIE_NAME: "from-cookie"}
+    websocket = InboundWebSocket([_binary({"token": None})], cookies=cookies)
+    # A handshake that presents a bearer header is not the cookie's to answer.
+    beside_bearer = InboundWebSocket(
+        [_binary({"token": None})],
+        cookies=cookies,
+        headers={"authorization": "Bearer a-token"},
     )
 
     first = await read_auth_frame(websocket)  # type: ignore[arg-type]
 
     assert first is not None and first[0] == "from-cookie"
+    assert await read_auth_frame(beside_bearer) is None  # type: ignore[arg-type]
+    assert beside_bearer.closed == status.WS_1008_POLICY_VIOLATION
 
 
 @pytest.mark.parametrize(
@@ -153,7 +166,7 @@ async def _watch(guild_id: int, queue_id: int, token: str) -> InboundWebSocket:
 async def test_a_reader_of_the_queue_is_seated_and_told_of_changes(
     session: AsyncSession, acting_user
 ) -> None:
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     queue = await create_queue(session, a.initiative, a.user)
 
     websocket = await _watch(a.guild.id, queue.id, get_auth_token(a.user))
@@ -170,7 +183,7 @@ async def test_a_reader_of_the_queue_is_seated_and_told_of_changes(
 
 async def test_a_revoked_sign_in_is_refused(session: AsyncSession, acting_user) -> None:
     """A sign-in ended by bumping ``token_version`` opens no socket."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     queue = await create_queue(session, a.initiative, a.user)
     token = get_auth_token(a.user)
     a.user.token_version += 1
@@ -186,7 +199,7 @@ async def test_a_revoked_sign_in_is_refused(session: AsyncSession, acting_user) 
 async def test_a_queue_whose_tool_is_switched_off_is_not_streamed(
     session: AsyncSession, acting_user
 ) -> None:
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     queue = await create_queue(session, a.initiative, a.user)
     a.initiative.queues_enabled = False
     session.add(a.initiative)
@@ -201,10 +214,10 @@ async def test_a_queue_whose_tool_is_switched_off_is_not_streamed(
 async def test_a_member_the_queue_is_not_shared_with_is_refused(
     session: AsyncSession, acting_user
 ) -> None:
-    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    owner = await acting_user(guild_role=CommunityRole.member, initiative=True)
     queue = await create_queue(session, owner.initiative, owner.user)
     outsider = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=owner.guild,
         initiative=owner.initiative,
         initiative_role="member",
@@ -259,7 +272,7 @@ async def test_a_held_socket_hands_on_binary_frames_and_beats_when_quiet(
     websocket = Client()
 
     async def keep(_session, _user):
-        return frozenset({resource_room(1, "document", 3)})
+        return frozenset({resource_room(1, "file", 3)})
 
     sub = Subscriber(
         websocket=websocket,  # type: ignore[arg-type]
@@ -268,7 +281,7 @@ async def test_a_held_socket_hands_on_binary_frames_and_beats_when_quiet(
         wire=Wire.bytes,
         authorize=keep,
         credential=Credential(),
-        rooms=frozenset({resource_room(1, "document", 3)}),
+        rooms=frozenset({resource_room(1, "file", 3)}),
     )
     register.join(sub)
     received: list[bytes] = []
@@ -281,11 +294,11 @@ async def test_a_held_socket_hands_on_binary_frames_and_beats_when_quiet(
 
     assert received == [b"\x02edit"]
     assert content_socket.HEARTBEAT_FRAME in websocket.sent
-    assert register.room_size(resource_room(1, "document", 3)) == 0
+    assert register.room_size(resource_room(1, "file", 3)) == 0
 
 
 async def test_a_socket_that_keeps_talking_is_still_beaten_to(monkeypatch) -> None:
-    """Someone typing alone in a document sends constantly and is sent nothing
+    """Someone typing alone in a file sends constantly and is sent nothing
     back — edits are relayed to everyone else. The beat is measured from what
     the server last said, so their client still hears one and keeps the socket."""
     from types import SimpleNamespace
@@ -318,7 +331,7 @@ async def test_a_socket_that_keeps_talking_is_still_beaten_to(monkeypatch) -> No
     websocket = Typist()
 
     async def keep(_session, _user):
-        return frozenset({resource_room(1, "document", 3)})
+        return frozenset({resource_room(1, "file", 3)})
 
     sub = Subscriber(
         websocket=websocket,  # type: ignore[arg-type]
@@ -327,7 +340,7 @@ async def test_a_socket_that_keeps_talking_is_still_beaten_to(monkeypatch) -> No
         wire=Wire.bytes,
         authorize=keep,
         credential=Credential(),
-        rooms=frozenset({resource_room(1, "document", 3)}),
+        rooms=frozenset({resource_room(1, "file", 3)}),
     )
     register.join(sub)
     try:

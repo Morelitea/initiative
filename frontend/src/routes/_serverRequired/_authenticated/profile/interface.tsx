@@ -14,11 +14,11 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/profile/in
 });
 
 function InterfacePage() {
-  const { user, refreshUser } = useAuth();
+  const { user, acceptUser } = useAuth();
   if (!user) return null;
   return (
     <Suspense fallback={null}>
-      <UserSettingsInterfacePage user={user} refreshUser={refreshUser} />
+      <UserSettingsInterfacePage user={user} acceptUser={acceptUser} />
     </Suspense>
   );
 }

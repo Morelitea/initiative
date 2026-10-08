@@ -35,6 +35,10 @@ class QueryColumnDescription(SanitizedBaseModel):
     #: The same vocabulary the field registry uses, so a client reading a
     #: query's shape and a client reading a dataset's fields read one thing.
     type: FieldType
+    #: For a date rounded with ``date_trunc``, the unit it is rounded to —
+    #: ``day``, ``week``, ``month``, ``quarter`` or ``year``. A chart labels
+    #: its points by this rather than by guessing from the dates.
+    grain: Optional[str] = None
 
 
 class QueryShapeResponse(SanitizedBaseModel):

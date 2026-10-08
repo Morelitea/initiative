@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { useAuth } from "@/hooks/useAuth";
 import { useCreateComment, useDeleteComment, useUpdateComment } from "@/hooks/useComments";
-import { useGuilds } from "@/hooks/useGuilds";
+import { useCommunities } from "@/hooks/useCommunities";
 import { useReadOnOpen } from "@/hooks/useNotifications";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { referenceTypeFor } from "@/lib/references";
@@ -43,7 +43,6 @@ interface CommentSectionProps {
   hasOlder?: boolean;
   isLoadingOlder?: boolean;
   onLoadOlder?: () => void;
-  canModerate?: boolean;
   initiativeId: number;
 }
 
@@ -89,11 +88,10 @@ export const CommentSection = ({
   hasOlder = false,
   isLoadingOlder = false,
   onLoadOlder,
-  canModerate = false,
   initiativeId,
 }: CommentSectionProps) => {
   const { t } = useTranslation("comments");
-  const { activeGuildReadOnly } = useGuilds();
+  const { activeCommunityReadOnly } = useCommunities();
   const [content, setContent] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -115,7 +113,7 @@ export const CommentSection = ({
       onCommentCreated?.(comment);
     },
     onError: (err) => {
-      setError(getErrorMessage(err, "documents:comments.errorCreate"));
+      setError(getErrorMessage(err, "comments:createError"));
     },
   });
 
@@ -125,7 +123,7 @@ export const CommentSection = ({
       onCommentDeleted?.(commentId);
     },
     onError: (err) => {
-      setDeleteError(getErrorMessage(err, "documents:comments.errorDelete"));
+      setDeleteError(getErrorMessage(err, "comments:deleteError"));
     },
   });
 
@@ -135,7 +133,7 @@ export const CommentSection = ({
       onCommentUpdated?.(comment);
     },
     onError: (err) => {
-      setEditError(getErrorMessage(err, "documents:comments.errorUpdate"));
+      setEditError(getErrorMessage(err, "comments:updateError"));
     },
   });
 
@@ -265,7 +263,7 @@ export const CommentSection = ({
         </CardHeader>
 
         <CardContent>
-          {activeGuildReadOnly ? (
+          {activeCommunityReadOnly ? (
             <p className="text-muted-foreground text-sm">{t("readOnlyNote")}</p>
           ) : (
             <CommentInput
@@ -294,14 +292,13 @@ export const CommentSection = ({
                   onReply={handleReply}
                   onDelete={handleDelete}
                   onEdit={handleEdit}
-                  canModerate={canModerate}
                   currentUserId={user?.id}
                   initiativeId={initiativeId}
                   subject={subject}
                   isSubmitting={
                     createComment.isPending || deleteComment.isPending || updateComment.isPending
                   }
-                  canReact={!activeGuildReadOnly}
+                  canReact={!activeCommunityReadOnly}
                   deleteError={deleteComment.variables === comment.id ? deleteError : null}
                   userDisplayNames={userDisplayNames}
                   unreadIds={unreadIds}

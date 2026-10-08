@@ -10,15 +10,15 @@ from datetime import datetime
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.task import TaskStatusCategory
-from app.testing import create_document, create_queue, create_task
+from app.testing import create_file, create_queue, create_task
 
 
 async def test_a_tool_that_could_not_be_archived_before_can_be_now(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     queue = await create_queue(session, a.initiative, a.user)
 
     response = await client.post(a.g(f"/archive/queue/{queue.id}"), headers=a.headers)
@@ -32,17 +32,13 @@ async def test_archiving_twice_answers_with_the_stamp_it_has(
 ):
     """The second call is a repeat, not a conflict — an archived row is
     read-only, and this is the write that made it so."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
-    document = await create_document(session, a.initiative, a.user)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
+    file = await create_file(session, a.initiative, a.user)
 
-    first = await client.post(
-        a.g(f"/archive/document/{document.id}"), headers=a.headers
-    )
+    first = await client.post(a.g(f"/archive/file/{file.id}"), headers=a.headers)
     assert first.status_code == 200
 
-    again = await client.post(
-        a.g(f"/archive/document/{document.id}"), headers=a.headers
-    )
+    again = await client.post(a.g(f"/archive/file/{file.id}"), headers=a.headers)
     assert again.status_code == 200
     assert again.json()["archived_at"] == first.json()["archived_at"]
 
@@ -50,12 +46,10 @@ async def test_archiving_twice_answers_with_the_stamp_it_has(
 async def test_unarchiving_something_live_is_a_repeat_too(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
-    document = await create_document(session, a.initiative, a.user)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
+    file = await create_file(session, a.initiative, a.user)
 
-    response = await client.post(
-        a.g(f"/unarchive/document/{document.id}"), headers=a.headers
-    )
+    response = await client.post(a.g(f"/unarchive/file/{file.id}"), headers=a.headers)
 
     assert response.status_code == 200
     assert response.json()["archived_at"] is None
@@ -64,7 +58,7 @@ async def test_unarchiving_something_live_is_a_repeat_too(
 async def test_an_archived_tool_goes_back(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     queue = await create_queue(session, a.initiative, a.user)
 
     await client.post(a.g(f"/archive/queue/{queue.id}"), headers=a.headers)
@@ -79,7 +73,7 @@ async def test_archiving_an_initiative_archives_what_is_inside_it(
 ):
     """Finished is finished all the way down, and with one stamp, so a list
     filtering live work reads one column and gets the same answer everywhere."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     queue = await create_queue(session, a.initiative, a.user)
     task = await create_task(session, a.project)
 
@@ -105,7 +99,7 @@ async def test_unarchiving_leaves_what_was_archived_on_its_own(
 ):
     """The shared stamp is what tells the two apart: a queue put away earlier
     carries a different one and keeps it."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     queue = await create_queue(session, a.initiative, a.user)
 
     await client.post(a.g(f"/archive/queue/{queue.id}"), headers=a.headers)
@@ -127,7 +121,9 @@ async def test_a_task_cannot_be_taken_out_from_under_an_archived_project(
 ):
     """Otherwise it is live inside a finished thing — and a live row is not
     asked about its ancestry again, so it could then be moved or deleted out."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     task = await create_task(session, a.project)
 
     await client.post(a.g(f"/archive/project/{a.project.id}"), headers=a.headers)
@@ -138,13 +134,22 @@ async def test_a_task_cannot_be_taken_out_from_under_an_archived_project(
     await session.refresh(task)
     assert task.archived_at is not None
 
+    # One that is not there is refused as a task, not as its project.
+    missing = await client.post(
+        a.g(f"/unarchive/task/{task.id + 1000}"), headers=a.headers
+    )
+    assert missing.status_code == 404
+    assert missing.json()["detail"] == "TASK_NOT_FOUND"
+
 
 async def test_the_project_going_back_takes_its_tasks_with_it(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """The way out is the parent, and it still works — the cascade clears the
     parent before the children, which is the order the guard requires."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     task = await create_task(session, a.project)
 
     await client.post(a.g(f"/archive/project/{a.project.id}"), headers=a.headers)
@@ -162,7 +167,9 @@ async def test_archiving_a_projects_done_tasks_archives_each_as_archiving_it_wou
 ):
     """One stamp for the batch, the live work left alone, and each task taken
     back out on its own through the same route as any other."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     first = await create_task(
         session, a.project, status_category=TaskStatusCategory.done
     )

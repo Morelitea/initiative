@@ -36,7 +36,7 @@ That's true of every messaging service, encrypted or not. It's worth knowing if 
 
 It happens — a legal request, an investigation, an insistent employer. The answer is short, and it's the same one every time: we can say **whether** two accounts have a conversation and roughly when, because delivering a message requires knowing that much. We cannot produce a single word of what was said, because no copy exists that anyone but the two of you can open.
 
-The same applies if you run Initiative yourself. Your database holds your community's projects and documents in full, and your members' conversations as text you have no key to. There's nothing you could be pressed into handing over, which is a quieter kind of relief than it sounds.
+The same applies if you run Initiative yourself. Your database holds your community's projects and files in full, and your members' conversations as text you have no key to. There's nothing you could be pressed into handing over, which is a quieter kind of relief than it sounds.
 
 The formal version of this, with the rest of the compliance picture, is in [Data & compliance](data-and-compliance.md#what-could-be-handed-over).
 

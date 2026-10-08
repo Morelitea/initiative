@@ -10,7 +10,7 @@ from sqlalchemy import text
 from app.core.config import settings
 from app.db import cohorts
 from app.db.session import set_rls_context
-from app.models.platform.guild import Guild, GuildRole, GuildStatus
+from app.models.platform.guild import Guild, CommunityRole, CommunityStatus
 from app.models.tenant.import_job import ImportJob, ImportJobStatus
 from app.services.guild_sweeps import Scope, each_guild
 from app.services.import_engine import worker as import_worker
@@ -35,7 +35,7 @@ async def _reload(session, guild_id: int, job_id: int) -> ImportJob:
 async def test_gc_reaches_a_community_that_is_not_active(acting_user, session):
     """A staged payload past its deadline goes, with the job's secret, from a
     community that is not active too."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     key = "imports/gc-elsewhere.zip"
     get_guild_storage(a.guild.id).write(key, b"PK-fake", content_type="application/zip")
     job = await create_import_job(
@@ -48,7 +48,7 @@ async def test_gc_reaches_a_community_that_is_not_active(acting_user, session):
         expires_at=datetime.now(timezone.utc) - timedelta(hours=1),
     )
     guild = await session.get(Guild, a.guild.id)
-    guild.status = GuildStatus.read_only.value
+    guild.status = CommunityStatus.read_only.value
     session.add(guild)
     await session.commit()
 
@@ -76,7 +76,7 @@ async def test_gc_reaches_a_community_that_is_not_active(acting_user, session):
 async def test_gc_clears_a_secret_only_from_a_job_that_is_over(
     acting_user, session, status, expires_in, keeps_secret
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     job = await create_import_job(
         session,
         a.guild,

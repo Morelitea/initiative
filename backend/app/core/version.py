@@ -3,19 +3,22 @@
 from pathlib import Path
 
 
-def get_version() -> str:
-    """Read version from VERSION file at project root."""
-    # Try Docker path first: /app/app/core/version.py -> /app/VERSION
-    version_file = Path(__file__).parent.parent.parent / "VERSION"
-    if version_file.exists():
-        return version_file.read_text().strip()
-
-    # Fall back to development path: backend/app/core/version.py -> ../../../../VERSION
-    version_file = Path(__file__).parent.parent.parent.parent / "VERSION"
+def _read_root_file(name: str) -> str:
+    """A version file at the project root, or ``"0.0.0"`` when there is none."""
+    # Docker: /app/app/core/version.py -> /app/<name>
+    path = Path(__file__).parent.parent.parent / name
+    if not path.exists():
+        # Development: backend/app/core/version.py -> repo_root/<name>
+        path = Path(__file__).parent.parent.parent.parent / name
     try:
-        return version_file.read_text().strip()
+        return path.read_text().strip()
     except FileNotFoundError:
         return "0.0.0"
+
+
+def get_version() -> str:
+    """Read version from VERSION file at project root."""
+    return _read_root_file("VERSION")
 
 
 def get_min_native_version() -> str:
@@ -24,20 +27,22 @@ def get_min_native_version() -> str:
     This is the semver of the release in which the native shell last changed (Capacitor
     plugins or config). The OTA flow refuses a web bundle whose ``minNativeVersion`` exceeds
     the installed native app version, prompting a store/APK update instead — because a newer
-    web bundle may call a native API the older shell lacks. Resolution mirrors ``get_version``
-    (Docker path first).
+    web bundle may call a native API the older shell lacks.
     """
-    # Try Docker path first: /app/app/core/version.py -> /app/MIN_NATIVE_VERSION
-    min_version_file = Path(__file__).parent.parent.parent / "MIN_NATIVE_VERSION"
-    if not min_version_file.exists():
-        # Fall back to development path: -> repo_root/MIN_NATIVE_VERSION
-        min_version_file = (
-            Path(__file__).parent.parent.parent.parent / "MIN_NATIVE_VERSION"
-        )
-    try:
-        return min_version_file.read_text().strip()
-    except FileNotFoundError:
-        return "0.0.0"
+    return _read_root_file("MIN_NATIVE_VERSION")
+
+
+def get_min_desktop_version() -> str:
+    """The desktop app's floor, from MIN_DESKTOP_VERSION: what ``get_min_native_version``
+    is for the phone app, kept apart so a change to one app asks nobody to reinstall the
+    other."""
+    return _read_root_file("MIN_DESKTOP_VERSION")
+
+
+def is_dev_image() -> bool:
+    """Whether this is a dev image, which the dev build marks in
+    IMAGE_CHANNEL. Anything else, an unmarked checkout included, is not."""
+    return _read_root_file("IMAGE_CHANNEL") == "dev"
 
 
 def _parts(version: str) -> tuple[int, int, int]:

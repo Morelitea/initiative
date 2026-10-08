@@ -16,11 +16,13 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Protocol
 
-from sqlalchemy import func, text
+from sqlalchemy import func
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.errors import CodedError
 from app.core.config import settings
+from app.db.advisory_locks import LockNamespace, advisory_lock
 from app.models.platform.user import User
 from app.models.tenant.export_job import ExportJob, ExportJobStatus
 from app.services import guild_work
@@ -33,10 +35,8 @@ from app.services.export.local_backend import LocalRenderBackend
 from app.services.storage import get_guild_storage
 from app.services.export import limits as export_limits
 from app.core.user_input_validators import resolve_zone
+from app.core.user_display import name_here
 
-
-# Advisory-lock namespace (arbitrary constant) for the per-user job-cap check.
-_JOB_CAP_LOCK_NS = 0x455850  # "EXP"
 
 #: Called once per rendered artifact, so a job can show it is still going.
 Heartbeat = Callable[[], Awaitable[None]]
@@ -79,15 +79,10 @@ class SourceAdapter(Protocol):
     ) -> RenderRequest: ...
 
 
-class ExportError(Exception):
+class ExportError(CodedError):
     """Engine-level failure with a machine-readable code (``messages.py``
-    constant). Endpoints map it to an HTTPException; the worker records the
+    constant). The API answers it with its status; the worker records the
     code on the failed job row."""
-
-    def __init__(self, code: str, status_code: int = 400) -> None:
-        self.code = code
-        self.status_code = status_code
-        super().__init__(code)
 
 
 @dataclass(frozen=True)
@@ -162,7 +157,7 @@ async def start_export(
             session, user=user, guild_id=guild_id, params=params, format=format
         )
         request = await apply_brand(request, session)
-        request = stamp_export(request, user)
+        request = stamp_export(request, await name_here(session, user))
         artifacts = await get_backend().render(request)
         artifact = await asyncio.to_thread(
             _bundle,
@@ -182,10 +177,7 @@ async def start_export(
 
     # Serialize count+insert per user so concurrent requests can't race past
     # the cap. Transaction-scoped advisory lock: released at the commit below.
-    await session.exec(
-        text("SELECT pg_advisory_xact_lock(:ns, :uid)"),
-        params={"ns": _JOB_CAP_LOCK_NS, "uid": user.id},
-    )
+    await advisory_lock(session, LockNamespace.EXPORT_CAP, user.id)
     active = (
         await session.exec(
             select(func.count())

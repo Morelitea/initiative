@@ -27,8 +27,8 @@ import {
   useProviderPlacement,
   useSetPlacementEverywhere,
 } from "@/hooks/useProviderPlacement";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import { Capability, hasCapability } from "@/lib/permissions";
 
 /** The rule dialog's subject: a provider, and the rule on it being edited. */
@@ -46,10 +46,10 @@ type Editing = { provider: PlacementProviderRead; rule: ProviderPlacementRuleRea
 export const OperatorDashboardPlacementPage = () => {
   const { t } = useTranslation("settings");
   const { user } = useAuth();
-  const canManageGuilds = hasCapability(user, Capability.guildsManage);
+  const canManageCommunities = hasCapability(user, Capability.communitiesManage);
   const canSetEverywhere = hasCapability(user, Capability.configManage);
 
-  const placementQuery = useProviderPlacement({ enabled: canManageGuilds });
+  const placementQuery = useProviderPlacement({ enabled: canManageCommunities });
 
   const [editing, setEditing] = useState<Editing | null>(null);
   const [removing, setRemoving] = useState<ProviderPlacementRuleRead | null>(null);
@@ -81,7 +81,7 @@ export const OperatorDashboardPlacementPage = () => {
       onSettled: () => setRemoving(null),
     });
 
-  if (!canManageGuilds) {
+  if (!canManageCommunities) {
     return <p className="text-muted-foreground text-sm">{t("providerPlacement.platformOnly")}</p>;
   }
 
@@ -111,9 +111,8 @@ export const OperatorDashboardPlacementPage = () => {
 
   return (
     <div className="space-y-6">
-      <Card className="shadow-sm">
+      <Card>
         <CardHeader>
-          <CardTitle>{t("providerPlacement.title")}</CardTitle>
           <CardDescription>{t("providerPlacement.description")}</CardDescription>
         </CardHeader>
         <CardContent>
@@ -179,7 +178,7 @@ export const OperatorDashboardPlacementPage = () => {
         onOpenChange={(open) => !open && setRemoving(null)}
         title={t("providerPlacement.removeTitle")}
         description={t("providerPlacement.removeDescription", {
-          community: removing?.guild_name ?? "",
+          community: removing?.community_name ?? "",
         })}
         confirmLabel={t("providerPlacement.remove")}
         cancelLabel={t("authProviders.cancel")}
@@ -207,7 +206,7 @@ const ProviderRulesCard = ({
 }) => {
   const { t } = useTranslation("settings");
   return (
-    <Card className="shadow-sm">
+    <Card>
       <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
         <div className="flex min-w-0 items-start gap-3">
           <ProviderMark icon={provider.icon} className="mt-1" />
@@ -242,14 +241,14 @@ const ProviderRulesCard = ({
                   <p className="text-muted-foreground text-sm">
                     {rule.initiative_name
                       ? t("providerPlacement.landsInInitiative", {
-                          community: rule.guild_name,
-                          role: placementRoleLabel(rule.guild_role, t),
+                          community: rule.community_name,
+                          role: placementRoleLabel(rule.community_role, t),
                           initiative: rule.initiative_name,
                           initiativeRole: rule.initiative_role_name ?? "",
                         })
                       : t("providerPlacement.landsInCommunity", {
-                          community: rule.guild_name,
-                          role: placementRoleLabel(rule.guild_role, t),
+                          community: rule.community_name,
+                          role: placementRoleLabel(rule.community_role, t),
                         })}
                   </p>
                 </div>
@@ -295,7 +294,7 @@ const PlacementRequestsCard = () => {
   if (rows.length === 0) return null;
 
   return (
-    <Card className="shadow-sm">
+    <Card>
       <CardHeader>
         <CardTitle>{t("providerPlacement.requests.title")}</CardTitle>
         <CardDescription>{t("providerPlacement.requests.help")}</CardDescription>
@@ -305,12 +304,12 @@ const PlacementRequestsCard = () => {
           {rows.map((row) => (
             <li
               key={row.connection_id}
-              className="flex items-start justify-between gap-3 rounded-md border px-3 py-3"
+              className="flex items-start justify-between gap-3 rounded-md border px-4 py-3"
             >
               <div className="min-w-0 space-y-1">
-                <p className="font-medium text-sm">{row.guild_name}</p>
+                <p className="font-medium text-sm">{row.community_name}</p>
                 <p className="text-sm">
-                  {t("guilds.sheet.narrowings.claims", {
+                  {t("communities.sheet.narrowings.claims", {
                     provider: row.provider_display_name,
                     claim: row.claim,
                     values: row.claim_values.join(", "),
@@ -318,8 +317,8 @@ const PlacementRequestsCard = () => {
                 </p>
                 <p className="text-muted-foreground text-xs">
                   {row.auto_join
-                    ? t("guilds.sheet.narrowings.joinsOnArrival")
-                    : t("guilds.sheet.narrowings.admitsOnly")}
+                    ? t("communities.sheet.narrowings.joinsOnArrival")
+                    : t("communities.sheet.narrowings.admitsOnly")}
                 </p>
               </div>
               <Button
@@ -327,19 +326,21 @@ const PlacementRequestsCard = () => {
                 disabled={agree.isPending}
                 onClick={() =>
                   agree.mutate(
-                    { guildId: row.guild_id, connectionId: row.connection_id },
+                    { communityId: row.community_id, connectionId: row.connection_id },
                     {
                       onSuccess: () =>
                         toast.success(
-                          t("providerPlacement.requests.agreed", { community: row.guild_name })
+                          t("providerPlacement.requests.agreed", { community: row.community_name })
                         ),
                       onError: (err: unknown) =>
-                        toast.error(getErrorMessage(err, "settings:guilds.sheet.narrowings.error")),
+                        toast.error(
+                          getErrorMessage(err, "settings:communities.sheet.narrowings.error")
+                        ),
                     }
                   )
                 }
               >
-                {t("guilds.sheet.narrowings.agree")}
+                {t("communities.sheet.narrowings.agree")}
               </Button>
             </li>
           ))}

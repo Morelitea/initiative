@@ -17,7 +17,8 @@ import { WizardDialog } from "@/components/ui/wizard-dialog";
 import { useImportIcalEvents, useParseIcalFile } from "@/hooks/useCalendarEvents";
 import { useCalendarsList } from "@/hooks/useCalendars";
 import { useWizard } from "@/hooks/useWizard";
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
+import { browserTimezone } from "@/lib/timezones";
 import type { DialogProps } from "@/types/dialog";
 
 type Step = "upload" | "result";
@@ -67,7 +68,7 @@ export const ICalImportDialog = ({
 
   const MAX_ICS_SIZE = 2_000_000;
   // Dates and floating times in the file are read in the importer's zone.
-  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const tz = browserTimezone();
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -221,8 +222,14 @@ export const ICalImportDialog = ({
           {importErrors.length > 0 && (
             <div className="max-h-40 overflow-y-auto rounded-lg bg-muted p-3">
               <ul className="space-y-1 text-muted-foreground text-xs">
-                {importErrors.map((error) => (
-                  <li key={error}>{error}</li>
+                {importErrors.map((error, index) => (
+                  // Two events in a file may share a title and a problem.
+                  // biome-ignore lint/suspicious/noArrayIndexKey: the list is fixed once shown
+                  <li key={index}>
+                    {t(`calendars:import.problems.${error.problem}`, {
+                      title: error.title ?? t("calendars:import.problems.untitled"),
+                    })}
+                  </li>
                 ))}
               </ul>
             </div>

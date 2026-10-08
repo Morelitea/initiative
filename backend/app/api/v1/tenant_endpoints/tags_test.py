@@ -7,7 +7,7 @@ from sqlmodel import select
 
 from app.core.relationships import node_id
 from app.core.search import SearchEntityType
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.relationship import EntityRelationship
 from app.testing import (
     create_initiative,
@@ -47,8 +47,8 @@ async def test_any_guild_member_can_manage_the_tag_dictionary(
     RLS policy). This test pins the decision so the openness reads as
     intentional, not as a missing gate.
     """
-    admin = await acting_user(guild_role=GuildRole.admin)
-    member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+    admin = await acting_user(guild_role=CommunityRole.admin)
+    member = await acting_user(guild_role=CommunityRole.member, guild=admin.guild)
 
     created = await client.post(
         member.g("/tags/"),
@@ -76,7 +76,7 @@ async def test_any_guild_member_can_manage_the_tag_dictionary(
 
 
 async def test_task_tags_replace_and_dedup(client: AsyncClient, acting_user, session):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     tag = await create_tag(session, a.guild)
     other = await create_tag(session, a.guild)
     task = await create_task(session, a.project)
@@ -99,7 +99,7 @@ async def test_task_tags_replace_and_dedup(client: AsyncClient, acting_user, ses
 async def test_set_tags_rejects_trashed_tag(client: AsyncClient, acting_user, session):
     """A trashed tag id is invalid everywhere — the incident regression: a
     stale client merging a since-trashed tag id must get a clean 400."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     tag = await create_tag(session, a.guild)
     task = await create_task(session, a.project)
 
@@ -116,8 +116,8 @@ async def test_set_tags_rejects_trashed_tag(client: AsyncClient, acting_user, se
 async def test_set_tags_rejects_other_guilds_tag(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
-    b = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
+    b = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     foreign_tag = await create_tag(session, b.guild)
     task = await create_task(session, a.project)
 
@@ -144,7 +144,7 @@ async def test_generic_tool_tags_route_covers_every_tool(
     from app.core.tools import Tool
     from app.testing import create_tool_entity, enable_all_tools
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await enable_all_tools(session, a.initiative)
     tag = await create_tag(session, a.guild)
 
@@ -178,7 +178,7 @@ async def test_generic_tool_tags_route_covers_every_tool(
 async def test_generic_tool_tags_route_rejects_unknown_tool(
     client: AsyncClient, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     response = await client.put(
         a.g("/tools/task/1/tags"), headers=a.headers, json={"tag_ids": []}
     )
@@ -191,7 +191,7 @@ async def test_generic_tool_tags_route_rejects_unknown_tool(
 
 
 async def test_bulk_add_and_remove_task_tags(client: AsyncClient, acting_user, session):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     keep = await create_tag(session, a.guild)
     added = await create_tag(session, a.guild)
     tasks = [await create_task(session, a.project) for _ in range(3)]
@@ -249,7 +249,7 @@ async def test_every_tag_target_is_bulk_tagged_and_listed_on_its_tag(
         enable_all_tools,
     )
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await enable_all_tools(session, a.initiative)
     tag = await create_tag(session, a.guild)
     tools = {
@@ -290,7 +290,7 @@ async def test_every_tag_target_is_bulk_tagged_and_listed_on_its_tag(
 
 
 async def test_bulk_edit_requires_an_operation(client: AsyncClient, acting_user):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     response = await client.post(
         a.g("/tags/bulk"),
         headers=a.headers,
@@ -302,7 +302,7 @@ async def test_bulk_edit_requires_an_operation(client: AsyncClient, acting_user)
 async def test_bulk_edit_rejects_trashed_tag_atomically(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     trashed = await create_tag(session, a.guild)
     task = await create_task(session, a.project)
     delete = await client.delete(a.g(f"/tags/{trashed.id}"), headers=a.headers)
@@ -327,11 +327,11 @@ async def test_bulk_edit_denied_without_project_write(
 ):
     """A member without write on the tasks' project can bulk-edit nothing —
     the whole request fails and no junction row changes."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     tag = await create_tag(session, a.guild)
     task = await create_task(session, a.project)
     b = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -360,13 +360,13 @@ async def test_cross_initiative_member_cannot_touch_tags(
 ):
     """A member of a different initiative in the same guild gets 404 (RLS
     hides the row) for both the per-entity and bulk tag paths."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     tag = await create_tag(session, a.guild)
     task = await create_task(session, a.project)
 
     # b belongs to the same guild but a DIFFERENT initiative (creator → PM
     # there), so a's task must be invisible to them.
-    b = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    b = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
     await create_initiative(session, a.guild, b.user)
 
     response = await client.patch(

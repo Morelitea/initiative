@@ -43,7 +43,8 @@ const dmSettings = (overrides: Record<string, unknown> = {}) => ({
   data: {
     dm_policy: "private",
     age_confirmed_at: "2026-01-01T00:00:00Z",
-    communities: [{ guild_id: 1, name: "Ravenloft Table", icon_url: null, enabled: true }],
+    age_answer_required: false,
+    communities: [{ community_id: 1, name: "Ravenloft Table", icon_url: null, enabled: true }],
     ...overrides,
   },
   isLoading: false,
@@ -68,7 +69,9 @@ describe("UserSettingsPrivacyPage", () => {
   });
 
   it("locks the policy and says why until the age question is answered", async () => {
-    mocks.settings.mockReturnValue(dmSettings({ age_confirmed_at: null }));
+    mocks.settings.mockReturnValue(
+      dmSettings({ age_confirmed_at: null, age_answer_required: true })
+    );
 
     renderPage(UserSettingsPrivacyPage);
 
@@ -82,12 +85,23 @@ describe("UserSettingsPrivacyPage", () => {
     // This tab is where somebody comes to change who may reach them, and the
     // age question gates all of it. A notice saying the controls are locked,
     // with the key on another page, is not an answer.
-    mocks.settings.mockReturnValue(dmSettings({ age_confirmed_at: null }));
+    mocks.settings.mockReturnValue(
+      dmSettings({ age_confirmed_at: null, age_answer_required: true })
+    );
 
     renderPage(UserSettingsPrivacyPage);
 
     expect(await screen.findByLabelText(/date of birth/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /confirm/i })).toBeInTheDocument();
+  });
+
+  it("asks nothing where the deployment does not check age", async () => {
+    mocks.settings.mockReturnValue(dmSettings({ age_confirmed_at: null }));
+
+    renderPage(UserSettingsPrivacyPage);
+
+    expect(await screen.findByRole("radio", { name: /anyone/i })).toBeEnabled();
+    expect(screen.queryByLabelText(/date of birth/i)).not.toBeInTheDocument();
   });
 
   it("shows the community toggles only under My communities", async () => {

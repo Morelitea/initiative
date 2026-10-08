@@ -2,7 +2,7 @@
  * Importing an .ics file addresses the community it imports into.
  *
  * Every tooling request carries its community in the path
- * (`/api/v1/c/{guildId}/…`), and this dialog asked for the two import routes
+ * (`/api/v1/c/{communityId}/…`), and this dialog asked for the two import routes
  * without it, so the parse step reported an unreadable file for a perfectly
  * good calendar.
  */
@@ -12,13 +12,13 @@ import { HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 
 import { writerCan } from "@/__tests__/factories";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 
 import { ICalImportDialog } from "./ICalImportDialog";
 
-vi.mock("@/lib/chesterToast", () => ({
+vi.mock("@/lib/mascotToast", () => ({
   toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
 }));
 
@@ -28,7 +28,7 @@ const CALENDAR = {
   description: null,
   color: "#336699",
   initiative_id: 3,
-  guild_id: 1,
+  community_id: 1,
   created_by: 1,
   created_at: "2026-01-01T00:00:00Z",
   updated_at: "2026-01-01T00:00:00Z",
@@ -74,7 +74,7 @@ describe("ICalImportDialog", () => {
   it("parses and imports through the community's own routes", async () => {
     const paths: string[] = [];
     server.use(
-      guildHttp.get("/calendars/", () =>
+      communityHttp.get("/calendars/", () =>
         HttpResponse.json({
           items: [CALENDAR],
           total_count: 1,
@@ -83,13 +83,17 @@ describe("ICalImportDialog", () => {
           has_next: false,
         })
       ),
-      guildHttp.post("/calendar-events/import/parse", ({ request }) => {
+      communityHttp.post("/calendar-events/import/parse", ({ request }) => {
         paths.push(new URL(request.url).pathname);
         return HttpResponse.json(PARSED);
       }),
-      guildHttp.post("/calendar-events/import", ({ request }) => {
+      communityHttp.post("/calendar-events/import", ({ request }) => {
         paths.push(new URL(request.url).pathname);
-        return HttpResponse.json({ events_created: 2, events_failed: 0, errors: [] });
+        return HttpResponse.json({
+          events_created: 2,
+          events_failed: 2,
+          errors: [{ problem: "not_saved", title: "Dress rehearsal" }, { problem: "no_start" }],
+        });
       })
     );
 
@@ -104,7 +108,10 @@ describe("ICalImportDialog", () => {
     await userEvent.click(screen.getByRole("button", { name: "Import Events" }));
 
     expect(await screen.findByText("Import complete!")).toBeInTheDocument();
-    expect(screen.getByText("2 events created")).toBeInTheDocument();
+    expect(screen.getByText("2 events created, 2 events failed")).toBeInTheDocument();
+    // Each problem in the reader's language, naming the event it was about.
+    expect(screen.getByText("Couldn't save “Dress rehearsal”")).toBeInTheDocument();
+    expect(screen.getByText("Skipped “Untitled”: it has no start date")).toBeInTheDocument();
     expect(paths).toEqual([
       "/api/v1/c/1/calendar-events/import/parse",
       "/api/v1/c/1/calendar-events/import",

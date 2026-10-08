@@ -106,7 +106,7 @@ def _property_values(op: FilterOp, value: Any, ctx: FieldContext) -> Any:
 
     ``value`` is a dict of ``{"property_id": int, "value": <any>}``. Compilation
     is delegated to ``build_single_property_clause`` so the typed-column and
-    is_empty semantics stay in sync with documents and events.
+    is_empty semantics stay in sync with files and events.
     """
     if not isinstance(value, dict):
         return None
@@ -180,6 +180,21 @@ _IN_ONLY = frozenset({FilterOp.in_})
 _ANY_OP = EQUALITY | MEMBERSHIP | ORDERED | TEXTUAL
 
 
+def _status_position(ctx: SortContext) -> Any:
+    """The task's column on its project's board."""
+    return (
+        select(TaskStatus.position)
+        .where(TaskStatus.id == Task.task_status_id)
+        .scalar_subquery()
+    )
+
+
+def _tag_name(ctx: SortContext) -> Any:
+    from app.services.tenant.tags import TAG_LINKS, first_tag_name
+
+    return first_tag_name(TAG_LINKS["task"], Task.id)
+
+
 def _computed() -> tuple[FieldSpec, ...]:
     return (
         FieldSpec(
@@ -187,6 +202,24 @@ def _computed() -> tuple[FieldSpec, ...]:
             kind=ControlKind.number,
             ops=frozenset(),
             sort=_date_group,
+            filterable=False,
+            sortable=True,
+        ),
+        # Orderings with nothing to filter: a status is picked by its id or
+        # category, and a tag by its id.
+        FieldSpec(
+            name="status_position",
+            kind=ControlKind.number,
+            ops=frozenset(),
+            sort=_status_position,
+            filterable=False,
+            sortable=True,
+        ),
+        FieldSpec(
+            name="tag_name",
+            kind=ControlKind.text,
+            ops=frozenset(),
+            sort=_tag_name,
             filterable=False,
             sortable=True,
         ),

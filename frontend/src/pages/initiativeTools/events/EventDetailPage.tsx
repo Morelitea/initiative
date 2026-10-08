@@ -1,5 +1,5 @@
 import { Link, useNavigate, useParams, useSearch } from "@tanstack/react-router";
-import { CalendarDays, MapPin, Repeat, Settings, Trash2, Users } from "lucide-react";
+import { CalendarDays, Copy, MapPin, Repeat, Trash2, Users } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -13,7 +13,8 @@ import {
 } from "@/components/recurrence/OccurrenceScopeDialog";
 import { DetailPageSkeleton, SkeletonRegion } from "@/components/skeletons/PageSkeletons";
 import { ToolAccessStatus } from "@/components/ToolAccessStatus";
-import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
+import { TagBadgeList } from "@/components/tags/TagBadge";
+import { ToolPageHeader } from "@/components/tools/ToolPageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,13 +30,14 @@ import { useAuth } from "@/hooks/useAuth";
 import {
   useCalendarEvent,
   useDeleteCalendarEvent,
+  useDuplicateCalendarEvent,
   useOccurrenceAction,
   useUpdateEventRSVP,
 } from "@/hooks/useCalendarEvents";
 import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useReadOnOpen } from "@/hooks/useNotifications";
-import { toast } from "@/lib/chesterToast";
-import { useGuildPath } from "@/lib/guildUrl";
+import { useCommunityPath } from "@/lib/communityUrl";
+import { toast } from "@/lib/mascotToast";
 import { summarizeStored } from "@/lib/recurrence";
 import { hour12Option } from "@/lib/timeFormat";
 import { eventRoute, eventSettingsRoute, toolDetailRoute, toolListRoute } from "@/lib/tools";
@@ -152,7 +154,7 @@ export function EventDetailPage() {
   const calendarId = calendarIdParam ? Number(calendarIdParam) : null;
   const parsedId = Number(eventId);
   const navigate = useNavigate();
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
   const { user } = useAuth();
 
   const eventQuery = useCalendarEvent(
@@ -178,6 +180,13 @@ export function EventDetailPage() {
             : toolDetailRoute(Tool.calendar, initiativeId, calendarId)
         ),
       });
+    },
+  });
+
+  const duplicateEvent = useDuplicateCalendarEvent({
+    onSuccess: (copy) => {
+      toast.success(t("common:subToolDuplicate.done"));
+      void navigate({ to: gp(eventRoute(initiativeId, copy.calendar_id, copy.id)) });
     },
   });
 
@@ -260,6 +269,19 @@ export function EventDetailPage() {
     if (scope) deleteEvent.mutate({ eventId: parsedId, ...scoped(scope) });
   };
 
+  // Opened at one date of a repeating event: that date alone, or the series.
+  const handleDuplicate = async () => {
+    const scope =
+      event.recurrence && occurrence
+        ? await scopePrompt.ask("duplicate", { scopes: ["this", "all"] })
+        : "all";
+    if (scope)
+      duplicateEvent.mutate({
+        eventId: parsedId,
+        occurrence: scope === "this" ? occurrenceStart : undefined,
+      });
+  };
+
   // An answer is for one event: a series' is for the occurrence shown.
   const handleAnswer = (status: RSVPStatus) =>
     updateRSVP.mutate({
@@ -272,54 +294,56 @@ export function EventDetailPage() {
 
   return (
     <div className="space-y-6">
-      {/* Breadcrumb header */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <ToolBreadcrumb
-          tool={Tool.calendar}
-          initiativeId={initiativeId}
-          trail={[{ label: event.title }]}
-        />
-
-        <div className="flex items-center gap-2">
-          {event.all_day && <Badge variant="secondary">{t("allDay")}</Badge>}
-          {canWrite && (
-            <>
-              {repeating && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => detach.mutate(occurrenceStart)}
-                  disabled={detach.isPending}
-                >
-                  {t("occurrence.detach")}
-                </Button>
-              )}
-              <Button variant="ghost" size="sm" asChild>
-                <Link
-                  to={gp(eventSettingsRoute(initiativeId, event.calendar_id, event.id))}
-                  search={event.recurrence && occurrence ? { occurrence } : {}}
-                >
-                  <Settings className="h-4 w-4" />
-                </Link>
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-destructive hover:text-destructive"
-                onClick={() => void handleDelete()}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Event title and description */}
-      <div className="space-y-2">
-        <h1 className="font-semibold text-2xl tracking-tight">{event.title}</h1>
+      <ToolPageHeader
+        tool={Tool.calendar}
+        initiativeId={initiativeId}
+        settingsTo={
+          canWrite ? eventSettingsRoute(initiativeId, event.calendar_id, event.id) : undefined
+        }
+        settingsSearch={event.recurrence && occurrence ? { occurrence } : undefined}
+        title={event.title}
+      >
         {event.description && <p className="text-muted-foreground text-sm">{event.description}</p>}
-      </div>
+        {event.all_day || canWrite ? (
+          <div className="flex flex-wrap items-center gap-2">
+            {event.all_day && <Badge variant="secondary">{t("common:calendar.allDay")}</Badge>}
+            {canWrite && repeating && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => detach.mutate(occurrenceStart)}
+                disabled={detach.isPending}
+              >
+                {t("occurrence.detach")}
+              </Button>
+            )}
+            {canWrite && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void handleDuplicate()}
+                  disabled={duplicateEvent.isPending}
+                >
+                  <Copy className="h-4 w-4" />
+                  {duplicateEvent.isPending
+                    ? t("common:subToolDuplicate.duplicating")
+                    : t("common:subToolDuplicate.action")}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-destructive hover:text-destructive"
+                  onClick={() => void handleDelete()}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  {t("common:delete")}
+                </Button>
+              </>
+            )}
+          </div>
+        ) : null}
+      </ToolPageHeader>
 
       {/* Date, time, and location details */}
       <Card>
@@ -389,19 +413,15 @@ export function EventDetailPage() {
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-4">
-              <span className="text-muted-foreground text-sm">{t("rsvp")}:</span>
-              {myRsvpStatus && (
-                <Badge variant={rsvpBadgeVariant(myRsvpStatus)}>
-                  {t(rsvpLabelKey(myRsvpStatus))}
-                </Badge>
-              )}
               <Select
-                value={myRsvpStatus ?? "pending"}
+                // Pending is no answer yet, so it shows as the placeholder
+                // rather than as a choice.
+                value={myRsvpStatus === "pending" ? "" : (myRsvpStatus ?? "")}
                 onValueChange={(value) => handleAnswer(value as RSVPStatus)}
                 disabled={updateRSVP.isPending}
               >
                 <SelectTrigger className="w-[140px]">
-                  <SelectValue />
+                  <SelectValue placeholder={t("rsvpPending")} />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="accepted">{t("rsvpAccepted")}</SelectItem>
@@ -451,23 +471,10 @@ export function EventDetailPage() {
       {event.tags.length > 0 && (
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-lg">{t("tags")}</CardTitle>
+            <CardTitle className="text-lg">{t("common:toolSettings.tags")}</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-wrap gap-2">
-              {event.tags.map((tag) => (
-                <Badge
-                  key={tag.id}
-                  variant="outline"
-                  style={{
-                    borderColor: tag.color,
-                    color: tag.color,
-                  }}
-                >
-                  {tag.name}
-                </Badge>
-              ))}
-            </div>
+            <TagBadgeList tags={event.tags} limit={event.tags.length} className="gap-2" />
           </CardContent>
         </Card>
       )}

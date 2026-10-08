@@ -11,7 +11,7 @@ from sqlmodel import select
 
 from app.core.tools import Tool
 from app.db.session import set_rls_context
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.notification import Notification, NotificationType
 from app.services.platform import user_notifications
 from app.services import notifications
@@ -56,10 +56,10 @@ async def test_a_mention_reaches_only_people_the_project_is_shared_with(
     were unread: the one that mentioned them, and every comment since the
     thread's rolled-up line opened."""
     owner = await acting_user(
-        guild_role=GuildRole.member, initiative=True, project=True
+        guild_role=CommunityRole.member, initiative=True, project=True
     )
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=owner.guild,
         initiative=owner.initiative,
         initiative_role="member",
@@ -87,7 +87,7 @@ async def test_a_mention_reaches_only_people_the_project_is_shared_with(
     opened = await client.post(
         "/api/v1/notifications/read-subject",
         json={
-            "guild_id": owner.guild.id,
+            "community_id": owner.guild.id,
             "subject_type": "task",
             "subject_id": task.id,
         },
@@ -104,7 +104,7 @@ async def test_a_mention_of_somebody_outside_the_community_tells_nobody(
     client, session, acting_user
 ):
     owner = await acting_user(
-        guild_role=GuildRole.member, initiative=True, project=True
+        guild_role=CommunityRole.member, initiative=True, project=True
     )
     await create_resource_grant(session, owner.project, all_initiative_members=True)
     stranger = await create_user(session)
@@ -123,10 +123,10 @@ async def test_a_community_admin_is_among_the_readers(
     """…and another member is not. A notice with nobody left to tell looks
     nothing up."""
     owner = await acting_user(
-        guild_role=GuildRole.member, initiative=True, project=True
+        guild_role=CommunityRole.member, initiative=True, project=True
     )
-    admin = await acting_user(guild_role=GuildRole.admin, guild=owner.guild)
-    member = await acting_user(guild_role=GuildRole.member, guild=owner.guild)
+    admin = await acting_user(guild_role=CommunityRole.admin, guild=owner.guild)
+    member = await acting_user(guild_role=CommunityRole.member, guild=owner.guild)
     # Routed the way a request or a sweep is, which is what names the community.
     await set_rls_context(session, SystemGuild(owner.guild.id))
     about = (Tool.project.value, owner.project.id)
@@ -153,20 +153,18 @@ async def test_a_community_admin_is_among_the_readers(
     )
 
 
-async def test_repeated_document_mentions_fold_into_one_line(
-    client, session, acting_user
-):
+async def test_repeated_file_mentions_fold_into_one_line(client, session, acting_user):
     """The editor reports mentions as it saves; an unread line absorbs the next
     report."""
-    from app.testing import create_document
+    from app.testing import create_file
 
-    author = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    document = await create_document(session, author.initiative, author.user)
-    reader = await acting_user(guild_role=GuildRole.admin, guild=author.guild)
+    author = await acting_user(guild_role=CommunityRole.admin, initiative=True)
+    file = await create_file(session, author.initiative, author.user)
+    reader = await acting_user(guild_role=CommunityRole.admin, guild=author.guild)
     await session.commit()
     for _ in range(3):
         posted = await client.post(
-            author.g(f"/documents/{document.id}/mentions"),
+            author.g(f"/files/{file.id}/mentions"),
             json={"mentioned_user_ids": [reader.user.id]},
             headers=author.headers,
         )
@@ -177,6 +175,10 @@ async def test_repeated_document_mentions_fold_into_one_line(
     lines = await _mentions(reader.id)
     assert len(lines) == 1
     assert lines[0].data["comment_count"] == 3
+    assert (lines[0].data["entity_type"], lines[0].data["entity_id"]) == (
+        "file",
+        file.id,
+    )
 
 
 async def test_read_notifications_are_kept_thirty_days_and_unread_forever(session):

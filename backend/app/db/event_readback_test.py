@@ -6,7 +6,7 @@ lets it stay content-free: the subscriber reads the state back through the API,
 where the gates decide. It only works if each id is a whole address, so the
 route for a resource type is derivable from the type itself:
 
-    resource_type -> /c/{guild_id}/<kebab>/{id}
+    resource_type -> /c/{community_id}/<kebab>/{id}
 
 Which is not a convention invented here — it is what the resources that already
 worked all do. Sub-resources with an id of their own (``comments``,
@@ -14,7 +14,7 @@ worked all do. Sub-resources with an id of their own (``comments``,
 parent the envelope never carries.
 
 Anything that is a facet rather than a resource — a project's statuses, a
-document's versions, a task's tags — reports against the parent instead (see
+file's versions, a task's tags — reports against the parent instead (see
 ``ReportsAs``), so it needs no route of its own and never reaches this test.
 Between the two, a new evented table owes no new API surface.
 """
@@ -22,7 +22,7 @@ Between the two, a new evented table owes no new API surface.
 from __future__ import annotations
 
 
-from app.db.base import *  # noqa: F401,F403 — register every model
+import app.db.base  # noqa: F401 — register every model
 from app.db.event_capture import build_specs
 from app.db.initiative_rls import parent_types
 from app.main import app
@@ -34,9 +34,9 @@ def _detail_paths() -> set[str]:
     for route in app.routes:
         path = getattr(route, "path", "")
         methods = getattr(route, "methods", set()) or set()
-        if "GET" not in methods or "/c/{guild_id}/" not in path:
+        if "GET" not in methods or "/c/{community_id}/" not in path:
             continue
-        tail = path.split("/c/{guild_id}/", 1)[1]
+        tail = path.split("/c/{community_id}/", 1)[1]
         parts = tail.split("/")
         # Exactly "<segment>/{param}" — one hop, then the id.
         if (

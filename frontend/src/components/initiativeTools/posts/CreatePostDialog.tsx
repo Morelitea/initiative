@@ -34,7 +34,7 @@ import { MAX_POST_TEXT_CHARS } from "@/lib/posts";
 import type { DialogProps } from "@/types/dialog";
 
 const Editor = lazy(() =>
-  import("@/components/documents/editor/editor").then((m) => ({ default: m.Editor }))
+  import("@/components/ui/editor/editor").then((m) => ({ default: m.Editor }))
 );
 
 type CreatePostDialogProps = DialogProps & {
@@ -192,7 +192,7 @@ export const CreatePostDialog = ({
               create.mutate({
                 name: name.trim(),
                 initiative_id: initiativeId,
-                body: (body ?? {}) as unknown as Record<string, unknown>,
+                body: { ...body },
                 grants,
                 scheduled_for: fromLocalDateTimeInput(scheduledFor),
                 poll: poll ? pollDraftToWrite(poll) : null,

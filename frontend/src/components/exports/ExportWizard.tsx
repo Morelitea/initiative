@@ -2,12 +2,12 @@ import { AlertTriangle, CheckCircle2, ChevronDown, Filter, Loader2, XCircle } fr
 import { type ReactNode, useEffect, useId, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { useEstimateAggregateExportApiV1CGuildIdExportsEstimateGet } from "@/api/generated/exports/exports";
-import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { useEstimateAggregateExport } from "@/api/generated/exports/exports";
+import { type SortField, type TaskStatusRead, Tool } from "@/api/generated/initiativeAPI.schemas";
 import type { ExportExtraAction, ExportFormatOption } from "@/components/exports/ExportButton";
 import {
   AGGREGATE_EXPORT_TOOLS,
-  REPORT_DOCUMENT_FORMATS,
+  REPORT_FILE_FORMATS,
   REPORT_TOOL_FORMATS,
 } from "@/components/exports/formats";
 import { FilterCountBadge } from "@/components/initiativeTools/shared/ToolFilterPanel";
@@ -30,7 +30,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { WizardDialog } from "@/components/ui/wizard-dialog";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useExportJob } from "@/hooks/useExportJob";
 import { useWizard } from "@/hooks/useWizard";
@@ -48,7 +48,7 @@ import { cn } from "@/lib/utils";
  *  entities of one tool (a tool's export card, a bulk selection). */
 export type ExportWizardScope =
   | { kind: "initiative"; initiativeId: number }
-  | { kind: "guild" }
+  | { kind: "community" }
   | {
       kind: "entities";
       tool: Tool;
@@ -58,7 +58,18 @@ export type ExportWizardScope =
       /** Inline-download filename stem: `{stem}.{format}`. */
       filenameStem: string;
       extraActions?: ExportExtraAction[];
+      /** What its content starts narrowed to: the exporting person's own
+       *  view of it, where there is one. */
+      content?: ExportContentSeed;
     };
+
+/** One person's view of a project's tasks, for an export of that project to
+ *  start from: its filters, its order, and the statuses the filters name. */
+export interface ExportContentSeed {
+  tasks: TaskFilterSpec;
+  taskSorting: SortField[];
+  taskStatuses: TaskStatusRead[];
+}
 
 export interface ExportWizardProps {
   scope: ExportWizardScope;
@@ -69,7 +80,7 @@ export interface ExportWizardProps {
 type AggregateScope = Exclude<ExportWizardScope, { kind: "entities" }>;
 type EntitiesScope = Extract<ExportWizardScope, { kind: "entities" }>;
 
-const DEFAULT_DOCUMENT_FORMATS = { native: "pdf", spreadsheet: "xlsx" };
+const DEFAULT_FILE_FORMATS = { native: "pdf", spreadsheet: "xlsx" };
 
 /** An export's `archived`: omitted exports live and archived alike. */
 const ARCHIVED_FOR: Record<ToolArchiveChoice, boolean | undefined> = {
@@ -84,8 +95,8 @@ const archiveChoice = (archived: boolean | null | undefined): ToolArchiveChoice 
 /** Filters only an export offers. A list page reaches the same rows through
  *  its view filter and tag tree, so they stay out of the shared filter fields:
  *  templates, for a tool with a templates view, and untagged rows, which only
- *  the documents list takes. */
-const UNTAGGED_TOOLS: ReadonlySet<Tool> = new Set([Tool.document]);
+ *  the files list takes. */
+const UNTAGGED_TOOLS: ReadonlySet<Tool> = new Set([Tool.file]);
 
 /** A tool's export-only list params, as one record over every tool's. */
 type ExportOnlyParams = { is_template?: boolean; untagged?: boolean };
@@ -118,6 +129,8 @@ const compact = (filters: object): Record<string, unknown> =>
 interface ContentFilters {
   events: LocalDateRange;
   tasks: TaskFilterSpec;
+  /** The order a project's tasks are listed in; empty for its own. */
+  taskSorting: SortField[];
 }
 
 /** Nothing narrowed. A backup carries every task, archived ones too, and a
@@ -126,6 +139,7 @@ interface ContentFilters {
 const emptyContent = (backup: boolean): ContentFilters => ({
   events: {},
   tasks: { ...EMPTY_TASK_FILTERS, include_archived: backup },
+  taskSorting: [],
 });
 
 /** The same filters for another output: the archived switch moves to where
@@ -135,13 +149,20 @@ const forOutput = (content: ContentFilters, backup: boolean): ContentFilters => 
   tasks: { ...content.tasks, include_archived: backup },
 });
 
-/** A project's `tasks`: the conditions the task list sends and its archived
- *  switch, or nothing while they are where the output starts. */
-const taskExportParams = (spec: TaskFilterSpec, backup: boolean): Record<string, unknown> => {
+/** A project's `tasks`: the conditions and sort the task list sends and its
+ *  archived switch, or nothing while they are where the output starts. */
+const taskExportParams = (
+  spec: TaskFilterSpec,
+  sorting: SortField[],
+  backup: boolean
+): Record<string, unknown> => {
   const conditions = taskSpecConditions(spec);
-  if (conditions.length === 0 && spec.include_archived === backup) return {};
+  if (conditions.length === 0 && sorting.length === 0 && spec.include_archived === backup) {
+    return {};
+  }
   return {
     ...(conditions.length > 0 ? { conditions: JSON.stringify(conditions) } : {}),
+    ...(sorting.length > 0 ? { sorting: JSON.stringify(sorting) } : {}),
     include_archived: spec.include_archived,
   };
 };
@@ -151,6 +172,8 @@ interface ContentFieldProps {
   onChange: (next: ContentFilters) => void;
   /** The initiative being exported, where there is one. */
   initiativeId?: number;
+  /** The one project's statuses, when a single project is exported. */
+  taskStatuses?: TaskStatusRead[];
 }
 
 /** A calendar's events, by the dates they start in. */
@@ -172,16 +195,16 @@ function EventDatesField({ value, onChange }: ContentFieldProps) {
 
 /** A project's tasks, by the task list's own filters. With no one project to
  *  read statuses from, statuses are picked by category. */
-function TaskFiltersField({ value, onChange, initiativeId }: ContentFieldProps) {
+function TaskFiltersField({ value, onChange, initiativeId, taskStatuses = [] }: ContentFieldProps) {
   const { t } = useTranslation("exports");
   return (
     <div className="space-y-2">
       <p className="font-medium text-xs">{t("wizard.filter.tasks")}</p>
       <ProjectTasksFilters
         memberScope={
-          initiativeId == null ? { type: "guild" } : { type: "initiative", initiativeId }
+          initiativeId == null ? { type: "community" } : { type: "initiative", initiativeId }
         }
-        taskStatuses={[]}
+        taskStatuses={taskStatuses}
         initiativeId={initiativeId}
         value={value.tasks}
         onChange={(tasks) => onChange({ ...value, tasks })}
@@ -208,7 +231,9 @@ const CONTENT_FILTERS: Partial<Record<Tool, ContentFilter>> = {
     Field: EventDatesField,
   },
   [Tool.project]: {
-    params: ({ tasks }, backup) => ({ tasks: taskExportParams(tasks, backup) }),
+    params: ({ tasks, taskSorting }, backup) => ({
+      tasks: taskExportParams(tasks, taskSorting, backup),
+    }),
     prompt: "wizard.content.tasksPrompt",
     note: "wizard.content.allTasksNote",
     Field: TaskFiltersField,
@@ -309,7 +334,7 @@ function ToolFilterSection({
   backup: boolean;
   initiativeId?: number;
 }) {
-  const { t } = useTranslation(["exports", "nav", "common", "projects", "documents"]);
+  const { t } = useTranslation(["exports", "nav", "common", "projects", "files"]);
   const id = useId();
   const [open, setOpen] = useState(false);
   const filters = toolExportFilters(tool, value, content, backup);
@@ -464,14 +489,14 @@ function AggregateExportWizard({
   onOpenChange,
 }: ExportWizardProps & { scope: AggregateScope }) {
   const { t } = useTranslation(["exports", "nav"]);
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const describeFilters = useDescribeFilters();
 
   const [mode, setMode] = useState<"backup" | "report">("backup");
   const [include, setInclude] = useState<Record<string, boolean>>({});
   const [includeUploads, setIncludeUploads] = useState(true);
   const [formats, setFormats] = useState<Record<string, string>>({});
-  const [documentFormats, setDocumentFormats] = useState(DEFAULT_DOCUMENT_FORMATS);
+  const [fileFormats, setFileFormats] = useState(DEFAULT_FILE_FORMATS);
   const [listFilters, setListFilters] = useState<Partial<Record<Tool, ToolListFilters>>>({});
   const [content, setContent] = useState(() => emptyContent(true));
 
@@ -482,7 +507,7 @@ function AggregateExportWizard({
     setInclude({});
     setIncludeUploads(true);
     setFormats({});
-    setDocumentFormats(DEFAULT_DOCUMENT_FORMATS);
+    setFileFormats(DEFAULT_FILE_FORMATS);
     setListFilters({});
     setContent(emptyContent(true));
   });
@@ -505,10 +530,10 @@ function AggregateExportWizard({
   // A keystroke in a search box is not a request.
   const estimateFilters = useDebouncedValue(filtersParam, 300);
 
-  const estimateQuery = useEstimateAggregateExportApiV1CGuildIdExportsEstimateGet(
-    guildId,
+  const estimateQuery = useEstimateAggregateExport(
+    communityId,
     {
-      scope: scope.kind,
+      scope: scope.kind === "community" ? "community" : scope.kind,
       initiative_id: scope.kind === "initiative" ? scope.initiativeId : null,
       include_uploads: includeUploads,
       ...(estimateFilters ? { filters: estimateFilters } : {}),
@@ -577,7 +602,7 @@ function AggregateExportWizard({
     if (mode === "backup") {
       params.include_uploads = includeUploads;
     } else {
-      const formatParam: Record<string, unknown> = { document: documentFormats };
+      const formatParam: Record<string, unknown> = { file: fileFormats };
       for (const tool of visibleTools) {
         const options = REPORT_TOOL_FORMATS[tool];
         if (options) {
@@ -588,7 +613,7 @@ function AggregateExportWizard({
     }
     commit("progress");
     void exportJob.start({
-      endpoint: scope.kind === "guild" ? "/exports/community" : "/exports/initiative",
+      endpoint: scope.kind === "community" ? "/exports/community" : "/exports/initiative",
       params,
       fallbackFilename: `${scope.kind}-export.zip`,
     });
@@ -601,7 +626,7 @@ function AggregateExportWizard({
       case "backup":
         return t("wizard.backup.prompt");
       case "report":
-        return t("wizard.report.documentOthersNote");
+        return t("wizard.report.fileOthersNote");
       case "confirm":
         return t("wizard.confirm.prompt");
       case "progress":
@@ -618,7 +643,7 @@ function AggregateExportWizard({
       open={open}
       onOpenChange={onOpenChange}
       className="max-h-[85vh] overflow-y-auto sm:max-w-lg"
-      title={scope.kind === "guild" ? t("wizard.titleGuild") : t("wizard.titleInitiative")}
+      title={scope.kind === "community" ? t("wizard.titleCommunity") : t("wizard.titleInitiative")}
       description={stepDescription}
       progress={position === null ? undefined : { current: position, total: 3 }}
       onBack={canGoBack ? back : undefined}
@@ -763,7 +788,7 @@ function AggregateExportWizard({
           <div className="space-y-2">
             {visibleTools.map((tool) => {
               const options = REPORT_TOOL_FORMATS[tool];
-              const isDocuments = options == null;
+              const isFiles = options == null;
               return (
                 <fieldset
                   key={tool}
@@ -780,7 +805,7 @@ function AggregateExportWizard({
                       onCheckedChange={(checked) => setIncluded(tool, checked)}
                     />
                   </div>
-                  {included(tool) && !isDocuments && (
+                  {included(tool) && !isFiles && (
                     <RadioGroup
                       value={formats[tool] ?? options[0].format}
                       onValueChange={(value) => setFormats((prev) => ({ ...prev, [tool]: value }))}
@@ -796,23 +821,23 @@ function AggregateExportWizard({
                       ))}
                     </RadioGroup>
                   )}
-                  {included(tool) && isDocuments && (
+                  {included(tool) && isFiles && (
                     <div className="space-y-2">
                       {(["native", "spreadsheet"] as const).map((docType) => (
                         <div key={docType} className="space-y-1">
                           <p className="text-muted-foreground text-xs">
                             {docType === "native"
-                              ? t("wizard.report.documentNative")
-                              : t("wizard.report.documentSpreadsheet")}
+                              ? t("wizard.report.fileNative")
+                              : t("wizard.report.fileSpreadsheet")}
                           </p>
                           <RadioGroup
-                            value={documentFormats[docType]}
+                            value={fileFormats[docType]}
                             onValueChange={(value) =>
-                              setDocumentFormats((prev) => ({ ...prev, [docType]: value }))
+                              setFileFormats((prev) => ({ ...prev, [docType]: value }))
                             }
                             className="flex flex-wrap gap-3"
                           >
-                            {REPORT_DOCUMENT_FORMATS[docType].map((option) => (
+                            {REPORT_FILE_FORMATS[docType].map((option) => (
                               <div key={option.format} className="flex items-center gap-1.5">
                                 <RadioGroupItem
                                   value={option.format}
@@ -903,7 +928,7 @@ function EntitiesExportWizard({
 }: ExportWizardProps & { scope: EntitiesScope }) {
   const { t } = useTranslation("exports");
   const describeFilters = useDescribeFilters();
-  const { tool, ids, formats, filenameStem, extraActions = [] } = scope;
+  const { tool, ids, formats, filenameStem, extraActions = [], content: seed } = scope;
   const contentFilter = CONTENT_FILTERS[tool];
 
   // A tool with one format and nothing client-side has no choice to offer,
@@ -911,14 +936,23 @@ function EntitiesExportWizard({
   const only = formats.length === 1 && extraActions.length === 0 ? formats[0] : null;
   const [option, setOption] = useState<ExportFormatOption | null>(only);
   const backup = option?.format === "json";
-  const [content, setContent] = useState(() => emptyContent(only?.format === "json"));
+  // The exporting person's own view, where there is one, exactly as it
+  // shows: it is what they asked to export, whichever format carries it.
+  const startContent = (forBackup: boolean): ContentFilters =>
+    seed ? { ...emptyContent(forBackup), ...seed } : emptyContent(forBackup);
+  const [content, setContent] = useState(() => startContent(only?.format === "json"));
 
   const { step, go, commit, back, canGoBack, exportJob } = useExportWizardFlow<
     "format" | "content" | "confirm"
   >(open, only ? (contentFilter ? "content" : "confirm") : "format", () => {
     setOption(only);
-    setContent(emptyContent(only?.format === "json"));
   });
+  // The view loads after the wizard mounts, and can change while it is
+  // closed, so each opening starts from it as it is then.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs on opening only; the seed is read at that moment
+  useEffect(() => {
+    if (open && !exportJob.busy) setContent(startContent(only?.format === "json"));
+  }, [open]);
 
   // Only the content filter travels for named entities: the ids already say
   // which things.
@@ -952,7 +986,7 @@ function EntitiesExportWizard({
       variant="outline"
       className="w-full justify-start"
       onClick={() => {
-        if ((format.format === "json") !== backup) {
+        if (!seed && (format.format === "json") !== backup) {
           setContent((prev) => forOutput(prev, format.format === "json"));
         }
         setOption(format);
@@ -1020,7 +1054,11 @@ function EntitiesExportWizard({
 
       {step === "content" && contentFilter && (
         <div className="space-y-4">
-          <contentFilter.Field value={content} onChange={setContent} />
+          <contentFilter.Field
+            value={content}
+            onChange={setContent}
+            taskStatuses={seed?.taskStatuses}
+          />
           <p className="text-muted-foreground text-xs">{t(contentFilter.note as never)}</p>
           <Button className="w-full" onClick={() => go("confirm")}>
             {t("wizard.next")}

@@ -14,14 +14,14 @@ from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.property import (
     PropertyDefinition,
     PropertyType,
     PropertyValue,
 )
 from app.testing import (
-    create_document,
+    create_file,
     create_initiative,
     create_project,
     create_property_definition,
@@ -40,7 +40,7 @@ async def test_list_property_definitions_returns_union_across_initiatives(
 ):
     """Without ``initiative_id`` the list endpoint returns the caller's
     accessible union — definitions across every initiative they're in."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     init_a = a.initiative
     init_b = await create_initiative(session, a.guild, a.user, name="B")
 
@@ -61,7 +61,7 @@ async def test_list_property_definitions_filtered_by_initiative_id(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """``?initiative_id=X`` filters to that initiative's definitions only."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     init_a = a.initiative
     init_b = await create_initiative(session, a.guild, a.user, name="B")
 
@@ -86,7 +86,7 @@ async def test_list_property_definitions_scoped_by_initiative_id_query(
     (guild-admin visibility still respects explicit
     filtering through the query param).
     """
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     init_a = a.initiative
     init_b = await create_initiative(session, a.guild, a.user, name="B")
 
@@ -120,7 +120,7 @@ async def test_list_property_definitions_scoped_by_initiative_id_query(
 
 
 async def test_create_text_property_definition(client: AsyncClient, acting_user):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
 
     payload = {
         "name": "Status",
@@ -146,8 +146,8 @@ async def test_create_rejected_when_not_initiative_member(
     initiative they don't belong to.
     """
     # Alice owns the initiative; Bob is a guild member but NOT an initiative member.
-    alice = await acting_user(guild_role=GuildRole.member, initiative=True)
-    bob = await acting_user(guild_role=GuildRole.member, guild=alice.guild)
+    alice = await acting_user(guild_role=CommunityRole.member, initiative=True)
+    bob = await acting_user(guild_role=CommunityRole.member, guild=alice.guild)
 
     payload = {
         "name": "Foo",
@@ -169,9 +169,9 @@ async def test_create_allowed_for_initiative_member(client: AsyncClient, acting_
     the routed request session against the active guild's schema, so a
     legitimate member is not false-403'd by a lookup in the wrong schema.
     """
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=admin.guild,
         initiative=admin.initiative,
         initiative_role="member",
@@ -198,8 +198,8 @@ async def test_create_rejected_for_guild_member_not_in_initiative(
     """A guild member who is NOT in the target initiative is rejected with
     the canonical NOT_INITIATIVE_MEMBER code."""
     # Admin's initiative; outsider is a guild member but not an initiative member.
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    outsider = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
+    outsider = await acting_user(guild_role=CommunityRole.member, guild=admin.guild)
 
     payload = {
         "name": "Foo",
@@ -222,8 +222,8 @@ async def test_create_allowed_for_guild_admin_not_in_initiative(
     restrictive RLS policy's admin bypass, now resolved off
     ``GuildContext.role``."""
     # The creator owns the initiative; the guild admin is not a member of it.
-    creator = await acting_user(guild_role=GuildRole.member, initiative=True)
-    guild_admin = await acting_user(guild_role=GuildRole.admin, guild=creator.guild)
+    creator = await acting_user(guild_role=CommunityRole.member, initiative=True)
+    guild_admin = await acting_user(guild_role=CommunityRole.admin, guild=creator.guild)
 
     payload = {
         "name": "Admin Field",
@@ -241,7 +241,7 @@ async def test_create_allowed_for_guild_admin_not_in_initiative(
 
 
 async def test_create_select_requires_options(client: AsyncClient, acting_user):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
 
     payload = {"name": "State", "type": "select", "initiative_id": a.initiative.id}
     response = await client.post(
@@ -256,7 +256,7 @@ async def test_create_select_requires_options(client: AsyncClient, acting_user):
 async def test_create_duplicate_name_case_insensitive_conflicts(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
 
     await create_property_definition(session, a.initiative, name="Priority")
 
@@ -274,7 +274,7 @@ async def test_create_same_name_in_different_initiatives_allowed(
 ):
     """The uniqueness index is on (initiative_id, lower(name)) — two
     initiatives can each have their own 'Priority' without clashing."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     init_a = a.initiative
     init_b = await create_initiative(session, a.guild, a.user, name="B")
 
@@ -290,7 +290,7 @@ async def test_create_same_name_in_different_initiatives_allowed(
 async def test_create_select_duplicate_option_values_rejected(
     client: AsyncClient, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
 
     payload = {
         "name": "Phase",
@@ -317,7 +317,7 @@ async def test_create_select_duplicate_option_values_rejected(
 
 async def test_patch_missing_definition_returns_404(client: AsyncClient, acting_user):
     """Unknown definition id → 404 with the canonical error code."""
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
 
     response = await client.patch(
         a.g("/property-definitions/99999"),
@@ -332,7 +332,7 @@ async def test_patch_missing_definition_returns_404(client: AsyncClient, acting_
 async def test_patch_renames_color_and_position(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     defn = await create_property_definition(
         session, a.initiative, name="Old Name", position=0.0
     )
@@ -356,7 +356,7 @@ async def test_patch_ignores_type_change_silently(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """The Update schema has no `type` field, so sending one is ignored."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     defn = await create_property_definition(
         session, a.initiative, name="Immutable", type=PropertyType.text
     )
@@ -377,7 +377,7 @@ async def test_patch_removing_option_reports_orphaned_values(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Removing an option on a select with attached values reports the orphans."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
 
     defn = await create_property_definition(
         session,
@@ -390,8 +390,8 @@ async def test_patch_removing_option_reports_orphaned_values(
         ],
     )
 
-    # Attach a document value that uses the "live" slug.
-    doc = await create_document(session, a.initiative, a.user)
+    # Attach a file value that uses the "live" slug.
+    doc = await create_file(session, a.initiative, a.user)
     await create_property_value(session, doc, defn, value_text="live")
 
     # Remove "live" from the option list.
@@ -409,7 +409,7 @@ async def test_patch_removing_option_reports_orphaned_values(
     result = await session.exec(
         select(PropertyValue).where(
             PropertyValue.property_id == defn.id,
-            PropertyValue.entity_type == "document",
+            PropertyValue.entity_type == "file",
             PropertyValue.entity_id == doc.id,
         )
     )
@@ -427,9 +427,9 @@ async def test_a_member_adds_options_and_a_manager_reshapes(
     """Offering a new value is part of filling a field in; renaming it,
     changing or dropping its options or removing it is setting the initiative
     up."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=admin.guild,
         initiative=admin.initiative,
         initiative_role="member",
@@ -478,12 +478,12 @@ async def test_a_member_adds_options_and_a_manager_reshapes(
 async def test_delete_definition_cascades_to_values(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     defn = await create_property_definition(session, a.initiative, name="Meta")
 
     project = await create_project(session, a.initiative, a.user, name="Proj")
     task = await create_task(session, project)
-    doc = await create_document(session, a.initiative, a.user)
+    doc = await create_file(session, a.initiative, a.user)
 
     await create_property_value(session, doc, defn, value_text="a doc value")
     await create_property_value(session, task, defn, value_text="a task value")

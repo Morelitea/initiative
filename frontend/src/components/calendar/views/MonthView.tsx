@@ -63,7 +63,7 @@ export function MonthView({
     <div className="space-y-2 overflow-x-auto sm:overflow-visible">
       <div className="min-w-[700px] sm:min-w-0">
         {/* Weekday headers */}
-        <div className="grid grid-cols-7 text-center font-semibold text-[11px] text-muted-foreground uppercase sm:text-xs">
+        <div className="grid grid-cols-7 text-center font-semibold text-2xs text-muted-foreground uppercase sm:text-xs">
           {weekdayLabels.map((day) => (
             <div key={day} className="py-2">
               {day}
@@ -119,7 +119,7 @@ export function MonthView({
                         <div className="flex items-center justify-between" data-slot="day-number">
                           <span className="font-medium text-sm">{format(day, "d")}</span>
                           {isToday(day) && (
-                            <span className="font-semibold text-[10px] text-primary uppercase">
+                            <span className="font-semibold text-3xs text-primary uppercase">
                               {t("common:calendar.today")}
                             </span>
                           )}
@@ -134,7 +134,7 @@ export function MonthView({
                             enabled={dndEnabled}
                             onSelect={onEntryClick}
                             className={cn(
-                              "flex w-full items-center gap-1 text-left text-[11px] leading-tight",
+                              "flex w-full items-center gap-1 text-left text-2xs leading-tight",
                               onEntryClick
                                 ? "cursor-pointer rounded px-0.5 hover:bg-accent"
                                 : "cursor-default"
@@ -152,11 +152,11 @@ export function MonthView({
                               }
                             />
                             {entry.kind ? (
-                              <span className="shrink-0 font-semibold text-[9px] text-muted-foreground uppercase">
+                              <span className="shrink-0 font-semibold text-3xs text-muted-foreground uppercase">
                                 {t(`common:${kindLabelKey(entry.kind)}`)}
                               </span>
                             ) : (
-                              <span className="shrink-0 text-[10px] text-muted-foreground">
+                              <span className="shrink-0 text-3xs text-muted-foreground">
                                 {entry.allDay ? "" : formatTime(parseEntry(entry).start)}
                               </span>
                             )}
@@ -164,7 +164,7 @@ export function MonthView({
                           </DraggableEntryButton>
                         ))}
                         {overflow > 0 && (
-                          <p className="text-[10px] text-muted-foreground">
+                          <p className="text-3xs text-muted-foreground">
                             {t("common:calendar.more", { count: overflow })}
                           </p>
                         )}
@@ -188,7 +188,7 @@ export function MonthView({
                       enabled={dndEnabled}
                       onSelect={onEntryClick}
                       className={cn(
-                        "absolute z-10 flex items-center gap-1 overflow-hidden rounded px-2 font-medium text-[11px] text-white",
+                        "absolute z-10 flex items-center gap-1 overflow-hidden rounded px-2 font-medium text-2xs text-white",
                         onEntryClick ? "cursor-pointer hover:brightness-90" : "cursor-default"
                       )}
                       style={{

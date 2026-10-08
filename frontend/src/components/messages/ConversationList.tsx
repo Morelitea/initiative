@@ -378,7 +378,7 @@ export const ConversationList = ({ explain = false }: { explain?: boolean } = {}
   const filled = GROUP_ORDER.filter((group) => grouped[group].length > 0);
   const searching = term.trim().length > 0;
   const reason = settings.data
-    ? unreachableReason(Boolean(settings.data.age_confirmed_at), settings.data.dm_policy)
+    ? unreachableReason(!settings.data.age_answer_required, settings.data.dm_policy)
     : null;
   // A folded section under a term would hide the one match that was looked
   // for. The reader's own state is left untouched, so clearing the field puts

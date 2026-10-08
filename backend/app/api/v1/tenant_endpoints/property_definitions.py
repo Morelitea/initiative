@@ -12,19 +12,18 @@ from app.api.actor_route import ActorRoute
 from app.api.deps import (
     ActorContext,
     ActorSessionDep,
-    GuildContext,
-    RLSSessionDep,
-    app_scope,
-    get_current_active_user,
-    GuildContextDep,
+    InstallContext,
+    plugin_scope,
+    plugin_scope_checked,
 )
-from app.core.messages import InitiativeMessages, PropertyMessages
-from app.models.tenant.initiative import Initiative, InitiativeMember
+from app.core.messages import InitiativeMessages, PluginMessages, PropertyMessages
+from app.core.plugin_scopes import tool_resource
+from app.core.tools import Tool
+from app.models.tenant.initiative import Initiative
 from app.models.tenant.property import (
     PropertyDefinition,
     PropertyType,
 )
-from app.models.platform.user import User
 from app.schemas.tenant.property import (
     PropertyDefinitionCreate,
     PropertyDefinitionRead,
@@ -36,10 +35,18 @@ from app.services.tenant.names import ensure_name_free
 
 router = APIRouter(route_class=ActorRoute)
 
-#: The routes an installed app may call. Property definitions are part of how
-#: an initiative is set up, so they answer to the initiatives scope.
+#: An installed plug-in reads definitions with ``properties:read``, or with any
+#: tool's scope: a value is set with the scope of the tool its item belongs to,
+#: and it is chosen from these.
+_DEFINITION_READ_SCOPES: tuple[str, ...] = (
+    "properties:read",
+    *(f"{tool_resource(tool).value}:read" for tool in Tool),
+)
 PropertyDefinitionsRead = Annotated[
-    ActorContext, Depends(app_scope("initiatives:read"))
+    ActorContext, Depends(plugin_scope_checked(_DEFINITION_READ_SCOPES, per="tool"))
+]
+PropertyDefinitionsWrite = Annotated[
+    ActorContext, Depends(plugin_scope("properties:write"))
 ]
 
 
@@ -51,7 +58,7 @@ async def _get_definition_or_404(
 ) -> PropertyDefinition:
     """Fetch a definition by id, relying on RLS for scope enforcement.
 
-    MUST be called with a routed session (``RLSSessionDep``). Under
+    MUST be called with a routed session (``ActorSessionDep``). Under
     schema-per-guild, ``property_definitions`` lives only in the active
     guild's schema, and definition ids are unique per-guild — the routing is
     what decides which guild's row an id resolves to.
@@ -71,69 +78,28 @@ async def _get_definition_or_404(
 
 async def _ensure_initiative_member(
     session: AsyncSession,
-    guild_context: GuildContext,
+    guild_context: ActorContext,
     initiative_id: int,
-    user: User,
 ) -> None:
-    """Explicit membership check before insert, run in the active guild's schema.
+    """Raise 403 unless the caller is in the initiative, or administers the
+    community.
 
-    Under schema-per-guild, ``property_definitions`` and
-    ``initiative_members`` live only in the request's active guild schema,
-    and ``initiative_id`` is meaningful only within that schema. The check
-    therefore runs on the request's routed session (``RLSSessionDep``) so it
-    resolves against the active guild's data.
-
-    Mirrors the RLS policy bypasses: guild admins of the active guild pass
-    without an explicit ``InitiativeMember`` row (same semantics as the
-    restrictive RLS policy's ``OR IS_ADMIN`` clause). The guild-admin check
-    reads ``guild_context.role`` — already resolved from the shared
-    ``guild_memberships`` table — so no extra query is needed. There is no
-    standing ``data.bypass`` bypass: an operator/owner reaches this guild
-    only via a break-glass grant, and a grant — like the rest of the PAM model —
-    confers scoped content read/write, never schema/definition management. So
-    managing definitions stays membership/guild-admin-gated.
-
-    A definition can only be created in the caller's active guild, so we
-    also confirm the initiative exists in this schema; an id from another
-    guild (or a deleted one) is treated as "not a member" and surfaces a
-    clean ``NOT_INITIATIVE_MEMBER`` 403 rather than the misleading
-    ``DEFINITION_NOT_FOUND`` code (or a downstream FK error on insert).
+    The initiative must exist in this community's schema first, so a foreign or
+    deleted id answers ``NOT_INITIATIVE_MEMBER`` rather than a foreign-key
+    error on insert. A person is in the initiatives they are a member of, and
+    an installed plug-in in the ones it is placed in; the standing holds both.
     """
-    # The initiative id must resolve in the active guild's schema. Ids are
-    # unique per-guild, so a foreign or deleted id has no row here. This runs
-    # before the guild-admin bypass on purpose — admins need the FK guard too.
-    # Constraint: it assumes the routed session can see every initiative row in
-    # the schema; if per-schema initiative-scoped RLS policies are ever
-    # reintroduced, this lookup must use a policy-exempt path or guild admins
-    # outside the initiative will false-403 here.
     init_stmt = select(Initiative.id).where(Initiative.id == initiative_id)
-    if (await session.exec(init_stmt)).one_or_none() is None:
+    if (await session.exec(init_stmt)).one_or_none() is None or not (
+        guild_context.is_admin or initiative_id in guild_context.member_initiatives
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=PropertyMessages.NOT_INITIATIVE_MEMBER,
         )
 
-    # Guild-admin bypass: admins of the active guild may manage any
-    # initiative in that guild. GuildContext already resolved the role.
-    if guild_context.is_admin:
-        return
 
-    # Direct initiative membership, resolved in the active guild's schema.
-    stmt = select(InitiativeMember).where(
-        InitiativeMember.initiative_id == initiative_id,
-        InitiativeMember.user_id == user.id,
-    )
-    result = await session.exec(stmt)
-    if result.one_or_none() is not None:
-        return
-
-    raise HTTPException(
-        status_code=status.HTTP_403_FORBIDDEN,
-        detail=PropertyMessages.NOT_INITIATIVE_MEMBER,
-    )
-
-
-def _manages(guild_context: GuildContext, initiative_id: int) -> bool:
+def _manages(guild_context: ActorContext, initiative_id: int) -> bool:
     """Reshaping or removing a definition is how the initiative is set up, so it
     takes a manager of the initiative or an admin of the community."""
     return guild_context.is_admin or initiative_id in guild_context.manager_initiatives
@@ -180,8 +146,15 @@ async def list_property_definitions(
     With ``initiative_id``, returns definitions for that initiative only
     (filtered explicitly and subject to RLS). Without it, RLS returns the
     union across every initiative the caller can see — used by global
-    views (My Tasks, Created Tasks, global Documents list).
+    views (My Tasks, Created Tasks, global Files list).
     """
+    if isinstance(guild_context, InstallContext) and not any(
+        guild_context.holds(scope) for scope in _DEFINITION_READ_SCOPES
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=PluginMessages.SCOPE_REQUIRED,
+        )
     stmt = select(PropertyDefinition)
     if initiative_id is not None:
         stmt = stmt.where(PropertyDefinition.initiative_id == initiative_id)
@@ -197,21 +170,15 @@ async def list_property_definitions(
 )
 async def create_property_definition(
     payload: PropertyDefinitionCreate,
-    session: RLSSessionDep,
-    guild_context: GuildContextDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
+    session: ActorSessionDep,
+    guild_context: PropertyDefinitionsWrite,
 ) -> PropertyDefinition:
     """Create a new property definition on an initiative.
 
-    Requires the caller to be a member of the target initiative (or a
-    guild admin). The membership check runs on the routed
-    request session, so it resolves against the active guild's schema —
-    the only place the target initiative and its definitions live under
-    schema-per-guild.
+    Requires the caller to be in the target initiative (or a guild admin);
+    an installed plug-in also needs ``properties:write``.
     """
-    await _ensure_initiative_member(
-        session, guild_context, payload.initiative_id, current_user
-    )
+    await _ensure_initiative_member(session, guild_context, payload.initiative_id)
     await ensure_name_free(
         session,
         PropertyDefinition.name,
@@ -238,9 +205,8 @@ async def create_property_definition(
 async def update_property_definition(
     definition_id: int,
     payload: PropertyDefinitionUpdate,
-    session: RLSSessionDep,
-    guild_context: GuildContextDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
+    session: ActorSessionDep,
+    guild_context: PropertyDefinitionsWrite,
 ) -> PropertyDefinitionUpdateResponse:
     """Update a property definition.
 
@@ -262,9 +228,7 @@ async def update_property_definition(
         }:
             raise _manager_required()
         added = _added_options(defn, payload.options or [])
-        await _ensure_initiative_member(
-            session, guild_context, defn.initiative_id, current_user
-        )
+        await _ensure_initiative_member(session, guild_context, defn.initiative_id)
         defn.options = [*(defn.options or []), *added]
         defn.updated_at = datetime.now(timezone.utc)
         session.add(defn)
@@ -324,9 +288,8 @@ async def update_property_definition(
 @router.delete("/{definition_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_property_definition(
     definition_id: int,
-    session: RLSSessionDep,
-    guild_context: GuildContextDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
+    session: ActorSessionDep,
+    guild_context: PropertyDefinitionsWrite,
 ) -> None:
     """Delete a property definition. Cascades to remove all attached values."""
     defn = await _get_definition_or_404(session, definition_id)

@@ -1,35 +1,43 @@
 """
-Live editing of a collaborative body (a document, a wiki page).
+Live editing of a collaborative body (a file, a wiki page).
 
 The socket carries the Yjs sync protocol, updates and awareness; entry and
 continuous re-authorization are ``app.api.content_socket``'s. The POST beside
 each socket hands over edits a tab made while its socket was closed.
 """
 
+# NOT ``from __future__ import annotations``: the handlers are built per kind
+# with ``Annotated[int, Path(alias=...)]`` closing over a local, and stringized
+# annotations re-evaluate it where that local is out of scope.
+
 import json
 import logging
-from typing import Optional
+from typing import Annotated, Optional
 
 
 from fastapi import (
     APIRouter,
     HTTPException,
+    Path,
     WebSocket,
     status,
 )
 
 from app.api.deps import (
+    CommunityIdPath,
     CurrentUser,
     SessionDep,
     establish_guild_access,
     GuildAccessError,
     raise_for_guild_access,
 )
-from app.core.messages import DocumentMessages
+from app.core.messages import FileMessages
+from app.core.body_limit import max_document_body
 from app.models.platform.user import User
 from app.schemas.tenant.collaboration import CollaborationHandover
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.services.tenant.collaboration import (
+    MSG_UPDATE,
     broadcast_awareness,
     collaboration_manager,
     room_roster,
@@ -38,18 +46,17 @@ from app.services.tenant.collaboration import (
 from app.services.tenant.collaborative_resources import (
     CollaborativeResource,
     Collaborating,
-    ContentFrameError,
+    registered_types,
     resource_for,
 )
-from app.core.search import SearchEntityType
 from app.db.session import require_guild_context
-from app.services.tenant import documents as documents_service
 from app.services import permissions as permissions_service
 from app.services.content_sockets import RoomKey, Wire, resource_room, sockets
 from app.api.content_socket import admit, hold_open
 from app.api import resource_access
 from app.core.request_audit import record_privileged_edit
 from app.core.user_display import display_name, handle_of
+from app.models.platform.user_profile_view import MemberProfile
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -57,60 +64,11 @@ logger = logging.getLogger(__name__)
 # Message types for the collaboration protocol
 MSG_SYNC_STEP1 = 0  # Client requests current state
 MSG_SYNC_STEP2 = 1  # Server sends current state
-MSG_UPDATE = 2  # Incremental Yjs update
+# MSG_UPDATE = 2, an incremental Yjs update, is the service's: it sends them too.
 MSG_AWARENESS = 3  # Join / leave / roster, server to client (JSON)
 MSG_AWARENESS_BINARY = 4  # y-protocols awareness (binary, relayed as-is)
-MSG_CONTENT = 6  # Editor's JSON rendering of the document, for the content column
-
-
-def _addresses_the_same_thing(
-    spec: CollaborativeResource, resolved: Collaborating, parent_id: int | None
-) -> bool:
-    """Whether the parent the URL named is the one the row actually has.
-
-    Only a nested resource has one. The authorization never reads the path
-    segment — it reads the row — so a mismatch is simply refused rather than
-    quietly serving the right room under the wrong address.
-    """
-    if parent_id is None:
-        return True
-    return getattr(resolved.body, "wiki_id", None) == parent_id
-
-
-@router.websocket("/documents/{document_id}/collaborate")
-async def websocket_collaborate_document(
-    websocket: WebSocket,
-    guild_id: int,
-    document_id: int,
-):
-    """Live editing of a document's body."""
-    await _collaborate(
-        websocket, guild_id, resource_for(SearchEntityType.document.value), document_id
-    )
-
-
-@router.websocket("/wikis/{wiki_id}/pages/{page_id}/collaborate")
-async def websocket_collaborate_wiki_page(
-    websocket: WebSocket,
-    guild_id: int,
-    wiki_id: int,
-    page_id: int,
-):
-    """Live editing of a wiki page's body.
-
-    ``wiki_id`` is in the path because a page is addressed through its wiki
-    everywhere else, and a socket that named the page alone would be the one
-    place it is not. The page's own row names the wiki that governs it, so the
-    authorization does not read the path segment — a mismatched one is refused
-    below rather than believed.
-    """
-    await _collaborate(
-        websocket,
-        guild_id,
-        resource_for(SearchEntityType.wiki_page.value),
-        page_id,
-        parent_id=wiki_id,
-    )
+# 6 carried a tab's rendering of the body. The server renders every body now,
+# so a frame of it from an older tab falls through unread.
 
 
 class _Editing:
@@ -129,12 +87,10 @@ class _Editing:
         guild_id: int,
         spec: CollaborativeResource,
         resource_id: int,
-        parent_id: int | None,
     ) -> None:
         self.guild_id = guild_id
         self.spec = spec
         self.resource_id = resource_id
-        self.parent_id = parent_id
         self.resolved: Collaborating | None = None
         self.can_write: bool | None = None
 
@@ -142,9 +98,7 @@ class _Editing:
         self, session: AsyncSession, user: User
     ) -> Optional[frozenset[RoomKey]]:
         resolved = await self.spec.load(session, self.resource_id, self.guild_id)
-        if resolved is None or not _addresses_the_same_thing(
-            self.spec, resolved, self.parent_id
-        ):
+        if resolved is None:
             return None
         context = require_guild_context(session)
         try:
@@ -162,7 +116,7 @@ class _Editing:
         elif self.can_write and not writes:
             return None
         # The body's room, and the room of the row whose sharing governs it —
-        # the same room for a document, the wiki's for a page — so a change
+        # the same room for a file, the wiki's for a page — so a change
         # to that sharing re-checks this socket at once.
         return frozenset(
             {
@@ -179,13 +133,11 @@ async def _collaborate(
     guild_id: int,
     spec: CollaborativeResource,
     resource_id: int,
-    *,
-    parent_id: int | None = None,
 ):
     """Live editing of one body over Yjs.
 
     Entry is ``app.api.content_socket.admit``: the first frame is ``MSG_AUTH``
-    with ``{token}``, and the guild comes from the ``/c/{guild_id}`` path. Then:
+    with ``{token}``, and the guild comes from the ``/c/{community_id}`` path. Then:
     the server asks for what the client has (``SYNC_STEP1``) and sends the
     roster; the client answers and sends its own ``SYNC_STEP1``; after that,
     ``UPDATE`` frames are applied and relayed, and binary awareness is relayed
@@ -195,7 +147,7 @@ async def _collaborate(
     held for the socket's life.
     """
     room_key = resource_room(guild_id, spec.resource_type, resource_id)
-    editing = _Editing(guild_id, spec, resource_id, parent_id)
+    editing = _Editing(guild_id, spec, resource_id)
     room = None
     # Filled before the socket is registered, so a roster read in between
     # never shows this connection without its name.
@@ -203,9 +155,11 @@ async def _collaborate(
 
     async def open_room(session: AsyncSession, user: User) -> None:
         nonlocal room
+        # Named as the rest of this guild names them, not from the account.
+        member = await session.get(MemberProfile, user.id)
         meta.update(
             {
-                "name": display_name(user),
+                "name": display_name(member, fallback=handle_of(user)),
                 "can_write": bool(editing.can_write),
                 "avatar_url": user.avatar_url,
             }
@@ -234,7 +188,6 @@ async def _collaborate(
 
     user = sub.user
     can_write = bool(editing.can_write)
-    body = editing.resolved.body
     collaborator_name = meta["name"]
     # One line per session says they edited it; the rest is keystrokes.
     edit_recorded = False
@@ -294,7 +247,7 @@ async def _collaborate(
                     return
 
                 try:
-                    room.apply_update(payload, connection=websocket, user_id=user.id)
+                    room.apply_update(payload, user_id=user.id)
                     if msg_type == MSG_UPDATE and not edit_recorded:
                         # Once per session, and only for an update: a
                         # SYNC_STEP2 is the client answering the room's
@@ -312,30 +265,6 @@ async def _collaborate(
                     )
                 except Exception as e:
                     logger.warning(f"Failed to apply Yjs update: {e}")
-
-            elif msg_type == MSG_CONTENT:
-                # The editor's JSON rendering of what it just wrote. Held on
-                # the room and written alongside the Yjs state, so the two
-                # views of the document are always saved from one moment.
-                if not can_write:
-                    return
-                try:
-                    room.offer_content(
-                        spec.normalize(body, json.loads(payload.decode())),
-                        connection=websocket,
-                    )
-                except (json.JSONDecodeError, UnicodeDecodeError):
-                    logger.warning(
-                        f"Collaboration: unreadable content frame from {handle_of(user)}"
-                    )
-                except (
-                    documents_service.DocumentContentError,
-                    ContentFrameError,
-                ) as exc:
-                    logger.warning(
-                        f"Collaboration: rejected content frame from "
-                        f"{handle_of(user)}: {exc.code}"
-                    )
 
             elif msg_type == MSG_AWARENESS_BINARY:
                 # y-protocols awareness update - relay as-is to other clients
@@ -355,7 +284,7 @@ async def _collaborate(
 
         # Tell the rest of the room only when this was the account's last
         # connection: the others keep a roster of people, and one of somebody's
-        # two tabs closing does not take them out of the document.
+        # two tabs closing does not take them out of the file.
         if not user_has_connection(guild_id, spec.resource_type, resource_id, user.id):
             broadcast_awareness(
                 guild_id,
@@ -371,51 +300,6 @@ async def _collaborate(
         await collaboration_manager.leave(guild_id, spec.resource_type, resource_id)
 
 
-@router.post(
-    "/documents/{document_id}/collaborate", status_code=status.HTTP_204_NO_CONTENT
-)
-async def hand_over_document_edits(
-    guild_id: int,
-    document_id: int,
-    handover: CollaborationHandover,
-    session: SessionDep,
-    user: CurrentUser,
-) -> None:
-    """Merge edits a tab made while its socket was closed into the document."""
-    await _hand_over(
-        session,
-        user,
-        guild_id,
-        resource_for(SearchEntityType.document.value),
-        document_id,
-        handover,
-    )
-
-
-@router.post(
-    "/wikis/{wiki_id}/pages/{page_id}/collaborate",
-    status_code=status.HTTP_204_NO_CONTENT,
-)
-async def hand_over_wiki_page_edits(
-    guild_id: int,
-    wiki_id: int,
-    page_id: int,
-    handover: CollaborationHandover,
-    session: SessionDep,
-    user: CurrentUser,
-) -> None:
-    """Merge edits a tab made while its socket was closed into the page."""
-    await _hand_over(
-        session,
-        user,
-        guild_id,
-        resource_for(SearchEntityType.wiki_page.value),
-        page_id,
-        handover,
-        parent_id=wiki_id,
-    )
-
-
 async def _hand_over(
     session: AsyncSession,
     user: User,
@@ -423,17 +307,13 @@ async def _hand_over(
     spec: CollaborativeResource,
     resource_id: int,
     handover: CollaborationHandover,
-    *,
-    parent_id: int | None = None,
 ) -> None:
     """Hand a leaving tab's unsent edits to the body's room.
 
     Called as a page unloads with its socket already gone, so what the tab did
     offline is not lost with it. The edits go through the room — merged into
     whatever the room holds, live or loaded for the purpose — and are saved the
-    way the room always saves, both views together. The tab's rendering is
-    taken only when the tab had everything the merged room has; otherwise it
-    describes an older document, and the room keeps the rendering it had.
+    way the room always saves, with the content rendered from the merged state.
 
     Authenticates as every other write does (the session cookie on web, the
     Authorization header on native), and is admitted exactly as the socket is,
@@ -443,7 +323,7 @@ async def _hand_over(
         await establish_guild_access(session, user, guild_id)
     except GuildAccessError as exc:
         raise_for_guild_access(exc)
-    editing = _Editing(guild_id, spec, resource_id, parent_id)
+    editing = _Editing(guild_id, spec, resource_id)
     if not await editing(session, user) or editing.resolved is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=spec.tool.not_found_code
@@ -458,22 +338,13 @@ async def _hand_over(
     )
     room.hold()
     try:
-        tab = object()
         try:
-            room.apply_update(handover.update, connection=tab, user_id=user.id)
+            room.apply_update(handover.update, user_id=user.id)
         except Exception:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=DocumentMessages.COLLABORATION_UPDATE_INVALID,
+                detail=FileMessages.COLLABORATION_UPDATE_INVALID,
             ) from None
-        if handover.content is not None and room.known_to(handover.state_vector):
-            try:
-                room.offer_content(
-                    spec.normalize(editing.resolved.body, handover.content),
-                    connection=tab,
-                )
-            except (documents_service.DocumentContentError, ContentFrameError):
-                pass
         sockets.emit_bytes(
             resource_room(guild_id, spec.resource_type, resource_id),
             bytes([MSG_UPDATE]) + handover.update,
@@ -488,3 +359,50 @@ async def _hand_over(
         room.release()
         if room.is_empty():
             await collaboration_manager.leave(guild_id, spec.resource_type, resource_id)
+
+
+def _mount(spec: CollaborativeResource) -> None:
+    """Mount one kind's socket and its handover at
+    ``/<kind plural>/{<id param>}/collaborate``."""
+    id_param = spec.path_param
+    resource_id_param = Annotated[
+        int, Path(alias=id_param, title=id_param.replace("_", " ").title())
+    ]
+    path = f"/{spec.route_segment}/{{{id_param}}}/collaborate"
+    # What the body is called: ``file_id`` names a file, ``page_id`` a page.
+    name = id_param.removesuffix("_id").replace("_", " ")
+
+    async def collaborate(
+        websocket: WebSocket,
+        guild_id: CommunityIdPath,
+        resource_id: resource_id_param,
+    ):
+        await _collaborate(websocket, guild_id, spec, resource_id)
+
+    @max_document_body
+    async def hand_over(
+        guild_id: CommunityIdPath,
+        resource_id: resource_id_param,
+        handover: CollaborationHandover,
+        session: SessionDep,
+        user: CurrentUser,
+    ) -> None:
+        await _hand_over(session, user, guild_id, spec, resource_id, handover)
+
+    router.add_api_websocket_route(
+        path, collaborate, name=f"websocket_collaborate_{spec.resource_type}"
+    )
+    router.add_api_route(
+        path,
+        hand_over,
+        methods=["POST"],
+        status_code=status.HTTP_204_NO_CONTENT,
+        name=f"hand_over_{spec.resource_type}_edits",
+        description=(
+            f"Merge edits a tab made while its socket was closed into the {name}."
+        ),
+    )
+
+
+for _kind in registered_types():
+    _mount(resource_for(_kind))

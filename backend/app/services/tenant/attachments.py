@@ -14,7 +14,11 @@ from uuid import uuid4
 
 from fastapi import UploadFile
 
+from app.core.errors import CodedError
+from app.core.identity_boundary import UPLOAD_PATH_SHAPE
+from app.core.messages import AttachmentMessages
 from app.core.image_headers import read_image_header
+from app.db.advisory_locks import LockNamespace, advisory_lock
 from app.db.query import ids_in
 from app.services.storage import get_guild_storage
 
@@ -26,15 +30,15 @@ UPLOADS_URL_PREFIX = "/uploads/"
 #: description, a comment — starts with. The server chooses every stored name,
 #: so this is how an upload says it was pasted, and only an upload that says so
 #: is ever deleted because the text stopped showing it. An image copied in from
-#: a document or a gallery keeps its own name and is never touched.
+#: a file or a gallery keeps its own name and is never touched.
 PASTED_IMAGE_PREFIX = "pasted-"
 
-#: An upload's address inside markdown: ``/uploads/{guild_id}/{filename}``,
+#: An upload's address inside markdown: ``/uploads/{community_id}/{filename}``,
 #: optionally behind an origin.
-_MARKDOWN_UPLOAD_URL = re.compile(r"(?:https?://[^\s()<>]+?)?/uploads/\d+/[\w.-]+")
+_MARKDOWN_UPLOAD_URL = re.compile(rf"(?:https?://[^\s()<>]+?)?{UPLOAD_PATH_SHAPE}")
 
-# Maximum file size for document uploads: 50 MB
-MAX_DOCUMENT_FILE_SIZE = 50 * 1024 * 1024
+# Maximum file size for file uploads: 50 MB
+MAX_FILE_SIZE = 50 * 1024 * 1024
 
 
 class FileTooLargeError(Exception):
@@ -49,21 +53,17 @@ class FileTooLargeError(Exception):
         super().__init__(f"File exceeds maximum size of {max_size} bytes")
 
 
-class StorageQuotaExceededError(Exception):
-    """Raised when an upload would push a guild over its ``max_storage_bytes``.
+class StorageQuotaExceededError(CodedError):
+    """Raised when a write would push a guild over its ``max_storage_bytes``.
 
-    Carries the limit, the current usage, and the incoming size so callers can
-    build an accurate error response.
+    Answered by the API wherever it is raised, because saving content can copy
+    the files it shows (``claim_uploads``), and every save goes through that.
     """
 
-    def __init__(self, *, limit: int, usage: int, incoming: int) -> None:
-        self.limit = limit
-        self.usage = usage
-        self.incoming = incoming
-        super().__init__(
-            f"Upload of {incoming} bytes would exceed the guild storage limit "
-            f"of {limit} bytes (current usage {usage})"
-        )
+    status_code = 507
+
+    def __init__(self) -> None:
+        super().__init__(AttachmentMessages.STORAGE_QUOTA_EXCEEDED)
 
 
 async def read_upload_bounded(file: UploadFile, max_size: int) -> bytes:
@@ -86,8 +86,8 @@ def compute_content_hash(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-# Supported MIME types for document file uploads (based on react-doc-viewer support)
-ALLOWED_DOCUMENT_MIME_TYPES: Dict[str, str] = {
+# Supported MIME types for uploaded files (based on react-doc-viewer support)
+ALLOWED_FILE_MIME_TYPES: Dict[str, str] = {
     "application/pdf": ".pdf",
     "application/msword": ".doc",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
@@ -140,7 +140,7 @@ def normalize_upload_url(url: str | None) -> str | None:
         path = parsed.path or ""
     if not path.startswith(UPLOADS_URL_PREFIX):
         return None
-    # Keep the full ``/uploads/{guild_id}/{filename}`` path (only origin/query are
+    # Keep the full ``/uploads/{community_id}/{filename}`` path (only origin/query are
     # dropped): the guild segment is part of the canonical URL, so content
     # rewrites and dedup compare like-for-like. Disk ops take ``Path(url).name``,
     # which is the filename regardless of the guild segment.
@@ -165,44 +165,37 @@ def upload_names(urls: Iterable[str | None]) -> Set[str]:
     return {Path(n).name for n in (normalize_upload_url(u) for u in urls) if n}
 
 
-async def purge_document_uploads(session, documents: Iterable[Any]) -> Set[str]:
-    """Delete the uploads of documents about to be hard-purged.
+async def purge_file_uploads(session, files: Iterable[Any]) -> Set[str]:
+    """Delete the uploads of files about to be hard-purged.
 
-    A file document's file, and every version of it, backs that document alone,
-    so they go with it. What a document shows — pictures in its body, its
+    An uploaded file's blob, and every version of it, backs that file alone,
+    so they go with it. What a file shows — pictures in its body, its
     featured image — goes only when nothing that stays shows it too; a trashed
-    document still counts, since it may be restored.
+    file still counts, since it may be restored.
 
     Caller must use a session that can DELETE from ``uploads``; caller commits,
     then deletes the blobs of the stored names returned.
     """
     from sqlmodel import select
 
-    from app.models.tenant.document import Document, DocumentFileVersion, DocumentType
+    from app.models.tenant.file import File, FileVersion
 
-    doomed = list(documents)
+    doomed = list(files)
     if not doomed:
         return set()
     doomed_ids = {d.id for d in doomed}
 
     versions = await session.exec(
-        select(DocumentFileVersion.file_url).where(
-            DocumentFileVersion.document_id.in_(doomed_ids)
-        )
+        select(FileVersion.file_url).where(FileVersion.file_id.in_(doomed_ids))
     )
-    stored = upload_names(
-        [d.file_url for d in doomed if d.document_type == DocumentType.file]
-    ) | upload_names(versions.all())
-    removed = await _drop_upload_rows(session, stored)
+    removed = await _drop_upload_rows(session, upload_names(versions.all()))
 
     shown: Set[str] = set()
     for d in doomed:
         shown |= extract_upload_urls(d.content)
         if d.featured_image_url:
             shown.add(d.featured_image_url)
-    return removed | await release_uploads(
-        session, shown, leaving={Document: doomed_ids}
-    )
+    return removed | await release_uploads(session, shown, leaving={File: doomed_ids})
 
 
 async def purge_gallery_image_uploads(session, images: Iterable[Any]) -> Set[str]:
@@ -228,8 +221,7 @@ async def purge_gallery_image_uploads(session, images: Iterable[Any]) -> Set[str
             GalleryImageVersion.gallery_image_id.in_({i.id for i in doomed})
         )
     )
-    urls = [u for image in doomed for u in (image.file_url, image.thumbnail_url)]
-    urls += [u for row in versions.all() for u in row]
+    urls = [u for row in versions.all() for u in row]
     return await _drop_upload_rows(session, upload_names(urls))
 
 
@@ -256,10 +248,11 @@ UNCLAIMED_PASTED_IMAGE_GRACE = timedelta(hours=24)
 
 def _upload_columns() -> tuple[tuple[type, str], ...]:
     """Every column a stored upload can be shown from: every column somebody
-    writes in, and the file columns of documents and pictures."""
+    writes in, a file's featured image, and the files of every version of
+    an uploaded file or a picture."""
     from app.db.search_index import written_columns
-    from app.models.tenant.document import Document, DocumentFileVersion
-    from app.models.tenant.gallery import GalleryImage, GalleryImageVersion
+    from app.models.tenant.file import File, FileVersion
+    from app.models.tenant.gallery import GalleryImageVersion
 
     return (
         *(
@@ -267,11 +260,8 @@ def _upload_columns() -> tuple[tuple[type, str], ...]:
             for model, columns in written_columns().items()
             for column in columns
         ),
-        (Document, "featured_image_url"),
-        (Document, "file_url"),
-        (DocumentFileVersion, "file_url"),
-        (GalleryImage, "file_url"),
-        (GalleryImage, "thumbnail_url"),
+        (File, "featured_image_url"),
+        (FileVersion, "file_url"),
         (GalleryImageVersion, "file_url"),
         (GalleryImageVersion, "thumbnail_url"),
     )
@@ -630,10 +620,12 @@ async def claim_uploads(
     from sqlalchemy.orm.attributes import flag_modified
     from sqlmodel import select
 
-    from app.db.app_rls import APP_TABLE_ACCESS
+    from app.db.plugin_rls import PLUGIN_TABLE_ACCESS
     from app.db.initiative_rls import INITIATIVE_PATHS
     from app.db.session import guild_context, install_context
     from app.models.tenant.upload import Upload
+    from app.services.tenant import body_states
+    from app.services.tenant.collaboration import written_into
     from app.services.tenant.collaborative_resources import YJS_STATE_COLUMN
 
     await session.flush()
@@ -700,7 +692,7 @@ async def claim_uploads(
     if not wanted or (person is None and uploaded_by is not None):
         return
     if install_context(session) is not None:
-        # An installed app reaches a file through the content showing it, so
+        # An installed plug-in reaches a file through the content showing it, so
         # it copies one only when content it reads shows it: other content,
         # or rows it carried here.
         saving: Dict[type, list[int]] = {}
@@ -714,7 +706,7 @@ async def claim_uploads(
                     session,
                     Path(url).name,
                     leaving={} if carried else saving,
-                    tables=set(APP_TABLE_ACCESS),
+                    tables=set(PLUGIN_TABLE_ACCESS),
                 )
             }
     copies = {
@@ -735,10 +727,19 @@ async def claim_uploads(
             if value != getattr(row, column):
                 setattr(row, column, value)
                 flag_modified(row, column)
-                if YJS_STATE_COLUMN in type(row).__table__.c:
+                if column == "content" and YJS_STATE_COLUMN in type(row).__table__.c:
                     # The editor loads its stored state before the column, so
-                    # it starts again from the rewritten one.
-                    setattr(row, YJS_STATE_COLUMN, None)
+                    # the rewrite is written into it: a live session merges it
+                    # in, and the next one opens on it.
+                    await session.refresh(row, [YJS_STATE_COLUMN])
+                    body = body_states.for_row(row)
+                    setattr(
+                        row,
+                        YJS_STATE_COLUMN,
+                        await written_into(body, getattr(row, YJS_STATE_COLUMN), value)
+                        if body is not None
+                        else None,
+                    )
     await session.flush()
 
 
@@ -805,12 +806,12 @@ def detect_mime_type(content: bytes, filename: str | None = None) -> str | None:
     return None
 
 
-def validate_document_file(
+def validate_file(
     content: bytes,
     filename: str | None,
     content_type: str | None,
 ) -> Tuple[str, str]:
-    """Validate an uploaded document file.
+    """Validate an uploaded file.
 
     Args:
         content: File content bytes
@@ -823,9 +824,9 @@ def validate_document_file(
     Raises:
         ValueError: If validation fails
     """
-    if len(content) > MAX_DOCUMENT_FILE_SIZE:
+    if len(content) > MAX_FILE_SIZE:
         raise ValueError(
-            f"File exceeds maximum size of {MAX_DOCUMENT_FILE_SIZE // (1024 * 1024)} MB"
+            f"File exceeds maximum size of {MAX_FILE_SIZE // (1024 * 1024)} MB"
         )
 
     if not content:
@@ -834,13 +835,13 @@ def validate_document_file(
     # Detect actual MIME type
     detected_mime = detect_mime_type(content, filename)
 
-    if detected_mime and detected_mime not in ALLOWED_DOCUMENT_MIME_TYPES:
+    if detected_mime and detected_mime not in ALLOWED_FILE_MIME_TYPES:
         # Magic returned an unrecognized type — fall back to extension if it
         # maps to an allowed type (e.g. magic returns text/x-markdown for .md)
         if filename:
             file_ext = Path(filename).suffix.lower()
             ext_mime = EXTENSION_TO_MIME.get(file_ext)
-            if ext_mime and ext_mime in ALLOWED_DOCUMENT_MIME_TYPES:
+            if ext_mime and ext_mime in ALLOWED_FILE_MIME_TYPES:
                 detected_mime = ext_mime
             else:
                 raise ValueError(f"Unsupported file type: {detected_mime}")
@@ -849,7 +850,7 @@ def validate_document_file(
 
     # If we couldn't detect the MIME type, fall back to Content-Type header
     if not detected_mime:
-        if content_type and content_type in ALLOWED_DOCUMENT_MIME_TYPES:
+        if content_type and content_type in ALLOWED_FILE_MIME_TYPES:
             detected_mime = content_type
         else:
             raise ValueError(
@@ -857,7 +858,7 @@ def validate_document_file(
             )
 
     # Get extension for the detected MIME type
-    extension = ALLOWED_DOCUMENT_MIME_TYPES.get(detected_mime, "")
+    extension = ALLOWED_FILE_MIME_TYPES.get(detected_mime, "")
 
     # If we have a filename, prefer its extension if it matches
     if filename:
@@ -886,11 +887,11 @@ async def store_upload(
     filename: str,
     data: bytes,
     content_type: str | None,
-    created_by: int,
+    created_by: int | None,
     initiative_id: int | None = None,
 ) -> str:
     """Write ``data`` to the guild's storage as ``filename`` and record it in
-    ``uploads``. Returns the served URL, ``/uploads/{guild_id}/{filename}``.
+    ``uploads``. Returns the served URL, ``/uploads/{community_id}/{filename}``.
 
     Every upload a person or an import brings into a guild is stored here.
     The ``uploads`` row is what the serve route requires and what the storage
@@ -933,12 +934,6 @@ async def get_guild_storage_usage(guild_id: int) -> int:
         return (
             await session.exec(select(func.coalesce(func.sum(Upload.size_bytes), 0)))
         ).one()
-
-
-# Advisory-lock namespace for per-guild storage-quota admission. A large fixed
-# tag (ASCII "STOR") so the two-int key (namespace, guild_id) can't collide with
-# the (user_id, guild_id) advisory locks used elsewhere (user ids are small).
-_QUOTA_LOCK_NAMESPACE = 0x53544F52  # 1397114706
 
 
 async def _storage_limit(guild_id: int) -> int | None:
@@ -985,23 +980,16 @@ async def enforce_storage_quota(session, *, guild_id: int, incoming_bytes: int) 
     exceed the limit (a TOCTOU race). The lock releases on commit/rollback;
     uploads to other guilds are unaffected.
     """
-    from sqlalchemy import text
-
     limit = await _storage_limit(guild_id)
     if limit is None:
         return
     # Serialize concurrent uploads for this guild for the remainder of the
     # transaction so the usage check + the row insert that follows are atomic
     # w.r.t. other uploads to the same guild.
-    await session.exec(
-        text("SELECT pg_advisory_xact_lock(:ns, :gid)"),
-        params={"ns": _QUOTA_LOCK_NAMESPACE, "gid": int(guild_id)},
-    )
+    await advisory_lock(session, LockNamespace.STORAGE_QUOTA, guild_id)
     usage = await get_guild_storage_usage(guild_id)
     if usage + incoming_bytes > limit:
-        raise StorageQuotaExceededError(
-            limit=limit, usage=usage, incoming=incoming_bytes
-        )
+        raise StorageQuotaExceededError()
 
 
 #: How far into a file the SVG root element may sit — past a byte-order mark, an
@@ -1016,7 +1004,7 @@ _ROOT_NAME_ENDS = (b" ", b"\t", b"\r", b"\n", b">", b"/")
 
 
 def _past_the_prolog(head: bytes) -> bytes:
-    """Drop what an XML document may carry before its root element — a
+    """Drop what an XML file may carry before its root element — a
     byte-order mark, whitespace, the declaration, comments and a doctype —
     and return what is left of ``head``."""
     head = head.lstrip(b"\xef\xbb\xbf").lstrip()

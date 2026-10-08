@@ -14,6 +14,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.db.query import ids_in
 from app.db.session import routed_guild_id
 from app.core.audit_events import AuditEventType
+from app.core.errors import CodedError
 from app.core.messages import InitiativeMessages
 from app.db.session import routed_context
 from app.models.tenant.initiative import (
@@ -344,7 +345,7 @@ async def ensure_managers_remain(
         membership for membership in result.all() if membership.user_id not in excluded
     ]
     if not managers:
-        raise ValueError(InitiativeMessages.MUST_HAVE_PM)
+        raise CodedError(InitiativeMessages.MUST_HAVE_PM)
 
 
 async def remove_user_from_guild_initiatives(
@@ -495,14 +496,14 @@ async def delete_role(
 ) -> None:
     """Delete a custom role. Cannot delete built-in roles."""
     if role.is_builtin:
-        raise ValueError(InitiativeMessages.CANNOT_DELETE_BUILTIN)
+        raise CodedError(InitiativeMessages.CANNOT_DELETE_BUILTIN)
 
     # Check if any members use this role
     stmt = select(func.count()).where(InitiativeMember.role_id == role.id)
     result = await session.exec(stmt)
     member_count = result.one()
     if member_count > 0:
-        raise ValueError(InitiativeMessages.ROLE_HAS_MEMBERS)
+        raise CodedError(InitiativeMessages.ROLE_HAS_MEMBERS)
 
     await session.delete(role)
     await session.flush()
@@ -574,7 +575,7 @@ async def list_directory_entries(
     One reading for everyone, guild admin included: their authority still
     reaches every initiative, but the front page lists the ones they are in and
     the ones on offer, the same as anyone else. The whole-guild listing is
-    ``scope=guild`` on the initiatives endpoint, which backs guild settings.
+    ``scope=community`` on the initiatives endpoint, which backs guild settings.
 
     Managers additionally get the size of their own join-request queue, so the
     guild home needs no second call to badge it. A guild admin gets it for the
@@ -1088,6 +1089,22 @@ async def list_join_requests(
     ]
 
 
+async def keeps_content_in(
+    session: AsyncSession, initiative_ids: Iterable[int | None]
+) -> bool:
+    """Whether any of ``initiative_ids`` keeps its content in
+    (``Initiative.keep_content_in``)."""
+    ids = {initiative_id for initiative_id in initiative_ids if initiative_id}
+    if not ids:
+        return False
+    found = await session.exec(
+        select(Initiative.id)
+        .where(ids_in(Initiative.id, ids), Initiative.keep_content_in)
+        .limit(1)
+    )
+    return found.first() is not None
+
+
 def validate_join_settings(
     initiative: Initiative,
     *,
@@ -1140,7 +1157,7 @@ async def create_imported_initiative(
         **{
             # A manifest that says nothing about a tool falls back to that
             # tool's own default rather than to off: a backup written before
-            # projects and documents had switches names no state for them, and
+            # projects and files had switches names no state for them, and
             # restoring it must not produce an initiative with neither.
             t.view_permission: bool(
                 tool_flags.get(t.view_permission, t in DEFAULT_ENABLED_TOOLS)

@@ -20,7 +20,7 @@ And yes, the app is called Initiative too. Context usually sorts it out. See [Wo
 
 ### Tool
 
-Any of the seven kinds of thing that live inside an initiative: **projects**, **documents**, **calendars**, **queues**, **counters**, **dashboards** and **posts**.
+Any of the nine kinds of thing that live inside an initiative: **projects**, **files**, **calendars**, **queues**, **counters**, **dashboards**, **posts**, **galleries** and **wikis**.
 
 Worth knowing because they all behave alike — same sharing, same tags, same comment threads — so learning one teaches you the rest. The list has grown before. See [Tools](../guides/tools.md).
 
@@ -28,7 +28,7 @@ Worth knowing because they all behave alike — same sharing, same tags, same co
 
 Your name plus a four-digit number, written `jordan#1234`. The number is what lets two people share a name, and it's part of the handle rather than decoration — somebody typing `jordan` alone won't find you.
 
-It's how you're identified everywhere real names aren't shown, and it addresses your profile at `/u/jordan1234`.
+It's how you're identified everywhere you haven't set a [display name](../guides/communities.md#your-name-in-a-community), and it addresses your profile at `/u/jordan1234`.
 
 ### Presence
 
@@ -42,7 +42,7 @@ It's unique to Moderator. No other role can be given it, however much you'd like
 
 ### Access level
 
-How much somebody can do with one specific project or document: **Viewer** (read), **Editor** (read and change), or **Owner** (that, plus deciding who else gets in). Separate from their initiative role, and both apply. See [Sharing projects & documents](../sharing/sharing-projects-and-documents.md).
+How much somebody can do with one specific project or file: **Viewer** (read), **Editor** (read and change), or **Owner** (that, plus deciding who else gets in). Separate from their initiative role, and both apply. See [Sharing projects & files](../sharing/sharing-projects-and-files.md).
 
 ### Join policy
 
@@ -60,11 +60,11 @@ Two different safety nets, and people mix them up.
 
 ### Message policy
 
-Who may *ask* to message you: **Private** (nobody), **My communities**, or **Anyone**. New accounts start Private, so an empty Contacts page is expected rather than broken. Every setting still ends in a request you accept or decline. See [Who can reach you](../guides/messages.md#who-can-reach-you).
+Who may *ask* to message you: **Private** (nobody), **My communities**, or **Anyone**. New accounts start Private, so a quiet **My Messages** is expected rather than broken. Every setting ends in a request you accept or decline. See [Who can reach you](../guides/messages.md#who-can-reach-you).
 
 ### Platform role vs. community role
 
-Two separate ladders. A **community role** (member or admin) governs one workspace. A **platform role** (member, support, moderator, operator, owner) governs the whole server.
+Two separate ladders. A **community role** (member, admin or superadmin) governs one workspace. A **platform role** (member, support, moderator, operator, owner) governs the whole server.
 
 Being an admin of your community gives you no authority over anybody else's. See [Platform roles](../running-a-server/platform-roles.md).
 

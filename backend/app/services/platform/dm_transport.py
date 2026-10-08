@@ -20,19 +20,22 @@ from __future__ import annotations
 import base64
 import binascii
 import uuid
-from collections.abc import Iterable
+from collections.abc import Collection, Iterable
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import delete, func, insert, text, update
 from sqlalchemy.exc import IntegrityError
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+from fastapi import status
 
+from app.core.errors import CodedError
 from app.core.messages import DirectMessageTransportMessages as Messages
 from app.core.transitions import DM_SIGNED_DEVICES
+from app.db.advisory_locks import LockNamespace, advisory_lock
 from app.models.platform.dm_conversation import (
     DmConversation,
     DmConversationKind,
@@ -52,6 +55,7 @@ from app.schemas.platform.dm_transport import (
     DmOneTimeKeyUpload,
     DmOutboundMessage,
     DmQueueItemRead,
+    DmQueueResponse,
     DmRosterMember,
     DmSessionKey,
     DmVerificationMessage,
@@ -97,12 +101,34 @@ class DmSendOutcome:
     group: bool = False
 
 
-class DmTransportError(Exception):
-    """Raised with a message code the endpoint turns into a status."""
+#: Every refusal that is about the pair answers the same way, so the endpoint is
+#: not a way to learn which of them it was.
+_STATUS: dict[str, int] = {
+    Messages.DEVICE_NOT_FOUND: status.HTTP_404_NOT_FOUND,
+    Messages.CONVERSATION_NOT_FOUND: status.HTTP_404_NOT_FOUND,
+    Messages.MALFORMED_KEY: status.HTTP_422_UNPROCESSABLE_CONTENT,
+    Messages.INVALID_SIGNATURE: status.HTTP_400_BAD_REQUEST,
+    Messages.DUPLICATE_KEY_ID: status.HTTP_409_CONFLICT,
+    Messages.TOO_MANY_KEYS: status.HTTP_409_CONFLICT,
+    Messages.NOT_REACHABLE: status.HTTP_409_CONFLICT,
+    Messages.CANNOT_MESSAGE_SELF: status.HTTP_409_CONFLICT,
+    Messages.ROSTER_NOT_REACHABLE: status.HTTP_409_CONFLICT,
+    Messages.ROSTER_TOO_LARGE: status.HTTP_409_CONFLICT,
+    Messages.ROSTER_TOO_SMALL: status.HTTP_409_CONFLICT,
+    Messages.NO_INVITATION: status.HTTP_404_NOT_FOUND,
+    Messages.MESSAGE_TOO_LARGE: status.HTTP_413_CONTENT_TOO_LARGE,
+    Messages.RECIPIENT_QUEUE_FULL: status.HTTP_507_INSUFFICIENT_STORAGE,
+    Messages.VERIFY_SAME_DEVICE: status.HTTP_409_CONFLICT,
+    Messages.TOO_MANY_VERIFICATIONS: status.HTTP_429_TOO_MANY_REQUESTS,
+}
+
+
+class DmTransportError(CodedError):
+    """A refused transport call, answered at its code's status (409 unless
+    :data:`_STATUS` names another)."""
 
     def __init__(self, code: str) -> None:
-        super().__init__(code)
-        self.code = code
+        super().__init__(code, _STATUS.get(code, status.HTTP_409_CONFLICT))
 
 
 def _decode(value: str, *, expect: int | None = None) -> bytes:
@@ -123,16 +149,19 @@ def _decode(value: str, *, expect: int | None = None) -> bytes:
     return raw
 
 
-def _encode(raw: bytes) -> str:
-    """Write one base64 value back, padded.
+def _encode_key(raw: bytes) -> str:
+    """Write a key or a signature back the way the ratchet wrote it: no padding.
 
-    Deliberately not the mirror of `_decode`. What the client sends is written
-    by two different encoders -- keys by the ratchet library, which omits the
-    padding, and ciphertext by this crate's own helper, which keeps it -- and
-    only the ciphertext side reads a value back. That reader is strict, so the
-    padding stays on; `_decode` is the tolerant half because it is the one that
-    has to take both.
+    Clients compare keys as text -- the identity a pre-key message names
+    against the one the directory lists -- so a key has one spelling on the
+    wire, and it is the ratchet's.
     """
+    return base64.b64encode(raw).decode("ascii").rstrip("=")
+
+
+def _encode_ciphertext(raw: bytes) -> str:
+    """Write a queued message back padded, which the ratchet's ciphertext
+    reader requires."""
     return base64.b64encode(raw).decode("ascii")
 
 
@@ -252,7 +281,7 @@ async def register_device(
     fallback_key: DmOneTimeKeyUpload,
     one_time_keys: list[DmOneTimeKeyUpload],
     label: str | None,
-    device_token_id: int | None = None,
+    session_id: uuid.UUID | None = None,
 ) -> DmDevice:
     """Publish a new installed client's public keys, signed by the device.
 
@@ -264,11 +293,11 @@ async def register_device(
     prekeys run out becomes unreachable to anyone starting a new conversation,
     and the failure would land on the sender.
 
-    ``device_token_id`` names the installation this key store belongs to, taken
-    from the credential that authenticated the call rather than from the body.
-    It is what lets a message wake this device and no other, so a client that
-    registers without one (the web, which has no device token) simply never
-    holds one -- it is not something a caller may assert about itself.
+    ``session_id`` names the sign-in this key store is collected under, taken
+    from the session that authenticated the call rather than from the body. Its
+    push registration names the same sign-in, which is what lets a message wake
+    this device and no other; it is not something a caller may assert about
+    itself.
     """
     identity = _decode(identity_key, expect=KEY_BYTES)
     fingerprint = _decode(fingerprint_key, expect=KEY_BYTES)
@@ -288,19 +317,16 @@ async def register_device(
             else None
         ),
         label=label,
-        device_token_id=device_token_id,
+        session_id=session_id,
     )
     session.add(device)
     await session.flush()
-    if device_token_id is not None:
+    if session_id is not None:
         # A re-registering installation brings its key store with it. The row it
-        # replaces must not go on naming it, or a push would be aimed at a store
-        # whose private half this browser no longer has.
-        await _claim_device_token(
-            session,
-            user_id=user_id,
-            device_id=device.id,
-            device_token_id=device_token_id,
+        # replaces must not go on naming the sign-in, or a push would be aimed
+        # at a store whose private half this device no longer has.
+        await _claim_session(
+            session, user_id=user_id, device_id=device.id, session_id=session_id
         )
     _add_keys(session, device, fallback_key=fallback_key, one_time_keys=one_time_keys)
     await session.flush()
@@ -376,9 +402,9 @@ async def list_devices(session: AsyncSession, *, user_id: int) -> list[DmDeviceR
     return [
         DmDeviceRead(
             id=device.id,
-            identity_key=_encode(device.identity_key),
-            fingerprint_key=_encode(device.fingerprint_key),
-            signature=_encode(device.signature) if device.signature else None,
+            identity_key=_encode_key(device.identity_key),
+            fingerprint_key=_encode_key(device.fingerprint_key),
+            signature=_encode_key(device.signature) if device.signature else None,
             label=device.label,
             created_at=device.created_at,
             last_seen_at=device.last_seen_at,
@@ -401,25 +427,44 @@ async def remove_device(
     await session.flush()
 
 
+async def withdraw_signed_in(
+    session: AsyncSession, *, user_id: int, session_ids: Collection[uuid.UUID]
+) -> None:
+    """Drop the key stores these sign-ins name, and everything queued for them.
+
+    What ending a sign-in from the account's own list does: nothing more is
+    encrypted to a device somebody has cut off, or to a browser whose keys go
+    with its session. Scoped to the account's own rows.
+    """
+    if not session_ids:
+        return
+    await session.exec(
+        delete(DmDevice).where(
+            DmDevice.user_id == user_id, col(DmDevice.session_id).in_(list(session_ids))
+        )
+    )
+
+
 def _session_key(
     device: DmDevice, one_time_key: DmOneTimeKeyUpload | None
 ) -> DmSessionKey:
     return DmSessionKey(
         device_id=device.id,
-        identity_key=_encode(device.identity_key),
-        fingerprint_key=_encode(device.fingerprint_key),
-        signature=_encode(device.signature) if device.signature else None,
+        identity_key=_encode_key(device.identity_key),
+        fingerprint_key=_encode_key(device.fingerprint_key),
+        signature=_encode_key(device.signature) if device.signature else None,
         one_time_key=one_time_key,
     )
 
 
-async def _devices_of(
+async def devices_of(
     session: AsyncSession,
     user_id: int,
     *,
     except_device: uuid.UUID | None = None,
     only: list[uuid.UUID] | None = None,
 ) -> list[DmDevice]:
+    """The account's key stores, oldest first (all of them, or ``only`` those)."""
     query = select(DmDevice).where(DmDevice.user_id == user_id)
     if except_device is not None:
         query = query.where(DmDevice.id != except_device)
@@ -445,7 +490,7 @@ async def claim_session_keys(
     # than the same one.
     claimed = [
         _session_key(device, await _claim_for(session, device.id))
-        for device in await _devices_of(session, target_id, only=only)
+        for device in await devices_of(session, target_id, only=only)
     ]
     await session.flush()
     return claimed
@@ -467,9 +512,9 @@ async def _claim_for(
         return None
     return DmOneTimeKeyUpload(
         key_id=row[0],
-        public_key=_encode(bytes(row[1])),
+        public_key=_encode_key(bytes(row[1])),
         fallback=row[2],
-        signature=_encode(bytes(row[3])) if row[3] is not None else None,
+        signature=_encode_key(bytes(row[3])) if row[3] is not None else None,
     )
 
 
@@ -484,7 +529,7 @@ async def directory(session: AsyncSession, *, target_id: int) -> list[DmSessionK
     if await _permission(session, target_id) != "open":
         raise DmTransportError(Messages.NOT_REACHABLE)
     return [
-        _session_key(device, None) for device in await _devices_of(session, target_id)
+        _session_key(device, None) for device in await devices_of(session, target_id)
     ]
 
 
@@ -505,7 +550,7 @@ async def own_session_keys(
     """
     return [
         _session_key(device, await _claim_for(session, device.id))
-        for device in await _devices_of(
+        for device in await devices_of(
             session, user_id, except_device=except_device, only=only
         )
     ]
@@ -1045,13 +1090,7 @@ async def send(
     # overlapping rosters take the same mailboxes, and taking them in different
     # orders is how each ends up waiting on the other.
     for recipient in sorted(incoming):
-        await session.exec(
-            select(
-                func.pg_advisory_xact_lock(
-                    func.hashtextextended(f"dm-queue:{recipient}", 0)
-                )
-            )
-        )
+        await advisory_lock(session, LockNamespace.DM_QUEUE, recipient)
     full = {
         recipient
         for recipient in sorted(incoming)
@@ -1097,26 +1136,40 @@ async def send(
     )
 
 
-async def _claim_device_token(
+async def _claim_session(
     session: AsyncSession,
     *,
     user_id: int,
     device_id: uuid.UUID,
-    device_token_id: int,
+    session_id: uuid.UUID,
 ) -> None:
-    """Leave this installation named by exactly one of the account's key stores.
+    """Leave this sign-in named by exactly one of the account's key stores.
 
-    Scoped to the account's own rows: an installation belongs to one account,
-    and the id being claimed is the one that authenticated the call.
+    Scoped to the account's own rows: a sign-in belongs to one account, and the
+    one being claimed is the one that authenticated the call.
     """
     await session.exec(
         update(DmDevice)
         .where(
             DmDevice.user_id == user_id,
             DmDevice.id != device_id,
-            DmDevice.device_token_id == device_token_id,
+            DmDevice.session_id == session_id,
         )
-        .values(device_token_id=None)
+        .values(session_id=None)
+    )
+
+
+async def follow_session(
+    session: AsyncSession, *, from_id: uuid.UUID, to_id: uuid.UUID
+) -> None:
+    """Move the key store one session named to the session taking its place.
+
+    Called wherever a session is succeeded, beside the push registrations, so a
+    key store and its device's push row go on naming the same live sign-in.
+    Does not commit: it lands with the session change.
+    """
+    await session.exec(
+        update(DmDevice).where(DmDevice.session_id == from_id).values(session_id=to_id)
     )
 
 
@@ -1125,58 +1178,66 @@ async def collect(
     *,
     user_id: int,
     device_id: uuid.UUID,
-    device_token_id: int | None = None,
-) -> list[DmQueueItemRead]:
-    """Everything waiting for one device, oldest first.
+    session_id: uuid.UUID | None = None,
+    after: int | None = None,
+) -> DmQueueResponse:
+    """What is waiting for one device, oldest first, a page at a time.
 
     The order is not a nicety. A ratchet keeps a bounded number of skipped
     message keys, so handing them over in the order they were written is what
     keeps a client able to read them.
 
-    Collecting is also where the key store learns which installation it belongs
-    to. A device registers once and never again, so the link cannot only be
-    written at registration: one made before there was a link to write, or one
-    whose login has been replaced since, would stay unwakeable for the rest of
-    its life. Every poll re-states it instead.
+    ``after`` is the last id of the page before, and ``more`` says another page
+    follows. A device may leave a message here that it cannot read yet -- one
+    from a device of its account's that is waiting to be verified -- so a
+    collection pages past those rather than reading the same first page again.
 
-    One installation holds one key store, and taking the link moves it rather
-    than copying it. Two devices naming the same installation cannot both be
-    woken -- a push would go to the one installation either way -- so the one
-    that is no longer collecting under it would look linked while silently
-    receiving nothing.
+    Collecting is also where the key store learns which sign-in it is under. A
+    device registers once and never again, so the link cannot only be written
+    at registration: a device signed in again since would stay unwakeable for
+    the rest of its life. Every poll re-states it instead.
+
+    One sign-in holds one key store, and taking the link moves it rather than
+    copying it. Two key stores naming the same sign-in cannot both be woken --
+    a push would go to the one device either way -- so the one that is no
+    longer collecting under it would look linked while silently receiving
+    nothing.
     """
     device = await _own_device(session, user_id=user_id, device_id=device_id)
-    if device_token_id is not None and device.device_token_id != device_token_id:
-        await _claim_device_token(
-            session,
-            user_id=user_id,
-            device_id=device_id,
-            device_token_id=device_token_id,
+    if session_id is not None and device.session_id != session_id:
+        await _claim_session(
+            session, user_id=user_id, device_id=device_id, session_id=session_id
         )
-        device.device_token_id = device_token_id
+        device.session_id = session_id
     rows = list(
         (
             await session.exec(
                 select(DmQueueItem)
-                .where(DmQueueItem.recipient_device_id == device_id)
+                .where(
+                    DmQueueItem.recipient_device_id == device_id,
+                    DmQueueItem.id > (after or 0),
+                )
                 .order_by(DmQueueItem.id)
-                .limit(QUEUE_PAGE)
+                .limit(QUEUE_PAGE + 1)
             )
         ).all()
     )
     device.last_seen_at = datetime.now(timezone.utc)
     session.add(device)
     await session.flush()
-    return [
-        DmQueueItemRead(
-            id=row.id,
-            conversation_id=row.conversation_id,
-            message_type=row.message_type,
-            payload=_encode(row.payload),
-            created_at=row.created_at,
-        )
-        for row in rows
-    ]
+    return DmQueueResponse(
+        items=[
+            DmQueueItemRead(
+                id=row.id,
+                conversation_id=row.conversation_id,
+                message_type=row.message_type,
+                payload=_encode_ciphertext(row.payload),
+                created_at=row.created_at,
+            )
+            for row in rows[:QUEUE_PAGE]
+        ],
+        more=len(rows) > QUEUE_PAGE,
+    )
 
 
 async def acknowledge(
@@ -1230,13 +1291,7 @@ async def send_verification(
     await _own_device(session, user_id=user_id, device_id=to_device_id)
     # Held to the end of the transaction, so two sends from one account count
     # and insert one after the other.
-    await session.exec(
-        select(
-            func.pg_advisory_xact_lock(
-                func.hashtextextended(f"dm-verification:{user_id}", 0)
-            )
-        )
-    )
+    await advisory_lock(session, LockNamespace.DM_VERIFICATION, user_id)
     await _clear_expired_verifications(
         session,
         user_id=user_id,

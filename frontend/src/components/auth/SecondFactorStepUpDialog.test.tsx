@@ -1,7 +1,7 @@
 import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
@@ -9,6 +9,17 @@ import { AUTH_FACTOR_REQUIRED_EVENT } from "@/api/client";
 import { queryClient } from "@/lib/queryClient";
 
 import { SecondFactorStepUpDialog } from "./SecondFactorStepUpDialog";
+
+const app = vi.hoisted(() => ({ runsPasskeys: false }));
+
+vi.mock("@/lib/passkeys", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/passkeys")>()),
+  appRunsPasskeys: () => app.runsPasskeys,
+}));
+
+afterEach(() => {
+  app.runsPasskeys = false;
+});
 
 const statusIs = (enrolled: boolean) =>
   server.use(
@@ -38,17 +49,17 @@ const mount = async (options: Parameters<typeof renderPage>[1] = {}) => {
 };
 
 const fireChallenge = ({
-  guildId = 4,
+  communityId = 4,
   kind = "totp",
   platform,
 }: {
-  guildId?: number | null;
+  communityId?: number | null;
   kind?: "totp" | "passkey" | "proof";
   platform?: boolean;
 } = {}) => {
   act(() => {
     window.dispatchEvent(
-      new CustomEvent(AUTH_FACTOR_REQUIRED_EVENT, { detail: { guildId, kind, platform } })
+      new CustomEvent(AUTH_FACTOR_REQUIRED_EVENT, { detail: { communityId, kind, platform } })
     );
   });
 };
@@ -178,9 +189,9 @@ describe("SecondFactorStepUpDialog", () => {
     statusIs(true);
     await mount();
 
-    fireChallenge({ guildId: 4 });
-    fireChallenge({ guildId: 4 });
-    fireChallenge({ guildId: 4 });
+    fireChallenge({ communityId: 4 });
+    fireChallenge({ communityId: 4 });
+    fireChallenge({ communityId: 4 });
 
     await screen.findByRole("dialog");
     expect(screen.getAllByRole("dialog")).toHaveLength(1);
@@ -277,6 +288,20 @@ describe("SecondFactorStepUpDialog, asked for a passkey", () => {
     });
     expect(stepUpWithPasskey).not.toHaveBeenCalled();
   });
+
+  it("offers the key in the app where the app can run the ceremony", async () => {
+    app.runsPasskeys = true;
+    passkeysAre([{ id: "pk-1", name: "Phone" }]);
+    const stepUpWithPasskey = vi.fn().mockResolvedValue(undefined);
+    await mount({ auth: { stepUpWithPasskey }, server: { isNativePlatform: true } });
+
+    fireChallenge({ kind: "passkey" });
+    await screen.findByRole("dialog");
+
+    expect(screen.queryByText(/open it in a browser/i)).not.toBeInTheDocument();
+    await userEvent.click(await screen.findByRole("button", { name: /use your passkey/i }));
+    expect(stepUpWithPasskey).toHaveBeenCalledTimes(1);
+  });
 });
 
 /**
@@ -290,7 +315,7 @@ describe("SecondFactorStepUpDialog, asked to prove it's you", () => {
     const stepUpWithPasskey = vi.fn().mockResolvedValue(undefined);
     await mount({ auth: { stepUpWithPasskey } });
 
-    fireChallenge({ guildId: null, kind: "proof" });
+    fireChallenge({ communityId: null, kind: "proof" });
     await screen.findByRole("dialog");
 
     expect(screen.getByText(/prove it's you/i)).toBeInTheDocument();
@@ -317,7 +342,7 @@ describe("SecondFactorStepUpDialog, asked to prove it's you", () => {
     const stepUpWithEmailCode = vi.fn().mockResolvedValue(undefined);
     await mount({ auth: { stepUpWithEmailCode, stepUpWithPasskey: vi.fn() } });
 
-    fireChallenge({ guildId: null, kind: "proof" });
+    fireChallenge({ communityId: null, kind: "proof" });
     await screen.findByRole("dialog");
     await userEvent.click(await screen.findByRole("button", { name: /email me a code/i }));
     await userEvent.type(await screen.findByLabelText(/code from your email/i), "123456");
@@ -335,7 +360,7 @@ describe("SecondFactorStepUpDialog, asked to prove it's you", () => {
     passkeysAre([]);
     await mount({ auth: { stepUpWithPasskey: vi.fn() } });
 
-    fireChallenge({ guildId: null, kind: "proof" });
+    fireChallenge({ communityId: null, kind: "proof" });
     await screen.findByRole("dialog");
 
     expect(await screen.findByRole("button", { name: /sign in again/i })).toBeInTheDocument();
@@ -347,7 +372,7 @@ describe("SecondFactorStepUpDialog, asked to prove it's you", () => {
     server.use(http.get("/api/v1/auth/passkeys", () => HttpResponse.error()));
     await mount({ auth: { stepUpWithPasskey: vi.fn() } });
 
-    fireChallenge({ guildId: null, kind: "proof" });
+    fireChallenge({ communityId: null, kind: "proof" });
     await screen.findByRole("dialog");
 
     expect(screen.getByRole("button", { name: /use your passkey/i })).toBeInTheDocument();
@@ -364,7 +389,7 @@ describe("SecondFactorStepUpDialog, asked to prove it's you", () => {
       initialRoute: "/profile/security",
     });
 
-    fireChallenge({ guildId: null, kind: "proof" });
+    fireChallenge({ communityId: null, kind: "proof" });
     await screen.findByRole("dialog");
     await userEvent.click(await screen.findByRole("button", { name: /sign in again/i }));
 
@@ -386,7 +411,7 @@ describe("when the deployment is the one asking", () => {
     passkeysAre([]);
     await mount();
 
-    fireChallenge({ guildId: null, platform: true });
+    fireChallenge({ communityId: null, platform: true });
     await screen.findByRole("dialog");
 
     expect(screen.getByText(/this server requires a second factor/i)).toBeInTheDocument();
@@ -402,7 +427,7 @@ describe("when the deployment is the one asking", () => {
     passkeysAre([{ id: "p1", name: "Laptop" }]);
     await mount({ auth: { stepUpWithPasskey: vi.fn() } });
 
-    fireChallenge({ guildId: null, platform: true });
+    fireChallenge({ communityId: null, platform: true });
     await screen.findByRole("dialog");
 
     expect(await screen.findByRole("button", { name: /use your passkey/i })).toBeInTheDocument();
@@ -415,7 +440,7 @@ describe("when the deployment is the one asking", () => {
     passkeysAre([]);
     await mount({ initialRoute: "/profile/security" });
 
-    fireChallenge({ guildId: null, platform: true });
+    fireChallenge({ communityId: null, platform: true });
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });

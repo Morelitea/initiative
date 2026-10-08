@@ -16,7 +16,7 @@ const mocks = vi.hoisted(() => ({
   readPermissions: vi.fn(),
 }));
 
-vi.mock("@/lib/chesterToast", () => ({
+vi.mock("@/lib/mascotToast", () => ({
   toast: { error: mocks.error, success: mocks.success },
 }));
 
@@ -28,21 +28,20 @@ vi.mock("@/api/generated/direct-messages/direct-messages", () => {
     isPending: false,
   });
   return {
-    useAcceptConnectionApiV1MeConnectionsUserIdAcceptPost: make,
-    useAcceptMessageRequestApiV1MeMessageRequestsUserIdAcceptPost: make,
-    useIgnoreAccountApiV1MeIgnoredUserIdPut: make,
-    useRemoveConnectionApiV1MeConnectionsUserIdDelete: make,
-    useRemoveMessageRequestApiV1MeMessageRequestsUserIdDelete: make,
-    useRequestConnectionApiV1MeConnectionsPost: make,
-    useRequestMessageApiV1MeMessageRequestsPost: make,
-    useStopIgnoringAccountApiV1MeIgnoredUserIdDelete: make,
-    useUpdateDmSettingsApiV1MeDmSettingsPatch: make,
-    useListConnectionsApiV1MeConnectionsGet: () => ({ data: undefined }),
-    useListIgnoredAccountsApiV1MeIgnoredGet: () => ({ data: undefined }),
-    useListMessageRequestsApiV1MeMessageRequestsGet: () => ({ data: undefined }),
-    useReadDmSettingsApiV1MeDmSettingsGet: () => ({ data: undefined }),
-    readDmPermissionsApiV1MeDmPermissionsPost: (body: { user_ids: number[] }) =>
-      mocks.readPermissions(body),
+    useAcceptConnection: make,
+    useAcceptMessageRequest: make,
+    useIgnoreAccount: make,
+    useRemoveConnection: make,
+    useRemoveMessageRequest: make,
+    useRequestConnection: make,
+    useRequestMessage: make,
+    useStopIgnoringAccount: make,
+    useUpdateDmSettings: make,
+    useListConnections: () => ({ data: undefined }),
+    useListIgnoredAccounts: () => ({ data: undefined }),
+    useListMessageRequests: () => ({ data: undefined }),
+    useReadDmSettings: () => ({ data: undefined }),
+    readDmPermissions: (body: { user_ids: number[] }) => mocks.readPermissions(body),
   };
 });
 

@@ -18,14 +18,14 @@
  * initiative *is*. Nothing else in the app has had the chance to yet.
  *
  * Step 4 exists because of a gap nothing else closes. The built-in `member`
- * role ships view-only on projects and documents and `create_*` off everywhere,
+ * role ships view-only on projects and files and `create_*` off everywhere,
  * so an initiative created with a calendar has that calendar switched on for
  * its managers and invisible to everybody else. Asking here costs one screen;
  * finding out later costs somebody filing a bug about an empty sidebar.
  *
  * The caller owns the open state — a header button, the `?create=true` deep
  * link, and the redirect after a community is created all drive it — and owns
- * the permission gate. Creating is guild-admin only, which the backend enforces
+ * the permission gate. Creating is community-admin only, which the backend enforces
  * regardless.
  */
 
@@ -35,7 +35,7 @@ import { useTranslation } from "react-i18next";
 
 import type { InitiativeCreate, InitiativeRead } from "@/api/generated/initiativeAPI.schemas";
 import { InitiativeJoinPolicy, type Tool } from "@/api/generated/initiativeAPI.schemas";
-import chesterTalking from "@/assets/chester/talking.svg";
+import yonderTalking from "@/assets/yonder/talking.svg";
 import { JoinPolicySection } from "@/components/initiatives/JoinPolicySection";
 import { ToolsSection } from "@/components/initiatives/ToolsToggles";
 import { Markdown } from "@/components/Markdown";
@@ -50,8 +50,8 @@ import { WizardBackButton, WizardDialog } from "@/components/ui/wizard-dialog";
 import { useGrantToolsToMembers } from "@/hooks/useInitiativeRoles";
 import { useCreateInitiative } from "@/hooks/useInitiatives";
 import { useWizard } from "@/hooks/useWizard";
-import { toast } from "@/lib/chesterToast";
 import { docsUrl } from "@/lib/links";
+import { toast } from "@/lib/mascotToast";
 import { DEFAULT_ENABLED_TOOLS, TOOLS, toolViewPermission } from "@/lib/tools";
 
 const DEFAULT_INITIATIVE_COLOR = "#6366F1";
@@ -246,11 +246,11 @@ export const CreateInitiativeWizard = ({
           {isFirst ? (
             // The community's first one: say what an initiative is before
             // asking what to call it. Nothing else has had the chance — and
-            // Chester is the one who does the explaining everywhere else, so
+            // Yonder is the one who does the explaining everywhere else, so
             // he does it here too.
             <div className="flex items-start gap-3 rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm">
               <img
-                src={chesterTalking}
+                src={yonderTalking}
                 alt=""
                 aria-hidden="true"
                 className="-mt-1 h-14 w-14 shrink-0"

@@ -22,8 +22,6 @@ service: no raise-with-uncommitted-writes).
 
 from __future__ import annotations
 
-import hashlib
-
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -32,16 +30,17 @@ from enum import Enum
 from typing import Any
 
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import false, or_, text
+from sqlalchemy import false, or_
 from sqlmodel import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
 from app.core.config import settings
-from app.core.encryption import encrypt_token
+from app.core.encryption import encrypt_token, normalize_email
 from app.core.login_methods import LoginMethod, methods_from_values
 from app.services.auth import addresses
 from app.core.security import USABLE_HASH_PREFIXES
+from app.db.advisory_locks import LockNamespace, advisory_lock
 from app.models.platform.app_setting import AppSetting
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.federated_identity import FederatedIdentity
@@ -83,7 +82,6 @@ async def resolve_oidc_identity(
     subject: str,
     email: str | None,
     email_verified: bool,
-    full_name: str | None = None,
     avatar_url: str | None = None,
 ) -> IdentityResolution:
     """Resolve ``(provider, subject)`` to a user.
@@ -130,8 +128,7 @@ async def resolve_oidc_identity(
     # caller's policy decision, and only a verified address may match an
     # existing account (an unverified match is refused outright).
     if email:
-        normalized = email.lower().strip()
-        existing = await addresses.account_holding(session, normalized)
+        existing = await addresses.account_holding(session, email)
         if existing is not None:
             if not email_verified:
                 logger.warning(
@@ -162,7 +159,6 @@ async def resolve_oidc_identity(
         subject=subject,
         email=email,
         email_verified=email_verified,
-        full_name=full_name,
         avatar_url=avatar_url,
     )
 
@@ -428,8 +424,8 @@ async def ways_in(session: AsyncSession, *, user_id: int) -> frozenset[LoginMeth
     present.
 
     ``totp`` is never a member: it accompanies a sign-in rather than beginning
-    one (see :data:`PRIMARY_LOGIN_METHODS`). Nor are device tokens and API
-    keys, which are derived from a sign-in that already happened.
+    one (see :data:`PRIMARY_LOGIN_METHODS`). Nor are API keys, which are
+    derived from a sign-in that already happened.
 
     The same predicates the counts are built from, asked of one account: the
     settings row is read once and the credentials in one query, so a caller
@@ -447,6 +443,21 @@ async def ways_in(session: AsyncSession, *, user_id: int) -> frozenset[LoginMeth
     return frozenset(
         method for method, answered in zip(candidates, row[1:]) if answered
     )
+
+
+async def passkey_is_last_way_in(session: AsyncSession, *, user_id: int) -> bool:
+    """Whether the account's one passkey is all that signs it in: nothing else
+    in :func:`ways_in`, and no second passkey."""
+    if await ways_in(session, user_id=user_id) - {LoginMethod.passkey}:
+        return False
+    held = (
+        await session.exec(
+            select(func.count())
+            .select_from(UserPasskey)
+            .where(UserPasskey.user_id == user_id)
+        )
+    ).one()
+    return held == 1
 
 
 async def delete_user_identities(session: AsyncSession, *, user_id: int) -> None:
@@ -477,10 +488,6 @@ async def _find_identity(
     ).one_or_none()
 
 
-#: The lock the first registrations take turns on, so one of them bootstraps.
-_BOOTSTRAP_LOCK_KEY = 0x696E6974626F6F74
-
-
 async def any_account_exists(session: AsyncSession) -> bool:
     """Whether the deployment holds any account yet — the first one to arrive
     bootstraps it. One indexed probe rather than a count of every row.
@@ -491,9 +498,7 @@ async def any_account_exists(session: AsyncSession) -> bool:
     probe = select(User.id).limit(1)
     if (await session.exec(probe)).first() is not None:
         return True
-    await session.exec(
-        text("SELECT pg_advisory_xact_lock(:key)").bindparams(key=_BOOTSTRAP_LOCK_KEY)
-    )
+    await advisory_lock(session, LockNamespace.FIRST_ACCOUNT)
     return (await session.exec(probe)).first() is not None
 
 
@@ -503,17 +508,6 @@ async def _registration_open(session: AsyncSession) -> bool:
     if settings.registration_open:
         return True
     return not await any_account_exists(session)
-
-
-def _address_lock_key(normalized: str) -> int:
-    """A stable 64-bit key naming one address, for ``pg_advisory_xact_lock``.
-
-    Not the stored hash: a lock key is an integer visible in ``pg_locks``, and
-    this one only has to be the same number for the same address on every
-    connection.
-    """
-    digest = hashlib.blake2b(normalized.encode("utf-8"), digest_size=8).digest()
-    return int.from_bytes(digest, "big", signed=True)
 
 
 class _AddressTaken(Exception):
@@ -531,14 +525,13 @@ async def _provision(
     subject: str,
     email: str | None,
     email_verified: bool,
-    full_name: str | None,
     avatar_url: str | None,
 ) -> IdentityResolution:
     # No email claim: a synthetic address keyed off the IdP-controlled subject,
     # as in the existing flow. It is not a mailbox, so it is never marked
     # verified.
     if email:
-        normalized = email.lower().strip()
+        normalized = normalize_email(email)
         verified = email_verified
     else:
         normalized = f"{subject}@oidc.local"
@@ -551,14 +544,10 @@ async def _provision(
         # neither sees the other's uncommitted row; whichever waits here reads
         # the other's account in the check below and is answered the way a
         # sign-in that did not race is.
-        await session.exec(
-            select(func.pg_advisory_xact_lock(_address_lock_key(normalized)))
-        )
+        await advisory_lock(session, LockNamespace.ACCOUNT_ADDRESS, normalized)
 
-    # A random handle, not one built from the claims. The claims feed the
-    # suggestions on the pick screen instead, so an account abandoned partway
-    # through is left holding nothing that identifies its owner — and a
-    # corporate IdP's ``preferred_username`` is offered rather than imposed.
+    # A random handle, not one built from the claims, so an account abandoned
+    # partway through is left holding nothing that identifies its owner.
     handle, discriminator = await username_service.allocate_from_seed(session)
 
     user = User(
@@ -566,9 +555,6 @@ async def _provision(
         discriminator=discriminator,
         # Assigned, not picked: its owner chooses one on their next sign-in.
         username_chosen=False,
-        # An address is not a display name. With no name claim there is simply
-        # no name, and the handle carries the display.
-        full_name=full_name,
         # SSO-only account: no password. Verification treats a NULL hash as
         # never-a-match, so this account signs in only through its provider.
         hashed_password=None,

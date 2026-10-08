@@ -12,8 +12,8 @@ real ``app_user`` login role, not the superuser session).
 import pytest
 from sqlalchemy import text
 
+from app.db.public_rls import platform_tier, role_name
 from app.core.config import settings
-from app.db.schema_provisioning import platform_role_name
 from app.db.session import set_rls_context
 from app.models.platform.user import UserRole
 from app.db.request_context import Platform
@@ -28,8 +28,8 @@ async def _reset_role(session) -> None:
 async def test_platform_roles_exist_and_are_least_privilege(session):
     """All five tiers + the base floor exist, are NOLOGIN, and crucially carry
     NO BYPASSRLS — the platform ladder never holds a standing all-guild bypass."""
-    expected = {f"{settings.PLATFORM_ROLE_PREFIX}platform_base"} | {
-        platform_role_name(tier) for tier in _TIERS
+    expected = {role_name("platform_base")} | {
+        role_name(platform_tier(tier)) for tier in _TIERS
     }
     rows = (
         await session.exec(
@@ -52,7 +52,7 @@ async def test_platform_roles_exist_and_are_least_privilege(session):
 async def test_each_tier_inherits_the_base_floor(session):
     """Each platform_<tier> is a member of platform_base, so assuming a tier
     yields the floor's privileges."""
-    base = f"{settings.PLATFORM_ROLE_PREFIX}platform_base"
+    base = role_name("platform_base")
     members = (
         (
             await session.exec(
@@ -69,7 +69,7 @@ async def test_each_tier_inherits_the_base_floor(session):
         .all()
     )
     for tier in _TIERS:
-        assert platform_role_name(tier) in members
+        assert role_name(platform_tier(tier)) in members
 
 
 @pytest.mark.parametrize("tier", _TIERS)
@@ -78,7 +78,7 @@ async def test_public_path_assumes_platform_role(session, tier):
     bare login role."""
     await set_rls_context(session, Platform(user_id=1, tier=tier))
     current = (await session.exec(text("SELECT current_user"))).scalar_one()
-    assert current == platform_role_name(tier)
+    assert current == role_name(platform_tier(tier))
     await _reset_role(session)
 
 
@@ -100,7 +100,7 @@ async def test_commit_preserves_platform_role(session):
     await set_rls_context(session, Platform(user_id=1, tier="support"))
     await session.commit()
     current = (await session.exec(text("SELECT current_user"))).scalar_one()
-    assert current == platform_role_name("support")
+    assert current == role_name(platform_tier("support"))
     await _reset_role(session)
 
 

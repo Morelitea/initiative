@@ -5,7 +5,8 @@ import { LogoIcon } from "@/components/LogoIcon";
 import { cn } from "@/lib/utils";
 
 /**
- * The ground every signed-out card sits on: the hex backdrop and the wordmark.
+ * The ground every signed-out card sits on: the hex backdrop and the
+ * wordmark. Each card shows its server itself, as its last row.
  *
  * `fillPhone` drops the margin and the wordmark below `sm`, for a card that
  * takes the whole screen on a phone.
@@ -14,7 +15,7 @@ export const SignInFrame = ({
   children,
   fillPhone = false,
 }: {
-  children: ReactNode;
+  children?: ReactNode;
   fillPhone?: boolean;
 }) => {
   const { t } = useTranslation("common");

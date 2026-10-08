@@ -69,6 +69,27 @@ export const PRIORITY_ORDER: TaskPriority[] = (Object.values(TaskPriority) as Ta
 );
 
 /**
+ * One value to sort tags by: the first name alphabetically, ignoring case, as
+ * the task list sorts them. Nothing for no tags, which a column sorts last.
+ */
+export const firstTagName = (tags: readonly { name: string }[]): string | undefined =>
+  tags
+    .map((tag) => tag.name.toLowerCase())
+    .reduce<string | undefined>(
+      (first, name) => (first === undefined || name.localeCompare(first) < 0 ? name : first),
+      undefined
+    );
+
+/**
+ * Sorts text in the reader's language order.
+ */
+export const textSortingFn = <TData extends RowData>(
+  rowA: AppRow<TData>,
+  rowB: AppRow<TData>,
+  columnId: string
+) => rowA.getValue<string>(columnId).localeCompare(rowB.getValue<string>(columnId));
+
+/**
  * Sorts by task priority (low to urgent)
  */
 export const prioritySortingFn = <TData extends RowData>(

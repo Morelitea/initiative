@@ -25,7 +25,7 @@ def get_version() -> dict[str, str]:
     return {"version": __version__}
 
 
-#: How long an answer from Docker Hub is reused. Releases are days apart, and
+#: How long an answer from GitHub is reused. Releases are days apart, and
 #: every visitor's sidebar asks, so one fetch serves everybody for a while.
 _LATEST_TTL_SECONDS = 6 * 60 * 60
 
@@ -33,7 +33,9 @@ _LATEST_TTL_SECONDS = 6 * 60 * 60
 #: back online notices soon, long enough that an offline one stops asking.
 _LATEST_RETRY_SECONDS = 15 * 60
 
-_DOCKERHUB_TAGS_URL = "https://hub.docker.com/v2/repositories/morelitea/initiative/tags"
+#: The project's releases. Each one is published only once its image is on
+#: ``ghcr.io/beyonders-studio/initiative`` under the release's version.
+_RELEASES_URL = "https://api.github.com/repos/beyonders-studio/initiative/releases"
 _SEMVER = re.compile(r"^\d+\.\d+\.\d+$")
 
 
@@ -51,15 +53,26 @@ _latest_lock = asyncio.Lock()
 
 
 async def _fetch_latest_version() -> Optional[str]:
-    """The highest semver tag Docker Hub lists for the image."""
+    """The highest version among the project's published releases.
+
+    The highest, not GitHub's "latest": a fix released on an older line is
+    newer by date but not the version to update to."""
     async with httpx.AsyncClient(timeout=5.0) as client:
-        response = await client.get(_DOCKERHUB_TAGS_URL, params={"page_size": 100})
+        response = await client.get(
+            _RELEASES_URL,
+            params={"per_page": 100},
+            headers={"Accept": "application/vnd.github+json"},
+        )
         response.raise_for_status()
         data = response.json()
     tags = [
-        tag["name"]
-        for tag in data.get("results", [])
-        if isinstance(tag.get("name"), str) and _SEMVER.match(tag["name"])
+        release["tag_name"].removeprefix("v")
+        for release in data
+        if isinstance(release, dict)
+        and not release.get("draft")
+        and not release.get("prerelease")
+        and isinstance(release.get("tag_name"), str)
+        and _SEMVER.match(release["tag_name"].removeprefix("v"))
     ]
     if not tags:
         return None
@@ -67,14 +80,14 @@ async def _fetch_latest_version() -> Optional[str]:
 
 
 @router.get("/version/latest")
-async def get_latest_dockerhub_version() -> dict[str, Optional[str]]:
+async def get_latest_release_version() -> dict[str, Optional[str]]:
     """
-    The latest released version on Docker Hub (e.g. "0.3.1"). When Docker Hub
-    cannot be reached this is the last version it named, or ``None`` if it has
-    named none since the process started.
+    The latest released version (e.g. "0.3.1"), read from the project's
+    GitHub releases. When GitHub cannot be reached this is the last version it
+    named, or ``None`` if it has named none since the process started.
 
     The answer is fetched once and reused for every caller until it expires,
-    so a request never waits on Docker Hub unless the answer has run out.
+    so a request never waits on GitHub unless the answer has run out.
     """
     if time.monotonic() < _latest.expires_at:
         return {"version": _latest.version}
@@ -87,7 +100,7 @@ async def get_latest_dockerhub_version() -> dict[str, Optional[str]]:
         except Exception as exc:
             if not _latest.unreachable:
                 logger.warning(
-                    "Could not read the latest version from Docker Hub; "
+                    "Could not read the latest version from GitHub; "
                     "the update notice stays hidden until it can: %s",
                     exc,
                 )

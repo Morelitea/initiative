@@ -12,8 +12,9 @@ from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.audit_events import AuditEventType
 from app.main import app
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.notification import Notification, NotificationType
 from app.models.platform.user import UserRole, UserStatus
 from app.testing import (
@@ -85,7 +86,7 @@ class TestRenaming:
         )
 
         claim = await client.patch(
-            "/api/v1/users/me/username",
+            "/api/v1/me/username",
             headers=get_auth_headers(subject),
             json={"username": "back-to-mine"},
         )
@@ -137,7 +138,7 @@ class TestSuspension:
         member = await create_user(session)
         guild = await create_guild(session, creator=member)
         await create_guild_membership(
-            session, user=member, guild=guild, role=GuildRole.admin
+            session, user=member, guild=guild, role=CommunityRole.admin
         )
         return moderator, member, guild
 
@@ -166,9 +167,7 @@ class TestSuspension:
         moderator, member, _guild = moderator_and_member
         await self._suspend(client, moderator, member)
 
-        response = await client.get(
-            "/api/v1/users/me", headers=get_auth_headers(member)
-        )
+        response = await client.get("/api/v1/me", headers=get_auth_headers(member))
 
         assert response.status_code == 200
         assert response.json()["status"] == "suspended"
@@ -222,7 +221,7 @@ class TestSuspension:
         moderator, member, guild = moderator_and_member
         onlooker = await create_user(session)
         await create_guild_membership(
-            session, user=onlooker, guild=guild, role=GuildRole.member
+            session, user=onlooker, guild=guild, role=CommunityRole.member
         )
 
         await self._suspend(client, moderator, member)
@@ -238,7 +237,7 @@ class TestSuspension:
         moderator, member, guild = moderator_and_member
         onlooker = await create_user(session)
         await create_guild_membership(
-            session, user=onlooker, guild=guild, role=GuildRole.member
+            session, user=onlooker, guild=guild, role=CommunityRole.member
         )
 
         await self._suspend(client, moderator, member)
@@ -372,6 +371,61 @@ class TestLiftingASignInLock:
         assert response.status_code == 403
 
 
+class TestRevokingApiKeys:
+    async def test_a_moderator_switches_off_the_keys_that_still_work(
+        self, client, session, capfd
+    ):
+        from datetime import datetime, timedelta, timezone
+
+        from app.services.platform import api_keys as api_keys_service
+
+        moderator = await create_user(session, role=UserRole.moderator)
+        subject = await create_user(session)
+        secret, _key = await api_keys_service.create_api_key(
+            session, user=subject, name="ci"
+        )
+        await api_keys_service.create_api_key(
+            session,
+            user=subject,
+            name="old",
+            expires_at=datetime.now(timezone.utc) - timedelta(days=1),
+        )
+        listed = await client.get(
+            "/api/v1/operator/users", headers=get_auth_headers(moderator)
+        )
+        row = next(u for u in listed.json()["items"] if u["id"] == subject.id)
+        # The expired key no longer works, so it is not one to revoke.
+        assert row["api_key_count"] == 1
+
+        revoked = await client.delete(
+            f"/api/v1/operator/users/{subject.id}/api-keys",
+            headers=get_auth_headers(moderator),
+        )
+        assert revoked.status_code == 200, revoked.text
+        assert revoked.json()["api_key_count"] == 0
+        assert await api_keys_service.authenticate_api_key(session, secret) is None
+        assert [
+            (e["actor_user_id"], e["target_user_id"])
+            for e in emitted(capfd, AuditEventType.API_KEY_REVOKED)
+        ] == [(moderator.id, subject.id)]
+
+        again = await client.delete(
+            f"/api/v1/operator/users/{subject.id}/api-keys",
+            headers=get_auth_headers(moderator),
+        )
+        assert again.status_code == 400
+        assert again.json()["detail"] == "USER_NO_LIVE_API_KEYS"
+
+    async def test_support_cannot(self, client, session):
+        support = await create_user(session, role=UserRole.support)
+        subject = await create_user(session)
+        response = await client.delete(
+            f"/api/v1/operator/users/{subject.id}/api-keys",
+            headers=get_auth_headers(support),
+        )
+        assert response.status_code == 403
+
+
 class TestNothingElse:
     """The operator surface writes a fixed set of things about an account, and
     each one is gated deliberately. One more appearing here is a decision, not
@@ -397,6 +451,8 @@ class TestNothingElse:
             ("/api/v1/operator/users/{user_id}/suspension", "POST"),
             # Turns password and code sign-in back on after wrong answers.
             ("/api/v1/operator/users/{user_id}/sign-in-lock", "DELETE"),
+            # Switches off the account's API keys; its holder can make new ones.
+            ("/api/v1/operator/users/{user_id}/api-keys", "DELETE"),
             ("/api/v1/operator/users/{user_id}/reactivate", "POST"),
             ("/api/v1/operator/users/{user_id}/restore", "POST"),
             # Sends the holder a link; it never sets a password.
@@ -419,6 +475,7 @@ class TestNothingElse:
             ("DELETE", "/avatar", None),
             ("PATCH", "/username", {"username": "renamed"}),
             ("DELETE", "/sign-in-lock", None),
+            ("DELETE", "/api-keys", None),
             ("POST", "/reactivate", None),
             ("POST", "/restore", None),
             ("DELETE", "/second-factor", None),
@@ -480,7 +537,9 @@ class TestTheAggregateRoutes:
     @pytest.fixture
     async def suspended_with_work(self, client, session, acting_user):
         moderator = await create_user(session, role=UserRole.moderator)
-        a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+        a = await acting_user(
+            guild_role=CommunityRole.admin, initiative=True, project=True
+        )
         return moderator, a
 
     async def test_my_tasks_is_refused_once_suspended(
@@ -568,10 +627,9 @@ class TestTimeOut:
     async def test_the_allow_list_answers(self, client, suspended):
         headers = get_auth_headers(suspended)
         for path in (
-            "/api/v1/users/me",
-            "/api/v1/users/me/time-out",
+            "/api/v1/me",
+            "/api/v1/me/time-out",
             "/api/v1/auth/sessions",
-            "/api/v1/auth/device-tokens",
             "/api/v1/notifications/",
         ):
             response = await client.get(path, headers=headers)
@@ -579,10 +637,10 @@ class TestTimeOut:
 
     async def test_it_holds_no_rung(self, client, suspended):
         headers = get_auth_headers(suspended)
-        me = (await client.get("/api/v1/users/me", headers=headers)).json()
+        me = (await client.get("/api/v1/me", headers=headers)).json()
         assert me["status"] == "suspended"
         assert me["capabilities"] == []
-        assert me["can_create_guilds"] is False
+        assert me["can_create_communities"] is False
 
         response = await client.get("/api/v1/operator/users", headers=headers)
         assert response.status_code == 403
@@ -590,9 +648,9 @@ class TestTimeOut:
     async def test_everything_else_is_refused(self, client, suspended):
         headers = get_auth_headers(suspended)
         for method, path, body in (
-            ("patch", "/api/v1/users/me", {"full_name": "Changed"}),
+            ("patch", "/api/v1/me", {"timezone": "UTC"}),
             ("post", "/api/v1/communities/", {"name": "Mine"}),
-            ("post", "/api/v1/users/me/delete-account", {}),
+            ("post", "/api/v1/me/delete-account", {}),
             ("get", "/api/v1/me/contacts", None),
             ("get", "/api/v1/me/tasks", None),
         ):
@@ -617,9 +675,7 @@ class TestTimeOut:
         await session.commit()
 
         body = (
-            await client.get(
-                "/api/v1/users/me/time-out", headers=get_auth_headers(suspended)
-            )
+            await client.get("/api/v1/me/time-out", headers=get_auth_headers(suspended))
         ).json()
         assert body["contact_email"] == "trust@example.com"
         assert body["since"] is not None
@@ -632,7 +688,7 @@ class TestTimeOut:
 
         async def _reason():
             screen = await client.get(
-                "/api/v1/users/me/time-out", headers=get_auth_headers(subject)
+                "/api/v1/me/time-out", headers=get_auth_headers(subject)
             )
             return screen.json()["reason"]
 

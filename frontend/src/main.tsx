@@ -14,7 +14,7 @@ import { setApiBaseUrl } from "@/api/client";
 import { TaskCompletionEffectHost } from "@/components/effects/TaskCompletionEffectHost";
 import { AppErrorBoundary } from "@/components/errors/AppErrorBoundary";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
-import { GuildProvider, useGuilds } from "@/hooks/useGuilds";
+import { CommunityProvider, useCommunities } from "@/hooks/useCommunities";
 import { KeepScreenAwakeProvider } from "@/hooks/useKeepScreenAwake";
 import { PrideProvider } from "@/hooks/usePride";
 import { useRouteGuardSync } from "@/hooks/useRouteGuardSync";
@@ -25,6 +25,7 @@ import { bindOnlineManagerToDevice } from "@/lib/onlineStatus";
 import { queryClient } from "@/lib/queryClient";
 import { getStoredServerUrl } from "@/lib/serverStorage";
 import { initStorage } from "@/lib/storage";
+import { sellsOnThisDevice } from "@/lib/storeSelling";
 import { router } from "@/router";
 import { registerServiceWorker } from "@/serviceWorkerRegistration";
 
@@ -34,7 +35,7 @@ import { registerServiceWorker } from "@/serviceWorkerRegistration";
  */
 const InnerApp = () => {
   const auth = useAuth();
-  const guilds = useGuilds();
+  const communities = useCommunities();
   const server = useServer();
 
   // Auth and server state settle after the first router load, so ask the router
@@ -49,7 +50,7 @@ const InnerApp = () => {
         context={{
           queryClient,
           auth,
-          guilds,
+          communities,
           server,
         }}
       />
@@ -94,6 +95,10 @@ async function bootstrap() {
       setApiBaseUrl(storedUrl);
     }
 
+    // Ask the store early, so plan wording and buttons are settled by the time
+    // anything shows them. Not awaited: nothing waits on it to render.
+    void sellsOnThisDevice();
+
     // Before the first query runs: a restored cache is only worth having if
     // React Query leaves it on screen instead of refetching over it while
     // there is no network to refetch from. Awaited so the device's answer is
@@ -121,9 +126,9 @@ async function bootstrap() {
                 <ServerProvider>
                   {withQueryClient(
                     <AuthProvider>
-                      <GuildProvider>
+                      <CommunityProvider>
                         <InnerApp />
-                      </GuildProvider>
+                      </CommunityProvider>
                     </AuthProvider>
                   )}
                 </ServerProvider>

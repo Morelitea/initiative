@@ -13,13 +13,13 @@ from datetime import datetime, timedelta, timezone
 
 
 from app.core import config as config_module
-from app.models.platform.app_assertion_jti import AppAssertionJti
+from app.models.platform.plugin_assertion_jti import PluginAssertionJti
 from app.models.platform.billing import BillingJti
 from app.services.platform import jti_purge
 from app.services.platform.jti_purge import process_jti_blocklist_purges
 
 
-def _configure(monkeypatch, *, billing: bool, app_platform: bool) -> None:
+def _configure(monkeypatch, *, billing: bool, plugin_platform: bool) -> None:
     monkeypatch.setattr(
         config_module.settings,
         "BILLING_PUBLIC_KEY_PEM",
@@ -32,8 +32,8 @@ def _configure(monkeypatch, *, billing: bool, app_platform: bool) -> None:
     )
     monkeypatch.setattr(
         config_module.settings,
-        "APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM",
-        "pk" if app_platform else None,
+        "PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM",
+        "pk" if plugin_platform else None,
     )
 
 
@@ -54,22 +54,24 @@ async def _add_assertion(session, jti: str, *, expired: bool) -> None:
     """A spent client assertion, under a registration it was presented for."""
     from sqlmodel import select
 
-    from app.models.platform.app_service_registration import AppServiceRegistration
-    from app.testing import create_app_service_registration
+    from app.models.platform.plugin_service_registration import (
+        PluginServiceRegistration,
+    )
+    from app.testing import create_plugin_service_registration
 
     registration = (
         await session.exec(
-            select(AppServiceRegistration).where(
-                AppServiceRegistration.public_id == "tests.jti-purge"
+            select(PluginServiceRegistration).where(
+                PluginServiceRegistration.public_id == "tests.jti-purge"
             )
         )
-    ).one_or_none() or await create_app_service_registration(
+    ).one_or_none() or await create_plugin_service_registration(
         session, public_id="tests.jti-purge"
     )
     now = datetime.now(timezone.utc)
     delta = timedelta(hours=1)
     session.add(
-        AppAssertionJti(
+        PluginAssertionJti(
             registration_id=registration.id,
             jti=jti,
             expires_at=(now - delta) if expired else (now + delta),
@@ -86,7 +88,7 @@ async def _exists(session, model, jti: str) -> bool:
 
 
 async def test_worker_prunes_only_expired_across_all_blocklists(session, monkeypatch):
-    _configure(monkeypatch, billing=True, app_platform=True)
+    _configure(monkeypatch, billing=True, plugin_platform=True)
     await _add(session, BillingJti, "b-old", expired=True)
     await _add(session, BillingJti, "b-live", expired=False)
     await _add_assertion(session, "a-old", expired=True)
@@ -95,30 +97,30 @@ async def test_worker_prunes_only_expired_across_all_blocklists(session, monkeyp
     await process_jti_blocklist_purges()
 
     assert not await _exists(session, BillingJti, "b-old")
-    assert not await _exists(session, AppAssertionJti, "a-old")
+    assert not await _exists(session, PluginAssertionJti, "a-old")
     # Live rows are still replay guards — never touched.
     assert await _exists(session, BillingJti, "b-live")
-    assert await _exists(session, AppAssertionJti, "a-live")
+    assert await _exists(session, PluginAssertionJti, "a-live")
 
 
 async def test_worker_skips_unconfigured_blocklist(session, monkeypatch):
-    """Billing wired, the app platform not: only billing's table is swept. A
+    """Billing wired, the plug-in platform not: only billing's table is swept. A
     self-host of one integration must not touch the other's rows."""
-    _configure(monkeypatch, billing=True, app_platform=False)
+    _configure(monkeypatch, billing=True, plugin_platform=False)
     await _add(session, BillingJti, "b-skip", expired=True)
     await _add_assertion(session, "a-skip", expired=True)
 
     await process_jti_blocklist_purges()
 
     assert not await _exists(session, BillingJti, "b-skip")
-    # The app platform unconfigured -> its blocklist is left entirely alone.
-    assert await _exists(session, AppAssertionJti, "a-skip")
+    # The plug-in platform unconfigured -> its blocklist is left entirely alone.
+    assert await _exists(session, PluginAssertionJti, "a-skip")
 
 
 async def test_worker_continues_after_a_sweep_fails(session, monkeypatch):
     """A failure sweeping one blocklist must not skip the rest — the shared
     session stays usable and the next table is still pruned."""
-    _configure(monkeypatch, billing=True, app_platform=True)
+    _configure(monkeypatch, billing=True, plugin_platform=True)
     await _add_assertion(session, "a-after-fail", expired=True)
 
     real_purge = jti_purge.purge_expired_jtis
@@ -132,7 +134,7 @@ async def test_worker_continues_after_a_sweep_fails(session, monkeypatch):
     await process_jti_blocklist_purges()
 
     # Billing's sweep raised, but the assertion table was still swept.
-    assert not await _exists(session, AppAssertionJti, "a-after-fail")
+    assert not await _exists(session, PluginAssertionJti, "a-after-fail")
 
 
 async def test_worker_noop_when_nothing_configured(monkeypatch):
@@ -142,6 +144,6 @@ async def test_worker_noop_when_nothing_configured(monkeypatch):
     def _explode(*args, **kwargs):
         raise AssertionError("worker opened a session with nothing configured")
 
-    _configure(monkeypatch, billing=False, app_platform=False)
+    _configure(monkeypatch, billing=False, plugin_platform=False)
     monkeypatch.setattr(session_module, "SystemSessionLocal", _explode)
     await process_jti_blocklist_purges()

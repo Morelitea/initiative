@@ -18,7 +18,6 @@ import { Markdown } from "@/components/Markdown";
 import { usePhotoCapture } from "@/components/ui/image-picker";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import {
   continueList,
@@ -27,6 +26,7 @@ import {
   type MarkdownSelection,
   type MarkdownTransform,
 } from "@/lib/markdownEditing";
+import { toast } from "@/lib/mascotToast";
 import { canCapturePhoto } from "@/lib/nativeCamera";
 import { cn } from "@/lib/utils";
 

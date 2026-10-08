@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from sqlmodel import col, select
 
+from app.core.errors import CodedError
 from app.models.platform.guild import LIVE_STATUS_VALUES, Guild, GuildMembership
 from app.models.platform.guild_image import GuildImageVariant
 from app.models.platform.user_dm_guild_optout import UserDmGuildOptout
@@ -105,6 +106,7 @@ async def read_settings(
     opt-out rows, so a community joined since the last write arrives switched
     on with nothing written for it.
     """
+    from app.services.platform import app_settings as app_settings_service
     from app.services.platform import guild_images as guild_images_service
 
     row = await _row_for(session, user.id)
@@ -129,10 +131,14 @@ async def read_settings(
     return DirectMessageSettingsRead(
         dm_policy=row.dm_policy,
         age_confirmed_at=user.age_confirmed_at,
+        age_answer_required=(
+            user.age_confirmed_at is None
+            and await app_settings_service.community_age_gate_enabled(session)
+        ),
         send_receipts=row.send_receipts,
         communities=[
             CommunityDmToggle(
-                guild_id=guild_id,
+                community_id=guild_id,
                 name=name,
                 icon_url=icons.get(guild_id, {}).get(GuildImageVariant.icon),
                 enabled=guild_id not in switched_off,
@@ -142,12 +148,10 @@ async def read_settings(
     )
 
 
-class DirectMessageSettingsError(Exception):
-    """Raised with a message code the endpoint turns into a status."""
+class DirectMessageSettingsError(CodedError):
+    """A settings write refused with a message code."""
 
-    def __init__(self, code: str) -> None:
-        super().__init__(code)
-        self.code = code
+    status_code = 422
 
 
 async def update_settings(
@@ -160,19 +164,24 @@ async def update_settings(
 ) -> DirectMessageSettingsRead:
     """Write whichever parts were sent, leaving the rest alone.
 
-    Raising the policy above ``private`` needs the age question answered — the
-    DM surface asks for that itself rather than waiting on the community
-    directory's switches, so the floor holds on every deployment.
+    Raising the policy above ``private`` needs the age question answered,
+    unless the deployment's owner has turned the age check off — then every
+    account counts as an adult. The DM surface asks this itself rather than
+    waiting on the community directory's own switch.
 
     A toggle for a community the account is not in is refused rather than
     ignored: it is a client sending something it cannot have rendered.
     """
     from app.core.messages import DirectMessageMessages
+    from app.services.platform import app_settings as app_settings_service
 
     row = await _row_for(session, user.id)
 
     if dm_policy is not None and dm_policy is not DmPolicy.private:
-        if user.age_confirmed_at is None:
+        if (
+            user.age_confirmed_at is None
+            and await app_settings_service.community_age_gate_enabled(session)
+        ):
             raise DirectMessageSettingsError(
                 DirectMessageMessages.AGE_CONFIRMATION_REQUIRED
             )
@@ -182,16 +191,20 @@ async def update_settings(
             guild_id
             for guild_id, _ in await _rail_ordered_communities(session, user_id=user.id)
         }
-        unknown = [t.guild_id for t in communities if t.guild_id not in member_of]
+        unknown = [
+            t.community_id for t in communities if t.community_id not in member_of
+        ]
         if unknown:
             raise DirectMessageSettingsError(DirectMessageMessages.NOT_A_MEMBER)
         for toggle in communities:
-            existing = await session.get(UserDmGuildOptout, (user.id, toggle.guild_id))
+            existing = await session.get(
+                UserDmGuildOptout, (user.id, toggle.community_id)
+            )
             if toggle.enabled and existing is not None:
                 await session.delete(existing)
             elif not toggle.enabled and existing is None:
                 session.add(
-                    UserDmGuildOptout(user_id=user.id, guild_id=toggle.guild_id)
+                    UserDmGuildOptout(user_id=user.id, guild_id=toggle.community_id)
                 )
 
     if dm_policy is not None:

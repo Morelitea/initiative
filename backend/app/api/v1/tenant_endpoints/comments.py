@@ -1,6 +1,7 @@
+import inspect
 from typing import Annotated, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 
 from app.api.actor_route import ActorRoute
 from app.api.deps import (
@@ -9,12 +10,13 @@ from app.api.deps import (
     ActorUserDep,
     IncludeDeletedDep,
     RLSSessionDep,
-    app_scope,
+    plugin_scope,
     get_current_active_user,
     GuildContextDep,
 )
 from app.models.platform.user import User
 from app.schemas.tenant.comment import (
+    COMMENT_TARGET_FIELDS,
     CommentCreate,
     CommentListResponse,
     CommentRead,
@@ -26,9 +28,27 @@ from app.services.tenant import attachments as attachments_service
 from app.services.tenant import comments as comments_service
 
 router = APIRouter(route_class=ActorRoute)
-#: The routes an installed app may call, under the comments scopes.
-CommentsRead = Annotated[ActorContext, Depends(app_scope("comments:read"))]
-CommentsWrite = Annotated[ActorContext, Depends(app_scope("comments:write"))]
+#: The routes an installed plug-in may call, under the comments scopes.
+CommentsRead = Annotated[ActorContext, Depends(plugin_scope("comments:read"))]
+CommentsWrite = Annotated[ActorContext, Depends(plugin_scope("comments:write"))]
+
+
+def comment_targets(**ids: Optional[int]) -> dict[str, Optional[int]]:
+    """The thread a request names: one optional query id per comment parent."""
+    return ids
+
+
+comment_targets.__signature__ = inspect.Signature(
+    [
+        inspect.Parameter(
+            field,
+            inspect.Parameter.KEYWORD_ONLY,
+            annotation=Optional[int],
+            default=Query(default=None, gt=0),
+        )
+        for field in COMMENT_TARGET_FIELDS
+    ]
+)
 
 
 @router.post("/", response_model=CommentRead, status_code=status.HTTP_201_CREATED)
@@ -38,30 +58,18 @@ async def create_comment(
     current_user: ActorUserDep,
     guild_context: CommentsWrite,
 ) -> CommentRead:
-    # An installed app posts as itself: the comment names no author, and the
-    # notices it sends name the app.
+    # An installed plug-in posts as itself: the comment names no author, and the
+    # notices it sends name the plug-in.
     author = await notifications_service.author_of(session, guild_context, current_user)
-    try:
-        comment = await comments_service.create_comment(
-            session,
-            author=author,
-            guild_id=guild_context.guild_id,
-            content=comment_in.content,
-            parent_comment_id=comment_in.parent_comment_id,
-            **comment_in.target_ids(),
-        )
-    except comments_service.CommentNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-        ) from exc
-    except comments_service.CommentPermissionError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
-        ) from exc
-    except comments_service.CommentValidationError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
-        ) from exc
+    comment = await comments_service.create_comment(
+        session,
+        author=author,
+        guild_id=guild_context.guild_id,
+        content=comment_in.content,
+        parent_comment_id=comment_in.parent_comment_id,
+        audience=comment_in.audience,
+        targets=comment_in.target_ids(),
+    )
 
     await session.commit()
     response = comments_service.serialize_comment(
@@ -93,53 +101,20 @@ async def list_comments(
     session: ActorSessionDep,
     current_user: ActorUserDep,
     guild_context: CommentsRead,
-    task_id: Optional[int] = Query(default=None, gt=0),
-    document_id: Optional[int] = Query(default=None, gt=0),
-    project_id: Optional[int] = Query(default=None, gt=0),
-    queue_id: Optional[int] = Query(default=None, gt=0),
-    counter_group_id: Optional[int] = Query(default=None, gt=0),
-    calendar_id: Optional[int] = Query(default=None, gt=0),
-    dashboard_id: Optional[int] = Query(default=None, gt=0),
-    post_id: Optional[int] = Query(default=None, gt=0),
-    gallery_id: Optional[int] = Query(default=None, gt=0),
-    wiki_id: Optional[int] = Query(default=None, gt=0),
-    wiki_page_id: Optional[int] = Query(default=None, gt=0),
+    targets: Annotated[dict[str, Optional[int]], Depends(comment_targets)],
     limit: int = Query(default=20, ge=1, le=100),
     cursor: Optional[str] = Query(default=None),
 ) -> CommentListResponse:
     """One page of a thread: ``limit`` conversations, newest first, each with
     every reply under it. Follow ``next_cursor`` for older conversations."""
-    try:
-        comments, next_cursor = await comments_service.list_comments(
-            session,
-            user=current_user,
-            guild_id=guild_context.guild_id,
-            task_id=task_id,
-            document_id=document_id,
-            project_id=project_id,
-            queue_id=queue_id,
-            counter_group_id=counter_group_id,
-            calendar_id=calendar_id,
-            dashboard_id=dashboard_id,
-            post_id=post_id,
-            gallery_id=gallery_id,
-            wiki_id=wiki_id,
-            wiki_page_id=wiki_page_id,
-            limit=limit,
-            cursor=cursor,
-        )
-    except comments_service.CommentNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-        ) from exc
-    except comments_service.CommentPermissionError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
-        ) from exc
-    except comments_service.CommentValidationError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
-        ) from exc
+    comments, next_cursor = await comments_service.list_comments(
+        session,
+        user=current_user,
+        guild_id=guild_context.guild_id,
+        targets=targets,
+        limit=limit,
+        cursor=cursor,
+    )
 
     return CommentListResponse(
         comments=[
@@ -159,21 +134,12 @@ async def read_comment(
     include_deleted: IncludeDeletedDep = False,
 ) -> CommentRead:
     """One comment by id — the read-back for a ``comments.*`` event."""
-    try:
-        comment = await comments_service.get_comment(
-            session,
-            comment_id=comment_id,
-            user=current_user,
-            guild_id=guild_context.guild_id,
-        )
-    except comments_service.CommentNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-        ) from exc
-    except comments_service.CommentPermissionError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
-        ) from exc
+    comment = await comments_service.get_comment(
+        session,
+        comment_id=comment_id,
+        user=current_user,
+        guild_id=guild_context.guild_id,
+    )
     return comments_service.serialize_comment(comment, viewer_id=guild_context.user_id)
 
 
@@ -186,24 +152,14 @@ async def update_comment(
     guild_context: GuildContextDep,
 ) -> CommentRead:
     """Update a comment. Only the original author can edit."""
-    try:
-        comment, let_go = await comments_service.update_comment(
-            session,
-            comment_id=comment_id,
-            user=current_user,
-            guild_id=guild_context.guild_id,
-            content=comment_in.content,
-        )
-    except comments_service.CommentNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-        ) from exc
-    except comments_service.CommentPermissionError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
-        ) from exc
+    comment, let_go = await comments_service.update_comment(
+        session,
+        comment_id=comment_id,
+        user=current_user,
+        guild_id=guild_context.guild_id,
+        content=comment_in.content,
+    )
     # Note: Content validation (empty string) is handled by Pydantic schema (422).
-    # CommentValidationError from service indicates data integrity issues (500).
 
     # No refresh here: the service already flushed the edit and loaded the
     # author, and a bare refresh() expires every attribute including that
@@ -225,25 +181,11 @@ async def delete_comment(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> None:
-    try:
-        await comments_service.delete_comment(
-            session,
-            comment_id=comment_id,
-            user=current_user,
-            guild_id=guild_context.guild_id,
-            guild_role=guild_context.role,
-        )
-    except comments_service.CommentNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-        ) from exc
-    except comments_service.CommentPermissionError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
-        ) from exc
-    except comments_service.CommentValidationError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
-        ) from exc
+    await comments_service.delete_comment(
+        session,
+        comment_id=comment_id,
+        user=current_user,
+        guild_id=guild_context.guild_id,
+    )
 
     await session.commit()

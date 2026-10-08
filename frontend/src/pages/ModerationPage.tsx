@@ -7,7 +7,7 @@
  * did we do about this" is the question the row exists to answer.
  *
  * Who may see any of it is the database's decision: the tables admit the
- * people who already reach every item in the initiative, plus guild admins. A
+ * people who already reach every item in the initiative, plus community admins. A
  * reader who is not one of them gets an empty list, which is the same answer
  * they get for any content they are not in.
  */
@@ -23,20 +23,18 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { MentionText } from "@/components/user/MentionText";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useInitiativeRoster } from "@/hooks/useInitiatives";
-import {
-  REPORTS_PAGE_SIZE,
-  useInitiativeSharing,
-  useModerationReports,
-  useSettleReport,
-} from "@/hooks/useModeration";
-import { toast } from "@/lib/chesterToast";
+import { MentionedPeopleScope, ReportMentionedPeople } from "@/hooks/useMentionedPeople";
+import { useInitiativeSharing, useModerationReports, useSettleReport } from "@/hooks/useModeration";
+import { communityPath } from "@/lib/communityUrl";
 import { entityRefTypeFor, isSearchEntityType } from "@/lib/entityResolver";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { formatDateTime } from "@/lib/formatDate";
-import { guildPath } from "@/lib/guildUrl";
+import { toast } from "@/lib/mascotToast";
 import { searchHitPath } from "@/lib/searchResults";
+import { getUserDisplayName } from "@/lib/userDisplay";
 
 /** The outcomes, in the order a moderator usually reaches for them. */
 const OUTCOMES: ReportOutcome[] = [
@@ -48,32 +46,31 @@ const OUTCOMES: ReportOutcome[] = [
 
 export const ModerationPage = () => {
   const { t } = useTranslation(["moderation", "common"]);
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const { initiativeId } = useParams({ strict: false }) as { initiativeId?: string };
   const initiative = Number(initiativeId);
   const [area, setArea] = useState<ConsoleArea>("reports");
   const [tab, setTab] = useState<"open" | "settled">("open");
-  const [page, setPage] = useState(0);
+  const [page, setPage] = useState(1);
 
   const { data, isLoading } = useModerationReports(
     {
-      guildId: guildId ?? 0,
+      communityId: communityId ?? 0,
       initiativeId: initiative,
       settled: tab === "settled",
-      offset: page * REPORTS_PAGE_SIZE,
+      page,
     },
-    { enabled: Boolean(guildId) && Number.isFinite(initiative) }
+    { enabled: Boolean(communityId) && Number.isFinite(initiative) }
   );
 
   const reports = data?.items ?? [];
-  // The server answers with one page, so a full page is the signal there may
-  // be another. Settled reports accumulate without bound, which is what makes
-  // the second page reachable rather than theoretical.
-  const hasMore = reports.length === REPORTS_PAGE_SIZE;
+  // The server may answer with an earlier page than the one asked for, when
+  // reports settled in between left fewer pages than there were.
+  const shownPage = data?.page ?? page;
 
   const showTab = (next: "open" | "settled") => {
     setTab(next);
-    setPage(0);
+    setPage(1);
   };
 
   return (
@@ -94,7 +91,9 @@ export const ModerationPage = () => {
       </Tabs>
 
       {area === "members" && <MembersArea initiativeId={initiative} />}
-      {area === "sharing" && <SharingArea guildId={guildId ?? 0} initiativeId={initiative} />}
+      {area === "sharing" && (
+        <SharingArea communityId={communityId ?? 0} initiativeId={initiative} />
+      )}
 
       {area === "reports" && (
         <Tabs value={tab} onValueChange={(v) => showTab(v as "open" | "settled")}>
@@ -112,46 +111,44 @@ export const ModerationPage = () => {
           <div className="space-y-4">
             {reports.length === 0 ? (
               <p className="text-muted-foreground text-sm">
-                {/* A later page that came back empty is a different thing from
-                  nothing ever having been reported, and says so. */}
-                {page > 0
-                  ? t("empty.noFurther")
-                  : tab === "open"
-                    ? t("empty.open")
-                    : t("empty.settled")}
+                {tab === "open" ? t("empty.open") : t("empty.settled")}
               </p>
             ) : (
-              reports.map((report) => (
-                <ReportCard
-                  key={report.id}
-                  report={report}
-                  guildId={guildId ?? 0}
-                  initiativeId={initiative}
+              // A reported comment is shown by its opening words, and the
+              // people those mention are asked about once for the page.
+              <MentionedPeopleScope>
+                <ReportMentionedPeople
+                  texts={reports.flatMap((report) => report.target_excerpt ?? [])}
                 />
-              ))
+                {reports.map((report) => (
+                  <ReportCard
+                    key={report.id}
+                    report={report}
+                    communityId={communityId ?? 0}
+                    initiativeId={initiative}
+                  />
+                ))}
+              </MentionedPeopleScope>
             )}
 
-            {/* Outside the empty branch on purpose: a count that divides exactly
-              by the page size lands on an empty page, and the way back has to
-              still be there. */}
-            {(page > 0 || hasMore) && (
+            {(data?.has_prev || data?.has_next) && (
               <div className="flex items-center justify-between gap-2 pt-2">
                 <Button
                   variant="outline"
                   size="sm"
-                  disabled={page === 0}
-                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                  disabled={!data.has_prev}
+                  onClick={() => setPage(shownPage - 1)}
                 >
                   {t("paging.newer")}
                 </Button>
                 <span className="text-muted-foreground text-sm">
-                  {t("paging.page", { page: page + 1 })}
+                  {t("paging.page", { page: shownPage })}
                 </span>
                 <Button
                   variant="outline"
                   size="sm"
-                  disabled={!hasMore}
-                  onClick={() => setPage((p) => p + 1)}
+                  disabled={!data.has_next}
+                  onClick={() => setPage(shownPage + 1)}
                 >
                   {t("paging.older")}
                 </Button>
@@ -170,15 +167,15 @@ const MEMBERS_PAGE_SIZE = 50;
 
 interface ReportCardProps {
   report: ModerationReportRead;
-  guildId: number;
+  communityId: number;
   initiativeId: number;
 }
 
-const ReportCard = ({ report, guildId, initiativeId }: ReportCardProps) => {
+const ReportCard = ({ report, communityId, initiativeId }: ReportCardProps) => {
   const { t } = useTranslation("moderation");
   const [note, setNote] = useState("");
 
-  const settle = useSettleReport(guildId, initiativeId, {
+  const settle = useSettleReport(communityId, initiativeId, {
     onSuccess: () => toast.success(t("settledToast")),
     onError: (err) => toast.error(getErrorMessage(err, "moderation:settleError")),
   });
@@ -198,10 +195,10 @@ const ReportCard = ({ report, guildId, initiativeId }: ReportCardProps) => {
   const targetPath = report.target_link
     ? searchHitPath({ ...report.target_link, initiative_id: report.initiative_id })
     : null;
-  const gp = (path: string) => (guildId ? guildPath(guildId, path) : path);
+  const gp = (path: string) => (communityId ? communityPath(communityId, path) : path);
 
   return (
-    <Card className="shadow-sm" role="region" aria-labelledby={`report-${report.id}`}>
+    <Card role="region" aria-labelledby={`report-${report.id}`}>
       <CardHeader>
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
@@ -219,9 +216,7 @@ const ReportCard = ({ report, guildId, initiativeId }: ReportCardProps) => {
               {t(`reasons.${report.reason}`)} · {formatDateTime(report.reported_at)}
             </CardDescription>
           </div>
-          {settledAs === null ? (
-            <Badge variant="outline">{t("open")}</Badge>
-          ) : (
+          {settledAs === null ? null : (
             <Badge variant="secondary">{t(`outcomes.${settledAs}`)}</Badge>
           )}
         </div>
@@ -232,7 +227,7 @@ const ReportCard = ({ report, guildId, initiativeId }: ReportCardProps) => {
             its kind makes a moderator open every one of them to find out. */}
         {report.target_excerpt ? (
           <blockquote className="whitespace-pre-wrap break-words border-l-2 py-1 pl-3 text-sm">
-            {report.target_excerpt}
+            <MentionText text={report.target_excerpt} />
           </blockquote>
         ) : (
           // Deleted since, or beyond this reader's reach — the two are one
@@ -326,9 +321,8 @@ const MembersArea = ({ initiativeId }: { initiativeId: number }) => {
   }
 
   return (
-    <Card className="shadow-sm">
+    <Card>
       <CardHeader>
-        <CardTitle>{t("areas.members")}</CardTitle>
         <CardDescription>{t("members.description")}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">
@@ -337,9 +331,7 @@ const MembersArea = ({ initiativeId }: { initiativeId: number }) => {
             key={member.user.id}
             className="flex flex-wrap items-center justify-between gap-2 border-b py-2 last:border-b-0"
           >
-            <span className="min-w-0 truncate text-sm">
-              {member.user.full_name || member.user.username}
-            </span>
+            <span className="min-w-0 truncate text-sm">{getUserDisplayName(member.user)}</span>
             <div className="flex items-center gap-2">
               {member.override_share_restrictions && (
                 <Badge variant="secondary">{t("members.fullAccess")}</Badge>
@@ -386,9 +378,15 @@ const MembersArea = ({ initiativeId }: { initiativeId: number }) => {
  * adds is the overview — how widely each thing is reached — so finding the one
  * shared too far does not mean opening all of them.
  */
-const SharingArea = ({ guildId, initiativeId }: { guildId: number; initiativeId: number }) => {
+const SharingArea = ({
+  communityId,
+  initiativeId,
+}: {
+  communityId: number;
+  initiativeId: number;
+}) => {
   const { t } = useTranslation(["moderation", "common"]);
-  const { data, isLoading, isError } = useInitiativeSharing(guildId, initiativeId);
+  const { data, isLoading, isError } = useInitiativeSharing(communityId, initiativeId);
   const items = data?.items ?? [];
 
   if (isLoading) {
@@ -401,9 +399,8 @@ const SharingArea = ({ guildId, initiativeId }: { guildId: number; initiativeId:
   }
 
   return (
-    <Card className="shadow-sm">
+    <Card>
       <CardHeader>
-        <CardTitle>{t("areas.sharing")}</CardTitle>
         <CardDescription>{t("sharing.description")}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">
@@ -423,7 +420,7 @@ const SharingArea = ({ guildId, initiativeId }: { guildId: number; initiativeId:
                 <span className="min-w-0 truncate text-sm">
                   {refType ? (
                     <Link
-                      to={guildPath(guildId, `/go/${refType}/${item.resource_id}`)}
+                      to={communityPath(communityId, `/go/${refType}/${item.resource_id}`)}
                       className="underline-offset-4 hover:underline"
                     >
                       {label}
@@ -435,9 +432,6 @@ const SharingArea = ({ guildId, initiativeId }: { guildId: number; initiativeId:
                 <div className="flex flex-wrap items-center gap-2">
                   {item.all_initiative_members && (
                     <Badge variant="secondary">{t("sharing.everyone")}</Badge>
-                  )}
-                  {item.via_dashboard && (
-                    <Badge variant="outline">{t("sharing.viaDashboard")}</Badge>
                   )}
                   {/* Two counts, two keys: one string cannot pluralise on two
                       numbers at once. */}

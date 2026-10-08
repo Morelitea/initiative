@@ -37,9 +37,11 @@ from asyncpg.exceptions import (
     SyntaxOrAccessError,
 )
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.core.messages import QueryMessages
 from app.db import cohorts
+from app.db.advisory_locks import LockNamespace, advisory_lock
 from app.db.request_context import QUERYABLE, ContentGrantee, Member, RequestContext
 from app.db.session import set_rls_context
 from app.services.fields.spec import FieldType
@@ -73,6 +75,8 @@ class QueryColumn:
 
     name: str
     type: FieldType
+    #: The period the column is rounded to (``date_trunc``'s unit), or ``None``.
+    grain: str | None = None
 
 
 #: What a Postgres type is, in the vocabulary the field registry already uses.
@@ -162,6 +166,7 @@ async def _described(
         connection, {attribute.type.oid for attribute in attributes}
     )
     declared = statement.column_types
+    grains = statement.column_grains
     return tuple(
         QueryColumn(
             name=attribute.name,
@@ -170,6 +175,7 @@ async def _described(
                 if position < len(declared) and declared[position] is not None
                 else _column_type(attribute, enum_oids)
             ),
+            grain=grains[position] if position < len(grains) else None,
         )
         for position, attribute in enumerate(attributes)
     )
@@ -189,12 +195,8 @@ QUERY_MAX_COST = 1_000_000.0
 #: Rows one query may return.
 QUERY_MAX_ROWS = 5_000
 
-#: Names the query surface's locks apart from anything else that takes one.
-#: Advisory locks are keyed by two integers and share one space per database.
-_LOCK_SPACE = 0x51_55_45_52  # "QUER"
 
-
-async def _claim_a_slot(connection: Any, guild_id: int) -> bool:
+async def _claim_a_slot(connection: AsyncConnection, guild_id: int) -> bool:
     """Take one of this guild's slots, or report that it has none free.
 
     The slots are advisory locks rather than a counter in this process, so the
@@ -203,12 +205,9 @@ async def _claim_a_slot(connection: Any, guild_id: int) -> bool:
     or is cancelled gives its slot back without anything having to notice.
     """
     for slot in range(QUERY_MAX_CONCURRENT_PER_GUILD):
-        taken = await connection.fetchval(
-            "SELECT pg_try_advisory_xact_lock($1, $2)",
-            _LOCK_SPACE + int(guild_id),
-            slot,
-        )
-        if taken:
+        if await advisory_lock(
+            connection, LockNamespace.QUERY_SLOT, f"{guild_id}:{slot}", wait=False
+        ):
             return True
     return False
 
@@ -280,7 +279,6 @@ async def _translated_failures() -> AsyncIterator[None]:
 def _as_query(
     context: RequestContext,
     initiative_id: int | None,
-    via_dashboard_id: int | None = None,
 ) -> Member | ContentGrantee:
     """The request's own context, as the query role, narrowed to one initiative.
 
@@ -288,10 +286,6 @@ def _as_query(
     reader is whoever the request admitted, the role is the query role, and the
     scope is the surface's if it named one. Only a member or a content grantee
     reads here.
-
-    *via_dashboard_id* names a dashboard whose own grants this read may answer
-    through. It is only ever passed by the path that runs a placed widget's
-    stored statement, and never for a statement a request supplied.
     """
     if not isinstance(context, QUERYABLE):
         raise QueryError(QueryMessages.MISSING_RELATION)
@@ -299,7 +293,6 @@ def _as_query(
         context,
         query=True,
         scope_initiative_id=initiative_id,
-        via_dashboard_id=via_dashboard_id,
     )
 
 
@@ -308,7 +301,6 @@ async def execute(
     *,
     context: RequestContext,
     initiative_id: int | None = None,
-    via_dashboard_id: int | None = None,
 ) -> QueryResult:
     """Run an already-resolved statement under *context*.
 
@@ -324,7 +316,7 @@ async def execute(
     it is asking about and the policies on the tables it reads answer for that
     one. It removes rows and never adds any, so a caller may always pass it.
     """
-    routed = _as_query(context, initiative_id, via_dashboard_id)
+    routed = _as_query(context, initiative_id)
     guild_id = routed.guild_id
     async with _translated_failures():
         async with cohorts.query_sessionmaker(guild_id)() as session:
@@ -337,7 +329,7 @@ async def execute(
             connection = raw.driver_connection
 
             await _bound_transaction(sqlalchemy_connection)
-            if not await _claim_a_slot(connection, guild_id):
+            if not await _claim_a_slot(sqlalchemy_connection, guild_id):
                 raise QueryError(QueryMessages.BUSY, str(guild_id))
             await set_rls_context(session, routed)
 
@@ -372,14 +364,12 @@ async def run(
     *,
     context: RequestContext,
     initiative_id: int | None = None,
-    via_dashboard_id: int | None = None,
 ) -> QueryResult:
     """Read *sql* and run what it resolves to."""
     return await execute(
         resolve(sql),
         context=context,
         initiative_id=initiative_id,
-        via_dashboard_id=via_dashboard_id,
     )
 
 
@@ -461,7 +451,7 @@ async def _run_compiled(
         await _bound_transaction(
             sqlalchemy_connection, timeout_ms=QUERY_CANVAS_TIMEOUT_MS
         )
-        if not await _claim_a_slot(connection, guild_id):
+        if not await _claim_a_slot(sqlalchemy_connection, guild_id):
             raise QueryError(QueryMessages.BUSY, str(guild_id))
         await set_rls_context(session, routed)
 
@@ -516,7 +506,6 @@ async def execute_canvas(
     *,
     context: RequestContext,
     initiative_id: int | None = None,
-    via_dashboard_id: int | None = None,
 ) -> dict[str, QueryResult | QueryError]:
     """Run every widget on a canvas, keyed as *statements* is.
 
@@ -532,7 +521,7 @@ async def execute_canvas(
     """
     if not statements:
         return {}
-    routed = _as_query(context, initiative_id, via_dashboard_id)
+    routed = _as_query(context, initiative_id)
     guild_id = routed.guild_id
     try:
         async with _translated_failures():
@@ -550,7 +539,6 @@ async def execute_canvas(
                 statement,
                 context=context,
                 initiative_id=initiative_id,
-                via_dashboard_id=via_dashboard_id,
             )
         except QueryError as refused:
             outcomes[key] = refused

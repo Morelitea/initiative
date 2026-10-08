@@ -8,7 +8,7 @@ Endpoints and services should check a capability via
 ``app.api.deps``) so the privilege ladder can change without touching every
 call site.
 
-This is deliberately separate from *guild* roles (``GuildRole``) and
+This is deliberately separate from *guild* roles (``CommunityRole``) and
 *initiative* roles, which are scoped tenancy concepts. Capabilities here are
 about platform-wide privilege.
 """
@@ -46,7 +46,15 @@ class Capability(str, Enum):
     USERS_DELETE = "users.delete"
 
     # Platform operations.
-    GUILDS_MANAGE = "guilds.manage"
+    COMMUNITIES_MANAGE = "communities.manage"
+
+    # Opening the billing service's insights page: account-wide revenue and
+    # subscriber figures from the payment processor, and counts that name no
+    # community. Its own capability because it reaches no community — it is not
+    # a grant, and the visit needs none — so it is decided here rather than by
+    # ``communities.manage``, which can be narrowed later without taking it
+    # along.
+    BILLING_INSIGHTS = "billing.insights"
 
     # Writing the notices every user of this deployment is shown (see
     # ``app.services.platform.announcements``). Product communication rather
@@ -71,11 +79,11 @@ class Capability(str, Enum):
     # App-wide configuration (OIDC, SMTP, branding, role labels). owner only.
     CONFIG_MANAGE = "config.manage"
 
-    # Wiring external app services into this deployment: their URL, the shared
+    # Wiring external plug-in services into this deployment: their URL, the shared
     # secret, and the powers the operator confers on them. owner only — this is
     # deployment configuration, the same class ``config.manage`` occupies, kept
-    # as its own capability so the app catalog can be delegated separately later.
-    APPS_MANAGE = "apps.manage"
+    # as its own capability so the plug-in catalog can be delegated separately later.
+    PLUGINS_MANAGE = "plugins.manage"
 
 
 # Capability presets per platform role, least → most privileged. Each higher
@@ -95,7 +103,8 @@ _MODERATOR: FrozenSet[Capability] = _SUPPORT | {
 }
 
 _OPERATOR: FrozenSet[Capability] = _MODERATOR | {
-    Capability.GUILDS_MANAGE,
+    Capability.COMMUNITIES_MANAGE,
+    Capability.BILLING_INSIGHTS,
     Capability.ANNOUNCEMENTS_MANAGE,
     Capability.USERS_DELETE,
     Capability.DATA_BYPASS,
@@ -107,7 +116,7 @@ _OWNER: FrozenSet[Capability] = (
     _OPERATOR
     | {
         Capability.CONFIG_MANAGE,
-        Capability.APPS_MANAGE,
+        Capability.PLUGINS_MANAGE,
     }
 ) - {
     # Owners approve access requests; they don't go through the request→approve

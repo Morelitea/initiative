@@ -29,18 +29,18 @@ it back through the route that already serves it.
 Sub-resources report their parent
 ---------------------------------
 Over half these tables are junctions with a composite primary key
-(``task_tags``, ``task_assignees``, ``document_property_values``, …) and no id
-of their own. Their first primary-key column is always the FK to the resource
-that owns them, so a row appearing in ``task_tags`` is reported as
-``tasks.updated`` with ``changed = ['tags']``.
+(``task_assignees``, ``calendar_event_attendees``, …) and no id of their own.
+Their first primary-key column is always the FK to the resource that owns them,
+so a row appearing in ``task_assignees`` is reported as ``tasks.updated`` with
+``changed = ['assignees']``.
 
-That is also the semantics a subscriber wants: "this task was tagged", not "a
+That is also the semantics a subscriber wants: "this task was assigned", not "a
 row appeared in a junction table". The owner and the label are both derived —
 the owner from the FK, the label by stripping the owner's singular stem from the
 junction's name — so a new junction is covered by construction.
 
 The same shape covers sub-resources that DO have an id of their own but are
-still a facet of something else (a project's statuses, a document's versions, an
+still a facet of something else (a project's statuses, a file's versions, an
 initiative's roles, a resource's sharing). Derivation cannot see that, so those
 say it once in ``EVENT_SOURCES`` as a ``ReportsAs``. Either way the resource an
 event names is one that already has a detail route, which is what keeps every
@@ -537,7 +537,7 @@ BEGIN
         v_parents := COALESCE(v_parents, '[]'::jsonb);
     END IF;
 
-    -- Who wrote it: the person, the installed app, or both when an app acts
+    -- Who wrote it: the person, the installed plug-in, or both when a plug-in acts
     -- for a member. Each is read on its own from the request context, and an
     -- anonymous table names neither.
     IF TG_ARGV[9] <> 'anonymous' THEN

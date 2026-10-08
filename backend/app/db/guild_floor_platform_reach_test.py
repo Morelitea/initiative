@@ -18,9 +18,8 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 
-from app.core.config import settings
 from app.db.session import set_rls_context
-from app.db.public_rls import SHARED_TABLE_REGISTRY
+from app.db.public_rls import SHARED_TABLE_REGISTRY, role_name
 from app.models.platform.user import UserRole
 from app.testing import (
     create_auth_provider,
@@ -34,7 +33,7 @@ from app.db.request_context import Platform, Unattributed
 
 
 GUILD_FLOORS = ("app_guild_base", "app_guild_base_ro")
-PLATFORM_FLOOR = f"{settings.PLATFORM_ROLE_PREFIX}platform_base"
+PLATFORM_FLOOR = role_name("platform_base")
 VERBS = ("SELECT", "INSERT", "UPDATE", "DELETE")
 
 #: Per-person platform tables the guild floors hold nothing on.

@@ -13,10 +13,11 @@ from sqlalchemy import text
 from sqlalchemy.exc import ProgrammingError
 
 import app.db.schema_provisioning as schema_provisioning
+from app.db.advisory_locks import LockNamespace, advisory_lock
 from app.db.guild_ddl import rendered_constraint_names, rendered_trigger_names
 from app.db.schema_provisioning import (
     GuildRoleKind,
-    APP_ROLE_MACHINERY_READS,
+    PLUGIN_ROLE_MACHINERY_READS,
     SUPPORT_WRITE_PROTECTED_TABLES,
     apply_guild_rls,
     strip_template_registry_objects,
@@ -46,8 +47,8 @@ _GID_READ_FLOOR = 990_121
 _GID_SEAT = 990_122
 _GID_RETIRED_A = 990_123
 _GID_RETIRED_B = 990_124
-_GID_APP = 990_125
-_GID_APP_DENIED = 990_126
+_GID_PLUGIN = 990_125
+_GID_PLUGIN_DENIED = 990_126
 # Back-fill sweep (each pair: one provisioned, one only a public row).
 _GID_BACKFILL_DONE = 990_111
 _GID_BACKFILL_MISSING = 990_112
@@ -280,26 +281,26 @@ async def test_the_seat_role_is_the_guild_role_plus_the_communitys_own_settings(
             await drop_guild_schema(conn, gid)
 
 
-async def test_the_app_role_holds_only_what_an_app_reaches(engine):
-    """``guild_<id>_app`` writes content, reads the initiative structure, and
-    holds nothing on the community's configuration or its app setup beyond
+async def test_the_plugin_role_holds_only_what_a_plugin_reaches(engine):
+    """``guild_<id>_plugin`` writes content, reads the initiative structure, and
+    holds nothing on the community's configuration or its plug-in setup beyond
     the columns its own standing reads."""
-    gid = _GID_APP
+    gid = _GID_PLUGIN
     try:
         async with engine.begin() as conn:
             await provision_guild_schema(conn, gid)
         schema = guild_schema_name(gid)
-        app_role = guild_role_name(gid, GuildRoleKind.app)
+        plugin_role = guild_role_name(gid, GuildRoleKind.plugin)
 
         async def held(conn, table: str, verb: str) -> bool:
             return await conn.scalar(
                 text("SELECT has_table_privilege(:r, :t, :p)"),
-                {"r": app_role, "t": f"{schema}.{table}", "p": verb},
+                {"r": plugin_role, "t": f"{schema}.{table}", "p": verb},
             )
 
         async with engine.connect() as conn:
             assert await conn.scalar(
-                text("SELECT 1 FROM pg_roles WHERE rolname = :r"), {"r": app_role}
+                text("SELECT 1 FROM pg_roles WHERE rolname = :r"), {"r": plugin_role}
             )
             for verb in ("SELECT", "INSERT", "UPDATE", "DELETE"):
                 assert await held(conn, "tasks", verb) is True, f"tasks {verb}"
@@ -310,15 +311,15 @@ async def test_the_app_role_holds_only_what_an_app_reaches(engine):
                 )
             for table in (
                 "guild_settings",
-                "guild_apps",
-                "guild_app_secrets",
-                "app_placements",
+                "guild_plugins",
+                "guild_plugin_secrets",
+                "plugin_placements",
                 "initiative_role_permissions",
             ):
                 for verb in ("SELECT", "INSERT", "UPDATE", "DELETE"):
                     assert await held(conn, table, verb) is False, f"{table} {verb}"
             # The install standing statement reads these columns and no others.
-            for table, columns in APP_ROLE_MACHINERY_READS.items():
+            for table, columns in PLUGIN_ROLE_MACHINERY_READS.items():
                 if not columns:
                     continue
                 readable = {
@@ -332,7 +333,7 @@ async def test_the_app_role_holds_only_what_an_app_reaches(engine):
                                 "WHERE table_schema = :s AND table_name = :n"
                             ),
                             {
-                                "r": app_role,
+                                "r": plugin_role,
                                 "t": f"{schema}.{table}",
                                 "s": schema,
                                 "n": table,
@@ -353,15 +354,15 @@ async def test_the_app_role_holds_only_what_an_app_reaches(engine):
             await drop_guild_schema(conn, gid)
 
 
-async def test_the_app_role_is_refused_the_communitys_settings(engine):
-    """A session assuming ``guild_<id>_app`` cannot read ``guild_settings``."""
-    gid = _GID_APP_DENIED
+async def test_the_plugin_role_is_refused_the_communitys_settings(engine):
+    """A session assuming ``guild_<id>_plugin`` cannot read ``guild_settings``."""
+    gid = _GID_PLUGIN_DENIED
     try:
         async with engine.begin() as conn:
             await provision_guild_schema(conn, gid)
         async with engine.connect() as conn:
             await conn.exec_driver_sql(
-                f'SET ROLE "{guild_role_name(gid, GuildRoleKind.app)}"'
+                f'SET ROLE "{guild_role_name(gid, GuildRoleKind.plugin)}"'
             )
             with pytest.raises(ProgrammingError) as exc:
                 await conn.scalar(
@@ -444,8 +445,8 @@ async def test_support_role_write_capped_on_protected_tables(engine):
             # DML until somebody remembers it, which has happened twice.
             for table in (
                 "resource_grants",
-                "guild_app_user_connections",
-                "app_member_consents",
+                "guild_plugin_user_connections",
+                "plugin_member_consents",
             ):
                 assert table in SUPPORT_WRITE_PROTECTED_TABLES, table
 
@@ -1038,7 +1039,7 @@ async def test_backfill_applies_only_stale_parts_and_waits_for_a_held_guild(
         # but not yet committed, until the sweep is waiting on it.
         async with engine.connect() as other:
             await other.begin()
-            await schema_provisioning._lock_guild(other, held, wait=True)
+            await advisory_lock(other, LockNamespace.GUILD_PROVISION, held)
             await other.exec_driver_sql(
                 f"COMMENT ON SCHEMA \"{guild_schema_name(held)}\" IS '{bundle.stamp}'"
             )
@@ -1050,7 +1051,7 @@ async def test_backfill_applies_only_stale_parts_and_waits_for_a_held_guild(
                         "AND NOT granted AND classid::bigint = :ns "
                         "AND objid::bigint = :gid"
                     ),
-                    {"ns": schema_provisioning._PROVISION_LOCK_NAMESPACE, "gid": held},
+                    {"ns": LockNamespace.GUILD_PROVISION, "gid": held},
                 ):
                     assert not sweep.done(), "the sweep did not wait for the lock"
                     await asyncio.sleep(0.05)
@@ -1204,11 +1205,12 @@ async def test_system_engine_check_stops_boot_without_bypassrls(engine, monkeypa
 #
 # BYPASSRLS skips RLS *policies*, not table GRANTs. A restored/recreated role
 # can bypass RLS yet be missing the per-table grants, failing one gate deeper
-# with "permission denied for table ...". The boot heal must leave a healthy
-# posture untouched and otherwise re-assert the audited grants (table + owned
-# sequence). These tests point the registry at a throwaway public table so they
-# never mutate the real app_admin/app_user grants (cluster-global roles shared
-# across xdist workers); the per-worker test DB keeps the throwaway isolated.
+# with "permission denied for table ...". The boot heal leaves a healthy
+# posture untouched and otherwise re-asserts the audited grants (table + owned
+# sequence) for the logins the URLs connect as. These tests point the registry
+# at a throwaway public table so they never change the real app_admin/app_user
+# grants (cluster-global roles shared across xdist workers); the per-worker
+# test DB keeps the throwaway isolated.
 
 _PROBE_TABLE = "grant_heal_probe"
 
@@ -1321,29 +1323,31 @@ async def test_shared_grants_heal_is_noop_when_intact(engine, monkeypatch):
 
 async def test_shared_grants_probe_detects_partial_grant(engine, monkeypatch):
     import app.db.session as db_session
+    from app.db import system_grants
 
-    # SELECT present but INSERT missing → the probe must report NOT intact, so a
+    # SELECT present but INSERT missing: the probe reports the INSERT, so a
     # partially-restored role still triggers the heal.
     await _make_probe_table(engine, admin_grants="SELECT", user_grants="SELECT")
     _point_registry_at_probe(
         monkeypatch, sys_verbs={"SELECT", "INSERT"}, user_verbs={"SELECT"}
     )
     try:
-        expected = schema_provisioning._expected_shared_table_grants()
         async with db_session.provisioning_engine.connect() as conn:
-            intact = await schema_provisioning._shared_grants_intact(conn, expected)
-        assert intact is False
+            assert await system_grants.missing_grants(conn, "app_admin") == [
+                (_PROBE_TABLE, "INSERT")
+            ]
+            assert await system_grants.missing_grants(conn, "app_user") == []
     finally:
         await _drop_probe_table(engine)
 
 
 async def test_shared_grants_tolerate_lazily_created_table(engine, monkeypatch):
     import app.db.session as db_session
+    from app.db import system_grants
 
     # A registry entry may name a table that is created lazily at runtime
     # (NON_MODEL_SHARED_TABLES — storage_backfill_state). Before the table
-    # first materializes, both the boot heal and the effective-privilege
-    # verification must treat it as nothing-to-check, not fault the probe.
+    # first materializes, the boot heal treats it as nothing to check.
     await _drop_probe_table(engine)
     _point_registry_at_probe(
         monkeypatch, sys_verbs={"SELECT", "INSERT"}, user_verbs={"SELECT"}
@@ -1351,21 +1355,72 @@ async def test_shared_grants_tolerate_lazily_created_table(engine, monkeypatch):
 
     await schema_provisioning.ensure_shared_table_grants()  # must not raise
 
-    expected = schema_provisioning._expected_shared_table_grants()
     async with db_session.provisioning_engine.connect() as conn:
-        intact = await schema_provisioning._shared_grants_intact(conn, expected)
-        assert intact is True
-        missing = await schema_provisioning._effective_missing_grants(
-            conn, {_PROBE_TABLE: frozenset({"SELECT"})}
+        assert await system_grants.missing_grants(conn, "app_admin") == []
+
+
+async def test_shared_grants_reach_the_configured_login_or_stop_boot(
+    engine, monkeypatch
+):
+    """The heal grants the login DATABASE_URL_ADMIN connects as, whatever it is
+    named; when the grants still do not hold, boot stops with the GRANTs that
+    repair it, naming that login."""
+    from app.core.config import settings
+
+    role = f"{engine.url.database}_nogrant_role"
+    bound_engine = await _create_policy_bound_login(engine, role, "nogrant-pw")
+    monkeypatch.setattr(
+        settings,
+        "DATABASE_URL_ADMIN",
+        bound_engine.url.render_as_string(hide_password=False),
+    )
+    await _make_probe_table(engine, admin_grants=None, user_grants="SELECT")
+    _point_registry_at_probe(
+        monkeypatch, sys_verbs={"SELECT", "INSERT"}, user_verbs={"SELECT"}
+    )
+    probe = f"public.{_PROBE_TABLE}"
+    try:
+        await schema_provisioning.ensure_shared_table_grants()
+        async with engine.connect() as conn:
+            login_insert, login_seq, canonical_insert = (
+                await conn.execute(
+                    text(
+                        "SELECT has_table_privilege(:r, :t, 'INSERT'), "
+                        "has_sequence_privilege(:r, :s, 'USAGE'), "
+                        "has_table_privilege('app_admin', :t, 'INSERT')"
+                    ),
+                    {"r": role, "t": probe, "s": f"{probe}_id_seq"},
+                )
+            ).one()
+        assert login_insert and login_seq
+        assert not canonical_insert
+
+        async with engine.begin() as conn:
+            await conn.execute(text(f'REVOKE ALL ON {probe} FROM "{role}"'))
+
+        async def _granted_nothing(*_args) -> int:
+            return 0
+
+        monkeypatch.setattr(
+            schema_provisioning, "_reassert_shared_grants", _granted_nothing
         )
-    assert missing == []
+        with pytest.raises(SystemExit) as excinfo:
+            await schema_provisioning.ensure_shared_table_grants()
+        message = str(excinfo.value)
+        assert "DATABASE_URL_ADMIN" in message
+        assert (
+            f'GRANT SELECT, INSERT ON TABLE public."{_PROBE_TABLE}" TO "{role}";'
+            in message
+        )
+    finally:
+        await _drop_probe_table(engine)
+        await bound_engine.dispose()
+        await _drop_login(engine, role)
 
 
-# --- verify_engine_identities / verify_effective_shared_grants ---------------
+# --- verify_engine_identities ------------------------------------------------
 #
-# The heals above repair the canonical roles; these boot checks pin the wiring
-# itself — which login each URL connects as, and whether the CONNECTED logins
-# effectively hold the audited privileges.
+# This boot check pins the wiring itself: which login each URL connects as.
 
 
 async def test_engine_identities_warn_on_shared_app_and_admin_login(
@@ -1441,40 +1496,6 @@ async def test_engine_identities_flag_an_unused_temporary_grant(caplog):
         assert "DATABASE_URL_BOOTSTRAP" in joined
     else:
         assert "REVOKE TEMPORARY ON DATABASE" not in joined
-
-
-async def test_effective_grants_pass_for_privileged_logins(engine, monkeypatch):
-    import app.db.session as db_session
-
-    # Admin side: the harness's real app_admin (audited grants from the
-    # baseline). App side: the owning test login, which holds everything —
-    # the check must complete without exiting.
-    monkeypatch.setattr(db_session, "engine", engine)
-    await schema_provisioning.verify_effective_shared_grants()
-
-
-async def test_effective_grants_fail_closed_for_grantless_admin_login(
-    engine, monkeypatch
-):
-    import app.db.session as db_session
-
-    role = f"{engine.url.database}_nogrant_role"
-    bound_engine = await _create_policy_bound_login(engine, role, "nogrant-pw")
-    monkeypatch.setattr(db_session, "system_engine", bound_engine)
-    monkeypatch.setattr(db_session, "engine", engine)  # app side passes (owner)
-    try:
-        with pytest.raises(SystemExit) as excinfo:
-            await schema_provisioning.verify_effective_shared_grants()
-        message = str(excinfo.value)
-        assert "DATABASE_URL_ADMIN" in message
-        assert role in message
-        # The repair must be copy-pasteable: real GRANT statements naming the
-        # actual login, including the table the reporter's boot died on.
-        assert f'ON TABLE public.guilds TO "{role}";' in message
-        assert "GRANT SELECT, INSERT, UPDATE, DELETE" in message
-    finally:
-        await bound_engine.dispose()
-        await _drop_login(engine, role)
 
 
 # --- reject_privileged_database_url (T67) ------------------------------------

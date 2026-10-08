@@ -45,8 +45,8 @@ import {
   usePlacementTargets,
   useUpdatePlacementRule,
 } from "@/hooks/useProviderPlacement";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 
 /** Sentinel for "the community itself", which has no initiative id. */
 const COMMUNITY_ONLY = "community";
@@ -71,9 +71,9 @@ export const ProviderPlacementRuleDialog = ({
   const [scopeClaim, setScopeClaim] = useState(rule?.scope_claim ?? "");
   const [scopeValue, setScopeValue] = useState(rule?.scope_value ?? "");
   const [community, setCommunity] = useState<{ id: number; name: string } | null>(
-    rule ? { id: rule.guild_id, name: rule.guild_name } : null
+    rule ? { id: rule.community_id, name: rule.community_name } : null
   );
-  const [guildRole, setGuildRole] = useState(rule?.guild_role ?? "member");
+  const [communityRole, setCommunityRole] = useState(rule?.community_role ?? "member");
   const [initiativeId, setInitiativeId] = useState(
     rule?.initiative_id != null ? String(rule.initiative_id) : COMMUNITY_ONLY
   );
@@ -145,7 +145,7 @@ export const ProviderPlacementRuleDialog = ({
       claim_value: trimmedGroup || null,
       scope_claim: directoryComplete ? trimmedClaim : null,
       scope_value: directoryComplete ? trimmedValue : null,
-      guild_role: guildRole,
+      community_role: communityRole,
       // Both halves or neither: somebody placed in an initiative needs the
       // role to hold there.
       initiative_id: chosenInitiative,
@@ -166,7 +166,7 @@ export const ProviderPlacementRuleDialog = ({
       return;
     }
     createRule.mutate(
-      { ...fields, provider_id: provider.id, guild_id: community.id },
+      { ...fields, provider_id: provider.id, community_id: community.id },
       {
         onSuccess: () => {
           toast.success(t("providerPlacement.added"));
@@ -189,7 +189,7 @@ export const ProviderPlacementRuleDialog = ({
             {rule
               ? t("providerPlacement.editDescription", {
                   provider: provider.display_name,
-                  community: rule.guild_name,
+                  community: rule.community_name,
                 })
               : t("providerPlacement.addDescription", { provider: provider.display_name })}
           </DialogDescription>
@@ -207,7 +207,7 @@ export const ProviderPlacementRuleDialog = ({
             <p className="text-muted-foreground text-xs">{t("providerPlacement.groupHelp")}</p>
           </div>
 
-          <div className="space-y-3 rounded-md border px-3 py-3">
+          <div className="space-y-3 rounded-md border px-4 py-3">
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-1">
                 <Label htmlFor="placement-scoped">{t("providerPlacement.directoryLabel")}</Label>
@@ -284,21 +284,23 @@ export const ProviderPlacementRuleDialog = ({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="placement-role">{t("guildAuth.rules.standingLabel")}</Label>
-            <Select value={guildRole} onValueChange={setGuildRole}>
+            <Label htmlFor="placement-role">{t("communityAuth.rules.standingLabel")}</Label>
+            <Select value={communityRole} onValueChange={setCommunityRole}>
               <SelectTrigger id="placement-role">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="member">{t("guildAuth.rules.role.member")}</SelectItem>
-                <SelectItem value="admin">{t("guildAuth.rules.role.admin")}</SelectItem>
+                <SelectItem value="member">{t("communityAuth.rules.role.member")}</SelectItem>
+                <SelectItem value="admin">{t("communityAuth.rules.role.admin")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           {community !== null && (
             <div className="space-y-2">
-              <Label htmlFor="placement-initiative">{t("guildAuth.rules.initiativeLabel")}</Label>
+              <Label htmlFor="placement-initiative">
+                {t("communityAuth.rules.initiativeLabel")}
+              </Label>
               <Select
                 value={initiativeId}
                 onValueChange={(value) => {
@@ -311,7 +313,7 @@ export const ProviderPlacementRuleDialog = ({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value={COMMUNITY_ONLY}>
-                    {t("guildAuth.rules.communityOnly")}
+                    {t("communityAuth.rules.communityOnly")}
                   </SelectItem>
                   {initiatives.map((initiative) => (
                     <SelectItem key={initiative.id} value={String(initiative.id)}>
@@ -331,11 +333,11 @@ export const ProviderPlacementRuleDialog = ({
           {chosenInitiative !== null && (
             <div className="space-y-2">
               <Label htmlFor="placement-initiative-role">
-                {t("guildAuth.rules.initiativeRoleLabel")}
+                {t("communityAuth.rules.initiativeRoleLabel")}
               </Label>
               <Select value={initiativeRoleId} onValueChange={setInitiativeRoleId}>
                 <SelectTrigger id="placement-initiative-role">
-                  <SelectValue placeholder={t("guildAuth.rules.initiativeRolePlaceholder")} />
+                  <SelectValue placeholder={t("communityAuth.rules.initiativeRolePlaceholder")} />
                 </SelectTrigger>
                 <SelectContent>
                   {roles.map((role) => (

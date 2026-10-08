@@ -2,7 +2,7 @@
 
 A generic key/value/JSON store keyed by ``(user_id, scope_key)``. The
 frontend uses one of these per "view" (e.g. ``my-tasks``,
-``project:42:tasks``, ``documents``) and the server keeps the blob
+``project:42:tasks``, ``files``) and the server keeps the blob
 verbatim. RLS confines every read/write to ``current_user_id``.
 """
 

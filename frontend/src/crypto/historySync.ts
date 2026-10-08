@@ -4,7 +4,7 @@
  * confirmed the new device there.
  */
 
-import { removeDeviceApiV1MeDmDevicesDeviceIdDelete as removeDevice } from "@/api/generated/direct-messages/direct-messages";
+import { removeDevice } from "@/api/generated/direct-messages/direct-messages";
 
 import type { Context } from "./device";
 import { type Envelope, newMessageId, sendTransfer } from "./envelope";
@@ -42,8 +42,13 @@ function sendToOwnDevice(
   });
 }
 
-/** A conversation any own-device traffic can travel inside. */
-const carrierConversation = async (ctx: Context) => (await ctx.conversations())[0]?.id ?? null;
+/**
+ * A conversation any own-device traffic can travel inside: one this account
+ * has accepted, since the server takes nothing sent into an invitation still
+ * waiting for an answer.
+ */
+const carrierConversation = async (ctx: Context) =>
+  (await ctx.conversations()).find((conversation) => !conversation.pending)?.id ?? null;
 
 /**
  * Which of two devices came first.

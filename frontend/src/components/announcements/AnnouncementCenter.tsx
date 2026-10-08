@@ -8,7 +8,7 @@ import { useAnnouncements } from "@/hooks/useAnnouncements";
  * Shows the announcements queued for the signed-in reader, one at a time.
  *
  * Mounted once in the authenticated layout: the notices follow the account,
- * not the page, so this has no guild, project or route of its own — though a
+ * not the page, so this has no community, project or route of its own — though a
  * notice may name a route it waits for, which the queue handles.
  */
 export const AnnouncementCenter = ({ enabled = true }: { enabled?: boolean }) => {

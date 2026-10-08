@@ -59,8 +59,8 @@ class WebhookDelivery(SQLModel, table=True):
     )
 
     #: While unclaimed, when this batch may next be attempted. While a pass holds
-    #: it, the lease that pass must still own in order to settle. NULL again once
-    #: dead-lettered — there is no further attempt to schedule.
+    #: it, the lease that pass must still own in order to settle. NULL once
+    #: delivered.
     next_attempt_at: Optional[datetime] = Field(
         default=None,
         sa_column=Column(DateTime(timezone=True), nullable=True),

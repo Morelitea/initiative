@@ -9,7 +9,7 @@ like any other tool listing.
 import pytest
 
 from app.core.messages import MarketplaceMessages
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.testing import (
     create_counter,
     create_counter_group,
@@ -64,7 +64,7 @@ class TestSharing:
     async def test_a_share_waits_for_review_and_is_not_offered(
         self, client, acting_user, session
     ):
-        member = await acting_user(guild_role=GuildRole.member, initiative=True)
+        member = await acting_user(guild_role=CommunityRole.member, initiative=True)
         group = await _counter_group(session, member, 3, 5)
 
         response = await _share(client, member, entity_id=group.id)
@@ -78,7 +78,7 @@ class TestSharing:
     async def test_the_owner_approves_it_onto_the_shelf(
         self, client, acting_user, session
     ):
-        member = await acting_user(guild_role=GuildRole.member, initiative=True)
+        member = await acting_user(guild_role=CommunityRole.member, initiative=True)
         owner = await acting_user("owner")
         group = await _counter_group(session, member, 3, 5)
         uid = (await _share(client, member, entity_id=group.id)).json()["uid"]
@@ -104,7 +104,7 @@ class TestSharing:
         assert "#" in detail.json()["publisher"]
 
     async def test_a_refused_share_is_gone(self, client, acting_user, session):
-        member = await acting_user(guild_role=GuildRole.member, initiative=True)
+        member = await acting_user(guild_role=CommunityRole.member, initiative=True)
         owner = await acting_user("owner")
         group = await _counter_group(session, member, 1)
         uid = (await _share(client, member, entity_id=group.id)).json()["uid"]
@@ -121,7 +121,7 @@ class TestSharing:
         assert uid not in [item["uid"] for item in mine.json()]
 
     async def test_reviewing_is_the_owners(self, client, acting_user, session):
-        member = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        member = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         group = await _counter_group(session, member, 1)
         uid = (await _share(client, member, entity_id=group.id)).json()["uid"]
 
@@ -138,7 +138,7 @@ class TestSharing:
     async def test_members_may_publish_directly_when_the_owner_allows_it(
         self, client, acting_user, session
     ):
-        member = await acting_user(guild_role=GuildRole.member, initiative=True)
+        member = await acting_user(guild_role=CommunityRole.member, initiative=True)
         owner = await acting_user("owner")
         group = await _counter_group(session, member, 2)
         switched = await client.put(
@@ -156,7 +156,7 @@ class TestSharing:
     async def test_the_shared_listing_installs_in_another_community(
         self, client, acting_user, session
     ):
-        member = await acting_user(guild_role=GuildRole.member, initiative=True)
+        member = await acting_user(guild_role=CommunityRole.member, initiative=True)
         owner = await acting_user("owner")
         group = await _counter_group(session, member, 3, 5)
         uid = (await _share(client, member, entity_id=group.id)).json()["uid"]
@@ -164,7 +164,7 @@ class TestSharing:
             f"/api/v1/marketplace/local/{uid}/versions/1.0.0/approve",
             headers=owner.headers,
         )
-        elsewhere = await acting_user(guild_role=GuildRole.member, initiative=True)
+        elsewhere = await acting_user(guild_role=CommunityRole.member, initiative=True)
 
         response = await client.post(
             elsewhere.g(f"/marketplace/listings/by-uid/{uid}/install"),
@@ -181,7 +181,7 @@ class TestVersions:
     async def test_the_member_who_shared_it_publishes_a_new_version(
         self, client, acting_user, session
     ):
-        member = await acting_user(guild_role=GuildRole.member, initiative=True)
+        member = await acting_user(guild_role=CommunityRole.member, initiative=True)
         group = await _counter_group(session, member, 1)
         uid = (await _share(client, member, entity_id=group.id)).json()["uid"]
 
@@ -200,10 +200,10 @@ class TestVersions:
     async def test_nobody_else_publishes_a_version_of_it(
         self, client, acting_user, session
     ):
-        member = await acting_user(guild_role=GuildRole.member, initiative=True)
+        member = await acting_user(guild_role=CommunityRole.member, initiative=True)
         group = await _counter_group(session, member, 1)
         uid = (await _share(client, member, entity_id=group.id)).json()["uid"]
-        other = await acting_user(guild_role=GuildRole.member, initiative=True)
+        other = await acting_user(guild_role=CommunityRole.member, initiative=True)
         theirs = await _counter_group(session, other, 1)
 
         response = await _share(client, other, entity_id=theirs.id, listing_uid=uid)
@@ -215,7 +215,7 @@ class TestVersions:
 class TestWhatIsShared:
     async def test_a_shared_project_names_nobody(self, client, acting_user, session):
         member = await acting_user(
-            guild_role=GuildRole.member, initiative=True, project=True
+            guild_role=CommunityRole.member, initiative=True, project=True
         )
         await create_task(session, member.project, assignees=[member.user])
         owner = await acting_user("owner")
@@ -236,9 +236,9 @@ class TestWhatIsShared:
     async def test_an_item_the_member_cannot_read_is_not_shared(
         self, client, acting_user, session
     ):
-        owner = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        owner = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         group = await _counter_group(session, owner, 1)
-        outsider = await acting_user(guild_role=GuildRole.member, guild=owner.guild)
+        outsider = await acting_user(guild_role=CommunityRole.member, guild=owner.guild)
 
         response = await _share(client, outsider, entity_id=group.id)
 
@@ -249,7 +249,7 @@ class TestTakingItDown:
     async def test_the_member_withdraws_what_they_shared(
         self, client, acting_user, session
     ):
-        member = await acting_user(guild_role=GuildRole.member, initiative=True)
+        member = await acting_user(guild_role=CommunityRole.member, initiative=True)
         owner = await acting_user("owner")
         group = await _counter_group(session, member, 1)
         uid = (await _share(client, member, entity_id=group.id)).json()["uid"]
@@ -266,10 +266,10 @@ class TestTakingItDown:
         assert uid not in await _shelf(client, member)
 
     async def test_nobody_else_takes_it_down(self, client, acting_user, session):
-        member = await acting_user(guild_role=GuildRole.member, initiative=True)
+        member = await acting_user(guild_role=CommunityRole.member, initiative=True)
         group = await _counter_group(session, member, 1)
         uid = (await _share(client, member, entity_id=group.id)).json()["uid"]
-        other = await acting_user(guild_role=GuildRole.member)
+        other = await acting_user(guild_role=CommunityRole.member)
 
         response = await client.delete(
             f"/api/v1/marketplace/local/{uid}", headers=other.headers
@@ -310,7 +310,7 @@ class TestPictures:
     ):
         from app.testing import create_gallery, create_gallery_image
 
-        member = await acting_user(guild_role=GuildRole.member, initiative=True)
+        member = await acting_user(guild_role=CommunityRole.member, initiative=True)
         owner = await acting_user("owner")
         member.initiative.galleries_enabled = True
         session.add(member.initiative)
@@ -332,11 +332,11 @@ class TestPictures:
         assert waiting["definition"]["images"] == []
         assert waiting["definition"]["cover"] is None
 
-    async def test_a_documents_picture_stays_behind(self, client, acting_user, session):
+    async def test_a_files_picture_stays_behind(self, client, acting_user, session):
         from app.services.storage import get_guild_storage
-        from app.testing import create_document, png_bytes
+        from app.testing import create_file, png_bytes
 
-        member = await acting_user(guild_role=GuildRole.member, initiative=True)
+        member = await acting_user(guild_role=CommunityRole.member, initiative=True)
         owner = await acting_user("owner")
         get_guild_storage(member.guild.id).write(
             "picture.png", png_bytes(2, 2), content_type="image/png"
@@ -352,7 +352,7 @@ class TestPictures:
                 },
             ],
         }
-        document = await create_document(
+        file = await create_file(
             session,
             member.initiative,
             member.user,
@@ -360,7 +360,7 @@ class TestPictures:
         )
 
         shared = await _share(
-            client, member, kind="document", entity_id=document.id, name="Handout"
+            client, member, kind="file", entity_id=file.id, name="Handout"
         )
 
         assert shared.status_code == 201, shared.text
@@ -378,7 +378,7 @@ class TestPictures:
         from app.services.marketplace.media import MEDIA_URL_PREFIX
         from app.testing import png_bytes
 
-        member = await acting_user(guild_role=GuildRole.member, initiative=True)
+        member = await acting_user(guild_role=CommunityRole.member, initiative=True)
         group = await _counter_group(session, member, 1)
 
         shared = await _share(
@@ -399,7 +399,7 @@ class TestPictures:
     async def test_a_file_that_is_not_a_picture_is_refused(
         self, client, acting_user, session
     ):
-        member = await acting_user(guild_role=GuildRole.member, initiative=True)
+        member = await acting_user(guild_role=CommunityRole.member, initiative=True)
         group = await _counter_group(session, member, 1)
 
         shared = await _share(
@@ -448,7 +448,7 @@ class TestPictures:
         )
         assert published.status_code == 201, published.text
 
-        member = await acting_user(guild_role=GuildRole.member, initiative=True)
+        member = await acting_user(guild_role=CommunityRole.member, initiative=True)
         member.initiative.galleries_enabled = True
         session.add(member.initiative)
         await session.commit()
@@ -473,7 +473,7 @@ class TestPictures:
     ):
         from app.testing import png_bytes
 
-        member = await acting_user(guild_role=GuildRole.member)
+        member = await acting_user(guild_role=CommunityRole.member)
         response = await client.post(
             "/api/v1/marketplace/local/media",
             files={"file": ("tile.png", png_bytes(4, 4), "image/png")},

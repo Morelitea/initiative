@@ -9,8 +9,8 @@ import type {
 } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage, messageForCode } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 
 import { AIConnectionDialog } from "./AIConnectionDialog";
 import { AIConnectionRow } from "./AIConnectionRow";
@@ -23,7 +23,7 @@ interface AIConnectionManagerProps {
   connections: AIConnectionResponse[];
   isLoading: boolean;
   isError: boolean;
-  /** Providers selectable in this scope (platform allows Ollama, guild does not). */
+  /** Providers selectable in this scope (platform allows Ollama, community does not). */
   providers: AIProvider[];
   mutations: ConnectionMutations;
 }
@@ -31,7 +31,7 @@ interface AIConnectionManagerProps {
 /**
  * Thin orchestrator for a list of AI connections: renders the rows, owns the
  * add/edit dialog and delete confirmation, and delegates all field/submit logic
- * to `AIConnectionDialog`. Platform and guild pages reuse it via `scope`.
+ * to `AIConnectionDialog`. Platform and community pages reuse it via `scope`.
  */
 export const AIConnectionManager = ({
   scope,
@@ -98,7 +98,7 @@ export const AIConnectionManager = ({
       ) : isError ? (
         <p className="text-destructive text-sm">{t("aiConnections.loadError")}</p>
       ) : connections.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 rounded-md border border-dashed px-4 py-8 text-center">
+        <div className="flex flex-col items-center gap-2 rounded-md border border-dashed p-6 text-center">
           <Plug className="h-6 w-6 text-muted-foreground" />
           <p className="text-muted-foreground text-sm">{t("aiConnections.empty")}</p>
         </div>

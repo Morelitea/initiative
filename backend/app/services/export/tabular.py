@@ -60,7 +60,7 @@ def render_md(item: RenderItem) -> bytes:
     lines = _md_header(item)
     layout = item.data.get("layout")
     if layout == "link":
-        # Smart-link documents: the document IS a URL. The autolink form
+        # Smart-link files: the file IS a URL. The autolink form
         # (<url>) needs no bracket/paren escaping and renders clickable
         # everywhere.
         lines.append(f"<{item.data.get('url', '')}>")

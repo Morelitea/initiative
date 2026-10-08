@@ -12,7 +12,12 @@ from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import Guild, GuildMembership, GuildRole, GuildStatus
+from app.models.platform.guild import (
+    Guild,
+    GuildMembership,
+    CommunityRole,
+    CommunityStatus,
+)
 
 
 BREAK_GLASS = "/api/v1/access-grants/break-glass"
@@ -22,10 +27,12 @@ PASSWORD = "testpassword123"
 async def test_a_break_glass_holder_seats_a_superadmin_from_the_guilds_own_route(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    keyholder = await acting_user(guild_role=GuildRole.superadmin)
+    keyholder = await acting_user(guild_role=CommunityRole.superadmin)
     guild_id = keyholder.guild.id
     keyholder_id = keyholder.user.id
-    successor = await acting_user(guild_role=GuildRole.member, guild=keyholder.guild)
+    successor = await acting_user(
+        guild_role=CommunityRole.member, guild=keyholder.guild
+    )
     successor_id = successor.user.id
     operator = await acting_user("operator")
 
@@ -35,7 +42,9 @@ async def test_a_break_glass_holder_seats_a_superadmin_from_the_guilds_own_route
     blocked = await client.get(eligibility, headers=operator.headers)
     assert blocked.status_code == 200, blocked.text
     assert blocked.json()["can_delete"] is False
-    assert [g["guild_id"] for g in blocked.json()["guild_blockers"]] == [guild_id]
+    assert [g["community_id"] for g in blocked.json()["community_blockers"]] == [
+        guild_id
+    ]
 
     # Not a member and no grant yet: the route is not theirs.
     before = await client.patch(
@@ -45,7 +54,7 @@ async def test_a_break_glass_holder_seats_a_superadmin_from_the_guilds_own_route
 
     issued = await client.post(
         BREAK_GLASS,
-        json={"guild_id": guild_id, "reason": "sole superadmin unreachable"},
+        json={"community_id": guild_id, "reason": "sole superadmin unreachable"},
         headers=operator.headers,
     )
     assert issued.status_code == 201, issued.text
@@ -64,22 +73,22 @@ async def test_a_break_glass_holder_seats_a_superadmin_from_the_guilds_own_route
             )
         )
     ).one()
-    assert row.role == GuildRole.superadmin
+    assert row.role == CommunityRole.superadmin
 
     cleared = await client.get(eligibility, headers=operator.headers)
     assert cleared.status_code == 200, cleared.text
     assert cleared.json()["can_delete"] is True
-    assert cleared.json()["guild_blockers"] == []
+    assert cleared.json()["community_blockers"] == []
 
 
 async def test_a_break_glass_holder_deletes_the_community_from_its_own_settings(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    keyholder = await acting_user(guild_role=GuildRole.superadmin)
+    keyholder = await acting_user(guild_role=CommunityRole.superadmin)
     guild_id = keyholder.guild.id
     guild_name = keyholder.guild.name
     keyholder_id = keyholder.user.id
-    await acting_user(guild_role=GuildRole.member, guild=keyholder.guild)
+    await acting_user(guild_role=CommunityRole.member, guild=keyholder.guild)
     operator = await acting_user("operator")
 
     eligibility = f"/api/v1/operator/users/{keyholder_id}/deletion-eligibility"
@@ -96,7 +105,7 @@ async def test_a_break_glass_holder_deletes_the_community_from_its_own_settings(
 
     issued = await client.post(
         BREAK_GLASS,
-        json={"guild_id": guild_id, "reason": "sole superadmin unreachable"},
+        json={"community_id": guild_id, "reason": "sole superadmin unreachable"},
         headers=operator.headers,
     )
     assert issued.status_code == 201, issued.text
@@ -108,17 +117,17 @@ async def test_a_break_glass_holder_deletes_the_community_from_its_own_settings(
 
     session.expire_all()
     guild = (await session.exec(select(Guild).where(Guild.id == guild_id))).one()
-    assert guild.status == GuildStatus.deleted.value
+    assert guild.status == CommunityStatus.deleted.value
 
     cleared = await client.get(eligibility, headers=operator.headers)
     assert cleared.status_code == 200, cleared.text
-    assert cleared.json()["guild_blockers"] == []
+    assert cleared.json()["community_blockers"] == []
 
 
 async def test_the_platform_has_no_route_of_its_own_to_delete_a_community(
     client: AsyncClient, acting_user
 ):
-    keyholder = await acting_user(guild_role=GuildRole.superadmin)
+    keyholder = await acting_user(guild_role=CommunityRole.superadmin)
     operator = await acting_user("operator")
 
     response = await client.delete(

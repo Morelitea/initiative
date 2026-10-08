@@ -1,18 +1,22 @@
-import { type FormEvent, useState } from "react";
+import { type FormEvent, type ReactNode, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { CaptchaWidget } from "@/components/auth/CaptchaWidget";
 import { LegalNotice } from "@/components/auth/LegalNotice";
+import { NewPasswordFields } from "@/components/auth/NewPasswordFields";
 import { StepField } from "@/components/start/stepParts";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { browserOffersPasskeys } from "@/lib/passkeys";
-import { PASSWORD_MIN_LENGTH, validatePasswordLocal } from "@/lib/passwordPolicy";
+import { checkNewPassword } from "@/lib/passwordPolicy";
 
 /**
  * The ways in this deployment offers: an address with a password and/or a
  * passkey, or a code sent to the address.
+ *
+ * The start flow's last step, and the whole of the first-owner page, which
+ * puts its handle field above the address and offers no emailed code.
  */
 export const AccountStep = ({
   email,
@@ -23,21 +27,30 @@ export const AccountStep = ({
   onPasskey,
   onEmailCode,
   onError,
+  firstAccount = false,
+  children,
 }: {
   email: string;
   onEmailChange: (email: string) => void;
   busy: boolean;
   /** Something earlier in the flow still needs fixing (an invite that no
-   *  longer works). */
+   *  longer works, a handle not yet typed). */
   blocked: boolean;
   onPassword: (password: string, captchaToken: string) => Promise<void>;
   onPasskey: (captchaToken: string) => Promise<void>;
-  onEmailCode: () => void;
+  /** Opens the emailed-code door; without it, that door is not offered. */
+  onEmailCode?: () => void;
   onError: (message: string) => void;
+  /** The deployment's first account, which the server asks no captcha of. */
+  firstAccount?: boolean;
+  /** Fields asked before the address. */
+  children?: ReactNode;
 }) => {
   const { t } = useTranslation("auth");
-  const { captcha, passwordLoginEnabled, passkeyLoginEnabled, emailOtpLoginEnabled } =
-    useAppConfig();
+  const config = useAppConfig();
+  const { passwordLoginEnabled, passkeyLoginEnabled } = config;
+  const captcha = firstAccount ? null : config.captcha;
+  const emailCodeOffered = config.emailOtpLoginEnabled && onEmailCode !== undefined;
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [captchaToken, setCaptchaToken] = useState("");
@@ -61,13 +74,9 @@ export const AccountStep = ({
 
   const submitPassword = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (password !== confirmPassword) {
-      onError(t("register.passwordMismatch"));
-      return;
-    }
-    const policyError = validatePasswordLocal(password);
-    if (policyError) {
-      onError(policyError);
+    const passwordError = checkNewPassword(password, confirmPassword);
+    if (passwordError) {
+      onError(passwordError);
       return;
     }
     void attempt(() => onPassword(password, captchaToken));
@@ -75,6 +84,7 @@ export const AccountStep = ({
 
   return (
     <form className="space-y-4" onSubmit={submitPassword}>
+      {children}
       {formDoor ? (
         <StepField id="start-email" label={t("register.emailLabel")}>
           <Input
@@ -89,33 +99,14 @@ export const AccountStep = ({
         </StepField>
       ) : null}
       {passwordLoginEnabled ? (
-        <>
-          <StepField
-            id="start-password"
-            label={t("register.passwordLabel")}
-            hint={t("passwordPolicy.minLengthHelp")}
-          >
-            <Input
-              id="start-password"
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              autoComplete="new-password"
-              minLength={PASSWORD_MIN_LENGTH}
-              required
-            />
-          </StepField>
-          <StepField id="start-confirm-password" label={t("register.confirmPasswordLabel")}>
-            <Input
-              id="start-confirm-password"
-              type="password"
-              value={confirmPassword}
-              onChange={(event) => setConfirmPassword(event.target.value)}
-              autoComplete="new-password"
-              required
-            />
-          </StepField>
-        </>
+        <NewPasswordFields
+          id="start-password"
+          label={t("register.passwordLabel")}
+          password={password}
+          confirm={confirmPassword}
+          onPasswordChange={setPassword}
+          onConfirmChange={setConfirmPassword}
+        />
       ) : null}
       {formDoor && captcha ? (
         <CaptchaWidget key={captchaKey} config={captcha} onToken={setCaptchaToken} />
@@ -138,7 +129,7 @@ export const AccountStep = ({
           {busy ? t("register.submitting") : t("register.submitPasskey")}
         </Button>
       ) : null}
-      {emailOtpLoginEnabled ? (
+      {emailCodeOffered ? (
         <Button
           type="button"
           className="w-full"
@@ -149,7 +140,7 @@ export const AccountStep = ({
           {t("start.account.emailCode")}
         </Button>
       ) : null}
-      {!formDoor && !emailOtpLoginEnabled ? (
+      {!formDoor && !emailCodeOffered ? (
         <p className="text-muted-foreground text-sm">{t("register.noDoorHere")}</p>
       ) : null}
     </form>

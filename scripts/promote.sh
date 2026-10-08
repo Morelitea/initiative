@@ -168,11 +168,26 @@ detect_native_change() {
     git diff --quiet "$base" "$head" -- frontend/capacitor.config.ts || return 0
     # committed native project files changed (Android/iOS source, Gradle, SPM, manifests)?
     git diff --quiet "$base" "$head" -- frontend/android frontend/ios || return 0
-    # any @capacitor / @capacitor-community / @capgo dependency added/removed/bumped?
-    local re='"@(capacitor|capacitor-community|capgo)/'
+    # any @capacitor / @capacitor-community / @capgo / @capawesome plugin added/removed/bumped?
+    # The Capawesome Electron platform is the desktop app's (detect_desktop_change).
+    local re='"@(capacitor|capacitor-community|capgo|capawesome)/' desktop='"@capawesome/capacitor-electron"'
     local old new
-    old=$(git show "$base:frontend/package.json" 2>/dev/null | grep -E "$re" | sort || true)
-    new=$(git show "$head:frontend/package.json" 2>/dev/null | grep -E "$re" | sort || true)
+    old=$(git show "$base:frontend/package.json" 2>/dev/null | grep -E "$re" | grep -vF "$desktop" | sort || true)
+    new=$(git show "$head:frontend/package.json" 2>/dev/null | grep -E "$re" | grep -vF "$desktop" | sort || true)
+    [[ "$old" != "$new" ]] && return 0
+    return 1
+}
+
+# Detect whether the desktop app's shell changed between two refs: its Electron project and
+# plugins, or the Capawesome Electron platform it runs on. It has a floor of its own,
+# MIN_DESKTOP_VERSION, so a desktop change builds no APK and a phone change no installers.
+detect_desktop_change() {
+    local base="$1" head="$2"
+    git diff --quiet "$base" "$head" -- frontend/electron || return 0
+    local desktop='"@capawesome/capacitor-electron"'
+    local old new
+    old=$(git show "$base:frontend/package.json" 2>/dev/null | grep -F "$desktop" || true)
+    new=$(git show "$head:frontend/package.json" 2>/dev/null | grep -F "$desktop" || true)
     [[ "$old" != "$new" ]] && return 0
     return 1
 }
@@ -196,6 +211,14 @@ stamp_min_native_version() {
     else
         info "  No native changes → MIN_NATIVE_VERSION stays $current_min (web-only OTA release, no APK build)"
     fi
+    current_min=$(cat MIN_DESKTOP_VERSION 2>/dev/null | tr -d '[:space:]' || echo "unknown")
+    if detect_desktop_change "$base" "$head"; then
+        echo "$new_version" > MIN_DESKTOP_VERSION
+        git add MIN_DESKTOP_VERSION
+        warn "  Desktop app changed → MIN_DESKTOP_VERSION $current_min → $new_version (new installers REQUIRED; CI will build them)"
+    else
+        info "  No desktop changes → MIN_DESKTOP_VERSION stays $current_min (no installer build)"
+    fi
 }
 
 # The Alembic head of the tree as it stands, read from the revision files alone —
@@ -207,7 +230,10 @@ current_alembic_head() {
         echo "backend/.venv/bin/python not found — run 'cd backend && uv sync'" >&2
         return 1
     }
-    (cd backend && .venv/bin/python -c "
+    # Some revisions import the app's settings, which need a SECRET_KEY to
+    # load. Reading the head uses none of it, so any valid key will do where
+    # there is no .env (the Release workflow).
+    (cd backend && SECRET_KEY="${SECRET_KEY:-$(openssl rand -hex 32)}" .venv/bin/python -c "
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 print(ScriptDirectory.from_config(Config('alembic.ini')).get_current_head())
@@ -268,6 +294,12 @@ preview_min_native_version() {
         warn "  MIN_NATIVE_VERSION: $current_min → $new_version (native change detected; CI builds APK/IPA)"
     else
         info "  MIN_NATIVE_VERSION: stays $current_min (web-only OTA release, no APK build)"
+    fi
+    current_min=$(cat MIN_DESKTOP_VERSION 2>/dev/null | tr -d '[:space:]' || echo "unknown")
+    if detect_desktop_change "$base" "$head"; then
+        warn "  MIN_DESKTOP_VERSION: $current_min → $new_version (desktop change detected; CI builds installers)"
+    else
+        info "  MIN_DESKTOP_VERSION: stays $current_min (no installer build)"
     fi
     echo ""
 }

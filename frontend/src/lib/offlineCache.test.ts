@@ -2,47 +2,49 @@ import type { Query } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import {
-  addGrantOnlyGuildIds,
-  guildIdOfPath,
+  addGrantOnlyCommunityIds,
+  communityIdOfPath,
   isPersistablePath,
   noteRestoredIdentity,
   offlineCacheBuster,
-  resetGrantOnlyGuildIds,
+  resetGrantOnlyCommunityIds,
   restoredIdentityMismatch,
-  setGrantOnlyGuildIds,
+  setGrantOnlyCommunityIds,
   shardOfQueryKey,
   shouldPersistQuery,
 } from "./offlineCache";
 
 beforeEach(() => {
-  resetGrantOnlyGuildIds();
+  resetGrantOnlyCommunityIds();
   noteRestoredIdentity(null);
 });
 
-describe("guildIdOfPath", () => {
-  it("reads the guild out of a guild-addressed path", () => {
-    expect(guildIdOfPath("/api/v1/c/42/tasks/7")).toBe(42);
+describe("communityIdOfPath", () => {
+  it("reads the community out of a community-addressed path", () => {
+    expect(communityIdOfPath("/api/v1/c/42/tasks/7")).toBe(42);
   });
 
   it("is null for a platform path", () => {
-    expect(guildIdOfPath("/api/v1/users/me")).toBeNull();
+    expect(communityIdOfPath("/api/v1/me")).toBeNull();
   });
 
-  it("does not match a guild-looking segment further along the path", () => {
-    expect(guildIdOfPath("/api/v1/me/tasks?g=3")).toBeNull();
+  it("does not match a community-looking segment further along the path", () => {
+    expect(communityIdOfPath("/api/v1/me/tasks?g=3")).toBeNull();
   });
 });
 
 describe("isPersistablePath", () => {
-  it("keeps guild content somebody was reading", () => {
+  it("keeps community content somebody was reading", () => {
     expect(isPersistablePath("/api/v1/c/3/tasks/2866")).toBe(true);
-    expect(isPersistablePath("/api/v1/c/3/documents")).toBe(true);
+    expect(isPersistablePath("/api/v1/c/3/files")).toBe(true);
     expect(isPersistablePath("/api/v1/c/12/projects/1/tasks")).toBe(true);
+    expect(isPersistablePath("/api/v1/c/3/galleries/4")).toBe(true);
+    expect(isPersistablePath("/api/v1/c/3/wiki-pages/5")).toBe(true);
   });
 
-  it("keeps the cross-guild reads the home screens are built from", () => {
+  it("keeps the cross-community reads the home screens are built from", () => {
     expect(isPersistablePath("/api/v1/me/tasks")).toBe(true);
-    expect(isPersistablePath("/api/v1/users/me")).toBe(true);
+    expect(isPersistablePath("/api/v1/me")).toBe(true);
     expect(isPersistablePath("/api/v1/communities")).toBe(true);
   });
 
@@ -58,6 +60,11 @@ describe("isPersistablePath", () => {
       "/api/v1/auth/providers",
       "/api/v1/config",
       "/api/v1/settings/branding",
+      "/api/v1/c/3/settings",
+      "/api/v1/c/3/settings/ai",
+      "/api/v1/c/3/members",
+      "/api/v1/c/3/webhooks/subscriptions",
+      "/api/v1/c/3/plugins",
       "/api/v1/operator/users",
       "/api/v1/access-grants/",
       "/api/v1/ai-settings",
@@ -70,19 +77,31 @@ describe("isPersistablePath", () => {
   it("never persists message surfaces, whose plaintext has its own erase contract", () => {
     expect(isPersistablePath("/api/v1/me/dm-settings")).toBe(false);
     expect(isPersistablePath("/api/v1/me/connections")).toBe(false);
+    expect(isPersistablePath("/api/v1/me/dm-permissions")).toBe(false);
+    expect(isPersistablePath("/api/v1/me/contacts")).toBe(false);
+    expect(isPersistablePath("/api/v1/me/ignored")).toBe(false);
     expect(isPersistablePath("/api/v1/users/8/dm/devices")).toBe(false);
+  });
+
+  it("never persists the account's settings, keys or addresses", () => {
+    expect(isPersistablePath("/api/v1/me/api-keys")).toBe(false);
+    expect(isPersistablePath("/api/v1/me/emails")).toBe(false);
+    expect(isPersistablePath("/api/v1/me/ai")).toBe(false);
+    expect(isPersistablePath("/api/v1/me/notification-preferences")).toBe(false);
+    expect(isPersistablePath("/api/v1/me/reports")).toBe(false);
   });
 
   it("never persists search or trash", () => {
     expect(isPersistablePath("/api/v1/c/3/search")).toBe(false);
     expect(isPersistablePath("/api/v1/c/3/trash")).toBe(false);
+    expect(isPersistablePath("/api/v1/me/trash")).toBe(false);
   });
 
-  it("excludes a guild reached only by a time-bound PAM grant", () => {
+  it("excludes a community reached only by a time-bound PAM grant", () => {
     expect(isPersistablePath("/api/v1/c/9/tasks")).toBe(true);
-    setGrantOnlyGuildIds([9]);
+    setGrantOnlyCommunityIds([9]);
     expect(isPersistablePath("/api/v1/c/9/tasks")).toBe(false);
-    // Other guilds are unaffected.
+    // Other communities are unaffected.
     expect(isPersistablePath("/api/v1/c/10/tasks")).toBe(true);
   });
 
@@ -91,15 +110,15 @@ describe("isPersistablePath", () => {
   });
 
   it("widens the grant exclusion without narrowing it, for an unread grant list", () => {
-    setGrantOnlyGuildIds([9]);
+    setGrantOnlyCommunityIds([9]);
     // A refresh that could not read the grant list must not drop 9.
-    addGrantOnlyGuildIds([]);
+    addGrantOnlyCommunityIds([]);
     expect(isPersistablePath("/api/v1/c/9/tasks")).toBe(false);
-    addGrantOnlyGuildIds([11]);
+    addGrantOnlyCommunityIds([11]);
     expect(isPersistablePath("/api/v1/c/9/tasks")).toBe(false);
     expect(isPersistablePath("/api/v1/c/11/tasks")).toBe(false);
     // A reading that did come back is allowed to replace it.
-    setGrantOnlyGuildIds([]);
+    setGrantOnlyCommunityIds([]);
     expect(isPersistablePath("/api/v1/c/9/tasks")).toBe(true);
   });
 });
@@ -120,20 +139,20 @@ describe("shouldPersistQuery", () => {
   it("drops hand-written keys, which are not request paths", () => {
     expect(shouldPersistQuery(query(["dm", "unread"], "success"))).toBe(false);
     expect(shouldPersistQuery(query(["contacts", "community", 3, ""], "success"))).toBe(false);
-    expect(shouldPersistQuery(query([{ scope: "guild-app" }], "success"))).toBe(false);
+    expect(shouldPersistQuery(query([{ scope: "community-plugin" }], "success"))).toBe(false);
   });
 });
 
 describe("shardOfQueryKey", () => {
   it("files a community's content under that community", () => {
     expect(shardOfQueryKey(["/api/v1/c/3/tasks/2866"])).toBe("g3");
-    expect(shardOfQueryKey(["/api/v1/c/12/documents"])).toBe("g12");
+    expect(shardOfQueryKey(["/api/v1/c/12/files"])).toBe("g12");
   });
 
   it("files everything else under the platform shard", () => {
-    expect(shardOfQueryKey(["/api/v1/users/me"])).toBe("platform");
+    expect(shardOfQueryKey(["/api/v1/me"])).toBe("platform");
     expect(shardOfQueryKey(["/api/v1/me/tasks", { page: 1 }])).toBe("platform");
-    expect(shardOfQueryKey([{ scope: "guild-app" }])).toBe("platform");
+    expect(shardOfQueryKey([{ scope: "community-plugin" }])).toBe("platform");
   });
 });
 

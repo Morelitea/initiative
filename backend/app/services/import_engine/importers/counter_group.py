@@ -1,5 +1,5 @@
-"""``initiative-counter-group`` importer: the group and its counters with
-configuration and current values."""
+"""``initiative-counter-group`` importer: the group with its tags, and its
+counters with configuration and current values."""
 
 from __future__ import annotations
 
@@ -7,28 +7,28 @@ from decimal import Decimal
 from typing import Any
 
 from pydantic import BaseModel
-from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.search import SearchEntityType
-from app.core.tools import Tool
+from app.core.tools import Tool, tool_envelope_type
 from app.models.platform.user import User
 from app.models.tenant.counter import Counter, CounterGroup, CounterViewMode
 from app.models.tenant.initiative import Initiative, PermissionKey
 from app.schemas.tenant.import_envelopes import CounterGroupEnvelope
-from app.services.import_engine.common import unique_name
+from app.services.import_engine.common import unique_name_in_initiative
 from app.services.import_engine.contract import EnvelopeImportResult
 from app.services.import_engine.context import ImportContext
 from app.services.import_engine.importers._base import (
     NamesPeopleInPassing,
     PropertyRestore,
+    TagRestore,
     grant_ownership,
     parse_envelope,
 )
 
 
 class CounterGroupImporter(NamesPeopleInPassing):
-    envelope_type = "initiative-counter-group"
+    envelope_type = tool_envelope_type(Tool.counter_group)
     permission = PermissionKey.create_counter_groups
 
     def validate(self, envelope: dict[str, Any]) -> BaseModel:
@@ -49,18 +49,10 @@ class CounterGroupImporter(NamesPeopleInPassing):
     ) -> EnvelopeImportResult:
         env: CounterGroupEnvelope = envelope  # ty: ignore[invalid-assignment] — validate() returned this model
 
-        existing_names = {
-            row
-            for row in (
-                await session.exec(
-                    select(CounterGroup.name).where(
-                        CounterGroup.initiative_id == target_initiative.id
-                    )
-                )
-            ).all()
-        }
         group = CounterGroup(
-            name=unique_name(existing_names, env.name),
+            name=await unique_name_in_initiative(
+                session, CounterGroup, target_initiative.id, env.name
+            ),
             description=env.description,
             initiative_id=target_initiative.id,
             created_by=importer.id,
@@ -76,6 +68,8 @@ class CounterGroupImporter(NamesPeopleInPassing):
             importer=importer,
         )
 
+        tags = TagRestore(session)
+        await tags.attach(group, env.tags)
         props = PropertyRestore(
             session, initiative_id=target_initiative.id, context=context
         )
@@ -110,11 +104,12 @@ class CounterGroupImporter(NamesPeopleInPassing):
             entity_id=group.id,
             entity_title=group.name,
             created={
-                "counter_groups": 1,
+                Tool.counter_group.plural: 1,
                 "counters": len(env.counters),
+                "tags": tags.created,
                 "properties": props.created,
             },
-            matched={"properties": props.matched},
+            matched={"tags": tags.matched, "properties": props.matched},
             unmatched_handles=await props.settle(group),
         )
 

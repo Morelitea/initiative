@@ -23,11 +23,12 @@ import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.services.auth import sign_in_locks
 from app.services.auth import totp as totp_service
 
 from app.core import auth_context
 from app.core.login_methods import SecondFactorRequirement
-from app.models.platform.guild import Guild, GuildRole
+from app.models.platform.guild import Guild, CommunityRole
 from app.models.platform.user import UserRole
 from app.services.platform import access_grants as access_grants_service
 from app.services.platform import app_settings as app_settings_service
@@ -68,7 +69,7 @@ async def _break_glass(
     """Click through, with ``reason`` and any credential the caller supplies."""
     return await client.post(
         BREAK_GLASS,
-        json={"guild_id": guild.id, "reason": "prod incident #42", **body},
+        json={"community_id": guild.id, "reason": "prod incident #42", **body},
         headers=actor.headers,
     )
 
@@ -77,7 +78,11 @@ async def _live_pair(client: AsyncClient, actor: Actor) -> set[tuple[str, str]]:
     """The (purpose, access level) pairs the caller holds right now."""
     listed = await client.get(MINE, headers=actor.headers)
     assert listed.status_code == 200, listed.text
-    return {(g["purpose"], g["access_level"]) for g in listed.json() if g["is_live"]}
+    return {
+        (g["purpose"], g["access_level"])
+        for g in listed.json()["items"]
+        if g["is_live"]
+    }
 
 
 async def test_break_glass_self_issues_live_grant(client: AsyncClient, outsider):
@@ -117,7 +122,9 @@ async def test_admin_reaches_guild_only_after_clicking_through(
     the same request answers 403 before clicking through and 200 after, scoped
     to that one community."""
     a, guild = await outsider()
-    host = await acting_user(guild_role=GuildRole.admin, guild=guild, initiative=True)
+    host = await acting_user(
+        guild_role=CommunityRole.admin, guild=guild, initiative=True
+    )
 
     before = await client.get(f"/api/v1/c/{guild.id}/initiatives/", headers=a.headers)
     assert before.status_code == 403
@@ -143,7 +150,7 @@ async def test_break_glass_reaches_no_further_than_any_other_grant(
     """
     a, guild = await outsider()
     host = await acting_user(
-        guild_role=GuildRole.admin, guild=guild, initiative=True, project=True
+        guild_role=CommunityRole.admin, guild=guild, initiative=True, project=True
     )
     target = await acting_user()
 
@@ -184,7 +191,7 @@ async def test_break_glass_already_member_rejected(
     rejected as redundant."""
     a, guild = await outsider()
     await create_guild_membership(
-        session, user=a.user, guild=guild, role=GuildRole.member
+        session, user=a.user, guild=guild, role=CommunityRole.member
     )
 
     resp = await _break_glass(client, a, guild, reason="already in")
@@ -222,7 +229,7 @@ async def test_breaking_glass_again_supersedes_rather_than_stacking(
 
     assert await _live_pair(client, a) == THE_PAIR
     listed = await client.get(MINE, headers=a.headers)
-    assert sum(1 for g in listed.json() if g["status"] == "revoked") == 2
+    assert sum(1 for g in listed.json()["items"] if g["status"] == "revoked") == 2
 
 
 async def test_break_glass_denies_a_pending_request_before_issuing_the_pair(
@@ -236,7 +243,7 @@ async def test_break_glass_denies_a_pending_request_before_issuing_the_pair(
         "/api/v1/access-grants/",
         headers=a.headers,
         json={
-            "guild_id": guild.id,
+            "community_id": guild.id,
             "access_level": "read",
             "reason": "ordinary content work",
         },
@@ -247,7 +254,7 @@ async def test_break_glass_denies_a_pending_request_before_issuing_the_pair(
     assert issued.status_code == 201, issued.text
 
     listed = await client.get(MINE, headers=a.headers)
-    prior = next(g for g in listed.json() if g["id"] == requested.json()["id"])
+    prior = next(g for g in listed.json()["items"] if g["id"] == requested.json()["id"])
     assert prior["status"] == "denied"
     assert await _live_pair(client, a) == THE_PAIR
 
@@ -347,13 +354,13 @@ async def test_the_deployments_requirement_asks_an_account_without_one(
     session.add(row)
     await session.commit()
 
-    auth_context.set_session_amr(signed_in_with)
+    auth_context.record(session_amr=signed_in_with)
     try:
         demanded = await access_grants_service.demands_second_factor(
             session, actor=a.user
         )
     finally:
-        auth_context.set_session_amr(None)
+        auth_context.reset()
     assert demanded is asked
 
 
@@ -379,7 +386,8 @@ async def test_what_an_enrolled_holder_presents_to_break_glass(
     detail,
 ):
     """An account that holds a factor is asked for it, and its own factor is
-    what answers."""
+    what answers. Wrong codes count against the account as they do at sign-in,
+    so enough of them turn the right one away too."""
     a, guild = await outsider()
     secret, codes = await _enrol_factor(client, session, a)
     body = {
@@ -396,6 +404,16 @@ async def test_what_an_enrolled_holder_presents_to_break_glass(
         assert resp.json()["detail"] == detail
     else:
         assert resp.json()["status"] == "approved"
+
+    if credential == "wrong":
+        for _ in range(sign_in_locks.LOCK_AFTER_FAILURES - 1):
+            again = await _break_glass(client, a, guild, reason="incident", **body)
+            assert again.status_code == 400, again.text
+        locked = await _break_glass(
+            client, a, guild, reason="incident", code=_next_code(secret)
+        )
+        assert locked.status_code == 429, locked.text
+        assert locked.json()["detail"] == "SIGN_IN_LOCKED"
 
 
 async def test_withdrawing_the_authenticator_stops_it_being_asked_for(

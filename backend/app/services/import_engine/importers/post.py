@@ -14,43 +14,41 @@ from datetime import datetime, timezone
 from typing import Any
 
 from pydantic import BaseModel
-from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.search import SearchEntityType
-from app.core.tools import Tool
+from app.core.tools import Tool, tool_envelope_type
 from app.models.platform.user import User
 from app.models.tenant.initiative import Initiative, PermissionKey
 from app.models.tenant.post import Post
 from app.models.tenant.post_poll import PostPoll, PostPollOption
 from app.schemas.tenant.import_envelopes import PostEnvelope
 from app.services.import_engine.common import (
-    ensure_tag,
     load_initiative_member_handles,
-    unique_name,
+    unique_name_in_initiative,
 )
 from app.services.import_engine.contract import EnvelopeImportResult
 from app.services.import_engine.context import ImportContext
 from app.services.import_engine.importers._base import (
     NamesPeopleInPassing,
     PropertyRestore,
+    TagRestore,
     grant_ownership,
     parse_envelope,
 )
 from app.services.import_engine.mentions import place_mentions
 from app.services.import_engine.references import note_or_settle
 from app.services.import_engine.people import PeopleMap
-from app.services.tenant import tags as tags_service
 
 
 #: What ``posts.name`` holds, and how much of it to leave for the " (2)" that
-#: ``unique_name`` may append when the board already has this headline.
+#: ``unique_name_in_initiative`` may append when the board already has this headline.
 _MAX_NAME = 255
 _NAME_SUFFIX_ROOM = 8
 
 
 class PostImporter(NamesPeopleInPassing):
-    envelope_type = "initiative-post"
+    envelope_type = tool_envelope_type(Tool.post)
     permission = PermissionKey.create_posts
 
     def validate(self, envelope: dict[str, Any]) -> BaseModel:
@@ -70,18 +68,9 @@ class PostImporter(NamesPeopleInPassing):
     ) -> EnvelopeImportResult:
         env: PostEnvelope = envelope  # ty: ignore[invalid-assignment] — validate() returned this model
 
-        existing_names = {
-            row
-            for row in (
-                await session.exec(
-                    select(Post.name).where(Post.initiative_id == target_initiative.id)
-                )
-            ).all()
-        }
-
         # The column holds 255. A headline over it would fail at flush and take
         # the whole entry down with it, so it is trimmed and reported —
-        # `unique_name` may add a suffix, so trim first and leave it room.
+        # `unique_name_in_initiative` may add a suffix, so trim first and leave it room.
         warnings: list[str] = []
         name = env.name
         if len(name) > _MAX_NAME:
@@ -102,7 +91,9 @@ class PostImporter(NamesPeopleInPassing):
         )
 
         post = Post(
-            name=unique_name(existing_names, name),
+            name=await unique_name_in_initiative(
+                session, Post, target_initiative.id, name
+            ),
             body=body,
             initiative_id=target_initiative.id,
             created_by=importer.id,
@@ -139,20 +130,8 @@ class PostImporter(NamesPeopleInPassing):
                 )
             )
 
-        tags_created = 0
-        tags_matched = 0
-        for tag_name in env.tags:
-            resolved = await ensure_tag(session, name=tag_name, color="#6b7280")
-            if resolved.created:
-                tags_created += 1
-            else:
-                tags_matched += 1
-            session.add(
-                tags_service.tag_edge(
-                    tags_service.TAG_LINKS["post"], post.id, resolved.id
-                )
-            )
-
+        tags = TagRestore(session)
+        await tags.attach(post, env.tags)
         props = PropertyRestore(
             session, initiative_id=target_initiative.id, context=context
         )
@@ -161,12 +140,12 @@ class PostImporter(NamesPeopleInPassing):
             entity_id=post.id,
             entity_title=post.name,
             created={
-                "posts": 1,
-                "tags": tags_created,
+                Tool.post.plural: 1,
+                "tags": tags.created,
                 "properties": props.created,
                 **({"polls": 1} if env.poll is not None else {}),
             },
-            matched={"tags": tags_matched, "properties": props.matched},
+            matched={"tags": tags.matched, "properties": props.matched},
             unmatched_handles=await props.settle(post),
             warnings=warnings,
         )

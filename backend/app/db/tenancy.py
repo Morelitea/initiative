@@ -8,7 +8,9 @@ once each guild becomes its own PostgreSQL schema. Two orthogonal levels:
 - **Shared tables** stay in the ``public`` schema — identity, the tenancy
   roster, platform config, and per-user / cross-guild concerns read *without* a
   guild context (login, "list my guilds", platform staff, SSO auto-join, the
-  notification inbox). Listed explicitly in ``SHARED_TABLES``.
+  notification inbox). ``SHARED_TABLES`` is *derived* from
+  ``app.db.public_rls.SHARED_TABLE_REGISTRY``, where each one is declared with
+  its row security and grants.
 - **Guild-scoped tables** move into a per-guild schema (``guild_<id>``) — the
   actual tenant content. ``GUILD_SCOPED_TABLES`` is *derived* as
   ``INITIATIVE_SCOPED_TABLES | GUILD_LEVEL_TABLES`` (level 2), so a guild table
@@ -37,8 +39,10 @@ decision.
 from __future__ import annotations
 
 from app.db.initiative_rls import INITIATIVE_SCOPED_TABLES
+from app.db.public_rls import SHARED_TABLE_REGISTRY
 
 __all__ = [
+    "NON_MODEL_SHARED_TABLES",
     "SHARED_TABLES",
     "GUILD_LEVEL_TABLES",
     "MANAGED_TABLES",
@@ -55,153 +59,18 @@ __all__ = [
 # --- Shared (stay in the ``public`` schema) ---------------------------------
 # Read without a guild context, or inherently cross-guild. Must never be
 # duplicated per schema.
-SHARED_TABLES: frozenset[str] = frozenset(
-    {
-        # Identity & per-user auth/devices (one user spans many guilds)
-        "users",
-        "user_api_keys",
-        "user_tokens",
-        "push_tokens",
-        "user_view_preferences",  # personal UI state (filters/sort/view-mode)
-        # What one account wants to be told about. Off ``users`` on purpose:
-        # that table is read whole by the platform tiers.
-        "user_notification_prefs",
-        # Notification email waiting to go out. Per-account and cross-guild
-        # like the settings above: one message can gather rows from every
-        # community somebody is in, so it belongs to none of them.
-        "email_outbox",
-        # A notice waiting to be delivered to one account, from whichever
-        # community it happened in. Per-account for the same reason.
-        "notice_outbox",
-        # The picture on a user's profile. Public-plane identity like the row
-        # it hangs off: one user spans guilds, and the bytes are served to
-        # anyone holding the URL.
-        "user_avatars",
-        # What one account may dress its profile in beyond what ships with the
-        # app. Personal and cross-guild, like the row it hangs off.
-        "user_decorations",
-        # Who one account has starred on My Contacts. Personal, cross-guild
-        # and one-directional: the list is the holder's, and it may name
-        # people they share no guild with.
-        "profile_favorites",
-        # What an account agreed to when it was created. A deployment's terms
-        # are the platform's, not any one community's, so the record of
-        # accepting them belongs beside the account rather than in a schema.
-        "legal_acceptances",
-        # Who may ask to message an account, who it has agreed something with,
-        # and who it has chosen not to hear from. All three are per-account and
-        # cross-guild, like the starred list above, and none of them is any
-        # guild's business.
-        "user_dm_settings",
-        # What an account allows to be kept in a browser. Per-account and
-        # cross-guild like the rest here: the question is about the deployment,
-        # not about any one community.
-        "user_cookie_consent",
-        "user_dm_guild_optouts",
-        "contact_grants",
-        "user_ignores",
-        # The transport those four gate: a directory of public keys, a
-        # roster of who is talking to whom, and ciphertext waiting to be
-        # collected. Per-account and cross-guild like the rest, and not one
-        # of them holds anything a reader could open.
-        "dm_devices",
-        "dm_one_time_keys",
-        "dm_conversations",
-        "dm_conversation_members",
-        "dm_queue",
-        # The verification relay between one account's own devices: public
-        # keys and MACs, deleted when collected or ten minutes after writing.
-        "dm_verification_messages",
-        # What a moderator did, and to whom. Cross-guild platform security
-        # that has to outlive any guild — and every reference in it is a plain
-        # integer, so it outlives the accounts it names too.
-        # What outside parties — a payment processor, an installed app —
-        # call a user or a guild. One per purpose, so no two parties hold
-        # the same value for the same entity. Cross-guild and pre-routing,
-        # like the accounts and guilds it names.
-        "identity_refs",
-        # Tenancy roster — must be readable *before* a request is routed
-        "guilds",
-        # The operator-set half of a guild (caps / plan label / sign-in
-        # entitlement), split off ``guilds`` so identity and administration
-        # carry different grants. Shared, like the guild row it hangs off.
-        "guild_administration",
-        # The pictures a guild is known by — its icon, and the two renditions
-        # of its banner. Identity, like the name and description they sit
-        # beside, and read by strangers browsing the directory, who hold no
-        # role that could reach a guild schema.
-        "guild_images",
-        "guild_memberships",
-        # Consumed pre-membership / pre-routing
-        "guild_invites",  # looked up by token before the user is a member
-        "oidc_claim_mappings",  # SSO auto-join rules, read across all guilds at login
-        # Auth/login foundation — one user's identities span guilds; provider
-        # registry is read pre-routing at login.
-        "auth_providers",  # login provider registry; every row is the operator's
-        "auth_provider_secrets",  # provider client secret; app_admin-only companion
-        "federated_identities",  # (provider, subject) -> user links
-        "federated_identity_secrets",  # IdP refresh token; app_admin-only companion
-        "auth_sessions",  # session/refresh store (JWT sid = row id); app_admin-only
-        "user_emails",  # the addresses an account signs in with; app_admin-only
-        "user_email_assertions",  # which providers assert them; app_admin-only
-        "sign_in_locks",  # recent wrong answers per account; app_admin-only
-        # The account's own second factor, the seed behind it, and the codes
-        # that stand in for it. All app_admin-only: presented while signing in.
-        "user_totp",
-        "user_totp_secrets",
-        "mfa_recovery_codes",
-        "auth_challenges",  # a sign-in between its password and its code
-        # WebAuthn credentials. app_admin-only for the same reason as the rest
-        # of this group: an assertion arrives before any account is known.
-        "user_passkeys",
-        "guild_auth_policies",  # per-guild sign-in requirement, read pre-routing by the gate
-        # Which of the platform's providers a community signs in through, and
-        # the tenant it narrows one to. Read at login on the system engine.
-        "guild_provider_connections",
-        # The same arrangement, answered once for a community that has not.
-        # Read by the gate on the request path, like the connections it
-        # stands in for.
-        "platform_provider_defaults",
-        # Platform-wide
-        "app_settings",  # OIDC / SMTP / branding config
-        "app_setting_secrets",  # the settings' stored credentials; app_admin-only
-        # Deployment-wide notices and what each person has done with them. One
-        # announcement is shown in every guild and read by an account, not by a
-        # membership, so none of the three has a guild to live in.
-        "announcements",
-        "announcement_reads",
-        "announcement_images",
-        # Marketplace catalog: what is installable, platform-wide. Holds no
-        # guild_id by design — the catalog never records who installed what.
-        "marketplace_listings",
-        "marketplace_listing_versions",
-        # Deployment-level wiring for external app services (listing, URL,
-        # public keys, operator-conferred grants). Platform-wide by definition —
-        # one row per app, never per guild — and owner-managed.
-        "app_service_registrations",
-        # Who publishes those apps: one row per public_id prefix, with the
-        # switch that stops every app under it. Deployment configuration.
-        "publishers",
-        # Spent client-assertion jtis from the app token endpoint. Hangs off a
-        # registration, which is platform-wide.
-        "app_assertion_jtis",
-        # Which community holds which install, and the value a vendor webhook
-        # routes to it by. An index over the guild schemas, holding no content.
-        "app_installs",
-        # Registry client state: the TUF metadata this deployment last
-        # verified, how the last refresh went, and the artwork its listings
-        # named, kept locally so listing media is served from here.
-        # Operator/system state, no guild.
-        "marketplace_tuf_metadata",
-        "marketplace_registry_status",
-        "marketplace_media",
-        "platform_ai_connections",  # operator AI connections (platform config mode)
-        "access_grants",  # PAM — inherently cross-guild (request -> approve -> scoped)
-        "notifications",  # per-user inbox spanning guilds; carries its own place
-        # Billing write boundary (external billing service, initiative_billing role)
-        "billing_event_log",  # idempotency claim + append-only audit; weak guild ref
-        "billing_jti_blocklist",  # one-shot billing service-JWT redemption
-    }
+
+#: The ``public`` tables no model maps: Alembic's own, and
+#: ``storage_backfill_state``, which ``app.services.storage_backfill`` creates
+#: at runtime. Each still has a registry record for its grants.
+NON_MODEL_SHARED_TABLES: frozenset[str] = frozenset(
+    {"alembic_version", "storage_backfill_state"}
+)
+
+#: Every shared table a model maps: the shared-table registry, which records
+#: why each one is shared, less the tables no model maps.
+SHARED_TABLES: frozenset[str] = (
+    frozenset(SHARED_TABLE_REGISTRY) - NON_MODEL_SHARED_TABLES
 )
 
 # --- Guild-scoped, NOT initiative-scoped (level 2 exemptions) ----------------
@@ -216,22 +85,22 @@ GUILD_LEVEL_TABLES: frozenset[str] = frozenset(
         # soft_delete_admin_purge), never a membership scope. See the rendered RLS DDL.
         # Guild-wide config / data (no initiative scope)
         "guild_settings",
-        # Installed apps: guild-wide by definition, and readable by any member —
-        # the sidebar has to know an app is there. Installing, configuring and
+        # Installed plug-ins: guild-wide by definition, and readable by any member —
+        # the sidebar has to know a plug-in is there. Installing, configuring and
         # removing are the seat's (SEAT_TABLES below); what a member may do
-        # *inside* an app is decided by that instance's own grants, not by this
+        # *inside* a plug-in is decided by that instance's own grants, not by this
         # row.
-        "guild_apps",
+        "guild_plugins",
         # The secret values of each install's connections, one row per
         # install. Read and written by the seat and the system engine alone
         # (SEAT_READ_TABLES below); members read which keys hold a value off
-        # guild_apps.secret_fields.
-        "guild_app_secrets",
+        # guild_plugins.secret_fields.
+        "guild_plugin_secrets",
         # Where an install appears, one row per initiative, with the roles
         # allowed to open it there. A fact about the install rather than
         # initiative content: read within the schema, written by the seat
         # (SEAT_TABLES below).
-        "app_placements",
+        "plugin_placements",
         "guild_ai_connections",  # the seat's AI connections (guild config mode);
         # guild-wide config, no initiative scope, written by the seat (SEAT_TABLES
         # below).
@@ -242,9 +111,9 @@ GUILD_LEVEL_TABLES: frozenset[str] = frozenset(
         "guild_ai_connection_keys",
         "webhook_deliveries",  # per-subscription delivery ledger, no initiative of
         # its own; read through its subscription (LEDGER_TABLES below).
-        "app_hook_deliveries",  # vendor webhook deliveries an install accepted;
+        "plugin_hook_deliveries",  # vendor webhook deliveries an install accepted;
         # read through the install (LEDGER_TABLES below).
-        "app_schedule_runs",  # when an install's schedules last ran and run
+        "plugin_schedule_runs",  # when an install's schedules last ran and run
         # next; read through the install (LEDGER_TABLES below).
         "tags",  # tags are guild-level, shared across initiatives (purge-guarded)
         # Structural initiative tables — guild-scoped for reading (a roster is
@@ -274,21 +143,21 @@ GUILD_LEVEL_TABLES: frozenset[str] = frozenset(
         # or pref, so these carry own_row_* policies (owner OR guild admin).
         "guild_ai_member_keys",
         "guild_ai_member_prefs",
-        # A member's own connection to an installed app's vendor. No FK to any
-        # initiative — an app is guild-wide — so it can't use initiative_access.
+        # A member's own connection to an installed plug-in's vendor. No FK to any
+        # initiative — a plug-in is guild-wide — so it can't use initiative_access.
         # Rows belong to ONE member and hold that member's credential, so it
         # carries own_row_* policies: the owner manages their own, and a guild
         # admin manages every one in their guild (a personal connection is
         # guild-governed access, not private property). The ciphertext is never
         # returned by the API to anyone, admin included.
-        "guild_app_user_connections",
-        # A member's answer to an installed app asking to act as them, one per
+        "guild_plugin_user_connections",
+        # A member's answer to an installed plug-in asking to act as them, one per
         # purpose. The same shape as the connections beside it: no FK to any
         # initiative is required (a purpose may be app-wide), one owner per
         # row, and the community's administration reads and revokes, so
         # own_row_* policies. A member token's standing reads the member's own
         # row for its install.
-        "app_member_consents",
+        "plugin_member_consents",
     }
 )
 
@@ -322,13 +191,13 @@ OWN_ROW_TABLES: dict[str, str] = {
     "import_jobs": "created_by",
     "guild_ai_member_keys": "user_id",
     "guild_ai_member_prefs": "user_id",
-    "guild_app_user_connections": "user_id",
-    "app_member_consents": "user_id",
+    "guild_plugin_user_connections": "user_id",
+    "plugin_member_consents": "user_id",
 }
 
 # --- Seat overlay on guild-level tables ---------------------------------------
 # Guild-level configuration the community's seat holds. Read within the schema:
-# a member's AI request reads the connection it runs on, and opening an app
+# a member's AI request reads the connection it runs on, and opening a plug-in
 # reads where it is placed. Written by the seat — the membership row's
 # superadmin, or a superadmin settings grant beside a read_write content grant
 # — or the system engine; the same answer the routes in front of it ask for.
@@ -338,11 +207,11 @@ OWN_ROW_TABLES: dict[str, str] = {
 # ``GUILD_LEVEL_TABLES`` — enforced in ``tenancy_test.py``.
 SEAT_TABLES: frozenset[str] = frozenset(
     {
-        "app_placements",
+        "plugin_placements",
         "guild_ai_connection_keys",
         "guild_ai_connections",
-        "guild_app_secrets",
-        "guild_apps",
+        "guild_plugin_secrets",
+        "guild_plugins",
     }
 )
 
@@ -352,7 +221,7 @@ SEAT_TABLES: frozenset[str] = frozenset(
 # read predicate is the seat's. Every entry here MUST also be in
 # ``SEAT_TABLES`` — enforced in ``tenancy_test.py``.
 SEAT_READ_TABLES: frozenset[str] = frozenset(
-    {"guild_ai_connection_keys", "guild_app_secrets"}
+    {"guild_ai_connection_keys", "guild_plugin_secrets"}
 )
 
 # --- Ledger overlay on guild-level tables -------------------------------------
@@ -364,8 +233,8 @@ SEAT_READ_TABLES: frozenset[str] = frozenset(
 # ``GUILD_LEVEL_TABLES`` — enforced in ``tenancy_test.py``.
 LEDGER_TABLES: dict[str, tuple[str, str]] = {
     "webhook_deliveries": ("webhook_subscriptions", "subscription_id"),
-    "app_hook_deliveries": ("guild_apps", "install_id"),
-    "app_schedule_runs": ("guild_apps", "install_id"),
+    "plugin_hook_deliveries": ("guild_plugins", "install_id"),
+    "plugin_schedule_runs": ("guild_plugins", "install_id"),
 }
 
 # --- Row-attribution overlay on guild-schema tables ---------------------------
@@ -392,15 +261,15 @@ CREATED_BY_EXEMPT_TABLES: frozenset[str] = frozenset(
         # the author and the subject, so a second copy of it says nothing.
         "guild_ai_member_keys",
         "guild_ai_member_prefs",
-        "guild_app_user_connections",
-        "app_member_consents",
+        "guild_plugin_user_connections",
+        "plugin_member_consents",
         "post_reads",
         # A fact about an install: where it appears. The rows a new initiative's
         # trigger writes have no person placing them.
-        "app_placements",
+        "plugin_placements",
         # An install's secret values, one row per install. The install row
         # names who made it.
-        "guild_app_secrets",
+        "guild_plugin_secrets",
         # A connection's shared key. The connection row names who made it.
         "guild_ai_connection_keys",
         # A ballot: ``user_id`` is the voter, which is both the author of the
@@ -415,9 +284,9 @@ CREATED_BY_EXEMPT_TABLES: frozenset[str] = frozenset(
         # by a person; each already records the actor it needs (the outbox
         # carries ``actor_user_id``) or has none to record.
         "event_outbox",
-        "app_event_outbox",
-        "app_hook_deliveries",
-        "app_schedule_runs",
+        "plugin_event_outbox",
+        "plugin_hook_deliveries",
+        "plugin_schedule_runs",
         "event_reminder_dispatches",
         "search_entries",
         "reaction_digest_items",

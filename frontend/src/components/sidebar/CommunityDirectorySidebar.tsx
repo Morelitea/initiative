@@ -19,7 +19,7 @@
 import { Link, useSearch } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
-import { CommunitySearchField } from "@/components/guilds/CommunitySearchField";
+import { CommunitySearchField } from "@/components/communities/CommunitySearchField";
 import {
   SidebarContent,
   SidebarGroup,
@@ -30,18 +30,22 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { asGuildCategories, GUILD_CATEGORIES, guildCategoryLabel } from "@/lib/guildCategories";
+import {
+  asCommunityCategories,
+  COMMUNITY_CATEGORIES,
+  communityCategoryLabel,
+} from "@/lib/communityCategories";
 
 export const CommunityDirectorySidebar = () => {
-  const { t } = useTranslation(["guilds", "common"]);
+  const { t } = useTranslation(["communities", "common"]);
   // Read loosely rather than through the route: this renders inside the app
   // shell, which is mounted above the route that declares these params.
   const search = useSearch({ strict: false }) as { category?: unknown };
-  const categories = asGuildCategories(search.category);
+  const categories = asCommunityCategories(search.category);
 
   // A shelf opens on itself alone, and shows as open while it is among the
   // ones picked; "All" is open when none are.
-  const shelf = (value: (typeof GUILD_CATEGORIES)[number] | undefined, label: string) => (
+  const shelf = (value: (typeof COMMUNITY_CATEGORIES)[number] | undefined, label: string) => (
     <SidebarMenuItem key={value ?? "all"}>
       <SidebarMenuButton
         asChild
@@ -68,7 +72,7 @@ export const CommunityDirectorySidebar = () => {
       >
         <div className="flex h-12 min-w-0 items-center gap-2 px-2.5">
           <h2 className="min-w-0 flex-1 truncate font-semibold text-lg">
-            {t("guilds:community.title")}
+            {t("communities:community.title")}
           </h2>
         </div>
       </SidebarHeader>
@@ -79,11 +83,11 @@ export const CommunityDirectorySidebar = () => {
           </SidebarGroupContent>
         </SidebarGroup>
         <SidebarGroup>
-          <SidebarGroupLabel>{t("guilds:community.categoriesHeading")}</SidebarGroupLabel>
+          <SidebarGroupLabel>{t("communities:community.categoriesHeading")}</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {shelf(undefined, t("guilds:community.allCategories"))}
-              {GUILD_CATEGORIES.map((value) => shelf(value, guildCategoryLabel(value, t)))}
+              {shelf(undefined, t("communities:community.allCategories"))}
+              {COMMUNITY_CATEGORIES.map((value) => shelf(value, communityCategoryLabel(value, t)))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

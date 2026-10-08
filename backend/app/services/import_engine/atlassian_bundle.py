@@ -23,6 +23,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+from app.core.tools import Tool, tool_envelope_type
 from app.services.import_engine.common import handle_key
 from app.services.import_engine.confluence_attachments import PageFile
 from app.services.import_engine.jira_attachments import StoredImage
@@ -154,7 +155,7 @@ class BundleWriter:
         ``target_initiative_id`` — the one the person picked — so the applier
         files everything into it rather than creating one named after a site.
 
-        ``wiki_files`` are the file documents each space's pages had attached,
+        ``wiki_files`` are the uploaded files each space's pages had attached,
         by the space's key: each is an entry of its own, filed in its wiki
         under the page it was attached to, and named by its asset's path — the
         ref a page's mention of it carries.
@@ -191,8 +192,8 @@ class BundleWriter:
 
         for index, (key, envelope) in enumerate(projects, start=1):
             add(
-                "project",
-                "initiative-project",
+                Tool.project.value,
+                tool_envelope_type(Tool.project),
                 f"initiatives/1-imported/projects/{index}-{_safe(key, 'project')}"
                 ".initiative-project.json",
                 envelope["project"]["name"],
@@ -200,35 +201,41 @@ class BundleWriter:
             )
         for index, calendar in enumerate(calendars, start=1):
             add(
-                "calendar",
-                "initiative-calendar",
+                Tool.calendar.value,
+                tool_envelope_type(Tool.calendar),
                 f"initiatives/1-imported/calendars/{index}-{_safe(calendar['name'], 'sprints')}"
                 ".initiative-calendar.json",
                 calendar["name"],
                 calendar,
             )
-        documents: list[StoredImage] = []
+        files: list[StoredImage] = []
         for index, (key, envelope) in enumerate(wikis, start=1):
             wiki_path = (
                 f"initiatives/1-imported/wikis/{index}-{_safe(key, 'space')}"
                 ".initiative-wiki.json"
             )
-            add("wiki", "initiative-wiki", wiki_path, envelope["name"], envelope)
+            add(
+                Tool.wiki.value,
+                tool_envelope_type(Tool.wiki),
+                wiki_path,
+                envelope["name"],
+                envelope,
+            )
             for page_file in wiki_files.get(key, ()):
-                document = page_file.stored
-                documents.append(document)
+                file = page_file.stored
+                files.append(file)
                 entries.append(
                     {
-                        "path": f"assets/{document.storage_key}",
-                        "tool": "document",
+                        "path": f"assets/{file.storage_key}",
+                        "tool": Tool.file.value,
                         "type": "file",
                         "schema_version": None,
                         "entity_id": len(entries) + 1,
-                        "title": document.filename,
+                        "title": file.filename,
                         "initiative_id": 1,
                         "tags": [],
                         "properties": [],
-                        "asset": f"assets/{document.storage_key}",
+                        "asset": f"assets/{file.storage_key}",
                         "attach_to": {
                             "kind": "wiki",
                             "ref": wiki_path,
@@ -237,26 +244,26 @@ class BundleWriter:
                     }
                 )
 
-        for document in task_files:
-            documents.append(document)
+        for file in task_files:
+            files.append(file)
             entries.append(
                 {
-                    "path": f"assets/{document.storage_key}",
-                    "tool": "document",
+                    "path": f"assets/{file.storage_key}",
+                    "tool": Tool.file.value,
                     "type": "file",
                     "schema_version": None,
                     "entity_id": len(entries) + 1,
-                    "title": document.filename,
+                    "title": file.filename,
                     "initiative_id": 1,
                     "tags": [],
                     "properties": [],
-                    "asset": f"assets/{document.storage_key}",
+                    "asset": f"assets/{file.storage_key}",
                 }
             )
 
         assets = []
         listed: set[str] = set()
-        for image in (*images, *documents):
+        for image in (*images, *files):
             path = f"assets/{image.storage_key}"
             if path not in self._assets:
                 raise RuntimeError(f"asset listed but never written: {path}")
@@ -274,12 +281,12 @@ class BundleWriter:
             )
 
         tools = {
-            tool: "included"
+            tool.value: "included"
             for tool, present in (
-                ("project", projects),
-                ("calendar", calendars),
-                ("wiki", wikis),
-                ("document", documents),
+                (Tool.project, projects),
+                (Tool.calendar, calendars),
+                (Tool.wiki, wikis),
+                (Tool.file, files),
             )
             if present
         }

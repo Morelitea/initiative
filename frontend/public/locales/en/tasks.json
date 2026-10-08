@@ -12,7 +12,6 @@
     "urgent": "Urgent"
   },
   "filters": {
-    "heading": "Filters",
     "statusCategory": "Status category",
     "filterByStatusCategory": "Filter by status category",
     "allStatusCategories": "All status categories",
@@ -21,9 +20,9 @@
     "priorityLabel": "Priority",
     "allPriorities": "All priorities",
     "noPriorities": "No priorities available",
-    "filterByGuild": "Filter by community",
-    "allGuilds": "All communities",
-    "noGuilds": "No communities available",
+    "filterByCommunity": "Filter by community",
+    "allCommunities": "All communities",
+    "noCommunities": "No communities available",
     "filterPlaceholder": "Filter tasks..."
   },
   "columns": {
@@ -33,7 +32,7 @@
     "startDate": "Start Date",
     "dueDate": "Due Date",
     "dateWindow": "Date window",
-    "guild": "Community",
+    "community": "Community",
     "projectPath": "Project Path",
     "priority": "Priority",
     "tags": "Tags",
@@ -44,7 +43,7 @@
     "markInProgress": "Mark task as in progress"
   },
   "errors": {
-    "guildContext": "Unable to determine community context for this task.",
+    "communityContext": "Unable to determine community context for this task.",
     "statusUpdate": "Unable to update task status.",
     "statusNoMatch": "Unable to update task status. No matching status found."
   },
@@ -134,10 +133,10 @@
   },
   "myTasks": {
     "title": "My Tasks",
-    "noGuild": "No Community",
+    "noCommunity": "No Community",
     "loadError": "Unable to load your tasks.",
     "groupByDate": "Date",
-    "groupByGuild": "Community"
+    "groupByCommunity": "Community"
   },
   "myCalendar": {
     "title": "My Calendar"
@@ -154,7 +153,6 @@
     "addPlaceholder": "Add checklist item",
     "itemPlaceholder": "Checklist item",
     "readOnlyPlaceholder": "Read-only",
-    "readOnlyMessage": "You only have read access, so checklist changes are disabled.",
     "aiDialogTitle": "AI-generated checklist",
     "aiDialogDescription": "Select the steps you want to add to this task.",
     "addSelected": "Add Selected ({{count}})",
@@ -190,29 +188,10 @@
     "moving": "Moving…",
     "moveTask": "Move task"
   },
-  "bulkEditTags": {
-    "title": "Edit Tags",
-    "descriptionAdd": "Add tags to {{count}} selected task.",
-    "descriptionAdd_other": "Add tags to {{count}} selected tasks.",
-    "descriptionRemove": "Remove tags from {{count}} selected task.",
-    "descriptionRemove_other": "Remove tags from {{count}} selected tasks.",
-    "tabAdd": "Add",
-    "tabRemove": "Remove",
-    "addPlaceholder": "Select tags to add...",
-    "removePlaceholder": "Select tags to remove...",
-    "noTags": "No tags on the selected tasks.",
-    "applying": "Applying…",
-    "apply": "Apply",
-    "tagsAdded": "Tags added to {{count}} task",
-    "tagsAdded_other": "Tags added to {{count}} tasks",
-    "tagsRemoved": "Tags removed from {{count}} task",
-    "tagsRemoved_other": "Tags removed from {{count}} tasks",
-    "updateError": "Unable to update tags right now."
-  },
   "createWizard": {
     "title": "Add Task",
     "lastUsed": "Last used",
-    "selectGuild": "Select a community",
+    "selectCommunity": "Select a community",
     "selectInitiative": "Select an initiative",
     "selectProject": "Select a project",
     "noInitiatives": "No initiatives found in this community.",

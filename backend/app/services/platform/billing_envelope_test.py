@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 
 import jwt
 import pytest
+from starlette.datastructures import Headers
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
@@ -84,7 +85,7 @@ def test_previous_hmac_secret_verifies_during_rotation(envelope, caplog) -> None
         claims = verify_billing_envelope(
             method=METHOD,
             path=PATH,
-            headers=headers,
+            headers=Headers(headers),
             body=BODY,
         )
     assert claims.jti == "rotation-contract"
@@ -103,7 +104,7 @@ def test_previous_hmac_secret_does_not_log_until_jwt_verifies(envelope, caplog) 
             verify_billing_envelope(
                 method=METHOD,
                 path=PATH,
-                headers=headers,
+                headers=Headers(headers),
                 body=BODY,
             )
 
@@ -121,7 +122,7 @@ def test_previous_hmac_secret_is_rejected_after_overlap(envelope, monkeypatch) -
         verify_billing_envelope(
             method=METHOD,
             path=PATH,
-            headers=headers,
+            headers=Headers(headers),
             body=BODY,
         )
     assert exc_info.value.code == BillingMessages.INVALID_SIGNATURE
@@ -137,7 +138,9 @@ def test_duplicate_current_value_does_not_log_old_key_traffic(
         "BILLING_HMAC_SECRET_PREVIOUS",
         "current-secret-value",
     )
-    verify_billing_envelope(method=METHOD, path=PATH, headers=headers, body=BODY)
+    verify_billing_envelope(
+        method=METHOD, path=PATH, headers=Headers(headers), body=BODY
+    )
     assert not any(
         "verified_with_previous_secret" in record.getMessage()
         for record in caplog.records

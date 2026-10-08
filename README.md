@@ -1,285 +1,87 @@
 # Initiative
 
-[![User Guide](https://img.shields.io/badge/📖_User_Guide-Learn_how_to_use_Initiative-6f42c1?style=for-the-badge)](https://morelitea.github.io/initiative/)
+[![CI](https://github.com/beyonders-studio/initiative/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/beyonders-studio/initiative/actions/workflows/ci.yml?query=branch%3Amain+event%3Apush)
+[![Latest Release](https://img.shields.io/github/v/release/beyonders-studio/initiative?sort=semver)](https://github.com/beyonders-studio/initiative/releases)
+[![License](https://img.shields.io/github/license/beyonders-studio/initiative)](LICENSE)
 
-[![CI](https://github.com/Morelitea/initiative/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/Morelitea/initiative/actions/workflows/ci.yml?query=branch%3Amain+event%3Apush)
-[![Latest Release](https://img.shields.io/github/v/release/Morelitea/initiative?sort=semver)](https://github.com/Morelitea/initiative/releases)
-[![License](https://img.shields.io/github/license/Morelitea/initiative)](https://github.com/Morelitea/initiative/blob/main/LICENSE)
-[![Docker](https://img.shields.io/docker/v/morelitea/initiative?sort=semver\&label=Docker)](https://hub.docker.com/r/morelitea/initiative)
+Initiative is a shared workspace for groups that need to get things done together, like a small business, a club, a committee, the people running the community theater fundraiser, or your family. Projects, tasks, files, calendars and the rest live in one place, so the plan stops being spread across a group chat and three spreadsheets.
 
+You can start with one board and a few tasks and never touch anything else. When the group needs more, the other tools are already there, and you decide who gets to see and change each one.
 
+![Initiative showing a project board](docs/en/images/home/overview.png)
 
-> **Pre-release software** — this project hasn't reached v1.0.0 yet. The API may change between minor releases.
+The [user guide](https://beyonders-studio.github.io/initiative/) covers using Initiative and running your own server.
 
-<img width="1920" height="1080" alt="initiative" src="https://github.com/user-attachments/assets/f4036737-8aee-4a7c-adb3-d657d10e3833" />
+> [!NOTE]
+> Initiative hasn't reached 1.0 yet, so the API can still change between minor releases.
 
----
+## What's in it
 
-## What is Initiative?
+- Projects and tasks, with board, table and calendar views
+- Files with real-time editing, including documents, spreadsheets and whiteboards
+- Calendars, posts, wikis, galleries, queues, counters and dashboards
+- Communities with initiatives inside them, and sharing down to a single project or file
+- A marketplace of plug-ins, dashboards and ready-made projects, fed by the Initiative registry
+- Apps for iPhone, Android, Windows, Mac and Linux, and an installable web app
 
-**Initiative is a shared workspace for organizing the things a group needs to get done.** Projects, tasks, documents, calendars, and other tools all live together, so you don't have to stitch your work across a dozen different apps.
+## The Initiative registry
 
-It's designed for **small businesses, clubs, committees, event teams, families, and other groups** that need to coordinate work without becoming project-management experts.
+The Initiative registry is a live, signed catalog of plug-ins, dashboards and ready-made projects, published at `https://beyonders-studio.github.io/initiative-developer/public/`. That address is built into Initiative, so every server follows the registry from its first start with nothing to set up. It checks for new listings every fifteen minutes and shows them in its communities' marketplaces, and every file is checked against Initiative's built-in key before it's used.
 
-Start with a board and a few tasks. As your needs grow, add the tools you need — and leave everything else out of the way.
+The registry is built from [initiative-developer](https://github.com/beyonders-studio/initiative-developer), and getting a listing into it is a pull request there. Once it's merged, it reaches every server that follows the registry. Plug-ins are written with the [plug-in SDK](https://github.com/beyonders-studio/initiative-plugin-sdk), and [Publishing your own listings](https://beyonders-studio.github.io/initiative/en/running-a-server/publishing-listings/#publishing-to-the-initiative-registry) walks through the rest.
 
-Initiative also gives you fine-grained control over **who can see and change your work**, and a marketplace lets you add ready-made apps and dashboards built by other groups.
+## Self-hosting
 
-**It's project management that starts simple and grows with you.**
+Initiative is one image, `ghcr.io/beyonders-studio/initiative` (`linux/amd64` and `linux/arm64`), run beside Postgres. [docker-compose.example.yml](docker-compose.example.yml) is the supported setup, and it reads three required values from `.env`:
 
----
+| Variable | |
+|---|---|
+| `APP_URL` | The public address people reach it at |
+| `SECRET_KEY` | At least 32 characters. It encrypts stored data, so don't rotate it casually |
+| `POSTGRES_PASSWORD` | Only read when the database is first created. It goes into the connection URL, so keep it alphanumeric |
 
-## Roadmap
+The app listens on port 8173. Behind a reverse proxy, uncomment `BEHIND_PROXY`. The first account to register becomes the server owner.
 
-### Where we are
+Tags are `latest`, `stable` (promoted after a few days with no regressions) and version numbers.
 
-Initiative is already a full-featured workspace for groups:
+> [!WARNING]
+> Don't run the `dev` tag on a server you care about. It's built from unreleased work, and its database migrations often change between builds before a release settles them. A database that ran one of those in-between migrations may have no upgrade path to the release, so you'd be restoring from a backup.
 
-* **Tasks & projects** with Kanban, Table, Calendar, and other views
-* **Collaborative documents** including rich text, spreadsheets, and whiteboards with real-time editing
-* **Calendars, bulletin boards, queues, counters, dashboards, and more**
-* A curated **marketplace** of ready-made apps and dashboards
-* **Notifications** and BYOK AI integration
-* **Self-hosting** with Docker and support for multiple guilds
+These pages cover the rest:
 
-### What's next
+- [Installation](https://beyonders-studio.github.io/initiative/en/running-a-server/installation/) has the image tags, PUID/PGID and the database setup
+- [Configuration](https://beyonders-studio.github.io/initiative/en/running-a-server/configuration/) lists every setting
+- [Email](https://beyonders-studio.github.io/initiative/en/running-a-server/email/), [single sign-on](https://beyonders-studio.github.io/initiative/en/running-a-server/single-sign-on/) and [push notifications](https://beyonders-studio.github.io/initiative/en/running-a-server/push-notifications/)
+- [Backups and updates](https://beyonders-studio.github.io/initiative/en/running-a-server/backups-and-updates/)
 
-**🧩 More apps, more possibilities**
-We're continuing to build the marketplace and the ecosystem around it — more dashboards, more useful apps, and better ways for groups to build and share their own.
-
-**🌎 A more connected community**
-Initiative is becoming more than a place for private work. We're adding **public content, user profiles, and community features** that make it possible to discover what other people and groups are building.
-
-**✨ Polish everything**
-Accessibility, UX improvements, performance, testing, and the countless little things that make Initiative nicer to use.
-
-**🔌 Connect to the rest of your world**
-Better APIs, integrations, templates, and apps that securely connect Initiative to the tools your group already uses.
-
-### Where we're headed
-
-Initiative is **bootstrapped by two people**, and we're building it for the long haul — not toward an acquisition, IPO, or enterprise sales machine.
-
-Initiative is **open core**. The application — everything you self-host — stays **open source under the AGPL**. Apps can be built and distributed independently, whether they're hosted inside Initiative or run as separate services. See [License](#license) for what's open and what isn't.
-
-We're also building **Initiative Cloud** for groups who don't want to manage their own infrastructure, with paid features like hosted apps, automations, and other conveniences that make Initiative easier to run.
-
-**Build something useful. Share it. Find something someone else built. Make Initiative your own.**
-
----
-
-## Quick Start
-
-### Docker Compose (Recommended)
-
-```bash
-# 1. Download the example compose file
-curl -O https://raw.githubusercontent.com/Morelitea/initiative/main/docker-compose.example.yml
-cp docker-compose.example.yml docker-compose.yml
-
-# 2. Edit configuration — set a secure SECRET_KEY at minimum
-nano docker-compose.yml
-
-# 3. Start the application
-docker-compose up -d
-
-# 4. Access Initiative at http://localhost:8173
-```
-
-**What's included:**
-
-- PostgreSQL 17 with persistent storage and Row Level Security
-- Automatic database role creation and migrations
-- React frontend served via FastAPI
-- Health checks and automatic restarts
-
-**First-time setup:**
-
-1. The first user to register becomes the platform owner
-2. Configure SMTP under **Settings → Platform → Email** to enable email notifications
-3. Create your first guild and start inviting people
-
-See [Key Environment Variables](#key-environment-variables) for full configuration options.
-
-> [!CAUTION]
-> **Do not use `dev` images for production or customer deployments.** `dev` contains experimental work that may not make it into a stable release. Use `latest` or a tagged release from `main`.
-
-### Docker Hub Images
-
-```bash
-docker pull morelitea/initiative:latest    # latest release
-docker pull morelitea/initiative:0.71      # specific minor
-```
-
-Images support `linux/amd64` and `linux/arm64` architectures.
-
----
+If you'd rather not run a server, there's a [hosted option](https://beyonders-studio.github.io/initiative/en/self-host-or-hosted/) too.
 
 ## Apps
 
-Initiative is a **PWA** — open it over HTTPS and install it from the browser (address-bar install icon on desktop Chrome/Edge, **Add tab to taskbar** in Firefox on Windows, **Add to Home Screen** on iOS Safari, **Install app** on Android Chrome). It gets its own window, stays signed in, and serves recently viewed projects and tasks offline.
+The phone apps are on the App Store and Google Play under Initiative, by Beyonders Studio. On Android you can also install from the releases page, or let Obtainium keep it updated for you:
 
-**Android** also has a native Capacitor app, which adds push notifications. It pulls each new web bundle from your server over the air, so you only reinstall when the native shell changes.
+[<img src="https://raw.githubusercontent.com/ImranR98/Obtainium/main/assets/graphics/badge_obtainium.png" alt="Get it on Obtainium" width="200">](https://apps.obtainium.imranr.dev/redirect?r=obtainium%3A%2F%2Fadd%2Fhttps%3A%2F%2Fgithub.com%2Fbeyonders-studio%2Finitiative)
 
-[<img src="https://raw.githubusercontent.com/ImranR98/Obtainium/main/assets/graphics/badge_obtainium.png" alt="Get it on Obtainium" width="240">](https://apps.obtainium.imranr.dev/redirect?r=obtainium%3A%2F%2Fadd%2Fhttps%3A%2F%2Fgithub.com%2FMorelitea%2Finitiative)
+The desktop installers (`.exe`, `.dmg` and `.deb`) are attached to releases that change the app. Most releases only change the web side, which the apps pick up from your server on their own, so they don't come with new installers. [Installing the app](https://beyonders-studio.github.io/initiative/en/getting-started/install-the-app/) has the details.
 
-Or take the newest [release](https://github.com/Morelitea/initiative/releases) with an `.apk` attached — the app is only rebuilt when the native shell changes, so most releases carry none. Full instructions: [Installing the app](https://morelitea.github.io/initiative/en/getting-started/install-the-app/).
+## Built with
 
----
-
-## Configuration
-
-### Key Environment Variables
-
-| Variable | Description | Default |
-|---|---|---|
-| `DATABASE_URL` | PostgreSQL connection as the database owner (see [Database connection](#database-connection)) | Required |
-| `SECRET_KEY` | JWT signing and encryption key | Required |
-| `APP_URL` | Public base URL (required for OIDC callbacks) | - |
-| `DISABLE_GUILD_CREATION` | Restrict guild creation to `guilds.manage` holders (operator and owner) | `false` |
-| `ENABLE_PUBLIC_REGISTRATION` | Allow registration without invite link | `true` |
-| `ENABLE_MCP` | Mount the in-app MCP server at `/api/v1/mcp/` for AI assistants (see [MCP Server](#mcp-server)) | `false` |
-| `MARKETPLACE_EXTRA_CATALOG_DIR` | Directory of your own marketplace listing files (see [Publishing your own listings](docs/en/running-a-server/publishing-listings.md)) | - |
-| `CAPTCHA_PROVIDER` / `CAPTCHA_SITE_KEY` / `CAPTCHA_SECRET_KEY` | Captcha on registration and emailed sign-in codes (`hcaptcha`, `turnstile`, or `recaptcha` v2). First boot only; then **Settings → Platform → Security** | - |
-| `BEHIND_PROXY` | Trust `X-Forwarded-For` headers | `false` |
-| `FORWARDED_ALLOW_IPS` | Trusted proxy IPs (when `BEHIND_PROXY=true`) | `*` |
-| `FIRST_OWNER_EMAIL` | Bootstrap owner email (legacy `FIRST_SUPERUSER_EMAIL` accepted) | - |
-| `FIRST_OWNER_PASSWORD` | Bootstrap owner password (legacy `FIRST_SUPERUSER_PASSWORD` accepted) | - |
-| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USERNAME` / `SMTP_PASSWORD` | SMTP server configuration. First boot only; then **Settings → Platform → Email** | - |
-| `SMTP_FROM_ADDRESS` | Email sender address. First boot only | - |
-| `FCM_ENABLED` (+ `FCM_*`) | Firebase Cloud Messaging for mobile push. First boot only; then **Settings → Platform → Push notifications** | `false` |
-| `PUID` | UID the container runs as (for rootless/NAS setups) | `1000` |
-| `PGID` | GID the container runs as (for rootless/NAS setups) | `1000` |
-
-For FCM setup, see [docs/en/running-a-server/push-notifications.md](docs/en/running-a-server/push-notifications.md). For a complete list of options, see `backend/.env.example`.
-
-### Database connection
-
-Set **`DATABASE_URL`** to the database, connecting as its **owner**. At startup the app uses it to create three least-privilege logins, hand them the schema and install the guild-search match operator, then closes it and serves everything on those logins:
-
-- **`app_provisioner`** runs migrations and creates/removes guild schemas. Deliberately *not* a superuser.
-- **`app_user`** is the role every request runs on.
-- **`app_admin`** is the system role for background jobs and startup seeding.
-
-Their passwords are derived from `SECRET_KEY` and re-applied on every start, so rotating `SECRET_KEY` rotates them too. The [example compose file](docker-compose.example.yml) points `DATABASE_URL` at the `POSTGRES_USER` it creates, so `docker compose up` works as-is.
-
-**Naming the logins yourself** (a pooler with its own user list, managed Postgres, a DBA): set `DATABASE_URL` to `app_provisioner` and add `DATABASE_URL_APP` (`app_user`) and `DATABASE_URL_ADMIN` (`app_admin`). Add `DATABASE_URL_BOOTSTRAP` as the owner and the app creates those logins with the passwords in their URLs; leave it out and the app only checks they exist. `python -m app.db.bootstrap --print-sql` prints exactly what to apply by hand.
-
-### Running as a non-root user (PUID/PGID)
-
-The container **starts as root** so its entrypoint can create the runtime user, fix ownership on the uploads volume, and then drop privileges with `gosu`. The main uvicorn process runs unprivileged — by default UID/GID `1000:1000` with no Linux capabilities.
-
-To run as a different UID/GID (for example, to match the NAS user that owns the `uploads` volume), set the **`PUID`/`PGID`** environment variables. **Do not** add a Docker `user:` (Compose) or `--user` (run) override — that starts the entrypoint as non-root, so it can't create the user and fails with `fatal: Only root may add a user or group to the system`. `PUID`/`PGID` is the supported knob; `0` (root) is rejected.
-
----
-
-## MCP Server
-
-Initiative ships an optional, in-app [MCP](https://modelcontextprotocol.io/) server so MCP-compatible AI assistants (such as [Claude Code](https://claude.com/claude-code)) can work with your data on your behalf. It is **route-backed**: every tool call runs through the real API with your authentication and the same Row-Level-Security access rules as the app, so a tool can only ever reach data *you* can reach — scoped per guild and initiative. It is **off by default**.
-
-### Enable it
-
-Set `ENABLE_MCP=true` (in `.env` or your container environment) and restart — the endpoint is mounted at startup:
-
-```
-ENABLE_MCP=true
-```
-
-The server is then served at **`/api/v1/mcp/`** (note the trailing slash) on your deployment's public host — i.e. **`<APP_URL>/api/v1/mcp/`**, using the same `APP_URL` you set in `.env`. (For local testing that's `http://localhost:8173/api/v1/mcp/`; `localhost` is for testing only, not your launched URL.) Because it is in-app, it ships in the Docker image — flipping the env var is all a deployer needs. Leave it off where you don't want the surface; it is gated at the infra level, not by a UI toggle.
-
-### Connect a client (Claude Code example)
-
-1. **Mint a personal API key** in **Settings → Security**. Tick **Read-only** for read access only (recommended for most uses); pin it to a **single guild** to limit its blast radius. A full-access key is required only if you want the write tools.
-2. **Register the server:**
-
-   ```bash
-   claude mcp add --transport http initiative \
-     https://your-host/api/v1/mcp/ \
-     --header "Authorization: Bearer ppk_your_key_here"
-   ```
-
-3. **Use it** — ask your assistant things like *"list my projects in Initiative"* or *"add a task to the Auth project."* Write actions are confirmed by the client before they run.
-
-### What it can access
-
-The surface is curated and **default-deny** — only the following are exposed. Everything else (tags, properties, membership and roles, operator endpoints, auth, settings, uploads and downloads, deletes, archiving, bulk operations, sharing/grants, and AI generation) is **not**.
-
-**Reads** (any API key) — initiatives and every tool they hold:
-
-| Tool | Endpoint |
-|---|---|
-| List / read initiatives (+ members, roles, your permissions) | `GET /c/{guild}/initiatives…` |
-| List / read projects (+ activity, favorites, task statuses) | `GET /c/{guild}/projects…` |
-| List / read tasks | `GET /c/{guild}/tasks…` |
-| List / read documents (+ versions, backlinks) | `GET /c/{guild}/documents…` |
-| List / read queues and their items | `GET /c/{guild}/queues…` |
-| List / read counter groups and counters | `GET /c/{guild}/counter-groups…` |
-| List / read calendars and their events | `GET /c/{guild}/calendars…`, `GET /c/{guild}/calendar-entries/` (a window, repeats expanded), `GET /c/{guild}/calendar-events/{id}` |
-| List / read notices | `GET /c/{guild}/posts…` |
-| List / read dashboards, and what a tile currently shows | `GET /c/{guild}/dashboards…` |
-| Read a comment thread, or one comment | `GET /c/{guild}/comments…` |
-| Your projects / tasks / documents / calendars across all guilds | `GET /me/projects`, `GET /me/tasks`, … |
-
-**Writes** (full-access key only — a read-only key is rejected with `403`; each is confirmed in the client) — create and edit each of the same things:
-
-| Tool | Endpoint |
-|---|---|
-| Create / edit a project | `POST /c/{guild}/projects/`, `PATCH …/projects/{id}` |
-| Create / edit / move a task | `POST /c/{guild}/tasks/`, `PATCH …/tasks/{id}`, `POST …/tasks/{id}/move` |
-| Create / edit a document | `POST /c/{guild}/documents/`, `PATCH …/documents/{id}` |
-| Create / edit a queue, and its items | `POST /c/{guild}/queues/`, `PATCH …/queues/{id}`, `POST …/queues/{id}/items`, `PATCH …/items/{id}` |
-| Create / edit a counter group, and its counters | `POST /c/{guild}/counter-groups/`, `PATCH …/{id}`, `POST …/counters`, `PATCH …/counters/{id}` |
-| Move a counter's count | `POST /c/{guild}/counters/{id}/set`, `POST /c/{guild}/counters/{id}/step` |
-| Create / edit a calendar, and its events | `POST /c/{guild}/calendars/`, `PATCH …/{id}`, `POST /c/{guild}/calendar-events/`, `PATCH …/{id}` |
-| Create / edit a notice | `POST /c/{guild}/posts/`, `PATCH …/posts/{id}` |
-| Create / edit a dashboard | `POST /c/{guild}/dashboards/`, `PATCH …/dashboards/{id}` |
-| Add / edit a comment | `POST /c/{guild}/comments/`, `PATCH …/comments/{id}` |
-
-### Security notes
-
-- **Least privilege:** prefer a **read-only**, **single-guild** API key. A read-only key cannot invoke the write tools.
-- **No ambient access:** the tools carry no standing privilege — each call authenticates as the key's user and is scoped by RLS, exactly like a normal request.
-- **Revocable:** delete the key in **Settings → Security** at any time; a password reset also revokes it.
-
----
-
-## Technology Stack
-
-| Layer | Technologies |
-|---|---|
-| **Backend** | FastAPI, SQLModel + SQLAlchemy, PostgreSQL 17, Alembic, asyncpg |
-| **Frontend** | React 19, TypeScript, Vite, React Query, Tailwind CSS, shadcn/ui, dnd-kit |
-| **Mobile** | Capacitor (iOS and Android), Firebase push notifications |
-| **Infrastructure** | Docker, GitHub Actions (multi-arch builds), Dependabot |
-
----
+FastAPI, SQLModel and PostgreSQL on the backend, React, TypeScript and Vite on the frontend, Capacitor for the phone apps and Electron for the desktop app.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for details. PRs must target the `dev` branch.
+[CONTRIBUTING.md](CONTRIBUTING.md) explains how to get a dev environment running and how changes get in. Pull requests go to the `dev` branch, and your first one asks you to sign the [Contributor License Agreement](CLA.md).
 
-By contributing, you agree to the terms of the [Contributor License Agreement](./CLA.md).
-
-**Quick start**: Open the project in VS Code and run **Tasks: Run Task** > **`dev:setup`** from the Command Palette. This starts Postgres, runs migrations, seeds test data, and launches both servers. Login with `admin@example.com` / `changeme`.
-
-## Security
-
-See [SECURITY.md](SECURITY.md) for our security philosophy and how to report vulnerabilities.
-
----
+To report a security problem, follow [SECURITY.md](SECURITY.md) rather than opening an issue.
 
 ## License
 
-Initiative is **open core**.
-
-The application in this repository is **open source** under the [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0) — the whole product, with nothing held back for a paid edition. Copyright is retained by the project maintainers, who reserve all commercial rights.
-
-**What's open:**
+Initiative is open core. Everything in this repository, which is the whole app you self-host, is licensed under the [AGPL-3.0](LICENSE). The maintainers keep the copyright and the commercial rights.
 
 | Repository | License | What it is |
 |---|---|---|
-| [Morelitea/initiative](https://github.com/Morelitea/initiative) | AGPL-3.0 | The application: backend, frontend, and mobile builds |
-| [initiative-app-sdk](https://github.com/Morelitea/initiative-app-sdk) | MIT | The SDK and CLI for writing an app for Initiative |
-| [initiative-developer](https://github.com/Morelitea/initiative-developer) | MIT | The app registry, and the GitHub app to start your own from |
+| [initiative](https://github.com/beyonders-studio/initiative) | AGPL-3.0 | The app: backend, frontend, and the phone and desktop builds |
+| [initiative-plugin-sdk](https://github.com/beyonders-studio/initiative-plugin-sdk) | MIT | The SDK and CLI for writing plug-ins |
+| [initiative-developer](https://github.com/beyonders-studio/initiative-developer) | MIT | The plug-in registry, and a GitHub plug-in to start your own from |
 
-**What isn't:** automations and billing are proprietary, are not published, and are not part of this repository. They exist to run Initiative Cloud; a self-hosted install is the complete product without them.
+Automations and billing are proprietary and live outside this repository. They exist to run the hosted service, and a self-hosted server is the complete product without them.

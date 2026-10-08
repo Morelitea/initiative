@@ -4,7 +4,7 @@ icon: lucide/at-sign
 
 # Mentions & links
 
-Work refers to other work. A document explains a project. A comment asks about a task. A plan points at the rota that feeds it.
+Work refers to other work. A write-up explains a project. A comment asks about a task. A plan points at the rota that feeds it.
 
 Three characters handle all of that:
 
@@ -26,11 +26,15 @@ Names match loosely, so a spelling you're not confident about will still find th
 
 In a task's description, a person hears about it once — when their name goes in. Rewording the sentence around them later doesn't ping them again, which they will appreciate more than they'll ever say.
 
+A mention shows the name the person goes by today — their display name in this community, or their handle — wherever it appears, so it keeps up when they change it. Somebody who has left the community, or whose account was erased, reads as **Former member**.
+
+Searching for that name or handle finds what mentions them, even mentions written before they changed it. Type it in whole words.
+
 ## `#` — linking to a thing
 
-Type `#` and Initiative offers you everything in the initiative: projects, tasks, documents, queues, counters, calendar events, dashboards, posts. Pick one and its name drops into your text as a link.
+Type `#` and Initiative offers you everything in the initiative: every [tool](tools.md), and what's inside them — tasks, events, counters, queue items, pictures, wiki pages. Pick one and its name drops into your text as a link.
 
-Already know what kind of thing you want? Say so and the list narrows: `#task:`, `#queue:`, `#counter-group:`, `#calendar:`, `#dashboard:`, `#document:`, `#project:`, `#post:`.
+Already know what kind of thing you want? Say so and the list narrows: `#task:`, `#file:`, `#project:`, `#queue:`, `#counter-group:`, `#calendar:`, `#dashboard:`, `#post:`, `#gallery:`, `#wiki:`, `#wiki-page:`.
 
 You never *have* to. `#` on its own searches the lot — the prefixes are just a shortcut for when half the community has named something "Planning".
 
@@ -45,7 +49,7 @@ When that happens the picker says so, and explains that the initiative is the li
 
 ## `[[ ]]` — linking, or conjuring
 
-`[[` offers the **tools** in this initiative — projects, documents, queues, counter groups, calendars, dashboards, posts.
+`[[` offers the **[tools](tools.md)** in this initiative.
 
 The difference from `#` is what happens when nothing matches. `[[ ]]` offers to **make** the thing you just named, on the spot, without you abandoning the sentence you were halfway through.
 
@@ -53,9 +57,9 @@ That's why it reaches tools and `#` reaches everything. A tool needs only a name
 
 A tool your initiative has switched off isn't offered, and can't be created this way either.
 
-Every document also shows its **backlinks** — the other documents pointing at it — so you can see what refers to a page without keeping a list yourself. A `#` link counts, not just a `[[ ]]` one, and so does a [smart chip](documents.md#smart-chips) or an [embed](documents.md#embeds). A page pointing at itself doesn't.
+Everything you point at keeps a list of what points back, under **Mentioned in** in its [Connections](#connections), so you can see what refers to a page without keeping a list yourself. A `#` link counts, not just a `[[ ]]` one, and so does a [smart chip](files.md#smart-chips) or an [embed](files.md#embeds). A page pointing at itself doesn't.
 
-In a text document, a `!` in front — `![[` — shows the thing in full instead of linking to it. See [Embeds](documents.md#embeds).
+In a text document, a `!` in front — `![[` — shows the thing in full instead of linking to it. See [Embeds](files.md#embeds).
 
 ## Names look after themselves
 
@@ -73,16 +77,18 @@ It never claims something you can't see doesn't exist, and it never leaves a hol
 
 ## Going further than a link
 
-Inside a text document, a **smart chip** shows what a thing is currently *doing*, not just what it's called — a task's column, an event's date, a counter against its target, a project as **1 / 3** of its tasks done. See [Documents](documents.md#smart-chips).
+Inside a text document, a **smart chip** shows what a thing is currently *doing*, not just what it's called — a task's column, an event's date, a counter against its target, a project as **1 / 3** of its tasks done. See [Files](files.md#smart-chips).
 
 The same readings show up on anything you've linked, so a relation is never just a name.
 
-## Relations
+## Connections
 
 A `#` link says *that* two things are connected. A **relation** says *how*.
 
-Every task, document and project has a panel for them. Add one and you get a
-sentence with both names in it:
+Every tool has a **Connections** section, and so do the things inside one — a
+task, an event, a picture, a wiki page. It lists what this thing links to as
+well as what links to it. Add a link and you get a sentence with both names in
+it:
 
 > **This task** *is blocked by* **Order the marquee**
 
@@ -92,21 +98,22 @@ typing.
 
 If the thing isn't in the app yet — a PDF, a photo of the whiteboard — upload
 it right there instead. Choose a file, or drag one onto the panel, and it
-becomes a document in the same initiative, already linked. You need to be
-allowed to make documents in that initiative to see the option.
+lands in Files in the same initiative, already linked. You need to be
+allowed to make files in that initiative to see the option.
 
 | Heading | What it means |
 |---|---|
-| **Attached** | The documents and files this runs on |
+| **Attached** | The files this runs on |
 | **Blocked by** | What has to happen first |
 | **Blocking** | What's waiting on this |
 | **Part of** | The bigger thing this belongs to |
 | **Made up of** | The pieces it's built from |
 | **See also** | Related. No stronger claim than that |
+| **Links to** | Everything this points at |
 | **Mentioned in** | Everything pointing here |
 
-**Mentioned in** writes itself — it's the backlinks from `#` and `[[ ]]` above.
-Edit the words and it follows.
+**Links to** and **Mentioned in** write themselves — they're the `#` and
+`[[ ]]` links above, read from what's written. Edit the words and they follow.
 
 ### "Blocked by" earns its keep
 
@@ -126,16 +133,18 @@ What counts as finished depends on what it is:
 Archived tasks sit it out, so shelving something doesn't keep a project open
 forever.
 
-Anything else — a document, a gallery, a wiki page — still shows up as a link,
+Anything else — a file, a gallery, a wiki page — still shows up as a link,
 and still sits there under **Blocked by** if that's what you said. It just
-isn't counted, because nothing about a document says when it's done.
+isn't counted, because nothing about a file says when it's done.
 
-!!! tip "The panel remembers how you like it"
-    Tiles, a list, a carousel, or a graph of everything within a hop or two.
-    Pick one and that page keeps it.
+!!! tip "Four ways to look at it"
+    **Carousel** (a row of cards to scroll through) is where most things
+    start, and wiki pages start on **List**. There's also **Tiles**, and
+    **Graph**: everything within a hop or a few, with **Show tags** to draw
+    the tags things share. Pick one and that page keeps it.
 
 ## Related
 
-- [Documents](documents.md) — including smart chips.
+- [Files](files.md) — including smart chips.
 - [Search & shortcuts](search-and-shortcuts.md)
 - [Notifications](notifications.md)

@@ -16,8 +16,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useCommunitySettings, useUpdateCommunitySettings } from "@/hooks/useSettings";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
+import { readOptionalWholeNumber } from "@/lib/text";
 
 const MIN_DAYS = 1;
 const MAX_DAYS = 3650;
@@ -63,11 +64,8 @@ const DaysWindowForm = ({
     onError: (err) => toast.error(getErrorMessage(err, "settings:community.saveError")),
   });
 
-  const trimmed = value.trim();
-  const parsed = trimmed === "" ? null : Number.parseInt(trimmed, 10);
-  const valid =
-    parsed === null || (Number.isInteger(parsed) && parsed >= MIN_DAYS && parsed <= MAX_DAYS);
-  const changed = (days === null ? "" : String(days)) !== trimmed;
+  const { value: parsed, valid } = readOptionalWholeNumber(value, MIN_DAYS, MAX_DAYS);
+  const changed = parsed !== days;
 
   return (
     <SettingsSection title={t(`${i18nKey}.title`)} description={t(`${i18nKey}.description`)}>

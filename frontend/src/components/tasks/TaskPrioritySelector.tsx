@@ -11,9 +11,9 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
-import { useUpdateTaskInGuild } from "@/hooks/useTasks";
-import { toast } from "@/lib/chesterToast";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
+import { useUpdateTaskInCommunity } from "@/hooks/useTasks";
+import { toast } from "@/lib/mascotToast";
 
 type TaskPrioritySelectorProps = {
   task: TaskListRead;
@@ -22,7 +22,7 @@ type TaskPrioritySelectorProps = {
 
 export const TaskPrioritySelector = ({ task, disabled }: TaskPrioritySelectorProps) => {
   const { t } = useTranslation("tasks");
-  const activeGuildId = useActiveGuildId();
+  const activeCommunityId = useActiveCommunityId();
 
   const PRIORITIES: { value: TaskPriority; label: string }[] = useMemo(
     () => [
@@ -34,8 +34,8 @@ export const TaskPrioritySelector = ({ task, disabled }: TaskPrioritySelectorPro
     [t]
   );
 
-  // A cross-guild list names each task's guild; a guild page's rows need not.
-  const updatePriority = useUpdateTaskInGuild({
+  // A cross-community list names each task's community; a community page's rows need not.
+  const updatePriority = useUpdateTaskInCommunity({
     onSuccess: (updatedTask) => {
       toast.success(
         t("prioritySelector.changed", { priority: t(`priority.${updatedTask.priority}`) })
@@ -47,7 +47,7 @@ export const TaskPrioritySelector = ({ task, disabled }: TaskPrioritySelectorPro
     const newPriority = value as TaskPriority;
     if (newPriority !== task.priority) {
       updatePriority.mutate({
-        guildId: task.guild_id ?? activeGuildId,
+        communityId: task.community_id ?? activeCommunityId,
         taskId: task.id,
         data: { priority: newPriority },
       });

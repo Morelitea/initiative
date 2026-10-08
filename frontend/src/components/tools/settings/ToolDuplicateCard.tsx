@@ -36,30 +36,36 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { TOOL_HOOKS, useDuplicateTool } from "@/hooks/toolHooks";
+import { useDuplicateTool } from "@/hooks/toolHooks";
 import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
-import { toast } from "@/lib/chesterToast";
-import { useGuildPath } from "@/lib/guildUrl";
+import { useInitiative } from "@/hooks/useInitiatives";
+import { useCommunityPath } from "@/lib/communityUrl";
+import { toast } from "@/lib/mascotToast";
 import { toolDetailRoute } from "@/lib/tools";
 
 /** Whether this viewer may copy it: write on it, or read on a template, which
  *  is made to be copied. Where the copy may go is the dialog's question. A
  *  notice is published rather than reused, so posts offer no copy here. */
 export const canUseDuplicateCard = (tool: Tool, entity: ToolSettingsEntity): boolean =>
-  tool !== Tool.post &&
-  Boolean(TOOL_HOOKS[tool].duplicate) &&
-  (entity.can.edit || Boolean(entity.is_template));
+  tool !== Tool.post && (entity.can.edit || Boolean(entity.is_template));
 
 export const ToolDuplicateCard = () => {
   const { t } = useTranslation("common");
   const router = useRouter();
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
   const { tool, entity } = useToolSettings();
-  const { creatableInitiatives } = useToolCreateAccess(tool);
+  const { creatableInitiatives: creatable } = useToolCreateAccess(tool);
+  // An initiative that keeps its content in is copied only beside itself, so
+  // the card waits until it is known whether this one does.
+  const source = useInitiative(entity.initiative_id ?? null);
+  const keptIn = source.data?.keep_content_in;
+  const creatableInitiatives = keptIn
+    ? creatable.filter((i) => i.id === entity.initiative_id)
+    : creatable;
 
   const [open, setOpen] = useState(false);
   const [initiativeId, setInitiativeId] = useState("");
-  const [name, setName] = useState("");
+  const [typedName, setTypedName] = useState<string | null>(null);
 
   const suggestedName = (id: string) =>
     id === String(entity.initiative_id)
@@ -75,35 +81,42 @@ export const ToolDuplicateCard = () => {
     },
   });
 
-  if (!canUseDuplicateCard(tool, entity) || creatableInitiatives.length === 0) {
+  if (
+    !canUseDuplicateCard(tool, entity) ||
+    creatableInitiatives.length === 0 ||
+    (entity.initiative_id != null && !source.isSuccess)
+  ) {
     return null;
   }
+
+  // The destination chosen, while it is still offered: an initiative that
+  // starts keeping its content in with the dialog open takes the choice back
+  // to itself.
+  const destination = creatableInitiatives.some((i) => String(i.id) === initiativeId)
+    ? initiativeId
+    : String(creatableInitiatives[0].id);
+  // A name typed stays; until then it is the suggestion for the destination.
+  const name = typedName ?? suggestedName(destination);
 
   const openDialog = () => {
     const here = creatableInitiatives.some((i) => i.id === entity.initiative_id);
     const id = String(here ? entity.initiative_id : creatableInitiatives[0].id);
     setInitiativeId(id);
-    setName(suggestedName(id));
+    setTypedName(null);
     setOpen(true);
-  };
-
-  // A name still the suggestion follows the initiative; one typed stays.
-  const chooseInitiative = (id: string) => {
-    if (name === suggestedName(initiativeId)) setName(suggestedName(id));
-    setInitiativeId(id);
   };
 
   const submit = () => {
     if (!name.trim()) return;
     duplicate.mutate({
       id: entity.id,
-      data: { name: name.trim(), target_initiative_id: Number(initiativeId) },
+      data: { name: name.trim(), target_initiative_id: Number(destination) },
     });
   };
 
   return (
     <>
-      <Card className="shadow-sm">
+      <Card>
         <CardHeader>
           <CardTitle>{t("toolSettings.duplicate.title")}</CardTitle>
           <CardDescription>{t("toolSettings.duplicate.description")}</CardDescription>
@@ -122,12 +135,14 @@ export const ToolDuplicateCard = () => {
             <DialogTitle>
               {t("toolSettings.duplicate.dialogTitle", { name: entity.name })}
             </DialogTitle>
-            <DialogDescription>{t("toolSettings.duplicate.description")}</DialogDescription>
+            <DialogDescription className="sr-only">
+              {t("toolSettings.duplicate.description")}
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="duplicate-initiative">{t("toolSettings.duplicate.initiative")}</Label>
-              <Select value={initiativeId} onValueChange={chooseInitiative}>
+              <Select value={destination} onValueChange={setInitiativeId}>
                 <SelectTrigger id="duplicate-initiative">
                   <SelectValue />
                 </SelectTrigger>
@@ -145,7 +160,7 @@ export const ToolDuplicateCard = () => {
               <Input
                 id="duplicate-name"
                 value={name}
-                onChange={(event) => setName(event.target.value)}
+                onChange={(event) => setTypedName(event.target.value)}
                 placeholder={t("toolSettings.namePlaceholder")}
                 onKeyDown={(event) => {
                   if (event.key === "Enter") submit();

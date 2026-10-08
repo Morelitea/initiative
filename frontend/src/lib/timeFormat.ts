@@ -29,7 +29,7 @@ export const parseTimeFormat = (value: unknown): TimeFormatPreference =>
 /**
  * The last answer this browser saw, so the first paint of a returning reader
  * is already on the right clock. The account is the authority and overwrites
- * it as soon as `/users/me` lands; this only covers the gap before that.
+ * it as soon as `/me` lands; this only covers the gap before that.
  */
 const STORAGE_KEY = "initiative.timeFormat";
 

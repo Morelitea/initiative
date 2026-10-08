@@ -13,7 +13,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildUser } from "@/__tests__/factories";
-import { renderWithProviders } from "@/__tests__/helpers/render";
+import { renderPage } from "@/__tests__/helpers/render";
 import type { UserRead } from "@/api/generated/initiativeAPI.schemas";
 
 const mocks = vi.hoisted(() => ({
@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => ({
   removeAnswer: vi.fn(),
   update: vi.fn(),
   refreshUser: vi.fn(),
+  logout: vi.fn(),
 }));
 
 // The addresses above the password form are their own surface, with their own
@@ -35,13 +36,14 @@ vi.mock("@/hooks/useUsers", () => ({
     mocks.update(options);
     return { mutate: vi.fn(), isPending: false };
   },
+  useDeleteOwnAccount: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 vi.mock("@/api/generated/auth/auth", () => ({
-  getListPasskeysApiV1AuthPasskeysGetQueryKey: () => ["/api/v1/auth/passkeys"],
-  getReadSecondFactorApiV1AuthTotpGetQueryKey: () => ["/api/v1/auth/totp"],
-  useListPasskeysApiV1AuthPasskeysGet: (options?: unknown) => mocks.passkeys(options),
-  useRemovePasswordApiV1AuthPasswordRemovePost: (options?: {
+  getListPasskeysQueryKey: () => ["/api/v1/auth/passkeys"],
+  getReadSecondFactorQueryKey: () => ["/api/v1/auth/totp"],
+  useListPasskeys: (options?: unknown) => mocks.passkeys(options),
+  useRemovePassword: (options?: {
     mutation?: { onSuccess?: (data: unknown) => void | Promise<void> };
   }) => ({
     mutate: (vars: unknown) => {
@@ -66,14 +68,19 @@ const holding = (count: number, rest: Record<string, unknown> = {}) => ({
   isError: false,
 });
 
-const render = (
+const render = async (
   user: UserRead = buildUser(),
-  options: Parameters<typeof renderWithProviders>[1] = {}
-) =>
-  renderWithProviders(
-    <UserSettingsAccountPage user={user} refreshUser={mocks.refreshUser} />,
+  options: Parameters<typeof renderPage>[1] = {}
+) => {
+  const result = renderPage(
+    () => (
+      <UserSettingsAccountPage user={user} refreshUser={mocks.refreshUser} logout={mocks.logout} />
+    ),
     options
   );
+  await screen.findByText("Username");
+  return result;
+};
 
 /** Open the dialog, answer it, and send it. */
 const giveUpPassword = async (user: ReturnType<typeof userEvent.setup>) => {
@@ -95,22 +102,23 @@ describe("UserSettingsAccountPage", () => {
     mocks.refreshUser.mockResolvedValue(undefined);
   });
 
-  it("offers to give the password up only where a passkey can take over", () => {
+  it("offers to give the password up only where a passkey can take over", async () => {
     mocks.passkeys.mockReturnValue(holding(0));
-    const { rerender } = render();
+    const { unmount } = await render();
 
     expect(screen.queryByRole("button", { name: /remove your password/i })).not.toBeInTheDocument();
+    unmount();
 
     mocks.passkeys.mockReturnValue(holding(1));
-    rerender(<UserSettingsAccountPage user={buildUser()} refreshUser={mocks.refreshUser} />);
+    await render();
 
     expect(screen.getByRole("button", { name: /remove your password/i })).toBeInTheDocument();
     expect(mocks.passkeys).toHaveBeenCalledWith({ query: { enabled: true } });
   });
 
-  it("does not offer it where the deployment has withdrawn passkeys", () => {
+  it("does not offer it where the deployment has withdrawn passkeys", async () => {
     mocks.passkeys.mockReturnValue(holding(1, { offered: false }));
-    render();
+    await render();
 
     expect(screen.queryByRole("button", { name: /remove your password/i })).not.toBeInTheDocument();
   });
@@ -118,7 +126,7 @@ describe("UserSettingsAccountPage", () => {
   it("sends the password and shows the codes that come back", async () => {
     const user = userEvent.setup();
     mocks.removeAnswer.mockReturnValue({ codes: ["aaaaa-bbbbb", "ccccc-ddddd"] });
-    render();
+    await render();
 
     await giveUpPassword(user);
 
@@ -136,7 +144,7 @@ describe("UserSettingsAccountPage", () => {
     const user = userEvent.setup();
     mocks.removeAnswer.mockReturnValue({ codes: ["aaaaa-bbbbb", "ccccc-ddddd"] });
     mocks.refreshUser.mockRejectedValue(new Error("offline"));
-    render();
+    await render();
 
     await giveUpPassword(user);
 
@@ -148,19 +156,19 @@ describe("UserSettingsAccountPage", () => {
     expect(screen.getByRole("button", { name: /done/i })).toBeInTheDocument();
   });
 
-  it("sends the app to a browser rather than offering it", () => {
-    render(buildUser(), { server: { isNativePlatform: true } });
+  it("sends the app to a browser rather than offering it", async () => {
+    await render(buildUser(), { server: { isNativePlatform: true } });
 
     expect(screen.queryByRole("button", { name: /remove your password/i })).not.toBeInTheDocument();
     expect(screen.getByText(/from a browser signed in to this site/i)).toBeInTheDocument();
     expect(mocks.passkeys).toHaveBeenCalledWith({ query: { enabled: false } });
   });
 
-  it("asks for no current password where the account holds none", () => {
-    render(buildUser({ has_password: false }));
+  it("asks for no current password where the account holds none", async () => {
+    await render(buildUser({ has_password: false }));
 
-    // The section's own title, not the line under it.
-    expect(screen.getByText("Set a password")).toBeInTheDocument();
+    // The section's title and its button.
+    expect(screen.getAllByText("Set a password")).toHaveLength(2);
     expect(screen.queryByLabelText(/current password/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /remove your password/i })).not.toBeInTheDocument();
     expect(screen.getByLabelText(/new password/i)).toBeInTheDocument();

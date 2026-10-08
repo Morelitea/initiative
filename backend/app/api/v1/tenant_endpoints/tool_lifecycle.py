@@ -18,7 +18,7 @@ had, so the generated client is unchanged.
 ``POST /{tool}/{id}/duplicate`` copies a tool into an initiative: its own, or
 the one the body names. The steps are ``app.api.tool_copy``'s, the same for
 every tool, and the answer is the copy as the tool's own read returns it. An
-installed app reaches it for each tool that serves apps, under the tool's
+installed plug-in reaches it for each tool that serves plug-ins, under the tool's
 write scope, as it reaches the tool's create.
 """
 
@@ -29,7 +29,7 @@ write scope, as it reaches the tool's create.
 from enum import Enum
 from typing import Annotated, Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Path, status
+from fastapi import APIRouter, Depends, Path, status
 
 from app.api import resource_access, tool_copy
 from app.api.actor_route import ActorRoute
@@ -39,18 +39,16 @@ from app.api.deps import (
     ActorUserDep,
     GuildContext,
     RLSSessionDep,
-    app_scope,
+    plugin_scope,
     get_current_active_user,
     get_guild_membership,
 )
 from app.api.v1.tenant_endpoints.tool_lists import TOOL_LISTS, ToolListSpec
-from app.core.messages import AttachmentMessages
 from app.core.tools import Tool
 from app.models.platform.user import User
 from app.schemas.tenant.tool import ToolDuplicateRequest
 from app.services.content_sockets import sockets
 from app.services.permissions import Action
-from app.services.tenant.attachments import StorageQuotaExceededError
 from app.services.tenant import named_people
 from app.services.tenant.soft_delete import trash
 
@@ -102,7 +100,7 @@ _DUPLICATE_DOC = (
     "Copy it, with everything inside it, into an initiative: its own unless the "
     "body names another. Read is enough to copy a template; anything else needs "
     "write. The copy is shared as its source is while it stays in the same "
-    "initiative, and carries the tags its maker may set: an installed app's "
+    "initiative, and carries the tags its maker may set: an installed plug-in's "
     "copy carries them only when it holds the scope to tag."
 )
 
@@ -127,22 +125,16 @@ def _mount_duplicate(
         source = await tool_copy.load_source(
             session, tool, entity_id, current_user, guild_context
         )
-        try:
-            copied = await tool_copy.duplicate(
-                session,
-                tool,
-                source,
-                initiative_id=body.target_initiative_id,
-                name=body.name,
-                user=current_user,
-                actor=guild_context,
-                payload=body,
-            )
-        except StorageQuotaExceededError:
-            raise HTTPException(
-                status_code=status.HTTP_507_INSUFFICIENT_STORAGE,
-                detail=AttachmentMessages.STORAGE_QUOTA_EXCEEDED,
-            )
+        copied = await tool_copy.duplicate(
+            session,
+            tool,
+            source,
+            initiative_id=body.target_initiative_id,
+            name=body.name,
+            user=current_user,
+            actor=guild_context,
+            payload=body,
+        )
         settled = named_people.Governing.of(tool, copied)
         await session.commit()
         # The people named inside the copy came with it; those its sharing
@@ -156,8 +148,10 @@ def _mount_duplicate(
             await session.commit()
         return await spec.read_row(session, copy_id, current_user, guild_context)
 
-    if spec.serves_apps:
-        ToolWrite = Annotated[ActorContext, Depends(app_scope(f"{tool.plural}:write"))]
+    if spec.serves_plugins:
+        ToolWrite = Annotated[
+            ActorContext, Depends(plugin_scope(f"{tool.plural}:write"))
+        ]
 
         async def duplicate(
             entity_id: entity_id_param,

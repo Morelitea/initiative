@@ -2,7 +2,7 @@ import { HttpResponse } from "msw";
 
 import { buildPropertyDefinition } from "@/__tests__/factories/properties";
 
-import { guildHttp } from "../guildHttp";
+import { communityHttp } from "../communityHttp";
 
 /**
  * Default MSW handlers for the property endpoints.
@@ -13,11 +13,11 @@ import { guildHttp } from "../guildHttp";
  */
 export const propertyHandlers = [
   // ── Property definitions ──────────────────────────────────────────────────
-  guildHttp.get("/property-definitions/", () => {
+  communityHttp.get("/property-definitions/", () => {
     return HttpResponse.json([]);
   }),
 
-  guildHttp.post("/property-definitions/", async ({ request }) => {
+  communityHttp.post("/property-definitions/", async ({ request }) => {
     const body = (await request.json()) as Record<string, unknown>;
     return HttpResponse.json(
       buildPropertyDefinition({
@@ -29,7 +29,7 @@ export const propertyHandlers = [
     );
   }),
 
-  guildHttp.patch("/property-definitions/:definitionId", async ({ params, request }) => {
+  communityHttp.patch("/property-definitions/:definitionId", async ({ params, request }) => {
     const id = Number(params.definitionId);
     const body = (await request.json()) as Record<string, unknown>;
     return HttpResponse.json({
@@ -41,12 +41,12 @@ export const propertyHandlers = [
     });
   }),
 
-  guildHttp.delete("/property-definitions/:definitionId", () => {
+  communityHttp.delete("/property-definitions/:definitionId", () => {
     return new HttpResponse(null, { status: 204 });
   }),
 
   // ── Set values ────────────────────────────────────────────────────────────
   // One route for every target. Echoes nothing back: the components under
   // test refetch the row rather than read the answer.
-  guildHttp.put("/properties/:target/:entityId", () => HttpResponse.json([])),
+  communityHttp.put("/properties/:target/:entityId", () => HttpResponse.json([])),
 ];

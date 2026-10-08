@@ -16,7 +16,6 @@ from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 
 from app.core.capabilities import Capability, roles_with_capability
-from app.core.config import settings
 from app.db.public_rls import (
     FORCED_NO_POLICY,
     INSERT,
@@ -24,9 +23,10 @@ from app.db.public_rls import (
     SHARED_TABLE_REGISTRY,
     UPDATE,
     Grants,
+    platform_tier,
+    role_name,
     SharedTable,
 )
-from app.db.schema_provisioning import platform_role_name
 from app.db.tenancy import SHARED_TABLES
 from app.models.platform.app_setting import AppSetting
 from app.services.platform.app_settings import GLOBAL_SETTINGS_ID
@@ -35,7 +35,7 @@ from app.testing import as_role, create_user
 
 TABLE = "app_setting_secrets"
 MOVED_COLUMNS = ("smtp_password_encrypted", "s3_secret_access_key_encrypted")
-PLATFORM_FLOOR = f"{settings.PLATFORM_ROLE_PREFIX}platform_base"
+PLATFORM_FLOOR = role_name("platform_base")
 REQUEST_FLOORS = ("app_user", "app_guild_base", "app_guild_base_ro", PLATFORM_FLOOR)
 VERBS = ("SELECT", "INSERT", "UPDATE", "DELETE")
 
@@ -57,7 +57,7 @@ async def _make_rows(session) -> None:
 
 def _config_manage_tiers() -> list[str]:
     return sorted(
-        platform_role_name(role.value)
+        role_name(platform_tier(role))
         for role in roles_with_capability(Capability.CONFIG_MANAGE)
     )
 
@@ -121,7 +121,7 @@ async def test_no_request_role_holds_a_verb(session):
     roles = [
         *REQUEST_FLOORS,
         "app_superadmin",
-        "app_install_base",
+        "plugin_install_base",
         *_config_manage_tiers(),
     ]
     for role in roles:

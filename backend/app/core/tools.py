@@ -9,6 +9,7 @@ can be imported anywhere. ``tools_test.py`` asserts every per-tool surface cover
 this enum, so a new member that forgets to wire one fails CI.
 """
 
+from dataclasses import dataclass
 from enum import Enum
 
 
@@ -22,7 +23,7 @@ def plural_of(stem: str) -> str:
 
 class Tool(str, Enum):
     project = "project"
-    document = "document"
+    file = "file"
     queue = "queue"
     counter_group = "counter_group"
     calendar = "calendar"
@@ -109,8 +110,69 @@ class Tool(str, Enum):
         return f"{self.code_prefix}_GRANT_CANNOT_MANAGE_MEMBERS"
 
 
+@dataclass(frozen=True)
+class Kind:
+    """A kind of thing a guild holds that can be addressed as ``(kind, id)``:
+    every tool, the things that live inside one, and the guild's tags.
+
+    ``code`` is **permanent**. It is the high bits of every node id derived from
+    this kind (``app.core.relationships.node_id``), so changing one silently
+    re-encodes every stored row of that kind while leaving the old rows behind:
+    no error, no drift test in the database, just two encodings of the same
+    thing. Codes are assigned once, never reordered, never reused — the
+    discipline an announcement slug takes, for the same reason.
+    """
+
+    value: str
+    code: int
+    #: The tool this lives inside, for a kind that is not a tool itself.
+    parent: Tool | None = None
+
+    @property
+    def table(self) -> str:
+        """The guild-schema table ids of this kind point at."""
+        return plural_of(self.value)
+
+    @property
+    def parent_column(self) -> str | None:
+        """The column naming the tool this lives inside."""
+        return f"{self.parent.value}_id" if self.parent else None
+
+
+#: Every kind, keyed by its wire name. Append-only: a new kind takes the next
+#: unused code, and no existing code ever moves. The initial set was assigned in
+#: alphabetical order, which is where the resemblance ends — a derived ordinal
+#: changes under you the first time a member is added in the middle. Declared
+#: tools first, then what lives inside them, then the guild's vocabulary; the
+#: lists below derived from it keep that order.
+KINDS: dict[str, Kind] = {
+    kind.value: kind
+    for kind in (
+        Kind(Tool.project.value, 10),
+        Kind(Tool.file.value, 6),
+        Kind(Tool.queue.value, 11),
+        Kind(Tool.counter_group.value, 4),
+        Kind(Tool.calendar.value, 1),
+        Kind(Tool.dashboard.value, 5),
+        Kind(Tool.post.value, 9),
+        Kind(Tool.gallery.value, 7),
+        Kind(Tool.wiki.value, 15),
+        Kind("task", 14, parent=Tool.project),
+        Kind("queue_item", 12, parent=Tool.queue),
+        Kind("calendar_event", 2, parent=Tool.calendar),
+        Kind("counter", 3, parent=Tool.counter_group),
+        Kind("gallery_image", 8, parent=Tool.gallery),
+        Kind("wiki_page", 16, parent=Tool.wiki),
+        Kind("tag", 13),
+    )
+}
+
+#: The kinds that live inside a tool.
+CHILD_KINDS: tuple[str, ...] = tuple(k.value for k in KINDS.values() if k.parent)
+
+
 # EVERY tool is toggleable: each carries a ``{plural}_enabled`` master switch on
-# the initiative. Projects and documents used to be exempt — always on, with no
+# the initiative. Projects and files used to be exempt — always on, with no
 # column at all — because they were the only places content could live and the
 # other tools hung off them. Relationships ended that: anything links to
 # anything, so an initiative that is only a calendar, or only a gallery, is a
@@ -118,9 +180,9 @@ class Tool(str, Enum):
 #
 # They keep the *default*, which is the part that was ever load-bearing. An
 # initiative that says nothing about its tools still arrives with projects and
-# documents on, so nothing about making one changes; the switch is simply there
+# files on, so nothing about making one changes; the switch is simply there
 # to turn off now.
-DEFAULT_ENABLED_TOOLS = frozenset({Tool.project, Tool.document})
+DEFAULT_ENABLED_TOOLS = frozenset({Tool.project, Tool.file})
 
 # Tools WITHOUT an export-engine source, and why. Stated as an exclusion so the
 # default is "a new tool is exportable": the adapter-coverage test then fails
@@ -129,7 +191,7 @@ DEFAULT_ENABLED_TOOLS = frozenset({Tool.project, Tool.document})
 #
 # Empty, and that is the point: every tool has an export source. What used to
 # sit here (``Tool.dashboard``) is now handled where it belongs — an entity
-# built on an app this build does not ship is filtered by provenance in
+# built on a plug-in this build does not ship is filtered by provenance in
 # ``services.export.provenance``, which is a property of the ROW, not of the
 # tool. A whole tool is the wrong unit for that rule: most dashboards are
 # hand-built here and are ordinary content.
@@ -160,38 +222,21 @@ COMMENTABLE_EXTRAS: tuple[str, ...] = ("task", "wiki_page")
 COMMENT_TARGETS: tuple[str, ...] = COMMENTABLE_EXTRAS + tuple(t.value for t in Tool)
 
 
-# Tag-assignment surfaces: EVERY tool is taggable, plus these content-level
-# extras — sub-resources of a tool (tasks, queue items) rather than tools
-# themselves. The assignment registry (app.services.tenant.tags.TAG_LINKS) and
+# Tag-assignment surfaces: EVERY tool is taggable, plus everything that lives
+# inside one but a counter. The assignment registry (app.services.tenant.tags.TAG_LINKS) and
 # the ``TagTarget`` schema enum both derive from TAG_TARGETS, so a new Tool is
 # taggable across every surface with no per-surface edit; tags_test.py fails if
 # any surface drifts.
-TAGGABLE_EXTRAS: tuple[str, ...] = (
-    "task",
-    "queue_item",
-    "calendar_event",
-    "gallery_image",
-    "wiki_page",
-)
+TAGGABLE_EXTRAS: tuple[str, ...] = tuple(k for k in CHILD_KINDS if k != "counter")
 TAG_TARGETS: tuple[str, ...] = tuple(t.value for t in Tool) + TAGGABLE_EXTRAS
 
 
-# Trash surfaces: EVERY tool is trashable, plus these extras — sub-resources of
-# a tool (tasks, counters), the initiative itself, and the guild-level content
+# Trash surfaces: EVERY tool is trashable, plus everything that lives inside
+# one, the comments on them, the initiative itself, and the guild-level content
 # that isn't a tool (tags). Same shape as TAG_TARGETS above, for the same
 # reason: the trash EntityType and its registry derive from this, so a new Tool
 # reaches the trash can with no per-surface edit.
-TRASHABLE_EXTRAS: tuple[str, ...] = (
-    "task",
-    "queue_item",
-    "calendar_event",
-    "counter",
-    "comment",
-    "initiative",
-    "tag",
-    "gallery_image",
-    "wiki_page",
-)
+TRASHABLE_EXTRAS: tuple[str, ...] = CHILD_KINDS + ("comment", "initiative", "tag")
 TRASH_TARGETS: tuple[str, ...] = tuple(t.value for t in Tool) + TRASHABLE_EXTRAS
 
 #: Archivable things that are not tools. Archiving says "this is finished with",
@@ -206,14 +251,7 @@ ARCHIVE_TARGETS: tuple[str, ...] = tuple(t.value for t in Tool) + ARCHIVABLE_EXT
 # seam (app.services.tenant.properties.PROPERTY_LINKS), the value table's
 # CHECK, its policies and the ``PropertyTarget`` schema enum all derive from
 # PROPERTY_TARGETS, so a new Tool carries properties with no per-surface edit.
-PROPERTY_EXTRAS: tuple[str, ...] = (
-    "task",
-    "queue_item",
-    "calendar_event",
-    "counter",
-    "gallery_image",
-    "wiki_page",
-)
+PROPERTY_EXTRAS: tuple[str, ...] = CHILD_KINDS
 PROPERTY_TARGETS: tuple[str, ...] = tuple(t.value for t in Tool) + PROPERTY_EXTRAS
 
 
@@ -226,9 +264,9 @@ def tool_envelope_type(tool: Tool) -> str:
     """The import/export envelope ``type`` discriminator for a tool.
 
     One rule, spelled once: a tool's envelope is ``initiative-<kebab
-    singular>``. The importers and the export adapters each restate it as a
-    literal — a pydantic ``Literal`` cannot be computed — and
-    ``tools_test.py`` holds the importer registry to this.
+    singular>``. The importers and the export adapters read it from here; only
+    the envelope schemas restate it, because a pydantic ``Literal`` cannot be
+    computed, and ``tools_test.py`` holds the importer registry to this.
     """
     return f"initiative-{tool_export_source(tool)}"
 

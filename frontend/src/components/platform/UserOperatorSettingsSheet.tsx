@@ -13,7 +13,7 @@
  * viewer is offered the controls their capabilities carry and no others.
  */
 
-import { ImageOff } from "lucide-react";
+import { ImageOff, KeyRound } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -36,12 +36,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { ProfileAvatar } from "@/components/user/ProfileAvatar";
 import {
   useOperatorRemoveAvatar,
+  useOperatorRevokeApiKeys,
   useOperatorSetSuspension,
   useOperatorSetUsername,
   useOperatorUpdatePlatformRole,
 } from "@/hooks/useOperatorUsers";
-import { toast } from "@/lib/chesterToast";
+import { useServerForm } from "@/hooks/useServerForm";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import { getUserHandle } from "@/lib/userDisplay";
 import type { TranslateFn } from "@/types/i18n";
 
@@ -70,21 +72,29 @@ const platformRoleDescription = (role: UserRole, t: TranslateFn): string =>
 export type UserSheetAbilities = {
   /** ``content.moderate`` — rename, and take a picture down. */
   canModerateContent: boolean;
-  /** ``users.manage`` — suspend and lift. */
+  /** ``users.manage`` — suspend and lift, and revoke API keys. */
   canManageUsers: boolean;
   /** ``roles.assign`` — move somebody up or down the ladder. */
   canManageRoles: boolean;
 };
 
+/**
+ * Whether the viewer's rung reaches this account. Every operator action on an
+ * account is refused above the actor's own rung, so nothing is offered there.
+ */
+export const withinRank = (actorRole: UserRole, target: OperatorUserRead): boolean =>
+  platformRoleRank(actorRole) >= platformRoleRank(target.role);
+
 /** True when at least one control would be drawn, i.e. the sheet is worth opening. */
 export const canManageUser = (
   abilities: UserSheetAbilities,
   target: OperatorUserRead,
-  actorId: number | undefined
+  actorId: number | undefined,
+  actorRole: UserRole
 ): boolean => {
   const isSelf = target.id === actorId;
   const anonymized = target.status === "anonymized";
-  if (anonymized) return false;
+  if (anonymized || !withinRank(actorRole, target)) return false;
   if (abilities.canModerateContent && !isSelf) return true;
   if (abilities.canModerateContent && target.avatar_url) return true;
   if (
@@ -95,6 +105,7 @@ export const canManageUser = (
     return true;
   }
   if (abilities.canManageRoles && !isSelf && target.status === "active") return true;
+  if (abilities.canManageUsers && !isSelf && target.api_key_count > 0) return true;
   return false;
 };
 
@@ -115,19 +126,21 @@ export const UserOperatorSettingsSheet = ({
 }) => {
   const { t } = useTranslation(["settings", "common"]);
 
-  const [usernameDraft, setUsernameDraft] = useState("");
-  const [loadedFor, setLoadedFor] = useState<number | null>(null);
+  // The draft follows whichever account the sheet was opened for.
+  const form = useServerForm(
+    user ?? undefined,
+    (loaded) => ({ username: loaded?.username ?? "" }),
+    [open, user?.id]
+  );
   const [suspendOpen, setSuspendOpen] = useState(false);
   const [suspendReason, setSuspendReason] = useState("");
   const [roleConfirm, setRoleConfirm] = useState<UserRole | null>(null);
   const [avatarConfirm, setAvatarConfirm] = useState(false);
+  const [apiKeysConfirm, setApiKeysConfirm] = useState(false);
 
   const setUsername = useOperatorSetUsername({
     onSuccess: () => toast.success(t("platformUsers.usernameChanged")),
-    onError: (err) => {
-      if (user) setUsernameDraft(user.username);
-      toast.error(getErrorMessage(err, "settings:platformUsers.actionError"));
-    },
+    onError: (err) => toast.error(getErrorMessage(err, "settings:platformUsers.actionError")),
   });
 
   const setSuspension = useOperatorSetSuspension({
@@ -164,35 +177,45 @@ export const UserOperatorSettingsSheet = ({
     },
   });
 
-  // The draft follows whichever account the sheet was opened for.
-  if (user && loadedFor !== user.id) {
-    setLoadedFor(user.id);
-    setUsernameDraft(user.username);
-  }
+  const revokeApiKeys = useOperatorRevokeApiKeys({
+    onSuccess: () => {
+      toast.success(t("platformUsers.sheet.apiKeysRevoked"));
+      setApiKeysConfirm(false);
+    },
+    onError: (err) => {
+      toast.error(getErrorMessage(err, "settings:platformUsers.actionError"));
+      setApiKeysConfirm(false);
+    },
+  });
 
   if (!user) return null;
 
   const isSelf = user.id === actorId;
-  const targetRank = platformRoleRank(user.role);
-  const actorRank = platformRoleRank(actorRole);
+  const reachable = withinRank(actorRole, user);
   const isSuspended = user.status === "suspended";
 
   // Each section carries the capability its endpoint requires, and the state
-  // the endpoint requires of the target.
-  const showIdentity = abilities.canModerateContent && !isSelf;
-  const showAvatar = abilities.canModerateContent && Boolean(user.avatar_url);
+  // the endpoint requires of the target — including that the account sits at
+  // or below the viewer's own rung, which every one of them checks.
+  const showIdentity = abilities.canModerateContent && !isSelf && reachable;
+  const showAvatar = abilities.canModerateContent && Boolean(user.avatar_url) && reachable;
   const showSuspension =
-    abilities.canManageUsers && !isSelf && (user.status === "active" || isSuspended);
-  const showRole =
-    abilities.canManageRoles && !isSelf && user.status === "active" && actorRank >= targetRank;
+    abilities.canManageUsers && !isSelf && reachable && (user.status === "active" || isSuspended);
+  const showApiKeys = abilities.canManageUsers && !isSelf && reachable && user.api_key_count > 0;
+  const showRole = abilities.canManageRoles && !isSelf && user.status === "active" && reachable;
 
   const commitUsername = () => {
-    const next = usernameDraft.trim().toLowerCase();
+    const sent = form.values;
+    const next = sent.username.trim().toLowerCase();
     if (!next || next === user.username) {
-      setUsernameDraft(user.username);
+      form.reset(sent);
       return;
     }
-    setUsername.mutate({ userId: user.id, username: next });
+    // A refused name goes back to the stored one.
+    setUsername.mutate(
+      { userId: user.id, username: next },
+      { onSuccess: () => form.settle(sent), onError: () => form.reset(sent) }
+    );
   };
 
   return (
@@ -216,9 +239,11 @@ export const UserOperatorSettingsSheet = ({
                       <Input
                         id="operator-user-username"
                         className="w-48"
-                        value={usernameDraft}
+                        value={form.values.username}
                         autoCapitalize="none"
-                        onChange={(event) => setUsernameDraft(event.target.value.toLowerCase())}
+                        onChange={(event) =>
+                          form.set({ username: event.target.value.toLowerCase() })
+                        }
                         onBlur={commitUsername}
                         onKeyDown={(event) => {
                           if (event.key === "Enter") event.currentTarget.blur();
@@ -254,25 +279,45 @@ export const UserOperatorSettingsSheet = ({
               </Section>
             )}
 
-            {showSuspension && (
+            {(showSuspension || showApiKeys) && (
               <Section title={t("platformUsers.sheet.access")}>
-                <SettingRow
-                  label={t("platformUsers.sheet.suspendLabel")}
-                  help={t("platformUsers.sheet.suspendHelp")}
-                  htmlFor="operator-user-suspended"
-                  control={
-                    <Switch
-                      id="operator-user-suspended"
-                      checked={isSuspended}
-                      onCheckedChange={(checked) => {
-                        // Lifting takes no explanation; imposing does.
-                        if (checked) setSuspendOpen(true);
-                        else setSuspension.mutate({ userId: user.id, suspended: false });
-                      }}
-                      disabled={setSuspension.isPending}
-                    />
-                  }
-                />
+                {showSuspension && (
+                  <SettingRow
+                    label={t("platformUsers.sheet.suspendLabel")}
+                    help={t("platformUsers.sheet.suspendHelp")}
+                    htmlFor="operator-user-suspended"
+                    control={
+                      <Switch
+                        id="operator-user-suspended"
+                        checked={isSuspended}
+                        onCheckedChange={(checked) => {
+                          // Lifting takes no explanation; imposing does.
+                          if (checked) setSuspendOpen(true);
+                          else setSuspension.mutate({ userId: user.id, suspended: false });
+                        }}
+                        disabled={setSuspension.isPending}
+                      />
+                    }
+                  />
+                )}
+                {showApiKeys && (
+                  <SettingRow
+                    label={t("platformUsers.sheet.apiKeysLabel")}
+                    help={t("platformUsers.sheet.apiKeysHelp", { count: user.api_key_count })}
+                    control={
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setApiKeysConfirm(true)}
+                        disabled={revokeApiKeys.isPending}
+                      >
+                        <KeyRound className="h-4 w-4" />
+                        {t("platformUsers.sheet.apiKeysRevoke")}
+                      </Button>
+                    }
+                  />
+                )}
               </Section>
             )}
 
@@ -299,7 +344,7 @@ export const UserOperatorSettingsSheet = ({
                             // You cannot mint a role above your own rung.
                             // Demoting the platform's last owner is refused
                             // by the server, which says so.
-                            disabled={platformRoleRank(role) > actorRank}
+                            disabled={platformRoleRank(role) > platformRoleRank(actorRole)}
                           >
                             <div className="flex flex-col gap-0.5">
                               <span className="font-medium">
@@ -383,6 +428,22 @@ export const UserOperatorSettingsSheet = ({
         destructive
         isLoading={removeAvatar.isPending}
         onConfirm={() => removeAvatar.mutate(user.id)}
+      />
+
+      <ConfirmDialog
+        open={apiKeysConfirm}
+        onOpenChange={setApiKeysConfirm}
+        title={t("platformUsers.sheet.apiKeysConfirmTitle")}
+        description={t("platformUsers.sheet.apiKeysConfirmBody", {
+          handle: getUserHandle(user),
+          count: user.api_key_count,
+        })}
+        confirmLabel={t("platformUsers.sheet.apiKeysRevoke")}
+        cancelLabel={t("common:cancel")}
+        loadingLabel={t("common:submitting")}
+        destructive
+        isLoading={revokeApiKeys.isPending}
+        onConfirm={() => revokeApiKeys.mutate(user.id)}
       />
     </>
   );

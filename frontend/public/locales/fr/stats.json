@@ -1,19 +1,19 @@
 {
   "page": {
     "title": "Mes statistiques",
-    "guildFilterPlaceholder": "Sélectionner une communauté",
-    "allGuilds": "Tous les communautés",
+    "communityFilterPlaceholder": "Sélectionner une communauté",
+    "allCommunities": "Tous les communautés",
     "loading": "Chargement des statistiques\u2026",
-    "error": "Échec du chargement des statistiques. Veuillez réessayer plus tard."
+    "error": "Impossible de charger les statistiques. Veuillez réessayer plus tard."
   },
   "metrics": {
     "currentStreak": "Série en cours",
     "consecutiveDays": "Jours de travail consécutifs",
     "onTimeRate": "Taux de ponctualité",
-    "onTimeSubtitle": "Tâches terminées avant la date d'échéance",
-    "avgCompletion": "Complétion moyenne",
-    "avgCompletionSubtitle": "Du début à la complétion",
-    "backlogTrend": "Tendance du backlog",
+    "onTimeSubtitle": "Tâches terminées avant l'échéance",
+    "avgCompletion": "Durée moyenne",
+    "avgCompletionSubtitle": "Du début à l'achèvement",
+    "backlogTrend": "Évolution des tâches à traiter",
     "thisWeek": "Cette semaine",
     "days": "jours",
     "growing": "En hausse",
@@ -21,25 +21,25 @@
   },
   "tasksCompleted": {
     "title": "Tâches terminées",
-    "allTime": "Depuis toujours",
+    "allTime": "Depuis le début",
     "thisWeek": "Cette semaine"
   },
   "velocity": {
     "title": "Vélocité",
-    "description": "Tâches assignées vs terminées par semaine",
-    "descriptionLong": "Tâches assignées vs terminées par semaine (12 dernières semaines)",
+    "description": "Tâches assignées et terminées par semaine",
+    "descriptionLong": "Tâches assignées et terminées par semaine (12 dernières semaines)",
     "noData": "Aucune donnée de vélocité disponible",
     "assigned": "Assignées",
     "completed": "Terminées"
   },
-  "guildBreakdown": {
+  "communityBreakdown": {
     "title": "Tâches par communauté",
     "description": "Répartition des tâches terminées par communauté",
     "noData": "Aucune donnée de communauté disponible"
   },
   "heatmap": {
-    "title": "Carte de chaleur d'activité",
-    "description": "Activité des tâches au cours de l'année passée",
+    "title": "Carte d'activité",
+    "description": "Activité des tâches au cours de l'année écoulée",
     "noData": "Aucune donnée d'activité disponible",
     "less": "Moins",
     "more": "Plus",

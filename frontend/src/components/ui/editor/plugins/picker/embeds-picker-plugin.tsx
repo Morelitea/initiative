@@ -8,13 +8,13 @@ import {
 import { ComponentPickerOption } from "@/components/ui/editor/plugins/picker/component-picker-option";
 
 export function EmbedsPickerPlugin({ embed }: { embed: "tweet" | "youtube-video" }) {
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation("editor");
   const embedConfig = EmbedConfigs.find((config) => config.type === embed) as CustomEmbedConfig;
   const contentName = embedConfig.contentNameKey
     ? t(embedConfig.contentNameKey as never)
     : embedConfig.contentName;
 
-  return new ComponentPickerOption(t("editor.embedContent", { contentName }), {
+  return new ComponentPickerOption(t("embedContent", { contentName }), {
     icon: embedConfig.icon,
     keywords: [...embedConfig.keywords, "embed"],
     onSelect: (_, editor) => editor.dispatchCommand(INSERT_EMBED_COMMAND, embedConfig.type),

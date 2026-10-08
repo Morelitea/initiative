@@ -2,13 +2,15 @@ import { Loader2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type {
-  CounterCreate,
-  CounterRead,
-  CounterUpdate,
+import {
+  type CounterCreate,
+  type CounterRead,
+  type CounterUpdate,
   CounterViewMode,
+  PropertyTarget,
+  SearchEntityType,
+  Tool,
 } from "@/api/generated/initiativeAPI.schemas";
-import { PropertyTarget, SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { ToolRelationsPanel } from "@/components/entities/ToolRelationsPanel";
 import { PropertyPanel } from "@/components/properties";
 import { Button } from "@/components/ui/button";
@@ -72,7 +74,7 @@ export const CounterFormDialog = ({
       maxValue: loaded?.max ?? "",
       step: loaded?.step ?? "1",
       initialCount: loaded?.initial_count ?? "0",
-      viewMode: loaded?.view_mode ?? ("number" as CounterViewMode),
+      viewMode: loaded?.view_mode ?? CounterViewMode.number,
     }),
     [open, counter?.id]
   );
@@ -99,7 +101,7 @@ export const CounterFormDialog = ({
 
   const isSubmitting = addCounter.isPending || updateCounter.isPending;
   const hasBounds = minValue.trim() !== "" && maxValue.trim() !== "";
-  const requiresBounds = viewMode !== "number";
+  const requiresBounds = viewMode !== CounterViewMode.number;
   const canSubmit =
     !!name.trim() && !isSubmitting && Number(step) > 0 && (!requiresBounds || hasBounds);
 
@@ -230,11 +232,11 @@ export const CounterFormDialog = ({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="number">{t("viewModeNumber")}</SelectItem>
-                <SelectItem value="progress_bar" disabled={!hasBounds}>
+                <SelectItem value={CounterViewMode.number}>{t("viewModeNumber")}</SelectItem>
+                <SelectItem value={CounterViewMode.progress_bar} disabled={!hasBounds}>
                   {t("viewModeProgressBar")}
                 </SelectItem>
-                <SelectItem value="segmented_clock" disabled={!hasBounds}>
+                <SelectItem value={CounterViewMode.segmented_clock} disabled={!hasBounds}>
                   {t("viewModeSegmentedClock")}
                 </SelectItem>
               </SelectContent>
@@ -248,7 +250,7 @@ export const CounterFormDialog = ({
 
           {/* Only for a counter that exists, and saved as they change, like
               its links below. Definitions belong to an initiative, so a
-              guild-level group's counters have none to offer. */}
+              community-level group's counters have none to offer. */}
           {counter && initiativeId != null && (
             <div className="space-y-2 border-t pt-4">
               <Label>{t("properties:title")}</Label>
@@ -273,8 +275,7 @@ export const CounterFormDialog = ({
               target={{ type: SearchEntityType.counter, id: counter.id }}
               canEdit
               entityTitle={counter.name}
-              defaultLayout="rows"
-              className="space-y-3 border-t pt-4"
+              className="border-t pt-4"
             />
           )}
         </div>

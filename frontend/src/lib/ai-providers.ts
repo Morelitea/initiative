@@ -80,16 +80,16 @@ export const getModelsForProvider = (
   return PROVIDER_CONFIGS[provider]?.defaultModels ?? [];
 };
 
-// Connections are defined either by the platform operator or by a guild admin.
+// Connections are defined either by the platform operator or by a community admin.
 // Members never define a connection (they only attach a personal key), so there
 // is no "user" scope here.
-export type AISettingsScope = "platform" | "guild";
+export type AISettingsScope = "platform" | "community";
 
 const PROVIDERS_BY_SCOPE: Record<AISettingsScope, AIProvider[]> = {
   platform: ["openai", "anthropic", "ollama", "custom"],
   // Ollama can only be configured at the platform level (it needs a private
-  // base URL), so guild admins choose from the remaining providers.
-  guild: ["openai", "anthropic", "custom"],
+  // base URL), so community admins choose from the remaining providers.
+  community: ["openai", "anthropic", "custom"],
 };
 
 export const getProvidersForScope = (scope: AISettingsScope): AIProvider[] =>

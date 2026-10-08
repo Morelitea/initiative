@@ -17,8 +17,12 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy import text
 
 from app.db.schema_provisioning import guild_schema_name
-from app.core.messages import CalendarEventMessages, CommonMessages, PropertyMessages
-from app.models.platform.guild import GuildRole
+from app.core.messages import (
+    CalendarEventMessages,
+    CommonMessages,
+    PropertyMessages,
+)
+from app.models.platform.guild import CommunityRole
 from app.models.platform.notification import Notification, NotificationType
 from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.property import PropertyValue
@@ -26,7 +30,6 @@ from app.models.tenant.resource_grant import ResourceGrant
 from app.testing import (
     create_calendar,
     create_calendar_event,
-    create_document,
     create_guild_calendar,
     create_initiative,
     create_property_definition,
@@ -97,9 +100,9 @@ async def _setup_organizer_and_attendee(session, acting_user):
 
     Returns ``(organizer, attendee, guild, initiative, calendar)`` where
     organizer and attendee are ``Actor`` instances (``.user``/``.headers``)."""
-    organizer = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    organizer = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     attendee = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=organizer.guild,
         initiative=organizer.initiative,
         initiative_role="member",
@@ -112,7 +115,7 @@ async def _setup_event(session, acting_user):
     """admin user, guild, calendars-enabled initiative, calendar, event.
 
     Returns ``(actor, guild, initiative, calendar, event)``."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     calendar = await _enable_calendars(session, a.initiative, a.user)
     event = await create_calendar_event(session, calendar, a.user, title="E")
     return a, a.guild, a.initiative, calendar, event
@@ -602,6 +605,16 @@ async def test_create_event_rejects_end_before_start(
     assert response.status_code == 400
     assert response.json()["detail"] == CalendarEventMessages.ENDS_BEFORE_START
 
+    # A required field is omitted to keep it, never nulled.
+    for field in ("title", "start_at", "end_at", "all_day", "rsvp_open"):
+        response = await client.patch(
+            organizer.g(f"/calendar-events/{event.id}"),
+            headers=organizer.headers,
+            json={field: None},
+        )
+        assert response.status_code == 422, field
+        assert "FIELD_CANNOT_BE_NULL" in response.text, field
+
 
 async def test_create_event_requires_calendar_write(
     client: AsyncClient, session: AsyncSession, acting_user
@@ -651,7 +664,7 @@ async def test_move_event_between_calendars_requires_write_on_both(
 
     # A member with only read on the destination cannot move an event into it.
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=guild,
         initiative=initiative,
         initiative_role="member",
@@ -730,6 +743,20 @@ async def test_a_move_into_another_initiative_drops_property_values(
     )
     assert kept.status_code == 200
     assert await holding_values(definition.id) == sorted([series.id, override.id])
+
+    # An initiative that keeps its content in keeps its events.
+    initiative.keep_content_in = True
+    session.add(initiative)
+    await session.commit()
+    kept_in = await client.patch(
+        a.g(f"/calendar-events/{series.id}"),
+        headers=a.headers,
+        json={"calendar_id": elsewhere.id},
+    )
+    assert kept_in.json()["detail"] == "INITIATIVE_CONTENT_KEPT_IN", kept_in.text
+    initiative.keep_content_in = False
+    session.add(initiative)
+    await session.commit()
 
     moved = await client.patch(
         a.g(f"/calendar-events/{series.id}"),
@@ -914,6 +941,59 @@ async def test_rsvp_notifies_organizer(
     assert len(rsvps) == 1
     assert rsvps[0].data["rsvp_status"] == "accepted"
 
+    async def reader():
+        return await acting_user(
+            guild_role=CommunityRole.member,
+            guild=guild,
+            initiative=initiative,
+            initiative_role="member",
+        )
+
+    def answers(response) -> dict:
+        return {a["user_id"]: a["rsvp_status"] for a in response.json()["attendees"]}
+
+    # Open, a reader who was never invited answers and so joins.
+    joiner = await reader()
+    joined = await client.patch(
+        organizer.g(f"/calendar-events/{event.id}/rsvp"),
+        headers=joiner.headers,
+        json={"rsvp_status": "tentative"},
+    )
+    assert joined.status_code == 200, joined.text
+    assert answers(joined)[joiner.user.id] == "tentative"
+
+    # Closed, those on the list still answer and anyone else is refused; an
+    # editor still adds people.
+    closed = await client.patch(
+        organizer.g(f"/calendar-events/{event.id}"),
+        headers=organizer.headers,
+        json={"rsvp_open": False},
+    )
+    assert closed.status_code == 200, closed.text
+    assert closed.json()["rsvp_open"] is False
+    newcomer = await reader()
+    refused = await client.patch(
+        organizer.g(f"/calendar-events/{event.id}/rsvp"),
+        headers=newcomer.headers,
+        json={"rsvp_status": "accepted"},
+    )
+    assert refused.status_code == 403, refused.text
+    assert refused.json()["detail"] == CalendarEventMessages.RSVP_CLOSED
+    answered = await client.patch(
+        organizer.g(f"/calendar-events/{event.id}/rsvp"),
+        headers=joiner.headers,
+        json={"rsvp_status": "declined"},
+    )
+    assert answered.status_code == 200, answered.text
+    assert answers(answered)[joiner.user.id] == "declined"
+    added = await client.put(
+        organizer.g(f"/calendar-events/{event.id}/attendees"),
+        headers=organizer.headers,
+        json=[attendee.user.id, joiner.user.id, newcomer.user.id],
+    )
+    assert added.status_code == 200, added.text
+    assert answers(added)[newcomer.user.id] == "pending"
+
 
 async def test_guild_entries_filter_events_without_calendar_grant(
     client: AsyncClient, session: AsyncSession, acting_user
@@ -923,9 +1003,9 @@ async def test_guild_entries_filter_events_without_calendar_grant(
     Events carry no grants of their own, so calendar sharing is what decides.
     ``calendar_ids`` narrows the result; it is not how access is resolved.
     """
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=admin.guild,
         initiative=admin.initiative,
         initiative_role="member",
@@ -965,9 +1045,9 @@ async def test_my_calendar_entries_filter_events_without_calendar_grant(
     per-guild read: a non-admin member doesn't see an event in a calendar they
     hold no grant for (even though they're an initiative member and RLS shows
     the row). Events inherit calendar access; they carry no grants of their own."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=admin.guild,
         initiative=admin.initiative,
         initiative_role="member",
@@ -1007,10 +1087,10 @@ async def test_my_calendar_entries_leave_out_what_was_never_shared(
     rather than what their standing could reach — an admin's authority over the
     initiative is untouched, and asking for it by name still returns the event.
     """
-    admin = await acting_user(guild_role=GuildRole.admin)
+    admin = await acting_user(guild_role=CommunityRole.admin)
     # `other` owns the initiative; the admin is NOT a member of it.
     other = await acting_user(
-        guild_role=GuildRole.member, guild=admin.guild, initiative=True
+        guild_role=CommunityRole.member, guild=admin.guild, initiative=True
     )
     initiative = other.initiative
     calendar = await _enable_calendars(session, initiative, other.user)
@@ -1050,7 +1130,7 @@ class TestGuildCalendarEvents:
     """A guild calendar holds its own events and reaches into no initiative.
 
     Two questions, and they pull in opposite directions. Its events have to be
-    *visible* — the app's page and a member's own calendar are where they show,
+    *visible* — the plug-in's page and a member's own calendar are where they show,
     and until now every one of those queries required an initiative, so they
     showed nowhere at all. And its events must stay *out* of anything belonging
     to an initiative, which is the same NULL read the other way.
@@ -1061,7 +1141,7 @@ class TestGuildCalendarEvents:
     """
 
     async def test_events_are_listed(self, client: AsyncClient, acting_user, session):
-        a = await acting_user(guild_role=GuildRole.admin)
+        a = await acting_user(guild_role=CommunityRole.admin)
         calendar = await create_guild_calendar(session, a.guild, a.user)
         await create_calendar_event(session, calendar, a.user, title="Club night")
 
@@ -1074,12 +1154,12 @@ class TestGuildCalendarEvents:
     async def test_a_member_in_no_initiative_sees_them(
         self, client: AsyncClient, acting_user, session
     ):
-        """The point of the app: someone in none of the guild's initiatives
+        """The point of the plug-in: someone in none of the guild's initiatives
         still has the guild's own calendar."""
-        a = await acting_user(guild_role=GuildRole.admin)
+        a = await acting_user(guild_role=CommunityRole.admin)
         calendar = await create_guild_calendar(session, a.guild, a.user)
         await create_calendar_event(session, calendar, a.user, title="Club night")
-        member = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+        member = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
 
         response = await client.get(
             member.g("/calendar-entries/"),
@@ -1094,7 +1174,7 @@ class TestGuildCalendarEvents:
     ):
         """Asked for one initiative's events, a guild calendar has nothing to
         contribute — it belongs to no initiative."""
-        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         await _switch_calendars_on(session, a.initiative)
         guild_calendar = await create_guild_calendar(session, a.guild, a.user)
         await create_calendar_event(session, guild_calendar, a.user, title="Club night")
@@ -1112,7 +1192,7 @@ class TestGuildCalendarEvents:
     async def test_the_calendar_is_listed_but_not_under_an_initiative(
         self, client: AsyncClient, acting_user, session
     ):
-        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         await _switch_calendars_on(session, a.initiative)
         await create_guild_calendar(session, a.guild, a.user, name="Community calendar")
         await create_calendar(session, a.initiative, a.user, name="Team calendar")
@@ -1136,8 +1216,8 @@ class TestGuildCalendarEvents:
         """An initiative calendar draws attendees from its initiative; a guild
         calendar has none, so the guild is who can attend — including a member
         who belongs to no initiative at all."""
-        a = await acting_user(guild_role=GuildRole.admin)
-        member = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+        a = await acting_user(guild_role=CommunityRole.admin)
+        member = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
         calendar = await create_guild_calendar(session, a.guild, a.user)
 
         response = await client.post(
@@ -1159,8 +1239,8 @@ class TestGuildCalendarEvents:
     async def test_someone_outside_the_guild_cannot_attend(
         self, client: AsyncClient, acting_user, session
     ):
-        a = await acting_user(guild_role=GuildRole.admin)
-        stranger = await acting_user(guild_role=GuildRole.admin)
+        a = await acting_user(guild_role=CommunityRole.admin)
+        stranger = await acting_user(guild_role=CommunityRole.admin)
         calendar = await create_guild_calendar(session, a.guild, a.user)
 
         response = await client.post(
@@ -1182,7 +1262,7 @@ class TestGuildCalendarEvents:
     ):
         """Property definitions belong to an initiative, so an event in no
         initiative holds none; clearing them is still a write it takes."""
-        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         definition = await create_property_definition(session, a.initiative)
         calendar = await create_guild_calendar(session, a.guild, a.user)
         event = await create_calendar_event(session, calendar, a.user)
@@ -1200,41 +1280,12 @@ class TestGuildCalendarEvents:
         assert cleared.status_code == 200, cleared.text
         assert cleared.json() == []
 
-    async def test_documents_cannot_be_linked(
-        self, client: AsyncClient, acting_user, session
-    ):
-        """Documents belong to an initiative; a guild calendar holds guild-level
-        content only, so an event there cannot link one."""
-        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-        document = await create_document(session, a.initiative, a.user)
-        calendar = await create_guild_calendar(session, a.guild, a.user)
-
-        # Asked of the create path, which is where an event names its documents
-        # now that the per-tool attach route is one generic one. The generic
-        # surface refuses the same pairing — see ``relationships_test``.
-        response = await client.post(
-            a.g("/calendar-events/"),
-            headers=a.headers,
-            json={
-                "title": "Guild night",
-                "calendar_id": calendar.id,
-                "start_at": "2026-10-01T18:00:00Z",
-                "end_at": "2026-10-01T20:00:00Z",
-                "document_ids": [document.id],
-            },
-        )
-        assert response.status_code == 400
-        assert (
-            response.json()["detail"]
-            == CalendarEventMessages.GUILD_CALENDAR_NO_DOCUMENTS
-        )
-
     async def test_an_event_cannot_move_across_the_scope_line(
         self, client: AsyncClient, acting_user, session
     ):
         """Both directions: an event carries its initiative attachments, so a
         move between a guild calendar and an initiative calendar is refused."""
-        a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         await _switch_calendars_on(session, a.initiative)
         guild_calendar = await create_guild_calendar(session, a.guild, a.user)
         team_calendar = await create_calendar(session, a.initiative, a.user)
@@ -1256,3 +1307,107 @@ class TestGuildCalendarEvents:
         )
         assert into.status_code == 400
         assert into.json()["detail"] == CalendarEventMessages.CANNOT_CROSS_SCOPE
+
+
+async def test_a_copied_series_takes_its_changed_occurrences_and_one_goes_alone(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """A copied series' changed occurrences follow its new title unless they
+    changed their own; a changed occurrence, or one date of the series, copied
+    alone is an event of its own. Invitees come along, invited afresh."""
+    from app.models.tenant.calendar_event import CalendarEventAttendee, RSVPStatus
+    from app.testing import route_session_to_guild
+
+    (
+        organizer,
+        attendee,
+        _guild,
+        _initiative,
+        calendar,
+    ) = await _setup_organizer_and_attendee(session, acting_user)
+    start = datetime(2026, 10, 5, 10, tzinfo=timezone.utc)
+    weekly = await create_calendar_event(
+        session,
+        calendar,
+        organizer.user,
+        title="Standup",
+        recurrence="RRULE:FREQ=WEEKLY",
+        start_at=start,
+        end_at=start + timedelta(hours=1),
+    )
+    week = timedelta(days=7)
+    moved, renamed = [
+        await create_calendar_event(
+            session,
+            calendar,
+            organizer.user,
+            title=title,
+            series_id=weekly.id,
+            original_start=weekly.start_at + n * week,
+            start_at=weekly.start_at + n * week + timedelta(hours=2),
+            end_at=weekly.start_at + n * week + timedelta(hours=3),
+            overridden_fields=fields,
+        )
+        for n, title, fields in (
+            (1, "Standup", ["all_day", "end_at", "start_at"]),
+            (2, "Retro", ["title"]),
+        )
+    ]
+    session.add(
+        CalendarEventAttendee(
+            calendar_event_id=weekly.id,
+            user_id=attendee.user.id,
+            rsvp_status=RSVPStatus.accepted,
+        )
+    )
+    await session.commit()
+
+    series = await client.post(
+        organizer.g(f"/calendar-events/{weekly.id}/duplicate"),
+        headers=organizer.headers,
+    )
+    alone = await client.post(
+        organizer.g(f"/calendar-events/{moved.id}/duplicate"),
+        headers=organizer.headers,
+    )
+    week_four = weekly.start_at + 3 * week
+    one_date = await client.post(
+        organizer.g(f"/calendar-events/{weekly.id}/duplicate"),
+        headers=organizer.headers,
+        params={"occurrence": week_four.isoformat()},
+    )
+
+    assert series.status_code == 201, series.text
+    assert alone.status_code == 201, alone.text
+    series, alone = series.json(), alone.json()
+    await route_session_to_guild(session, organizer.guild.id)
+    assert (series["title"], series["recurrence"]) == (
+        "Standup (Copy)",
+        "RRULE:FREQ=WEEKLY",
+    )
+    assert [(a["user_id"], a["rsvp_status"]) for a in series["attendees"]] == [
+        (attendee.user.id, "pending")
+    ]
+    changed = (
+        await session.exec(
+            select(CalendarEvent.title).where(CalendarEvent.series_id == series["id"])
+        )
+    ).all()
+    assert sorted(changed) == ["Retro", "Standup (Copy)"]
+    assert (alone["title"], alone["series_id"], alone["original_start"]) == (
+        "Standup (Copy)",
+        None,
+        None,
+    )
+    assert datetime.fromisoformat(alone["start_at"]) == moved.start_at
+    assert one_date.status_code == 201, one_date.text
+    one_date = one_date.json()
+    assert (one_date["recurrence"], one_date["series_id"]) == (None, None)
+    assert datetime.fromisoformat(one_date["start_at"]) == week_four
+    invites = await _notifications_for(
+        session, attendee.user.id, NotificationType.event_invitation
+    )
+    assert {invite.data["event_id"] for invite in invites} == {
+        series["id"],
+        one_date["id"],
+    }

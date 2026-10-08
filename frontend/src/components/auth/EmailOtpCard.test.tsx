@@ -153,7 +153,7 @@ describe("EmailOtpCard", () => {
     await askAt("plain@example.com");
 
     // A browser asks for itself; only the app says it is native.
-    expect(asked).toEqual([{ email: "plain@example.com", native: false }]);
+    expect(asked).toEqual([{ email: "plain@example.com" }]);
   });
 
   it("sends the captcha the deployment asks for", async () => {
@@ -177,9 +177,7 @@ describe("EmailOtpCard", () => {
     await user.click(screen.getByRole("button", { name: /email me a code/i }));
     await screen.findByLabelText(/^code$/i);
 
-    expect(asked).toEqual([
-      { email: "guarded@example.com", native: false, captcha_token: "solved" },
-    ]);
+    expect(asked).toEqual([{ email: "guarded@example.com", captcha_token: "solved" }]);
   });
 
   it("asks for a fresh solve after a refused send", async () => {

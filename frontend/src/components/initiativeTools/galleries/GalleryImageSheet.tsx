@@ -7,13 +7,18 @@ import type {
   GalleryImageVersionRead,
   TagSummary,
 } from "@/api/generated/initiativeAPI.schemas";
-import { PropertyTarget, SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
+import {
+  PropertyTarget,
+  SearchEntityType,
+  TagTarget,
+  Tool,
+} from "@/api/generated/initiativeAPI.schemas";
 import { ToolRelationsPanel } from "@/components/entities/ToolRelationsPanel";
 import { ReportButton } from "@/components/moderation/ReportButton";
 import { PropertyPanel } from "@/components/properties";
 import { LazyImage } from "@/components/shared/LazyImage";
 import { TagPicker } from "@/components/tags/TagPicker";
-import { UserHandle } from "@/components/UserHandle";
+import { UserName } from "@/components/UserHandle";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ImagePicker } from "@/components/ui/image-picker";
@@ -36,9 +41,9 @@ import {
   useUpdateGalleryImage,
   useUploadGalleryImageVersion,
 } from "@/hooks/useGalleries";
-import { toast } from "@/lib/chesterToast";
 import { formatBytes } from "@/lib/fileUtils";
 import { ACCEPT_ATTRIBUTE, imageLabel, imageSrc, refuseFile } from "@/lib/galleries";
+import { toast } from "@/lib/mascotToast";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
 import { cn } from "@/lib/utils";
 
@@ -133,9 +138,9 @@ export const GalleryImageSheet = ({
       <SheetContent side="right" className="flex w-full flex-col gap-0 overflow-y-auto sm:max-w-md">
         <SheetHeader className="text-left">
           <div className="flex items-start justify-between gap-2">
-            <SheetTitle className="min-w-0 truncate">{label || t("sheet.title")}</SheetTitle>
+            <SheetTitle className="sr-only">{label || t("common:lightbox.title")}</SheetTitle>
             <ReportButton
-              targetType="gallery_image"
+              targetType={TagTarget.gallery_image}
               targetId={image.id}
               authorId={image.created_by}
               className="shrink-0"
@@ -211,7 +216,7 @@ export const GalleryImageSheet = ({
           </div>
 
           {/* Saved as they change, apart from the Save above. Definitions
-              belong to an initiative, so a guild-level gallery has none. */}
+              belong to an initiative, so a community-level gallery has none. */}
           {initiativeId !== null && (
             <div className="space-y-1.5">
               <Label>{t("properties:title")}</Label>
@@ -238,7 +243,7 @@ export const GalleryImageSheet = ({
                     presence={image.uploader.presence}
                     className="size-5 shrink-0"
                   />
-                  <UserHandle user={image.uploader} nameClassName="min-w-0 truncate" />
+                  <UserName user={image.uploader} nameClassName="min-w-0 truncate" />
                 </>
               ) : (
                 "—"
@@ -309,8 +314,6 @@ export const GalleryImageSheet = ({
             target={{ type: SearchEntityType.gallery_image, id: image.id }}
             canEdit={canEdit}
             entityTitle={image.title ?? undefined}
-            defaultLayout="rows"
-            className="space-y-3"
           />
 
           {/* The history. */}

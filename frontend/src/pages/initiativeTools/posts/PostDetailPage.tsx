@@ -1,6 +1,6 @@
-import { Link, useBlocker, useParams } from "@tanstack/react-router";
+import { useBlocker, useParams } from "@tanstack/react-router";
 import type { SerializedEditorState } from "lexical";
-import { CalendarClock, Loader2, Pin, PinOff, Settings, Vote } from "lucide-react";
+import { CalendarClock, Loader2, Vote } from "lucide-react";
 import { lazy, Suspense, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -16,40 +16,36 @@ import {
   pollDraftFromRead,
   pollDraftToWrite,
 } from "@/components/initiativeTools/posts/PollEditor";
+import { PostByline } from "@/components/initiativeTools/posts/PostByline";
+import { PostPinButton } from "@/components/initiativeTools/posts/PostPinButton";
 import { PostPoll } from "@/components/initiativeTools/posts/PostPoll";
 import { ReactionBar } from "@/components/reactions/ReactionBar";
+import { DetailHeaderSkeleton } from "@/components/skeletons/PageSkeletons";
 import { ToolAccessStatus } from "@/components/ToolAccessStatus";
 import { TagBadge } from "@/components/tags/TagBadge";
-import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
-import { UserHandle } from "@/components/UserHandle";
+import { ToolChest, ToolChestSegment } from "@/components/tools/ToolChest";
+import { ToolPageHeader } from "@/components/tools/ToolPageHeader";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { Label } from "@/components/ui/label";
-import { RelativeTime } from "@/components/ui/relative-time";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ProfileAvatar } from "@/components/user/ProfileAvatar";
 import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useInitiative } from "@/hooks/useInitiatives";
 import { useReadOnOpen } from "@/hooks/useNotifications";
-import {
-  useDeletePostPoll,
-  usePost,
-  useSetPostPin,
-  useSetPostPoll,
-  useUpdatePost,
-} from "@/hooks/usePosts";
+import { useDeletePostPoll, usePost, useSetPostPoll, useUpdatePost } from "@/hooks/usePosts";
 import { useRecordRecentView } from "@/hooks/useRecents";
-import { toast } from "@/lib/chesterToast";
+import { useCommunityPath } from "@/lib/communityUrl";
+import { normalizeEditorState } from "@/lib/editorState";
 import { formatDateTime, fromLocalDateTimeInput, toLocalDateTimeInput } from "@/lib/formatDate";
-import { useGuildPath } from "@/lib/guildUrl";
-import { hasBody, MAX_POST_TEXT_CHARS } from "@/lib/posts";
+import { toast } from "@/lib/mascotToast";
+import { MAX_POST_TEXT_CHARS } from "@/lib/posts";
 import { referenceRef } from "@/lib/smartChips";
 import { toolListRoute, toolSettingsRoute } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
 const Editor = lazy(() =>
-  import("@/components/documents/editor/editor").then((m) => ({ default: m.Editor }))
+  import("@/components/ui/editor/editor").then((m) => ({ default: m.Editor }))
 );
 
 /**
@@ -62,18 +58,18 @@ const Editor = lazy(() =>
  */
 export function PostDetailPage() {
   const { t } = useTranslation(["posts", "common"]);
-  const { guildId, postId } = useParams({ strict: false }) as {
-    guildId: string;
+  const { communityId, postId } = useParams({ strict: false }) as {
+    communityId: string;
     postId: string;
   };
   const parsedId = Number(postId);
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
 
   const postQuery = usePost(Number.isFinite(parsedId) ? parsedId : null);
   const post = postQuery.data;
   const initiativeId = useCanonicalInitiativeId(post?.initiative_id);
 
-  const recordViewMutation = useRecordRecentView("post", Number(guildId));
+  const recordViewMutation = useRecordRecentView(Tool.post, Number(communityId));
   const viewedPostId = post?.id;
   useReadOnOpen(Tool.post, viewedPostId);
   useEffect(() => {
@@ -101,9 +97,9 @@ export function PostDetailPage() {
   const reschedule = useUpdatePost(parsedId, {
     onSuccess: () => toast.success(t("detailsUpdated")),
   });
-  const setPin = useSetPostPin(parsedId, {
-    onSuccess: (updated) =>
-      toast.success(updated.is_pinned ? t("pin.pinnedToast") : t("pin.unpinnedToast")),
+  // Renaming gets its own too: the body's mutation clears the unsaved draft.
+  const rename = useUpdatePost(parsedId, {
+    onSuccess: () => toast.success(t("detailsUpdated")),
   });
 
   // The editor is uncontrolled once mounted, so the draft lives here and is
@@ -166,272 +162,220 @@ export function PostDetailPage() {
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-6">
-      <ToolBreadcrumb
-        tool={Tool.post}
-        initiativeId={post?.initiative_id}
-        trail={[{ label: post ? post.name : <Skeleton className="h-4 w-32" /> }]}
-      />
+      {post ? (
+        <ToolPageHeader
+          tool={Tool.post}
+          initiativeId={post.initiative_id}
+          settingsTo={canEdit ? toolSettingsRoute(Tool.post, initiativeId, post.id) : undefined}
+          chest={
+            <ToolChest tool={Tool.post} entity={post}>
+              {canPin ? (
+                <ToolChestSegment>
+                  <PostPinButton post={post} labelled />
+                </ToolChestSegment>
+              ) : null}
+            </ToolChest>
+          }
+          title={post.name}
+          onRename={canEdit ? (name) => rename.mutateAsync({ name }) : undefined}
+        >
+          <PostByline post={post} inline />
+          <PinnedBanner post={post} canPin={canPin} />
+        </ToolPageHeader>
+      ) : (
+        <DetailHeaderSkeleton actions={0} description={false} />
+      )}
 
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 space-y-1">
-          {post ? (
-            <h1 className="font-semibold text-3xl tracking-tight">{post.name}</h1>
-          ) : (
-            <Skeleton className="h-9 w-64" />
-          )}
-          {/* Signed, the way the board signs it. A notice is somebody saying
-              something, and its own page is the last place that should be
-              left off. Under the headline here rather than above it, because
-              on a page the title comes first and the byline answers it. */}
-          {post?.author ? (
-            <div className="flex min-w-0 items-center gap-2 pt-1">
-              <ProfileAvatar
-                user={post.author}
-                decorations={post.author.profile_decorations}
-                presence={post.author.presence}
-                className="size-7 shrink-0"
-              />
-              <UserHandle user={post.author} className="text-sm" nameClassName="min-w-0 truncate" />
-              <span aria-hidden className="text-muted-foreground text-xs">
-                ·
-              </span>
-              <RelativeTime
-                date={post.published_at ?? post.created_at}
-                className="text-muted-foreground text-xs"
-              />
-            </div>
-          ) : null}
-          {post && <PinnedBanner post={post} canPin={canPin} />}
-        </div>
-
-        <div className="flex shrink-0 items-center gap-2">
-          {post && canPin && (
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={setPin.isPending}
-              onClick={() => setPin.mutate({ pinned: !post.is_pinned })}
-              className="inline-flex items-center gap-2"
-            >
-              {post.is_pinned ? (
-                <PinOff className="h-4 w-4" aria-hidden />
-              ) : (
-                <Pin className="h-4 w-4" aria-hidden />
-              )}
-              {post.is_pinned ? t("pin.unpin") : t("pin.pin")}
-            </Button>
-          )}
-          {post && canEdit && (
-            <Button variant="outline" size="sm" asChild>
-              <Link
-                to={gp(toolSettingsRoute(Tool.post, initiativeId, post.id))}
-                className="inline-flex items-center gap-2"
-              >
-                <Settings className="h-4 w-4" aria-hidden />
-                {t("common:toolSettings.title")}
-              </Link>
-            </Button>
-          )}
-        </div>
-      </div>
-
-      {/* Reaching this page at all means being able to see the notice, and a
+      <>
+        {/* Reaching this page at all means being able to see the notice, and a
           draft answers 404 to everyone who cannot edit it — so this strip is
           only ever in front of someone who can act on it. It says the state
           and offers the two things there are to do: move the time, or put it
           up now. */}
-      {post && !post.is_published && (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-md border border-dashed p-3">
-          {canEdit ? (
-            <>
-              {/* The picker holds the date, so the label only has to name it.
+        {post && !post.is_published && (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-md border border-dashed p-3">
+            {canEdit ? (
+              <>
+                {/* The picker holds the date, so the label only has to name it.
                   Saying "Scheduled for Sep 9, 4:37 PM" beside a box already
                   reading "Sep 9, 4:37 PM" is the same fact twice, and the one
                   that can be changed is the box. */}
-              <Label
-                htmlFor="post-schedule"
-                className="inline-flex items-center gap-1.5 text-muted-foreground text-sm"
-              >
+                <Label
+                  htmlFor="post-schedule"
+                  className="inline-flex items-center gap-1.5 text-muted-foreground text-sm"
+                >
+                  <CalendarClock className="h-4 w-4" aria-hidden />
+                  {t("schedule.publishesAt")}
+                </Label>
+                <DateTimePicker
+                  id="post-schedule"
+                  includeTime
+                  value={toLocalDateTimeInput(post.scheduled_for)}
+                  placeholder={t("schedule.placeholder")}
+                  // Only a real instant moves the schedule. Clearing the field
+                  // does nothing: publishing cannot be undone, and emptying a
+                  // date box to retype it must not announce the notice to
+                  // everybody. "Post now" is the way to publish, and it says so.
+                  onChange={(value) => {
+                    const when = fromLocalDateTimeInput(value);
+                    if (when) reschedule.mutate({ scheduled_for: when });
+                  }}
+                />
+                <Button
+                  size="sm"
+                  className="ml-auto"
+                  disabled={reschedule.isPending}
+                  onClick={() => reschedule.mutate({ scheduled_for: null })}
+                >
+                  {t("schedule.publishNow")}
+                </Button>
+              </>
+            ) : (
+              // Nothing to change, so the date is the sentence.
+              <p className="flex items-center gap-1.5 text-muted-foreground text-sm">
                 <CalendarClock className="h-4 w-4" aria-hidden />
-                {t("schedule.publishesAt")}
-              </Label>
-              <DateTimePicker
-                id="post-schedule"
-                includeTime
-                value={toLocalDateTimeInput(post.scheduled_for)}
-                placeholder={t("schedule.placeholder")}
-                // Only a real instant moves the schedule. Clearing the field
-                // does nothing: publishing cannot be undone, and emptying a
-                // date box to retype it must not announce the notice to
-                // everybody. "Post now" is the way to publish, and it says so.
-                onChange={(value) => {
-                  const when = fromLocalDateTimeInput(value);
-                  if (when) reschedule.mutate({ scheduled_for: when });
-                }}
-              />
-              <Button
-                size="sm"
-                className="ml-auto"
-                disabled={reschedule.isPending}
-                onClick={() => reschedule.mutate({ scheduled_for: null })}
-              >
-                {t("schedule.publishNow")}
-              </Button>
-            </>
-          ) : (
-            // Nothing to change, so the date is the sentence.
-            <p className="flex items-center gap-1.5 text-muted-foreground text-sm">
-              <CalendarClock className="h-4 w-4" aria-hidden />
-              {post.scheduled_for
-                ? t("schedule.scheduledFor", { date: formatDateTime(post.scheduled_for) })
-                : t("schedule.notPublished")}
-            </p>
-          )}
-        </div>
-      )}
+                {post.scheduled_for
+                  ? t("schedule.scheduledFor", { date: formatDateTime(post.scheduled_for) })
+                  : t("schedule.notPublished")}
+              </p>
+            )}
+          </div>
+        )}
 
-      {post ? (
-        /* What the notice SAYS on the left, what is asked and linked on the
+        {post ? (
+          /* What the notice SAYS on the left, what is asked and linked on the
            right — the shape a task already uses. Sized by the column rather
            than by a breakpoint, so a narrow window stacks them instead of
            squeezing both. */
-        <div className="grid gap-6 [grid-template-columns:repeat(auto-fit,minmax(min(25rem,100%),1fr))]">
-          <div className="min-w-0 space-y-3">
-            <Suspense fallback={<Skeleton className="h-40 w-full" />}>
-              <Editor
-                key={post.id}
-                // An empty object is not an empty editor state — Lexical refuses
-                // one whose root has no children, and a notice that is only a
-                // headline and a poll stores exactly that. Passing nothing lets
-                // the editor build its own empty document.
-                editorSerializedState={
-                  hasBody(post.body) ? (post.body as unknown as SerializedEditorState) : undefined
-                }
-                onSerializedChange={setDraft}
-                readOnly={!canEdit}
-                showToolbar={canEdit}
-                initiativeId={post.initiative_id}
-                subject={referenceRef(SearchEntityType.post, post.id)}
-                supportsEntityMentions
-                variant="post"
-                maxLength={MAX_POST_TEXT_CHARS}
-                // A notice sits on a card wherever it is read — on the board,
-                // and here. Reading it, the padding comes from this box, because
-                // the editor's own is the little it needs between cards in a
-                // feed; writing it, the editor already reserves room for the
-                // toolbar and the caret at the end.
-                className={cn("rounded-lg border bg-card", !canEdit && "py-2")}
-              />
-            </Suspense>
-            {canEdit && draft !== null && (
-              <div className="flex justify-end">
-                <Button
-                  size="sm"
-                  disabled={update.isPending}
-                  onClick={() =>
-                    update.mutate({ body: draft as unknown as Record<string, unknown> })
-                  }
-                >
-                  {update.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-                  {update.isPending ? t("saving") : t("common:save")}
-                </Button>
-              </div>
-            )}
-            {/* Reacting is a read-level gesture — anyone who can see the
+          <div className="grid gap-6 [grid-template-columns:repeat(auto-fit,minmax(min(25rem,100%),1fr))]">
+            <div className="min-w-0 space-y-3">
+              <Suspense fallback={<Skeleton className="h-40 w-full" />}>
+                <Editor
+                  key={post.id}
+                  editorSerializedState={normalizeEditorState(post.body)}
+                  onSerializedChange={setDraft}
+                  readOnly={!canEdit}
+                  showToolbar={canEdit}
+                  initiativeId={post.initiative_id}
+                  subject={referenceRef(SearchEntityType.post, post.id)}
+                  supportsEntityMentions
+                  variant="post"
+                  maxLength={MAX_POST_TEXT_CHARS}
+                  // A notice sits on a card wherever it is read — on the board,
+                  // and here. Reading it, the padding comes from this box, because
+                  // the editor's own is the little it needs between cards in a
+                  // feed; writing it, the editor already reserves room for the
+                  // toolbar and the caret at the end.
+                  className={cn("rounded-lg border bg-card", !canEdit && "py-2")}
+                />
+              </Suspense>
+              {canEdit && draft !== null && (
+                <div className="flex justify-end">
+                  <Button
+                    size="sm"
+                    disabled={update.isPending}
+                    onClick={() => update.mutate({ body: { ...draft } })}
+                  >
+                    {update.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                    {update.isPending ? t("saving") : t("common:save")}
+                  </Button>
+                </div>
+              )}
+              {/* Reacting is a read-level gesture — anyone who can see the
               notice can react to it — so this is offered to every reader,
               not only to whoever may edit. A notice with reactions turned
               off shows none. */}
-            {post.reactions_enabled && (
-              <ReactionBar
-                targetType={ReactionTarget.post}
-                targetId={post.id}
-                groups={post.reactions}
-              />
-            )}
-            {post.tags.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {post.tags.map((tag) => (
-                  <TagBadge key={tag.id} tag={tag} size="sm" to={gp(`/tags/${tag.id}`)} />
-                ))}
-              </div>
-            )}
-          </div>
+              {post.reactions_enabled && (
+                <ReactionBar
+                  targetType={ReactionTarget.post}
+                  targetId={post.id}
+                  groups={post.reactions}
+                />
+              )}
+              {post.tags.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {post.tags.map((tag) => (
+                    <TagBadge key={tag.id} tag={tag} size="sm" to={gp(`/tags/${tag.id}`)} />
+                  ))}
+                </div>
+              )}
+            </div>
 
-          <div className="min-w-0 space-y-4">
-            {/* The question, under what was said about it. Every reader sees
+            <div className="min-w-0 space-y-4">
+              {/* The question, under what was said about it. Every reader sees
                 it; only somebody who may edit the notice can change it, and
                 they do that in the editor below rather than in place — a poll
                 being answered and a poll being rewritten are different
                 things on the same rows. */}
-            {post.poll && pollDraft === null && <PostPoll post={post} />}
-            {canEdit && (
-              <div className="space-y-2">
-                {pollDraft === null ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() =>
-                      setPollDraft(post.poll ? pollDraftFromRead(post.poll) : emptyPollDraft())
-                    }
-                    className="inline-flex items-center gap-2"
-                  >
-                    <Vote className="h-4 w-4" aria-hidden />
-                    {post.poll ? t("poll.edit") : t("poll.add")}
-                  </Button>
-                ) : (
-                  <>
-                    <PollEditor
-                      idPrefix="post-poll"
-                      value={pollDraft}
-                      onChange={setPollDraft}
-                      choicesLocked={pollAnswered}
-                      anonymityLocked={pollAnswered && (post.poll?.is_anonymous ?? false)}
-                      onRemove={post.poll ? () => removePoll.mutate() : undefined}
-                    />
-                    <div className="flex justify-end gap-2">
-                      <Button variant="outline" size="sm" onClick={() => setPollDraft(null)}>
-                        {t("common:cancel")}
-                      </Button>
-                      <Button
-                        size="sm"
-                        disabled={savePoll.isPending || !isPollDraftValid(pollDraft)}
-                        onClick={() => savePoll.mutate(pollDraftToWrite(pollDraft))}
-                      >
-                        {savePoll.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-                        {savePoll.isPending ? t("saving") : t("common:save")}
-                      </Button>
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
-            <ToolRelationsPanel
-              tool={Tool.post}
-              entity={post}
-              canEdit={canEdit}
-              entityTitle={post.name}
-              defaultLayout="rows"
-            />
+              {post.poll && pollDraft === null && <PostPoll post={post} />}
+              {canEdit && (
+                <div className="space-y-2">
+                  {pollDraft === null ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        setPollDraft(post.poll ? pollDraftFromRead(post.poll) : emptyPollDraft())
+                      }
+                      className="inline-flex items-center gap-2"
+                    >
+                      <Vote className="h-4 w-4" aria-hidden />
+                      {post.poll ? t("poll.edit") : t("poll.add")}
+                    </Button>
+                  ) : (
+                    <>
+                      <PollEditor
+                        idPrefix="post-poll"
+                        value={pollDraft}
+                        onChange={setPollDraft}
+                        choicesLocked={pollAnswered}
+                        anonymityLocked={pollAnswered && (post.poll?.is_anonymous ?? false)}
+                        onRemove={post.poll ? () => removePoll.mutate() : undefined}
+                      />
+                      <div className="flex justify-end gap-2">
+                        <Button variant="outline" size="sm" onClick={() => setPollDraft(null)}>
+                          {t("common:cancel")}
+                        </Button>
+                        <Button
+                          size="sm"
+                          disabled={savePoll.isPending || !isPollDraftValid(pollDraft)}
+                          onClick={() => savePoll.mutate(pollDraftToWrite(pollDraft))}
+                        >
+                          {savePoll.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                          {savePoll.isPending ? t("saving") : t("common:save")}
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+              <ToolRelationsPanel
+                tool={Tool.post}
+                entity={post}
+                canEdit={canEdit}
+                entityTitle={post.name}
+              />
+            </div>
           </div>
-        </div>
-      ) : (
-        <Skeleton className="h-40 w-full" />
-      )}
+        ) : (
+          <Skeleton className="h-40 w-full" />
+        )}
 
-      {post != null && <ToolCommentsPanel tool={Tool.post} entity={post} canModerate={canEdit} />}
+        {post != null && <ToolCommentsPanel tool={Tool.post} entity={post} />}
 
-      <ConfirmDialog
-        open={blocker.status === "blocked"}
-        onOpenChange={(open) => {
-          if (!open) blocker.reset?.();
-        }}
-        title={t("unsaved.title")}
-        description={t("unsaved.body")}
-        confirmLabel={t("unsaved.leave")}
-        cancelLabel={t("unsaved.stay")}
-        onConfirm={() => blocker.proceed?.()}
-        destructive
-      />
+        <ConfirmDialog
+          open={blocker.status === "blocked"}
+          onOpenChange={(open) => {
+            if (!open) blocker.reset?.();
+          }}
+          title={t("unsaved.title")}
+          description={t("unsaved.body")}
+          confirmLabel={t("unsaved.leave")}
+          cancelLabel={t("unsaved.stay")}
+          onConfirm={() => blocker.proceed?.()}
+          destructive
+        />
+      </>
     </div>
   );
 }

@@ -1,12 +1,12 @@
 """What can be edited by several people at once, and how each one is reached.
 
 A collaboration room is a Yjs document plus the row it is a body of. Which row
-that is differs — a document's body is its own, a wiki page's body is the
+that is differs — a file's body is its own, a wiki page's body is the
 page's while the *sharing* belongs to the wiki it sits in — and that difference
 is the whole of what varies between them.
 
 So it is declared once here, per kind, and the room, the socket and the
-persistence sweep all read it rather than each knowing about documents:
+persistence sweep all read it rather than each knowing about files:
 
 ``entity_type``
     The room's ``resource_type`` in the stream register, and the reference kind
@@ -17,10 +17,11 @@ persistence sweep all read it rather than each knowing about documents:
 ``model`` / ``content_column``
     Where the JSON body lives. The Yjs columns are spelled the same on every
     collaborative table, so they are not restated.
-``normalize``
-    Checks and cleans a content frame before the room holds it. A document's
-    shape depends on its type; a page is always prose, so it only has to be an
-    object.
+``body_kind``
+    Which editor a row's body is for, as a SQL expression: a file's type,
+    or ``"native"`` for a page, which is always prose. The server makes the
+    body's Yjs state and renders its content with that editor's mapping
+    (:mod:`app.services.tenant.body_states`).
 ``load``
     Fetches the body row and the row whose grants govern it, with everything
     the DAC engine reads eager-loaded. Returns ``None`` when either is missing
@@ -33,11 +34,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Optional
 
+from sqlalchemy import literal
 from sqlalchemy.orm import selectinload, undefer
 from sqlmodel import select
 
 from app.core.search import SearchEntityType
-from app.core.tools import Tool
+from app.core.tools import Tool, plural_of
 
 #: Both columns are spelled the same on every collaborative table, so a new one
 #: declares neither.
@@ -48,7 +50,7 @@ YJS_UPDATED_COLUMN = "yjs_updated_at"
 @dataclass(frozen=True)
 class Collaborating:
     """One resolved resource: the row holding the body, and the row that says
-    who may read or write it. They are the same row for a document."""
+    who may read or write it. They are the same row for a file."""
 
     body: Any
     governing: Any
@@ -62,35 +64,44 @@ class CollaborativeResource:
     model: type
     content_column: str
     load: Callable[..., Awaitable[Optional[Collaborating]]]
-    normalize: Callable[[Any, Any], dict]
+    body_kind: Callable[[], Any]
+    #: A path parameter that differs from ``<kind>_id``.
+    id_param: Optional[str] = None
 
     @property
     def resource_type(self) -> str:
         """The room key's middle term, and the stream register's."""
         return self.entity_type.value
 
+    @property
+    def route_segment(self) -> str:
+        """The kebab plural its routes are served under (``wiki-pages``)."""
+        return plural_of(self.resource_type).replace("_", "-")
 
-async def _load_document(
+    @property
+    def path_param(self) -> str:
+        """The path parameter a body is addressed by."""
+        return self.id_param or f"{self.resource_type}_id"
+
+
+async def _load_file(
     session: Any, resource_id: int, guild_id: int
 ) -> Optional[Collaborating]:
-    from app.models.tenant.document import Document
-    from app.models.tenant.resource_grant import ResourceGrant
+    from app.models.tenant.file import File
 
     statement = (
-        select(Document)
-        .where(Document.id == resource_id)
+        select(File)
+        .where(File.id == resource_id)
         .options(
-            selectinload(Document.initiative),
-            undefer(Document.actions),
-            selectinload(Document.grants).selectinload(ResourceGrant.role),
+            selectinload(File.initiative),
+            undefer(File.actions),
+            selectinload(File.grants),
         )
     )
-    document = (await session.exec(statement)).one_or_none()
-    if document is None:
+    file = (await session.exec(statement)).one_or_none()
+    if file is None:
         return None
-    return Collaborating(
-        body=document, governing=document, initiative_id=document.initiative_id
-    )
+    return Collaborating(body=file, governing=file, initiative_id=file.initiative_id)
 
 
 async def _load_wiki_page(
@@ -101,7 +112,6 @@ async def _load_wiki_page(
     That is the same rule the REST path applies — a page is the wiki's content
     — so the socket asks the same question of the same row.
     """
-    from app.models.tenant.resource_grant import ResourceGrant
     from app.models.tenant.wiki import Wiki, WikiPage
 
     page = (
@@ -116,37 +126,13 @@ async def _load_wiki_page(
         .options(
             selectinload(Wiki.initiative),
             undefer(Wiki.actions),
-            selectinload(Wiki.grants).selectinload(ResourceGrant.role),
+            selectinload(Wiki.grants),
         )
     )
     wiki = (await session.exec(statement)).one_or_none()
     if wiki is None:
         return None
     return Collaborating(body=page, governing=wiki, initiative_id=wiki.initiative_id)
-
-
-class ContentFrameError(ValueError):
-    """A content frame that is not the shape this kind of body takes."""
-
-    def __init__(self, code: str):
-        super().__init__(code)
-        self.code = code
-
-
-def _normalize_document(body: Any, content: Any) -> dict:
-    from app.services.tenant import documents as documents_service
-
-    return documents_service.normalize_document_content(
-        content, document_type=body.document_type
-    )
-
-
-def _normalize_wiki_page(_body: Any, content: Any) -> dict:
-    """A page is always a Lexical body, so the only question is whether this is
-    an editor state at all."""
-    if not isinstance(content, dict):
-        raise ContentFrameError("WIKI_PAGE_CONTENT_INVALID")
-    return content
 
 
 COLLABORATIVE_RESOURCES: dict[str, CollaborativeResource] = {}
@@ -157,16 +143,16 @@ def _register(resource: CollaborativeResource) -> CollaborativeResource:
     return resource
 
 
-def _document_resource() -> CollaborativeResource:
-    from app.models.tenant.document import Document
+def _file_resource() -> CollaborativeResource:
+    from app.models.tenant.file import File
 
     return CollaborativeResource(
-        entity_type=SearchEntityType.document,
-        tool=Tool.document,
-        model=Document,
+        entity_type=SearchEntityType.file,
+        tool=Tool.file,
+        model=File,
         content_column="content",
-        load=_load_document,
-        normalize=_normalize_document,
+        load=_load_file,
+        body_kind=lambda: File.file_type,
     )
 
 
@@ -179,7 +165,9 @@ def _wiki_page_resource() -> CollaborativeResource:
         model=WikiPage,
         content_column="content",
         load=_load_wiki_page,
-        normalize=_normalize_wiki_page,
+        body_kind=lambda: literal("native"),
+        # Every wiki page route names its row ``page_id``.
+        id_param="page_id",
     )
 
 
@@ -187,12 +175,13 @@ def resource_for(resource_type: str) -> CollaborativeResource:
     """The declaration for one kind. Raises for a kind nothing registered,
     which is a wiring mistake rather than a request error."""
     if not COLLABORATIVE_RESOURCES:
-        _register(_document_resource())
+        _register(_file_resource())
         _register(_wiki_page_resource())
     return COLLABORATIVE_RESOURCES[resource_type]
 
 
 def registered_types() -> tuple[str, ...]:
-    """Every collaborative kind, for the tests that walk them."""
-    resource_for(SearchEntityType.document.value)
+    """Every collaborative kind: what the routes are mounted for, and what the
+    tests walk."""
+    resource_for(SearchEntityType.file.value)
     return tuple(sorted(COLLABORATIVE_RESOURCES))

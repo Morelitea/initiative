@@ -193,7 +193,7 @@ describe("definitionsEqual", () => {
 describe("effectiveBinding", () => {
   it("layers instance config over the definition's binding", () => {
     // The seam that makes an installed listing work: the catalog definition
-    // cannot know this guild's counter ids, so the install fills them in.
+    // cannot know this community's counter ids, so the install fills them in.
     const definition = addWidget(EMPTY_DEFINITION, catalog, "stat", "query");
     const config = readConfig({
       widgets: { w1: { counter_group_id: 4, counter_id: 9 } },
@@ -216,12 +216,12 @@ describe("effectiveBinding", () => {
 describe("unboundSlots", () => {
   it("names what a binding still needs", () => {
     expect(unboundSlots({ source: "query" })).toEqual(["sql"]);
-    expect(unboundSlots({ source: "sheet_range", document_id: 3 })).toEqual(["range"]);
+    expect(unboundSlots({ source: "sheet_range", file_id: 3 })).toEqual(["range"]);
   });
 
   it("is empty once every required parameter is filled", () => {
     expect(unboundSlots({ source: "query", sql: "SELECT title FROM tasks" })).toEqual([]);
-    expect(unboundSlots({ source: "sheet_range", document_id: 3, range: "A1:B2" })).toEqual([]);
+    expect(unboundSlots({ source: "sheet_range", file_id: 3, range: "A1:B2" })).toEqual([]);
   });
 });
 

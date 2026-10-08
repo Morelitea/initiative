@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from app.services.platform import user_stream
+from app.db import post_commit
 
 logger = logging.getLogger(__name__)
 
@@ -28,8 +28,8 @@ WEBHOOKS = "webhooks"
 
 def wake(session: Any, kind: str, guild_id: int) -> None:
     """Send a wake for ``kind`` in ``guild_id`` once ``session`` commits."""
-    user_stream.after_commit(
-        session, (CHANNEL, kind, guild_id), lambda: send(kind, guild_id)
+    post_commit.after_commit(
+        session, lambda: send(kind, guild_id), key=(CHANNEL, kind, guild_id)
     )
 
 

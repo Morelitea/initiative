@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from enum import Enum
 from typing import Optional
 
 from sqlalchemy import (
@@ -23,6 +24,28 @@ from app.models.platform.user_profile_view import MemberProfile
 COMMENT_PARENT_COLUMN_SQL = ", ".join(f"{target}_id" for target in COMMENT_TARGETS)
 
 
+class CommentAudience(str, Enum):
+    """Who a comment is said to.
+
+    Every comment is said to the people who can read its thread. A comment on
+    an operations case can also be said to the person who filed the case, who
+    is not one of them: that is the conversation with them, and it is the only
+    part of the case they are ever shown. It is kept apart from the thread:
+    the case shows it on its own, and the thread, its counts and its feeds
+    never carry it.
+    """
+
+    members = "members"
+    filer = "filer"
+
+
+#: The audiences, as the CHECK spells them.
+_AUDIENCE_SQL = ", ".join(f"'{a.value}'" for a in CommentAudience)
+
+#: Longest name of what the platform's writer posted a comment as.
+SYSTEM_KIND_LENGTH = 32
+
+
 class Comment(CreatedByMixin, SoftDeleteMixin, table=True):
     __tablename__ = "comments"
     _display_field = "content"
@@ -35,6 +58,7 @@ class Comment(CreatedByMixin, SoftDeleteMixin, table=True):
             f"num_nonnulls({COMMENT_PARENT_COLUMN_SQL}) = 1",
             name="ck_comments_single_parent",
         ),
+        CheckConstraint(f"audience IN ({_AUDIENCE_SQL})", name="ck_comments_audience"),
     )
     # An import may attribute a comment to the account its author was matched
     # to, and only that: the match is made by a person, one row at a time, in
@@ -54,15 +78,15 @@ class Comment(CreatedByMixin, SoftDeleteMixin, table=True):
             Integer, ForeignKey("tasks.id", ondelete="CASCADE"), nullable=True
         ),
     )
-    document_id: Optional[int] = Field(
+    file_id: Optional[int] = Field(
         default=None,
         sa_column=Column(
-            Integer, ForeignKey("documents.id", ondelete="CASCADE"), nullable=True
+            Integer, ForeignKey("files.id", ondelete="CASCADE"), nullable=True
         ),
     )
     # Tool-entity parents: every Tool is commentable (drift-tested against the
     # enum in comments_test), one nullable FK per tool alongside the original
-    # task/document pair. ``project_id`` means a comment ON the project itself;
+    # task/file pair. ``project_id`` means a comment ON the project itself;
     # a task comment reports its task's project through the read schema only.
     project_id: Optional[int] = Field(
         default=None,
@@ -141,6 +165,24 @@ class Comment(CreatedByMixin, SoftDeleteMixin, table=True):
             Integer, ForeignKey("comments.id", ondelete="CASCADE"), nullable=True
         ),
     )
+    #: Who it is said to. Members unless somebody chose otherwise when they
+    #: wrote it, so nothing reaches the person who filed a case by default.
+    audience: CommentAudience = Field(
+        default=CommentAudience.members,
+        sa_column=Column(
+            String(length=16),
+            nullable=False,
+            server_default=CommentAudience.members.value,
+        ),
+    )
+    #: What the platform posted this as, when the platform posted it — a
+    #: repeat noted on an operations case, say. Null on everything a person or
+    #: a plug-in wrote; it is what tells the platform's notes from a plug-in's, since
+    #: neither names an author.
+    system_kind: Optional[str] = Field(
+        default=None,
+        sa_column=Column(String(length=SYSTEM_KIND_LENGTH), nullable=True),
+    )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
@@ -158,3 +200,10 @@ class Comment(CreatedByMixin, SoftDeleteMixin, table=True):
             "viewonly": True,
         },
     )
+
+
+def in_thread():
+    """The comments that make up a thread, its counts and its feeds: all but
+    the conversation with whoever filed an operations case, which the case
+    shows on its own."""
+    return Comment.audience == CommentAudience.members

@@ -1,0 +1,87 @@
+name: CLA
+
+# Records that each contributor to a pull request has signed the Contributor
+# License Agreement (CLA.md, version 2). A contributor who hasn't signed is
+# asked to, on the pull request, and signs by commenting the phrase CLA.md §7
+# gives. The signature (GitHub account, pull request, time) is committed to
+# signatures/version2/cla.json on the cla-signatures branch. A pull request
+# whose committers have all signed, or are on the allowlist (the
+# organization's members and its bots), passes.
+#
+# pull_request_target runs with this repository's token, write access
+# included, even for a pull request from a fork. That is safe only because
+# this workflow never checks out, builds or runs the pull request's code: it
+# has no checkout step and must never get one. The action reads the pull
+# request's commit authors and comments through the API, nothing else.
+#
+# GitHub runs both events from the default branch's copy of this file, so
+# the check starts once it reaches main.
+#
+# The action (CLA Assistant Lite) is archived upstream; v2.6.1 is its last
+# release.
+
+on:
+  pull_request_target:
+    # closed: locks the pull request's conversation after merge, so a
+    # signature comment can't be edited or deleted later.
+    types: [opened, synchronize, closed]
+  issue_comment:
+    types: [created]
+
+permissions: {}
+
+# One run per pull request at a time; a newer one reads every comment again.
+concurrency:
+  group: cla-${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  cla:
+    name: CLA signed
+    # A pull request event, or a comment on a pull request (not an issue)
+    # that signs or asks for a recheck.
+    if: >-
+      github.event_name == 'pull_request_target' ||
+      (github.event.issue.pull_request &&
+        (github.event.comment.body == 'recheck' ||
+         github.event.comment.body == 'I have read the CLA Document and I hereby sign the CLA'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    # What the action calls: contents to read and commit the signatures file,
+    # pull-requests to comment on and lock the pull request, actions to re-run
+    # the failed check after someone signs by comment. Its README also lists
+    # statuses: write, but it never sets a commit status.
+    permissions:
+      actions: write
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Check the CLA is signed
+        uses: contributor-assistant/github-action@ca4a40a7d1004f18d9960b404b97e5f30a505a08 # v2.6.1
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          path-to-document: https://github.com/beyonders-studio/initiative/blob/dev/CLA.md
+          # The branch must exist, unprotected, with this file on it
+          # ({"signedContributors": []}) before the first run: v2.6.1 fails
+          # on a missing file rather than creating it.
+          branch: cla-signatures
+          path-to-signatures: signatures/version2/cla.json
+          # Matched against each commit's GitHub login, or, for a commit whose
+          # email is linked to no account, the git author name, which anyone
+          # can set. So the list is exact names, with no wildcard.
+          #
+          # Members of the beyonders-studio organization are never asked to
+          # sign: their work is covered by their agreement with the
+          # organization, not by this check. The list is per commit author,
+          # not per pull request author, so a member who opens a pull request
+          # carrying an outside contributor's commits still gets that
+          # contributor asked. Keep it in step with
+          # https://github.com/orgs/beyonders-studio/people.
+          #
+          # claude: commits the maintainers make through Claude Code sessions
+          # are attributed by GitHub to the `claude` account (author email
+          # noreply@anthropic.com). They are the maintainers' own work, and
+          # without this entry every release pull request from dev would stop
+          # on them.
+          allowlist: LeeJMorel,jordandrako,tomj12k,Dazhbug,viwrastupr,claude,dependabot[bot],initiative-release[bot]

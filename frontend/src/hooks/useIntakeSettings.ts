@@ -16,19 +16,19 @@ import type {
   IntakeOptionsRead,
   IntakeSettingsRead,
   IntakeStream,
-  OperationsGuildUpdate,
+  OperationsCommunityUpdate,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
-  deleteBindingApiV1SettingsIntakeStreamDelete,
-  getReadIntakeOptionsApiV1SettingsIntakeOptionsGetQueryKey,
-  getReadIntakeSettingsApiV1SettingsIntakeGetQueryKey,
-  importBlueprintApiV1SettingsIntakeStreamBlueprintPost,
-  readIntakeOptionsApiV1SettingsIntakeOptionsGet,
-  readIntakeSettingsApiV1SettingsIntakeGet,
-  updateGeneralContactApiV1SettingsIntakeContactPut,
-  updateOperationsGuildApiV1SettingsIntakeCommunityPut,
-  updateStreamContactApiV1SettingsIntakeStreamContactPut,
-  upsertBindingApiV1SettingsIntakeStreamPut,
+  deleteBinding,
+  getReadIntakeOptionsQueryKey,
+  getReadIntakeSettingsQueryKey,
+  importBlueprint,
+  readIntakeOptions,
+  readIntakeSettings,
+  updateGeneralContact,
+  updateOperationsCommunity,
+  updateStreamContact,
+  upsertBinding,
 } from "@/api/generated/intake/intake";
 import { invalidate, q } from "@/api/query-keys";
 import { useApiMutation } from "@/hooks/useApiMutation";
@@ -38,16 +38,16 @@ import type { QueryOpts } from "@/types/query";
 /** Where each stream lands, and when it last opened a case. */
 export const useIntakeSettings = (options?: QueryOpts<IntakeSettingsRead>) =>
   useQuery<IntakeSettingsRead>({
-    queryKey: getReadIntakeSettingsApiV1SettingsIntakeGetQueryKey(),
-    queryFn: () => readIntakeSettingsApiV1SettingsIntakeGet(),
+    queryKey: getReadIntakeSettingsQueryKey(),
+    queryFn: () => readIntakeSettings(),
     ...options,
   });
 
 /** The operations community's initiatives, projects and statuses, for the pickers. */
 export const useIntakeOptions = (options?: QueryOpts<IntakeOptionsRead>) =>
   useQuery<IntakeOptionsRead>({
-    queryKey: getReadIntakeOptionsApiV1SettingsIntakeOptionsGetQueryKey(),
-    queryFn: () => readIntakeOptionsApiV1SettingsIntakeOptionsGet(),
+    queryKey: getReadIntakeOptionsQueryKey(),
+    queryFn: () => readIntakeOptions(),
     ...options,
   });
 
@@ -55,14 +55,15 @@ export const useIntakeOptions = (options?: QueryOpts<IntakeOptionsRead>) =>
  * Both reads are invalidated by every write: naming a community changes what
  * the pickers can offer, and binding a stream changes what the list shows.
  */
-const refreshIntake = () => invalidate(q.intakeSettings(), q.intakeOptions());
+const refreshIntake = () =>
+  invalidate(q.intakeSettings(), q.intakeOptions(), q.ticketAvailability());
 
-export const useUpdateOperationsGuild = (
-  options?: MutationOpts<IntakeSettingsRead, OperationsGuildUpdate>
+export const useUpdateOperationsCommunity = (
+  options?: MutationOpts<IntakeSettingsRead, OperationsCommunityUpdate>
 ) =>
-  useApiMutation<IntakeSettingsRead, OperationsGuildUpdate>(
+  useApiMutation<IntakeSettingsRead, OperationsCommunityUpdate>(
     {
-      mutationFn: (data) => updateOperationsGuildApiV1SettingsIntakeCommunityPut(data),
+      mutationFn: (data) => updateOperationsCommunity(data),
       invalidate: refreshIntake,
     },
     options
@@ -73,7 +74,7 @@ export const useUpsertIntakeBinding = (
 ) =>
   useApiMutation<IntakeBindingRead, { stream: IntakeStream; body: IntakeBindingUpsert }>(
     {
-      mutationFn: ({ stream, body }) => upsertBindingApiV1SettingsIntakeStreamPut(stream, body),
+      mutationFn: ({ stream, body }) => upsertBinding(stream, body),
       invalidate: refreshIntake,
     },
     options
@@ -85,7 +86,7 @@ export const useImportIntakeBlueprint = (
   useApiMutation<IntakeBindingRead, { stream: IntakeStream; initiativeId: number }>(
     {
       mutationFn: ({ stream, initiativeId }) =>
-        importBlueprintApiV1SettingsIntakeStreamBlueprintPost(stream, {
+        importBlueprint(stream, {
           initiative_id: initiativeId,
         }),
       invalidate: refreshIntake,
@@ -96,7 +97,7 @@ export const useImportIntakeBlueprint = (
 export const useDeleteIntakeBinding = (options?: MutationOpts<void, IntakeStream>) =>
   useApiMutation<void, IntakeStream>(
     {
-      mutationFn: (stream) => deleteBindingApiV1SettingsIntakeStreamDelete(stream),
+      mutationFn: (stream) => deleteBinding(stream),
       invalidate: refreshIntake,
     },
     options
@@ -108,7 +109,7 @@ export const useUpdateIntakeGeneralContact = (
 ) =>
   useApiMutation<IntakeSettingsRead, IntakeContactUpdate>(
     {
-      mutationFn: (data) => updateGeneralContactApiV1SettingsIntakeContactPut(data),
+      mutationFn: (data) => updateGeneralContact(data),
       invalidate: refreshIntake,
     },
     options
@@ -120,8 +121,7 @@ export const useUpdateIntakeStreamContact = (
 ) =>
   useApiMutation<IntakeSettingsRead, { stream: IntakeStream; body: IntakeContactUpdate }>(
     {
-      mutationFn: ({ stream, body }) =>
-        updateStreamContactApiV1SettingsIntakeStreamContactPut(stream, body),
+      mutationFn: ({ stream, body }) => updateStreamContact(stream, body),
       invalidate: refreshIntake,
     },
     options

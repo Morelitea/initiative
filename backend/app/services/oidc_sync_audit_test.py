@@ -13,7 +13,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
 from app.db.session import set_rls_context
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.oidc_claim_mapping import (
     OIDCClaimMapping,
     OIDCMappingTargetType,
@@ -84,7 +84,7 @@ async def test_a_first_arrival_records_the_guild_and_the_initiative(
             claim_value="engineering",
             target_type=OIDCMappingTargetType.initiative,
             guild_id=guild_id,
-            guild_role=GuildRole.member.value,
+            guild_role=CommunityRole.member.value,
             initiative_id=initiative_id,
             initiative_role_id=pm_role_id,
         )
@@ -168,7 +168,7 @@ async def test_a_moved_role_and_a_withdrawn_claim_are_both_recorded(
             claim_value="engineering",
             target_type=OIDCMappingTargetType.initiative,
             guild_id=guild_id,
-            guild_role=GuildRole.member.value,
+            guild_role=CommunityRole.member.value,
             initiative_id=initiative_id,
             initiative_role_id=pm_role_id,
         )

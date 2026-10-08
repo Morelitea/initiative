@@ -1,6 +1,8 @@
 {
   "user": "Utilisateur",
   "userWithId": "Utilisateur n° {{id}}",
+  "formerMember": "Ancien membre",
+  "mentionNotLoaded": "Impossible de charger ce nom",
   "save": "Enregistrer",
   "cancel": "Annuler",
   "delete": "Supprimer",
@@ -13,9 +15,14 @@
   "selectAnOption": "Sélectionner une option",
   "back": "Retour",
   "next": "Suivant",
-  "submit": "Envoyer",
+  "submit": "Valider",
   "reset": "Réinitialiser",
   "done": "Terminé",
+  "pullToRefresh": {
+    "pull": "Tirez pour actualiser",
+    "release": "Relâchez pour actualiser",
+    "refreshing": "Actualisation…"
+  },
   "toolViewFilter": {
     "label": "Afficher",
     "all": "Tous",
@@ -42,26 +49,26 @@
   "no": "Non",
   "ok": "OK",
   "error": "Erreur",
-  "success": "Succès",
+  "success": "Réussite",
   "warning": "Avertissement",
   "info": "Info",
   "none": "Aucun",
-  "all": "Tout",
+  "all": "Tous",
   "name": "Nom",
   "description": "Description",
   "email": "E-mail",
   "password": "Mot de passe",
-  "required": "Requis",
-  "optional": "Optionnel",
+  "required": "Obligatoire",
+  "optional": "Facultatif",
   "actions": "Actions",
   "rowActionsFor": "Actions pour {{subject}}",
   "more": "Plus",
   "less": "Moins",
-  "noResults": "Aucun résultat trouvé",
+  "noResults": "Aucun résultat",
   "tryAgain": "Réessayer",
   "learnMore": "En savoir plus",
   "viewAll": "Tout afficher",
-  "copyToClipboard": "Copier dans le presse-papier",
+  "copyToClipboard": "Copier dans le presse-papiers",
   "copied": "Copié !",
   "copy": "Copier",
   "copyUnavailable": "Copie impossible — copiez-le à la main",
@@ -77,20 +84,20 @@
   "stepOf": "Étape {{current}} sur {{total}}",
   "select": "Sélectionner",
   "exitSelection": "Quitter la sélection",
-  "enableSelectionMode": "Activer le mode de sélection",
-  "exitSelectionMode": "Quitter le mode de sélection",
+  "enableSelectionMode": "Activer le mode sélection",
+  "exitSelectionMode": "Quitter le mode sélection",
   "resetSorting": "Réinitialiser le tri",
-  "groupBy": "Grouper par",
-  "chooseGrouping": "Choisir le regroupement",
+  "groupBy": "Regrouper par",
+  "chooseGrouping": "Choisir un regroupement",
   "columns": "Colonnes",
   "tableOptions": "Options du tableau",
-  "rowsSelected": "{{selected}} sur {{total}} ligne(s) sélectionnée(s)",
+  "rowsSelected": "{{selected}} ligne(s) sélectionnée(s) sur {{total}}",
   "rowsSelectedFiltered": "{{selected}} sélectionnée(s) ({{total}} correspondent au filtre)",
   "selectAll": "Tout sélectionner",
   "selectRow": "Sélectionner la ligne",
   "noResultsDot": "Aucun résultat.",
-  "allSelected": "Tout sélectionné",
-  "countSelected": "{{count}} sélectionné(s)",
+  "allSelected": "Tout est sélectionné",
+  "countSelected": "{{count}} sélectionné",
   "selectEllipsis": "Sélectionner…",
   "noOptionsAvailable": "Aucune option disponible",
   "clearAll": "Tout effacer",
@@ -112,6 +119,11 @@
     "advancedOptions": "Options avancées"
   },
   "deletedUserName": "Utilisateur supprimé #{{id}}",
+  "subToolDuplicate": {
+    "action": "Dupliquer",
+    "duplicating": "Duplication…",
+    "done": "Dupliqué"
+  },
   "toolSettings": {
     "archive": {
       "title": "Archive",
@@ -134,6 +146,11 @@
       "duplicating": "Duplication…",
       "duplicated": "Copié dans {{initiative}}",
       "error": "La copie n’a pas pu être créée."
+    },
+    "template": {
+      "title": "Modèle",
+      "description": "Un modèle est destiné à être copié plutôt que modifié directement, et figure parmi les modèles de son initiative.",
+      "toggle": "Basculer le statut de modèle"
     },
     "export": {
       "title": "Exporter",
@@ -169,6 +186,47 @@
     "permissionRequired": "Permission requise",
     "permissionRequiredDescription": "Vous n'avez pas accès à cette section de ces paramètres."
   },
+  "bulkActions": {
+    "editTags": "Modifier les étiquettes",
+    "duplicate": "Dupliquer",
+    "duplicated_one": "{{count}} copie créée",
+    "duplicated_other": "{{count}} copies créées",
+    "duplicateError": "Impossible de créer les copies pour l'instant.",
+    "deleteConfirm_one": "Supprimer {{count}} élément ?",
+    "deleteConfirm_other": "Supprimer {{count}} éléments ?",
+    "deleted_one": "{{count}} élément supprimé",
+    "deleted_other": "{{count}} éléments supprimés",
+    "deleteError": "Impossible de supprimer pour l'instant.",
+    "needEdit": "Vous avez besoin d'un accès en modification à chaque élément sélectionné.",
+    "needDelete": "Vous ne pouvez supprimer que les éléments dont vous êtes propriétaire."
+  },
+  "bulkTags": {
+    "title": "Modifier les étiquettes",
+    "descriptionAdd_one": "Ajouter des étiquettes à {{count}} élément sélectionné.",
+    "descriptionAdd_other": "Ajouter des étiquettes à {{count}} éléments sélectionnés.",
+    "descriptionRemove_one": "Supprimer des étiquettes de {{count}} élément sélectionné.",
+    "descriptionRemove_other": "Supprimer des étiquettes de {{count}} éléments sélectionnés.",
+    "tabAdd": "Ajouter",
+    "tabRemove": "Supprimer",
+    "addPlaceholder": "Sélectionner des étiquettes à ajouter...",
+    "removePlaceholder": "Sélectionner des étiquettes à supprimer...",
+    "noTags": "Aucune étiquette sur les éléments sélectionnés.",
+    "applying": "Application en cours…",
+    "apply": "Appliquer",
+    "tagsAdded_one": "Étiquettes ajoutées à {{count}} élément",
+    "tagsAdded_other": "Étiquettes ajoutées à {{count}} éléments",
+    "tagsRemoved_one": "Étiquettes supprimées de {{count}} élément",
+    "tagsRemoved_other": "Étiquettes supprimées de {{count}} éléments",
+    "updateError": "Impossible de mettre à jour les étiquettes pour l'instant."
+  },
+  "toolIndex": {
+    "lastUpdated": "Dernière mise à jour",
+    "tags": "Étiquettes",
+    "emptyArchivedTitle": "Rien d'archivé",
+    "emptyArchivedBody": "Ce que vous archivez arrive ici, en lecture seule, jusqu'à ce que vous le restauriez.",
+    "emptyTemplatesTitle": "Aucun modèle pour l'instant",
+    "emptyTemplatesBody": "Marquez un élément comme modèle dans ses paramètres pour le réutiliser plus tard."
+  },
   "toolbar": {
     "filters": "Filtres",
     "filtersActive_one": "Filtres ({{count}} actif)",
@@ -177,6 +235,9 @@
     "moreActions": "Plus d'actions",
     "selectItems": "Sélectionner des éléments",
     "view": "Affichage",
+    "viewGrid": "Grille",
+    "viewList": "Liste",
+    "viewTags": "Étiquettes",
     "details": "Détails"
   },
   "emojiPicker": {
@@ -268,6 +329,22 @@
     "description": "Il n’y a rien à cette adresse. Le lien est peut-être mal saisi, ou la page a été déplacée."
   },
   "nativeUpdate": {
-    "unsigned": "La mise à jour de ce serveur n'a pas été publiée par Initiative, l'application reste donc en version {{version}}."
+    "unsigned": "La mise à jour de ce serveur n'a pas été publiée par Initiative, l'application reste donc en version {{version}}.",
+    "desktopReady": "Initiative a téléchargé sa mise à jour. Redémarrez pour terminer.",
+    "restart": "Redémarrer"
+  },
+  "toolHeader": {
+    "rename": "Renommer"
+  },
+  "toolChest": {
+    "status": "Statut",
+    "active": "Actif",
+    "archived": "Archivé",
+    "none": "Aucun",
+    "template": "Modèle"
+  },
+  "days": {
+    "today": "Aujourd'hui",
+    "yesterday": "Hier"
   }
 }

@@ -8,8 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useUpdateCurrentUser } from "@/hooks/useUsers";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import { cn } from "@/lib/utils";
 
 /** Mirrors ``STATUS_TEXT_MAX_LENGTH`` on the server. */

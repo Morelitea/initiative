@@ -18,7 +18,7 @@ vi.mock("@/hooks/useAuth", async (importOriginal) => ({
 
 vi.mock("@/api/generated/users/users", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/api/generated/users/users")>()),
-  setCookieConsentApiV1UsersMeCookieConsentPut: (body: unknown) => mocks.put(body),
+  setCookieConsent: (body: unknown) => mocks.put(body),
 }));
 
 import { useConsentSync } from "./useConsentSync";

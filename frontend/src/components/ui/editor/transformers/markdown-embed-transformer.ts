@@ -5,7 +5,7 @@ import {
   $isReferenceEmbedNode,
   ReferenceEmbedNode,
 } from "@/components/ui/editor/nodes/reference-embed-node";
-import { isSearchEntityType } from "@/lib/entityResolver";
+import { storedEntityType } from "@/lib/smartChips";
 
 /**
  * `![[ ]]` in markdown: the embed as Obsidian writes one, with the reference
@@ -24,8 +24,9 @@ export const EMBED: ElementTransformer = {
   regExp: /^!\[\[([a-z_]+):(\d+)(?:\|([^\]]*))?\]\]\s?$/,
   replace: (parentNode, _children, match) => {
     const [, entityType, entityId, name] = match;
-    if (!isSearchEntityType(entityType)) return false;
-    parentNode.replace($createReferenceEmbedNode(entityType, Number(entityId), name ?? ""));
+    const kind = storedEntityType(entityType);
+    if (!kind) return false;
+    parentNode.replace($createReferenceEmbedNode(kind, Number(entityId), name ?? ""));
   },
   type: "element",
 };

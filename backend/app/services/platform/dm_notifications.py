@@ -21,7 +21,9 @@ side.
 
 This runs on the system engine rather than the sender's session. Writing a
 notification and reading push tokens are both things the recipient's account
-owns, and the sender has no business reaching either.
+owns, and the sender has no business reaching either. The push is written to
+the notice outbox in the same transaction as the line, and its worker sends
+it and tries again when it fails.
 """
 
 from __future__ import annotations
@@ -29,19 +31,22 @@ from __future__ import annotations
 import logging
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Mapping, cast
+from typing import Any, Collection, Mapping, cast
 
-from sqlalchemy import delete, func, update
-from sqlmodel import select
+from sqlalchemy import delete, update
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.email_i18n import translate
+from app.db.advisory_locks import LockNamespace, advisory_lock
 from app.core.user_display import handle_of
-from app.core.notification_categories import Channel
+from app.core.notification_categories import Channel, NotificationCategory
 from app.models.platform.notification import Notification, NotificationType
 from app.models.platform.user import User
 from app.services.platform import (
     dm_stream,
+    notice_outbox,
+    notification_policy,
     notification_prefs,
     notification_stream,
     push_notifications,
@@ -55,35 +60,40 @@ def _locale(user: User) -> str:
     return getattr(user, "locale", None) or "en"
 
 
-async def _lock_line(session: AsyncSession, key: str) -> None:
-    """Serialize the read-then-write on one recipient's rolled-up line.
+async def reading_devices(
+    session: AsyncSession, user_ids: Collection[int]
+) -> dict[int, set[uuid.UUID]]:
+    """The sign-ins of each of these accounts whose device could actually
+    decrypt.
 
-    Two messages landing at the same moment would otherwise both find no line to
-    join and write one each. Transaction-scoped, and keyed narrowly enough that
-    only messages in the same conversation ever wait.
-    """
-    await session.exec(
-        select(func.pg_advisory_xact_lock(func.hashtextextended(key, 0)))
-    )
-
-
-async def _dm_device_token_ids(session: AsyncSession, user_id: int) -> set[int]:
-    """The installations of this account that could actually decrypt.
-
-    A push wakes a client so it can fetch and decrypt. Sending one to an
-    installation with no key store would wake it for something it cannot read.
+    A push wakes a client so it can fetch and decrypt. Sending one to a device
+    with no key store would wake it for something it cannot read. Each key
+    store names the sign-in it last collected under, taken to the live row its
+    chain has reached, which is the one its push registration names too. One
+    read for every account asked about.
     """
     from app.models.platform.dm_device import DmDevice
+    from app.services.auth import sessions as session_service
 
+    if not user_ids:
+        return {}
     rows = (
         await session.exec(
-            select(DmDevice.device_token_id).where(
-                DmDevice.user_id == user_id,
-                DmDevice.device_token_id.is_not(None),
+            select(DmDevice.user_id, DmDevice.session_id).where(
+                col(DmDevice.user_id).in_(list(user_ids)),
+                col(DmDevice.session_id).is_not(None),
             )
         )
     ).all()
-    return {row for row in rows if row is not None}
+    tips = await session_service.live_chain_tips(
+        session, session_ids={session_id for _, session_id in rows if session_id}
+    )
+    readers: dict[int, set[uuid.UUID]] = {}
+    for user_id, session_id in rows:
+        tip = tips.get(session_id) if session_id is not None else None
+        if tip is not None:
+            readers.setdefault(user_id, set()).add(tip)
+    return readers
 
 
 async def _roster_names(
@@ -218,7 +228,9 @@ async def forget_conversation(
     return removed
 
 
-async def wake_own_devices(*, user_id: int, except_device_token_id: int | None) -> None:
+async def wake_own_devices(
+    *, user_id: int, except_session_id: uuid.UUID | None
+) -> None:
     """Push this account's other installations awake, saying nothing.
 
     One device has sent another something it cannot answer on its own -- a new
@@ -253,24 +265,39 @@ async def wake_own_devices(*, user_id: int, except_device_token_id: int | None) 
             prefs = await notification_prefs.load_prefs(session, user_id)
             if not notification_prefs.wants(
                 prefs,
-                notification_type=NotificationType.direct_message,
+                category=NotificationCategory.direct_messages,
                 channel=Channel.push,
             ):
                 return
-            token_ids = await _dm_device_token_ids(session, user_id)
-            token_ids.discard(except_device_token_id)
-            if not token_ids:
+            session_ids = (await reading_devices(session, [user_id])).get(
+                user_id, set()
+            )
+            session_ids.discard(except_session_id)
+            if not session_ids:
                 return
             locale = _locale(user)
-            await push_notifications.send_push_to_user(
-                session,
-                user_id,
-                NotificationType.direct_message,
-                translate("deviceSync.title", locale, namespace="notifications"),
-                translate("deviceSync.body", locale, namespace="notifications"),
-                data={"type": "dm_device_sync", "target_path": "/messages"},
-                only_device_token_ids=token_ids,
+            shown = notification_policy.apply(
+                await notification_policy.for_send(session, None),
+                (
+                    translate("deviceSync.title", locale, namespace="notifications"),
+                    translate("deviceSync.body", locale, namespace="notifications"),
+                ),
+                category=NotificationCategory.direct_messages,
                 locale=locale,
+            )
+            if shown is None:
+                return
+            await push_notifications.send_pushes(
+                session,
+                [
+                    push_notifications.Push(
+                        user_id,
+                        NotificationType.direct_message,
+                        *shown,
+                        {"type": "dm_device_sync", "target_path": "/messages"},
+                        session_ids=frozenset(session_ids),
+                    )
+                ],
             )
             await session.commit()
     except Exception:  # noqa: BLE001 - a wake never fails a send
@@ -287,7 +314,11 @@ async def _roll_up(
     others: list[str],
 ) -> None:
     match = {"conversation_id": str(conversation_id)}
-    await _lock_line(session, f"dm-bell:{conversation_id}:{recipient.id}")
+    await advisory_lock(
+        session,
+        LockNamespace.NOTIFICATION_LINE,
+        f"dm-bell:{conversation_id}:{recipient.id}",
+    )
     existing = await user_notifications.find_unread_by_data(
         session,
         user_id=recipient.id,
@@ -324,7 +355,7 @@ async def _roll_up(
     def _wanted(channel: Channel) -> bool:
         return notification_prefs.reachable(
             prefs,
-            notification_type=NotificationType.direct_message,
+            category=NotificationCategory.direct_messages,
             channel=channel,
             tz_name=recipient.timezone,
             last_active_at=recipient.last_active_at,
@@ -339,6 +370,10 @@ async def _roll_up(
         await _push(
             session, recipient=recipient, sender_name=sender_name, others=others
         )
+    # The desktop is told per message for the same reason, and shows the line
+    # as the bell words it.
+    if written is not None and _wanted(Channel.desktop):
+        await user_notifications.announce_on_desktop(session, written)
 
     # Email does not. It is the channel for somebody who is not there at all,
     # and one per message would be a mailbox nobody could use -- so it fires on
@@ -347,7 +382,7 @@ async def _roll_up(
     # deferred rather than dropped; when it goes out is the outbox's to decide.
     if existing is None and notification_prefs.wants(
         prefs,
-        notification_type=NotificationType.direct_message,
+        category=NotificationCategory.direct_messages,
         channel=Channel.email,
     ):
         await _email(
@@ -369,7 +404,6 @@ async def _email(
     before it goes withdraws it, which is the one thing a mailbox most wants.
     """
     from app.core.config import settings as app_config
-    from app.core.notification_categories import NotificationCategory
     from app.services import email as email_service
     from app.services.platform import email_outbox
 
@@ -388,9 +422,8 @@ async def _email(
 async def _push(
     session: AsyncSession, *, recipient: User, sender_name: str, others: list[str]
 ) -> None:
-    token_ids = await _dm_device_token_ids(session, recipient.id)
-    if not token_ids:
-        return
+    """Write the message's push down for the notice worker, which sends it to
+    the devices that can read it and tries again if it fails."""
     locale = _locale(recipient)
     if others:
         # The thread goes in the title and the sender in the body, which is how
@@ -413,20 +446,21 @@ async def _push(
             sender=sender_name,
         )
         body = translate("directMessage.body", locale, namespace="notifications")
-    await push_notifications.send_push_to_user(
+    await notice_outbox.queue_push(
         session,
-        recipient.id,
-        NotificationType.direct_message,
-        title,
-        body,
-        # Where tapping it goes, and nothing more. The conversation's id would
-        # open the right thread, but it would also put a record of who is
-        # talking to whom through a push service, which is the one thing this
-        # feature is built not to do.
-        data={
-            "type": NotificationType.direct_message.value,
-            "target_path": "/messages",
-        },
-        only_device_token_ids=token_ids,
-        locale=locale,
+        recipient,
+        push_notifications.Push(
+            cast(int, recipient.id),
+            NotificationType.direct_message,
+            title,
+            body,
+            # Where tapping it goes, and nothing more. The conversation's id
+            # would open the right thread, but it would also put a record of
+            # who is talking to whom through a push service, which is the one
+            # thing this feature is built not to do.
+            {
+                "type": NotificationType.direct_message.value,
+                "target_path": "/messages",
+            },
+        ),
     )

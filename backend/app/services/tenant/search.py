@@ -8,23 +8,28 @@ what it is looking for, and the database decides what the reader may see.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, replace
-from typing import Optional, Sequence
+from typing import Iterable, Optional, Sequence
 
-from sqlalchemy import Select, false, func, select, text
+from sqlalchemy import Select, String, Text, cast, false, func, literal, select, text
+from sqlalchemy.dialects.postgresql import TSQUERY
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 from sqlalchemy.sql.elements import ColumnElement
 
+from app.core.errors import CodedError
 from app.db.schema_provisioning import search_operator_available
-from app.core.app_scopes import tool_resource
-from app.core.messages import AppMessages
+from app.db.query import build_paginated_response
+from app.core.plugin_scopes import tool_resource
+from app.core.messages import PluginMessages
 from app.core.search import SearchEntityType
 from app.core.tools import Tool
-from app.db.app_rls import SEARCH_ENTRY_READ_SCOPE
-from app.db.guild_standing import InstallContext
-from app.db.search_index import entity_types
+from app.db.plugin_rls import SEARCH_ENTRY_READ_SCOPE
+from app.db.guild_standing import ActorContext, InstallContext
+from app.db.search_index import MENTION_LEXEME, entity_types
+from app.models.platform.user_profile_view import GuildMember
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.search_entry import SearchEntry
 from app.schemas.tenant.search import SearchHit, SearchResults, SearchSuggestion
@@ -40,7 +45,7 @@ def writable_column(user_id: int | None, *, install: InstallContext | None = Non
     the source's to assert, so offering "this blocks that" for a thing somebody
     can only read is offering something the server must refuse.
 
-    An installed app also needs the write scope of the row's kind and of the
+    An installed plug-in also needs the write scope of the row's kind and of the
     tool governing it, as the tool's own routes ask.
 
     One more call per row, on rows the gate has already narrowed to a page.
@@ -81,25 +86,23 @@ def writable_column(user_id: int | None, *, install: InstallContext | None = Non
     return writable.label("can_write")
 
 
-class SearchScopeError(Exception):
-    """An installed app asked for kinds its scopes do not let it read.
+class SearchScopeError(CodedError):
+    """An installed plug-in asked for kinds its scopes do not let it read.
 
     Carries the message code the endpoint answers with.
     """
 
-    def __init__(self, code: str) -> None:
-        super().__init__(code)
-        self.code = code
+    status_code = 403
 
 
 def install_entity_types(
     install: InstallContext, types: Optional[Sequence[SearchEntityType]]
 ) -> tuple[SearchEntityType, ...]:
-    """The kinds an installed app's search reaches: those asked for (the
+    """The kinds an installed plug-in's search reaches: those asked for (the
     default scope when none are) whose read scope it holds, per
     ``SEARCH_ENTRY_READ_SCOPE``. Writing implies reading.
 
-    Raises :class:`SearchScopeError` when that leaves none, so an app asking
+    Raises :class:`SearchScopeError` when that leaves none, so a plug-in asking
     only for kinds it cannot read is told so rather than answered with nothing.
     """
     asked = tuple(types) if types else entity_types(default_scope_only=True)
@@ -110,7 +113,7 @@ def install_entity_types(
         and install.holds(f"{resource.value}:read")
     )
     if not readable:
-        raise SearchScopeError(AppMessages.SCOPE_REQUIRED)
+        raise SearchScopeError(PluginMessages.SCOPE_REQUIRED)
     return readable
 
 
@@ -128,7 +131,7 @@ def search_match_clause(tsquery: ColumnElement) -> ColumnElement[bool]:
 
 
 #: Widest page a caller may ask for.
-MAX_LIMIT = 100
+MAX_PAGE_SIZE = 100
 #: Jump-to results for the palette. Small on purpose: it is a way to reach one
 #: thing, not a way to read a result set.
 SUGGEST_LIMIT = 10
@@ -177,6 +180,97 @@ def _trailing_prefix(query: str) -> tuple[str, Optional[str]]:
     return head, last
 
 
+#: A quoted phrase, excluded or not, or anything else up to a space: the
+#: terms ``websearch_to_tsquery`` reads.
+_TERM = re.compile(r'-?"([^"]*)"|(\S+)')
+#: A run of letters and digits, as the ``simple`` parser reads a word.
+_WORD = re.compile(r"[^\W_]+")
+
+
+def _term(word: str) -> Optional[str]:
+    """A word as a term that could name somebody: without an exclusion's ``-``
+    or a stray quote, and ``None`` for an operator or a word holding no
+    letters or digits."""
+    term = word.lstrip("-").strip('"')
+    if term.lower() in _WEBSEARCH_OPERATORS or not _WORD.search(term):
+        return None
+    return term
+
+
+def _typed_terms(query: str) -> list[str]:
+    """What was typed, as terms each parsing alone to the subtree it parses to
+    within the whole: a quoted phrase with its quotes, and every other word as
+    :func:`_term` reads it."""
+    terms = []
+    for phrase, word in _TERM.findall(query):
+        term = f'"{phrase}"' if _WORD.search(phrase) else _term(word)
+        if term is not None:
+            terms.append(term)
+    return terms
+
+
+def _people_named(term: str) -> ColumnElement:
+    """Mentions of every member ``term`` names, as one tsquery, or NULL where it
+    names nobody.
+
+    A term names a member when its whole words are words of their name in this
+    community or of their handle as it is shown (``jordan#0042``), as the term
+    would match those written in text. Whole words, never a prefix: three
+    letters typed would otherwise name everyone whose name starts with them.
+    The members are the routed community's own, and only those.
+    """
+    from app.services.platform.users import visible_to_other_people
+
+    handle = func.concat(
+        GuildMember.username,
+        "#",
+        func.lpad(cast(GuildMember.discriminator, String), 4, "0"),
+    )
+    names = func.concat_ws(" ", GuildMember.display_name, handle)
+    # A name holding the term holds each of its words, so testing one as a
+    # substring first leaves only those few names to parse.
+    word = max(_WORD.findall(term), key=len)
+    return cast(
+        select(
+            func.string_agg(
+                func.quote_literal(MENTION_LEXEME + cast(GuildMember.id, String)),
+                " | ",
+            )
+        )
+        .where(
+            visible_to_other_people(GuildMember.status),
+            names.ilike(f"%{word}%"),
+            func.to_tsvector("simple", names).op("@@")(
+                func.websearch_to_tsquery("simple", term)
+            ),
+        )
+        .scalar_subquery(),
+        TSQUERY,
+    )
+
+
+def _with_people(parsed, targets: Iterable[tuple[ColumnElement, str]]):
+    """``parsed`` with each target also matching a mention of anybody its term
+    names.
+
+    A target is the subtree of ``parsed`` one typed term became, beside that
+    term as typed, which is what names a person: a handle such as
+    ``brave-otter`` parses to a phrase of its parts, and a word matched as a
+    prefix names whoever it names whole. Applied to the parsed query rather
+    than to the text, so a phrase, an ``or`` and an exclusion keep what they
+    meant: ``-ada`` leaves out a mention of Ada as well as the word.
+
+    A term of more words goes first: rewriting ``ada`` would change the
+    ``"ada countess"`` around it, which would then not be found as itself.
+    """
+    for target, term in sorted(targets, key=lambda t: -len(_WORD.findall(t[1]))):
+        mentioned = target.op("||", return_type=TSQUERY)(_people_named(term))
+        parsed = func.ts_rewrite(
+            parsed, target, func.coalesce(mentioned, target), type_=TSQUERY
+        )
+    return parsed
+
+
 def _tsquery(query: str):
     """The parsed query. ``websearch_to_tsquery`` takes what a person types —
     bare words, "quoted phrases", ``or``, ``-excluded`` — and never raises on
@@ -186,16 +280,27 @@ def _tsquery(query: str):
     found while a word is still being typed. So a bare last word is matched as a
     prefix and ANDed onto the rest, which keeps every bit of the syntax above
     and answers as the reader types.
+
+    A word naming a member also finds what mentions them (:func:`_with_people`).
     """
     head, prefix = _trailing_prefix(query)
     if prefix is None:
-        return func.websearch_to_tsquery("simple", query)
-    # `prefix` is alphanumeric, so it reaches `to_tsquery` as a word and never
-    # as syntax.
-    tail = func.to_tsquery("simple", f"{prefix}:*")
-    if not head.strip():
-        return tail
-    return func.websearch_to_tsquery("simple", head).op("&&")(tail)
+        parsed = func.websearch_to_tsquery("simple", query)
+    else:
+        # `prefix` is alphanumeric, so it reaches `to_tsquery` as a word and
+        # never as syntax.
+        parsed = func.to_tsquery("simple", f"{prefix}:*")
+        if head.strip():
+            parsed = func.websearch_to_tsquery("simple", head).op("&&")(parsed)
+    # Each term parsed alone by the function that parsed the whole gives the
+    # subtree it became there.
+    targets = [
+        (func.websearch_to_tsquery("simple", term), term)
+        for term in dict.fromkeys(_typed_terms(head))
+    ]
+    if prefix is not None:
+        targets.append((func.to_tsquery("simple", f"{prefix}:*"), prefix))
+    return _with_people(parsed, targets)
 
 
 @dataclass(frozen=True)
@@ -251,7 +356,7 @@ class Filters:
 def _best_chunk(clause: ColumnElement[bool], parsed) -> Select:
     """One row per entity — the chunk that matched best.
 
-    Long text is split across rows, so a document can match several times. The
+    Long text is split across rows, so a file can match several times. The
     highest-ranked chunk is the one worth showing, and is what supplies the
     snippet — drawn by :func:`search` for the rows on the page alone, since a
     headline re-reads the whole chunk.
@@ -332,20 +437,24 @@ async def search(
     *,
     query: str,
     filters: Filters = Filters(),
-    limit: int = 20,
-    offset: int = 0,
+    page: int = 1,
+    page_size: int = 20,
 ) -> SearchResults:
     """Ranked matches across the guild, newest first among equals.
 
     ``total`` counts entities, not chunks, and is exact: every gate is a
     predicate in this one statement, so there is nothing to filter afterwards.
     """
-    limit = max(1, min(limit, MAX_LIMIT))
-    offset = max(0, offset)
+    page = max(1, page)
+    page_size = max(1, min(page_size, MAX_PAGE_SIZE))
     if not query.strip():
-        return SearchResults(items=[], total=0, limit=limit, offset=offset)
+        return SearchResults(**build_paginated_response([], 0, page, page_size))
 
-    parsed = _tsquery(query)
+    # Parsed once, by itself: the people its words name are looked up there,
+    # not again by each clause below that matches, ranks or quotes with it.
+    parsed = cast(
+        literal(await session.scalar(select(cast(_tsquery(query), Text)))), TSQUERY
+    )
     best = _best_chunk(search_match_clause(parsed) & filters.clause(), parsed)
     total = await session.scalar(select(func.count()).select_from(best)) or 0
 
@@ -360,7 +469,13 @@ async def search(
             rows.c.entity_id,
         )
 
-    page = select(best).order_by(*ranked(best)).limit(limit).offset(offset).subquery()
+    window = (
+        select(best)
+        .order_by(*ranked(best))
+        .limit(page_size)
+        .offset((page - 1) * page_size)
+        .subquery()
+    )
     # The snippet is drawn from the chunk each row on the page chose, read back
     # by its key, so the bodies of the rows the ranking passed over are never
     # read.
@@ -368,41 +483,40 @@ async def search(
     rows = (
         await session.exec(
             select(
-                *(column for column in page.c if column.key != "chunk_ix"),
+                *(column for column in window.c if column.key != "chunk_ix"),
                 func.ts_headline("simple", chunk.body, parsed, _HEADLINE_OPTIONS).label(
                     "snippet"
                 ),
             )
-            .select_from(page)
+            .select_from(window)
             .join(
                 chunk,
-                (chunk.entity_type == page.c.entity_type)
-                & (chunk.entity_id == page.c.entity_id)
-                & (chunk.chunk_ix == page.c.chunk_ix),
+                (chunk.entity_type == window.c.entity_type)
+                & (chunk.entity_id == window.c.entity_id)
+                & (chunk.chunk_ix == window.c.chunk_ix),
             )
             # Re-stated outside the page: a subquery's ordering is not something
             # the query around it inherits.
-            .order_by(*ranked(page))
+            .order_by(*ranked(window))
         )
     ).all()
-    if not rows and offset == 0:
+    if not rows and page == 1:
         # Nothing matched what was typed. Offer what is closest to it rather
         # than an empty page — flagged, so the reader is told which they got.
         close = await _close_titles(session, query=query, filters=filters)
         if close:
             return SearchResults(
-                items=close,
-                total=len(close),
-                limit=limit,
-                offset=offset,
+                **build_paginated_response(close, len(close), page, page_size),
                 fuzzy=True,
             )
 
     return SearchResults(
-        items=[SearchHit.model_validate(r, from_attributes=True) for r in rows],
-        total=total,
-        limit=limit,
-        offset=offset,
+        **build_paginated_response(
+            [SearchHit.model_validate(r, from_attributes=True) for r in rows],
+            total,
+            page,
+            page_size,
+        )
     )
 
 
@@ -475,9 +589,9 @@ async def suggest(
     """Titles to jump to. No snippets and no body ranking — this answers "take
     me to the thing I am naming", which is a different question from search.
 
-    An installed app (``install``, with ``user_id`` None) is answered only the
+    An installed plug-in (``install``, with ``user_id`` None) is answered only the
     kinds its scopes let it read (:func:`install_entity_types`), and the
-    index's policies hold each entry to what the app could read through the
+    index's policies hold each entry to what the plug-in could read through the
     tool the entry describes. A member token's sharing is asked for the member
     it acts for, as its policies ask it.
     """
@@ -584,22 +698,33 @@ def prefix_tsquery(text: str):
     Tokens are reduced to alphanumerics, so nothing a person types reaches
     ``to_tsquery`` as syntax.
     """
-    tokens = ["".join(c for c in part if c.isalnum()) for part in text.split()]
-    tokens = [t for t in tokens if t]
+    tokens = _prefix_tokens(text)
     if not tokens:
         return None
-    return func.to_tsquery("simple", " & ".join([*tokens[:-1], f"{tokens[-1]}:*"]))
+    return func.to_tsquery("simple", " & ".join(tokens))
+
+
+def _prefix_tokens(text: str) -> list[str]:
+    """Each word of ``text`` as :func:`prefix_tsquery` matches it: its letters
+    and digits, the last one as a prefix."""
+    tokens = ["".join(c for c in part if c.isalnum()) for part in text.split()]
+    tokens = [t for t in tokens if t]
+    return [*tokens[:-1], f"{tokens[-1]}:*"] if tokens else []
 
 
 def tool_search_clause(
-    tool: Tool, id_col: ColumnElement[int], search: Optional[str]
+    tool: Tool,
+    id_col: ColumnElement[int],
+    search: Optional[str],
+    context: ActorContext,
 ) -> Optional[ColumnElement[bool]]:
     """Narrow a tool's list to rows whose indexed text matches ``search``.
 
     The same index the search page reads, so a tool's filter box and the search
     page agree about what matches — and it reaches a description, not just a
-    name. ``None`` when there is nothing to search for, so a caller appends it
-    conditionally.
+    name, and what mentions a member the words name. An installed plug-in finds a
+    mention by a name only when it may read names (``members:read``). ``None``
+    when there is nothing to search for, so a caller appends it conditionally.
 
     The subquery reads ``search_entries``, which is gated by its own policies;
     the caller's own access clause still applies to the rows it returns.
@@ -612,6 +737,18 @@ def tool_search_clause(
         # Nothing matches it, which is a truer answer than the unfiltered list
         # a caller would read as "the filter was ignored".
         return false()
+    if not isinstance(context, InstallContext) or context.holds("members:read"):
+        # The same words, typed: ``brave-otter`` is matched as ``braveotter``
+        # but names somebody as itself.
+        typed = (part for part in search.split() if any(map(str.isalnum, part)))
+        parsed = _with_people(
+            parsed,
+            (
+                (func.to_tsquery("simple", token), term)
+                for token, part in zip(_prefix_tokens(search), typed)
+                if (term := _term(part)) is not None
+            ),
+        )
     return id_col.in_(
         select(SearchEntry.entity_id).where(
             SearchEntry.entity_type == tool.value,

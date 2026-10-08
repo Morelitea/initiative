@@ -1,7 +1,7 @@
 """One surface for how things connect.
 
-Replaces the per-tool attach endpoints — a project's documents, a queue item's
-documents and tasks, an event's documents — which were five routes saying the
+Replaces the per-tool attach endpoints — a project's files, a queue item's
+files and tasks, an event's files — which were five routes saying the
 same thing about four pairs of kinds. What varies between them is which two
 kinds are named, and that is a parameter.
 
@@ -19,8 +19,7 @@ behalf answers to them too:
 * **Both ends of a link made here are in one initiative.** The table permits a
   cross-initiative edge — that is where the graph gets its reach, and content
   references will make them — but choosing one in a picker is not how they
-  should arrive. ``DOCUMENT_WRONG_INITIATIVE`` is the same refusal by the same
-  name.
+  should arrive.
 * **An archived thing takes no new links, and gives none up.** Archiving is a
   statement that a project is finished with, and the policy has no opinion on
   it. Asked of whichever end has the state — only projects and tasks do.
@@ -126,7 +125,7 @@ def _render(
             image_urls=found.image_urls,
             icon=found.icon,
             color=found.color,
-            document_type=found.document_type,
+            file_type=found.file_type,
             mime_type=found.mime_type,
             original_filename=found.original_filename,
             smart_link_url=found.smart_link_url,
@@ -258,32 +257,15 @@ async def replace_relationship_slice(
     remembered: a replace is the surface restating a set, not a person taking
     one link back.
     """
-    relationships_service.refuse_derived(relationship_type)
     ref = _parse_ref(entity)
     other_type = _endpoint_kind(other_type)
     anchor = Endpoint(ref.type, ref.id)
-    anchor_row = await relationships_service.resolve(session, anchor, current_user.id)
-    relationships_service.refuse_archived(anchor_row)
-
-    wanted = list(dict.fromkeys(ids))
-    resolved = await reference_targets.resolve_many(
-        session, other_type, wanted, user_id=current_user.id
-    )
-    for entity_id in wanted:
-        found = resolved.get(entity_id)
-        if found is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=RelationshipMessages.ENDPOINT_NOT_FOUND,
-            )
-        relationships_service.refuse_across_initiatives(anchor_row, found)
-        relationships_service.refuse_archived(found)
 
     # A replace is a bulk removal, so everything it drops answers the same
     # question a single removal does. One edge the caller may not remove fails
     # the whole request rather than being quietly kept, so the surface never
     # shows a set it did not ask for.
-    keeping = set(wanted)
+    keeping = set(ids)
     for row in await relationships_service.list_for_entity(
         session, anchor, relationship_type=relationship_type, other_kind=other_type
     ):
@@ -301,8 +283,8 @@ async def replace_relationship_slice(
         anchor,
         relationship_type=relationship_type,
         other_kind=other_type,
-        ids=wanted,
-        created_by=current_user.id,
+        ids=ids,
+        user_id=current_user.id,
     )
     await session.commit()
 

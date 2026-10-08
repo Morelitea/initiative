@@ -20,17 +20,17 @@ import {
 import { InitiativeSettingsPermissionRequired } from "@/components/initiatives/settings/InitiativeSettingsGuard";
 import { InitiativeSettingsMembersTab } from "@/components/initiatives/settings/InitiativeSettingsMembersTab";
 import { RemoveInitiativeMemberDialog } from "@/components/initiatives/settings/RemoveInitiativeMemberDialog";
-import { useGuilds } from "@/hooks/useGuilds";
+import { useCommunities } from "@/hooks/useCommunities";
 import { useInitiativeRoles } from "@/hooks/useInitiativeRoles";
 import { useInitiativeSettings } from "@/hooks/useInitiativeSettings";
 import { useUpdateInitiative } from "@/hooks/useInitiatives";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 
 export const InitiativeSettingsMembersPage = () => {
   const { t } = useTranslation(["initiatives", "common"]);
-  const { activeGuild } = useGuilds();
-  const { initiativeId, initiative, canManageMembers, isGuildAdmin } = useInitiativeSettings();
+  const { activeCommunity } = useCommunities();
+  const { initiativeId, initiative, canManageMembers, isCommunityAdmin } = useInitiativeSettings();
   const rolesQuery = useInitiativeRoles(initiativeId || null);
 
   const [selectedUserId, setSelectedUserId] = useState("");
@@ -60,13 +60,13 @@ export const InitiativeSettingsMembersPage = () => {
   // rewrites a policy this screen wasn't asked about.
   //
   // The one exception is auto-join, which is not an independent field: it is
-  // valid only alongside `open`, so a guild admin closing the initiative sends
+  // valid only alongside `open`, so a community admin closing the initiative sends
   // both halves at once rather than being handed a refusal for a pair the UI
-  // let them assemble. A manager who is not a guild admin cannot send the field
+  // let them assemble. A manager who is not a community admin cannot send the field
   // at all, so for them the section locks the other policies instead.
   const handleChangeJoinPolicy = (value: InitiativeJoinPolicy) => {
     const clearsAutoJoin =
-      isGuildAdmin && Boolean(initiative?.auto_join) && value !== InitiativeJoinPolicy.open;
+      isCommunityAdmin && Boolean(initiative?.auto_join) && value !== InitiativeJoinPolicy.open;
     updateInitiative.mutate(
       {
         initiativeId,
@@ -100,9 +100,9 @@ export const InitiativeSettingsMembersPage = () => {
         onChangeJoinPolicy={handleChangeJoinPolicy}
         autoJoin={initiative.auto_join}
         onChangeAutoJoin={handleChangeAutoJoin}
-        canManageAutoJoin={isGuildAdmin}
+        canManageAutoJoin={isCommunityAdmin}
         isSavingJoinPolicy={updateInitiative.isPending}
-        activeGuildId={activeGuild?.id}
+        activeCommunityId={activeCommunity?.id}
         selectedUserId={selectedUserId}
         setSelectedUserId={setSelectedUserId}
         selectedRoleId={selectedRoleId}

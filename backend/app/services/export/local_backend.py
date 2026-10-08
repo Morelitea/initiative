@@ -9,7 +9,7 @@ rendering to a fixed set — the typst-wheel fonts plus the bundled ``fonts/``
 and stays deterministic across images (no dependence on host fonts).
 
 Non-PDF formats dispatch to lightweight renderers: the tabular module
-(csv/xlsx/md over columns/rows payloads, or a spreadsheet document's sparse
+(csv/xlsx/md over columns/rows payloads, or a spreadsheet file's sparse
 grid), verbatim JSON, and the ``file`` passthrough (an uploaded blob exported
 unconverted — the one format whose content type and filename come from the
 stored object, not a static map).
@@ -175,7 +175,7 @@ def _render_item(req: RenderRequest, item: RenderItem) -> RenderedArtifact:
 
 def _blob_reader(guild_id: int):
     """Bytes-by-storage-key reader for renderers that embed uploads (asset
-    images, file passthrough). Keys are derived by adapters from document
+    images, file passthrough). Keys are derived by adapters from file
     rows under the caller's RLS session — never from raw user input."""
     from app.services.storage import get_guild_storage
 

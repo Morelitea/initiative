@@ -21,22 +21,18 @@ What a session routes into is noted on the connection it runs on
 cohort is counted, and in the test suite refused.
 
 Work in a community that follows a write in ``public`` runs after that write
-commits, on a session from the community's cohort: :func:`after_commit`
-registers it and :func:`settle` waits for it.
+commits, on a session from the community's cohort, registered with
+:func:`app.db.post_commit.after_commit`.
 """
 
 from __future__ import annotations
 
-import asyncio
-import logging
 from contextlib import asynccontextmanager
-from typing import TYPE_CHECKING, Any, AsyncIterator, Awaitable, Callable, Mapping
+from typing import TYPE_CHECKING, Any, AsyncIterator, Mapping
 
 from sqlalchemy import event
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
-from sqlalchemy.orm import Session as SyncSession
-from sqlalchemy.orm import SessionTransaction
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import metrics
@@ -44,8 +40,6 @@ from app.core.config import settings
 
 if TYPE_CHECKING:
     from sqlalchemy.engine import Connection
-
-logger = logging.getLogger(__name__)
 
 #: The tag on a connection from the request pool that serves no community's
 #: schema.
@@ -71,15 +65,6 @@ _SYSTEM = "system"
 
 #: Marks a session whose transactions are opened read-only.
 READ_ONLY_INFO_KEY = "cohort_read_only"
-
-#: Where a session keeps the steps waiting for its commit, each with the
-#: transaction it was registered in, and its commits' unfinished steps.
-_STEPS_KEY = "cohort_after_commit_steps"
-_STARTED_KEY = "cohort_after_commit_started"
-
-#: A step's task is held here until it finishes, as the event loop keeps only
-#: a weak reference to it.
-_running: set[asyncio.Task[None]] = set()
 
 #: The test suite sets this, so a route outside the connection's cohort raises
 #: rather than being counted.
@@ -297,7 +282,7 @@ def query_sessionmaker(guild_id: int) -> async_sessionmaker[AsyncSession]:
 
 def addressed_guild_id(path_params: Mapping[str, Any]) -> int | None:
     """The community a request's path addresses, if it addresses one."""
-    raw = path_params.get("guild_id")
+    raw = path_params.get("community_id")
     if raw is None:
         return None
     try:
@@ -363,85 +348,3 @@ def note_route(connection: "Connection | None", guild_id: int | None) -> None:
             f"a connection from the {tag!s} pool was routed into community "
             f"{guild_id}, which is in cohort {cohort_of(guild_id)}"
         )
-
-
-#: An async zero-arg callable that does its own work on its own session.
-Step = Callable[[], Awaitable[object]]
-
-
-def after_commit(session: AsyncSession, step: Step) -> None:
-    """Run ``step`` once ``session``'s transaction commits, as a task of its
-    own, and not at all if the transaction, or the savepoint the step was
-    registered in, rolls back. A failure is logged with the step's name.
-    :func:`settle` waits for it."""
-    sync = session.sync_session
-    steps = session.info.setdefault(_STEPS_KEY, [])
-    steps.append((sync.get_nested_transaction() or sync.get_transaction(), step))
-
-
-async def settle(session: AsyncSession) -> None:
-    """Wait for the steps ``session``'s commits have started."""
-    started: set[asyncio.Task[None]] = session.info.get(_STARTED_KEY, set())
-    if started:
-        await asyncio.gather(*started)
-
-
-async def settle_all() -> None:
-    """Wait for every step this process has started, as before its pools
-    close."""
-    if _running:
-        await asyncio.gather(*_running)
-
-
-async def _run(step: Step) -> None:
-    try:
-        await step()
-    except Exception:
-        logger.exception(
-            "after-commit step %s failed", getattr(step, "__qualname__", repr(step))
-        )
-
-
-def _start_steps(session: SyncSession) -> None:
-    # A savepoint's release is also a commit; the steps wait for the outer one.
-    if session.in_nested_transaction():
-        return
-    steps = session.info.pop(_STEPS_KEY, None)
-    if not steps:
-        return
-    loop = asyncio.get_running_loop()
-    started = session.info.setdefault(_STARTED_KEY, set())
-    for _txn, step in steps:
-        task = loop.create_task(_run(step))
-        for held in (_running, started):
-            held.add(task)
-            task.add_done_callback(held.discard)
-
-
-def _within(txn: SessionTransaction | None, ended: SessionTransaction) -> bool:
-    while txn is not None:
-        if txn is ended:
-            return True
-        txn = txn.parent
-    return False
-
-
-def _drop_steps(session: SyncSession, previous_transaction: SessionTransaction) -> None:
-    steps = session.info.get(_STEPS_KEY)
-    # What the database rolled back: the nearest savepoint, or the whole
-    # transaction, which ``_forget_steps`` sees end.
-    ended = previous_transaction
-    while not ended.nested and ended.parent is not None:
-        ended = ended.parent
-    if steps and ended.nested:
-        steps[:] = [(txn, step) for txn, step in steps if not _within(txn, ended)]
-
-
-def _forget_steps(session: SyncSession, transaction: SessionTransaction) -> None:
-    if transaction.parent is None:
-        session.info.pop(_STEPS_KEY, None)
-
-
-event.listen(SyncSession, "after_commit", _start_steps)
-event.listen(SyncSession, "after_soft_rollback", _drop_steps)
-event.listen(SyncSession, "after_transaction_end", _forget_steps)

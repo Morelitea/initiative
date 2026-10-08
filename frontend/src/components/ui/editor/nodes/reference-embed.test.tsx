@@ -4,10 +4,10 @@ import type { SerializedEditorState } from "lexical";
 import { HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
-import { Editor } from "@/components/documents/editor/editor";
+import { Editor } from "@/components/ui/editor/editor";
 
 const paragraph = (text: string) => ({
   type: "paragraph",
@@ -23,7 +23,7 @@ const paragraph = (text: string) => ({
 const embed = (entityId: number, text: string, collapsed = false) => ({
   type: "reference-embed",
   version: 1,
-  entityType: "document",
+  entityType: "file",
   entityId,
   text,
   collapsed,
@@ -38,18 +38,18 @@ const OUTER = page(paragraph("The outer page."), embed(2, "Inner"));
 const INNER = page(paragraph("Here be dragons."), embed(1, "Outer"));
 
 const BODIES: Record<string, { title: string; body: object }> = {
-  "document:1": { title: "Outer", body: OUTER },
-  "document:2": { title: "Inner", body: INNER },
+  "file:1": { title: "Outer", body: OUTER },
+  "file:2": { title: "Inner", body: INNER },
 };
 
 const serveBodies = () =>
   server.use(
-    guildHttp.get("/smart-chips/embeds", ({ request }) => {
+    communityHttp.get("/smart-chips/embeds", ({ request }) => {
       const refs = new URL(request.url).searchParams.getAll("ref");
       return HttpResponse.json({
         items: refs.map((ref) => ({
           ref,
-          entity_type: "document",
+          entity_type: "file",
           title: BODIES[ref].title,
           description: null,
           body: BODIES[ref].body,

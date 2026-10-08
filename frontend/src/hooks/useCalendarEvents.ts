@@ -1,19 +1,20 @@
 import { useQuery } from "@tanstack/react-query";
 
 import {
-  addOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesAddPost,
-  createCalendarEventApiV1CGuildIdCalendarEventsPost,
-  deleteCalendarEventApiV1CGuildIdCalendarEventsEventIdDelete,
-  detachOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesDetachPost,
-  getReadCalendarEventApiV1CGuildIdCalendarEventsEventIdGetQueryKey,
-  importIcalEventsApiV1CGuildIdCalendarEventsImportPost,
-  openOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesPost,
-  parseIcalFileApiV1CGuildIdCalendarEventsImportParsePost,
-  readCalendarEventApiV1CGuildIdCalendarEventsEventIdGet,
-  restoreOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesRestorePost,
-  setAttendeesApiV1CGuildIdCalendarEventsEventIdAttendeesPut,
-  updateCalendarEventApiV1CGuildIdCalendarEventsEventIdPatch,
-  updateRsvpApiV1CGuildIdCalendarEventsEventIdRsvpPatch,
+  addOccurrence,
+  createCalendarEvent,
+  deleteCalendarEvent,
+  detachOccurrence,
+  duplicateCalendarEvent,
+  getReadCalendarEventQueryKey,
+  importIcalEvents,
+  openOccurrence,
+  parseIcalFile,
+  readCalendarEvent,
+  restoreOccurrence,
+  setAttendees,
+  updateCalendarEvent,
+  updateRsvp,
 } from "@/api/generated/calendar-events/calendar-events";
 import type {
   CalendarEventCreate,
@@ -27,8 +28,8 @@ import type {
   ICalParseResult,
 } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
-import { useGuildMutation } from "@/hooks/useApiMutation";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
+import { useCommunityMutation } from "@/hooks/useApiMutation";
 import { withZone } from "@/lib/recurrence";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
@@ -42,17 +43,12 @@ export const useCalendarEvent = (
   options?: QueryOpts<CalendarEventRead>,
   occurrence?: string | null
 ) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const { enabled: userEnabled = true, ...rest } = options ?? {};
   const params = occurrence ? { occurrence } : undefined;
   return useQuery<CalendarEventRead>({
-    queryKey: getReadCalendarEventApiV1CGuildIdCalendarEventsEventIdGetQueryKey(
-      guildId,
-      eventId!,
-      params
-    ),
-    queryFn: () =>
-      readCalendarEventApiV1CGuildIdCalendarEventsEventIdGet(guildId, eventId!, params),
+    queryKey: getReadCalendarEventQueryKey(communityId, eventId!, params),
+    queryFn: () => readCalendarEvent(communityId, eventId!, params),
     enabled: eventId !== null && Number.isFinite(eventId) && userEnabled,
     ...rest,
   });
@@ -63,50 +59,24 @@ export const useCalendarEvent = (
 export const useCreateCalendarEvent = (
   options?: MutationOpts<CalendarEventRead, CalendarEventCreate>
 ) =>
-  useGuildMutation<CalendarEventRead, CalendarEventCreate>(
+  useCommunityMutation<CalendarEventRead, CalendarEventCreate>(
     {
-      mutationFn: (guildId, data) =>
-        createCalendarEventApiV1CGuildIdCalendarEventsPost(guildId, data),
+      mutationFn: (communityId, data) => createCalendarEvent(communityId, data),
       invalidate: () => invalidate(q.allCalendarEvents()),
       errorKey: "calendars:error",
     },
     options
   );
 
+/** Update an event, named per call so one hook serves any event on a page —
+ *  the calendar's drag-to-reschedule does not know it until the drop. */
 export const useUpdateCalendarEvent = (
-  eventId: number,
-  options?: MutationOpts<CalendarEventRead, CalendarEventUpdate>
-) =>
-  useGuildMutation<CalendarEventRead, CalendarEventUpdate>(
-    {
-      mutationFn: (guildId, data) =>
-        updateCalendarEventApiV1CGuildIdCalendarEventsEventIdPatch(
-          guildId,
-          eventId,
-          withZone(data)
-        ),
-      invalidate: () => invalidate(q.allCalendarEvents()),
-      errorKey: "calendars:error",
-    },
-    options
-  );
-
-/**
- * Update an event identified per-call (the event id travels in the mutation
- * variables) rather than bound at hook construction. Used by the calendar
- * drag-to-reschedule flow, where the target event isn't known until drop time.
- */
-export const useRescheduleCalendarEvent = (
   options?: MutationOpts<CalendarEventRead, { eventId: number; data: CalendarEventUpdate }>
 ) =>
-  useGuildMutation<CalendarEventRead, { eventId: number; data: CalendarEventUpdate }>(
+  useCommunityMutation<CalendarEventRead, { eventId: number; data: CalendarEventUpdate }>(
     {
-      mutationFn: (guildId, { eventId, data }) =>
-        updateCalendarEventApiV1CGuildIdCalendarEventsEventIdPatch(
-          guildId,
-          eventId,
-          withZone(data)
-        ),
+      mutationFn: (communityId, { eventId, data }) =>
+        updateCalendarEvent(communityId, eventId, withZone(data)),
       invalidate: () => invalidate(q.allCalendarEvents()),
       errorKey: "calendars:error",
     },
@@ -122,10 +92,26 @@ export type OccurrenceTarget = {
 export const useDeleteCalendarEvent = (
   options?: MutationOpts<void, { eventId: number } & OccurrenceTarget>
 ) =>
-  useGuildMutation<void, { eventId: number } & OccurrenceTarget>(
+  useCommunityMutation<void, { eventId: number } & OccurrenceTarget>(
     {
-      mutationFn: (guildId, { eventId, ...target }) =>
-        deleteCalendarEventApiV1CGuildIdCalendarEventsEventIdDelete(guildId, eventId, target),
+      mutationFn: (communityId, { eventId, ...target }) =>
+        deleteCalendarEvent(communityId, eventId, target),
+      invalidate: () => invalidate(q.allCalendarEvents()),
+      errorKey: "calendars:error",
+    },
+    options
+  );
+
+/** Copies the event, or with `occurrence` that one date of a repeating event. */
+export const useDuplicateCalendarEvent = (
+  options?: MutationOpts<CalendarEventRead, { eventId: number; occurrence?: string }>
+) =>
+  useCommunityMutation<CalendarEventRead, { eventId: number; occurrence?: string }>(
+    {
+      mutationFn: (communityId, { eventId, occurrence }) =>
+        duplicateCalendarEvent(communityId, eventId, {
+          occurrence,
+        }),
       invalidate: () => invalidate(q.allCalendarEvents()),
       errorKey: "calendars:error",
     },
@@ -136,10 +122,9 @@ export const useDeleteCalendarEvent = (
 
 /** Read an .ics file and report what is in it. Writes nothing. */
 export const useParseIcalFile = (options?: MutationOpts<ICalParseResult, ICalParseRequest>) =>
-  useGuildMutation<ICalParseResult, ICalParseRequest>(
+  useCommunityMutation<ICalParseResult, ICalParseRequest>(
     {
-      mutationFn: (guildId, data) =>
-        parseIcalFileApiV1CGuildIdCalendarEventsImportParsePost(guildId, data),
+      mutationFn: (communityId, data) => parseIcalFile(communityId, data),
       errorKey: "calendars:import.parseFailed",
     },
     options
@@ -147,10 +132,9 @@ export const useParseIcalFile = (options?: MutationOpts<ICalParseResult, ICalPar
 
 /** Create the file's events in one calendar. */
 export const useImportIcalEvents = (options?: MutationOpts<ICalImportResult, ICalImportRequest>) =>
-  useGuildMutation<ICalImportResult, ICalImportRequest>(
+  useCommunityMutation<ICalImportResult, ICalImportRequest>(
     {
-      mutationFn: (guildId, data) =>
-        importIcalEventsApiV1CGuildIdCalendarEventsImportPost(guildId, data),
+      mutationFn: (communityId, data) => importIcalEvents(communityId, data),
       invalidate: () => invalidate(q.allCalendarEvents()),
       errorKey: "calendars:import.importError",
     },
@@ -163,15 +147,10 @@ export const useSetEventAttendees = (
   eventId: number,
   options?: MutationOpts<CalendarEventRead, { userIds: number[] } & OccurrenceTarget>
 ) =>
-  useGuildMutation<CalendarEventRead, { userIds: number[] } & OccurrenceTarget>(
+  useCommunityMutation<CalendarEventRead, { userIds: number[] } & OccurrenceTarget>(
     {
-      mutationFn: (guildId, { userIds, ...target }) =>
-        setAttendeesApiV1CGuildIdCalendarEventsEventIdAttendeesPut(
-          guildId,
-          eventId,
-          userIds,
-          target
-        ),
+      mutationFn: (communityId, { userIds, ...target }) =>
+        setAttendees(communityId, eventId, userIds, target),
       invalidate: () => invalidate(q.allCalendarEvents()),
       errorKey: "calendars:error",
     },
@@ -182,10 +161,9 @@ export const useUpdateEventRSVP = (
   eventId: number,
   options?: MutationOpts<CalendarEventRead, CalendarEventRSVPUpdate>
 ) =>
-  useGuildMutation<CalendarEventRead, CalendarEventRSVPUpdate>(
+  useCommunityMutation<CalendarEventRead, CalendarEventRSVPUpdate>(
     {
-      mutationFn: (guildId, data) =>
-        updateRsvpApiV1CGuildIdCalendarEventsEventIdRsvpPatch(guildId, eventId, data),
+      mutationFn: (communityId, data) => updateRsvp(communityId, eventId, data),
       invalidate: () => invalidate(q.allCalendarEvents()),
       errorKey: "calendars:error",
     },
@@ -193,10 +171,10 @@ export const useUpdateEventRSVP = (
   );
 
 const OCCURRENCE_ACTIONS = {
-  open: openOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesPost,
-  detach: detachOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesDetachPost,
-  restore: restoreOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesRestorePost,
-  add: addOccurrenceApiV1CGuildIdCalendarEventsEventIdOccurrencesAddPost,
+  open: openOccurrence,
+  detach: detachOccurrence,
+  restore: restoreOccurrence,
+  add: addOccurrence,
 };
 
 /**
@@ -209,9 +187,10 @@ export const useOccurrenceAction = (
   action: keyof typeof OCCURRENCE_ACTIONS,
   options?: MutationOpts<CalendarEventRead, string>
 ) =>
-  useGuildMutation<CalendarEventRead, string>(
+  useCommunityMutation<CalendarEventRead, string>(
     {
-      mutationFn: (guildId, start) => OCCURRENCE_ACTIONS[action](guildId, eventId, { start }),
+      mutationFn: (communityId, start) =>
+        OCCURRENCE_ACTIONS[action](communityId, eventId, { start }),
       invalidate: () => invalidate(q.allCalendarEvents()),
       errorKey: "calendars:error",
     },

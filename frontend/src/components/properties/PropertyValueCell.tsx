@@ -80,7 +80,7 @@ interface UserValue {
   id: number;
   username?: string | null;
   discriminator?: number | null;
-  full_name?: string | null;
+  display_name?: string | null;
   avatar_url?: string | null;
 }
 
@@ -239,7 +239,7 @@ export const PropertyValueCell = ({
         const userAvatarSrc = getAvatarSrc(user);
         body = (
           <span className="inline-flex max-w-full items-center gap-2 truncate">
-            <Avatar className="h-5 w-5 text-[10px]">
+            <Avatar className="h-5 w-5 text-3xs">
               {userAvatarSrc ? <AvatarImage src={userAvatarSrc} alt={name} /> : null}
               <AvatarFallback userId={user.id}>{getInitialsForUser(user)}</AvatarFallback>
             </Avatar>

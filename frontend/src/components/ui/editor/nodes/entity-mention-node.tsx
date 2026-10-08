@@ -26,6 +26,7 @@ import type { JSX } from "react";
 
 import { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
 import { EditorEntityReference } from "@/components/ui/editor/nodes/entity-reference";
+import { storedEntityType } from "@/lib/smartChips";
 
 export type SerializedEntityMentionNode = Spread<
   {
@@ -41,16 +42,13 @@ const TYPE_ATTR = "data-lexical-entity-mention";
 const ID_ATTR = "data-entity-id";
 
 function $convertEntityMentionElement(domNode: HTMLElement): DOMConversionOutput | null {
-  const entityType = domNode.getAttribute(TYPE_ATTR);
+  const entityType = storedEntityType(domNode.getAttribute(TYPE_ATTR) ?? "");
   const entityId = Number(domNode.getAttribute(ID_ATTR));
-  if (!entityType || !isEntityType(entityType) || !Number.isFinite(entityId)) return null;
+  if (!entityType || !Number.isFinite(entityId)) return null;
   return {
     node: $createEntityMentionNode(entityType, entityId, domNode.textContent ?? ""),
   };
 }
-
-const isEntityType = (value: string): value is SearchEntityType =>
-  (Object.values(SearchEntityType) as string[]).includes(value);
 
 export class EntityMentionNode extends DecoratorNode<JSX.Element> {
   __entityType: SearchEntityType;
@@ -67,7 +65,7 @@ export class EntityMentionNode extends DecoratorNode<JSX.Element> {
 
   static importJSON(serialized: SerializedEntityMentionNode): EntityMentionNode {
     return $createEntityMentionNode(
-      serialized.entityType,
+      storedEntityType(serialized.entityType) ?? serialized.entityType,
       serialized.entityId,
       serialized.text ?? ""
     );
@@ -180,7 +178,7 @@ export function $convertLegacyWikilink(serialized: {
 }): EntityMentionNode | null {
   if (typeof serialized.documentId !== "number" || serialized.documentId <= 0) return null;
   return $createEntityMentionNode(
-    SearchEntityType.document,
+    SearchEntityType.file,
     serialized.documentId,
     serialized.documentTitle ?? serialized.text ?? ""
   );

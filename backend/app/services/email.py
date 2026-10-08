@@ -207,17 +207,6 @@ def _user_locale(user: User) -> str:
     return getattr(user, "locale", None) or "en"
 
 
-def _display_name(user: User) -> str:
-    """What to call the person this email is addressed to.
-
-    Their own name, if they have set one — this is the only place someone is
-    named to themselves, and it is the same greeting whichever guild the mail
-    was written from, or none at all. Everyone *else* an email mentions is
-    named by the caller, which passes the handle.
-    """
-    return (user.full_name or "").strip() or handle_of(user)
-
-
 def _inline_css(html: str) -> str:
     """Inline <style> rules into element style attributes via premailer.
 
@@ -333,12 +322,17 @@ def _frontend_url(path: str) -> str:
     return f"{base}{path}"
 
 
+def account_change_link(token: str) -> str:
+    """The page a "This wasn't me" button in an account letter opens."""
+    return _frontend_url(f"/account/not-me?token={token}")
+
+
 async def send_verification_email(
     session: AsyncSession, user: User, token: str
 ) -> None:
     settings_obj, accent = await _email_context(session)
     locale = _user_locale(user)
-    name = _display_name(user)
+    name = handle_of(user)
     link = _frontend_url(f"/verify-email?token={token}")
     button = _cta_button(
         email_t("verification.buttonLabel", locale=locale), link, accent
@@ -464,7 +458,7 @@ def render_single(
 ) -> tuple[str, str]:
     """One notification as its own message — the shape this app has always
     sent. Returns ``(html, text)``."""
-    name = _display_name(user)
+    name = handle_of(user)
     button = ""
     if pieces.link:
         label = pieces.link_label or email_t("mention.buttonLabel", locale=locale)
@@ -504,7 +498,7 @@ def render_digest(
     ``reason`` is why this batch is going out now — a cadence
     (``hourly``/``daily``/``weekly``) or ``away``, for a batch a hold released.
     """
-    name = _display_name(user)
+    name = handle_of(user)
     total = len(lines)
     title = email_t(f"digest.{reason}.title", locale=locale)
     subject = email_t(
@@ -572,11 +566,23 @@ async def deliver(
     html_body: str,
     text_body: str,
     every_address: bool = False,
+    recipient: str | None = None,
 ) -> None:
     """Put a composed message on the wire, to the address this account
-    nominated — or, for a letter about the account itself, to every address it
-    has proved. The one exit from the outbox."""
+    nominated — or to the one ``recipient`` a letter names, or, for a letter
+    about the account itself written before letters named one, to every
+    address it has proved. The one exit from the outbox."""
     settings_obj = await app_settings_service.get_app_settings(session)
+    if recipient is not None:
+        await send_email(
+            session,
+            recipients=[recipient],
+            subject=subject,
+            html_body=html_body,
+            text_body=text_body,
+            settings_obj=settings_obj,
+        )
+        return
     if every_address:
         await send_email(
             session,
@@ -627,7 +633,7 @@ async def send_address_verification_email(
     """
     settings_obj, accent = await _email_context(session)
     locale = _user_locale(user)
-    name = _display_name(user)
+    name = handle_of(user)
     link = _frontend_url(f"/verify-email?token={token}")
     button = _cta_button(
         email_t("verification.buttonLabel", locale=locale), link, accent
@@ -657,7 +663,7 @@ async def send_password_reset_email(
 ) -> None:
     settings_obj, accent = await _email_context(session)
     locale = _user_locale(user)
-    name = _display_name(user)
+    name = handle_of(user)
     link = _frontend_url(f"/reset-password?token={token}")
     button = _cta_button(
         email_t("passwordReset.buttonLabel", locale=locale), link, accent
@@ -698,7 +704,7 @@ async def send_sign_in_code_email(
     """
     settings_obj, accent = await _email_context(session)
     locale = _user_locale(user)
-    name = _display_name(user)
+    name = handle_of(user)
     shown = (
         f'<p style="margin:24px 0;font-size:32px;font-weight:700;'
         f'letter-spacing:0.25em;color:{accent};">{code}</p>'
@@ -911,26 +917,24 @@ def email_date(value: date | datetime, locale: str = "en") -> str:
     )
 
 
-async def send_community_on_hold_email(
-    session: AsyncSession,
+def community_on_hold_pieces(
     *,
-    recipients: list[str],
     community: str,
     contact: str | None,
     guild_id: int,
-    delete_at: datetime | None = None,
-    plan_managed: bool = False,
-    locale: str = "en",
-) -> None:
-    """Tell the people who hold a community's seat that it is on hold, whom
+    delete_at: datetime | None,
+    plan_managed: bool,
+    locale: str,
+) -> EmailPieces:
+    """A community's hold as a letter, in ``locale``: that it is on hold, whom
     to contact about it, and, where the hold runs out, when it is deleted.
 
     ``delete_at`` is None where this deployment never deletes a held community.
     ``plan_managed`` says what lifts the hold: on a deployment whose plans the
     billing service sets, restoring the plan, which the letter's button leads
-    to; elsewhere, whoever put it there, and the letter has no button.
+    to; elsewhere, whoever put it there, and the letter has no button. Queued
+    as account mail, to every address each seat holder has proved.
     """
-    settings_obj, accent = await _email_context(session)
     next_step = (
         email_t("communityOnHold.contact", locale=locale, contact=contact)
         if contact
@@ -943,58 +947,26 @@ async def send_community_on_hold_email(
         body_key = "bodyDeleting"
     else:
         body_key = "bodyDeletingUnlessLifted"
-    text_key = "textB" + body_key[1:]
-    # Where billing sets plans, restoring the plan lifts the hold, so the
-    # letter leads there.
-    button = text_link = ""
-    if plan_managed:
-        link = community_billing_link(guild_id, "manage")
-        label = email_t("communityOnHold.buttonLabel", locale=locale)
-        button = f'<p style="margin:24px 0;">{_cta_button(label, link, accent)}</p>'
-        plain_label = email_t(
-            "communityOnHold.buttonLabel", locale=locale, escape=False
-        )
-        text_link = f"\n\n{plain_label}: {link}"
-    body = f"""
-    <p>{email_t("communityOnHold.greeting", locale=locale)}</p>
-    <p>{email_t(f"communityOnHold.{body_key}", locale=locale, community=community, date=day or "")}</p>
-    {button}
-    <p>{next_step}</p>
-    """
-    html_body = _build_html_layout(
-        email_t("communityOnHold.title", locale=locale, community=community),
-        body,
-        accent,
+    body = email_t(
+        f"communityOnHold.{body_key}",
         locale=locale,
+        community=community,
+        date=day or "",
     )
-    text_next = (
-        email_t(
-            "communityOnHold.textContact", locale=locale, contact=contact, escape=False
-        )
-        if contact
-        else email_t("communityOnHold.textContactNobody", locale=locale, escape=False)
-    )
-    await send_email(
-        session,
-        recipients=recipients,
+    return EmailPieces(
         subject=email_t(
             "communityOnHold.subject", locale=locale, community=community, escape=False
         ),
-        html_body=html_body,
-        text_body=" ".join(
-            (
-                email_t(
-                    f"communityOnHold.{text_key}",
-                    locale=locale,
-                    community=community,
-                    date=day or "",
-                    escape=False,
-                ),
-                text_next,
-            )
-        )
-        + text_link,
-        settings_obj=settings_obj,
+        headline=email_t("communityOnHold.title", locale=locale, community=community),
+        body=f"{body} {next_step}",
+        # Where billing sets plans, restoring the plan lifts the hold, so the
+        # letter leads there.
+        link=community_billing_link(guild_id, "manage") if plan_managed else None,
+        link_label=(
+            email_t("communityOnHold.buttonLabel", locale=locale)
+            if plan_managed
+            else None
+        ),
     )
 
 
@@ -1011,10 +983,13 @@ def community_trial_pieces(
     """A trial notice as notification mail, in ``locale``.
 
     ``kind`` is one of the billing notice kinds; the words are this
-    deployment's. Written into the notice outbox beside the bell line, so the
-    outbox worker sends it and retries it; the button leads to the community's
-    billing page, which signs the reader in and forwards them to the billing
-    portal to choose a plan.
+    deployment's. The trial is Paddle's: a community in one is already
+    subscribed, and its plan is billed when the trial ends unless it is
+    cancelled first. Written into the notice outbox beside the bell line, so
+    the outbox worker sends it and retries it; the button leads to the
+    community's billing page, which signs the reader in and forwards them to
+    the billing portal — to the plan they have while the trial runs, and to
+    choosing one once it has ended without a payment.
     """
     section = _TRIAL_NOTICE_SECTIONS[kind]
     day = email_date(trial_ends_on, locale)
@@ -1030,7 +1005,9 @@ def community_trial_pieces(
             f"{section}.title", locale=locale, community=community, date=day
         ),
         body=email_t(f"{section}.body", locale=locale, community=community, date=day),
-        link=community_billing_link(guild_id, "upgrade"),
+        link=community_billing_link(
+            guild_id, "manage" if kind == "trial_ending" else "upgrade"
+        ),
         link_label=email_t(f"{section}.buttonLabel", locale=locale),
     )
 
@@ -1062,23 +1039,49 @@ def community_billing_link(guild_id: int, page: Literal["upgrade", "manage"]) ->
 
 
 async def _queue_account_notice(
-    user: User, *, section: str, key: str, **values: str
+    user: User,
+    *,
+    section: str,
+    key: str,
+    answerable: bool = True,
+    also_to: Sequence[str] = (),
+    record: Mapping[str, object] | None = None,
+    **values: str,
 ) -> None:
     """Queue one letter about a way into the account changing.
 
     Account mail: it goes out at once, on its own, to every address its holder
     has proved, whatever their notification settings — a change nobody made is
-    still seen by somebody who no longer reads one of them. ``section`` holds
-    the greeting and the "if this wasn't you" line every letter of its kind
-    shares; ``key`` holds what this one says.
+    still seen by somebody who no longer reads one of them — and to
+    ``also_to`` beside them. ``section`` holds the greeting and the "if this
+    wasn't you" line every letter of its kind shares; ``key`` holds what this
+    one says. An ``answerable`` letter carries a "This wasn't me" link, and
+    ``record`` says what that link may undo (``account_changes.change_record``).
 
     Called once the change is committed, and never allowed to fail it: the
     change was made whether or not the letter can go.
     """
     from app.services.platform import email_outbox
 
+    pieces = _account_notice_pieces(user, section=section, key=key, **values)
+    try:
+        await email_outbox.enqueue_account_letter(
+            user,
+            pieces,
+            change={"notice": key, **(record or {})} if answerable else None,
+            also_to=also_to,
+        )
+    except Exception:  # pragma: no cover - the letter is best effort
+        logger.exception("could not queue %s for account %s", key, user.id)
+
+
+def _account_notice_pieces(
+    user: User, *, section: str, key: str, **values: str
+) -> EmailPieces:
+    """One letter about a way into the account changing, in its holder's
+    locale."""
     locale = _user_locale(user)
-    pieces = EmailPieces(
+    return EmailPieces(
         subject=email_t(f"{key}.subject", locale=locale, escape=False),
         headline=email_t(f"{key}.title", locale=locale),
         body=(
@@ -1086,10 +1089,6 @@ async def _queue_account_notice(
             f"<p>{email_t(f'{section}.fallbackText', locale=locale)}"
         ),
     )
-    try:
-        await email_outbox.enqueue_account_letter(user, pieces)
-    except Exception:  # pragma: no cover - the letter is best effort
-        logger.exception("could not queue %s for account %s", key, user.id)
 
 
 async def announce_second_factor_change(
@@ -1104,14 +1103,91 @@ async def announce_second_factor_change(
 
 
 async def announce_passkey_change(
-    session: AsyncSession, user: User, *, added: bool, name: str
+    session: AsyncSession,
+    user: User,
+    *,
+    added: bool,
+    name: str,
+    record: Mapping[str, object] | None = None,
 ) -> None:
     """Tell the account a passkey was added or removed."""
     await _queue_account_notice(
         user,
         section="passkey",
         key="passkey.added" if added else "passkey.removed",
+        record=record,
         passkey=name,
+    )
+
+
+async def announce_address_change(
+    session: AsyncSession,
+    user: User,
+    *,
+    change: Literal["proved", "primary"],
+    address: str,
+    record: Mapping[str, object] | None = None,
+) -> None:
+    """Tell the account an address was proved on it, or made its primary."""
+    await _queue_account_notice(
+        user,
+        section="address",
+        key=f"address.{change}",
+        record=record,
+        address=address,
+    )
+
+
+async def announce_address_removed(
+    session: AsyncSession,
+    user: User,
+    *,
+    address: str,
+    record: Mapping[str, object] | None = None,
+) -> None:
+    """Tell the account a proved address was removed, and tell that address.
+
+    The account's own addresses no longer include it, so it is named as a
+    recipient of its own.
+    """
+    await _queue_account_notice(
+        user,
+        section="address",
+        key="address.removed",
+        also_to=[address],
+        record=record,
+        address=address,
+    )
+
+
+#: The letter each held change sends, by kind, and what it names.
+_HELD_NOTICES: dict[str, tuple[str, str]] = {
+    "primary": ("address", "address.primaryHeld"),
+    "remove_address": ("address", "address.removalHeld"),
+    "second_factor_off": ("secondFactor", "secondFactor.disableHeld"),
+    "last_passkey": ("passkey", "passkey.removalHeld"),
+}
+
+
+async def announce_held_change(
+    user: User,
+    *,
+    kind: str,
+    subject: str | None,
+    applies_at: datetime,
+    record: Mapping[str, object],
+) -> None:
+    """Tell the account a change to it waits until ``applies_at``. Its link
+    cancels the change, where the copy may."""
+    section, key = _HELD_NOTICES[kind]
+    await _queue_account_notice(
+        user,
+        section=section,
+        key=key,
+        record=record,
+        date=email_date(applies_at, _user_locale(user)),
+        address=subject or "",
+        passkey=subject or "",
     )
 
 
@@ -1125,6 +1201,7 @@ async def announce_sign_in_locked(
             user,
             section="signInLocked",
             key="signInLocked.locked",
+            answerable=False,
             minutes=str(minutes),
         )
     else:
@@ -1132,6 +1209,7 @@ async def announce_sign_in_locked(
             user,
             section="signInLocked",
             key="signInLocked.lockedHours",
+            answerable=False,
             count=str(minutes // 60),
         )
 

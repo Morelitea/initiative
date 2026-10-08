@@ -70,7 +70,7 @@ SMART_CHIP_KINDS: tuple[tuple[SearchEntityType, SmartChipAspect], ...] = (
     (SearchEntityType.task, SmartChipAspect.checklist),
 )
 
-#: Chips a reader can act on from the page — a box ticked in a document ticks
+#: Chips a reader can act on from the page — a box ticked in a file ticks
 #: the task. Each answer says whether this reader may, so the chip offers only
 #: what the request would allow.
 ACTIONABLE_CHIP_KINDS: frozenset[tuple[SearchEntityType, SmartChipAspect]] = frozenset(

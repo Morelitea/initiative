@@ -23,7 +23,8 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import recurrence
-from app.core.messages import QueryMessages
+from app.core.messages import CalendarEventMessages, QueryMessages
+from app.core.identity_boundary import STORED_MENTION
 from app.core.references import TEXT_REFERENCE, kind_for_trigger
 from app.core.relationships import RelationshipType
 from app.core.search import SearchEntityType
@@ -45,7 +46,7 @@ from app.db.query import (
 from app.db.session import require_guild_context, routed_guild_id
 from app.models.platform.guild import Guild
 from app.models.platform.user import User
-from app.models.tenant.comment import Comment
+from app.models.tenant.comment import Comment, in_thread
 from app.models.tenant.project import Project
 from app.models.tenant.property import (
     PropertyDefinition,
@@ -59,6 +60,7 @@ from app.services import fields as fields_registry
 from app.services import permissions as permissions_service
 from app.services.cross_guild import gather_across_guilds, member_guild_ids
 from app.services.fields.spec import FieldContext, SortContext
+from app.services.permissions import with_tool
 from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant import task_checklist as checklist_service
@@ -98,6 +100,8 @@ _GLOBAL_SORT_ATTRGETTERS = {
     "start_date": attrgetter("start_date"),
     "created_at": attrgetter("created_at"),
     "updated_at": attrgetter("updated_at"),
+    "status_position": attrgetter("status_position"),
+    "tag_name": attrgetter("tag_name"),
 }
 
 # Native PG enum orders by definition order (low→urgent), not alphabetically;
@@ -109,15 +113,20 @@ _PRIORITY_SORT_ORDER = {p: i for i, p in enumerate(TaskPriority)}
 def _global_ordering_selectables(tz: str | None = None):
     """The columns the cross-guild ordering pass selects.
 
-    Every sort key the /me task views accept is a plain ``tasks`` column (plus
-    the SQL-computed ``date_group``), so the whole matching set can be ordered
-    from rows this narrow — no relationships, no annotations. Labelled with the
+    Every sort key the /me task views accept is a plain ``tasks`` column or an
+    expression the task dataset declares (``date_group``, ``status_position``,
+    ``tag_name``), so the whole matching set can be ordered from rows this
+    narrow — no relationships, no annotations. Labelled with the
     sort field names so :func:`_sort_global_task_keys` reads a row by the name
     the caller sorted on.
     """
     return (
         Task.id.label("id"),
         _date_group_expression(tz).label("date_group"),
+        *(
+            fields_registry.sort_expression("tasks", name, _sort_ctx(tz)).label(name)
+            for name in ("status_position", "tag_name")
+        ),
         Task.position.label("position"),
         Task.title.label("title"),
         Task.due_date.label("due_date"),
@@ -218,6 +227,7 @@ def _comment_count_expression():
     return (
         select(func.count(Comment.id))
         .where(Comment.task_id == Task.id)
+        .where(in_thread())
         .correlate(Task)
         .scalar_subquery()
         .label("comment_count")
@@ -233,7 +243,7 @@ def _open_blocker_count_expression():
     What counts as outstanding is per kind and comes from
     :data:`app.db.blocking.OPEN_WHEN`: a task not yet done, an event not yet
     passed, a counter short of its target. A kind with no rule there is not
-    counted at all, which is the honest reading — nothing says when a document
+    counted at all, which is the honest reading — nothing says when a file
     stops blocking. One ``EXISTS`` arm per registered kind, built from the
     registry, so a kind gains a count the day it gains a rule.
 
@@ -292,6 +302,7 @@ async def _annotate_tasks(
         stmt = (
             select(Comment.task_id, func.count(Comment.id))
             .where(Comment.task_id.in_(tuple(task_ids)))
+            .where(in_thread())
             .group_by(Comment.task_id)
         )
         comment_counts = dict((await session.exec(stmt)).all())
@@ -340,6 +351,10 @@ _UNFINISHED_LINK = re.compile(r"(?:[!@]|#[\w-]+)?\[[^\]]*(?:\]\([^)]*)?$")
 #: The task box GFM puts at the start of a checklist item.
 _TASK_BOX = re.compile(r"^\[[ xX]\]\s+")
 
+#: A mention held through the parse as a word of its own, its id between two
+#: private-use characters, and the end of one the excerpt's cut goes through.
+_HELD_MENTION = re.compile("\ue000(\\d*)(\ue001)?")
+
 
 def _description_excerpt(head: str | None) -> str | None:
     """A list row's plain-text excerpt of a description, from its head.
@@ -348,7 +363,8 @@ def _description_excerpt(head: str | None) -> str | None:
     the markdown; one past the source length means the description goes on, so
     the excerpt is cut even when the text read so far is short. The excerpt is
     the text of each block's inline content: pictures, HTML and code blocks
-    drop out, a link or a mention keeps the words it shows.
+    drop out, a link keeps the words it shows, and a mention of somebody stays
+    its markdown, ``@[](42)``, which the client names.
     """
     if not head:
         return None
@@ -357,6 +373,7 @@ def _description_excerpt(head: str | None) -> str | None:
     if source_cut:
         # A link, picture or mention the cut goes through is left out whole.
         source = _UNFINISHED_LINK.sub("", source)
+    source = STORED_MENTION.sub(lambda m: f"\ue000{m.group(2)}\ue001", source)
     source = TEXT_REFERENCE.sub(
         lambda m: m.group(2) if kind_for_trigger(m.group(1)) else m.group(0), source
     )
@@ -372,14 +389,23 @@ def _description_excerpt(head: str | None) -> str | None:
         words.append(" ")
     text = " ".join("".join(words).split())
     if not source_cut and len(text) <= _DESCRIPTION_EXCERPT_CHARS:
-        return text or None
+        return _released(text) or None
     # Leave room for the ellipsis, and end on a whole word: unless the cut
     # falls before a space, drop what follows the last one, which is part of a
     # word or, where the source was cut, of a piece of markup.
     cut = text[: _DESCRIPTION_EXCERPT_CHARS - 1]
     if not text[len(cut) :].startswith(" "):
         cut = cut.rpartition(" ")[0] or cut
-    return cut.rstrip() + "…" if cut else None
+    cut = _released(cut).rstrip()
+    return cut + "…" if cut else None
+
+
+def _released(text: str) -> str:
+    """``text`` with each held mention written back as its markdown, and one
+    the cut went through left out."""
+    return _HELD_MENTION.sub(
+        lambda m: f"@[]({m.group(1)})" if m.group(2) and m.group(1) else "", text
+    )
 
 
 def _task_to_list_read(
@@ -407,8 +433,8 @@ def _task_to_list_read(
         update={
             "description_excerpt": _description_excerpt(description_head),
             "has_description": has_description,
-            "guild_id": guild_id,
-            "guild_name": guild_name,
+            "community_id": guild_id,
+            "community_name": guild_name,
             "project_name": project.name if project else None,
             "initiative_id": initiative.id if initiative else None,
             "initiative_name": initiative.name if initiative else None,
@@ -516,6 +542,26 @@ async def _annotate_series_sizes(session: AsyncSession, tasks: list[Task]) -> No
         sizes = dict((await session.exec(stmt)).all())
     for task in tasks:
         object.__setattr__(task, "series_size", sizes.get(task.series_id, 1))
+
+
+async def load_for_change(
+    session: AsyncSession, task_id: int, *, populate_existing: bool = False
+) -> Task | None:
+    """The task with what changing it reads: its project as authorizing it
+    reads it, its status and its assignees. What only a response reads is
+    :func:`load_task`'s."""
+    return (
+        await session.exec(
+            select(Task)
+            .where(Task.id == task_id)
+            .options(
+                with_tool(Task.project),
+                joinedload(Task.task_status),
+                selectinload(Task.assignees),
+            )
+            .execution_options(populate_existing=populate_existing)
+        )
+    ).one_or_none()
 
 
 async def load_task(session: AsyncSession, task_id: int) -> Task | None:
@@ -912,7 +958,7 @@ async def parse_task_list_query(
                 property_ids_needed.append(int(cond.value.get("property_id")))
             except (TypeError, ValueError):
                 continue
-    guild_ids = extract_condition_value(user_conditions, "guild_ids")
+    guild_ids = extract_condition_value(user_conditions, "community_ids")
     if across_guilds_for is not None:
         property_definitions = await _load_property_definitions_across_guilds(
             session, across_guilds_for, property_ids_needed, guild_ids
@@ -937,9 +983,9 @@ _PERSON_FILTER_FIELDS = frozenset({"assignee_ids", "created_by"})
 
 
 def refuse_person_filters(q: TaskListQuery) -> None:
-    """Refuse, for an installed app, a filter that names people.
+    """Refuse, for an installed plug-in, a filter that names people.
 
-    A filter's values are row ids inside a JSON string, which an app does not
+    A filter's values are row ids inside a JSON string, which a plug-in does not
     hold, so the fields that take one are left to people: ``assignee_ids``
     and ``created_by`` (bar asking whether there is one), and a
     person-valued custom property.
@@ -1162,6 +1208,7 @@ async def _load_comments_for_tasks(
         .where(
             Comment.task_id.in_(task_ids),
             Comment.deleted_at.is_(None),
+            in_thread(),
         )
         .options(selectinload(Comment.author))
         .order_by(Comment.created_at)
@@ -1213,13 +1260,16 @@ def projected_occurrences(
 
     An occurrence is the task as its successor will be: the same task with its
     dates moved to the next start of its rule, until the series ends. A rolling
-    series has none, since its next start waits on when the task is done."""
+    series has none, since its next start waits on when the task is done.
+    A window holding more than ``recurrence.MAX_EXPANDED`` of them is refused,
+    for a shorter one."""
 
     def within(value: datetime | None) -> bool:
         return value is not None and start_after <= value <= start_before
 
     placed: list[TaskListRead] = []
     projected: list[TaskListRead] = []
+    expanded = 0
     for task in tasks:
         if within(task.start_date) or within(task.due_date):
             placed.append(task)
@@ -1234,9 +1284,16 @@ def projected_occurrences(
                 start_after,
                 start_before,
                 count=False,
+                at_most=recurrence.MAX_EXPANDED - expanded + 1,
             )
         except ValueError:
             continue
+        expanded += len(starts)
+        if expanded > recurrence.MAX_EXPANDED:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=CalendarEventMessages.WINDOW_TOO_FULL,
+            )
         lead = due - task.start_date if task.start_date else None
         for start in starts:
             if start <= due or (
@@ -1265,6 +1322,7 @@ async def query_guild_tasks(
     include_archived: bool = False,
     start_after: Optional[datetime] = None,
     start_before: Optional[datetime] = None,
+    initiative_id: Optional[int] = None,
 ) -> list[TaskListRead]:
     """Fetch every guild task matching the filter (no pagination).
 
@@ -1272,7 +1330,8 @@ async def query_guild_tasks(
     the whole matching set is small. Mirrors ``list_tasks`` minus paging: same
     parse → guild query builder → eager loads → sort → annotate → serialize path,
     so access + shaping are identical. ``start_after``/``start_before`` bound the
-    result to the calendar window regardless of ``conditions``.
+    result to the calendar window, and ``initiative_id`` to one initiative's
+    projects, regardless of ``conditions``.
     """
     q = await parse_task_list_query(session, conditions, sorting, tz)
     build = await guild_task_query_builder(
@@ -1288,6 +1347,8 @@ async def query_guild_tasks(
     window = _task_calendar_window_clause(start_after, start_before)
     if window is not None:
         statement = statement.where(window)
+    if initiative_id is not None:
+        statement = statement.where(Project.initiative_id == initiative_id)
     rows = list((await session.exec(statement)).all())
     return await list_reads(session, rows, routed_guild_id(session))
 

@@ -144,7 +144,7 @@ def test_every_route_names_its_schemas_and_ends_at_pg_temp(shape):
 
 
 class TestTheInstallRoute:
-    """An installed app routes into the community's app role, as nobody."""
+    """An installed plug-in routes into the community's plug-in role, as nobody."""
 
     def _install(self, **overrides):
         return _bind_params(
@@ -155,19 +155,19 @@ class TestTheInstallRoute:
                     "standing": InstallContext(
                         guild_id=3,
                         install_id=5,
-                        client_id="tests.app",
+                        client_id="tests.plugin",
                         token_scopes=frozenset(),
                     ),
-                    "token_client_id": "tests.app",
-                    "token_scopes": frozenset({"documents:write", "comments:read"}),
+                    "token_client_id": "tests.plugin",
+                    "token_scopes": frozenset({"files:write", "comments:read"}),
                     **overrides,
                 }
             )
         )
 
-    def test_it_assumes_the_app_role_and_names_no_person(self):
+    def test_it_assumes_the_plugin_role_and_names_no_person(self):
         out = self._install(scope_initiative_id=9)
-        assert out["role"] == guild_role_name(3, GuildRoleKind.app)
+        assert out["role"] == guild_role_name(3, GuildRoleKind.plugin)
         assert out["search_path"] == f"{guild_schema_name(3)}, public, pg_temp"
         assert (out["current_user_id"], out["current_guild_id"]) == ("", "3")
         assert (
@@ -177,8 +177,8 @@ class TestTheInstallRoute:
             out["pam_write"],
         ) == ("", "", "false", "false")
         assert out["current_install_id"] == "5"
-        assert out["token_client_id"] == "tests.app"
-        assert out["token_scopes"] == "comments:read,documents:write"
+        assert out["token_client_id"] == "tests.plugin"
+        assert out["token_scopes"] == "comments:read,files:write"
         assert out["scope_initiative_id"] == "9"
 
     def test_until_its_standing_is_computed_it_stands_nowhere(self):

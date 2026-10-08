@@ -1,13 +1,9 @@
 {
   "title": "Wikis",
-  "wiki": "Wiki",
-  "wikis": "Wikis",
   "createWiki": "Nuevo wiki",
   "createWikiDescription": "Páginas que se enlazan entre sí: un manual, una referencia, las respuestas a lo que siempre se pregunta. Ponle nombre ahora; las páginas vienen después.",
   "creating": "Creando...",
-  "name": "Nombre",
   "namePlaceholder": "Manual del equipo, Biblia del mundo, Normas de la casa...",
-  "description": "Descripción",
   "descriptionPlaceholder": "De qué trata este wiki",
   "initiative": "Iniciativa",
   "selectInitiative": "Selecciona una iniciativa",
@@ -22,15 +18,12 @@
   "noAccess": "Acceso denegado",
   "noAccessDescription": "No tienes permiso para ver este wiki.",
   "backToWikis": "Volver a los wikis",
-  "pageCount_one": "{{count}} página",
-  "pageCount_other": "{{count}} páginas",
   "pages": {
     "title": "Páginas",
     "search": "Buscar páginas",
     "searchPlaceholder": "Buscar en este wiki",
     "searchEmpty": "Ninguna página coincide con «{{query}}»",
     "newPage": "Nueva página",
-    "untitled": "Sin título",
     "titleLabel": "Título",
     "titlePlaceholder": "De qué trata esta página",
     "deleted": "Página movida a la papelera",
@@ -46,19 +39,13 @@
     "collapse": "Contraer",
     "expand": "Expandir",
     "draft": "Borrador",
-    "previous": "Anterior",
-    "next": "Siguiente",
     "nav": "Páginas a ambos lados de esta",
     "expandAll": "Expandir todo",
     "collapseAll": "Contraer todo",
     "groupLabel": "Páginas"
   },
   "links": {
-    "title": "Conexiones",
-    "outgoing": "Enlaces desde esta página",
-    "incoming": "Enlazada desde",
-    "noneDescription": "Menciona esta página con [[ desde cualquier sitio y aparecerá aquí.",
-    "loading": "Cargando conexiones..."
+    "title": "Conexiones"
   },
   "card": {
     "comments_one": "{{count}} comentario",
@@ -66,7 +53,6 @@
     "updated": "Actualizado {{date}}"
   },
   "filters": {
-    "heading": "Filtros",
     "searchLabel": "Nombre o descripción",
     "searchWikis": "Buscar wikis...",
     "noMatchingWikis": "Ningún wiki coincide con tus filtros."
@@ -123,19 +109,18 @@
     "drafted": "Página marcada como borrador"
   },
   "comments": "Comentarios",
-  "newPage": "Nueva página",
   "viewMode": {
     "read": "Ver como lector",
     "edit": "Editar esta página"
   },
   "updated": "Actualizado",
-  "documents": {
-    "openDocument": "Abrir documento",
-    "addDocument": "Añadir un documento",
-    "added": "Documento añadido al wiki",
-    "removed": "Documento quitado del wiki",
+  "files": {
+    "openFile": "Abrir archivo",
+    "addFile": "Añadir un archivo",
+    "added": "Archivo añadido al wiki",
+    "removed": "Archivo quitado del wiki",
     "remove": "Quitar de este wiki",
-    "none": "No hay documentos que añadir",
-    "pick": "¿Qué documento?"
+    "none": "No hay archivos que añadir",
+    "pick": "¿Qué archivo?"
   }
 }

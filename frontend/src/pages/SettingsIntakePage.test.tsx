@@ -16,12 +16,12 @@ import { renderWithProviders } from "@/__tests__/helpers/render";
 const importMutate = vi.fn();
 const upsertMutate = vi.fn();
 const deleteMutate = vi.fn();
-const guildMutate = vi.fn();
+const communityMutate = vi.fn();
 const generalContactMutate = vi.fn();
 const streamContactMutate = vi.fn();
 
 const state = vi.hoisted(() => ({
-  operationsGuildId: null as number | null,
+  operationsCommunityId: null as number | null,
   bindings: [] as Array<Record<string, unknown>>,
   isError: false,
   optionsError: false,
@@ -51,8 +51,8 @@ vi.mock("@/hooks/useIntakeSettings", () => ({
     data: state.isError
       ? undefined
       : {
-          operations_guild_id: state.operationsGuildId,
-          operations_guild_name: state.operationsGuildId ? "Operations" : null,
+          operations_community_id: state.operationsCommunityId,
+          operations_community_name: state.operationsCommunityId ? "Operations" : null,
           bindings: state.bindings,
           general_contact_email: state.generalContact,
           contact_emails: state.contactEmails,
@@ -85,7 +85,7 @@ vi.mock("@/hooks/useIntakeSettings", () => ({
       ],
     },
   }),
-  useUpdateOperationsGuild: () => ({ mutate: guildMutate, isPending: false }),
+  useUpdateOperationsCommunity: () => ({ mutate: communityMutate, isPending: false }),
   useUpsertIntakeBinding: () => ({ mutate: upsertMutate, isPending: false }),
   useImportIntakeBlueprint: () => ({ mutate: importMutate, isPending: false }),
   useDeleteIntakeBinding: () => ({ mutate: deleteMutate, isPending: false }),
@@ -94,7 +94,7 @@ vi.mock("@/hooks/useIntakeSettings", () => ({
 }));
 
 vi.mock("@/hooks/useSettings", () => ({
-  usePlatformGuilds: () => ({ data: buildPage([{ id: 3, name: "Operations" }]) }),
+  usePlatformCommunities: () => ({ data: buildPage([{ id: 3, name: "Operations" }]) }),
 }));
 
 import { SettingsIntakePage } from "./SettingsIntakePage";
@@ -107,12 +107,12 @@ describe("SettingsIntakePage", () => {
     importMutate.mockClear();
     upsertMutate.mockClear();
     deleteMutate.mockClear();
-    guildMutate.mockClear();
+    communityMutate.mockClear();
     generalContactMutate.mockReset().mockResolvedValue({});
     streamContactMutate.mockReset().mockResolvedValue({});
     state.generalContact = null;
     state.contactEmails = {};
-    state.operationsGuildId = null;
+    state.operationsCommunityId = null;
     state.bindings = STREAMS.map(unbound);
     state.isError = false;
     state.optionsError = false;
@@ -128,7 +128,7 @@ describe("SettingsIntakePage", () => {
   });
 
   it("lists every stream once a community is named, bound or not", () => {
-    state.operationsGuildId = 3;
+    state.operationsCommunityId = 3;
     renderPage();
     for (const title of ["Security", "Moderation", "Support", "Feedback"]) {
       expect(screen.getByRole("region", { name: title })).toBeInTheDocument();
@@ -137,7 +137,7 @@ describe("SettingsIntakePage", () => {
   });
 
   it("sets a stream up from its blueprint", async () => {
-    state.operationsGuildId = 3;
+    state.operationsCommunityId = 3;
     renderPage();
     const user = userEvent.setup();
 
@@ -156,7 +156,7 @@ describe("SettingsIntakePage", () => {
   });
 
   it("shows where a bound stream lands and when it last opened a case", () => {
-    state.operationsGuildId = 3;
+    state.operationsCommunityId = 3;
     state.bindings = [
       {
         ...unbound("security"),
@@ -189,7 +189,7 @@ describe("SettingsIntakePage", () => {
     // The page shows the failure and withholds the picker, so a change is only
     // made against a value that was actually read.
     state.isError = true;
-    state.operationsGuildId = 3;
+    state.operationsCommunityId = 3;
     renderPage();
 
     expect(screen.getByText("Could not load these settings")).toBeInTheDocument();
@@ -202,7 +202,7 @@ describe("SettingsIntakePage", () => {
   it("offers no destination while the two reads disagree", () => {
     // Mid-refetch the bindings and the projects they could name can be from
     // different communities.
-    state.operationsGuildId = 3;
+    state.operationsCommunityId = 3;
     state.isFetching = true;
     renderPage();
 
@@ -215,7 +215,7 @@ describe("SettingsIntakePage", () => {
     // The two reads describe one community between them, so a page that acted
     // on only one would offer destinations it could not name.
     state.optionsError = true;
-    state.operationsGuildId = 3;
+    state.operationsCommunityId = 3;
     renderPage();
 
     expect(screen.getByText("Could not load these settings")).toBeInTheDocument();
@@ -223,7 +223,7 @@ describe("SettingsIntakePage", () => {
   });
 
   it("says a stream whose project was archived receives nothing", () => {
-    state.operationsGuildId = 3;
+    state.operationsCommunityId = 3;
     state.bindings = [
       {
         ...unbound("security"),
@@ -252,7 +252,7 @@ describe("SettingsIntakePage", () => {
   it("says who to contact before any community is named", async () => {
     state.generalContact = "ops@example.com";
     state.contactEmails = { moderation: "trust@example.com" };
-    renderPage();
+    const { rerender } = renderPage();
     const user = userEvent.setup();
 
     const general = screen.getByLabelText("General contact");
@@ -264,6 +264,9 @@ describe("SettingsIntakePage", () => {
     expect(save).toBeDisabled();
 
     await user.type(screen.getByLabelText("Support"), "help@example.com");
+    // A refetch while the form is being filled in keeps what was typed.
+    rerender(<SettingsIntakePage />);
+    expect(screen.getByLabelText("Support")).toHaveValue("help@example.com");
     await user.clear(screen.getByLabelText("Moderation"));
     await user.click(save);
 

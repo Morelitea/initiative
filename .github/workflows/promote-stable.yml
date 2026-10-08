@@ -20,13 +20,11 @@ on:
 permissions:
   contents: read
   issues: read
+  packages: write
 
 concurrency:
   group: promote-stable
   cancel-in-progress: false
-
-env:
-  IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/initiative
 
 jobs:
   promote:
@@ -70,16 +68,19 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
-      - name: Log in to Docker Hub
+      - name: Log in to GHCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Tag it stable
         env:
           VERSION: ${{ inputs.version }}
         run: |
+          # GHCR repository names are lowercase; the owner's login may not be.
+          IMAGE_NAME="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/initiative"
           digest=$(docker buildx imagetools inspect "$IMAGE_NAME:$VERSION" --format '{{json .Manifest}}' | jq -er .digest)
           docker buildx imagetools create -t "$IMAGE_NAME:stable" "$IMAGE_NAME@$digest"
           echo "stable is now $VERSION ($digest)" | tee -a "$GITHUB_STEP_SUMMARY"

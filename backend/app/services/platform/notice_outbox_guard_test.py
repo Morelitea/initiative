@@ -7,7 +7,7 @@ sweep or a job on the system engine from going around the worker too. Two
 calls are confined to the worker and a short list of named exceptions:
 
 * ``create_notification(...)`` — a bell line.
-* ``send_push_to_user(...)`` — a push, sent now.
+* ``send_pushes(...)`` — a push, sent now.
 
 The walk is syntactic, like ``app/services/tenant/upload_write_guard_test.py``.
 """
@@ -31,15 +31,18 @@ _BELL_WRITERS = {
     "app/services/notifications.py::deliver_notices",
     "app/services/notifications.py::_roll_up_comment",
     "app/services/notifications.py::_roll_up_reaction",
-    # Direct messages deliver on their own path.
+    # A message's line is written as the message is sent, before the
+    # recipient's tabs are told, so reading the thread is what closes it.
     "app/services/platform/dm_notifications.py::_roll_up",
 }
 
 #: Who may send a push there and then, and why.
 _PUSH_SENDERS = {
-    # Direct messages deliver on their own path, to the devices set up for them.
+    # The worker.
+    "app/services/platform/notice_outbox.py::_push",
+    # A device asking for its history is woken once, past quiet hours, and
+    # writes no bell line.
     "app/services/platform/dm_notifications.py::wake_own_devices",
-    "app/services/platform/dm_notifications.py::_push",
 }
 
 
@@ -66,7 +69,7 @@ _CONFINED = pytest.mark.parametrize(
     ("name", "allowed"),
     [
         ("create_notification", _BELL_WRITERS),
-        ("send_push_to_user", _PUSH_SENDERS),
+        ("send_pushes", _PUSH_SENDERS),
     ],
 )
 

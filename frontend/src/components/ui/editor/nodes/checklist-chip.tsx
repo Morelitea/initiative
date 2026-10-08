@@ -3,10 +3,10 @@ import { useTranslation } from "react-i18next";
 
 import { SmartChipKind, SmartChipTone } from "@/api/generated/initiativeAPI.schemas";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useChipState } from "@/hooks/useSmartChips";
 import { useSetTaskDone } from "@/hooks/useTasks";
-import { guildPath } from "@/lib/guildUrl";
+import { communityPath } from "@/lib/communityUrl";
 import { chipRef } from "@/lib/smartChips";
 import { entityRefRoute } from "@/lib/tools";
 import { cn } from "@/lib/utils";
@@ -25,9 +25,9 @@ interface ChecklistChipProps {
  * the server says this reader may change the task; the name opens it.
  */
 export function ChecklistChip({ entityId, fallback }: ChecklistChipProps) {
-  const { t } = useTranslation(["documents", "tasks"]);
+  const { t } = useTranslation(["editor", "tasks"]);
   const navigate = useNavigate();
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const state = useChipState(chipRef(SmartChipKind["task:checklist"], entityId));
   const { setDone, pending } = useSetTaskDone();
 
@@ -46,7 +46,8 @@ export function ChecklistChip({ entityId, fallback }: ChecklistChipProps) {
       <button
         type="button"
         onClick={() =>
-          live && void navigate({ to: guildPath(guildId, entityRefRoute("task", entityId)) })
+          live &&
+          void navigate({ to: communityPath(communityId, entityRefRoute("task", entityId)) })
         }
         aria-disabled={!live}
         title={live ? undefined : t("references.unavailable")}

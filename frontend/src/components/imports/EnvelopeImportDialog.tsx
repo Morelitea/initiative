@@ -2,10 +2,10 @@ import { type ChangeEvent, type FormEvent, useEffect, useMemo, useRef, useState 
 import { useTranslation } from "react-i18next";
 
 import {
-  useCancelImportJobApiV1CGuildIdImportsJobsJobIdDelete,
-  useConfirmImportApiV1CGuildIdImportsJobsJobIdConfirmPost,
-  useImportEnvelopeApiV1CGuildIdImportsEnvelopePost,
-  useImportEnvelopeArchiveApiV1CGuildIdImportsEnvelopeArchivePost,
+  useCancelImportJob,
+  useConfirmImport,
+  useImportEnvelope,
+  useImportEnvelopeArchive,
 } from "@/api/generated/imports/imports";
 import type { ImportJobRead, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
@@ -27,12 +27,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { liveInitiatives } from "@/hooks/useInitiativeAccess";
 import { useInitiatives } from "@/hooks/useInitiatives";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 import { toolEnvelopeType, toolForEnvelopeType } from "@/lib/tools";
 
 // The real upload cap is server-owned and arrives via /api/v1/config
@@ -53,7 +53,7 @@ interface ParsedEnvelope {
   kind?: string;
   title?: string;
   name?: string;
-  document_type?: string;
+  file_type?: string;
   schema_version?: number;
 }
 
@@ -94,7 +94,7 @@ export function EnvelopeImportDialog({
   onImported,
 }: EnvelopeImportDialogProps) {
   const { t } = useTranslation(["imports", "common"]);
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const { maxUploadBytes } = useAppConfig();
   const initiativesQuery = useInitiatives();
 
@@ -116,10 +116,10 @@ export function EnvelopeImportDialog({
   // started must not stamp its (stale) result onto the input.
   const readGeneration = useRef(0);
 
-  const importMutation = useImportEnvelopeApiV1CGuildIdImportsEnvelopePost();
-  const archiveMutation = useImportEnvelopeArchiveApiV1CGuildIdImportsEnvelopeArchivePost();
-  const confirmMutation = useConfirmImportApiV1CGuildIdImportsJobsJobIdConfirmPost();
-  const cancelMutation = useCancelImportJobApiV1CGuildIdImportsJobsJobIdDelete();
+  const importMutation = useImportEnvelope();
+  const archiveMutation = useImportEnvelopeArchive();
+  const confirmMutation = useConfirmImport();
+  const cancelMutation = useCancelImportJob();
 
   const people = useMemo(
     () => ((stagedJob?.plan as { people?: PlanPerson[] } | null)?.people ?? []) as PlanPerson[],
@@ -242,7 +242,7 @@ export function EnvelopeImportDialog({
       const response = (
         archive
           ? await archiveMutation.mutateAsync({
-              guildId,
+              communityId: communityId,
               data: {
                 file: archive,
                 initiative_id: Number(initiativeId),
@@ -250,7 +250,7 @@ export function EnvelopeImportDialog({
               },
             })
           : await importMutation.mutateAsync({
-              guildId,
+              communityId: communityId,
               data: {
                 envelope: envelope as unknown as Record<string, unknown>,
                 initiative_id: Number(initiativeId),
@@ -301,7 +301,7 @@ export function EnvelopeImportDialog({
     const mapped = Object.fromEntries(Object.entries(peopleMap).filter(([, id]) => id != null));
     try {
       await confirmMutation.mutateAsync({
-        guildId,
+        communityId: communityId,
         jobId: stagedJob.id,
         data: Object.keys(mapped).length > 0 ? { people_map: mapped } : {},
       });
@@ -317,7 +317,7 @@ export function EnvelopeImportDialog({
   const handleDiscard = async () => {
     if (stagedJob) {
       try {
-        await cancelMutation.mutateAsync({ guildId, jobId: stagedJob.id });
+        await cancelMutation.mutateAsync({ communityId: communityId, jobId: stagedJob.id });
       } catch {
         // Already expired or started — nothing to cancel, and closing is
         // still the right thing to do.
@@ -328,7 +328,7 @@ export function EnvelopeImportDialog({
 
   const isSubmitting = importMutation.isPending || archiveMutation.isPending;
   const canSubmit = (!!envelope || !!archive) && !!initiativeId && !isSubmitting;
-  // Every tool's envelope names its entity `name`; document exports taken
+  // Every tool's envelope names its entity `name`; file exports taken
   // before the rename spelled it `title`, which the server still accepts.
   const envelopeTitle = envelope?.name ?? envelope?.title ?? "";
 

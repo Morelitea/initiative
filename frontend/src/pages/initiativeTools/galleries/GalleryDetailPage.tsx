@@ -1,5 +1,5 @@
-import { Link, useParams } from "@tanstack/react-router";
-import { Clock, Info, LayoutGrid, Loader2, Plus, Settings, Tags } from "lucide-react";
+import { useParams } from "@tanstack/react-router";
+import { Clock, Info, LayoutGrid, Loader2, Plus, Tags } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -30,15 +30,18 @@ import { UploadProgress } from "@/components/initiativeTools/galleries/UploadPro
 import { ToolListToolbar } from "@/components/initiativeTools/shared/ToolListToolbar";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { Lightbox, type LightboxItem } from "@/components/shared/Lightbox";
-import { CardGridSkeleton, SkeletonRegion } from "@/components/skeletons/PageSkeletons";
+import {
+  CardGridSkeleton,
+  DetailHeaderSkeleton,
+  SkeletonRegion,
+} from "@/components/skeletons/PageSkeletons";
 import { ToolAccessStatus } from "@/components/ToolAccessStatus";
-import { TagBadge } from "@/components/tags/TagBadge";
-import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
-import { UserHandle } from "@/components/UserHandle";
+import { ToolChest } from "@/components/tools/ToolChest";
+import { ToolPageHeader } from "@/components/tools/ToolPageHeader";
+import { UserName } from "@/components/UserHandle";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { RelativeTime } from "@/components/ui/relative-time";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import {
@@ -53,10 +56,11 @@ import { useImageUploader } from "@/hooks/useImageUploader";
 import { useReadOnOpen } from "@/hooks/useNotifications";
 import { useRecordRecentView } from "@/hooks/useRecents";
 import { useViewPreference } from "@/hooks/useViewPreference";
-import { toast } from "@/lib/chesterToast";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { formatPeriod } from "@/lib/formatDate";
 import { imageLabel, imageSrc } from "@/lib/galleries";
-import { useGuildPath } from "@/lib/guildUrl";
+import { toast } from "@/lib/mascotToast";
+import { browserTimezone } from "@/lib/timezones";
 import { toolListRoute, toolSettingsRoute } from "@/lib/tools";
 
 type ViewMode = "masonry" | "grid" | "timeline";
@@ -83,18 +87,18 @@ const isViewMode = (value: unknown): value is ViewMode =>
  */
 export function GalleryDetailPage() {
   const { t } = useTranslation(["galleries", "common"]);
-  const { guildId, galleryId } = useParams({ strict: false }) as {
-    guildId: string;
+  const { communityId, galleryId } = useParams({ strict: false }) as {
+    communityId: string;
     galleryId: string;
   };
   const parsedId = Number(galleryId);
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
 
   const galleryQuery = useGallery(Number.isFinite(parsedId) ? parsedId : null);
   const gallery = galleryQuery.data;
   const initiativeId = useCanonicalInitiativeId(gallery?.initiative_id);
 
-  const recordViewMutation = useRecordRecentView("gallery", Number(guildId));
+  const recordViewMutation = useRecordRecentView(Tool.gallery, Number(communityId));
   const viewedId = gallery?.id;
   useReadOnOpen(Tool.gallery, viewedId);
   useEffect(() => {
@@ -142,7 +146,6 @@ export function GalleryDetailPage() {
     ...(anchor ? { until: anchor.at } : {}),
   });
   const images = useMemo(() => feed.data?.pages.flatMap((page) => page.items) ?? [], [feed.data]);
-  const totalCount = feed.data?.pages[0]?.total_count ?? 0;
   const { fetchNextPage, hasNextPage, isFetchingNextPage } = feed;
 
   // The rail is drawn WITHOUT the anchor: it is the map.
@@ -151,7 +154,7 @@ export function GalleryDetailPage() {
     {
       ...(filters.search ? { search: filters.search } : {}),
       ...(filters.tag_ids ? { tag_ids: filters.tag_ids } : {}),
-      tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      tz: browserTimezone(),
     },
     { enabled: viewMode === "timeline" }
   );
@@ -193,7 +196,7 @@ export function GalleryDetailPage() {
         caption: (
           <span className="inline-flex flex-wrap items-center justify-center gap-x-2">
             {imageLabel(image) ? <span>{imageLabel(image)}</span> : null}
-            {image.uploader ? <UserHandle user={image.uploader} className="text-white/70" /> : null}
+            {image.uploader ? <UserName user={image.uploader} className="text-white/70" /> : null}
             <RelativeTime date={image.created_at} className="text-white/60" />
           </span>
         ),
@@ -208,6 +211,7 @@ export function GalleryDetailPage() {
   const setCover = useUpdateGallery(parsedId, {
     onSuccess: () => toast.success(t("sheet.coverSet")),
   });
+  const renameGallery = useUpdateGallery(parsedId);
 
   // Selecting pictures on the wall. The same click either opens a picture or
   // takes it into the selection, depending which the wall is doing — a tile is
@@ -281,55 +285,30 @@ export function GalleryDetailPage() {
 
   const viewOptions = [
     { value: "masonry" as const, label: t("views.masonry"), icon: MasonryIcon },
-    { value: "grid" as const, label: t("views.grid"), icon: LayoutGrid },
+    { value: "grid" as const, label: t("common:toolbar.viewGrid"), icon: LayoutGrid },
     { value: "timeline" as const, label: t("views.timeline"), icon: Clock },
   ];
 
   return (
     <div className="space-y-6">
-      <ToolBreadcrumb
-        tool={Tool.gallery}
-        initiativeId={gallery?.initiative_id}
-        trail={[{ label: gallery ? gallery.name : <Skeleton className="h-4 w-32" /> }]}
-      />
-
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 space-y-1">
-          {gallery ? (
-            <h1 className="font-semibold text-3xl tracking-tight">{gallery.name}</h1>
-          ) : (
-            <Skeleton className="h-9 w-64" />
-          )}
-          {gallery?.description ? (
+      {gallery ? (
+        <ToolPageHeader
+          tool={Tool.gallery}
+          initiativeId={gallery.initiative_id}
+          settingsTo={
+            canEdit ? toolSettingsRoute(Tool.gallery, initiativeId, gallery.id) : undefined
+          }
+          chest={<ToolChest tool={Tool.gallery} entity={gallery} />}
+          title={gallery.name}
+          onRename={canEdit ? (name) => renameGallery.mutateAsync({ name }) : undefined}
+        >
+          {gallery.description ? (
             <p className="max-w-prose text-muted-foreground">{gallery.description}</p>
           ) : null}
-          {gallery && (
-            <p className="text-muted-foreground text-sm">
-              {t("pictureCount", { count: totalCount || gallery.image_count })}
-            </p>
-          )}
-          {gallery && gallery.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1 pt-1">
-              {gallery.tags.map((tag) => (
-                <TagBadge key={tag.id} tag={tag} size="sm" to={gp(`/tags/${tag.id}`)} />
-              ))}
-            </div>
-          )}
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          {gallery && canEdit && (
-            <Button variant="outline" size="sm" asChild>
-              <Link
-                to={gp(toolSettingsRoute(Tool.gallery, initiativeId, gallery.id))}
-                className="inline-flex items-center gap-2"
-              >
-                <Settings className="h-4 w-4" aria-hidden />
-                {t("common:toolSettings.title")}
-              </Link>
-            </Button>
-          )}
-        </div>
-      </div>
+        </ToolPageHeader>
+      ) : (
+        <DetailHeaderSkeleton actions={0} description={false} />
+      )}
 
       <ToolListToolbar
         filters={{
@@ -436,7 +415,7 @@ export function GalleryDetailPage() {
         ) : feed.isError ? (
           <p className="text-destructive text-sm">{t("loadError")}</p>
         ) : images.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed px-6 py-16 text-center">
+          <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed p-8 text-center">
             <p className="font-medium">
               {activeFilterCount > 0 ? t("filters.noMatchingPictures") : t("noPictures")}
             </p>
@@ -493,12 +472,9 @@ export function GalleryDetailPage() {
         entity={gallery}
         canEdit={canEdit}
         entityTitle={gallery?.name}
-        defaultLayout="carousel"
       />
 
-      {gallery != null && (
-        <ToolCommentsPanel tool={Tool.gallery} entity={gallery} canModerate={canEdit} />
-      )}
+      {gallery != null && <ToolCommentsPanel tool={Tool.gallery} entity={gallery} />}
 
       <Lightbox
         open={openIndex >= 0}
@@ -518,7 +494,7 @@ export function GalleryDetailPage() {
               onClick={() => setDetailsId(openId)}
             >
               <Info className="size-4" />
-              {t("lightbox.details")}
+              {t("common:toolbar.details")}
             </Button>
           ) : null
         }

@@ -117,7 +117,7 @@ async def test_an_email_change_says_whether_the_password_moved(
     assert _areas(rows) == ["email"]
     assert rows[0]["actor_user_id"] == owner_id
     detail = rows[0]["detail"]
-    assert detail["password_changed"] is True
+    assert detail["secret_changed"] is True
     assert {"smtp_host", "smtp_username", "smtp_password_encrypted"} <= set(
         detail["changed"]
     )

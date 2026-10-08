@@ -243,12 +243,12 @@ class TestPush:
         ada = await acting_user()
         bo = await acting_user()
         await _reachable(session, ada.user, bo.user)
-        headers = await signed_in_headers(session, bo.user)
+        # Two installations are two sign-ins, each holding its registration.
         for name in ("fcm-phone", "fcm-tablet"):
             await client.post(
                 "/api/v1/push/register",
                 json={"push_token": name, "platform": "android"},
-                headers=headers,
+                headers=await signed_in_headers(session, bo.user),
             )
 
         with patch(

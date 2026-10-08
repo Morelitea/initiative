@@ -8,9 +8,9 @@ import logging
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Mapping
 
 import jwt
+from starlette.datastructures import Headers
 from sqlalchemy import func, insert, update
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
@@ -18,6 +18,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import billing_capabilities
 from app.core.config import settings
+from app.core.errors import CodedError
+from app.core.identify import bearer_token
 from app.core.messages import BillingMessages
 from app.core.security import PublicKeyBundleError, load_verification_keys
 from app.models.platform.billing import (
@@ -26,12 +28,12 @@ from app.models.platform.billing import (
     BillingOp,
     BillingSource,
 )
-from app.models.platform.guild import Guild, GuildMembership, GuildStatus
+from app.models.platform.guild import Guild, GuildMembership, CommunityStatus
 from app.models.platform.guild_administration import GuildAdministration
 from app.schemas.platform.billing import (
     BillingCommunityNotice,
-    BillingGuildTierApply,
-    BillingGuildTierRead,
+    BillingCommunityTierApply,
+    BillingCommunityTierRead,
 )
 
 logger = logging.getLogger(__name__)
@@ -43,32 +45,12 @@ BILLING_ISSUER = "initiative-billing"
 BILLING_REPLAY_WINDOW_SECONDS = 300
 
 
-class BillingEnvelopeError(Exception):
-    """The request failed envelope verification. ``code`` is the
-    BillingMessages constant the endpoint surfaces as a 403 (or 503 for
-    ``NOT_CONFIGURED``)."""
+class BillingEnvelopeError(CodedError):
+    """The request failed envelope verification: 403, or 503 when billing is
+    absent (the self-host default) or this deployment's key is unreadable —
+    neither a caller fault, so the answer is fail-closed and retryable."""
 
-    def __init__(self, code: str) -> None:
-        super().__init__(code)
-        self.code = code
-
-
-class BillingReplayError(Exception):
-    """The service JWT's ``jti`` was already redeemed."""
-
-
-class BillingGuildNotFoundError(Exception):
-    """The envelope's guild does not exist."""
-
-
-class BillingSourceRestrictionError(Exception):
-    """The payload's ``source`` may not perform this write against the
-    guild's current state (e.g. support_manual lowering the storage cap).
-    ``code`` is the BillingMessages constant the endpoint surfaces as 422."""
-
-    def __init__(self, code: str) -> None:
-        super().__init__(code)
-        self.code = code
+    status_code = 403
 
 
 @dataclass(frozen=True)
@@ -105,7 +87,7 @@ def verify_billing_envelope(
     *,
     method: str,
     path: str,
-    headers: Mapping[str, str],
+    headers: Headers,
     body: bytes,
 ) -> BillingClaims:
     """Verify the envelope on a billing call. Pure — no DB.
@@ -115,12 +97,12 @@ def verify_billing_envelope(
     a DB write and belongs inside the endpoint's transaction.
     """
     if not billing_inbound_enabled():
-        raise BillingEnvelopeError(BillingMessages.NOT_CONFIGURED)
+        raise BillingEnvelopeError(BillingMessages.NOT_CONFIGURED, 503)
 
     ts_header = headers.get("X-Billing-Timestamp")
     signature = headers.get("X-Billing-Signature")
-    authorization = headers.get("Authorization", "")
-    if not ts_header or not signature or not authorization.startswith("Bearer "):
+    token = bearer_token(headers)
+    if not ts_header or not signature or not token:
         raise BillingEnvelopeError(BillingMessages.MISSING_SIGNATURE)
 
     try:
@@ -154,11 +136,10 @@ def verify_billing_envelope(
         # An unreadable key is this deployment's misconfiguration, not the
         # caller's fault, so it surfaces like "not configured" rather than as
         # a rejected token.
-        raise BillingEnvelopeError(BillingMessages.KEY_UNREADABLE) from exc
+        raise BillingEnvelopeError(BillingMessages.KEY_UNREADABLE, 503) from exc
     if not keys:
-        raise BillingEnvelopeError(BillingMessages.NOT_CONFIGURED)
+        raise BillingEnvelopeError(BillingMessages.NOT_CONFIGURED, 503)
 
-    token = authorization[len("Bearer ") :]
     payload = None
     first_error: jwt.PyJWTError | None = None
     for key in keys:
@@ -201,8 +182,8 @@ async def record_jti(session: AsyncSession, *, jti: str, expires_at: datetime) -
     """Redeem a billing service JWT's ``jti`` — first presentation only.
 
     Flushes (never commits) so the redemption shares the endpoint's
-    transaction; a later presentation collides on the PK and raises
-    :class:`BillingReplayError`.
+    transaction; a later presentation collides on the PK and is refused as
+    ``REPLAYED_TOKEN``.
     """
     session.add(
         BillingJti(
@@ -214,7 +195,7 @@ async def record_jti(session: AsyncSession, *, jti: str, expires_at: datetime) -
     try:
         await session.flush()
     except IntegrityError as exc:
-        raise BillingReplayError(f"jti {jti} already redeemed") from exc
+        raise CodedError(BillingMessages.REPLAYED_TOKEN, 403) from exc
 
 
 # The caps and the plan label live on ``guild_administration``; the lifecycle
@@ -236,7 +217,7 @@ _GUILD_TIER_COLUMNS = (
 
 #: A guild in one of these takes no status write from billing at all.
 _BILLING_UNTOUCHABLE_STATUS_VALUES: frozenset[str] = frozenset(
-    {GuildStatus.suspended.value, GuildStatus.deleted.value}
+    {CommunityStatus.suspended.value, CommunityStatus.deleted.value}
 )
 
 
@@ -330,8 +311,8 @@ async def claim_community_notice(
 
 
 async def apply_guild_tier(
-    session: AsyncSession, payload: BillingGuildTierApply, *, guild_id: int
-) -> BillingGuildTierRead:
+    session: AsyncSession, payload: BillingCommunityTierApply, *, guild_id: int
+) -> BillingCommunityTierRead:
     """Apply a tier-metadata write, exactly once per ``event_id``.
 
     The payload names its guild by the reference billing holds; ``guild_id`` is
@@ -348,7 +329,9 @@ async def apply_guild_tier(
     provided = payload.model_fields_set
     row = await _select_tier_row(session, guild_id)
     if row is None:
-        raise BillingGuildNotFoundError(guild_id)
+        # Rolls back with the jti unredeemed and the event id unconsumed, so
+        # the delivery can be retried once the guild exists.
+        raise CodedError(BillingMessages.COMMUNITY_NOT_FOUND, 404)
 
     # support_manual may only RAISE the storage cap. The payload validator
     # already forbids it every other field; the lower-vs-raise half needs the
@@ -364,7 +347,7 @@ async def apply_guild_tier(
             or payload.max_storage_bytes < row.max_storage_bytes
         )
     ):
-        raise BillingSourceRestrictionError(BillingMessages.SUPPORT_CANNOT_LOWER)
+        raise CodedError(BillingMessages.SUPPORT_CANNOT_LOWER, 422)
 
     # An operator may lift a member ceiling, never impose one. A plan change
     # sets whatever the plan says — a downgrade legitimately tightens — but a
@@ -377,9 +360,7 @@ async def apply_guild_tier(
         and payload.max_users is not None
         and (row.max_users is None or payload.max_users < row.max_users)
     ):
-        raise BillingSourceRestrictionError(
-            BillingMessages.OPERATOR_CANNOT_LOWER_CEILING
-        )
+        raise CodedError(BillingMessages.OPERATOR_CANNOT_LOWER_CEILING, 422)
 
     applied = await _claim_event(
         session,
@@ -447,12 +428,12 @@ async def apply_guild_tier(
             )
             row = await _select_tier_row(session, guild_id)
 
-    return BillingGuildTierRead(
-        guild_ref=payload.guild_ref,
+    return BillingCommunityTierRead(
+        community_ref=payload.community_ref,
         tier_name=row.tier_name,
         max_storage_bytes=row.max_storage_bytes,
         max_users=row.max_users,
-        status=GuildStatus(row.status),
+        status=CommunityStatus(row.status),
         feature_keys=billing_capabilities.package_of(
             banner_image_enabled=row.banner_image_enabled,
             support_enabled=row.support_enabled,
@@ -479,7 +460,7 @@ async def guild_display_name(session: AsyncSession, guild_id: int) -> str | None
 
 async def guild_lifecycle_status(
     session: AsyncSession, guild_id: int
-) -> GuildStatus | None:
+) -> CommunityStatus | None:
     """One guild's lifecycle status, ``deleted`` included, or None once purged.
 
     On the billing session, like the name: ``status`` is among the columns the
@@ -488,22 +469,40 @@ async def guild_lifecycle_status(
     status = (
         await session.exec(select(Guild.status).where(Guild.id == guild_id))
     ).one_or_none()
-    return None if status is None else GuildStatus(status)
+    return None if status is None else CommunityStatus(status)
 
 
-async def guild_storage_usage(guild_id: int) -> int:
-    """Current stored bytes for one guild, for the signed usage read.
+@dataclass(frozen=True)
+class GuildUsage:
+    """What one guild is using, for the signed usage read.
 
-    ``uploads`` lives in the per-guild ``guild_<id>`` schema, which the
-    column-scoped ``initiative_billing`` role cannot reach — so the guild is
-    looked up on a **system session from the guild's cohort**, not the
-    billing-context session, and the sum is ``get_guild_storage_usage``'s. The
-    billing session still owns envelope verification + the jti burn in the
-    endpoint; this only reads the same ``SUM(uploads.size_bytes)`` that
-    ``enforce_storage_quota`` enforces against. Read-only — the app never
-    pushes usage anywhere.
+    ``usage_bytes`` is the figure ``enforce_storage_quota`` enforces against;
+    ``member_count`` is the one ``ensure_membership`` compares with
+    ``max_users``. Billing reads the second so a seat count is never cut below
+    the people already in the community.
+    """
+
+    usage_bytes: int
+    member_count: int
+
+
+async def guild_usage(guild_id: int) -> GuildUsage:
+    """Current stored bytes and member count for one guild, for the signed
+    usage read.
+
+    Neither is visible to the column-scoped ``initiative_billing`` role:
+    ``uploads`` lives in the per-guild ``guild_<id>`` schema, and
+    ``guild_memberships`` is outside its grants. So the guild is looked up — and
+    its members counted — on a **system session from the guild's cohort**, not
+    the billing-context session; that session bypasses RLS, which is what
+    ``count_members`` asks of its caller. The sum is
+    ``get_guild_storage_usage``'s. The billing session still owns envelope
+    verification + the jti burn in the endpoint; this only reads the figures
+    the app itself enforces against. Read-only — the app never pushes usage
+    anywhere.
     """
     from app.db import cohorts
+    from app.services.platform.guilds import count_members
     from app.services.tenant.attachments import get_guild_storage_usage
 
     async with cohorts.system_session(guild_id) as session:
@@ -512,6 +511,10 @@ async def guild_storage_usage(guild_id: int) -> int:
             await session.exec(select(Guild.id).where(Guild.id == guild_id))
         ).one_or_none()
         if exists is None:
-            raise BillingGuildNotFoundError(guild_id)
+            raise CodedError(BillingMessages.COMMUNITY_NOT_FOUND, 404)
+        member_count = await count_members(session, guild_id=guild_id)
 
-    return await get_guild_storage_usage(guild_id)
+    return GuildUsage(
+        usage_bytes=await get_guild_storage_usage(guild_id),
+        member_count=member_count,
+    )

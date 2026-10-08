@@ -26,15 +26,10 @@ from __future__ import annotations
 import pytest
 from sqlalchemy import text
 
-from app.core.config import settings
 from app.models.platform.user import UserRole
-from app.db.user_columns import (
-    GUILD_MEMBER_PROFILE_COLUMNS,
-    PUBLIC_PROFILE_COLUMNS,
-    PUBLISHED_COLUMNS,
-)
-from app.db.public_rls import PUBLIC_RLS, role_name
-from app.db.system_grants import ROLE_GRANTS, tier_table_grants
+from app.db.user_columns import PUBLIC_PROFILE_COLUMNS, PUBLISHED_COLUMNS
+from app.db.public_rls import PUBLIC_RLS, platform_tier, role_name
+from app.db.system_grants import ROLE_GRANTS, grantee, tier_table_grants
 
 pytestmark = pytest.mark.always
 
@@ -58,17 +53,15 @@ async def _materialize_lazy_shared_tables():
 
 def _app_role_family() -> list[str]:
     """The fixed app roles plus this worker's prefixed platform ladder."""
-    from app.db.schema_provisioning import billing_role_name, platform_role_name
-
     return [
         "app_user",
         "app_admin",
         "app_guild_base",
-        f"{settings.PLATFORM_ROLE_PREFIX}platform_base",
+        role_name("platform_base"),
         "app_superadmin",
-        "app_install_base",
-        *(platform_role_name(t.value) for t in UserRole),
-        billing_role_name(),
+        "plugin_install_base",
+        *(role_name(platform_tier(t)) for t in UserRole),
+        role_name("initiative_billing"),
     ]
 
 
@@ -141,7 +134,7 @@ async def test_role_grants_match_the_registry(engine, role):
     the registry says ``None``) instead of inherited. The seat and install
     floors take no default privileges, so anything they hold that the registry
     does not name arrived by a hand-written grant."""
-    live = await _table_grants_for(engine, role_name(role))
+    live = await _table_grants_for(engine, grantee(role))
     _assert_matrix(role, live, ROLE_GRANTS[role])
 
 
@@ -153,7 +146,7 @@ async def test_platform_tier_grants_match_the_tier_registry(engine):
     from ``platform_base`` is the platform floor's matrix, checked above. A
     tier the registry gives nothing holds no table grant at all."""
     for tier, tables in sorted(tier_table_grants().items()):
-        role = f"{settings.PLATFORM_ROLE_PREFIX}{tier}"
+        role = role_name(tier)
         live = await _table_grants_for(engine, role)
         _assert_matrix(role, live, tables)
 
@@ -176,7 +169,7 @@ async def test_an_invite_is_reached_only_from_its_community(engine):
     and the guild floor holds no UPDATE. Its policies name the guild floors
     alone."""
     async with engine.connect() as conn:
-        for role in (f"{settings.PLATFORM_ROLE_PREFIX}platform_base", "app_user"):
+        for role in (role_name("platform_base"), "app_user"):
             for verb in ("SELECT", "INSERT", "UPDATE", "DELETE"):
                 held = await conn.scalar(
                     text(
@@ -217,7 +210,7 @@ async def test_the_seat_floor_alone_writes_the_sign_in_rule(engine):
     async with engine.connect() as conn:
         for role in (
             "app_guild_base",
-            f"{settings.PLATFORM_ROLE_PREFIX}platform_base",
+            role_name("platform_base"),
             "app_user",
         ):
             for verb in ("INSERT", "UPDATE", "DELETE"):
@@ -244,14 +237,13 @@ async def test_the_seat_writes_only_its_own_switches(engine):
     """The seat changes what its community asks of the people reaching it, and
     nothing else about the community.
 
-    Six columns: whether personal API keys are accepted, whether a second
-    factor is required, whether the session standard is held to, and the three
-    that say what a notification may leave carrying. A name, an icon, an owner
+    Five columns: whether a second factor is required, whether the session
+    standard is held to, and the three that say what a notification may leave
+    carrying. A name, an icon, an owner
     or a lifecycle status is not the seat's, and a new column on ``guilds`` is
     not either until a migration says so.
     """
     writable = {
-        "allow_api_keys",
         "require_second_factor",
         "enforce_compliance_session",
         "allow_push_notifications",
@@ -304,7 +296,7 @@ async def test_guild_image_bytes_are_unreadable_by_request_roles(engine):
     """
     request_roles = [
         "app_guild_base",
-        f"{settings.PLATFORM_ROLE_PREFIX}platform_base",
+        role_name("platform_base"),
         "app_user",
     ]
     readable = {"guild_id", "variant", "sha256"}
@@ -341,7 +333,7 @@ async def test_profile_view_publishes_only_the_public_columns(engine):
     to the table is not in the view until somebody puts it there (migration
     0214)."""
     public_columns = set(PUBLIC_PROFILE_COLUMNS)
-    base = f"{settings.PLATFORM_ROLE_PREFIX}platform_base"
+    base = role_name("platform_base")
     async with engine.connect() as conn:
         view_columns = {
             row[0]
@@ -375,8 +367,8 @@ async def test_profile_view_publishes_only_the_public_columns(engine):
             ).all()
             if row[1]
         }
-        # The reader owns both projections, so its column grant is their
-        # union — the profile's eight plus the name the guild view adds.
+        # The reader owns both projections, and both read the profile's
+        # columns of the account and nothing more.
         expected = set(PUBLISHED_COLUMNS)
         assert readable == expected, (
             "app_profile_reader reads columns of public.users that are not "
@@ -384,9 +376,8 @@ async def test_profile_view_publishes_only_the_public_columns(engine):
             f"{sorted(expected - readable)}"
         )
 
-        # The projection reads the name rule off the guild (0280), so the
-        # reader holds one column of ``guilds`` as well. Bound it: that column
-        # and the id it looks up by, and nothing else on the table.
+        # Neither projection reads anything off the guild, so the reader holds
+        # no column of ``guilds`` and no verb on it.
         guild_readable = {
             row[0]
             for row in (
@@ -401,9 +392,9 @@ async def test_profile_view_publishes_only_the_public_columns(engine):
             ).all()
             if row[1]
         }
-        assert guild_readable == {"id", "show_member_names"}, (
-            "app_profile_reader reads columns of public.guilds beyond the name "
-            f"rule: {sorted(guild_readable - {'id', 'show_member_names'})}"
+        assert not guild_readable, (
+            "app_profile_reader reads columns of public.guilds: "
+            f"{sorted(guild_readable)}"
         )
         for verb in ("INSERT", "UPDATE", "DELETE"):
             can_write = (
@@ -481,7 +472,7 @@ async def test_users_role_is_writable_only_by_the_system_engine(engine):
     # table at all (0221), which
     # ``test_the_guild_path_holds_nothing_on_the_users_table`` asserts instead.
     request_roles = [
-        f"{settings.PLATFORM_ROLE_PREFIX}platform_base",
+        role_name("platform_base"),
         "app_user",
     ]
     async with engine.connect() as conn:
@@ -563,7 +554,7 @@ async def test_guild_billing_columns_are_not_writable_by_request_roles(engine):
     moved to ``guild_administration`` (migration 0178). Neither floor may write
     either — ``guilds`` by column-scoped grant (0138), ``guild_administration``
     by holding no write verb on the table at all. Drift guard."""
-    request_roles = ["app_guild_base", f"{settings.PLATFORM_ROLE_PREFIX}platform_base"]
+    request_roles = ["app_guild_base", role_name("platform_base")]
     async with engine.connect() as conn:
         for role in request_roles:
             writable = {
@@ -630,19 +621,23 @@ async def test_guild_billing_columns_are_not_writable_by_request_roles(engine):
 
 
 async def test_guild_membership_role_is_writable_only_by_the_system_engine(engine):
-    """``position`` is the only membership column a request writes.
+    """``position`` and ``display_name`` are the membership columns a request
+    writes.
 
     A guild membership's ``role`` is changed on the system engine (the
     guild-admin endpoint), as is the OIDC flag; ``guild_id``, ``user_id`` and
     ``joined_at`` are set once, when the row is created. That leaves the guild
-    list's own order, so the request-path floors hold a column-scoped UPDATE of
-    ``position`` alone — enough for the ``SELECT ... FOR UPDATE`` row locks the
-    self-leave and last-admin checks take — and ``app_admin`` keeps the full
-    grant (migrations 0145, 0266)."""
-    request_roles = ["app_guild_base", f"{settings.PLATFORM_ROLE_PREFIX}platform_base"]
+    list's own order, which both request-path floors hold a column-scoped
+    UPDATE of — enough for the ``SELECT ... FOR UPDATE`` row locks the
+    self-leave and last-admin checks take — and the name a member gives
+    themselves in a community, which only the routed guild floor writes.
+    ``app_admin`` keeps the full grant (migrations 0145, 0266, 0438)."""
+    request_roles = {
+        "app_guild_base": {"position", "display_name"},
+        role_name("platform_base"): {"position"},
+    }
     async with engine.connect() as conn:
-        expected = {"position"}
-        for role in request_roles:
+        for role, expected in request_roles.items():
             rows = (
                 await conn.execute(
                     text(
@@ -661,8 +656,7 @@ async def test_guild_membership_role_is_writable_only_by_the_system_engine(engin
                 "role change is system-engine-only"
             )
             assert writable == expected, (
-                f"{role} UPDATE columns on guild_memberships drifted from "
-                f"'position alone': missing {sorted(expected - writable)}, "
+                f"{role} UPDATE columns on guild_memberships drifted: missing {sorted(expected - writable)}, "
                 f"unexpected {sorted(writable - expected)}"
             )
         admin_can = (
@@ -722,7 +716,7 @@ async def test_guild_membership_write_policies_are_tightened(engine):
     async with engine.connect() as conn:
         for role in (
             "app_guild_base",
-            f"{settings.PLATFORM_ROLE_PREFIX}platform_base",
+            role_name("platform_base"),
             "app_user",
         ):
             held = await conn.scalar(
@@ -740,7 +734,7 @@ async def test_access_grants_are_writable_only_by_the_system_engine(engine):
     endpoints). The request-path floors keep SELECT (a grantee reads their own
     live grant) but hold no INSERT/UPDATE/DELETE; ``app_admin`` keeps the full
     grant (migration 0146)."""
-    request_roles = ["app_guild_base", f"{settings.PLATFORM_ROLE_PREFIX}platform_base"]
+    request_roles = ["app_guild_base", role_name("platform_base")]
     async with engine.connect() as conn:
         for role in request_roles:
             select_, insert_, update_, delete_ = (
@@ -923,12 +917,12 @@ async def test_guild_member_view_publishes_the_guild_projection(engine):
     """What a guild-routed session may read of a person is a catalog fact.
 
     ``public.guild_member_profiles`` carries the profile's columns plus
-    ``full_name``, and the guild path holds SELECT on the view and nothing
+    ``display_name``, and the guild path holds SELECT on the view and nothing
     else — the schema's default privileges would otherwise have granted all
     four verbs (migration 0220).
     """
-    expected = set(GUILD_MEMBER_PROFILE_COLUMNS)
-    base = f"{settings.PLATFORM_ROLE_PREFIX}platform_base"
+    expected = set(PUBLIC_PROFILE_COLUMNS) | {"display_name"}
+    base = role_name("platform_base")
     async with engine.connect() as conn:
         view_columns = {
             row[0]
@@ -981,6 +975,6 @@ async def test_guild_member_view_publishes_the_guild_projection(engine):
             )
         ).scalar()
         assert not base_can_read, (
-            f"{base} must not read the guild projection — a real name is "
-            "readable inside a guild, not from the platform path"
+            f"{base} must not read the guild projection — a member's name is "
+            "readable inside its guild, not from the platform path"
         )

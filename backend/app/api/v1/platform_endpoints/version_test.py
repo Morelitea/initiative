@@ -38,7 +38,7 @@ async def test_changelog_returns_large_sections_verbatim(client: AsyncClient):
 
 @pytest.fixture
 def latest(monkeypatch):
-    """A fresh cache and a stand-in for Docker Hub that counts its calls."""
+    """A fresh cache and a stand-in for GitHub that counts its calls."""
     monkeypatch.setattr(version_endpoint, "_latest", version_endpoint._LatestVersion())
     hub = {"calls": 0, "answer": "1.2.3"}
 
@@ -77,7 +77,7 @@ async def test_latest_version_keeps_the_last_answer_while_offline(
         assert response.json() == {"version": "1.2.3"}
 
     assert latest["calls"] == 3
-    offline = [r for r in caplog.records if "Docker Hub" in r.getMessage()]
+    offline = [r for r in caplog.records if "GitHub" in r.getMessage()]
     assert len(offline) == 1
 
 
@@ -85,3 +85,28 @@ async def test_latest_version_is_none_when_never_reached(client: AsyncClient, la
     latest["answer"] = httpx.ConnectError("no route to host")
     response = await client.get("/api/v1/version/latest")
     assert response.json() == {"version": None}
+
+
+async def test_latest_version_is_the_highest_published_release(monkeypatch):
+    """Drafts, pre-releases and tags that are not a version are passed over,
+    and a fix on an older line released last does not win."""
+    releases = [
+        {"tag_name": "v0.73.3", "draft": False, "prerelease": False},
+        {"tag_name": "v0.75.0", "draft": True, "prerelease": False},
+        {"tag_name": "v0.74.1-rc.1", "draft": False, "prerelease": True},
+        {"tag_name": "v0.74.0", "draft": False, "prerelease": False},
+        {"tag_name": "nightly", "draft": False, "prerelease": False},
+        {"tag_name": "v0.9.0", "draft": False, "prerelease": False},
+    ]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert str(request.url).startswith(version_endpoint._RELEASES_URL)
+        return httpx.Response(200, json=releases)
+
+    real_client = httpx.AsyncClient
+
+    def client_with(**kwargs):
+        return real_client(transport=httpx.MockTransport(handler), **kwargs)
+
+    monkeypatch.setattr(version_endpoint.httpx, "AsyncClient", client_with)
+    assert await version_endpoint._fetch_latest_version() == "0.74.0"

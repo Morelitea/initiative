@@ -51,14 +51,12 @@ class AuthMessages:
     ACCOUNT_SUSPENDED = "ACCOUNT_SUSPENDED"
     CANNOT_REACTIVATE_ANONYMIZED = "CANNOT_REACTIVATE_ANONYMIZED"
     EMAIL_NOT_VERIFIED = "EMAIL_NOT_VERIFIED"
-    TOKEN_NOT_FOUND = "TOKEN_NOT_FOUND"
     #: The session named is not one this account holds.
     SESSION_NOT_FOUND = "SESSION_NOT_FOUND"
     NOT_AUTHENTICATED = "NOT_AUTHENTICATED"
-    INVALID_DEVICE_TOKEN = "INVALID_DEVICE_TOKEN"
     #: The action hands out authority, so it is taken while signed in rather
-    #: than through a standing credential (an API key, a device token, an app
-    #: acting on someone's behalf).
+    #: than through a standing credential (an API key, a plug-in acting on
+    #: someone's behalf).
     SESSION_REQUIRED = "SESSION_REQUIRED"
     #: The account holds no password to re-check, and the session is not fresh
     #: enough to stand in for one.
@@ -78,6 +76,8 @@ class AuthMessages:
     EMAIL_OTP_INVALID = "EMAIL_OTP_INVALID"
     #: A code was asked for while the deployment cannot send mail.
     EMAIL_OTP_CANNOT_SEND = "EMAIL_OTP_CANNOT_SEND"
+    #: An address has been sent as many letters as it may be in this window.
+    RATE_LIMITED = "RATE_LIMITED"
     #: A code confirming the session was asked for, and the account has proved
     #: no address to send it to.
     EMAIL_OTP_NO_PROVED_ADDRESS = "EMAIL_OTP_NO_PROVED_ADDRESS"
@@ -103,8 +103,6 @@ class AuthMessages:
     #: The assertion did not verify, named a credential nobody registered, or
     #: its challenge is not standing. One code for all of those.
     PASSKEY_SIGN_IN_INVALID = "PASSKEY_SIGN_IN_INVALID"
-    #: The deployment does not offer passkeys.
-    PASSKEY_NOT_PERMITTED = "PASSKEY_NOT_PERMITTED"
     #: The password is the account's only way to start a session, so it stays.
     PASSWORD_IS_LAST_METHOD = "PASSWORD_IS_LAST_METHOD"
     #: The passkey is the account's only way to start a session, so it stays.
@@ -120,6 +118,13 @@ class AuthMessages:
     # client learns only "re-authenticate", never that a replay was detected.
     INVALID_REFRESH_TOKEN = "INVALID_REFRESH_TOKEN"
     INVALID_OR_EXPIRED_TOKEN = "INVALID_OR_EXPIRED_TOKEN"
+    ACCOUNT_CHANGE_MOVED_ON = "ACCOUNT_CHANGE_MOVED_ON"
+    #: Another change to the account is waiting to apply.
+    ACCOUNT_CHANGE_PENDING = "ACCOUNT_CHANGE_PENDING"
+    #: The waiting change was cancelled, applied, or never this account's.
+    HELD_CHANGE_NOT_FOUND = "HELD_CHANGE_NOT_FOUND"
+    #: Making a waiting change now needs a session proved with a passkey.
+    HELD_CHANGE_NEEDS_PASSKEY = "HELD_CHANGE_NEEDS_PASSKEY"
     SMTP_NOT_CONFIGURED = "SMTP_NOT_CONFIGURED"
     CAPTCHA_REQUIRED = "CAPTCHA_REQUIRED"
     #: The session store could not be written, so no session was opened.
@@ -128,83 +133,95 @@ class AuthMessages:
     CAPTCHA_INVALID = "CAPTCHA_INVALID"
 
 
+class ImageMessages:
+    # An uploaded picture that does not meet its ``ImageSpec``. Each names the
+    # rule it broke, so the page can say what to do about it rather than
+    # "that didn't work".
+    IMAGE_EMPTY = "IMAGE_EMPTY"
+    IMAGE_TOO_LARGE = "IMAGE_TOO_LARGE"
+    IMAGE_INVALID = "IMAGE_INVALID"
+    IMAGE_WRONG_SIZE = "IMAGE_WRONG_SIZE"
+    IMAGE_WRONG_RATIO = "IMAGE_WRONG_RATIO"
+
+
 class GuildMessages:
     # The frontend error map still carries NO_GUILD_MEMBERSHIP for servers
     # that predate path-based guild resolution; the backend itself only
-    # raises GUILD_ACCESS_DENIED.
-    GUILD_ACCESS_DENIED = "GUILD_ACCESS_DENIED"
-    GUILD_AUTH_STEP_UP_REQUIRED = "GUILD_AUTH_STEP_UP_REQUIRED"
+    # raises COMMUNITY_ACCESS_DENIED.
+    COMMUNITY_ACCESS_DENIED = "COMMUNITY_ACCESS_DENIED"
+    COMMUNITY_AUTH_STEP_UP_REQUIRED = "COMMUNITY_AUTH_STEP_UP_REQUIRED"
     #: The community asks that the session carried the account's second
     #: factor, and this one did not. Answered apart from the provider step-up
     #: because what satisfies it is a code rather than a sign-in page.
-    GUILD_AUTH_FACTOR_REQUIRED = "GUILD_AUTH_FACTOR_REQUIRED"
+    COMMUNITY_AUTH_FACTOR_REQUIRED = "COMMUNITY_AUTH_FACTOR_REQUIRED"
     #: The community asks that the session was opened, or stepped up, with a
     #: passkey, and this one was not.
-    GUILD_AUTH_PASSKEY_REQUIRED = "GUILD_AUTH_PASSKEY_REQUIRED"
+    COMMUNITY_AUTH_PASSKEY_REQUIRED = "COMMUNITY_AUTH_PASSKEY_REQUIRED"
     #: The deployment asks this account for a second factor and it holds none.
     #: Kept beside the two above because one dialog answers all three, and the
     #: client tells them apart by the code alone.
     PLATFORM_AUTH_FACTOR_REQUIRED = "PLATFORM_AUTH_FACTOR_REQUIRED"
-    GUILD_AUTH_NOT_ENABLED = "GUILD_AUTH_NOT_ENABLED"
+    COMMUNITY_AUTH_NOT_ENABLED = "COMMUNITY_AUTH_NOT_ENABLED"
     #: The community declines personal API keys. Raised both when one is being
     #: minted into the guild and when a request carrying one addresses it, so
     #: the answer reads the same wherever it is met.
-    GUILD_API_KEYS_REFUSED = "GUILD_API_KEYS_REFUSED"
-    GUILD_AUTH_POLICY_INVALID_PROVIDER = "GUILD_AUTH_POLICY_INVALID_PROVIDER"
-    GUILD_PERMISSION_REQUIRED = "GUILD_PERMISSION_REQUIRED"
-    GUILD_ADMIN_REQUIRED = "GUILD_ADMIN_REQUIRED"
+    COMMUNITY_API_KEYS_REFUSED = "COMMUNITY_API_KEYS_REFUSED"
+    COMMUNITY_AUTH_POLICY_INVALID_PROVIDER = "COMMUNITY_AUTH_POLICY_INVALID_PROVIDER"
+    COMMUNITY_PERMISSION_REQUIRED = "COMMUNITY_PERMISSION_REQUIRED"
+    COMMUNITY_ADMIN_REQUIRED = "COMMUNITY_ADMIN_REQUIRED"
     #: The guild's sign-in configuration asks for the seat above admin.
-    GUILD_SUPERADMIN_REQUIRED = "GUILD_SUPERADMIN_REQUIRED"
+    COMMUNITY_SUPERADMIN_REQUIRED = "COMMUNITY_SUPERADMIN_REQUIRED"
     #: Help requests were switched on with no support stream bound to
     #: receive them.
     SUPPORT_INTAKE_NOT_CONFIGURED = "SUPPORT_INTAKE_NOT_CONFIGURED"
-    GUILD_CREATION_DISABLED = "GUILD_CREATION_DISABLED"
+    COMMUNITY_CREATION_DISABLED = "COMMUNITY_CREATION_DISABLED"
     FREE_COMMUNITY_ALREADY_HELD = "FREE_COMMUNITY_ALREADY_HELD"
-    GUILD_CREATION_LIMIT_REACHED = "GUILD_CREATION_LIMIT_REACHED"
-    GUILD_NAME_REQUIRED = "GUILD_NAME_REQUIRED"
+    COMMUNITY_CREATION_LIMIT_REACHED = "COMMUNITY_CREATION_LIMIT_REACHED"
     # Naming another user as a new guild's admin is platform-staff only.
-    GUILD_OWNER_REQUIRES_CAPABILITY = "GUILD_OWNER_REQUIRES_CAPABILITY"
+    COMMUNITY_OWNER_REQUIRES_CAPABILITY = "COMMUNITY_OWNER_REQUIRES_CAPABILITY"
     # ...and that user has to exist already; we never create one.
-    GUILD_OWNER_NOT_FOUND = "GUILD_OWNER_NOT_FOUND"
-    GUILD_NOT_FOUND = "GUILD_NOT_FOUND"
-    GUILD_MEMBERSHIP_CREATE_FAILED = "GUILD_MEMBERSHIP_CREATE_FAILED"
-    GUILD_PROVISION_FAILED = "GUILD_PROVISION_FAILED"
+    COMMUNITY_OWNER_NOT_FOUND = "COMMUNITY_OWNER_NOT_FOUND"
+    COMMUNITY_NOT_FOUND = "COMMUNITY_NOT_FOUND"
+    COMMUNITY_MEMBERSHIP_CREATE_FAILED = "COMMUNITY_MEMBERSHIP_CREATE_FAILED"
+    COMMUNITY_PROVISION_FAILED = "COMMUNITY_PROVISION_FAILED"
     #: Restore was asked for a guild that has not been deleted.
-    GUILD_NOT_DELETED = "GUILD_NOT_DELETED"
+    COMMUNITY_NOT_DELETED = "COMMUNITY_NOT_DELETED"
     #: A guild cannot be restored *to* deleted.
-    GUILD_RESTORE_STATUS_INVALID = "GUILD_RESTORE_STATUS_INVALID"
+    COMMUNITY_RESTORE_STATUS_INVALID = "COMMUNITY_RESTORE_STATUS_INVALID"
     #: The guild's roster no longer holds the seat that configures it, so the
     #: restore has to name the account that will.
-    GUILD_RESTORE_SEAT_REQUIRED = "GUILD_RESTORE_SEAT_REQUIRED"
+    COMMUNITY_RESTORE_SEAT_REQUIRED = "COMMUNITY_RESTORE_SEAT_REQUIRED"
     #: ``deleted`` is reached by deleting a guild and left by restoring it,
     #: never by setting the status control to it.
-    GUILD_STATUS_NOT_SETTABLE = "GUILD_STATUS_NOT_SETTABLE"
+    COMMUNITY_STATUS_NOT_SETTABLE = "COMMUNITY_STATUS_NOT_SETTABLE"
     #: The deployment's billing service sets this community's caps and
     #: entitlements; they are changed there.
-    GUILD_PLAN_SET_BY_BILLING = "GUILD_PLAN_SET_BY_BILLING"
+    COMMUNITY_PLAN_SET_BY_BILLING = "COMMUNITY_PLAN_SET_BY_BILLING"
     #: Where billing sets plans, the operator moves a community into and out
     #: of a suspension and no other way.
-    GUILD_STATUS_SET_BY_BILLING = "GUILD_STATUS_SET_BY_BILLING"
+    COMMUNITY_STATUS_SET_BY_BILLING = "COMMUNITY_STATUS_SET_BY_BILLING"
     #: Where billing sets plans, a deleted community is restored at the status
     #: billing last set or suspended.
-    GUILD_RESTORE_STATUS_SET_BY_BILLING = "GUILD_RESTORE_STATUS_SET_BY_BILLING"
-    GUILD_MEMBERSHIP_MISSING = "GUILD_MEMBERSHIP_MISSING"
-    GUILD_USER_LIMIT_REACHED = "GUILD_USER_LIMIT_REACHED"
+    COMMUNITY_RESTORE_STATUS_SET_BY_BILLING = "COMMUNITY_RESTORE_STATUS_SET_BY_BILLING"
+    COMMUNITY_MEMBERSHIP_MISSING = "COMMUNITY_MEMBERSHIP_MISSING"
+    COMMUNITY_USER_LIMIT_REACHED = "COMMUNITY_USER_LIMIT_REACHED"
     # Asked to join a guild that is not listed in the community directory (or
     # is no longer active). Reported as a 404 — an unlisted guild has published
     # nothing, its existence at a given id included.
-    GUILD_NOT_A_COMMUNITY = "GUILD_NOT_A_COMMUNITY"
+    COMMUNITY_NOT_A_COMMUNITY = "COMMUNITY_NOT_A_COMMUNITY"
     # The three things a guild must be before it can be listed: on at least one
     # shelf, declared free of adult content, and able to admit anyone at all.
-    GUILD_COMMUNITY_REQUIRES_CATEGORY = "GUILD_COMMUNITY_REQUIRES_CATEGORY"
-    GUILD_COMMUNITY_CONTENT_NOT_DECLARED = "GUILD_COMMUNITY_CONTENT_NOT_DECLARED"
-    GUILD_COMMUNITY_ADULT_CONTENT = "GUILD_COMMUNITY_ADULT_CONTENT"
-    GUILD_COMMUNITY_REQUIRES_CAPACITY = "GUILD_COMMUNITY_REQUIRES_CAPACITY"
+    COMMUNITY_COMMUNITY_REQUIRES_CATEGORY = "COMMUNITY_COMMUNITY_REQUIRES_CATEGORY"
+    COMMUNITY_COMMUNITY_CONTENT_NOT_DECLARED = (
+        "COMMUNITY_COMMUNITY_CONTENT_NOT_DECLARED"
+    )
+    COMMUNITY_COMMUNITY_ADULT_CONTENT = "COMMUNITY_COMMUNITY_ADULT_CONTENT"
+    COMMUNITY_COMMUNITY_REQUIRES_CAPACITY = "COMMUNITY_COMMUNITY_REQUIRES_CAPACITY"
     # A guild on its way onto the shelf that holds somebody who has answered
     # the age question as under the minimum. Only ever raised on the way in:
     # an already-listed guild is not re-checked, so an unrelated edit never
     # fails over who its members are.
-    GUILD_COMMUNITY_UNDER_AGE_MEMBERS = "GUILD_COMMUNITY_UNDER_AGE_MEMBERS"
+    COMMUNITY_COMMUNITY_UNDER_AGE_MEMBERS = "COMMUNITY_COMMUNITY_UNDER_AGE_MEMBERS"
     # The deployment runs no community directory: an owner has not switched it
     # on. Distinct from the four rules above, which are about one guild — this
     # one says the surface does not exist here at all.
@@ -212,19 +229,11 @@ class GuildMessages:
     # The caller has not answered the age question, and the guild they asked to
     # join is listed in the directory. The deployment's own switch decides
     # whether this is ever raised at all.
-    AGE_CONFIRMATION_REQUIRED = "GUILD_AGE_CONFIRMATION_REQUIRED"
+    AGE_CONFIRMATION_REQUIRED = "COMMUNITY_AGE_CONFIRMATION_REQUIRED"
     # The caller answered the age question as under the minimum. Separate from
     # the one above because there is nothing to click: the answer stands, and
     # the reply has to say so rather than ask again.
-    AGE_BELOW_MINIMUM = "GUILD_AGE_BELOW_MINIMUM"
-    # A guild icon or banner rendition that is not one. Each names the rule it
-    # broke, so the settings page can say what to do about it rather than
-    # "that didn't work".
-    IMAGE_EMPTY = "IMAGE_EMPTY"
-    IMAGE_TOO_LARGE = "IMAGE_TOO_LARGE"
-    IMAGE_INVALID = "IMAGE_INVALID"
-    IMAGE_WRONG_SIZE = "IMAGE_WRONG_SIZE"
-    IMAGE_WRONG_RATIO = "IMAGE_WRONG_RATIO"
+    AGE_BELOW_MINIMUM = "COMMUNITY_AGE_BELOW_MINIMUM"
     IMAGE_NOT_FOUND = "IMAGE_NOT_FOUND"
     BANNER_COLOR_INVALID = "BANNER_COLOR_INVALID"
     # Banner text is black or white; nothing between the two is offered.
@@ -234,12 +243,12 @@ class GuildMessages:
     CANNOT_CHANGE_OWN_ROLE = "CANNOT_CHANGE_OWN_ROLE"
     # 'support' is synthesized for PAM grantees only; it is never a stored
     # guild-membership role, so it cannot be assigned via the role endpoints.
-    GUILD_ROLE_NOT_ASSIGNABLE = "GUILD_ROLE_NOT_ASSIGNABLE"
-    USER_NOT_FOUND_IN_GUILD = "USER_NOT_FOUND_IN_GUILD"
+    COMMUNITY_ROLE_NOT_ASSIGNABLE = "COMMUNITY_ROLE_NOT_ASSIGNABLE"
+    USER_NOT_FOUND_IN_COMMUNITY = "USER_NOT_FOUND_IN_COMMUNITY"
     #: The guild requires a sign-in, and this is the last member who can
     #: change or lift that requirement.
     CANNOT_VACATE_LAST_SUPERADMIN = "CANNOT_VACATE_LAST_SUPERADMIN"
-    NOT_GUILD_MEMBER = "NOT_GUILD_MEMBER"
+    NOT_COMMUNITY_MEMBER = "NOT_COMMUNITY_MEMBER"
     INVITE_NOT_FOUND = "INVITE_NOT_FOUND"
     INVITE_EXPIRED_OR_USED = "INVITE_EXPIRED_OR_USED"
     INVITE_EMAIL_MISMATCH = "INVITE_EMAIL_MISMATCH"
@@ -248,15 +257,14 @@ class GuildMessages:
     INVITE_INVALID = "INVITE_INVALID"
     INVITE_EXPIRED = "INVITE_EXPIRED"
     INVITE_USED = "INVITE_USED"
-    INVALID_PASSWORD = "GUILD_INVALID_PASSWORD"
-    CONFIRMATION_MISMATCH = "GUILD_CONFIRMATION_MISMATCH"
+    INVALID_PASSWORD = "COMMUNITY_INVALID_PASSWORD"
+    CONFIRMATION_MISMATCH = "COMMUNITY_CONFIRMATION_MISMATCH"
 
 
 class InitiativeMessages:
     NOT_FOUND = "INITIATIVE_NOT_FOUND"
     MANAGER_REQUIRED = "INITIATIVE_MANAGER_REQUIRED"
     NAME_EXISTS = "INITIATIVE_NAME_EXISTS"
-    CANNOT_DELETE_DEFAULT = "INITIATIVE_CANNOT_DELETE_DEFAULT"
     NOT_A_MEMBER = "INITIATIVE_NOT_A_MEMBER"
     ROLE_NOT_FOUND = "INITIATIVE_ROLE_NOT_FOUND"
     ROLE_NAME_EXISTS = "INITIATIVE_ROLE_NAME_EXISTS"
@@ -271,10 +279,10 @@ class InitiativeMessages:
     # A guild admin already has full access to every initiative; they may only
     # hold the manager role (for manager-style features), never a standard
     # member or custom role.
-    GUILD_ADMIN_ROLE_RESTRICTED = "INITIATIVE_GUILD_ADMIN_ROLE_RESTRICTED"
+    GUILD_ADMIN_ROLE_RESTRICTED = "INITIATIVE_COMMUNITY_ADMIN_ROLE_RESTRICTED"
     # A role carrying "Full access" (override_share_restrictions) — the
     # built-in moderator — is a guild admin's to assign.
-    OVERRIDE_REQUIRES_GUILD_ADMIN = "INITIATIVE_OVERRIDE_REQUIRES_GUILD_ADMIN"
+    OVERRIDE_REQUIRES_GUILD_ADMIN = "INITIATIVE_OVERRIDE_REQUIRES_COMMUNITY_ADMIN"
     # Asked to self-join an initiative whose join policy is not 'open'. Reported
     # for 'private' and 'request' alike, so the answer says only "not by this
     # route" — a request-policy initiative is discoverable through the directory.
@@ -297,12 +305,15 @@ class InitiativeMessages:
     # A guild admin reaches every initiative in their guild by standing, and may
     # only ever hold a manager role in one — so there is nothing for them to
     # request, and no request that could be approved into a permitted row.
-    GUILD_ADMIN_NEED_NOT_REQUEST = "INITIATIVE_GUILD_ADMIN_NEED_NOT_REQUEST"
+    GUILD_ADMIN_NEED_NOT_REQUEST = "INITIATIVE_COMMUNITY_ADMIN_NEED_NOT_REQUEST"
     # One live request per user per initiative (uq_initiative_join_requests_pending).
     JOIN_REQUEST_ALREADY_PENDING = "INITIATIVE_JOIN_REQUEST_ALREADY_PENDING"
     JOIN_REQUEST_NOT_FOUND = "INITIATIVE_JOIN_REQUEST_NOT_FOUND"
     # Approve/deny act on a pending row only; a resolved one is history.
     JOIN_REQUEST_ALREADY_RESOLVED = "INITIATIVE_JOIN_REQUEST_ALREADY_RESOLVED"
+    # The initiative keeps its content in: nothing in it is exported on its own
+    # or copied to another initiative.
+    CONTENT_KEPT_IN = "INITIATIVE_CONTENT_KEPT_IN"
 
 
 class FilterPresetMessages:
@@ -312,20 +323,17 @@ class FilterPresetMessages:
 
 
 class ProjectMessages:
-    IS_ARCHIVED = "PROJECT_IS_ARCHIVED"
     INVALID_TEMPLATE = "PROJECT_INVALID_TEMPLATE"
     INITIATIVE_REQUIRED = "PROJECT_INITIATIVE_REQUIRED"
-    PIN_PERMISSION_REQUIRED = "PROJECT_PIN_PERMISSION_REQUIRED"
     # Configuring the project itself (pinning, default view, filter
     # presets) — a project manager, the project owner, or a guild admin.
     CONFIGURE_REQUIRED = "PROJECT_CONFIGURE_REQUIRED"
-    DOCUMENT_WRONG_INITIATIVE = "PROJECT_DOCUMENT_WRONG_INITIATIVE"
-    # A PAM grant confers content read/write only, never access-control
-    # management (adding/removing members or changing permission levels).
 
 
 class TaskMessages:
     NOT_FOUND = "TASK_NOT_FOUND"
+    #: The task was not opened by an intake stream.
+    NOT_A_CASE = "TASK_NOT_A_CASE"
     MISSING_AFTER_CREATE = "TASK_MISSING_AFTER_CREATE"
     MISSING_AFTER_UPDATE = "TASK_MISSING_AFTER_UPDATE"
     MISSING_AFTER_MOVE = "TASK_MISSING_AFTER_MOVE"
@@ -449,25 +457,26 @@ class AttachmentMessages:
     STORAGE_QUOTA_EXCEEDED = "ATTACHMENT_STORAGE_QUOTA_EXCEEDED"
 
 
-class DocumentMessages:
-    NAME_ALREADY_EXISTS = "DOCUMENT_NAME_ALREADY_EXISTS"
-    TOO_MANY_IDS = "DOCUMENT_TOO_MANY_IDS"
-    NAME_REQUIRED = "DOCUMENT_NAME_REQUIRED"
-    LIVE_SESSION_OWNS_CONTENT = "DOCUMENT_LIVE_SESSION_OWNS_CONTENT"
-    COLLABORATION_UPDATE_INVALID = "DOCUMENT_COLLABORATION_UPDATE_INVALID"
-    AI_NATIVE_ONLY = "DOCUMENT_AI_NATIVE_ONLY"
-    SMART_LINK_URL_REQUIRED = "DOCUMENT_SMART_LINK_URL_REQUIRED"
-    SPREADSHEET_INVALID_PAYLOAD = "DOCUMENT_SPREADSHEET_INVALID_PAYLOAD"
-    SPREADSHEET_UNREADABLE_FILE = "DOCUMENT_SPREADSHEET_UNREADABLE_FILE"
-    SPREADSHEET_FILE_TOO_LARGE = "DOCUMENT_SPREADSHEET_FILE_TOO_LARGE"
-    SMART_LINK_URL_INVALID = "DOCUMENT_SMART_LINK_URL_INVALID"
-    NOT_A_FILE_DOCUMENT = "DOCUMENT_NOT_A_FILE_DOCUMENT"
-    VERSION_NOT_FOUND = "DOCUMENT_VERSION_NOT_FOUND"
-    CANNOT_DELETE_LAST_VERSION = "DOCUMENT_CANNOT_DELETE_LAST_VERSION"
-    VERSION_TYPE_MISMATCH = "DOCUMENT_VERSION_TYPE_MISMATCH"
-    VERSION_CONFLICT = "DOCUMENT_VERSION_CONFLICT"
-    INVALID_FILE = "DOCUMENT_INVALID_FILE"
-    FILE_TOO_LARGE = "DOCUMENT_FILE_TOO_LARGE"
+class FileMessages:
+    NAME_ALREADY_EXISTS = "FILE_NAME_ALREADY_EXISTS"
+    NAME_REQUIRED = "FILE_NAME_REQUIRED"
+    LIVE_SESSION_OWNS_CONTENT = "FILE_LIVE_SESSION_OWNS_CONTENT"
+    #: A write named a version of the content that is no longer current.
+    CONTENT_CHANGED = "FILE_CONTENT_CHANGED"
+    COLLABORATION_UPDATE_INVALID = "FILE_COLLABORATION_UPDATE_INVALID"
+    AI_NATIVE_ONLY = "FILE_AI_NATIVE_ONLY"
+    SMART_LINK_URL_REQUIRED = "FILE_SMART_LINK_URL_REQUIRED"
+    SPREADSHEET_INVALID_PAYLOAD = "FILE_SPREADSHEET_INVALID_PAYLOAD"
+    SPREADSHEET_UNREADABLE_FILE = "FILE_SPREADSHEET_UNREADABLE_FILE"
+    SPREADSHEET_FILE_TOO_LARGE = "FILE_SPREADSHEET_FILE_TOO_LARGE"
+    SMART_LINK_URL_INVALID = "FILE_SMART_LINK_URL_INVALID"
+    NOT_AN_UPLOADED_FILE = "FILE_NOT_AN_UPLOADED_FILE"
+    VERSION_NOT_FOUND = "FILE_VERSION_NOT_FOUND"
+    CANNOT_DELETE_LAST_VERSION = "FILE_CANNOT_DELETE_LAST_VERSION"
+    VERSION_TYPE_MISMATCH = "FILE_VERSION_TYPE_MISMATCH"
+    VERSION_CONFLICT = "FILE_VERSION_CONFLICT"
+    INVALID_FILE = "FILE_INVALID_FILE"
+    FILE_TOO_LARGE = "FILE_TOO_LARGE"
 
 
 class CommentMessages:
@@ -481,6 +490,11 @@ class CommentMessages:
     AUTHOR_ONLY_DELETE = "COMMENT_AUTHOR_ONLY_DELETE"
     NOT_LINKED = "COMMENT_NOT_LINKED"
     COMMENTS_DISABLED = "COMMENTS_DISABLED"
+    #: Only an operations case with somebody to answer takes a comment said to
+    #: whoever filed it.
+    NOT_SAID_TO_A_FILER = "COMMENT_NOT_SAID_TO_A_FILER"
+    #: A reply is said to whoever its parent was said to.
+    AUDIENCE_MISMATCH = "COMMENT_AUDIENCE_MISMATCH"
 
 
 class SharingMessages:
@@ -491,14 +505,10 @@ class SharingMessages:
     been given the wording for it.
     """
 
-    #: A grant naming a dashboard, sent to a resource's own sharing. That kind
-    #: is made and taken back against the dashboard that publishes it, so this
-    #: list neither writes nor removes one.
-    DASHBOARD_GRANT_NOT_SET_HERE = "SHARING_DASHBOARD_GRANT_NOT_SET_HERE"
-    #: A grant naming an installed app, sent to a resource's own sharing. What
-    #: an app may reach is granted by the community's seat, so this list
+    #: A grant naming an installed plug-in, sent to a resource's own sharing. What
+    #: a plug-in may reach is granted by the community's seat, so this list
     #: neither writes nor removes one.
-    APP_INSTALL_GRANT_NOT_SET_HERE = "SHARING_APP_INSTALL_GRANT_NOT_SET_HERE"
+    PLUGIN_INSTALL_GRANT_NOT_SET_HERE = "SHARING_PLUGIN_INSTALL_GRANT_NOT_SET_HERE"
 
     @staticmethod
     def grantee_lacks_tool(tool: "Tool") -> str:
@@ -509,7 +519,6 @@ class SharingMessages:
 class ReactionMessages:
     TARGET_NOT_FOUND = "REACTION_TARGET_NOT_FOUND"
     PERMISSION_DENIED = "REACTION_PERMISSION_DENIED"
-    NOT_FOUND = "REACTION_NOT_FOUND"
     TOO_MANY = "REACTION_TOO_MANY"
     DISABLED = "REACTION_DISABLED"
 
@@ -517,11 +526,7 @@ class ReactionMessages:
 class RelationshipMessages:
     """One vocabulary for links, whatever two kinds a link is between.
 
-    ``CROSS_INITIATIVE`` is the rule the per-tool attach endpoints stated as
-    ``PROJECT_DOCUMENT_WRONG_INITIATIVE``. It was never about documents or
-    projects — it is that a link made from a picker stays inside one
-    initiative — so it is named for the rule rather than for the first pair of
-    kinds it applied to.
+    ``CROSS_INITIATIVE``: a link made from a picker stays inside one initiative.
     """
 
     BAD_ENDPOINT = "RELATIONSHIP_BAD_ENDPOINT"
@@ -549,12 +554,12 @@ class SettingsMessages:
     # carry the SMTP host, port, or server banner) is logged server-side only
     # and never returned to the client.
     EMAIL_SEND_FAILED = "SETTINGS_EMAIL_SEND_FAILED"
-    INVALID_GUILD_ROLE = "SETTINGS_INVALID_GUILD_ROLE"
-    INITIATIVE_WRONG_GUILD = "SETTINGS_INITIATIVE_WRONG_GUILD"
+    INVALID_GUILD_ROLE = "SETTINGS_INVALID_COMMUNITY_ROLE"
+    INITIATIVE_WRONG_GUILD = "SETTINGS_INITIATIVE_WRONG_COMMUNITY"
     INITIATIVE_FIELDS_REQUIRED = "SETTINGS_INITIATIVE_FIELDS_REQUIRED"
     # The permitted sign-in methods.
     #: A guild still requires a sign-in through a provider it connects to.
-    LOGIN_METHODS_GUILD_POLICIES = "SETTINGS_LOGIN_METHODS_GUILD_POLICIES"
+    LOGIN_METHODS_GUILD_POLICIES = "SETTINGS_LOGIN_METHODS_COMMUNITY_POLICIES"
     LOGIN_METHODS_EMPTY = "SETTINGS_LOGIN_METHODS_EMPTY"
     #: Something is ticked, but nothing that can begin a session — an
     #: authenticator code accompanies a sign-in rather than opening one.
@@ -596,14 +601,26 @@ class SupportMessages:
     NOWHERE_TO_SEND = "SUPPORT_NOWHERE_TO_SEND"
 
 
+class TicketMessages:
+    """Filing a ticket, whatever kind."""
+
+    FILING_TOO_FAST = "TICKET_FILING_TOO_FAST"
+    TOO_MANY_OPEN = "TICKET_TOO_MANY_OPEN"
+    NOT_FOUND = "TICKET_NOT_FOUND"
+    REPLY_NOT_TAKEN = "TICKET_REPLY_NOT_TAKEN"
+
+
 class IntakeMessages:
     """Binding a stream of operations work to a project."""
 
-    GUILD_NOT_ACTIVE = "INTAKE_GUILD_NOT_ACTIVE"
-    NO_OPERATIONS_GUILD = "INTAKE_NO_OPERATIONS_GUILD"
+    GUILD_NOT_ACTIVE = "INTAKE_COMMUNITY_NOT_ACTIVE"
+    NO_OPERATIONS_GUILD = "INTAKE_NO_OPERATIONS_COMMUNITY"
     STATUS_NOT_IN_PROJECT = "INTAKE_STATUS_NOT_IN_PROJECT"
     PROJECT_NOT_LIVE = "INTAKE_PROJECT_NOT_LIVE"
     UNKNOWN_STREAM = "INTAKE_UNKNOWN_STREAM"
+    #: A stream that keeps an initiative to itself, or one that would share
+    #: such a stream's initiative.
+    INITIATIVE_SHARED = "INTAKE_INITIATIVE_SHARED"
 
 
 class OperatorMessages:
@@ -625,17 +642,14 @@ class OperatorMessages:
     ALREADY_ANONYMIZED = "OPERATOR_ALREADY_ANONYMIZED"
     CANNOT_CHANGE_ROLE_INACTIVE = "OPERATOR_CANNOT_CHANGE_ROLE_INACTIVE"
     CANNOT_CHANGE_OWN_ROLE = "OPERATOR_CANNOT_CHANGE_OWN_ROLE"
-    CANNOT_DEMOTE_LAST_OWNER = "OPERATOR_CANNOT_DEMOTE_LAST_OWNER"
     CANNOT_ASSIGN_HIGHER_ROLE = "OPERATOR_CANNOT_ASSIGN_HIGHER_ROLE"
     USE_SELF_DELETION = "OPERATOR_USE_SELF_DELETION"
-    CANNOT_DELETE_LAST_OWNER = "OPERATOR_CANNOT_DELETE_LAST_OWNER"
     CANNOT_DELETE_SELF = "OPERATOR_CANNOT_DELETE_SELF"
-    USER_CANNOT_BE_DELETED = "OPERATOR_USER_CANNOT_BE_DELETED"
 
 
 class AccessGrantMessages:
     NOT_FOUND = "ACCESS_GRANT_NOT_FOUND"
-    GUILD_NOT_FOUND = "ACCESS_GRANT_GUILD_NOT_FOUND"
+    COMMUNITY_NOT_FOUND = "ACCESS_GRANT_COMMUNITY_NOT_FOUND"
     DURATION_TOO_LONG = "ACCESS_GRANT_DURATION_TOO_LONG"
     ALREADY_MEMBER = "ACCESS_GRANT_ALREADY_MEMBER"
     OVERLAPPING_GRANT = "ACCESS_GRANT_OVERLAPPING"
@@ -667,16 +681,20 @@ class PasswordMessages:
 
 
 class UserMessages:
-    CANNOT_DELETE_LAST_OWNER = "USER_CANNOT_DELETE_LAST_OWNER"
+    #: The change would leave the platform with nobody who can configure it.
+    CANNOT_REMOVE_LAST_OWNER = "USER_CANNOT_REMOVE_LAST_OWNER"
     INVALID_PASSWORD = "USER_INVALID_PASSWORD"
     CONFIRMATION_MISMATCH = "USER_CONFIRMATION_MISMATCH"
     API_KEY_NOT_FOUND = "USER_API_KEY_NOT_FOUND"
     API_KEY_READ_ONLY = "USER_API_KEY_READ_ONLY"
-    API_KEY_GUILD_FORBIDDEN = "USER_API_KEY_GUILD_FORBIDDEN"
+    API_KEY_GUILD_FORBIDDEN = "USER_API_KEY_COMMUNITY_FORBIDDEN"
     USERNAME_ALREADY_CHOSEN = "USERNAME_ALREADY_CHOSEN"
     #: The date given puts this account under the minimum age for the parts of
     #: the platform that are open to people they have not met.
     AGE_BELOW_MINIMUM = "USER_AGE_BELOW_MINIMUM"
+    #: The date given at sign-up is under the minimum age for an account where
+    #: the person is. No account is made.
+    AGE_BELOW_ACCOUNT_MINIMUM = "USER_AGE_BELOW_ACCOUNT_MINIMUM"
     #: A date that is not one somebody could have been born on — in the future,
     #: or further back than a person lives.
     AGE_INVALID_BIRTHDATE = "USER_AGE_INVALID_BIRTHDATE"
@@ -687,23 +705,26 @@ class UserMessages:
     AGE_NOT_BLOCKED = "USER_AGE_NOT_BLOCKED"
     #: Asked to turn password sign-in back on for an account where it is on.
     SIGN_IN_NOT_LOCKED = "USER_SIGN_IN_NOT_LOCKED"
+    #: Asked to revoke an account's API keys when none of them still work.
+    NO_LIVE_API_KEYS = "USER_NO_LIVE_API_KEYS"
     CURRENT_PASSWORD_REQUIRED = "USER_CURRENT_PASSWORD_REQUIRED"
     CURRENT_PASSWORD_INCORRECT = "USER_CURRENT_PASSWORD_INCORRECT"
+    #: A new password was sent beside a field other than the current password.
+    PASSWORD_CHANGED_ALONE = "USER_PASSWORD_CHANGED_ALONE"
     INVALID_WEEK_START = "USER_INVALID_WEEK_START"
     INVALID_TIME_FORMAT = "USER_INVALID_TIME_FORMAT"
     INVALID_REMINDER_MINUTES = "USER_INVALID_REMINDER_MINUTES"
     INVALID_TASK_COMPLETION_VISUAL_FEEDBACK = (
         "USER_INVALID_TASK_COMPLETION_VISUAL_FEEDBACK"
     )
-    CANNOT_REMOVE_LAST_OWNER = "USER_CANNOT_REMOVE_LAST_OWNER"
     CANNOT_DELETE_SELF = "USER_CANNOT_DELETE_SELF"
-    OWNER_MUST_BE_GUILD_ADMIN = "OWNER_MUST_BE_GUILD_ADMIN"
+    OWNER_MUST_BE_COMMUNITY_ADMIN = "OWNER_MUST_BE_COMMUNITY_ADMIN"
     OWNER_ALREADY_HOLDS_CONTENT = "OWNER_ALREADY_HOLDS_CONTENT"
-    #: The installed app named as the new owner may not own that content: it
+    #: The installed plug-in named as the new owner may not own that content: it
     #: is off or gone, lacks the tool's write scope, or is not placed in the
     #: content's initiative.
-    OWNER_APP_NOT_ELIGIBLE = "OWNER_APP_NOT_ELIGIBLE"
-    NOT_IN_GUILD = "USER_NOT_IN_GUILD"
+    OWNER_PLUGIN_NOT_ELIGIBLE = "OWNER_PLUGIN_NOT_ELIGIBLE"
+    NOT_IN_GUILD = "USER_NOT_IN_COMMUNITY"
     AVATAR_INVALID_IMAGE = "USER_AVATAR_INVALID_IMAGE"
     AVATAR_NOT_SQUARE = "USER_AVATAR_NOT_SQUARE"
     AVATAR_TOO_LARGE_DIMENSIONS = "USER_AVATAR_TOO_LARGE_DIMENSIONS"
@@ -718,9 +739,19 @@ class UserMessages:
     DECORATION_ALREADY_GRANTED = "USER_DECORATION_ALREADY_GRANTED"
 
 
+class UsernameMessages:
+    """Why a name part cannot be stored."""
+
+    TOO_SHORT = "USERNAME_TOO_SHORT"
+    TOO_LONG = "USERNAME_TOO_LONG"
+    INVALID_CHARACTERS = "USERNAME_INVALID_CHARACTERS"
+    MUST_START_WITH_LETTER = "USERNAME_MUST_START_WITH_LETTER"
+    RESERVED = "USERNAME_RESERVED"
+    #: Every number behind the name part is taken.
+    UNAVAILABLE = "USERNAME_UNAVAILABLE"
+
+
 class ProjectExportMessages:
-    SCHEMA_VERSION_UNSUPPORTED = "PROJECT_EXPORT_SCHEMA_VERSION_UNSUPPORTED"
-    INVALID_PAYLOAD = "PROJECT_EXPORT_INVALID_PAYLOAD"
     NO_TASK_STATUSES = "PROJECT_EXPORT_NO_TASK_STATUSES"
 
 
@@ -740,7 +771,7 @@ class ExportMessages:
     #: longer reaches.
     EXPORT_OUT_OF_REACH = "EXPORT_OUT_OF_REACH"
     EXPORT_SUPERADMIN_REQUIRED = "EXPORT_SUPERADMIN_REQUIRED"
-    EXPORT_THIRD_PARTY_APP = "EXPORT_THIRD_PARTY_APP"
+    EXPORT_THIRD_PARTY_PLUGIN = "EXPORT_THIRD_PARTY_PLUGIN"
     EXPORT_DESTINATION_REQUIRED = "EXPORT_DESTINATION_REQUIRED"
     EXPORT_COOLDOWN_ACTIVE = "EXPORT_COOLDOWN_ACTIVE"
     EXPORT_DELIVERED = "EXPORT_DELIVERED"
@@ -888,18 +919,17 @@ class AnnouncementMessages:
     NOT_FOUND = "ANNOUNCEMENT_NOT_FOUND"
     IMAGE_NOT_FOUND = "ANNOUNCEMENT_IMAGE_NOT_FOUND"
     IMAGE_TOO_LARGE = "ANNOUNCEMENT_IMAGE_TOO_LARGE"
-    IMAGE_UNSUPPORTED_TYPE = "ANNOUNCEMENT_IMAGE_UNSUPPORTED_TYPE"
 
 
 class CalendarMessages:
-    # A guild calendar lives inside the calendar app, which is what reaches it
-    # and what its removal takes with it. Without the app there is nowhere to
+    # A guild calendar lives inside the calendar plug-in, which is what reaches it
+    # and what its removal takes with it. Without the plug-in there is nowhere to
     # put one.
-    GUILD_APP_REQUIRED = "CALENDAR_GUILD_APP_REQUIRED"
-    # An installed app creates a calendar in an initiative; a guild calendar
-    # is recorded on the calendar app's install, which is the community's own
+    GUILD_PLUGIN_REQUIRED = "CALENDAR_COMMUNITY_PLUGIN_REQUIRED"
+    # An installed plug-in creates a calendar in an initiative; a guild calendar
+    # is recorded on the calendar plug-in's install, which is the community's own
     # configuration.
-    APP_INITIATIVE_REQUIRED = "CALENDAR_APP_INITIATIVE_REQUIRED"
+    PLUGIN_INITIATIVE_REQUIRED = "CALENDAR_PLUGIN_INITIATIVE_REQUIRED"
 
 
 class CalendarEventMessages:
@@ -915,15 +945,16 @@ class CalendarEventMessages:
     NOT_AN_OCCURRENCE = "CALENDAR_EVENT_NOT_AN_OCCURRENCE"
     # One occurrence stays in its series' calendar and repeats with it.
     OCCURRENCE_FOLLOWS_SERIES = "CALENDAR_EVENT_OCCURRENCE_FOLLOWS_SERIES"
-    # A guild calendar holds guild-level content only. Things defined on an
-    # initiative — documents — have no counterpart at guild scope, so an event
-    # there cannot carry them; and an event cannot be moved across the
-    # guild/initiative line, because it would take its initiative attachments
-    # with it.
-    GUILD_CALENDAR_NO_DOCUMENTS = "CALENDAR_EVENT_GUILD_CALENDAR_NO_DOCUMENTS"
+    # An event cannot be moved across the guild/initiative line, because it
+    # would take its initiative attachments with it.
     CANNOT_CROSS_SCOPE = "CALENDAR_EVENT_CANNOT_CROSS_SCOPE"
     # A calendar read's date window ends before it starts or spans too long.
     WINDOW_INVALID = "CALENDAR_WINDOW_INVALID"
+    # A calendar read's window holds more repeating occurrences than one read
+    # expands (``app.core.recurrence.MAX_EXPANDED``).
+    WINDOW_TOO_FULL = "CALENDAR_WINDOW_TOO_FULL"
+    # An answer to an event whose RSVP is closed, from someone not on its list.
+    RSVP_CLOSED = "CALENDAR_EVENT_RSVP_CLOSED"
 
 
 class DashboardMessages:
@@ -940,19 +971,12 @@ class DashboardMessages:
     BINDING_SOURCE_NOT_ALLOWED = "DASHBOARD_BINDING_SOURCE_NOT_ALLOWED"
     CONFIG_INVALID = "DASHBOARD_CONFIG_INVALID"
     BINDING_SQL_MISSING = "BINDING_SQL_MISSING"
-    # Published views (app.services.tenant.published_views).
-    #: A widget of this dashboard that holds no statement to run.
-    WIDGET_HAS_NO_QUERY = "DASHBOARD_WIDGET_HAS_NO_QUERY"
-    #: Publishing over a resource the author cannot read themselves. A
-    #: published view hands on the author's own reach and never more than it.
-    PUBLISH_BEYOND_YOUR_REACH = "DASHBOARD_PUBLISH_BEYOND_YOUR_REACH"
-    #: Editing what a publishing dashboard asks, without the access it
-    #: publishes over. The statement is what decides which of those rows a
-    #: reader sees, so changing one is the same act as writing it.
-    EDIT_NEEDS_THE_PUBLISHED_ACCESS = "DASHBOARD_EDIT_NEEDS_THE_PUBLISHED_ACCESS"
-    #: ``me`` in a statement on a dashboard that publishes. A published view is
-    #: one set of numbers for everybody, and the reader is not fixed.
-    PUBLISHED_VIEW_HAS_NO_READER = "DASHBOARD_PUBLISHED_VIEW_HAS_NO_READER"
+    #: Setting a dashboard to run as its initiative without the role
+    #: permission for it (managers always hold it).
+    VIEW_MODE_NOT_ALLOWED = "DASHBOARD_VIEW_MODE_NOT_ALLOWED"
+    #: Changing the widgets of a dashboard that runs as its initiative without
+    #: that same permission.
+    VIEW_MODE_EDIT_NOT_ALLOWED = "DASHBOARD_VIEW_MODE_EDIT_NOT_ALLOWED"
     BINDING_SQL_TOO_LONG = "BINDING_SQL_TOO_LONG"
     WIDGET_MAPPING_INVALID = "WIDGET_MAPPING_INVALID"
 
@@ -1027,6 +1051,8 @@ class WikiMessages:
     #: A page with a live collaboration room has that room as the writer of
     #: its content; a save from outside the session is refused.
     LIVE_SESSION_OWNS_CONTENT = "WIKI_LIVE_SESSION_OWNS_CONTENT"
+    #: A write named a version of the content that is no longer current.
+    CONTENT_CHANGED = "WIKI_CONTENT_CHANGED"
 
 
 class MarketplaceMessages:
@@ -1035,10 +1061,13 @@ class MarketplaceMessages:
     #: by its publisher, or its only versions need a newer app.
     LISTING_UNAVAILABLE = "MARKETPLACE_LISTING_UNAVAILABLE"
     LISTING_VERSION_INCOMPATIBLE = "MARKETPLACE_LISTING_VERSION_INCOMPATIBLE"
-    #: A dashboard that ships with an app, asked for by a guild that does not
-    #: have that app installed. Its tiles draw that app's widgets, so there
+    #: The version needs a plug-in API contract (``min_plugin_api``) this
+    #: deployment does not serve: a newer one, or another major version.
+    LISTING_PLUGIN_API_INCOMPATIBLE = "MARKETPLACE_LISTING_PLUGIN_API_INCOMPATIBLE"
+    #: A dashboard that ships with a plug-in, asked for by a guild that does not
+    #: have that plug-in installed. Its tiles draw that plug-in's widgets, so there
     #: would be nothing behind any of them.
-    LISTING_NEEDS_APP = "MARKETPLACE_LISTING_NEEDS_APP"
+    LISTING_NEEDS_PLUGIN = "MARKETPLACE_LISTING_NEEDS_PLUGIN"
     #: An upgrade was asked for on a dashboard that was authored here, not
     #: installed — there is no listing to re-pin it to.
     NOT_INSTALLED_FROM_LISTING = "MARKETPLACE_NOT_INSTALLED_FROM_LISTING"
@@ -1119,7 +1148,6 @@ class MarketplaceRegistryMessages:
 
 class QueueMessages:
     ITEM_NOT_FOUND = "QUEUE_ITEM_NOT_FOUND"
-    NOT_ACTIVE = "QUEUE_NOT_ACTIVE"
     NO_ITEMS = "QUEUE_NO_ITEMS"
     NO_CURRENT_ITEM = "QUEUE_NO_CURRENT_ITEM"
     ITEM_NOT_HELD = "QUEUE_ITEM_NOT_HELD"
@@ -1138,93 +1166,101 @@ class TrashMessages:
     UNKNOWN_ENTITY_TYPE = "TRASH_UNKNOWN_ENTITY_TYPE"
 
 
-class GuildAppMessages:
-    NOT_FOUND = "GUILD_APP_NOT_FOUND"
-    #: The listing named is not an app, or names an app kind this build cannot
+class GuildPluginMessages:
+    NOT_FOUND = "COMMUNITY_PLUGIN_NOT_FOUND"
+    #: The listing named is not a plug-in, or names a plug-in kind this build cannot
     #: install.
-    NOT_AN_APP = "GUILD_APP_LISTING_NOT_AN_APP"
-    #: This guild already has this listing installed. Apps mount one guild-wide
+    NOT_A_PLUGIN = "COMMUNITY_PLUGIN_LISTING_NOT_A_PLUGIN"
+    #: This guild already has this listing installed. Plug-ins mount one guild-wide
     #: surface each, so a second copy has nothing to be.
-    ALREADY_INSTALLED = "GUILD_APP_ALREADY_INSTALLED"
-    #: A valid app of a kind this build does not mount into a guild yet — see
-    #: GUILD_INSTALLABLE_APP_KINDS. Publishable and browsable, not installable
+    ALREADY_INSTALLED = "COMMUNITY_PLUGIN_ALREADY_INSTALLED"
+    #: A valid plug-in of a kind this build does not mount into a guild yet — see
+    #: GUILD_INSTALLABLE_PLUGIN_KINDS. Publishable and browsable, not installable
     #: here, and told so by name rather than half-mounted.
-    KIND_NOT_INSTALLABLE = "GUILD_APP_KIND_NOT_INSTALLABLE"
+    KIND_NOT_INSTALLABLE = "COMMUNITY_PLUGIN_KIND_NOT_INSTALLABLE"
 
     # --- configuration ---
     #: The request named a connection the pinned definition does not declare.
-    CONFIG_UNKNOWN_CONNECTION = "GUILD_APP_CONFIG_UNKNOWN_CONNECTION"
+    CONFIG_UNKNOWN_CONNECTION = "COMMUNITY_PLUGIN_CONFIG_UNKNOWN_CONNECTION"
     #: The request named a field that connection does not declare.
-    CONFIG_UNKNOWN_FIELD = "GUILD_APP_CONFIG_UNKNOWN_FIELD"
+    CONFIG_UNKNOWN_FIELD = "COMMUNITY_PLUGIN_CONFIG_UNKNOWN_FIELD"
     #: A value that does not match its declared type, or an empty one.
-    CONFIG_INVALID_VALUE = "GUILD_APP_CONFIG_INVALID_VALUE"
+    CONFIG_INVALID_VALUE = "COMMUNITY_PLUGIN_CONFIG_INVALID_VALUE"
     #: A value longer than this build stores for that field.
-    CONFIG_VALUE_TOO_LONG = "GUILD_APP_CONFIG_VALUE_TOO_LONG"
+    CONFIG_VALUE_TOO_LONG = "COMMUNITY_PLUGIN_CONFIG_VALUE_TOO_LONG"
     #: A required field left without a value.
-    CONFIG_REQUIRED_FIELD = "GUILD_APP_CONFIG_REQUIRED_FIELD"
-    #: A field the app writes back itself when it completes a vendor flow; the
+    CONFIG_REQUIRED_FIELD = "COMMUNITY_PLUGIN_CONFIG_REQUIRED_FIELD"
+    #: A field the plug-in writes back itself when it completes a vendor flow; the
     #: settings form is not where it is set.
-    CONFIG_MANAGED_FIELD = "GUILD_APP_CONFIG_MANAGED_FIELD"
+    CONFIG_MANAGED_FIELD = "COMMUNITY_PLUGIN_CONFIG_MANAGED_FIELD"
 
     # --- connections ---
     #: No such connection on this install, or no such member connection.
-    CONNECTION_NOT_FOUND = "GUILD_APP_CONNECTION_NOT_FOUND"
+    CONNECTION_NOT_FOUND = "COMMUNITY_PLUGIN_CONNECTION_NOT_FOUND"
     #: Connecting runs a vendor's flow, and this connection declares none —
     #: its values are typed into the settings form instead. Named for the
     #: scope because that is what it meant when only one scope could have a
     #: flow; a guild-wide connection may now have one too.
-    CONNECTION_NOT_INTERACTIVE = "GUILD_APP_CONNECTION_NOT_INTERACTIVE"
+    CONNECTION_NOT_INTERACTIVE = "COMMUNITY_PLUGIN_CONNECTION_NOT_INTERACTIVE"
     #: Guild-wide values are configured through the config endpoint; a
     #: per-member connection is not.
-    CONNECTION_NOT_STATIC = "GUILD_APP_CONNECTION_NOT_STATIC"
+    CONNECTION_NOT_STATIC = "COMMUNITY_PLUGIN_CONNECTION_NOT_STATIC"
     #: A guild admin has stopped this member connecting this one.
-    CONNECTION_BLOCKED = "GUILD_APP_CONNECTION_BLOCKED"
-    #: The app is installed but turned off, so nothing flows through it.
-    DISABLED = "GUILD_APP_DISABLED"
+    CONNECTION_BLOCKED = "COMMUNITY_PLUGIN_CONNECTION_BLOCKED"
+    #: The plug-in is installed but turned off, so nothing flows through it.
+    DISABLED = "COMMUNITY_PLUGIN_DISABLED"
     #: The connection's flow needs values this deployment's operator has not
-    #: supplied for the app's vendor client, or a field it names is empty.
-    CONNECTION_VENDOR_NOT_CONFIGURED = "GUILD_APP_CONNECTION_VENDOR_NOT_CONFIGURED"
+    #: supplied for the plug-in's vendor client, or a field it names is empty.
+    CONNECTION_VENDOR_NOT_CONFIGURED = (
+        "COMMUNITY_PLUGIN_CONNECTION_VENDOR_NOT_CONFIGURED"
+    )
 
     # --- acting as a member ---
-    #: No request from this app to act as the caller, by that id.
-    CONSENT_NOT_FOUND = "GUILD_APP_CONSENT_NOT_FOUND"
-    #: The answer allows more than the app asked for.
-    CONSENT_EXCEEDS_REQUEST = "GUILD_APP_CONSENT_EXCEEDS_REQUEST"
+    #: No request from this plug-in to act as the caller, by that id.
+    CONSENT_NOT_FOUND = "COMMUNITY_PLUGIN_CONSENT_NOT_FOUND"
+    #: The answer allows more than the plug-in asked for.
+    CONSENT_EXCEEDS_REQUEST = "COMMUNITY_PLUGIN_CONSENT_EXCEEDS_REQUEST"
 
-    # --- apps the deployment provides ---
-    #: The deployment installs this app in every guild and a guild admin does
+    # --- plug-ins the deployment provides ---
+    #: The deployment installs this plug-in in every guild and a guild admin does
     #: not remove or disable it. The affordances are absent rather than
     #: erroring; this answers a request that arrives anyway.
-    MANDATORY = "GUILD_APP_MANDATORY"
+    MANDATORY = "COMMUNITY_PLUGIN_MANDATORY"
 
-    # --- service apps ---
-    #: This install's app service is not wired up here — never registered, or
-    #: the operator turned the registration off. Nothing this app offers can be
+    # --- service plug-ins ---
+    #: This install's plug-in service is not wired up here — never registered, or
+    #: the operator turned the registration off. Nothing this plug-in offers can be
     #: reached until that changes.
-    SERVICE_NOT_REGISTERED = "GUILD_APP_SERVICE_NOT_REGISTERED"
+    SERVICE_NOT_REGISTERED = "COMMUNITY_PLUGIN_SERVICE_NOT_REGISTERED"
     #: The pinned definition declares no surface under that id.
-    SURFACE_NOT_FOUND = "GUILD_APP_SURFACE_NOT_FOUND"
+    SURFACE_NOT_FOUND = "COMMUNITY_PLUGIN_SURFACE_NOT_FOUND"
     #: The surface is opened at the community level, or is marked
     #: ``admin_only``, and the caller is not a guild admin.
-    SURFACE_ADMIN_ONLY = "GUILD_APP_SURFACE_ADMIN_ONLY"
-    #: The surface was opened in an initiative the app is placed in, and the
+    SURFACE_ADMIN_ONLY = "COMMUNITY_PLUGIN_SURFACE_ADMIN_ONLY"
+    #: The surface was opened in an initiative the plug-in is placed in, and the
     #: caller holds none of the roles that placement allows.
-    SURFACE_ROLE_NOT_ALLOWED = "GUILD_APP_SURFACE_ROLE_NOT_ALLOWED"
+    SURFACE_ROLE_NOT_ALLOWED = "COMMUNITY_PLUGIN_SURFACE_ROLE_NOT_ALLOWED"
+    #: The viewer is younger than the plug-in's minimum age where they are, or
+    #: has no date of birth on file to say otherwise.
+    AGE_RESTRICTED = "COMMUNITY_PLUGIN_AGE_RESTRICTED"
     #: The placement sent names an initiative that is not one of this guild's.
-    PLACEMENT_INVALID = "GUILD_APP_PLACEMENT_INVALID"
+    PLACEMENT_INVALID = "COMMUNITY_PLUGIN_PLACEMENT_INVALID"
     #: The placement names a role that is not one of its initiative's.
-    PLACEMENT_ROLE_INVALID = "GUILD_APP_PLACEMENT_ROLE_INVALID"
+    PLACEMENT_ROLE_INVALID = "COMMUNITY_PLUGIN_PLACEMENT_ROLE_INVALID"
     #: A scope granted to an install that its manifest does not request.
-    SCOPE_NOT_REQUESTED = "GUILD_APP_SCOPE_NOT_REQUESTED"
-    #: A scope granted to an install beyond what this deployment allows the app.
-    SCOPE_ABOVE_CEILING = "GUILD_APP_SCOPE_ABOVE_CEILING"
+    SCOPE_NOT_REQUESTED = "COMMUNITY_PLUGIN_SCOPE_NOT_REQUESTED"
+    #: A scope granted to an install beyond what this deployment allows the plug-in.
+    SCOPE_ABOVE_CEILING = "COMMUNITY_PLUGIN_SCOPE_ABOVE_CEILING"
+    #: A scope to use another plug-in, granted while that plug-in is not installed
+    #: in the community.
+    SCOPE_TARGET_NOT_INSTALLED = "COMMUNITY_PLUGIN_SCOPE_TARGET_NOT_INSTALLED"
     #: The version an upgrade would apply asks for more than the install holds,
     #: and the request carried no consent to it. The response names what it
     #: asks for.
-    UPGRADE_NEEDS_CONSENT = "GUILD_APP_UPGRADE_NEEDS_CONSENT"
+    UPGRADE_NEEDS_CONSENT = "COMMUNITY_PLUGIN_UPGRADE_NEEDS_CONSENT"
     #: The consent or the decline names a version other than the one the
     #: catalog offers now.
-    UPGRADE_VERSION_MOVED = "GUILD_APP_UPGRADE_VERSION_MOVED"
+    UPGRADE_VERSION_MOVED = "COMMUNITY_PLUGIN_UPGRADE_VERSION_MOVED"
 
 
 class BundledChannelMessages:
@@ -1246,7 +1282,7 @@ class BundledChannelMessages:
     BAD_SIGNATURE = "BUNDLED_BAD_SIGNATURE"
     #: The reference names no guild, or names one through an install that is
     #: not the caller's own.
-    UNKNOWN_GUILD = "BUNDLED_UNKNOWN_GUILD"
+    UNKNOWN_GUILD = "BUNDLED_UNKNOWN_COMMUNITY"
     #: No reference has been minted for that guild in the sector asked about.
     NO_SUCH_NAME = "BUNDLED_NO_SUCH_NAME"
     #: The signed body is not the shape this route takes.
@@ -1256,190 +1292,195 @@ class BundledChannelMessages:
     SECTOR_NOT_ANSWERABLE = "BUNDLED_SECTOR_NOT_ANSWERABLE"
 
 
-class AppServiceMessages:
-    """Codes for the deployment-level app service registry.
+class PluginServiceMessages:
+    """Codes for the deployment-level plug-in service registry.
 
-    Read by an operator wiring an app up, so each code names the step that
+    Read by an operator wiring a plug-in up, so each code names the step that
     refused rather than a generic failure.
     """
 
-    NOT_FOUND = "APP_SERVICE_NOT_FOUND"
+    NOT_FOUND = "PLUGIN_SERVICE_NOT_FOUND"
     #: Another registration already carries this public_id.
-    DUPLICATE_PUBLIC_ID = "APP_SERVICE_DUPLICATE_PUBLIC_ID"
+    DUPLICATE_PUBLIC_ID = "PLUGIN_SERVICE_DUPLICATE_PUBLIC_ID"
     #: public_id, base_url, an origin, or a version string this build refuses.
-    INVALID_PUBLIC_ID = "APP_SERVICE_INVALID_PUBLIC_ID"
-    INVALID_BASE_URL = "APP_SERVICE_INVALID_BASE_URL"
-    #: The browser-facing base, when an app answers there rather than at the
+    INVALID_PUBLIC_ID = "PLUGIN_SERVICE_INVALID_PUBLIC_ID"
+    INVALID_BASE_URL = "PLUGIN_SERVICE_INVALID_BASE_URL"
+    #: The browser-facing base, when a plug-in answers there rather than at the
     #: address Initiative's own server calls.
-    INVALID_EMBED_ORIGIN = "APP_SERVICE_INVALID_EMBED_ORIGIN"
-    INVALID_ORIGIN = "APP_SERVICE_INVALID_ORIGIN"
+    INVALID_EMBED_ORIGIN = "PLUGIN_SERVICE_INVALID_EMBED_ORIGIN"
+    INVALID_ORIGIN = "PLUGIN_SERVICE_INVALID_ORIGIN"
     #: The key set is not a JWKS this build can verify against, or an entry in
     #: it carries no ``kid`` for a JWT to name.
-    INVALID_JWKS = "APP_SERVICE_INVALID_JWKS"
-    #: The APP_PLATFORM_* signing keypair is not configured. It is required and
+    INVALID_JWKS = "PLUGIN_SERVICE_INVALID_JWKS"
+    #: The PLUGIN_PLATFORM_* signing keypair is not configured. It is required and
     #: has no fallback, so registration fails closed until an operator
     #: supplies one.
-    SIGNING_NOT_CONFIGURED = "APP_SERVICE_SIGNING_NOT_CONFIGURED"
-    #: A registration entry or request named something only the app's
+    SIGNING_NOT_CONFIGURED = "PLUGIN_SERVICE_SIGNING_NOT_CONFIGURED"
+    #: A registration entry or request named something only the plug-in's
     #: listing states (its listing, scope ceiling, image or sectors).
-    STATED_BY_LISTING = "APP_SERVICE_STATED_BY_LISTING"
+    STATED_BY_LISTING = "PLUGIN_SERVICE_STATED_BY_LISTING"
     #: The key set address is not https on the base URL's own origin.
-    INVALID_JWKS_URI = "APP_SERVICE_INVALID_JWKS_URI"
+    INVALID_JWKS_URI = "PLUGIN_SERVICE_INVALID_JWKS_URI"
     #: Connect reads the key set from the base URL, and there is none yet.
-    CONNECT_NEEDS_BASE_URL = "APP_SERVICE_CONNECT_NEEDS_BASE_URL"
-    #: The app's base URL did not answer with a key set document.
-    KEYS_UNREADABLE = "APP_SERVICE_KEYS_UNREADABLE"
-    #: The key set the app serves is not the one the operator confirmed.
-    KEYS_CHANGED = "APP_SERVICE_KEYS_CHANGED"
+    CONNECT_NEEDS_BASE_URL = "PLUGIN_SERVICE_CONNECT_NEEDS_BASE_URL"
+    #: The plug-in's base URL did not answer with a key set document.
+    KEYS_UNREADABLE = "PLUGIN_SERVICE_KEYS_UNREADABLE"
+    #: The key set the plug-in serves is not the one the operator confirmed.
+    KEYS_CHANGED = "PLUGIN_SERVICE_KEYS_CHANGED"
     #: No publisher has that id.
-    PUBLISHER_NOT_FOUND = "APP_PUBLISHER_NOT_FOUND"
+    PUBLISHER_NOT_FOUND = "PLUGIN_PUBLISHER_NOT_FOUND"
     #: Another publisher already has that prefix.
-    DUPLICATE_PUBLISHER = "APP_PUBLISHER_DUPLICATE_PREFIX"
+    DUPLICATE_PUBLISHER = "PLUGIN_PUBLISHER_DUPLICATE_PREFIX"
     #: A publisher prefix this build refuses.
-    INVALID_PUBLISHER_PREFIX = "APP_PUBLISHER_INVALID_PREFIX"
+    INVALID_PUBLISHER_PREFIX = "PLUGIN_PUBLISHER_INVALID_PREFIX"
     #: A publisher's name is empty or too long.
-    INVALID_PUBLISHER_NAME = "APP_PUBLISHER_INVALID_NAME"
-    #: The registration's app facts come from the registry, whose next refresh
+    INVALID_PUBLISHER_NAME = "PLUGIN_PUBLISHER_INVALID_NAME"
+    #: The registration's plug-in facts come from the registry, whose next refresh
     #: would bring it back, so it is switched off rather than removed.
-    REGISTRY_MANAGED = "APP_SERVICE_REGISTRY_MANAGED"
-    #: A vendor value named a field the app's manifest does not declare.
-    UNKNOWN_VENDOR_FIELD = "APP_SERVICE_UNKNOWN_VENDOR_FIELD"
+    REGISTRY_MANAGED = "PLUGIN_SERVICE_REGISTRY_MANAGED"
+    #: An address, origin or key given for a declarative plug-in, whose calls
+    #: Initiative makes itself.
+    DECLARATIVE_NOT_PLACED = "PLUGIN_SERVICE_DECLARATIVE_NOT_PLACED"
+    #: A vendor value named a field the plug-in's manifest does not declare.
+    UNKNOWN_VENDOR_FIELD = "PLUGIN_SERVICE_UNKNOWN_VENDOR_FIELD"
     #: A vendor value that is too long, or not the address its field asks for.
-    INVALID_VENDOR_VALUE = "APP_SERVICE_INVALID_VENDOR_VALUE"
-    #: The app's listing declares no vendor setup flow this build runs.
-    VENDOR_SETUP_UNAVAILABLE = "APP_SERVICE_VENDOR_SETUP_UNAVAILABLE"
+    INVALID_VENDOR_VALUE = "PLUGIN_SERVICE_INVALID_VENDOR_VALUE"
+    #: The plug-in's listing declares no vendor setup flow this build runs.
+    VENDOR_SETUP_UNAVAILABLE = "PLUGIN_SERVICE_VENDOR_SETUP_UNAVAILABLE"
     #: The organization named for the vendor's setup is not one it could have.
-    VENDOR_SETUP_INVALID_ORGANIZATION = "APP_SERVICE_VENDOR_SETUP_INVALID_ORGANIZATION"
+    VENDOR_SETUP_INVALID_ORGANIZATION = (
+        "PLUGIN_SERVICE_VENDOR_SETUP_INVALID_ORGANIZATION"
+    )
     #: The setup returning from the vendor is not one this person started for
-    #: this app in the last hour, or it was already finished.
-    VENDOR_SETUP_EXPIRED = "APP_SERVICE_VENDOR_SETUP_EXPIRED"
+    #: this plug-in in the last hour, or it was already finished.
+    VENDOR_SETUP_EXPIRED = "PLUGIN_SERVICE_VENDOR_SETUP_EXPIRED"
     #: The vendor did not answer the setup's code with the new client's values.
-    VENDOR_SETUP_FAILED = "APP_SERVICE_VENDOR_SETUP_FAILED"
+    VENDOR_SETUP_FAILED = "PLUGIN_SERVICE_VENDOR_SETUP_FAILED"
 
 
-class AppMessages:
-    """Codes for an installed app calling a route with its access token."""
+class PluginMessages:
+    """Codes for an installed plug-in calling a route with its access token."""
 
     #: The route names a scope the token does not carry.
-    SCOPE_REQUIRED = "APP_SCOPE_REQUIRED"
+    SCOPE_REQUIRED = "PLUGIN_SCOPE_REQUIRED"
     #: The request names a person or a community by something that is not one
     #: of this install's references.
-    REFERENCE_UNKNOWN = "APP_REFERENCE_UNKNOWN"
+    REFERENCE_UNKNOWN = "PLUGIN_REFERENCE_UNKNOWN"
     #: A consent request names an initiative the install is not placed in.
-    CONSENT_INITIATIVE_NOT_PLACED = "APP_CONSENT_INITIATIVE_NOT_PLACED"
+    CONSENT_INITIATIVE_NOT_PLACED = "PLUGIN_CONSENT_INITIATIVE_NOT_PLACED"
     #: A token narrowed to one initiative asks for consent beyond it.
-    CONSENT_OUTSIDE_TOKEN = "APP_CONSENT_OUTSIDE_TOKEN"
+    CONSENT_OUTSIDE_TOKEN = "PLUGIN_CONSENT_OUTSIDE_TOKEN"
     #: A consent request names an initiative the member is not in.
-    CONSENT_MEMBER_NOT_IN_INITIATIVE = "APP_CONSENT_MEMBER_NOT_IN_INITIATIVE"
+    CONSENT_MEMBER_NOT_IN_INITIATIVE = "PLUGIN_CONSENT_MEMBER_NOT_IN_INITIATIVE"
     #: The install has asked for consent too often; it tries again later.
-    CONSENT_RATE_LIMITED = "APP_CONSENT_RATE_LIMITED"
-    #: The request asks an installed app to change sharing without
+    CONSENT_RATE_LIMITED = "PLUGIN_CONSENT_RATE_LIMITED"
+    #: The request asks an installed plug-in to change sharing without
     #: ``sharing:write``, or to name an owner for something it creates, which
     #: is its own.
-    SHARING_NOT_AVAILABLE = "APP_SHARING_NOT_AVAILABLE"
+    SHARING_NOT_AVAILABLE = "PLUGIN_SHARING_NOT_AVAILABLE"
 
 
-class AppHubMessages:
-    """Codes for an installed app calling another app through Initiative.
+class PluginHubMessages:
+    """Codes for an installed plug-in calling another plug-in through Initiative.
 
     OAuth-style, so a caller reads them the way it reads the token endpoint's
     errors: each names the check that refused.
     """
 
     #: The caller's token, grant or pinned version does not hold
-    #: ``apps:<target>``, or a member's consent allows reading only and the
+    #: ``plugins:<target>``, or a member's consent allows reading only and the
     #: endpoint writes.
     INSUFFICIENT_SCOPE = "insufficient_scope"
-    #: The app called is not installed, switched on and live in this community.
+    #: The plug-in called is not installed, switched on and live in this community.
     TARGET_NOT_INSTALLED = "target_not_installed"
-    #: The endpoint is not part of the app's public surface.
+    #: The endpoint is not part of the plug-in's public surface.
     ENDPOINT_NOT_PUBLIC = "endpoint_not_public"
     #: The endpoint does not take calls for this actor.
     ACTOR_NOT_SUPPORTED = "actor_not_supported"
-    #: The caller is confined to an initiative the app called is not placed in.
+    #: The caller is confined to an initiative the plug-in called is not placed in.
     TARGET_NOT_PLACED = "target_not_placed"
 
 
-class AppDataMessages:
+class PluginDataMessages:
     """Codes for the widget data proxy.
 
     Read by a member looking at a dashboard, so each one distinguishes a state
-    they can act on (connect an account, ask an admin to configure the app) from
-    one they can only wait out (the app is unreachable).
+    they can act on (connect an account, ask an admin to configure the plug-in) from
+    one they can only wait out (the plug-in is unreachable).
     """
 
     #: The install names no such data source, or the pinned definition is not a
-    #: service app's at all.
-    ENDPOINT_NOT_FOUND = "APP_DATA_ENDPOINT_NOT_FOUND"
+    #: service plug-in's at all.
+    ENDPOINT_NOT_FOUND = "PLUGIN_DATA_ENDPOINT_NOT_FOUND"
     #: The endpoint is marked ``admin_only`` and the caller is not a guild admin.
-    ADMIN_ONLY = "APP_DATA_ADMIN_ONLY"
+    ADMIN_ONLY = "PLUGIN_DATA_ADMIN_ONLY"
     #: The source declares no such parameter, so there is nothing to fill in.
-    PARAM_NOT_FOUND = "APP_DATA_PARAM_NOT_FOUND"
+    PARAM_NOT_FOUND = "PLUGIN_DATA_PARAM_NOT_FOUND"
     #: The install is turned off in this guild.
-    APP_DISABLED = "APP_DATA_APP_DISABLED"
-    #: No registration wires this app up on this deployment.
-    SERVICE_NOT_REGISTERED = "APP_DATA_SERVICE_NOT_REGISTERED"
+    PLUGIN_DISABLED = "PLUGIN_DATA_PLUGIN_DISABLED"
+    #: No registration wires this plug-in up on this deployment.
+    SERVICE_NOT_REGISTERED = "PLUGIN_DATA_SERVICE_NOT_REGISTERED"
     #: The operator's kill switch is off, or the registration has not verified.
-    SERVICE_DISABLED = "APP_DATA_SERVICE_DISABLED"
+    SERVICE_DISABLED = "PLUGIN_DATA_SERVICE_DISABLED"
     #: A parameter the source does not declare, or a value that does not match
     #: its declared type.
-    INVALID_PARAMS = "APP_DATA_INVALID_PARAMS"
+    INVALID_PARAMS = "PLUGIN_DATA_INVALID_PARAMS"
     #: A guild-scoped credential this source needs has not been supplied.
-    NEEDS_CONFIGURATION = "APP_DATA_NEEDS_CONFIGURATION"
+    NEEDS_CONFIGURATION = "PLUGIN_DATA_NEEDS_CONFIGURATION"
     #: The source reads the member's own vendor account and they have not
     #: connected it yet.
-    CONNECTION_REQUIRED = "APP_DATA_CONNECTION_REQUIRED"
-    #: The app could not be reached, timed out, or answered with something that
+    CONNECTION_REQUIRED = "PLUGIN_DATA_CONNECTION_REQUIRED"
+    #: The plug-in could not be reached, timed out, or answered with something that
     #: is not a data response.
-    SERVICE_UNAVAILABLE = "APP_SERVICE_UNAVAILABLE"
-    #: The app answered past the response ceiling.
-    RESPONSE_TOO_LARGE = "APP_DATA_RESPONSE_TOO_LARGE"
-    #: This worker already has as many calls in flight to this app as it will
-    #: hold open, so one slow app cannot consume the pool.
-    BUSY = "APP_DATA_BUSY"
+    SERVICE_UNAVAILABLE = "PLUGIN_SERVICE_UNAVAILABLE"
+    #: The plug-in answered past the response ceiling.
+    RESPONSE_TOO_LARGE = "PLUGIN_DATA_RESPONSE_TOO_LARGE"
+    #: This worker already has as many calls in flight to this plug-in as it will
+    #: hold open, so one slow plug-in cannot consume the pool.
+    BUSY = "PLUGIN_DATA_BUSY"
 
 
-class AppChannelMessages:
-    """Codes for an installed app's calls about its own installation.
+class PluginChannelMessages:
+    """Codes for an installed plug-in's calls about its own installation.
 
-    Read by an app author rather than by a person in the UI, so each names the
+    Read by a plug-in author rather than by a person in the UI, so each names the
     step that refused: an install this caller does not own, or a payload
     outside what the pinned manifest declared.
     """
 
     # --- the install being addressed ---
-    #: No install of this app in that guild — never installed, uninstalled, or
+    #: No install of this plug-in in that guild — never installed, uninstalled, or
     #: the guild is not one this caller may see.
-    INSTALL_NOT_FOUND = "APP_CHANNEL_INSTALL_NOT_FOUND"
+    INSTALL_NOT_FOUND = "PLUGIN_CHANNEL_INSTALL_NOT_FOUND"
     #: The install exists but the guild turned it off.
-    INSTALL_DISABLED = "APP_CHANNEL_INSTALL_DISABLED"
+    INSTALL_DISABLED = "PLUGIN_CHANNEL_INSTALL_DISABLED"
     #: The guild is frozen, so this channel accepts no writes into it.
-    GUILD_READ_ONLY = "APP_CHANNEL_GUILD_READ_ONLY"
+    GUILD_READ_ONLY = "PLUGIN_CHANNEL_COMMUNITY_READ_ONLY"
     #: No connection on this install answers to that reference.
-    CONNECTION_NOT_FOUND = "APP_CHANNEL_CONNECTION_NOT_FOUND"
-    #: A guild admin stopped this member's connection; the app may not revive it.
-    CONNECTION_BLOCKED = "APP_CHANNEL_CONNECTION_BLOCKED"
+    CONNECTION_NOT_FOUND = "PLUGIN_CHANNEL_CONNECTION_NOT_FOUND"
+    #: A guild admin stopped this member's connection; the plug-in may not revive it.
+    CONNECTION_BLOCKED = "PLUGIN_CHANNEL_CONNECTION_BLOCKED"
     #: The member's connection could not be refreshed and has to be made again.
-    CONNECTION_EXPIRED = "APP_CHANNEL_CONNECTION_EXPIRED"
+    CONNECTION_EXPIRED = "PLUGIN_CHANNEL_CONNECTION_EXPIRED"
     #: The connection holds no token: never completed, or one whose flow keeps
     #: none and declares no token of its own.
-    CONNECTION_NO_TOKEN = "APP_CHANNEL_CONNECTION_NO_TOKEN"
+    CONNECTION_NO_TOKEN = "PLUGIN_CHANNEL_CONNECTION_NO_TOKEN"
     #: The vendor did not answer with a token.
-    TOKEN_UNAVAILABLE = "APP_CHANNEL_TOKEN_UNAVAILABLE"
+    TOKEN_UNAVAILABLE = "PLUGIN_CHANNEL_TOKEN_UNAVAILABLE"
 
-    # --- what the app sent ---
+    # --- what the plug-in sent ---
     #: The body is not the JSON object this channel expects.
-    INVALID_PAYLOAD = "APP_CHANNEL_INVALID_PAYLOAD"
+    INVALID_PAYLOAD = "PLUGIN_CHANNEL_INVALID_PAYLOAD"
     #: An event type the pinned definition does not declare, or one namespaced
-    #: under an app other than the caller.
-    UNKNOWN_EVENT_TYPE = "APP_CHANNEL_UNKNOWN_EVENT_TYPE"
+    #: under a plug-in other than the caller.
+    UNKNOWN_EVENT_TYPE = "PLUGIN_CHANNEL_UNKNOWN_EVENT_TYPE"
     #: The event body is larger than this build will carry.
-    EVENT_TOO_LARGE = "APP_CHANNEL_EVENT_TOO_LARGE"
+    EVENT_TOO_LARGE = "PLUGIN_CHANNEL_EVENT_TOO_LARGE"
     #: The event names an initiative the install is not placed in, or one
     #: other than the initiative its token is narrowed to.
-    INITIATIVE_NOT_PLACED = "APP_CHANNEL_INITIATIVE_NOT_PLACED"
-    #: A config state outside what an app may report.
-    INVALID_CONFIG_STATE = "APP_CHANNEL_INVALID_CONFIG_STATE"
+    INITIATIVE_NOT_PLACED = "PLUGIN_CHANNEL_INITIATIVE_NOT_PLACED"
+    #: A config state outside what a plug-in may report.
+    INVALID_CONFIG_STATE = "PLUGIN_CHANNEL_INVALID_CONFIG_STATE"
 
 
 class WebhookSubscriptionMessages:
@@ -1469,7 +1510,7 @@ class AIMessages:
 
 class NativeMessages:
     OTA_BUNDLE_NOT_AVAILABLE = "NATIVE_OTA_BUNDLE_NOT_AVAILABLE"
-    #: The app's sign-in is from before the code flow, and its grace has run out.
+    #: The native app's sign-in is from before the code flow, and its grace has run out.
     APP_UPDATE_REQUIRED = "NATIVE_APP_UPDATE_REQUIRED"
 
 
@@ -1501,7 +1542,7 @@ class BillingMessages:
     INVALID_TOKEN = "BILLING_INVALID_TOKEN"
     REPLAYED_TOKEN = "BILLING_REPLAYED_TOKEN"
     INVALID_PAYLOAD = "BILLING_INVALID_PAYLOAD"
-    GUILD_NOT_FOUND = "BILLING_GUILD_NOT_FOUND"
+    COMMUNITY_NOT_FOUND = "BILLING_COMMUNITY_NOT_FOUND"
     SUPPORT_SOURCE_RESTRICTED = "BILLING_SUPPORT_SOURCE_RESTRICTED"
     SUPPORT_CANNOT_LOWER = "BILLING_SUPPORT_CANNOT_LOWER"
     OPERATOR_CANNOT_LOWER_CEILING = "BILLING_OPERATOR_CANNOT_LOWER_CEILING"

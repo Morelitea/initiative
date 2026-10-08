@@ -42,14 +42,13 @@ from app.api.deps import (
     ActorUserDep,
     IncludeDeletedDep,
     RLSSessionDep,
-    app_scope,
+    plugin_scope,
     get_current_active_user,
     GuildContextDep,
 )
 from app.core.messages import PostMessages
 from app.core.tools import Tool
 from app.models.platform.user import User
-from app.models.tenant.initiative import Initiative
 from app.models.tenant.post import Post, board_time
 from app.models.tenant.post_poll import PostPoll
 from app.schemas.tenant.post import (
@@ -76,7 +75,7 @@ from app.schemas.tenant.post_poll import (
 from app.schemas.tenant.timeline import TimelineResponse
 from app.services import notifications as notifications_service
 from app.services import rls as rls_service
-from app.services.notifications import AppAuthor
+from app.services.notifications import PluginAuthor
 from app.core.search import SearchEntityType
 from app.services.tenant import archive as archive_service
 from app.services.tenant import attachments as attachments_service
@@ -101,10 +100,10 @@ MAX_BOARD_PAGE_SIZE = 50
 
 router = APIRouter(route_class=ActorRoute)
 
-#: The routes an installed app may call, under the posts scopes. Pinning is an
+#: The routes an installed plug-in may call, under the posts scopes. Pinning is an
 #: edit of the board, so it asks the write scope.
-PostsRead = Annotated[ActorContext, Depends(app_scope("posts:read"))]
-PostsWrite = Annotated[ActorContext, Depends(app_scope("posts:write"))]
+PostsRead = Annotated[ActorContext, Depends(plugin_scope("posts:read"))]
+PostsWrite = Annotated[ActorContext, Depends(plugin_scope("posts:write"))]
 
 
 # ---------------------------------------------------------------------------
@@ -167,7 +166,7 @@ def _poll_of(post: Post) -> PostPoll:
 async def _announce(
     session: RLSSessionDep,
     post: Post,
-    author: User | AppAuthor,
+    author: User | PluginAuthor,
     guild_context: ActorContext,
 ) -> None:
     """Tell the notice's audience it is up.
@@ -190,16 +189,12 @@ async def annotate_post_rows(
     rows: list[Post],
     *,
     user_id: int | None,
-    own_read_state: bool = True,
 ) -> None:
     """Everything a post row carries beyond its columns, one grouped query each
     for the page: its tags, properties, comment count, reactions, read state and
     poll tallies.
 
-    ``own_read_state`` stamps whether this reader has read each one; a write's
-    answer leaves it out.
-
-    An installed app (``user_id`` ``None``) keeps no read markers or ballots
+    An installed plug-in (``user_id`` ``None``) keeps no read markers or ballots
     and reacts to nothing, so a post it reads carries only the comment count;
     the rest stay at their empty defaults.
     """
@@ -209,25 +204,33 @@ async def annotate_post_rows(
     if user_id is None:
         return
     await posts_service.attach_reactions(session, *rows)
-    if own_read_state:
-        await posts_service.annotate_read_state(session, rows, user_id=user_id)
+    await posts_service.annotate_read_state(session, rows, user_id=user_id)
     await posts_service.annotate_read_counts(session, rows)
     await post_polls_service.annotate_poll_state(session, rows, user_id=user_id)
 
 
-async def _refetch_post(
-    session: RLSSessionDep, post_id: int, *, user_id: int | None
-) -> Post:
+async def read_after_write(
+    session: RLSSessionDep,
+    post_id: int,
+    user: Optional[User],
+    guild_context: ActorContext,
+) -> PostRead:
+    """The notice a write answers with: re-read after the commit and annotated
+    the way a read is — count, chips, tallies and read state.
+
+    Registered in ``tool_lists.TOOL_LISTS`` so the shared sharing route
+    (``tool_grants.py``) answers in this tool's own shape.
+    """
     post = await posts_service.get_post(session, post_id, populate_existing=True)
     if not post:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=Tool.post.not_found_code,
         )
-    # Every write answers with the row a read would return — count, chips,
-    # tallies and all.
-    await annotate_post_rows(session, [post], user_id=user_id, own_read_state=False)
-    return post
+    await annotate_post_rows(session, [post], user_id=guild_context.user_id)
+    return serialize_tool(
+        PostRead, post, user_id=guild_context.user_id, context=guild_context
+    )
 
 
 def board_conditions(
@@ -252,13 +255,12 @@ def board_conditions(
     applies those itself (``properties_service.property_filter_clauses``), and
     the timeline applies the same.
 
-    An installed app (``user_id`` ``None``) keeps no read markers, so ``unread``
+    An installed plug-in (``user_id`` ``None``) keeps no read markers, so ``unread``
     narrows nothing for it.
     """
     conditions = tool_listing.base_conditions(
         Tool.post,
         Post,
-        Initiative.posts_enabled,
         user_id,
         context=context,
         initiative_id=initiative_id,
@@ -361,7 +363,7 @@ async def create_post(
 ) -> PostRead:
     """Post a notice to an initiative's board. Requires create_posts permission
     on the initiative (or guild admin); the author gets the owner grant."""
-    resource_access.refuse_app_sharing(guild_context, post_in, "grants")
+    resource_access.refuse_plugin_sharing(guild_context, post_in, "grants")
     initiative = await resource_access.prepare_create(
         session, Tool.post, post_in.initiative_id, current_user, guild_context
     )
@@ -426,10 +428,7 @@ async def create_post(
         await _announce(session, post, author, guild_context)
 
     await session.commit()
-    hydrated = await _refetch_post(session, post.id, user_id=guild_context.user_id)
-    return serialize_tool(
-        PostRead, hydrated, user_id=guild_context.user_id, context=guild_context
-    )
+    return await read_after_write(session, post.id, current_user, guild_context)
 
 
 @router.patch("/{post_id}", response_model=PostRead)
@@ -512,10 +511,7 @@ async def update_post(
             await _announce(session, post, author, guild_context)
         await session.commit()
 
-    hydrated = await _refetch_post(session, post.id, user_id=guild_context.user_id)
-    return serialize_tool(
-        PostRead, hydrated, user_id=guild_context.user_id, context=guild_context
-    )
+    return await read_after_write(session, post.id, current_user, guild_context)
 
 
 @router.put("/{post_id}/pin", response_model=PostRead)
@@ -542,7 +538,7 @@ async def set_post_pin(
     the pin keeps its original time and author. A pin that has lapsed is a new
     pin, so that one re-stamps.
 
-    An installed app manages no initiative, so it pins the notices it may
+    An installed plug-in manages no initiative, so it pins the notices it may
     write: its own, and the ones shared with it at write.
     """
     post = await resource_access.load_authorized(
@@ -585,12 +581,7 @@ async def set_post_pin(
     post.updated_at = now
     session.add(post)
     await session.commit()
-    # Pinning reorders the whole board, not just this row.
-
-    hydrated = await _refetch_post(session, post.id, user_id=guild_context.user_id)
-    return serialize_tool(
-        PostRead, hydrated, user_id=guild_context.user_id, context=guild_context
-    )
+    return await read_after_write(session, post.id, current_user, guild_context)
 
 
 # ---------------------------------------------------------------------------
@@ -625,25 +616,7 @@ async def set_post_reaction_settings(
     post.updated_at = datetime.now(timezone.utc)
     session.add(post)
     await session.commit()
-    # The bar appears or goes on every board showing this notice.
     return PostReactionSettings(reactions_enabled=post.reactions_enabled)
-
-
-async def read_after_write(
-    session: RLSSessionDep,
-    post_id: int,
-    user: Optional[User],
-    guild_context: ActorContext,
-) -> PostRead:
-    """The notice a write answers with: re-read after the commit, serialized.
-
-    Registered in ``tool_lists.TOOL_LISTS`` so the shared sharing route
-    (``tool_grants.py``) answers in this tool's own shape.
-    """
-    hydrated = await _refetch_post(session, post_id, user_id=guild_context.user_id)
-    return serialize_tool(
-        PostRead, hydrated, user_id=guild_context.user_id, context=guild_context
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -796,11 +769,7 @@ async def set_post_poll(
     post.updated_at = datetime.now(timezone.utc)
     session.add(post)
     await session.commit()
-
-    hydrated = await _refetch_post(session, post_id, user_id=current_user.id)
-    return serialize_tool(
-        PostRead, hydrated, user_id=current_user.id, context=guild_context
-    )
+    return await read_after_write(session, post_id, current_user, guild_context)
 
 
 @router.delete("/{post_id}/poll", response_model=PostRead)
@@ -825,11 +794,7 @@ async def delete_post_poll(
     post.updated_at = datetime.now(timezone.utc)
     session.add(post)
     await session.commit()
-
-    hydrated = await _refetch_post(session, post_id, user_id=current_user.id)
-    return serialize_tool(
-        PostRead, hydrated, user_id=current_user.id, context=guild_context
-    )
+    return await read_after_write(session, post_id, current_user, guild_context)
 
 
 @router.put("/{post_id}/poll/vote", response_model=PostRead)
@@ -887,12 +852,7 @@ async def vote_on_post_poll(
         session, poll, user_id=current_user.id, option_ids=vote_in.option_ids
     )
     await session.commit()
-    # Everybody watching the poll is watching the tallies.
-
-    hydrated = await _refetch_post(session, post_id, user_id=current_user.id)
-    return serialize_tool(
-        PostRead, hydrated, user_id=current_user.id, context=guild_context
-    )
+    return await read_after_write(session, post_id, current_user, guild_context)
 
 
 @router.delete("/{post_id}/poll/vote", response_model=PostRead)
@@ -921,11 +881,7 @@ async def retract_post_poll_vote(
         )
     await post_polls_service.retract_vote(session, poll, user_id=current_user.id)
     await session.commit()
-
-    hydrated = await _refetch_post(session, post_id, user_id=current_user.id)
-    return serialize_tool(
-        PostRead, hydrated, user_id=current_user.id, context=guild_context
-    )
+    return await read_after_write(session, post_id, current_user, guild_context)
 
 
 @router.get("/{post_id}/poll/voters", response_model=PollVoters)

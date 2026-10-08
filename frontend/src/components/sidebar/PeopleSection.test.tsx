@@ -9,7 +9,10 @@ import { screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderPage } from "@/__tests__/helpers/render";
-import type { GuildRosterMember, GuildRosterResponse } from "@/api/generated/initiativeAPI.schemas";
+import type {
+  CommunityRosterMember,
+  CommunityRosterResponse,
+} from "@/api/generated/initiativeAPI.schemas";
 import { SidebarProvider } from "@/components/ui/sidebar";
 
 import { PeopleSection } from "./PeopleSection";
@@ -17,14 +20,14 @@ import { PeopleSection } from "./PeopleSection";
 const mocks = vi.hoisted(() => ({
   roster: vi.fn(),
   dmPolicy: "community" as string,
-  communities: [] as { guild_id: number; enabled: boolean }[],
+  communities: [] as { community_id: number; enabled: boolean }[],
 }));
 
-vi.mock("@/hooks/useActiveGuildId", () => ({ useActiveGuildId: () => 7 }));
+vi.mock("@/hooks/useActiveCommunityId", () => ({ useActiveCommunityId: () => 7 }));
 
 vi.mock("@/hooks/useUsers", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
-  useGuildRoster: () => mocks.roster(),
+  useCommunityRoster: () => mocks.roster(),
 }));
 vi.mock("@/hooks/useDirectMessages", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
@@ -34,14 +37,14 @@ vi.mock("@/hooks/useDirectMessages", async (importOriginal) => ({
   }),
 }));
 
-const member = (overrides: Partial<GuildRosterMember>): GuildRosterMember => ({
+const member = (overrides: Partial<CommunityRosterMember>): CommunityRosterMember => ({
   id: 1,
   username: "someone",
   discriminator: 1234,
-  full_name: null,
+  display_name: null,
   avatar_url: null,
   status: "active",
-  guild_role: "member",
+  community_role: "member",
   profile_decorations: null,
   presence: "offline",
   custom_status: { emoji: null, text: null },
@@ -49,8 +52,8 @@ const member = (overrides: Partial<GuildRosterMember>): GuildRosterMember => ({
 });
 
 const page = (
-  items: GuildRosterMember[],
-  presence_counts: GuildRosterResponse["presence_counts"],
+  items: CommunityRosterMember[],
+  presence_counts: CommunityRosterResponse["presence_counts"],
   has_next = false
 ) =>
   mocks.roster.mockReturnValue({
@@ -92,7 +95,7 @@ describe("PeopleSection", () => {
           id: 2,
           username: "bram",
           presence: "busy",
-          guild_role: "admin",
+          community_role: "admin",
           custom_status: { emoji: "🎧", text: "Heads down" },
         }),
         member({ id: 3, username: "cleo" }),
@@ -132,8 +135,8 @@ describe("PeopleSection", () => {
 
   it("tells a reader who switched this community off why they are not listed", async () => {
     mocks.communities = [
-      { guild_id: 7, enabled: false },
-      { guild_id: 8, enabled: true },
+      { community_id: 7, enabled: false },
+      { community_id: 8, enabled: true },
     ];
     page([], { online: 0, idle: 0, busy: 0, offline: 0 });
 
@@ -143,7 +146,7 @@ describe("PeopleSection", () => {
   });
 
   it("does not tell a reader this community can message", async () => {
-    mocks.communities = [{ guild_id: 8, enabled: false }];
+    mocks.communities = [{ community_id: 8, enabled: false }];
     page([], { online: 0, idle: 0, busy: 0, offline: 0 });
 
     render();

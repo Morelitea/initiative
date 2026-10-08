@@ -9,9 +9,10 @@ import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import { setAuthToken } from "@/api/client";
 import type { NotificationListResponse, UserRead } from "@/api/generated/initiativeAPI.schemas";
-import { getListNotificationsApiV1NotificationsGetQueryKey } from "@/api/generated/notifications/notifications";
+import { getListNotificationsQueryKey } from "@/api/generated/notifications/notifications";
 import { q } from "@/api/query-keys";
 import { AuthContext } from "@/hooks/useAuth";
+import { setAlertHandler } from "@/lib/desktopAlerts";
 import { queryClient } from "@/lib/queryClient";
 
 import { useNotificationStream, useNotificationStreamConnected } from "./useNotificationStream";
@@ -51,7 +52,7 @@ describe("useNotificationStream", () => {
     setAuthToken(null);
   });
 
-  it("connects to the user-scoped stream, with no guild in the address", () => {
+  it("connects to the user-scoped stream, with no community in the address", () => {
     renderWithProviders(<Probe />);
 
     expect(latestSocket().url).toContain("/api/v1/notifications/stream");
@@ -82,12 +83,25 @@ describe("useNotificationStream", () => {
     expect(timesNamed(q.notifications())).toBe(1);
   });
 
+  it("hands an alert to the desktop app and reads nothing for it", () => {
+    const announced = vi.fn();
+    setAlertHandler(announced);
+    renderWithProviders(<Probe />);
+    const socket = latestSocket();
+    socket.open();
+    invalidations.mockClear();
+
+    const frame = { resource: "alert", action: "created", ids: { notifications: [7] } };
+    socket.receive(frame);
+    setAlertHandler(null);
+
+    expect(announced).toHaveBeenCalledWith(frame);
+    expect(invalidations).not.toHaveBeenCalled();
+  });
+
   it("reads only the popover's first page when a line arrives", async () => {
     // The popover's own key, as `useAllUnreadNotifications` builds it.
-    const inboxKey = [
-      ...getListNotificationsApiV1NotificationsGetQueryKey({ limit: 50, unread_only: true }),
-      "history",
-    ];
+    const inboxKey = [...getListNotificationsQueryKey({ limit: 50, unread_only: true }), "history"];
     const held = Array.from({ length: 60 }, () => buildNotification());
     queryClient.setQueryData<InfiniteData<NotificationListResponse>>(inboxKey, {
       pages: [
@@ -174,6 +188,29 @@ describe("useNotificationStream", () => {
     // And neither of the other channels is disturbed.
     expect(refreshUser).not.toHaveBeenCalled();
     expect(timesNamed(q.notifications())).toBe(0);
+  });
+
+  it("re-reads the reader's tickets when one of them moved, and nothing else", () => {
+    const refreshUser = vi.fn();
+    renderWithProviders(<Probe />, { auth: { refreshUser } });
+    const socket = latestSocket();
+    socket.open();
+    refreshUser.mockClear();
+    invalidations.mockClear();
+    const open = ["/api/v1/me/tickets/7"];
+    const availability = ["/api/v1/me/tickets/availability"];
+    queryClient.setQueryData(open, { seeded: true });
+    queryClient.setQueryData(availability, { seeded: true });
+
+    socket.receive({ resource: "tickets", action: "changed", ids: {} });
+
+    expect(timesNamed(q.filedTickets())).toBe(1);
+    expect(queryClient.getQueryState(open)?.isInvalidated).toBe(true);
+    // What each kind of ticket offers did not move.
+    expect(queryClient.getQueryState(availability)?.isInvalidated).toBe(false);
+    expect(refreshUser).not.toHaveBeenCalled();
+    expect(timesNamed(q.notifications())).toBe(0);
+    queryClient.clear();
   });
 
   it("ignores a frame naming a channel it does not know", () => {

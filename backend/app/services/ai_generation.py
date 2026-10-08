@@ -15,6 +15,7 @@ from typing import Any
 import httpx
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.errors import CodedError
 from app.core.messages import AIMessages
 from app.models.tenant.task import Task
 from app.models.platform.user import User
@@ -33,14 +34,12 @@ _PROVIDER_FAULTS = frozenset(
 )
 
 
-class AIGenerationError(Exception):
+class AIGenerationError(CodedError):
     """A generation that failed, with the message code and status the
     endpoint answers: a fault on the provider's side is a bad gateway."""
 
     def __init__(self, code: str) -> None:
-        super().__init__(code)
-        self.code = code
-        self.status_code = 502 if code in _PROVIDER_FAULTS else 400
+        super().__init__(code, 502 if code in _PROVIDER_FAULTS else 400)
 
 
 @dataclass(frozen=True)
@@ -90,21 +89,21 @@ async def generate_description(
     return _truncate_output(content.strip(), _MAX_DESCRIPTION_LENGTH)
 
 
-async def generate_document_summary(
+async def generate_file_summary(
     session: AsyncSession,
     user: User,
     guild_id: int | None,
-    document_content: dict | None,
-    document_name: str,
+    file_content: dict | None,
+    file_name: str,
 ) -> str:
-    """Generate a summary of a document using configured AI provider."""
+    """Generate a summary of a file using configured AI provider."""
     # The editor state as markdown, which a model reads better than JSON
-    markdown_content = editor_markdown(document_content, reading=True)
+    markdown_content = editor_markdown(file_content, reading=True)
     if not markdown_content.strip():
         raise AIGenerationError(AIMessages.DOCUMENT_EMPTY)
 
     prompt = _build_summary_prompt(
-        document_name, markdown_content, locale=user.locale or "en"
+        file_name, markdown_content, locale=user.locale or "en"
     )
     content = await _generate(session, user, guild_id, prompt, _SUMMARY_JOB)
     return _truncate_output(content.strip(), _MAX_SUMMARY_LENGTH)
@@ -151,19 +150,19 @@ def _truncate_output(text: str, max_length: int) -> str:
 def _build_summary_prompt(
     title: str, content: str, *, locale: str = "en"
 ) -> tuple[str, str]:
-    """Build system/user prompt pair for document summarization."""
+    """Build system/user prompt pair for file summarization."""
     lang_instruction = _locale_instruction(locale)
     system_prompt = (
-        "Summarize the provided document in 2-4 paragraphs, focusing on the key points.\n"
+        "Summarize the provided file in 2-4 paragraphs, focusing on the key points.\n"
         "Write a clear, concise summary that captures the main ideas and important details.\n"
         f"{lang_instruction}"
         "Return ONLY the summary text, no other commentary."
     )
     user_content = (
-        f"<document>\n"
+        f"<file>\n"
         f"  <title>{html.escape(title)}</title>\n"
         f"  <content>\n{html.escape(content)}\n  </content>\n"
-        f"</document>"
+        f"</file>"
     )
     return system_prompt, user_content
 

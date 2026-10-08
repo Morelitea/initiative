@@ -19,9 +19,9 @@
 
 import { useCallback, useMemo, useRef } from "react";
 
-import { resolveAppBinding } from "@/api/appData";
-import { useAppData, useAppWidgetCatalog } from "@/hooks/useAppData";
-import { useDocument } from "@/hooks/useDocuments";
+import { resolvePluginBinding } from "@/api/pluginData";
+import { useFile } from "@/hooks/useFiles";
+import { usePluginData, usePluginWidgetCatalog } from "@/hooks/usePluginData";
 import { useSqlQuery, useWidgetQuery } from "@/hooks/useSqlQuery";
 import type { DataMeta, WidgetData, WidgetSource } from "@/lib/widgets/dataShapes";
 import { WidgetErrorCode } from "@/lib/widgets/errors";
@@ -43,14 +43,14 @@ export interface WidgetBinding {
    *  than leaving somebody to read their own statement back. Absent for a
    *  statement that did not come from the builder. */
   spec?: unknown;
-  document_id?: number | null;
+  file_id?: number | null;
   sheet?: string | null;
   range?: string | null;
-  /** `app`: which installed app, which of its sources, and the arguments the
+  /** `plugin`: which installed plug-in, which of its sources, and the arguments the
    *  source declared. The binding names a listing and a source id — never an
-   *  address. Where the app lives comes from the deployment's registration, and
+   *  address. Where the plug-in lives comes from the deployment's registration, and
    *  only the server ever reads it. */
-  app_uid?: string | null;
+  plugin_uid?: string | null;
   endpoint_id?: string | null;
   params?: Record<string, unknown> | null;
 }
@@ -87,7 +87,7 @@ export interface WidgetDataResult {
  * `initiativeId` is the dashboard's own — every fetch below is scoped to it, and
  * a binding cannot say otherwise: dashboards are an initiative's tool, so a
  * widget reads that initiative and nothing else. Without an initiative nothing
- * is fetched at all (unbound, not guild-wide), and a document fetched by id is
+ * is fetched at all (unbound, not community-wide), and a file fetched by id is
  * held against the initiative afterwards, so an id pointing into another one
  * resolves to absent — the same rendering as a deleted or unshared target.
  *
@@ -100,8 +100,8 @@ export interface WidgetDataResult {
  * carrying a statement needs it, and only to have the *stored* one run: nothing
  * here says what to run.
  *
- * `dashboardId` is the row the widget sits on, and only the `app` source needs
- * it: an app's data is guild-level, so the proxy is told which
+ * `dashboardId` is the row the widget sits on, and only the `plugin` source needs
+ * it: a plug-in's data is community-level, so the proxy is told which
  * initiative-scoped surface is asking and decides the read against *that* row's
  * gates.
  */
@@ -150,31 +150,33 @@ export function useWidgetData(
     { enabled: scoped && source === "query" && !placed }
   );
   const answering = placed ? widgetQuery : sqlQuery;
-  const documentQuery = useDocument(
-    scoped && source === "sheet_range" ? (binding.document_id ?? null) : null
-  );
+  const fileQuery = useFile(scoped && source === "sheet_range" ? (binding.file_id ?? null) : null);
 
-  // The app palette is one request per guild, shared by every app widget on the
-  // canvas. It is what turns a binding's `app_uid` into an install id and tells
+  // The plug-in palette is one request per community, shared by every plug-in widget on the
+  // canvas. It is what turns a binding's `plugin_uid` into an install id and tells
   // us what freshness the source asks for.
-  const isApp = source === "app";
-  const appCatalogQuery = useAppWidgetCatalog(scoped && isApp);
-  const appBinding = resolveAppBinding(appCatalogQuery.data, binding.app_uid, binding.endpoint_id);
-  const appQuery = useAppData({
-    appId: appBinding?.entry.app_id,
+  const isPlugin = source === "plugin";
+  const pluginCatalogQuery = usePluginWidgetCatalog(scoped && isPlugin);
+  const pluginBinding = resolvePluginBinding(
+    pluginCatalogQuery.data,
+    binding.plugin_uid,
+    binding.endpoint_id
+  );
+  const pluginQuery = usePluginData({
+    pluginId: pluginBinding?.entry.plugin_id,
     endpointId: binding.endpoint_id ?? undefined,
     dashboardId,
     params: binding.params ?? undefined,
     widgetId,
-    cacheTtlSeconds: appBinding?.source.cache_ttl_seconds,
-    enabled: scoped && isApp,
+    cacheTtlSeconds: pluginBinding?.source.cache_ttl_seconds,
+    enabled: scoped && isPlugin,
   });
 
   const refetch = useCallback(() => {
     if (source === "query") void answering.refetch();
-    if (source === "sheet_range") void documentQuery.refetch();
-    if (isApp) void appQuery.refetch();
-  }, [source, isApp, answering.refetch, documentQuery.refetch, appQuery.refetch]);
+    if (source === "sheet_range") void fileQuery.refetch();
+    if (isPlugin) void pluginQuery.refetch();
+  }, [source, isPlugin, answering.refetch, fileQuery.refetch, pluginQuery.refetch]);
 
   return useMemo<WidgetDataResult>(() => {
     const unbound = (): WidgetDataResult => ({
@@ -237,12 +239,11 @@ export function useWidgetData(
       }
 
       case "sheet_range": {
-        if (!binding.document_id || !binding.range) return unbound();
-        // A document outside this initiative is absent, not readable.
-        const document =
-          documentQuery.data?.initiative_id === initiativeId ? documentQuery.data : undefined;
-        const range = document ? normalizeSheetRange(document, binding.sheet, binding.range) : null;
-        if (!range) return absent(documentQuery);
+        if (!binding.file_id || !binding.range) return unbound();
+        // A file outside this initiative is absent, not readable.
+        const file = fileQuery.data?.initiative_id === initiativeId ? fileQuery.data : undefined;
+        const range = file ? normalizeSheetRange(file, binding.sheet, binding.range) : null;
+        if (!range) return absent(fileQuery);
         const meta: DataMeta = { total: range.rows.length, truncated: false };
         return {
           data: { source: "rows", ...range, meta },
@@ -254,13 +255,13 @@ export function useWidgetData(
         };
       }
 
-      case "app": {
-        // A definition that never had the app filled in, or a canvas with no
+      case "plugin": {
+        // A definition that never had the plug-in filled in, or a canvas with no
         // dashboard behind it (a preview). Neither is an error.
-        if (!binding.app_uid || !binding.endpoint_id || typeof dashboardId !== "number") {
+        if (!binding.plugin_uid || !binding.endpoint_id || typeof dashboardId !== "number") {
           return unbound();
         }
-        if (appCatalogQuery.isLoading) {
+        if (pluginCatalogQuery.isLoading) {
           return {
             data: emptyDataFor(source),
             isLoading: true,
@@ -269,62 +270,62 @@ export function useWidgetData(
             refetch,
           };
         }
-        // A catalog that failed to load says nothing about whether this app is
+        // A catalog that failed to load says nothing about whether this plug-in is
         // installed, so it must not be read as "not installed" — that would
-        // render every app widget on the dashboard as unconfigured and invite
+        // render every plug-in widget on the dashboard as unconfigured and invite
         // someone to repoint bindings that were never wrong.
-        if (appCatalogQuery.isError) {
+        if (pluginCatalogQuery.isError) {
           return {
             data: emptyDataFor(source),
             isLoading: false,
             isUnbound: false,
             isRestricted: false,
             refetch,
-            errorCode: WidgetErrorCode.APP_UNAVAILABLE,
+            errorCode: WidgetErrorCode.PLUGIN_UNAVAILABLE,
           };
         }
-        // The catalog answered and the app is not in it: uninstalled, or
+        // The catalog answered and the plug-in is not in it: uninstalled, or
         // switched off. Said plainly rather than rendered as an access outcome
-        // — the definition is the guild's and stays stored, and the tile
-        // becomes the surface that asks for the app to be reconnected.
-        const appInstalled = (appCatalogQuery.data?.items ?? []).some(
-          (item) => item.app_uid === binding.app_uid
+        // — the definition is the community's and stays stored, and the tile
+        // becomes the surface that asks for the plug-in to be reconnected.
+        const pluginInstalled = (pluginCatalogQuery.data?.items ?? []).some(
+          (item) => item.plugin_uid === binding.plugin_uid
         );
-        if (!appInstalled) {
+        if (!pluginInstalled) {
           return {
             data: emptyDataFor(source),
             isLoading: false,
             isUnbound: false,
             isRestricted: false,
             refetch,
-            errorCode: WidgetErrorCode.APP_NOT_INSTALLED,
+            errorCode: WidgetErrorCode.PLUGIN_NOT_INSTALLED,
           };
         }
         // Installed, but its pinned version stopped offering this source —
         // the catalog answered, so this is absence rather than a failure.
-        if (!appBinding) return absent({ isLoading: false, isError: false });
-        // An app that stopped answering does not blank a tile that already has
+        if (!pluginBinding) return absent({ isLoading: false, isError: false });
+        // A plug-in that stopped answering does not blank a tile that already has
         // rows: React Query keeps the last good body for this key, and showing
         // it is more useful than showing nothing. The error tile is for when
         // there is genuinely nothing to draw.
-        if (appQuery.isError && !appQuery.data) {
+        if (pluginQuery.isError && !pluginQuery.data) {
           return {
             data: emptyDataFor(source),
             isLoading: false,
             isUnbound: false,
             isRestricted: false,
             refetch,
-            errorCode: WidgetErrorCode.APP_UNAVAILABLE,
+            errorCode: WidgetErrorCode.PLUGIN_UNAVAILABLE,
           };
         }
-        const rows = appQuery.data?.rows ?? [];
-        const values = appQuery.data?.values ?? {};
+        const rows = pluginQuery.data?.rows ?? [];
+        const values = pluginQuery.data?.values ?? {};
         const meta: DataMeta = { total: rows.length };
-        // A binding with a statement asks a question of the app's rows, and the
+        // A binding with a statement asks a question of the plug-in's rows, and the
         // server answers with a table — the same envelope a query produces. So
-        // a chart can be pointed at an app, while an app's own module keeps
-        // being handed the app's own shape.
-        const table = appQuery.data?.table;
+        // a chart can be pointed at a plug-in, while a plug-in's own module keeps
+        // being handed the plug-in's own shape.
+        const table = pluginQuery.data?.table;
         if (table) {
           const described = table.columns ?? [];
           const answered: DataMeta = { total: table.rows?.length ?? 0 };
@@ -334,7 +335,7 @@ export function useWidgetData(
               ...normalizeQueryRows(described, table.rows ?? []),
               meta: answered,
             },
-            isLoading: appQuery.isLoading,
+            isLoading: pluginQuery.isLoading,
             isUnbound: false,
             isRestricted: false,
             refetch,
@@ -346,7 +347,7 @@ export function useWidgetData(
           // here. Nothing on this side looks inside either half; the sandbox is
           // handed them as values.
           data: { source, rows, values, meta },
-          isLoading: appQuery.isLoading,
+          isLoading: pluginQuery.isLoading,
           isUnbound: false,
           isRestricted: false,
           refetch,
@@ -361,27 +362,27 @@ export function useWidgetData(
     source,
     initiativeId,
     binding.sql,
-    binding.document_id,
+    binding.file_id,
     binding.range,
     binding.sheet,
     answering.data,
     answering.isLoading,
     answering.isError,
-    documentQuery.data,
-    documentQuery.isLoading,
-    documentQuery.isError,
+    fileQuery.data,
+    fileQuery.isLoading,
+    fileQuery.isError,
     scoped,
     dashboardId,
-    binding.app_uid,
+    binding.plugin_uid,
     binding.endpoint_id,
-    appBinding,
-    appCatalogQuery.data,
-    appCatalogQuery.isLoading,
-    appCatalogQuery.isError,
-    appQuery.data,
-    appQuery.isLoading,
-    appQuery.isError,
+    pluginBinding,
+    pluginCatalogQuery.data,
+    pluginCatalogQuery.isLoading,
+    pluginCatalogQuery.isError,
+    pluginQuery.data,
+    pluginQuery.isLoading,
+    pluginQuery.isError,
     refetch,
-    documentQuery,
+    fileQuery,
   ]);
 }

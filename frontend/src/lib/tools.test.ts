@@ -17,7 +17,9 @@ import {
   Tool,
 } from "@/api/generated/initiativeAPI.schemas";
 import { TOOL_SKETCHES } from "@/components/initiatives/ToolSkeletons";
+import { EXTRA_PERMISSION_KEYS } from "@/hooks/useInitiativeRoles";
 import { PALETTE_TOOLS, TOOL_PALETTE } from "@/lib/toolPalette";
+import { TOOL_HAS_DETAIL } from "@/lib/toolRows";
 import {
   counterRoute,
   entityRefRoute,
@@ -52,17 +54,17 @@ import {
 
 import access from "../../public/locales/en/access.json";
 import command from "../../public/locales/en/command.json";
-import guildHome from "../../public/locales/en/guildHome.json";
+import communityHome from "../../public/locales/en/communityHome.json";
 import initiatives from "../../public/locales/en/initiatives.json";
 import nav from "../../public/locales/en/nav.json";
 import trash from "../../public/locales/en/trash.json";
 
-// Route files (keys only — nothing is loaded). The guild tree holds each
+// Route files (keys only — nothing is loaded). The community tree holds each
 // tool's tab, detail, and settings routes, nested under their initiative.
-const guildRouteFiles = Object.keys(
-  import.meta.glob("../routes/_serverRequired/_authenticated/c/$guildId/**/*.tsx")
+const communityRouteFiles = Object.keys(
+  import.meta.glob("../routes/_serverRequired/_authenticated/c/$communityId/**/*.tsx")
 );
-const INITIATIVE_ROUTES = "../routes/_serverRequired/_authenticated/c/$guildId/i/$initiativeId";
+const INITIATIVE_ROUTES = "../routes/_serverRequired/_authenticated/c/$communityId/i/$initiativeId";
 // Every page and component, as source text. Read rather than rendered: what
 // is being asked is which tool a surface WIRES UP, and mounting nine detail
 // pages to find out would cost more than the drift it catches.
@@ -99,7 +101,10 @@ describe("tool registry", () => {
   });
 
   it("derives the exact permission keys the API exposes", () => {
-    const derived = TOOLS.flatMap((tool) => [toolViewPermission(tool), toolCreatePermission(tool)]);
+    const derived = [
+      ...TOOLS.flatMap((tool) => [toolViewPermission(tool), toolCreatePermission(tool)]),
+      ...EXTRA_PERMISSION_KEYS,
+    ];
     expect(derived.sort()).toEqual(Object.values(PermissionKey).sort());
   });
 
@@ -140,12 +145,12 @@ describe("tool i18n", () => {
     }
   });
 
-  it("guild home names every tool's own table column", () => {
-    const detail = guildHome.columns.detail as Record<string, string>;
-    for (const tool of TOOLS) {
+  it("community home names every tool's own table column", () => {
+    const detail = communityHome.columns.detail as Record<string, string>;
+    for (const tool of TOOLS.filter((candidate) => TOOL_HAS_DETAIL[candidate])) {
       expect(
         detail[toolCamelPlural(tool)],
-        `missing guildHome.json columns.detail.${toolCamelPlural(tool)}`
+        `missing communityHome.json columns.detail.${toolCamelPlural(tool)}`
       ).toBeTruthy();
     }
   });
@@ -213,12 +218,12 @@ describe("tool i18n", () => {
 describe("tool routes", () => {
   // A tool's list IS its initiative tab, so the route lives inside the
   // initiative tree. Six sibling files rather than one dynamic $toolSegment
-  // route: a dynamic segment beside `settings`/`apps` would resolve by
+  // route: a dynamic segment beside `settings`/`plugins` would resolve by
   // static-beats-dynamic ranking, which fails silently and only at runtime.
   it("every tool has its initiative tab route", () => {
     for (const tool of TOOLS) {
       const file = `${INITIATIVE_ROUTES}/${toolRouteSegment(tool)}/index.tsx`;
-      expect(guildRouteFiles, `missing tab route file ${file}`).toContain(file);
+      expect(communityRouteFiles, `missing tab route file ${file}`).toContain(file);
     }
   });
 
@@ -226,7 +231,7 @@ describe("tool routes", () => {
   it("every tool has its per-entity detail route", () => {
     for (const tool of TOOLS) {
       const file = `${INITIATIVE_ROUTES}/${toolRouteSegment(tool)}/$${toolParamName(tool)}/index.tsx`;
-      expect(guildRouteFiles, `missing detail route file ${file}`).toContain(file);
+      expect(communityRouteFiles, `missing detail route file ${file}`).toContain(file);
     }
   });
 
@@ -235,7 +240,7 @@ describe("tool routes", () => {
   it("every tool has its per-entity settings route", () => {
     for (const tool of TOOLS) {
       const file = `${INITIATIVE_ROUTES}/${toolRouteSegment(tool)}/$${toolParamName(tool)}/settings.tsx`;
-      expect(guildRouteFiles, `missing settings route file ${file}`).toContain(file);
+      expect(communityRouteFiles, `missing settings route file ${file}`).toContain(file);
     }
   });
 
@@ -246,7 +251,7 @@ describe("tool routes", () => {
       const settings = `${INITIATIVE_ROUTES}/${toolRouteSegment(tool)}/$${toolParamName(tool)}/settings`;
       for (const section of TOOL_SETTINGS_SECTIONS) {
         const file = section === "details" ? `${settings}/index.tsx` : `${settings}/${section}.tsx`;
-        expect(guildRouteFiles, `missing settings section route file ${file}`).toContain(file);
+        expect(communityRouteFiles, `missing settings section route file ${file}`).toContain(file);
       }
     }
   });
@@ -254,7 +259,7 @@ describe("tool routes", () => {
   // The tab routes are siblings of the initiative's own static children, so a
   // tool whose segment collided with one would be unreachable.
   it("no tool segment collides with a reserved initiative child route", () => {
-    const reserved = new Set(["settings", "apps"]);
+    const reserved = new Set(["settings", "plugins"]);
     for (const tool of TOOLS) {
       expect(
         reserved.has(toolRouteSegment(tool)),
@@ -300,9 +305,9 @@ describe("tool route builders", () => {
     );
   });
 
-  // Only calendars have guild-level entities (an app installs one). A null
-  // initiative means "address me at the guild route", never "unknown".
-  it("keeps a guild-level entity at its guild route", () => {
+  // Only calendars have community-level entities (a plug-in installs one). A null
+  // initiative means "address me at the community route", never "unknown".
+  it("keeps a community-level entity at its community route", () => {
     expect(toolListRoute(Tool.calendar, null)).toBe("/calendars");
     expect(toolDetailRoute(Tool.calendar, null, 3)).toBe("/calendars/3");
     expect(toolSettingsRoute(Tool.calendar, null, 3)).toBe("/calendars/3/settings");
@@ -321,7 +326,7 @@ describe("tool route builders", () => {
   });
 
   it("routes a bare id through the resolver", () => {
-    expect(entityRefRoute("document", 42)).toBe("/go/document/42");
+    expect(entityRefRoute("file", 42)).toBe("/go/file/42");
   });
 });
 
@@ -406,12 +411,12 @@ describe("tool properties", () => {
 
 describe("tool surfaces are wired, not just typed", () => {
   // Both of these shipped broken because the shape they fill is keyed by Tool
-  // but every key was optional: the guild home's table asked for posts, got a
+  // but every key was optional: the community home's table asked for posts, got a
   // response, and mapped it through a record that never mentioned them —
   // "No results", with nothing for the compiler to object to. The types are
   // required now; these pin the sources that fill them.
 
-  it("the guild-home row builder handles every tool", async () => {
+  it("the community-home row builder handles every tool", async () => {
     const { buildToolRows } = await import("@/lib/toolRows");
     const empty = Object.fromEntries(TOOLS.map((tool) => [tool, undefined])) as Parameters<
       typeof buildToolRows
@@ -429,30 +434,27 @@ describe("tool surfaces are wired, not just typed", () => {
 
 describe("tool exports", () => {
   it("every bulk-export tool has a format source, and only those", async () => {
-    const { DOCUMENT_TYPE_FORMATS, TOOL_EXPORT_FORMATS } = await import(
-      "@/components/exports/formats"
-    );
-    const { DocumentType } = await import("@/api/generated/initiativeAPI.schemas");
+    const { FILE_TYPE_FORMATS, TOOL_EXPORT_FORMATS } = await import("@/components/exports/formats");
+    const { FileType } = await import("@/api/generated/initiativeAPI.schemas");
     const { BULK_EXPORT_TOOLS } = await import("@/lib/tools");
 
     for (const tool of BULK_EXPORT_TOOLS) {
-      // Documents are per-type (their format set depends on the selection);
-      // every document type must offer at least one engine format.
-      if (tool === Tool.document) continue;
+      // Files are per-type (their format set depends on the selection);
+      // every file type must offer at least one engine format.
+      if (tool === Tool.file) continue;
       expect(
         TOOL_EXPORT_FORMATS[tool]?.length,
         `missing TOOL_EXPORT_FORMATS[${tool}]`
       ).toBeGreaterThan(0);
     }
-    for (const type of Object.values(DocumentType)) {
-      expect(
-        DOCUMENT_TYPE_FORMATS[type]?.length,
-        `missing DOCUMENT_TYPE_FORMATS.${type}`
-      ).toBeGreaterThan(0);
+    for (const type of Object.values(FileType)) {
+      expect(FILE_TYPE_FORMATS[type]?.length, `missing FILE_TYPE_FORMATS.${type}`).toBeGreaterThan(
+        0
+      );
     }
     // Exact coverage: a formats entry for a non-export tool is drift too.
     for (const tool of TOOLS) {
-      if (NON_EXPORTABLE_TOOLS.has(tool) && tool !== Tool.document) {
+      if (NON_EXPORTABLE_TOOLS.has(tool) && tool !== Tool.file) {
         expect(
           TOOL_EXPORT_FORMATS[tool],
           `${tool} declares formats but is in NON_EXPORTABLE_TOOLS`
@@ -504,13 +506,13 @@ describe("tool imports", () => {
       const file = await import(`../../public/locales/${locale}/exports.json`);
       const labels = (file.default ?? file).table.source as Record<string, string>;
       // `tasks` and `events` are the filterable task and event lists and
-      // `initiative`/`guild` are the aggregate backup scopes — the same four
-      // non-tool sources the backend's adapter-coverage test allows.
+      // `initiative`/`community` are the aggregate backup scopes — the same
+      // four non-tool sources the backend's adapter-coverage test allows.
       const expected = [
         "tasks",
         "events",
         "initiative",
-        "guild",
+        "community",
         ...BULK_EXPORT_TOOLS.map(toolKebabSingular),
       ];
       expect(Object.keys(labels).sort(), `${locale}/exports.json table.source`).toEqual(

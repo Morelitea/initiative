@@ -134,13 +134,13 @@ export const ratchet = {
       oneTimeKeySignature,
       fallback
     ),
-  inspectPreKey: (ciphertext: string) => call<PreKeyInspected>("inspectPreKey", ciphertext),
+  inspectPreKey: (ciphertext: string) => call<PreKeyInspected | null>("inspectPreKey", ciphertext),
   createInboundSession: (pickle: string, theirIdentityKey: string, ciphertext: string) =>
-    call<InboundSession>("createInboundSession", pickle, theirIdentityKey, ciphertext),
+    call<InboundSession | null>("createInboundSession", pickle, theirIdentityKey, ciphertext),
   encrypt: (sessionPickle: string, plaintext: string) =>
     call<Encrypted>("encrypt", sessionPickle, plaintext),
   decrypt: (sessionPickle: string, messageType: number, ciphertext: string) =>
-    call<Decrypted>("decrypt", sessionPickle, messageType, ciphertext),
+    call<Decrypted | null>("decrypt", sessionPickle, messageType, ciphertext),
   verificationOpen: (txn: string) => call<string>("verificationOpen", txn),
   verificationEstablish: (txn: string, theirKey: string) =>
     call<void>("verificationEstablish", txn, theirKey),

@@ -39,9 +39,31 @@ def test_every_builtin_role_answers_for_every_permission_key():
         assert set(role_permissions) == set(PermissionKey)
 
 
+def test_kinds_keep_their_codes_and_live_where_their_sharing_says():
+    """Codes are the high bits of every stored node id.
+
+    Changing one silently re-encodes a kind: rows written before keep the old
+    value, rows after get the new one, and nothing errors. This is the test that
+    holds that rule, because the database cannot. A kind inside a tool names
+    the tool whose sharing the policies already gate it by.
+    """
+    from app.core.tools import KINDS
+    from app.db.initiative_rls import governing_path
+
+    codes = [kind.code for kind in KINDS.values()]
+    assert len(codes) == len(set(codes))
+    assert all(code > 0 for code in codes)
+    for kind in KINDS.values():
+        if kind.parent is not None:
+            assert governing_path(kind.table) == (
+                kind.parent,
+                ((kind.parent_column, kind.parent.plural),),
+            ), kind.value
+
+
 def test_every_tool_has_an_initiative_master_switch():
     # EVERY tool has an initiative-level `{plural}_enabled` master switch (model
-    # column + read/create/update schema fields) — projects and documents
+    # column + read/create/update schema fields) — projects and files
     # included, which is the whole of making them optional.
     from app.models.tenant.initiative import Initiative
     from app.schemas.tenant.initiative import InitiativeBase, InitiativeUpdate
@@ -55,7 +77,7 @@ def test_every_tool_has_an_initiative_master_switch():
     assert switches <= update_fields
 
 
-def test_an_initiative_starts_with_projects_and_documents_on():
+def test_an_initiative_starts_with_projects_and_files_on():
     # Optional is not the same as off. An initiative created without an opinion
     # about its tools is the one people already had, so the two that used to be
     # unconditional keep arriving switched on and everything else stays opt-in.
@@ -63,7 +85,7 @@ def test_an_initiative_starts_with_projects_and_documents_on():
     from app.models.tenant.initiative import Initiative
     from app.schemas.tenant.initiative import InitiativeBase
 
-    assert DEFAULT_ENABLED_TOOLS == {Tool.project, Tool.document}
+    assert DEFAULT_ENABLED_TOOLS == {Tool.project, Tool.file}
     for tool in Tool:
         expected = tool in DEFAULT_ENABLED_TOOLS
         assert Initiative.model_fields[tool.view_permission].default is expected
@@ -82,20 +104,6 @@ def test_recent_entity_types_agree_across_surfaces():
     assert set(RECENT_ENTITY_TYPES) == derived
     assert set(RECENT_ENTITY_TABLES) == derived
     assert {e.value for e in RecentEntityType} == derived
-
-
-def test_every_tool_is_taggable():
-    # Tag assignment spans EVERY tool plus exactly the declared content-level
-    # extras — the registry, the canonical target list, and the bulk-edit wire
-    # enum all agree. A new tool that forgets its TagLinkSpec fails here.
-    from app.core.tools import TAG_TARGETS, TAGGABLE_EXTRAS
-    from app.schemas.tenant.tag import TagTarget
-    from app.services.tenant.tags import EXTRA_TAG_LINKS, TAG_LINKS, TOOL_TAG_LINKS
-
-    assert set(TOOL_TAG_LINKS) == set(Tool)
-    assert set(EXTRA_TAG_LINKS) == set(TAGGABLE_EXTRAS)
-    assert set(TAG_LINKS) == set(TAG_TARGETS)
-    assert {t.value for t in TagTarget} == set(TAG_TARGETS)
 
 
 def test_every_tool_is_commentable():
@@ -228,7 +236,9 @@ def test_every_tool_read_schema_reports_the_comment_switch():
     schema = app.openapi()
     for tool in Tool:
         pattern = re.compile(
-            r"^/api/v1/c/\{guild_id\}/" + re.escape(tool.route_segment) + r"/\{\w+\}$"
+            r"^/api/v1/c/\{community_id\}/"
+            + re.escape(tool.route_segment)
+            + r"/\{\w+\}$"
         )
         detail = next(
             (
@@ -296,7 +306,7 @@ def test_the_generic_tool_tags_route_is_the_only_tool_set_tags_surface():
         for path, item in spec["paths"].items()
         if "put" in item and path.endswith("/tags")
     }
-    generic = "/api/v1/c/{guild_id}/tools/{tool}/{tool_id}/tags"
+    generic = "/api/v1/c/{community_id}/tools/{tool}/{tool_id}/tags"
     assert put_tag_paths == {generic}
 
     tool_param = next(
@@ -311,7 +321,7 @@ def test_the_generic_tool_tags_route_is_the_only_tool_set_tags_surface():
 def test_every_tool_mounts_its_list_route():
     # A tool's guild-wide list is mounted from TOOL_LISTS for every tool
     # (tenant_endpoints/tool_lists.py), which also feeds the one sidebar-counts
-    # route. The operation-id stem is asserted too: it is the generated
+    # route. The operation id is asserted too: it is the generated
     # frontend client's function name, so a tool that loses its list — or
     # gains a hand-written copy somewhere else — fails here rather than
     # silently changing the client.
@@ -323,8 +333,8 @@ def test_every_tool_mounts_its_list_route():
     spec = app.openapi()
     for tool in Tool:
         segment = tool.route_segment
-        listing = spec["paths"][f"/api/v1/c/{{guild_id}}/{segment}/"]["get"]
-        assert listing["operationId"].startswith(f"list_{tool.plural}_"), tool
+        listing = spec["paths"][f"/api/v1/c/{{community_id}}/{segment}/"]["get"]
+        assert listing["operationId"] == f"list_{tool.plural}", tool
         # Every tool is taggable, so every list narrows by tag.
         assert "tag_ids" in {p["name"] for p in listing["parameters"]}, tool
 
@@ -333,7 +343,7 @@ def test_every_tool_mounts_the_grants_route():
     # Sharing is one route, mounted from the resource-access registry for every
     # tool (tenant_endpoints/tool_grants.py). The exact equality means a tool
     # that loses it — or a hand-written copy added back somewhere else — fails
-    # here. The operation-id stem is asserted too: it is the generated frontend
+    # here. The operation id is asserted too: it is the generated frontend
     # client's function name.
     from app.api.resource_access import RESOURCE_ACCESS
     from app.main import app
@@ -341,7 +351,7 @@ def test_every_tool_mounts_the_grants_route():
     spec = app.openapi()
     mounted = {path for path in spec["paths"] if path.endswith("/grants")}
     expected = {
-        f"/api/v1/c/{{guild_id}}/{tool.route_segment}"
+        f"/api/v1/c/{{community_id}}/{tool.route_segment}"
         f"/{{{RESOURCE_ACCESS[tool].path_param}}}/grants"
         for tool in Tool
     }
@@ -349,21 +359,21 @@ def test_every_tool_mounts_the_grants_route():
 
     for tool in Tool:
         path = (
-            f"/api/v1/c/{{guild_id}}/{tool.route_segment}"
+            f"/api/v1/c/{{community_id}}/{tool.route_segment}"
             f"/{{{RESOURCE_ACCESS[tool].path_param}}}/grants"
         )
         item = spec["paths"][path]
         assert set(item) == {"put"}, tool
-        assert item["put"]["operationId"].startswith(f"set_{tool.value}_grants"), tool
+        assert item["put"]["operationId"] == f"set_{tool.value}_grants", tool
 
 
 def test_every_tool_mounts_its_cross_guild_list_route():
     # The My Tools page's list is one route, mounted from MY_TOOL_LISTS for
-    # every tool (tenant_endpoints/me_tools.py). Projects, documents and
+    # every tool (tenant_endpoints/me_tools.py). Projects, files and
     # calendars each carried a hand-written copy of it until this registry took
     # them over, so the count is asserted as well as the presence: a tool that
     # loses its list, or grows a second one anywhere else under /me, fails here
-    # rather than silently changing the client. The operation-id stem is the
+    # rather than silently changing the client. The operation id is the
     # generated frontend client's function name.
     from app.api.v1.tenant_endpoints.me_tools import MY_TOOL_LISTS
     from app.main import app
@@ -379,14 +389,14 @@ def test_every_tool_mounts_its_cross_guild_list_route():
     for tool in Tool:
         path = f"/api/v1/me/{tool.route_segment}"
         listing = spec["paths"][path]["get"]
-        stem = f"list_my_{tool.plural}_"
-        assert listing["operationId"].startswith(stem), tool
-        assert sum(oid.startswith(stem) for oid in operation_ids) == 1, tool
+        name = f"list_my_{tool.plural}"
+        assert listing["operationId"] == name, tool
+        assert operation_ids.count(name) == 1, tool
 
 
 def test_tool_models_spell_the_shared_columns_the_same():
     # The facts every tool table carries spell the same on each of them: one
-    # display column called `name` (documents said `title` until 0191), and
+    # display column called `name` (files said `title` until 0191), and
     # the shared scope/author/lifecycle columns under their canonical names.
     # A new tool that renames one of these — or labels rows through a synonym
     # like `title`/`label` — fails here. Sub-resources (tasks, queue items,
@@ -429,8 +439,8 @@ def test_export_adapters_cover_exactly_the_bulk_export_tools():
     extra = set(ADAPTERS) - derived
     assert derived <= set(ADAPTERS), f"missing adapters for {derived - set(ADAPTERS)}"
     # "tasks" and "events" are the filterable task and event lists, not a
-    # Tool; "initiative"/"guild" are the aggregate backup/report scopes.
-    allowed = {"tasks", "events", "initiative", "guild"}
+    # Tool; "initiative"/"community" are the aggregate backup/report scopes.
+    allowed = {"tasks", "events", "initiative", "community"}
     assert extra == allowed, f"unregistered export sources: {extra - allowed}"
     # Tools without the flag must not silently grow an adapter either.
     unflagged = {

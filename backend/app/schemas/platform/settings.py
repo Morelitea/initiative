@@ -1,7 +1,7 @@
 import json
 from typing import Annotated, List, Literal, Optional
 
-from pydantic import ConfigDict, EmailStr, Field, field_validator
+from pydantic import AliasChoices, ConfigDict, EmailStr, Field, field_validator
 
 from app.core.config import CaptchaProvider, StorageBackendKind
 from app.core.login_methods import LoginMethod, SecondFactorRequirement
@@ -11,7 +11,7 @@ from app.models.platform.app_setting import (
     MIN_GUILD_RETENTION_DAYS,
 )
 from app.models.platform.user_dm_settings import DmPolicy
-from app.schemas.base import RawTextStr, SanitizedBaseModel
+from app.schemas.base import RawTextStr, SanitizedBaseModel, reject_null
 
 
 class AuthProviderOwnerRead(SanitizedBaseModel):
@@ -99,7 +99,9 @@ class AuthProviderUpdate(SanitizedBaseModel):
     icon: Optional[str] = Field(default=None, max_length=64)
     button_style: Optional[str] = Field(default=None, max_length=64)
 
-    @field_validator(
+    # An explicit null would strip config a login-ready row requires (the login
+    # flow refuses config-incomplete providers).
+    _required = reject_null(
         "display_name",
         "issuer",
         "client_id",
@@ -107,13 +109,6 @@ class AuthProviderUpdate(SanitizedBaseModel):
         "allow_jit",
         "asserts_second_factor",
     )
-    @classmethod
-    def _no_explicit_null(cls, value, info):
-        """Absent means keep; an explicit null would strip config a login-ready
-        row requires (the login flow refuses config-incomplete providers)."""
-        if value is None:
-            raise ValueError(f"{info.field_name} cannot be null")
-        return value
 
     @field_validator("issuer")
     @classmethod
@@ -191,7 +186,7 @@ ClaimValue = Annotated[str, Field(max_length=256)]
 MAX_CLAIM_VALUES = 64
 
 
-class GuildProviderConnectionRead(SanitizedBaseModel):
+class CommunityProviderConnectionRead(SanitizedBaseModel):
     """One community signing its members in through one provider.
 
     Also how an arrangement the community has not made itself is shown: the
@@ -228,18 +223,20 @@ class GuildProviderConnectionRead(SanitizedBaseModel):
     login_ready: bool = True
 
 
-class GuildNarrowingAgreement(SanitizedBaseModel):
+class CommunityNarrowingAgreement(SanitizedBaseModel):
     """Whether these values are this community's to claim."""
 
     agreed: bool
 
 
-class GuildNarrowingPending(SanitizedBaseModel):
+class CommunityNarrowingPending(SanitizedBaseModel):
     """One community's claim, waiting to be answered."""
 
     connection_id: int
-    guild_id: int
-    guild_name: str
+    community_id: int = Field(validation_alias=AliasChoices("community_id", "guild_id"))
+    community_name: str = Field(
+        validation_alias=AliasChoices("community_name", "guild_name")
+    )
     provider_display_name: str
     claim: str
     claim_values: List[str]
@@ -247,7 +244,7 @@ class GuildNarrowingPending(SanitizedBaseModel):
     agreed: bool
 
 
-class GuildProviderConnectionCreate(SanitizedBaseModel):
+class CommunityProviderConnectionCreate(SanitizedBaseModel):
     """Connect to one of the providers on offer."""
 
     provider_id: int
@@ -262,7 +259,7 @@ class GuildProviderConnectionCreate(SanitizedBaseModel):
     accepts_provider_placement: bool = False
 
 
-class GuildProviderConnectionUpdate(SanitizedBaseModel):
+class CommunityProviderConnectionUpdate(SanitizedBaseModel):
     """Change the narrowing, or take the button away. The provider a
     connection is to is not editable: pointing it elsewhere would change who
     gets in without saying so. Disconnect and connect instead."""
@@ -302,7 +299,7 @@ class PlatformProviderDefaultUpdate(SanitizedBaseModel):
     enabled: Optional[bool] = None
 
 
-class GuildClaimRuleRead(SanitizedBaseModel):
+class CommunityClaimRuleRead(SanitizedBaseModel):
     """One rule a community wrote: a group this provider asserts, and where
     somebody carrying it lands."""
 
@@ -313,14 +310,16 @@ class GuildClaimRuleRead(SanitizedBaseModel):
     provider_display_name: str
     provider_icon: Optional[str] = None
     claim_value: str
-    guild_role: str
+    community_role: str = Field(
+        validation_alias=AliasChoices("community_role", "guild_role")
+    )
     initiative_id: Optional[int] = None
     initiative_name: Optional[str] = None
     initiative_role_id: Optional[int] = None
     initiative_role_name: Optional[str] = None
 
 
-class GuildClaimRuleCreate(SanitizedBaseModel):
+class CommunityClaimRuleCreate(SanitizedBaseModel):
     """Place the people carrying one group.
 
     Naming an initiative places them there as well as in the community, since
@@ -329,12 +328,12 @@ class GuildClaimRuleCreate(SanitizedBaseModel):
 
     provider_id: int
     claim_value: str = Field(max_length=500)
-    guild_role: str = "member"
+    community_role: str = "member"
     initiative_id: Optional[int] = None
     initiative_role_id: Optional[int] = None
 
 
-class GuildClaimRulesResponse(SanitizedBaseModel):
+class CommunityClaimRulesResponse(SanitizedBaseModel):
     """The rules, and whether the providers behind them report groups at all.
 
     Which claim carries groups is the operator's to set per provider. A
@@ -345,7 +344,7 @@ class GuildClaimRulesResponse(SanitizedBaseModel):
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
-    rules: List[GuildClaimRuleRead] = Field(default_factory=list)
+    rules: List[CommunityClaimRuleRead] = Field(default_factory=list)
     #: Provider ids this community connects to that report groups.
     reporting_provider_ids: List[int] = Field(default_factory=list)
     #: The platform's rules that name this community, shown so a community
@@ -372,9 +371,13 @@ class ProviderPlacementRuleRead(SanitizedBaseModel):
     #: the rule is about. Both or neither.
     scope_claim: Optional[str] = None
     scope_value: Optional[str] = None
-    guild_id: int
-    guild_name: str
-    guild_role: str
+    community_id: int = Field(validation_alias=AliasChoices("community_id", "guild_id"))
+    community_name: str = Field(
+        validation_alias=AliasChoices("community_name", "guild_name")
+    )
+    community_role: str = Field(
+        validation_alias=AliasChoices("community_role", "guild_role")
+    )
     initiative_id: Optional[int] = None
     initiative_name: Optional[str] = None
     initiative_role_id: Optional[int] = None
@@ -394,8 +397,8 @@ class ProviderPlacementRuleCreate(SanitizedBaseModel):
     claim_value: Optional[str] = Field(default=None, max_length=500)
     scope_claim: Optional[str] = Field(default=None, max_length=64)
     scope_value: Optional[str] = Field(default=None, max_length=256)
-    guild_id: int
-    guild_role: str = "member"
+    community_id: int
+    community_role: str = "member"
     initiative_id: Optional[int] = None
     initiative_role_id: Optional[int] = None
 
@@ -407,12 +410,12 @@ class ProviderPlacementRuleUpdate(SanitizedBaseModel):
     claim_value: Optional[str] = Field(default=None, max_length=500)
     scope_claim: Optional[str] = Field(default=None, max_length=64)
     scope_value: Optional[str] = Field(default=None, max_length=256)
-    guild_role: Optional[str] = None
+    community_role: Optional[str] = None
     initiative_id: Optional[int] = None
     initiative_role_id: Optional[int] = None
 
 
-GuildClaimRulesResponse.model_rebuild()
+CommunityClaimRulesResponse.model_rebuild()
 
 
 class PlacementProviderRead(SanitizedBaseModel):
@@ -538,7 +541,11 @@ class PlatformAuthSettingsResponse(SanitizedBaseModel):
     #: Guilds that require a sign-in through a provider of their own.
     #: Withdrawing single sign-on is refused while any exist; lifting the
     #: requirement releases it.
-    guilds_requiring_sign_in: int
+    communities_requiring_sign_in: int = Field(
+        validation_alias=AliasChoices(
+            "communities_requiring_sign_in", "guilds_requiring_sign_in"
+        )
+    )
     #: Whether anything this deployment permits could answer a second-factor
     #: requirement — the authenticator app or a passkey, either will do. False
     #: means the requirement below cannot be raised, and the server refuses it
@@ -656,7 +663,7 @@ class NotificationSettingsResponse(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     #: Whether a notification may reach a phone. Off, nothing is sent, the
-    #: registration endpoint declines, and no device token is held.
+    #: registration endpoint declines, and no push token is held.
     push_notifications_enabled: bool
     #: Whether a notification may reach a mailbox. The notification half of
     #: email only — a sign-in code, an address to confirm, a password reset and

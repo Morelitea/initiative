@@ -1,11 +1,10 @@
-"""The single resource-grant (sharing) schema for projects and documents.
+"""The single resource-grant (sharing) schema for every tool.
 
 Everything is a row in ``resource_grants``, so there is **one** shape:
 ``ResourceGrantSchema``. A resource's sharing state is just a list of them — the
 identical shape both reports the grants (``grants`` on the read models) and
-replaces them (the ``PUT /{id}/grants`` body). Lives in its own module so both
-the ``project`` and ``document`` schemas can import it without a cycle
-(``project`` already imports ``document``).
+replaces them (the ``PUT /{id}/grants`` body). Lives in its own module so every
+tool's schema can import it without a cycle.
 """
 
 from __future__ import annotations
@@ -28,9 +27,8 @@ MAX_BULK_GRANT_ITEMS = 200
 class ResourceGrantSchema(SanitizedBaseModel):
     """One ``resource_grants`` row — exactly the columns that define a grant: a
     ``level`` for a user (``user_id``), an initiative role (``role_id``), all
-    initiative members (``all_initiative_members``), a dashboard
-    (``dashboard_id``), or an installed app (``app_install_id``). Exactly one
-    grantee is set.
+    initiative members (``all_initiative_members``), or an installed plug-in
+    (``plugin_install_id``). Exactly one grantee is set.
 
     The identical shape both reports a resource's grants (``grants`` is a list of
     these) and replaces them (the ``PUT /{id}/grants`` body) — no field is
@@ -38,14 +36,8 @@ class ResourceGrantSchema(SanitizedBaseModel):
     grant. Role display names are resolved client-side from the initiative's roles
     by ``role_id``.
 
-    A **dashboard** grantee is reported here and not taken from here: it is what
-    a published view is made of, the owner sees it in their sharing panel, and
-    the server keeps it whatever this list says. Taking one back is its own act,
-    against the dashboard that published it — so a client that knows nothing
-    about published views cannot remove one by saving the panel.
-
-    An **app install** grantee is the same: reported, never taken, and kept by
-    the server whatever this list says. What an app may reach is the seat's to
+    A **plug-in install** grantee is reported here and not taken from here: kept by
+    the server whatever this list says. What a plug-in may reach is the seat's to
     decide, not a resource owner's sharing panel."""
 
     # from_attributes so a read model can validate straight off the ORM
@@ -57,10 +49,8 @@ class ResourceGrantSchema(SanitizedBaseModel):
     user_id: Optional[PersonId] = None
     role_id: Optional[int] = None
     all_initiative_members: bool = False
-    #: The dashboard this resource is readable through. Reported, never taken.
-    dashboard_id: Optional[int] = None
-    #: The installed app this grant is made to. Reported, never taken.
-    app_install_id: Optional[int] = None
+    #: The installed plug-in this grant is made to. Reported, never taken.
+    plugin_install_id: Optional[int] = None
 
     @model_validator(mode="after")
     def exactly_one_grantee(self) -> "ResourceGrantSchema":
@@ -68,13 +58,12 @@ class ResourceGrantSchema(SanitizedBaseModel):
             (self.user_id is not None)
             + (self.role_id is not None)
             + self.all_initiative_members
-            + (self.dashboard_id is not None)
-            + (self.app_install_id is not None)
+            + (self.plugin_install_id is not None)
         )
         if count != 1:
             raise ValueError(
-                "Exactly one of user_id, role_id, all_initiative_members, "
-                "dashboard_id or app_install_id must be set"
+                "Exactly one of user_id, role_id, all_initiative_members "
+                "or plugin_install_id must be set"
             )
         return self
 

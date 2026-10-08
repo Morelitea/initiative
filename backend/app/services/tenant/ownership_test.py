@@ -17,7 +17,7 @@ from app.testing import (
     create_user,
     route_session_to_guild,
 )
-from app.models.platform.guild import GuildMembership, GuildRole
+from app.models.platform.guild import GuildMembership, CommunityRole
 
 
 # ── Invariants over the Tool enum ───────────────────────────────────────────
@@ -117,8 +117,7 @@ def test_a_grantee_holds_one_grant_per_resource():
         "resource_id",
         "user_id",
         "role_id",
-        "dashboard_id",
-        "app_install_id",
+        "plugin_install_id",
     ]
 
 
@@ -149,7 +148,7 @@ async def test_departure_leaves_every_tool_unowned(session):
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin)
     leaver = await create_user(session)
-    await create_guild_membership(session, leaver, guild, GuildRole.member)
+    await create_guild_membership(session, leaver, guild, CommunityRole.member)
     initiative = await create_initiative(session, guild, admin)
     await create_initiative_member(session, initiative, leaver, "project_manager")
 
@@ -172,7 +171,7 @@ async def test_departure_does_not_touch_authorship(session):
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin)
     leaver = await create_user(session)
-    await create_guild_membership(session, leaver, guild, GuildRole.member)
+    await create_guild_membership(session, leaver, guild, CommunityRole.member)
     initiative = await create_initiative(session, guild, admin)
     await create_initiative_member(session, initiative, leaver, "project_manager")
 
@@ -197,7 +196,7 @@ async def test_transfer_moves_every_tool(session):
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin)
     holder = await create_user(session)
-    await create_guild_membership(session, holder, guild, GuildRole.member)
+    await create_guild_membership(session, holder, guild, CommunityRole.member)
     initiative = await create_initiative(session, guild, admin)
     await create_initiative_member(session, initiative, holder, "project_manager")
 
@@ -220,7 +219,7 @@ async def test_transfer_to_an_existing_grantee_upgrades_one_row(session):
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin)
     holder = await create_user(session)
-    await create_guild_membership(session, holder, guild, GuildRole.member)
+    await create_guild_membership(session, holder, guild, CommunityRole.member)
     initiative = await create_initiative(session, guild, admin)
     await create_initiative_member(session, initiative, holder, "project_manager")
 
@@ -251,7 +250,7 @@ async def test_unowned_covers_released_and_orphaned(session):
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin)
     leaver = await create_user(session)
-    await create_guild_membership(session, leaver, guild, GuildRole.member)
+    await create_guild_membership(session, leaver, guild, CommunityRole.member)
     initiative = await create_initiative(session, guild, admin)
     await create_initiative_member(session, initiative, leaver, "project_manager")
 
@@ -292,25 +291,25 @@ async def test_restore_gives_content_back_to_a_present_author(session):
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin)
     author = await create_user(session)
-    await create_guild_membership(session, author, guild, GuildRole.member)
+    await create_guild_membership(session, author, guild, CommunityRole.member)
     initiative = await create_initiative(session, guild, admin)
     await create_initiative_member(session, initiative, author, "project_manager")
 
-    document = await TOOL_FACTORIES[Tool.document](session, initiative, author)
+    file = await TOOL_FACTORIES[Tool.file](session, initiative, author)
 
     await route_session_to_guild(session, guild.id)
     await ownership_service.set_resource_owner(
-        session, tool=Tool.document, row=document, new_owner=None
+        session, tool=Tool.file, row=file, new_owner=None
     )
     await session.commit()
 
     claimed = await ownership_service.restore_ownership_to_author(
-        session, row=document, guild_id=guild.id
+        session, row=file, guild_id=guild.id
     )
     await session.commit()
 
     assert claimed is True
-    grant = await _owner_grant(session, Tool.document, document.id)
+    grant = await _owner_grant(session, Tool.file, file.id)
     assert grant is not None and grant.user_id == author.id
 
 
@@ -319,11 +318,11 @@ async def test_restore_leaves_content_unowned_when_the_author_has_gone(session):
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin)
     author = await create_user(session)
-    await create_guild_membership(session, author, guild, GuildRole.member)
+    await create_guild_membership(session, author, guild, CommunityRole.member)
     initiative = await create_initiative(session, guild, admin)
     await create_initiative_member(session, initiative, author, "project_manager")
 
-    document = await TOOL_FACTORIES[Tool.document](session, initiative, author)
+    file = await TOOL_FACTORIES[Tool.file](session, initiative, author)
 
     await initiatives_service.remove_user_from_guild_initiatives(
         session, guild_id=guild.id, user_id=author.id
@@ -341,12 +340,12 @@ async def test_restore_leaves_content_unowned_when_the_author_has_gone(session):
 
     await route_session_to_guild(session, guild.id)
     claimed = await ownership_service.restore_ownership_to_author(
-        session, row=document, guild_id=guild.id
+        session, row=file, guild_id=guild.id
     )
     await session.commit()
 
     assert claimed is False
-    assert await _owner_grant(session, Tool.document, document.id) is None
+    assert await _owner_grant(session, Tool.file, file.id) is None
 
 
 async def test_a_projects_author_gets_it_back_on_restore(session):
@@ -354,7 +353,7 @@ async def test_a_projects_author_gets_it_back_on_restore(session):
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin)
     author = await create_user(session)
-    await create_guild_membership(session, author, guild, GuildRole.member)
+    await create_guild_membership(session, author, guild, CommunityRole.member)
     initiative = await create_initiative(session, guild, admin)
     await create_initiative_member(session, initiative, author, "project_manager")
 
@@ -391,7 +390,7 @@ async def test_general_access_does_not_displace_the_owner(session):
     admin = await create_user(session)
     guild = await create_guild(session, creator=admin)
     owner = await create_user(session)
-    await create_guild_membership(session, owner, guild, GuildRole.member)
+    await create_guild_membership(session, owner, guild, CommunityRole.member)
     initiative = await create_initiative(session, guild, admin)
     await create_initiative_member(session, initiative, owner, "project_manager")
 

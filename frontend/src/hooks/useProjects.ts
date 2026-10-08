@@ -1,9 +1,7 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { unarchiveEntityApiV1CGuildIdUnarchiveEntityTypeEntityIdPost } from "@/api/generated/archive/archive";
 import type {
-  ListMyProjectsApiV1MeProjectsGetParams,
-  ListProjectsApiV1CGuildIdProjectsGetParams,
+  ListMyProjectsParams,
   ProjectListResponse,
   ProjectRead,
   TaskStatusCreate,
@@ -14,79 +12,57 @@ import type {
 } from "@/api/generated/initiativeAPI.schemas";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import {
-  favoriteProjectApiV1CGuildIdProjectsProjectIdFavoritePost,
-  favoriteProjectsApiV1CGuildIdProjectsFavoritesGet,
-  getFavoriteProjectsApiV1CGuildIdProjectsFavoritesGetQueryKey,
-  getListProjectsApiV1CGuildIdProjectsGetQueryKey,
-  getReadProjectApiV1CGuildIdProjectsProjectIdGetQueryKey,
-  listProjectsApiV1CGuildIdProjectsGet,
-  reorderProjectsApiV1CGuildIdProjectsReorderPost,
-  unfavoriteProjectApiV1CGuildIdProjectsProjectIdFavoriteDelete,
-  updateProjectApiV1CGuildIdProjectsProjectIdPatch,
+  favoriteProject,
+  favoriteProjects,
+  getFavoriteProjectsQueryKey,
+  getListProjectsQueryKey,
+  getReadProjectQueryKey,
+  listProjects,
+  reorderProjects,
+  unfavoriteProject,
+  updateProject,
 } from "@/api/generated/projects/projects";
 import {
-  createTaskStatusApiV1CGuildIdProjectsProjectIdTaskStatusesPost,
-  deleteTaskStatusApiV1CGuildIdProjectsProjectIdTaskStatusesStatusIdDelete,
-  getListTaskStatusesApiV1CGuildIdProjectsProjectIdTaskStatusesGetQueryKey,
-  listTaskStatusesApiV1CGuildIdProjectsProjectIdTaskStatusesGet,
-  reorderTaskStatusesApiV1CGuildIdProjectsProjectIdTaskStatusesReorderPost,
-  updateTaskStatusApiV1CGuildIdProjectsProjectIdTaskStatusesStatusIdPatch,
+  createTaskStatus,
+  deleteTaskStatus,
+  getListTaskStatusesQueryKey,
+  listTaskStatuses,
+  reorderTaskStatuses,
+  updateTaskStatus,
 } from "@/api/generated/task-statuses/task-statuses";
 import { invalidate, q } from "@/api/query-keys";
 import { TOOL_HOOKS } from "@/hooks/toolHooks";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
-import { useGuildMutation } from "@/hooks/useApiMutation";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
+import { useCommunityMutation } from "@/hooks/useApiMutation";
 import { fetchAllPages } from "@/lib/fetchAllPages";
 import { toolViewParams } from "@/lib/tools";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
 
-// ── The standard five ───────────────────────────────────────────────────────
+// ── The standard six ────────────────────────────────────────────────────────
 // Built in `toolHooks.ts` from the generated client; see there for the keys
-// each one reads and the invalidation each one fires. A project's list hook and
-// update are its own, and are written out below — the list's query still comes
-// from the table, so the key is named in one place.
+// each one reads and the invalidation each one fires.
 
 const projects = TOOL_HOOKS[Tool.project];
+export const useProjects = projects.useList;
 export const useProject = projects.useDetail;
+export const useUpdateProject = projects.useUpdate;
 export const useCreateProject = projects.useCreate;
 export const useDeleteProject = projects.useDelete;
 export const useSetProjectGrants = projects.useSetGrants;
 
 // ── Queries ─────────────────────────────────────────────────────────────────
 
-/**
- * One page of the guild's projects. The rows stay on screen while a changed
- * page, search or order is in flight, like every other tool's list.
- */
-export const useProjects = (
-  params?: ListProjectsApiV1CGuildIdProjectsGetParams,
-  options?: QueryOpts<ProjectListResponse>
-) => {
-  const guildId = useActiveGuildId();
-  return useQuery<ProjectListResponse>({
-    ...projects.listQuery(guildId, params),
-    placeholderData: keepPreviousData,
-    ...options,
-  });
-};
-
-/** Templates in one initiative, or across every one the caller can see — the
- *  create dialog's "start from a template" picker. The projects list reads its
- *  own templates through `useProjects`, since the status filter picks which of
- *  the three states the same query returns. */
-export const useTemplateProjects = (initiativeId?: number | null) => {
-  return useProjects({
-    is_template: true,
-    ...(initiativeId ? { initiative_id: initiativeId } : {}),
-  });
-};
+/** Templates across every initiative the caller can see — the create dialog's
+ *  "start from a template" picker, read once the dialog is open. */
+export const useTemplateProjects = (open: boolean) =>
+  useProjects({ is_template: true }, { enabled: open });
 
 /** Every live project the reader may edit — where a task can be moved to; a
  *  template takes no tasks moved into it. Walks the list's windows, so no
  *  destination is left off a long list. */
 export const useWritableProjects = (options?: QueryOpts<ProjectListResponse>) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const params = {
     writable: true,
     slim: true,
@@ -94,22 +70,18 @@ export const useWritableProjects = (options?: QueryOpts<ProjectListResponse>) =>
     ...toolViewParams(Tool.project, "active"),
   };
   return useQuery<ProjectListResponse>({
-    queryKey: getListProjectsApiV1CGuildIdProjectsGetQueryKey(guildId, params),
-    queryFn: () => fetchAllPages(listProjectsApiV1CGuildIdProjectsGet, guildId, params),
+    queryKey: getListProjectsQueryKey(communityId, params),
+    queryFn: () => fetchAllPages((p) => listProjects(communityId, p), params),
     staleTime: 60 * 1000,
     ...options,
   });
 };
 
-// ``useRecentProjects`` was removed when the projects-only ``/projects/recent``
-// endpoint was retired. Use ``useRecents`` from ``@/hooks/useRecents`` for the
-// mixed-type bar instead.
-
 export const useFavoriteProjects = (options?: QueryOpts<ProjectRead[]>) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   return useQuery<ProjectRead[]>({
-    queryKey: getFavoriteProjectsApiV1CGuildIdProjectsFavoritesGetQueryKey(guildId),
-    queryFn: () => favoriteProjectsApiV1CGuildIdProjectsFavoritesGet(guildId),
+    queryKey: getFavoriteProjectsQueryKey(communityId),
+    queryFn: () => favoriteProjects(communityId),
     staleTime: 30 * 1000,
     ...options,
   });
@@ -119,24 +91,20 @@ export const useProjectTaskStatuses = (
   projectId: number | null,
   options?: QueryOpts<TaskStatusRead[]>
 ) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const { enabled: userEnabled = true, ...rest } = options ?? {};
   return useQuery<TaskStatusRead[]>({
-    queryKey: getListTaskStatusesApiV1CGuildIdProjectsProjectIdTaskStatusesGetQueryKey(
-      guildId,
-      projectId!
-    ),
-    queryFn: () =>
-      listTaskStatusesApiV1CGuildIdProjectsProjectIdTaskStatusesGet(guildId, projectId!),
+    queryKey: getListTaskStatusesQueryKey(communityId, projectId!),
+    queryFn: () => listTaskStatuses(communityId, projectId!),
     enabled: projectId !== null && Number.isFinite(projectId) && userEnabled,
     ...rest,
   });
 };
 
-// ── Global (cross-guild) queries ────────────────────────────────────────────
+// ── Global (cross-community) queries ────────────────────────────────────────────
 
 export const useGlobalProjects = (
-  params?: ListMyProjectsApiV1MeProjectsGetParams,
+  params?: ListMyProjectsParams,
   options?: QueryOpts<ProjectListResponse>
 ) => {
   return useQuery<ProjectListResponse>({
@@ -147,62 +115,14 @@ export const useGlobalProjects = (
 
 // ── Mutations ───────────────────────────────────────────────────────────────
 
-type ProjectPatch = Parameters<typeof updateProjectApiV1CGuildIdProjectsProjectIdPatch>[2];
-
-export const useUpdateProject = (
-  projectId: number,
-  options?: MutationOpts<ProjectRead, ProjectPatch>
-) =>
-  useGuildMutation<ProjectRead, ProjectPatch>(
-    {
-      mutationFn: (guildId, data) =>
-        updateProjectApiV1CGuildIdProjectsProjectIdPatch(guildId, projectId, data),
-      invalidate: () => invalidate(q.allProjects()),
-      errorKey: "projects:settings.details.updateError",
-    },
-    options
-  );
-
-/**
- * Row-level template removal from the projects list, where the id varies per
- * row so the curried {@link useUpdateProject} doesn't fit.
- */
-export const useRemoveProjectTemplate = (options?: MutationOpts<ProjectRead, number>) =>
-  useGuildMutation<ProjectRead, number>(
-    {
-      mutationFn: (guildId, projectId) =>
-        updateProjectApiV1CGuildIdProjectsProjectIdPatch(guildId, projectId, {
-          is_template: false,
-        }),
-      invalidate: () => invalidate(q.allProjects()),
-      errorKey: "projects:settings.details.updateError",
-    },
-    options
-  );
-
-export const useUnarchiveProject = (options?: MutationOpts<void, number>) =>
-  useGuildMutation<void, number>(
-    {
-      mutationFn: async (guildId, projectId) => {
-        await unarchiveEntityApiV1CGuildIdUnarchiveEntityTypeEntityIdPost(
-          guildId,
-          "project",
-          projectId
-        );
-      },
-      invalidate: () => invalidate(q.allProjects()),
-    },
-    options
-  );
-
 export const useReorderProjects = (options?: MutationOpts<void, number[]>) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
     mutationFn: async (orderedIds: number[]) => {
-      await reorderProjectsApiV1CGuildIdProjectsReorderPost(guildId, { project_ids: orderedIds });
+      await reorderProjects(communityId, { project_ids: orderedIds });
     },
     onSuccess,
     onError,
@@ -212,10 +132,6 @@ export const useReorderProjects = (options?: MutationOpts<void, number[]>) => {
     },
   });
 };
-
-// ``useRecordProjectView`` / ``useClearProjectView`` were replaced by the
-// polymorphic ``useRecordRecentView`` / ``useClearRecentView`` in
-// ``@/hooks/useRecents``.
 
 // ── Favorite / Pin Mutations ────────────────────────────────────────────────
 
@@ -247,7 +163,7 @@ const updateProjectListFavorite = (
 export const useToggleProjectFavorite = (
   options?: MutationOpts<ToggleFavoriteResponse, ToggleFavoriteArgs>
 ) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const qc = useQueryClient();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
@@ -255,9 +171,9 @@ export const useToggleProjectFavorite = (
     ...rest,
     mutationFn: async ({ projectId, nextState }: ToggleFavoriteArgs) => {
       if (nextState) {
-        await favoriteProjectApiV1CGuildIdProjectsProjectIdFavoritePost(guildId, projectId);
+        await favoriteProject(communityId, projectId);
       } else {
-        await unfavoriteProjectApiV1CGuildIdProjectsProjectIdFavoriteDelete(guildId, projectId);
+        await unfavoriteProject(communityId, projectId);
       }
       return { project_id: projectId, is_favorited: nextState };
     },
@@ -267,14 +183,11 @@ export const useToggleProjectFavorite = (
       // an initiative and a page now, so naming them one by one silently misses
       // the list the reader is actually looking at.
       qc.setQueriesData<ProjectListResponse>(
-        { queryKey: getListProjectsApiV1CGuildIdProjectsGetQueryKey(guildId) },
+        { queryKey: getListProjectsQueryKey(communityId) },
         (prev) => updateProjectListFavorite(prev, data)
       );
       qc.setQueryData<ProjectRead>(
-        getReadProjectApiV1CGuildIdProjectsProjectIdGetQueryKey(
-          guildId,
-          data.project_id
-        ) as unknown as string[],
+        getReadProjectQueryKey(communityId, data.project_id),
         (project) => (project ? { ...project, is_favorited: data.is_favorited } : project)
       );
       void invalidate(q.favoriteProjects());
@@ -302,14 +215,14 @@ const replaceProjectInList = (
 };
 
 export const useToggleProjectPin = (options?: MutationOpts<ProjectRead, TogglePinArgs>) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const qc = useQueryClient();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
     mutationFn: async ({ projectId, nextState }: TogglePinArgs) => {
-      return updateProjectApiV1CGuildIdProjectsProjectIdPatch(guildId, projectId, {
+      return updateProject(communityId, projectId, {
         pinned: nextState,
       });
     },
@@ -317,27 +230,16 @@ export const useToggleProjectPin = (options?: MutationOpts<ProjectRead, TogglePi
       const data = args[0];
       // See useToggleProjectFavorite: match the endpoint, not one exact shape.
       qc.setQueriesData<ProjectListResponse>(
-        { queryKey: getListProjectsApiV1CGuildIdProjectsGetQueryKey(guildId) },
+        { queryKey: getListProjectsQueryKey(communityId) },
         (prev) => replaceProjectInList(prev, data)
       );
-      qc.setQueryData<ProjectRead>(
-        getReadProjectApiV1CGuildIdProjectsProjectIdGetQueryKey(
-          guildId,
-          data.id
-        ) as unknown as string[],
-        () => data
-      );
+      qc.setQueryData<ProjectRead>(getReadProjectQueryKey(communityId, data.id), () => data);
       onSuccess?.(...args);
     },
     onError,
     onSettled,
   });
 };
-
-// ── Project Document Mutations ──────────────────────────────────────────────
-
-const _invalidateProjectAndDocuments = (projectId: number) =>
-  invalidate(q.project(projectId), q.allDocuments());
 
 // ── Task Status Mutations ───────────────────────────────────────────────────
 
@@ -348,10 +250,9 @@ export const useCreateTaskStatus = (
   projectId: number,
   options?: MutationOpts<TaskStatusRead, TaskStatusCreate>
 ) =>
-  useGuildMutation<TaskStatusRead, TaskStatusCreate>(
+  useCommunityMutation<TaskStatusRead, TaskStatusCreate>(
     {
-      mutationFn: (guildId, data) =>
-        createTaskStatusApiV1CGuildIdProjectsProjectIdTaskStatusesPost(guildId, projectId, data),
+      mutationFn: (communityId, data) => createTaskStatus(communityId, projectId, data),
       invalidate: () => invalidateStatusesAndTasks(projectId),
     },
     options
@@ -361,15 +262,10 @@ export const useUpdateTaskStatus = (
   projectId: number,
   options?: MutationOpts<TaskStatusRead, { statusId: number; data: TaskStatusUpdate }>
 ) =>
-  useGuildMutation<TaskStatusRead, { statusId: number; data: TaskStatusUpdate }>(
+  useCommunityMutation<TaskStatusRead, { statusId: number; data: TaskStatusUpdate }>(
     {
-      mutationFn: (guildId, { statusId, data }) =>
-        updateTaskStatusApiV1CGuildIdProjectsProjectIdTaskStatusesStatusIdPatch(
-          guildId,
-          projectId,
-          statusId,
-          data
-        ),
+      mutationFn: (communityId, { statusId, data }) =>
+        updateTaskStatus(communityId, projectId, statusId, data),
       invalidate: () => invalidate(q.projectTaskStatuses(projectId)),
     },
     options
@@ -379,15 +275,10 @@ export const useDeleteTaskStatus = (
   projectId: number,
   options?: MutationOpts<void, { statusId: number; data: TaskStatusDeleteRequest }>
 ) =>
-  useGuildMutation<void, { statusId: number; data: TaskStatusDeleteRequest }>(
+  useCommunityMutation<void, { statusId: number; data: TaskStatusDeleteRequest }>(
     {
-      mutationFn: (guildId, { statusId, data }) =>
-        deleteTaskStatusApiV1CGuildIdProjectsProjectIdTaskStatusesStatusIdDelete(
-          guildId,
-          projectId,
-          statusId,
-          data
-        ),
+      mutationFn: (communityId, { statusId, data }) =>
+        deleteTaskStatus(communityId, projectId, statusId, data),
       invalidate: () => invalidateStatusesAndTasks(projectId),
     },
     options
@@ -397,14 +288,9 @@ export const useReorderTaskStatuses = (
   projectId: number,
   options?: MutationOpts<TaskStatusRead[], TaskStatusReorderRequest>
 ) =>
-  useGuildMutation<TaskStatusRead[], TaskStatusReorderRequest>(
+  useCommunityMutation<TaskStatusRead[], TaskStatusReorderRequest>(
     {
-      mutationFn: (guildId, data) =>
-        reorderTaskStatusesApiV1CGuildIdProjectsProjectIdTaskStatusesReorderPost(
-          guildId,
-          projectId,
-          data
-        ),
+      mutationFn: (communityId, data) => reorderTaskStatuses(communityId, projectId, data),
       invalidate: () => invalidate(q.projectTaskStatuses(projectId)),
     },
     options

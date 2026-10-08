@@ -14,12 +14,12 @@ import { buildUser } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
 import type { UserRead } from "@/api/generated/initiativeAPI.schemas";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { docsUrl } from "@/lib/links";
 
 import { SidebarUserFooter } from "./SidebarUserFooter";
 
 const renderFooter = (overrides: Partial<UserRead> = {}) => {
   const user = buildUser({
-    full_name: "Admin User",
     username: "admin",
     discriminator: 1234,
     presence: "online",
@@ -44,23 +44,30 @@ const renderFooter = (overrides: Partial<UserRead> = {}) => {
 };
 
 const openMenu = async (user: ReturnType<typeof userEvent.setup>) => {
-  await user.click(await screen.findByRole("button", { name: /Admin User/ }));
+  await user.click(await screen.findByRole("button", { name: /admin#1234/ }));
   return screen.findByRole("menu");
 };
 
 describe("SidebarUserFooter", () => {
+  it("always links to the documentation", async () => {
+    renderFooter();
+    const docs = await screen.findByRole("link", { name: "Documentation" });
+    expect(docs).toHaveAttribute("href", docsUrl());
+    expect(docs).toHaveAttribute("target", "_blank");
+  });
+
   it("puts the status under the name, in the same row", async () => {
     renderFooter({ custom_status: { emoji: "🌱", text: "Planting things" } });
 
-    const row = await screen.findByRole("button", { name: /Admin User/ });
-    expect(row).toHaveTextContent("Admin User");
+    const row = await screen.findByRole("button", { name: /admin#1234/ });
+    expect(row).toHaveTextContent("admin#1234");
     expect(row).toHaveTextContent("Planting things");
   });
 
   it("takes an emoji on its own as a status", async () => {
     renderFooter({ custom_status: { emoji: "🌱", text: null } });
 
-    const row = await screen.findByRole("button", { name: /Admin User/ });
+    const row = await screen.findByRole("button", { name: /admin#1234/ });
     expect(row).toHaveTextContent("🌱");
     expect(row).not.toHaveTextContent("Say what you're up to");
   });
@@ -68,7 +75,7 @@ describe("SidebarUserFooter", () => {
   it("invites a status that has not been set", async () => {
     renderFooter({ custom_status: { emoji: null, text: null } });
 
-    const row = await screen.findByRole("button", { name: /Admin User/ });
+    const row = await screen.findByRole("button", { name: /admin#1234/ });
     expect(row).toHaveTextContent("Say what you're up to");
   });
 
@@ -84,7 +91,7 @@ describe("SidebarUserFooter", () => {
 
     const menu = await openMenu(user);
 
-    expect(within(menu).getByText("Admin User")).toBeInTheDocument();
+    expect(within(menu).getByTitle("admin#1234")).toBeInTheDocument();
     expect(within(menu).getByText("admin")).toBeInTheDocument();
   });
 
@@ -186,7 +193,7 @@ describe("SidebarUserFooter", () => {
     const Footer = () => (
       <TooltipProvider>
         <SidebarUserFooter
-          user={buildUser({ full_name: "Admin User", presence: "online" })}
+          user={buildUser({ username: "admin", discriminator: 1234, presence: "online" })}
           canManagePlatformConfig
           canAccessOperatorDashboard
           currentVersion="0.65.0"

@@ -86,7 +86,7 @@ def stub_registration(monkeypatch, *, backed_up: bool = True) -> None:
     def verify(**kwargs):
         credential = kwargs["credential"]
         assert kwargs["expected_rp_id"] == passkey_service.relying_party_id()
-        assert kwargs["expected_origin"] == passkey_service.expected_origin()
+        assert kwargs["expected_origin"] == passkey_service.expected_origins()
         raw_id = credential.get("rawId") or credential.get("id") or ""
         return SimpleNamespace(
             credential_id=passkey_service.webauthn.base64url_to_bytes(raw_id),

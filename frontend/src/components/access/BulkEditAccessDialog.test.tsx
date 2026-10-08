@@ -4,14 +4,14 @@ import { HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 
 import { buildPage, buildUserSummary, ownerCan } from "@/__tests__/factories";
-import { buildDocumentSummary } from "@/__tests__/factories/document.factory";
+import { buildFileSummary } from "@/__tests__/factories/file.factory";
 import { buildInitiative } from "@/__tests__/factories/initiative.factory";
 import { buildUser } from "@/__tests__/factories/user.factory";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import type {
-  DocumentSummary,
+  FileSummary,
   InitiativeRoleRead,
   ResourceGrantSchema,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -28,7 +28,7 @@ const INITIATIVE_ID = 50;
 const BOB_ID = 101;
 const EDITOR_ROLE_ID = 200;
 
-const bob = buildUserSummary({ id: BOB_ID, full_name: "Bob Builder" });
+const bob = buildUserSummary({ id: BOB_ID, display_name: "Bob Builder" });
 
 const initiative = buildInitiative({ id: INITIATIVE_ID, name: "Init" });
 
@@ -47,12 +47,12 @@ const roles: InitiativeRoleRead[] = [
 ];
 
 /**
- * A document currently shared with *all initiative members* (Viewer). This is
+ * A file currently shared with *all initiative members* (Viewer). This is
  * the state that triggered the defect: a bulk per-user/per-role grant must drop
  * the all-members grant so ShareControl's two-mode model can still render it.
  */
-function allMembersDoc(extraGrants: ResourceGrantSchema[] = []): DocumentSummary {
-  return buildDocumentSummary({
+function allMembersDoc(extraGrants: ResourceGrantSchema[] = []): FileSummary {
+  return buildFileSummary({
     id: 10,
     initiative_id: INITIATIVE_ID,
     can: ownerCan(),
@@ -65,11 +65,11 @@ function allMembersDoc(extraGrants: ResourceGrantSchema[] = []): DocumentSummary
 }
 
 /**
- * A document that is NOT shared with all initiative members — only an owner and
+ * A file that is NOT shared with all initiative members — only an owner and
  * one individual grant. Removing all-members access on this doc is a no-op.
  */
-function restrictedDoc(id: number): DocumentSummary {
-  return buildDocumentSummary({
+function restrictedDoc(id: number): FileSummary {
+  return buildFileSummary({
     id,
     initiative_id: INITIATIVE_ID,
     can: ownerCan(),
@@ -92,14 +92,14 @@ function captureGrantPuts() {
   const captured: ResourceGrantSchema[][] = [];
   memberSearches.length = 0;
   server.use(
-    guildHttp.get("/initiatives/", () => HttpResponse.json([initiative])),
-    guildHttp.get("/initiatives/:initiativeId/roles", () => HttpResponse.json(roles)),
+    communityHttp.get("/initiatives/", () => HttpResponse.json([initiative])),
+    communityHttp.get("/initiatives/:initiativeId/roles", () => HttpResponse.json(roles)),
     // The initiative's member search: what was typed, or the ids asked for.
-    guildHttp.get("/initiatives/:initiativeId/members/search", ({ request }) => {
+    communityHttp.get("/initiatives/:initiativeId/members/search", ({ request }) => {
       memberSearches.push(new URL(request.url).searchParams);
       return HttpResponse.json(buildPage([bob]));
     }),
-    guildHttp.put("/resource-grants/bulk", async ({ request }) => {
+    communityHttp.put("/resource-grants/bulk", async ({ request }) => {
       const body = (await request.json()) as {
         items: { resource_type: string; resource_id: number; grants: ResourceGrantSchema[] }[];
       };
@@ -116,14 +116,14 @@ function captureGrantPuts() {
   return captured;
 }
 
-function renderDialog(documents: DocumentSummary[]) {
+function renderDialog(files: FileSummary[]) {
   return renderWithProviders(
     <BulkEditAccessDialog
       open
       onOpenChange={vi.fn()}
       onSuccess={vi.fn()}
-      items={documents}
-      resourceType={Tool.document}
+      items={files}
+      resourceType={Tool.file}
       invalidate={vi.fn()}
     />,
     { auth: { user: buildUser({ id: 1 }) } }
@@ -225,7 +225,7 @@ describe("BulkEditAccessDialog grant rebuild", () => {
 
     // Doc 10 grants Bob; doc 11 does not (owner only).
     const docWithBob = allMembersDoc([{ user_id: BOB_ID, level: "read" }]);
-    const docWithoutBob = buildDocumentSummary({
+    const docWithoutBob = buildFileSummary({
       id: 11,
       initiative_id: INITIATIVE_ID,
       can: ownerCan(),
@@ -244,7 +244,7 @@ describe("BulkEditAccessDialog grant rebuild", () => {
     expect(captured[0].some((g) => g.user_id === BOB_ID)).toBe(false);
   });
 
-  it("names the resource type in copy, not a hardcoded 'documents'", async () => {
+  it("names the resource type in copy, not a hardcoded 'files'", async () => {
     captureGrantPuts();
 
     renderWithProviders(
@@ -274,7 +274,7 @@ describe("BulkEditAccessDialog grant rebuild", () => {
         onOpenChange={vi.fn()}
         onSuccess={onSuccess}
         items={[restrictedDoc(11)]}
-        resourceType={Tool.document}
+        resourceType={Tool.file}
         invalidate={vi.fn()}
       />,
       { auth: { user: buildUser({ id: 1 }) } }

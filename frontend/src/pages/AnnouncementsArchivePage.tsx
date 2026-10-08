@@ -43,7 +43,7 @@ export const AnnouncementsArchivePage = () => {
   const visible = filter === "unread" ? items.filter(isUnread) : items;
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4">
+    <div className="mx-auto max-w-3xl space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <h1 className="font-semibold text-3xl tracking-tight">{t("archive.title")}</h1>
         {items.length > 0 ? (

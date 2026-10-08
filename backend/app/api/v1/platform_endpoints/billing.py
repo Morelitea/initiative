@@ -26,25 +26,20 @@ from app.db.session import set_rls_context
 from app.schemas.platform.billing import (
     BillingCommunityNotice,
     BillingCommunityNoticeRead,
-    BillingGuildNameRead,
-    BillingGuildNameRequest,
-    BillingGuildStatusRead,
-    BillingGuildStatusRequest,
-    BillingGuildTierApply,
-    BillingGuildTierRead,
+    BillingCommunityNameRead,
+    BillingCommunityNameRequest,
+    BillingCommunityStatusRead,
+    BillingCommunityStatusRequest,
+    BillingCommunityTierApply,
+    BillingCommunityTierRead,
     BillingUsageRead,
     BillingUsageRequest,
 )
-from app.models.platform.guild import GuildStatus
+from app.models.platform.guild import CommunityStatus
+from app.models.platform.identity_ref import IdentityEntity
 from app.services.platform import billing as billing_service
 from app.services.platform import guilds as guilds_service
 from app.services.platform import identity_refs
-from app.services.platform.billing import (
-    BillingEnvelopeError,
-    BillingGuildNotFoundError,
-    BillingReplayError,
-    BillingSourceRestrictionError,
-)
 from app.db.request_context import Billing
 
 router = APIRouter(include_in_schema=False)
@@ -69,26 +64,12 @@ def _payload_error_code(exc: ValidationError) -> str:
 async def _verify_and_parse(request: Request, model):
     """Envelope first, parse second (see module docstring)."""
     body = await request.body()
-    try:
-        claims = billing_service.verify_billing_envelope(
-            method=request.method,
-            path=request.url.path,
-            headers=request.headers,
-            body=body,
-        )
-    except BillingEnvelopeError as exc:
-        # Billing absent is the self-host default, not a caller fault, and an
-        # unreadable key is this deployment's own misconfiguration: both answer
-        # 503 (fail closed, retryable) rather than 403.
-        raise HTTPException(
-            status_code=(
-                status.HTTP_503_SERVICE_UNAVAILABLE
-                if exc.code
-                in (BillingMessages.NOT_CONFIGURED, BillingMessages.KEY_UNREADABLE)
-                else status.HTTP_403_FORBIDDEN
-            ),
-            detail=exc.code,
-        ) from exc
+    claims = billing_service.verify_billing_envelope(
+        method=request.method,
+        path=request.url.path,
+        headers=request.headers,
+        body=body,
+    )
     try:
         payload = model.model_validate_json(body)
     except ValidationError as exc:
@@ -107,61 +88,38 @@ async def _resolve_guild(guild_ref: str) -> int:
     reference answers 404 with nothing consumed, which is the same retryable
     shape as a guild that does not exist yet.
     """
-    guild_id = await identity_refs.resolve_billing_guild(ref=guild_ref)
+    guild_id = await identity_refs.resolve_billing_ref(guild_ref, IdentityEntity.guild)
     if guild_id is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=BillingMessages.GUILD_NOT_FOUND,
+            detail=BillingMessages.COMMUNITY_NOT_FOUND,
         )
     return guild_id
 
 
 async def _burn_jti(session, claims) -> None:
-    try:
-        await billing_service.record_jti(
-            session, jti=claims.jti, expires_at=claims.expires_at
-        )
-    except BillingReplayError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=BillingMessages.REPLAYED_TOKEN,
-        ) from exc
+    await billing_service.record_jti(
+        session, jti=claims.jti, expires_at=claims.expires_at
+    )
 
 
-@router.post("/community-tier", response_model=BillingGuildTierRead)
-async def apply_guild_tier(
+@router.post("/community-tier", response_model=BillingCommunityTierRead)
+async def apply_community_tier(
     request: Request, session: SessionDep
-) -> BillingGuildTierRead:
-    claims, payload = await _verify_and_parse(request, BillingGuildTierApply)
-    guild_id = await _resolve_guild(payload.guild_ref)
+) -> BillingCommunityTierRead:
+    claims, payload = await _verify_and_parse(request, BillingCommunityTierApply)
+    guild_id = await _resolve_guild(payload.community_ref)
     await set_rls_context(session, Billing(guild_id))
     await _burn_jti(session, claims)
     status_before = await billing_service.guild_lifecycle_status(session, guild_id)
-    try:
-        result = await billing_service.apply_guild_tier(
-            session, payload, guild_id=guild_id
-        )
-    except BillingGuildNotFoundError as exc:
-        # Rolls back with the jti unredeemed and the event id unconsumed, so
-        # the delivery can be retried once the guild exists.
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=BillingMessages.GUILD_NOT_FOUND,
-        ) from exc
-    except BillingSourceRestrictionError as exc:
-        # The restriction is checked before the event-log claim, so the
-        # rollback leaves neither the event id nor the jti consumed. Unlike
-        # the 404 (a transient "guild not yet created"), this is a
-        # deterministic reject: the fix is a corrected payload, not a retry
-        # of the same body — that corrected write (even reusing the event id)
-        # then applies.
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=exc.code
-        ) from exc
+    # A refusal rolls back with neither the jti nor the event id consumed: a
+    # missing guild (404) is retryable once it exists, a source restriction
+    # (422) once the payload is corrected.
+    result = await billing_service.apply_guild_tier(session, payload, guild_id=guild_id)
     await session.commit()
     if (
-        result.status is GuildStatus.on_hold
-        and status_before is not GuildStatus.on_hold
+        result.status is CommunityStatus.on_hold
+        and status_before is not CommunityStatus.on_hold
     ):
         # Told once, on the way in, and on the system engine: the billing
         # role writes guild status and caps and nothing else.
@@ -194,17 +152,19 @@ async def community_notice(
     suspended is recorded and tells nobody.
     """
     claims, payload = await _verify_and_parse(request, BillingCommunityNotice)
-    guild_id = await _resolve_guild(payload.guild_ref)
+    guild_id = await _resolve_guild(payload.community_ref)
     await set_rls_context(session, Billing(guild_id))
     await _burn_jti(session, claims)
     if await billing_service.guild_lifecycle_status(session, guild_id) is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=BillingMessages.GUILD_NOT_FOUND,
+            detail=BillingMessages.COMMUNITY_NOT_FOUND,
         )
     await session.commit()  # persist the one-shot jti redemption
     owner_user_id = (
-        await identity_refs.resolve_billing_user(ref=payload.recipient_user_ref)
+        await identity_refs.resolve_billing_ref(
+            payload.recipient_user_ref, IdentityEntity.user
+        )
         if payload.recipient_user_ref
         else None
     )
@@ -232,8 +192,10 @@ async def community_notice(
     return BillingCommunityNoticeRead(delivered=delivered)
 
 
-@router.post("/community-name", response_model=BillingGuildNameRead)
-async def guild_name(request: Request, session: SessionDep) -> BillingGuildNameRead:
+@router.post("/community-name", response_model=BillingCommunityNameRead)
+async def community_name(
+    request: Request, session: SessionDep
+) -> BillingCommunityNameRead:
     """Signed read: what one guild calls itself.
 
     For rendering. A reference is unreadable on purpose, so a page about
@@ -243,8 +205,8 @@ async def guild_name(request: Request, session: SessionDep) -> BillingGuildNameR
     deleted 404s with the jti unredeemed, so the call stays retryable while it
     is the caller's timing rather than their credential that is wrong.
     """
-    claims, payload = await _verify_and_parse(request, BillingGuildNameRequest)
-    guild_id = await _resolve_guild(payload.guild_ref)
+    claims, payload = await _verify_and_parse(request, BillingCommunityNameRequest)
+    guild_id = await _resolve_guild(payload.community_ref)
     await set_rls_context(session, Billing(guild_id))
     await _burn_jti(session, claims)
 
@@ -252,20 +214,22 @@ async def guild_name(request: Request, session: SessionDep) -> BillingGuildNameR
     if name is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=BillingMessages.GUILD_NOT_FOUND,
+            detail=BillingMessages.COMMUNITY_NOT_FOUND,
         )
     await session.commit()  # persist the one-shot jti redemption
-    return BillingGuildNameRead(guild_ref=payload.guild_ref, name=name)
+    return BillingCommunityNameRead(community_ref=payload.community_ref, name=name)
 
 
-@router.post("/community-status", response_model=BillingGuildStatusRead)
-async def guild_status(request: Request, session: SessionDep) -> BillingGuildStatusRead:
+@router.post("/community-status", response_model=BillingCommunityStatusRead)
+async def community_status(
+    request: Request, session: SessionDep
+) -> BillingCommunityStatusRead:
     """Signed read: one guild's lifecycle status, ``deleted`` included.
 
     Only a purged guild 404s, with the jti unredeemed.
     """
-    claims, payload = await _verify_and_parse(request, BillingGuildStatusRequest)
-    guild_id = await _resolve_guild(payload.guild_ref)
+    claims, payload = await _verify_and_parse(request, BillingCommunityStatusRequest)
+    guild_id = await _resolve_guild(payload.community_ref)
     await set_rls_context(session, Billing(guild_id))
     await _burn_jti(session, claims)
 
@@ -273,31 +237,31 @@ async def guild_status(request: Request, session: SessionDep) -> BillingGuildSta
     if guild_status is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=BillingMessages.GUILD_NOT_FOUND,
+            detail=BillingMessages.COMMUNITY_NOT_FOUND,
         )
     await session.commit()  # persist the one-shot jti redemption
-    return BillingGuildStatusRead(guild_ref=payload.guild_ref, status=guild_status)
+    return BillingCommunityStatusRead(
+        community_ref=payload.community_ref, status=guild_status
+    )
 
 
 @router.post("/usage", response_model=BillingUsageRead)
-async def guild_usage(request: Request, session: SessionDep) -> BillingUsageRead:
-    """Signed read: current stored bytes for one guild.
+async def community_usage(request: Request, session: SessionDep) -> BillingUsageRead:
+    """Signed read: current stored bytes and member count for one guild.
 
     Envelope-verified and jti-burned on the billing session like the other
-    reads; the actual ``SUM(uploads.size_bytes)`` runs on a system session from
-    the guild's cohort routed into its schema (the billing role can't reach
-    it). A missing guild 404s with the jti unredeemed (retryable).
+    reads; the actual ``SUM(uploads.size_bytes)`` and membership count run on a
+    system session from the guild's cohort (the billing role can reach neither).
+    A missing guild 404s with the jti unredeemed (retryable).
     """
     claims, payload = await _verify_and_parse(request, BillingUsageRequest)
-    guild_id = await _resolve_guild(payload.guild_ref)
+    guild_id = await _resolve_guild(payload.community_ref)
     await set_rls_context(session, Billing(guild_id))
     await _burn_jti(session, claims)
-    try:
-        usage_bytes = await billing_service.guild_storage_usage(guild_id)
-    except BillingGuildNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=BillingMessages.GUILD_NOT_FOUND,
-        ) from exc
+    usage = await billing_service.guild_usage(guild_id)
     await session.commit()  # persist the one-shot jti redemption
-    return BillingUsageRead(guild_ref=payload.guild_ref, usage_bytes=usage_bytes)
+    return BillingUsageRead(
+        community_ref=payload.community_ref,
+        usage_bytes=usage.usage_bytes,
+        member_count=usage.member_count,
+    )

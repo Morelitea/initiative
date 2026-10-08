@@ -25,6 +25,7 @@ from sqlalchemy import Column, DateTime, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field
 
+from app.core.encryption import FERNET_SALT, SALT_IMPORT_CREDENTIAL
 from app.models.tenant._mixins import CreatedByMixin
 
 
@@ -52,7 +53,7 @@ class ImportJob(CreatedByMixin, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     created_by: int = Field(foreign_key="users.id", nullable=False)
 
-    # Envelope type ("initiative-document", …) or "backup".
+    # Envelope type ("initiative-file", …) or "backup".
     source: str = Field(nullable=False)
     # The caller's OPTIONS (target initiative, include map) — never content.
     params: dict[str, Any] = Field(
@@ -80,10 +81,13 @@ class ImportJob(CreatedByMixin, table=True):
     # The secret a job needs to read a foreign site, for as long as that job
     # needs it: set when the import starts and cleared at every terminal
     # transition. Fernet-encrypted at rest under ``SALT_IMPORT_CREDENTIAL``
-    # and registered for SECRET_KEY rotation. Not a field of
+    # and re-keyed by the SECRET_KEY rotation. Not a field of
     # ``ImportJobRead``, so it is never serialized.
     secret_encrypted: Optional[str] = Field(
-        default=None, sa_column=Column(Text, nullable=True)
+        default=None,
+        sa_column=Column(
+            Text, nullable=True, info={FERNET_SALT: SALT_IMPORT_CREDENTIAL}
+        ),
     )
     # Staged-payload GC deadline (unconfirmed backups expire).
     expires_at: Optional[datetime] = Field(

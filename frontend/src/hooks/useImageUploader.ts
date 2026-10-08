@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { invalidate, q } from "@/api/query-keys";
-import { useUploadGalleryImage } from "@/hooks/useGalleries";
+import { invalidateImages, useUploadGalleryImage } from "@/hooks/useGalleries";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { type FileRefusal, refuseFile } from "@/lib/galleries";
 
@@ -109,7 +108,7 @@ export function useImageUploader(galleryId: number) {
   useEffect(() => {
     const refresh = () => {
       refreshedAt.current = counts.done;
-      void invalidate(q.galleryImages(galleryId), q.gallery(galleryId), q.allGalleries());
+      void invalidateImages(galleryId);
     };
     if (counts.active) {
       wasActive.current = true;

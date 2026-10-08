@@ -2,9 +2,8 @@ import { ChevronLeft, ChevronRight, Hand, Loader2, Pause, Play, RotateCcw } from
 import { useTranslation } from "react-i18next";
 
 import type { QueueRead } from "@/api/generated/initiativeAPI.schemas";
-import { Badge } from "@/components/ui/badge";
+import { ToolChestSegment } from "@/components/tools/ToolChest";
 import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface QueueControlsProps {
   queue: QueueRead;
@@ -17,6 +16,8 @@ interface QueueControlsProps {
   isLoading?: boolean;
 }
 
+/** The queue's round and the buttons that run it, as segments of its tool
+ *  chest. */
 export const QueueControls = ({
   queue,
   onStart,
@@ -28,28 +29,22 @@ export const QueueControls = ({
   isLoading = false,
 }: QueueControlsProps) => {
   const { t } = useTranslation("queues");
-  const canControl = queue.can.edit;
-
-  if (!canControl) {
-    return (
-      <div className="flex items-center gap-3 rounded-lg border px-4 py-3">
-        <Badge variant={queue.is_active ? "default" : "secondary"}>
-          {queue.is_active ? t("active") : t("inactive")}
-        </Badge>
-        {queue.is_active && (
-          <span className="font-medium text-muted-foreground text-sm">
-            {t("roundN", { count: queue.current_round })}
-          </span>
-        )}
-      </div>
-    );
-  }
+  // Previous / Next / Hold need a current turn to operate on; without one
+  // (e.g. when every visible item has been held) clicking would either no-op
+  // on the server or surprise the user.
+  const noTurn = !queue.is_active || queue.current_item_id == null || isLoading;
 
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-lg border px-4 py-3">
-      {/* Start / Stop toggle */}
-      <Tooltip delayDuration={300}>
-        <TooltipTrigger asChild>
+    <>
+      <ToolChestSegment label={t("round")}>
+        {queue.is_active ? (
+          <span className="font-mono tabular-nums">{queue.current_round}</span>
+        ) : (
+          <span className="text-muted-foreground">{t("inactive")}</span>
+        )}
+      </ToolChestSegment>
+      {queue.can.edit ? (
+        <ToolChestSegment>
           <Button
             variant={queue.is_active ? "destructive" : "default"}
             size="sm"
@@ -65,91 +60,38 @@ export const QueueControls = ({
             )}
             {queue.is_active ? t("stop") : t("start")}
           </Button>
-        </TooltipTrigger>
-        <TooltipContent>
-          <p>{queue.is_active ? t("stop") : t("start")}</p>
-        </TooltipContent>
-      </Tooltip>
-
-      {/* Previous / Next / Hold need a current turn to operate on; without
-          one (e.g. when every visible item has been held) clicking would
-          either no-op on the server or surprise the user. */}
-      <Tooltip delayDuration={300}>
-        <TooltipTrigger asChild>
           <Button
             variant="outline"
-            size="icon"
+            size="icon-sm"
             onClick={onPrevious}
-            disabled={!queue.is_active || !queue.current_item || isLoading}
+            disabled={noTurn}
             aria-label={t("previous")}
+            title={t("previous")}
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
-        </TooltipTrigger>
-        <TooltipContent>
-          <p>{t("previous")}</p>
-        </TooltipContent>
-      </Tooltip>
-
-      {/* Next */}
-      <Tooltip delayDuration={300}>
-        <TooltipTrigger asChild>
           <Button
             variant="outline"
-            size="icon"
+            size="icon-sm"
             onClick={onNext}
-            disabled={!queue.is_active || !queue.current_item || isLoading}
+            disabled={noTurn}
             aria-label={t("next")}
+            title={t("next")}
           >
             <ChevronRight className="h-4 w-4" />
           </Button>
-        </TooltipTrigger>
-        <TooltipContent>
-          <p>{t("next")}</p>
-        </TooltipContent>
-      </Tooltip>
-
-      {/* Hold the current turn — they leave the rotation until released or
-          their natural slot comes back around. */}
-      <Tooltip delayDuration={300}>
-        <TooltipTrigger asChild>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onHold}
-            disabled={!queue.is_active || !queue.current_item || isLoading}
-          >
+          {/* Hold the current turn — they leave the rotation until released
+              or their natural slot comes back around. */}
+          <Button variant="outline" size="sm" onClick={onHold} disabled={noTurn}>
             <Hand className="h-4 w-4" />
             {t("hold")}
           </Button>
-        </TooltipTrigger>
-        <TooltipContent>
-          <p>{t("hold")}</p>
-        </TooltipContent>
-      </Tooltip>
-
-      {/* Round counter */}
-      {queue.is_active && (
-        <Badge variant="outline" className="ml-2 font-mono text-sm">
-          {t("roundN", { count: queue.current_round })}
-        </Badge>
-      )}
-
-      {/* Spacer */}
-      <div className="flex-1" />
-
-      {/* Reset */}
-      <Tooltip delayDuration={300}>
-        <TooltipTrigger asChild>
           <Button variant="ghost" size="sm" onClick={onReset} disabled={isLoading}>
             <RotateCcw className="h-4 w-4" />
             {t("reset")}
           </Button>
-        </TooltipTrigger>
-        <TooltipContent>
-          <p>{t("reset")}</p>
-        </TooltipContent>
-      </Tooltip>
-    </div>
+        </ToolChestSegment>
+      ) : null}
+    </>
   );
 };

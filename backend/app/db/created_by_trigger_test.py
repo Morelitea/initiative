@@ -137,13 +137,13 @@ async def test_a_system_session_stamps_nothing(session: AsyncSession):
     assert (await _reload(session, item.id)).created_by is None
 
 
-async def test_content_an_app_writes_may_name_no_author(session: AsyncSession):
-    """An app acting as its community has no one to name either, on the tool
+async def test_content_a_plugin_writes_may_name_no_author(session: AsyncSession):
+    """A plug-in acting as its community has no one to name either, on the tool
     tables its scopes can write."""
     guild, queue, _ = await _workspace(session)
 
     await _route(session, guild.id, None)
-    written = Queue(initiative_id=queue.initiative_id, name="written by an app")
+    written = Queue(initiative_id=queue.initiative_id, name="written by a plug-in")
     session.add(written)
     await session.flush()
     session.expunge_all()

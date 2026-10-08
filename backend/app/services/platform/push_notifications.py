@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import uuid
 from contextlib import nullcontext
 from dataclasses import dataclass
 from typing import Any, AsyncContextManager, Dict, Optional, Sequence
@@ -12,9 +13,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.notification import NotificationType
 from app.models.platform.push_token import PushToken
-from app.services.platform import notification_policy, push_tokens
+from app.services.platform import push_tokens
 
-from app.services.platform import push_config
+from app.services.platform import push_config, push_relay
 from app.services.platform.push_config import ResolvedPushConfig
 
 logger = logging.getLogger(__name__)
@@ -77,6 +78,10 @@ PUSH_CHANNELS: dict[NotificationType, str] = {
     NotificationType.access_grant_approved: "access_grants",
     NotificationType.access_grant_denied: "access_grants",
     NotificationType.access_grant_revoked: "access_grants",
+    # Mostly a reply on something the reader wrote, so it rides the comments
+    # channel the installed app already registers rather than asking for a
+    # new one — a new channel id would mean a native release.
+    NotificationType.ticket_updated: "comments",
 }
 
 
@@ -137,16 +142,31 @@ async def send_push_notification(
     body: str,
     data: Optional[Dict[str, Any]] = None,
     channel_id: Optional[str] = None,
+    platform: str = "android",
 ) -> tuple[bool, bool]:
-    """Send a push notification to one device via the FCM HTTP v1 API.
+    """Send a push notification to one device with FCM's HTTP v1 API.
+
+    The message goes to FCM itself, signed with the service account, or to the
+    push relay, which takes the same request with this server's relay key.
+    iPhone tokens always go to the relay; Android tokens go to it only when
+    no service account is configured.
+
+    A token sent through the relay is the handle the relay gave the device
+    (``push_relay.is_handle``), and one sent to FCM is the device's own. A
+    token of the other kind cannot be delivered where this platform now goes
+    (the operator added or removed a service account after the device
+    registered), so it is reported dead without a request; the app registers
+    the right kind on its next launch.
 
     Args:
         client: The HTTP client the whole fan-out shares
-        push_token: FCM registration token
+        push_token: The device's relay handle, or its FCM token when Android
+            goes to FCM directly
         title: Notification title
         body: Notification body
         data: Optional data payload (must be string key-value pairs)
         channel_id: Android notification channel to deliver on
+        platform: The device's platform, ``android`` or ``ios``
 
     Returns:
         Tuple of (success, should_delete_token):
@@ -155,19 +175,49 @@ async def send_push_notification(
 
     Error handling:
         - 404/410: Token invalid, should be deleted from database
-        - 401: Credentials issue, logged as error
+        - 401: Credentials issue, logged as error (the relay key is dropped,
+          so the next push registers again)
         - 5xx: Server error, logged as warning
         - Network errors: Logged as warning
     """
     cfg = await push_config.ensure_push_config_fresh()
-    if not cfg.enabled or not cfg.project_id:
+    if not cfg.enabled:
         logger.warning("FCM not enabled, skipping push notification")
         return (False, False)
 
-    access_token = await _get_fcm_access_token(cfg)
-    if not access_token:
-        logger.error("Failed to get FCM access token")
-        return (False, False)
+    via_relay = platform == "ios" or not cfg.service_account_json
+    if push_relay.is_handle(push_token) != via_relay:
+        logger.info(
+            "Push token for %s is not addressable %s; dropping it",
+            platform,
+            "through the push relay" if via_relay else "through FCM",
+        )
+        return (False, True)
+    relay_server_id: Optional[str] = None
+    if via_relay:
+        held = await push_relay.credentials(client)
+        if held is None:
+            logger.error("Push relay credentials unavailable")
+            return (False, False)
+        relay_server_id, relay_key = held
+        url = push_relay.send_url(cfg.project_id)
+        headers = {
+            "Authorization": push_relay.authorization(relay_server_id, relay_key),
+            "Content-Type": "application/json",
+        }
+    else:
+        if not cfg.project_id:
+            logger.warning("FCM project id not set, skipping push notification")
+            return (False, False)
+        access_token = await _get_fcm_access_token(cfg)
+        if not access_token:
+            logger.error("Failed to get FCM access token")
+            return (False, False)
+        url = FCM_API_URL.format(project_id=cfg.project_id)
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json",
+        }
 
     # Build FCM message
     fcm_message: dict[str, Any] = {
@@ -191,12 +241,7 @@ async def send_push_notification(
     if data:
         fcm_message["data"] = {k: str(v) for k, v in data.items()}
 
-    url = FCM_API_URL.format(project_id=cfg.project_id)
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-        "Content-Type": "application/json",
-    }
-
+    service = "Push relay" if via_relay else "FCM"
     try:
         response = await client.post(url, json=message, headers=headers)
 
@@ -208,161 +253,38 @@ async def send_push_notification(
         elif response.status_code in (404, 410):
             # Token invalid or unregistered - should be deleted
             logger.warning(
-                f"FCM token invalid (status {response.status_code}): {push_token[:20]}..."
+                f"{service} token invalid (status {response.status_code}): "
+                f"{push_token[:20]}..."
             )
             return (False, True)
         elif response.status_code == 401:
             # Credentials issue - don't delete token
             logger.error(
-                f"FCM authentication failed (status {response.status_code}): {response.text}"
+                f"{service} authentication failed (status {response.status_code}): "
+                f"{response.text}"
+            )
+            if relay_server_id is not None:
+                await push_relay.forget(relay_server_id)
+            return (False, False)
+        elif response.status_code == 403 and relay_server_id is not None:
+            logger.error(
+                f"Push relay refused this server (status 403): {response.text}"
             )
             return (False, False)
         else:
             # Other error - don't delete token (might be temporary)
             logger.error(
-                f"FCM request failed (status {response.status_code}): {response.text}"
+                f"{service} request failed (status {response.status_code}): "
+                f"{response.text}"
             )
             return (False, False)
 
     except httpx.TimeoutException:
-        logger.warning(f"FCM request timed out for token: {push_token[:20]}...")
+        logger.warning(f"{service} request timed out for token: {push_token[:20]}...")
         return (False, False)
     except Exception as exc:
-        logger.error(f"Failed to send FCM notification: {exc}", exc_info=True)
+        logger.error(f"Failed to send push notification: {exc}", exc_info=True)
         return (False, False)
-
-
-async def _recipient_locale(user_id: int) -> str:
-    """The language one recipient reads, read on the system engine.
-
-    Only asked for when a redacted line has to be written and the caller had no
-    locale in hand; the recipient's account is not the sending session's to
-    read, the same way their notification settings are not.
-    """
-    from app.db.session import SystemSessionLocal
-    from app.models.platform.user import User
-
-    async with SystemSessionLocal() as system_session:
-        user = await system_session.get(User, user_id)
-        return (getattr(user, "locale", None) if user else None) or "en"
-
-
-async def _recipient_tokens(user_id: int) -> list[PushToken]:
-    """One recipient's devices whose sign-in still stands, read on the system
-    engine.
-
-    The rows are the recipient's rather than the sending session's to read,
-    the same way their account and notification settings are.
-    """
-    from app.db.session import SystemSessionLocal
-
-    async with SystemSessionLocal() as system_session:
-        tokens = await push_tokens.live_for_user(system_session, user_id=user_id)
-        await system_session.commit()
-        return tokens
-
-
-async def _record_delivery(
-    user_id: int, *, delivered_ids: list[int], dead_tokens: list[str]
-) -> None:
-    """Write what a delivery learned back on the system engine, in one commit."""
-    if not delivered_ids and not dead_tokens:
-        return
-    from app.db.session import SystemSessionLocal
-
-    async with SystemSessionLocal() as system_session:
-        await push_tokens.record_delivery(
-            system_session,
-            user_id=user_id,
-            delivered_ids=delivered_ids,
-            dead_tokens=dead_tokens,
-        )
-        await system_session.commit()
-
-
-async def send_push_to_user(
-    session: AsyncSession,
-    user_id: int,
-    notification_type: NotificationType,
-    title: str,
-    body: str,
-    data: Optional[Dict[str, Any]] = None,
-    only_device_token_ids: Optional[set[int]] = None,
-    guild_id: Optional[int] = None,
-    locale: Optional[str] = None,
-) -> int:
-    """Send push notification to all of a user's devices.
-
-    Every push in the app leaves through here, which is where the deployment's
-    and the community's answers about what may reach a phone are applied: one
-    of them declining sends nothing, and either of them asking for a redacted
-    notification replaces the wording with the kind of thing that happened.
-
-    The recipient's device rows are read and written on the system engine
-    rather than on ``session``, which is the caller's and often routed into a
-    community; ``session`` carries the resolved answers, so a fan-out on it
-    reads them once per transaction.
-
-    Args:
-        session: The caller's session (not used for the device rows)
-        user_id: User ID
-        notification_type: Type of notification (for logging/analytics)
-        title: Notification title
-        body: Notification body
-        data: Optional data payload
-        only_device_token_ids: Restrict delivery to these installations. Used by
-            categories that only make sense on a device set up for them.
-        guild_id: The community this notification belongs to, whose own answer
-            applies alongside the deployment's. ``None`` for a notification that
-            belongs to no community — a message, a connection, an account
-            notice — which the deployment alone answers for.
-        locale: The recipient's language, for a redacted line. Read from their
-            account when a redacted line is needed and this was not given.
-
-    Returns:
-        Number of successful deliveries
-    """
-    if not (await push_config.ensure_push_config_fresh()).enabled:
-        return 0
-
-    tokens = await _recipient_tokens(user_id)
-    if only_device_token_ids is not None:
-        tokens = [
-            token for token in tokens if token.device_token_id in only_device_token_ids
-        ]
-
-    if not tokens:
-        logger.debug(f"No push tokens found for user {user_id}")
-        return 0
-
-    policy = await notification_policy.for_send(session, guild_id)
-    if not policy.push:
-        return 0
-    if policy.redact:
-        title, body = notification_policy.redacted_push(
-            notification_type, locale or await _recipient_locale(user_id)
-        )
-
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        outcome = await _send_to_devices(
-            client,
-            tokens,
-            title=title,
-            body=body,
-            data=data,
-            channel_id=channel_for(notification_type),
-        )
-
-    await _record_delivery(
-        user_id, delivered_ids=outcome.delivered_ids, dead_tokens=outcome.dead_tokens
-    )
-
-    logger.info(
-        f"Sent push notification to {len(outcome.delivered_ids)}/{len(tokens)} "
-        f"devices for user {user_id} (type: {notification_type})"
-    )
-
-    return len(outcome.delivered_ids)
 
 
 @dataclass
@@ -398,6 +320,7 @@ async def _send_to_devices(
                 body=body,
                 data=data,
                 channel_id=channel_id,
+                platform=token.platform,
             )
 
     results = await asyncio.gather(*(one(token) for token in tokens))
@@ -425,6 +348,8 @@ class Push:
     title: str
     body: str
     data: Dict[str, Any]
+    #: Only the devices these sign-ins registered; ``None`` for every device.
+    session_ids: frozenset[uuid.UUID] | None = None
 
 
 #: How many FCM calls one batch keeps in flight at once.
@@ -434,10 +359,11 @@ CONCURRENT_SENDS = 16
 async def send_pushes(session: AsyncSession, pushes: Sequence[Push]) -> list[bool]:
     """Send a batch of pushes at once, on the system engine's ``session``.
 
-    For the notice worker, which has already applied the deployment's and the
-    community's switches and each recipient's settings: this only finds each
-    person's devices, sends, and records what FCM said. One HTTP client serves
-    the batch and :data:`CONCURRENT_SENDS` calls are in flight at a time.
+    The one way a push leaves the app. Its caller has already applied the
+    deployment's and the community's switches and each recipient's settings:
+    this only finds each person's devices, keeps those a push names, sends,
+    and records what FCM said. One HTTP client serves the batch and
+    :data:`CONCURRENT_SENDS` calls are in flight at a time.
 
     Returns, for each push in order, whether it should be tried again: no device
     took it, and a send failed short of an answer. Does not commit.
@@ -463,7 +389,12 @@ async def send_pushes(session: AsyncSession, pushes: Sequence[Push]) -> list[boo
             *(
                 _send_to_devices(
                     client,
-                    devices[push.user_id] or [],
+                    [
+                        token
+                        for token in devices[push.user_id] or []
+                        if push.session_ids is None
+                        or token.session_id in push.session_ids
+                    ],
                     title=push.title,
                     body=push.body,
                     data=push.data,

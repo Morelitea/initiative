@@ -3,14 +3,21 @@ from string import ascii_letters, digits
 from typing import Final, List, Literal, Optional
 from uuid import uuid4
 
-from pydantic import ConfigDict, Field, field_validator
+from pydantic import AliasChoices, ConfigDict, Field, field_validator
 
 from app.core.identity_boundary import GuildId, PersonId
-from app.schemas.base import RichTextStr, SanitizedBaseModel, TitleStr
+from app.schemas.base import (
+    MentionStr,
+    RichMentionStr,
+    RichTextStr,
+    SanitizedBaseModel,
+    TitleStr,
+    reject_null,
+)
 from app.schemas.query import PageMeta
 from app.schemas.recurrence import OccurrenceScope, TaskRule
 
-from app.schemas.platform.user import AvatarUrl, UserPublic
+from app.schemas.platform.user import PersonShape, UserPublic
 from app.schemas.tenant.initiative import InitiativeSummary
 from app.schemas.tenant.task_status import TaskStatusRead
 from app.schemas.tenant.tag import TagSummary
@@ -20,17 +27,18 @@ from app.schemas.tenant.property import (
     PropertySummary,
 )
 
+from app.core.intake import Conversation, IntakeStream
 from app.models.tenant.task import TaskPriority
 from app.models.platform.user import UserStatus
 
 
-class TaskAssigneeSummary(SanitizedBaseModel):
+class TaskAssigneeSummary(PersonShape):
     """Minimal assignee data for task lists.
 
     A person appears here, so it follows the same two rules every other
     guild-scoped shape does: the handle is always present and is what renders
-    when there is no name to show, and ``full_name`` arrives only from a guild
-    that shows real names.
+    when there is no name to show, and ``display_name`` is the name the person
+    set in this guild.
     """
 
     model_config = ConfigDict(
@@ -40,8 +48,8 @@ class TaskAssigneeSummary(SanitizedBaseModel):
     id: PersonId
     username: str
     discriminator: int
-    full_name: Optional[str] = None
-    avatar_url: AvatarUrl = None
+    display_name: Optional[str] = None
+    avatar_url: Optional[str] = None
     status: UserStatus = UserStatus.active
 
 
@@ -65,7 +73,7 @@ class ChecklistItemInput(SanitizedBaseModel):
     without one is given a fresh id."""
 
     id: Optional[str] = Field(default=None, max_length=_MAX_ITEM_ID_LENGTH)
-    text: str = Field(min_length=1, max_length=2000)
+    text: MentionStr = Field(min_length=1, max_length=2000)
     done: bool = False
 
     @field_validator("id")
@@ -81,7 +89,7 @@ class ChecklistItem(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     id: str
-    text: str
+    text: MentionStr
     done: bool = False
 
 
@@ -116,7 +124,7 @@ class TaskBase(SanitizedBaseModel):
 
 class TaskCreate(TaskBase, PropertiesOnCreate):
     title: TitleStr
-    description: Optional[RichTextStr] = None
+    description: Optional[RichMentionStr] = None
     project_id: int
     recurrence: Optional[TaskRule] = None
     #: The zone ``recurrence``'s days were picked in, and ``recurrence_shift``
@@ -130,7 +138,7 @@ class TaskCreate(TaskBase, PropertiesOnCreate):
 
 class TaskUpdate(PropertiesOnUpdate):
     title: Optional[TitleStr] = None
-    description: Optional[RichTextStr] = None
+    description: Optional[RichMentionStr] = None
     task_status_id: Optional[int] = None
     priority: Optional[TaskPriority] = None
     assignee_ids: Optional[List[PersonId]] = None
@@ -148,6 +156,8 @@ class TaskUpdate(PropertiesOnUpdate):
     #: Omitted, it carries forward from this task ("following"). The repeat
     #: itself always changes from this task on.
     scope: Optional[OccurrenceScope] = None
+
+    _required = reject_null("title", "priority")
 
 
 class TaskMoveRequest(SanitizedBaseModel):
@@ -173,7 +183,7 @@ class TaskRead(TaskBase):
         from_attributes=True, json_schema_serialization_defaults_required=True
     )
 
-    description: Optional[RichTextStr] = None
+    description: Optional[RichMentionStr] = None
     id: int
     project_id: int
     task_status_id: int
@@ -216,8 +226,9 @@ class TaskListRead(TaskBase):
     )
 
     #: The description's opening words as plain text, ending on a word
-    #: boundary with an ellipsis when cut. The whole text is on ``TaskRead``.
-    description_excerpt: Optional[str] = None
+    #: boundary with an ellipsis when cut, and a mention as its markdown,
+    #: ``@[](42)``. The whole text is on ``TaskRead``.
+    description_excerpt: Optional[MentionStr] = None
     has_description: bool = False
     id: int
     project_id: int
@@ -239,8 +250,12 @@ class TaskListRead(TaskBase):
     #: edges whose far end has not finished. Only kinds with a reading of
     #: "finished" count — see :mod:`app.db.blocking`.
     blocked_by_open_count: int = 0
-    guild_id: Optional[GuildId] = None
-    guild_name: Optional[str] = None
+    community_id: Optional[GuildId] = Field(
+        default=None, validation_alias=AliasChoices("community_id", "guild_id")
+    )
+    community_name: Optional[str] = Field(
+        default=None, validation_alias=AliasChoices("community_name", "guild_name")
+    )
     project_name: Optional[str] = None
     initiative_id: Optional[int] = None
     initiative_name: Optional[str] = None
@@ -268,3 +283,36 @@ class TaskReorderItem(SanitizedBaseModel):
 class TaskReorderRequest(SanitizedBaseModel):
     project_id: int
     items: list[TaskReorderItem]
+
+
+class CaseMessageRead(SanitizedBaseModel):
+    """One part of the conversation with whoever filed a case."""
+
+    id: int
+    #: Who wrote it: the requester, or the person on the team who answered.
+    author: Optional[UserPublic] = None
+    from_requester: bool
+    #: Kept as written, like any comment body.
+    content: RichTextStr
+    created_at: datetime
+
+
+class TaskCaseRead(SanitizedBaseModel):
+    """How an operations case was filed, for the people working it."""
+
+    stream: IntakeStream
+    opened_at: datetime
+    #: Who filed it, where somebody did. Not necessarily a member here.
+    filer: Optional[UserPublic] = None
+    #: What they called it when they filed it. The task's title is the team's.
+    filer_subject: Optional[str] = None
+    #: What the stream allows with the filer: ``open``, ``staff_first`` (the
+    #: team speaks first), or ``none`` — also where nobody filed it.
+    conversation: Conversation
+    #: The binding's statuses that mean "waiting on the filer" and "being
+    #: worked", where it names them.
+    awaiting_filer_status_id: Optional[int] = None
+    active_status_id: Optional[int] = None
+    #: The conversation with the requester, oldest first. Kept apart from the
+    #: task's comments: it is what they read, and only that.
+    messages: List[CaseMessageRead] = Field(default_factory=list)

@@ -25,9 +25,10 @@ import { useInitiative } from "@/hooks/useInitiatives";
 import { PostReadTrackerProvider } from "@/hooks/usePostReadTracker";
 import { usePostsFeed, usePostsTimeline } from "@/hooks/usePosts";
 import { useToolCounts } from "@/hooks/useToolCounts";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { formatPeriod, formatPeriodYear } from "@/lib/formatDate";
-import { useGuildPath } from "@/lib/guildUrl";
 import { postPeriod } from "@/lib/posts";
+import { browserTimezone } from "@/lib/timezones";
 import { type ToolView, toolDetailRoute, toolViewParams } from "@/lib/tools";
 
 /**
@@ -85,7 +86,7 @@ type PostsViewProps = {
 export const PostsView = ({ fixedInitiativeId, canCreate }: PostsViewProps) => {
   const { t } = useTranslation(["posts", "common"]);
   const router = useRouter();
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
 
   const [listFilters, setListFilters] = useState<ToolListFilters<typeof Tool.post>>({});
   const tagIds = listFilters.tag_ids ?? [];
@@ -121,7 +122,7 @@ export const PostsView = ({ fixedInitiativeId, canCreate }: PostsViewProps) => {
   // going anywhere else.
   const timelineQuery = usePostsTimeline({
     ...filters,
-    tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    tz: browserTimezone(),
   });
 
   const { canCreate: canCreateDerived } = useToolCreateAccess(Tool.post, {
@@ -297,12 +298,7 @@ export const PostsView = ({ fixedInitiativeId, canCreate }: PostsViewProps) => {
           }}
           actions={
             canCreatePosts ? (
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-9"
-                onClick={() => setCreateOpen(true)}
-              >
+              <Button size="sm" className="h-9" onClick={() => setCreateOpen(true)}>
                 <Plus className="h-4 w-4" />
                 {t("createPost")}
               </Button>

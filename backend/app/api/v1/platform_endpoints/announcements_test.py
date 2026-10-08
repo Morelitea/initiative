@@ -484,7 +484,7 @@ async def test_uploading_something_that_is_not_an_image_is_refused(
         files={"file": ("notes.txt", b"just some text, honestly", "image/png")},
     )
     assert response.status_code == 400
-    assert response.json()["detail"] == "ANNOUNCEMENT_IMAGE_UNSUPPORTED_TYPE"
+    assert response.json()["detail"] == "IMAGE_INVALID"
 
 
 async def test_uploading_a_picture_needs_the_capability(

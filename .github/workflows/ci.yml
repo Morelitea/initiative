@@ -27,6 +27,10 @@ jobs:
     name: Detect Changes
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    permissions:
+      contents: read
+      # Finds the record of an earlier run that tested this tree.
+      actions: read
     outputs:
       backend: ${{ steps.diff.outputs.backend }}
       backend_mode: ${{ steps.diff.outputs.backend_mode }}
@@ -36,10 +40,48 @@ jobs:
       frontend: ${{ steps.diff.outputs.frontend }}
       codegen: ${{ steps.diff.outputs.codegen }}
       tooling: ${{ steps.diff.outputs.tooling }}
+      tested: ${{ steps.tested.outputs.tested }}
+      raw_tree: ${{ steps.tested.outputs.raw_tree }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+
+      - name: Look for a run that already tested this tree
+        # A release tests the tree dev already tested, and the push to main and
+        # the merge back into dev test it again. A run of ci.yml in this
+        # repository that passed every test records the tree it tested (the
+        # Record The Tested Tree job): `raw` when it is this exact tree, `tree`
+        # when only the files a release rewrites differ. Without a record, or
+        # if the lookup fails, everything runs as usual.
+        id: tested
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          { read -r raw; read -r tree; } < <(scripts/ci/tested_tree.sh)
+          echo "raw_tree=$raw" >> "$GITHUB_OUTPUT"
+          recorded() {
+            gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=$1&per_page=20" --jq '
+              [.artifacts[] | select((.expired | not)
+                and .workflow_run.head_repository_id == .workflow_run.repository_id)
+              | .workflow_run.id] | .[]' |
+            while read -r run; do
+              if [[ "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" --jq .path)" == .github/workflows/ci.yml ]]; then
+                echo "$run"
+                break
+              fi
+            done
+          }
+          if run=$(recorded "tested-raw-$raw") && [[ -n "$run" ]]; then
+            echo "tested=raw" >> "$GITHUB_OUTPUT"
+            echo "Run $run tested this exact tree."
+          elif run=$(recorded "tested-tree-$tree") && [[ -n "$run" ]]; then
+            echo "tested=tree" >> "$GITHUB_OUTPUT"
+            echo "Run $run tested this tree but for the files a release rewrites."
+          else
+            echo "No earlier run tested this tree."
+          fi
 
       - name: Diff against the base
         id: diff
@@ -51,6 +93,7 @@ jobs:
           # Release Candidate runs, rather than in a fork.
           SAME_REPO: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
           BEFORE: ${{ github.event.before }}
+          TESTED: ${{ steps.tested.outputs.tested }}
         run: |
           # A pull request diffs against its base branch. A push diffs against
           # where the branch stood before it, so every commit of a multi-commit
@@ -73,6 +116,18 @@ jobs:
           out() { echo "$1=$2" >> "$GITHUB_OUTPUT"; }
 
           backend() {
+            # A tree an earlier run tested whole is not tested again. When the
+            # files a release rewrites differ, the always-run core reads them.
+            if [[ "$TESTED" == "raw" ]]; then
+              out backend false
+              echo "An earlier run tested this exact tree — skipping"
+              return
+            elif [[ "$TESTED" == "tree" ]]; then
+              out backend true; out alembic false; out backend_mode core
+              echo "An earlier run tested this tree but for the release's files — running the always-run core"
+              return
+            fi
+
             # Integration pushes run every test: they are the authoritative
             # whole-tree signal, and dev's run records the data pull requests
             # select tests from.
@@ -95,7 +150,7 @@ jobs:
             if [[ -z "$CHANGED" ]]; then
               # Nothing in backend/, but the always-run core also holds the
               # backend's checks on files elsewhere (the locale catalogues, the
-              # app-kit contract, the Android channels), so any change but
+              # plugin-kit contract, the Android channels), so any change but
               # documentation runs it.
               if [[ -n "$(changed . ':!docs/' ':!*.md' ':!zensical.toml')" ]]; then
                 out backend true; out alembic false; out backend_mode core
@@ -134,8 +189,12 @@ jobs:
 
           frontend() {
             # Pushes to the integration branches are whole-tree verification;
-            # only pull requests use the changed-file shortcut.
-            if [[ "$EVENT" != "pull_request" ]]; then
+            # only pull requests use the changed-file shortcut. A tree an
+            # earlier run tested whole, release files aside, is not tested again.
+            if [[ -n "$TESTED" ]]; then
+              out frontend false
+              echo "An earlier run tested this tree — skipping"
+            elif [[ "$EVENT" != "pull_request" ]]; then
               out frontend true
               echo "Integration push — running the full frontend suite"
             elif [[ -n "$(changed frontend/ .github/actions/setup-frontend/)" ]]; then
@@ -310,6 +369,13 @@ jobs:
 
       - uses: ./.github/actions/setup-backend
 
+      - uses: ./.github/actions/setup-frontend
+
+      - name: Build the document editor for the server
+        # app/services/editor_engine.py runs it.
+        working-directory: frontend
+        run: pnpm build:editor-server
+
       - name: Frozen migrations are unchanged, one Alembic head
         # scripts/ci/check runs the same checks locally (and before a push).
         if: github.event_name == 'pull_request'
@@ -426,6 +492,47 @@ jobs:
             python3 scripts/ci/pytest_summary.py "$RUNNER_TEMP/pytest-seam.log" "Request-context seam"
           } >> "$GITHUB_STEP_SUMMARY"
 
+  record-tested-tree:
+    name: Record The Tested Tree
+    needs: [changes, backend-tests, frontend-lint-and-test]
+    # The tree every backend and frontend test, and the seam suite, passed on,
+    # so a later run of the same tree can skip them (Detect Changes). A run that
+    # ran the core because only a release's files differed records the exact
+    # tree it checked. Only this repository's own branches record.
+    if: >-
+      ${{ !cancelled()
+      && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository)
+      && needs.backend-tests.result == 'success'
+      && ((needs.changes.outputs.backend_mode == 'full' && needs.changes.outputs.seam == 'true'
+          && needs.frontend-lint-and-test.result == 'success')
+        || needs.changes.outputs.tested == 'tree') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Name the tree
+        id: ids
+        run: |
+          { read -r raw; read -r tree; } < <(scripts/ci/tested_tree.sh)
+          { echo "raw=$raw"; echo "tree=$tree"; } >> "$GITHUB_OUTPUT"
+          printf '%s\n%s\n%s\n' "$GITHUB_SHA" "$raw" "$tree" > "$RUNNER_TEMP/tested-tree.txt"
+
+      - name: Record the exact tree
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: tested-raw-${{ steps.ids.outputs.raw }}
+          path: ${{ runner.temp }}/tested-tree.txt
+          retention-days: 30
+
+      - name: Record the tree without the release's files
+        if: needs.changes.outputs.backend_mode == 'full'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: tested-tree-${{ steps.ids.outputs.tree }}
+          path: ${{ runner.temp }}/tested-tree.txt
+          retention-days: 30
+
   upgrade-from-release:
     name: Upgrade From Release
     needs: changes
@@ -499,6 +606,7 @@ jobs:
       && !contains(needs.*.result, 'cancelled') }}
     permissions:
       contents: read
+      packages: write  # the push to GHCR
       id-token: write  # the image's signature
     uses: ./.github/workflows/dev-build.yml
     # inherit, not a list: the build's environment secrets (OTA_SIGNING_KEY)

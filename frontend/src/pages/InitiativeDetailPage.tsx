@@ -1,9 +1,10 @@
 import { Link, Navigate, useParams } from "@tanstack/react-router";
-import { ChevronDown, SearchX, Settings } from "lucide-react";
-import { type ComponentType, Suspense, useMemo } from "react";
+import { Info, SearchX, Settings } from "lucide-react";
+import { type ComponentType, type CSSProperties, Suspense, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { InitiativeMembersPeek } from "@/components/initiatives/InitiativeMembersPeek";
 import { Markdown } from "@/components/Markdown";
 import { StatusMessage } from "@/components/StatusMessage";
 import {
@@ -11,35 +12,34 @@ import {
   SkeletonRegion,
   ToolListSkeleton,
 } from "@/components/skeletons/PageSkeletons";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tabs, TabsBar, TabsContent, TabsTrigger } from "@/components/ui/tabs";
-import { useGuilds } from "@/hooks/useGuilds";
+import { useCommunities } from "@/hooks/useCommunities";
 import { useInitiative } from "@/hooks/useInitiatives";
-import { useGuildPath } from "@/lib/guildUrl";
-import { InitiativeColorDot } from "@/lib/initiativeColors";
+import { useCommunityPath } from "@/lib/communityUrl";
+import { resolveInitiativeColor } from "@/lib/initiativeColors";
 import { initiativeRoute, TOOLS, toolCamelPlural, toolListRoute } from "@/lib/tools";
+import { cn } from "@/lib/utils";
 
-import { DocumentsView } from "./DocumentsPage";
 import { CounterGroupsView } from "./initiativeTools/counters/CounterGroupsPage";
 import { DashboardsView } from "./initiativeTools/dashboards/DashboardsPage";
 import { CalendarsView } from "./initiativeTools/events/CalendarsPage";
+import { FilesView } from "./initiativeTools/files/FilesPage";
 import { GalleriesView } from "./initiativeTools/galleries/GalleriesPage";
 import { PostsView } from "./initiativeTools/posts/PostsPage";
+import { ProjectsView } from "./initiativeTools/projects/ProjectsPage";
 import { QueuesView } from "./initiativeTools/queues/QueuesPage";
 import { WikisView } from "./initiativeTools/wikis/WikisPage";
-import { ProjectsView } from "./ProjectsPage";
 
-type ToolViewProps = { fixedInitiativeId: number; canCreate?: boolean };
+type ToolViewProps = { fixedInitiativeId: number; canCreate: boolean };
 
 // Each tool's list view. A new tool adds one line here (the drift test
 // asserts every tool has an entry); the tab ORDER is not restated — it is the
 // registry's canonical order, so these tabs read in the same sequence as the
-// guild home's tool rail.
+// community home's tool rail.
 const TOOL_VIEWS: Record<Tool, ComponentType<ToolViewProps>> = {
   [Tool.project]: ProjectsView,
-  [Tool.document]: DocumentsView,
+  [Tool.file]: FilesView,
   [Tool.queue]: QueuesView,
   [Tool.counter_group]: CounterGroupsView,
   [Tool.calendar]: CalendarsView,
@@ -68,20 +68,20 @@ export const InitiativeDetailPage = ({ tool }: InitiativeDetailPageProps = {}) =
   }) as {
     initiativeId: string;
   };
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
   const parsedInitiativeId = Number(initiativeIdParam);
   const hasValidInitiativeId = Number.isFinite(parsedInitiativeId);
   const initiativeId = hasValidInitiativeId ? parsedInitiativeId : 0;
   const { t } = useTranslation(["initiatives", "common"]);
-  const { activeGuild } = useGuilds();
-  const guildAdminLabel = t("settings.guildAdminRole");
+  const { activeCommunity } = useCommunities();
+  const communityAdminLabel = t("settings.communityAdminRole");
 
-  // Addressed by id, not picked out of the caller's own list: a guild admin
-  // reaches every initiative in their guild whether or not they have joined it,
+  // Addressed by id, not picked out of the caller's own list: a community admin
+  // reaches every initiative in their community whether or not they have joined it,
   // and the endpoint answers 404 to anyone the row is not visible to.
   const initiativeQuery = useInitiative(hasValidInitiativeId ? initiativeId : null);
   const initiative = initiativeQuery.data ?? null;
-  const isGuildAdmin = Boolean(activeGuild?.can.administer_content);
+  const isCommunityAdmin = Boolean(activeCommunity?.can.administer_content);
   const canManageInitiative = Boolean(initiative?.can.manage);
 
   // A tool's tab renders when its permission allows viewing it (the backend
@@ -98,13 +98,16 @@ export const InitiativeDetailPage = ({ tool }: InitiativeDetailPageProps = {}) =
   // The path names the tab, so it is shareable and survives a reload. A tool
   // this member can't view falls back to the first one they can, rather than
   // dead-ending a bookmark the moment a permission changes — the same rule the
-  // guild home applies to its `?tool=` param.
+  // community home applies to its `?tool=` param.
   const activeTab =
     tool && availableTabs.includes(tool) ? tool : (availableTabs[0] ?? Tool.project);
 
   const memberCount = initiative?.member_count ?? 0;
 
-  const roleBadgeLabel = initiative?.role_display_name ?? (isGuildAdmin ? guildAdminLabel : null);
+  const [descriptionOpen, setDescriptionOpen] = useState(false);
+
+  const roleBadgeLabel =
+    initiative?.role_display_name ?? (isCommunityAdmin ? communityAdminLabel : null);
 
   if (!hasValidInitiativeId) {
     return <Navigate to={gp("/")} replace />;
@@ -126,16 +129,15 @@ export const InitiativeDetailPage = ({ tool }: InitiativeDetailPageProps = {}) =
     );
   }
 
+  const color = resolveInitiativeColor(initiative.color);
+
   // If user has no access to any features, show a message
   if (availableTabs.length === 0) {
     return (
-      <div className="space-y-4">
-        <div className="rounded-lg border p-6">
-          <div className="flex flex-wrap items-center gap-3">
-            <InitiativeColorDot color={initiative.color} className="h-4 w-4" />
-            <h1 className="font-semibold text-3xl tracking-tight">{initiative.name}</h1>
-          </div>
-          <p className="mt-4 text-muted-foreground">{t("detail.noAccess")}</p>
+      <div className="space-y-6">
+        <div className="border-l-2 pl-4" style={{ borderColor: color }}>
+          <h1 className="font-semibold text-3xl tracking-tight">{initiative.name}</h1>
+          <p className="mt-2 text-muted-foreground">{t("detail.noAccess")}</p>
         </div>
       </div>
     );
@@ -151,46 +153,59 @@ export const InitiativeDetailPage = ({ tool }: InitiativeDetailPageProps = {}) =
     </SkeletonRegion>
   );
 
-  // Description + counts, rendered inline on wide screens and inside the
-  // mobile disclosure — one definition, so the two can't drift.
-  const headerDetails = (
-    <>
-      {initiative.description ? (
-        <Markdown content={initiative.description} className="text-muted-foreground" />
-      ) : (
-        <p className="text-muted-foreground text-sm">{t("noDescription")}</p>
-      )}
-      <div className="flex flex-wrap items-center gap-4 text-muted-foreground text-sm">
-        <span>{t("detail.member", { count: memberCount })}</span>
-        <span>
-          {t("detail.updated", { date: new Date(initiative.updated_at).toLocaleDateString() })}
-        </span>
-      </div>
-    </>
-  );
+  const description = initiative.description ? (
+    <Markdown content={initiative.description} className="text-muted-foreground" />
+  ) : null;
 
   return (
-    <div className="space-y-4 sm:space-y-6">
-      {/* The header is context, not content. On a phone it stays a title row
-          plus the settings gear; the badges, blurb, and counts sit one tap away
-          in the disclosure rather than pushing the tool's list off screen.
-          The row never wraps — a long name wraps its own text instead (it can
-          shrink past its content, hence min-w-0), so the gear stays put. */}
+    <div className="space-y-6">
+      {/* The header is context, not content. On a phone it is the title, the
+          settings gear and who is here; the description sits one tap away
+          rather than pushing the tool's list off screen. The row never wraps —
+          a long name wraps its own text instead (it can shrink past its
+          content, hence min-w-0), so the gear stays put. */}
       <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0 flex-1 space-y-2 sm:space-y-4">
-          <div className="flex min-w-0 items-center gap-3">
-            <InitiativeColorDot color={initiative.color} className="h-4 w-4 shrink-0" />
-            <h1 className="min-w-0 break-words font-semibold text-xl tracking-tight sm:text-3xl">
+        {/* The initiative's colour as a rule down the side of its name: the
+            line the sidebar draws under the same initiative's tools. */}
+        <div className="min-w-0 flex-1 border-l-2 pl-4" style={{ borderColor: color }}>
+          <div className="flex items-start gap-1">
+            <h1 className="min-w-0 break-words font-semibold text-3xl tracking-tight">
               {initiative.name}
             </h1>
-            <div className="hidden shrink-0 flex-wrap items-center gap-2 sm:flex">
-              {initiative.is_default ? (
-                <Badge variant="outline">{t("detail.default")}</Badge>
-              ) : null}
-              {roleBadgeLabel ? <Badge variant="secondary">{roleBadgeLabel}</Badge> : null}
-            </div>
+            {/* On a phone the description waits behind a small toggle beside
+                the name, so it costs no row until somebody asks for it. */}
+            {description ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className={cn(
+                  "mt-1.5 h-6 w-6 shrink-0 rounded-full text-muted-foreground sm:hidden",
+                  descriptionOpen && "bg-accent text-foreground"
+                )}
+                aria-expanded={descriptionOpen}
+                aria-label={t("common:description")}
+                onClick={() => setDescriptionOpen((open) => !open)}
+              >
+                <Info className="h-3.5 w-3.5" />
+              </Button>
+            ) : null}
           </div>
-          <div className="hidden space-y-4 sm:block">{headerDetails}</div>
+          {description ? (
+            <div className={cn("mt-2 sm:block", !descriptionOpen && "hidden")}>{description}</div>
+          ) : null}
+          {/* One quiet line: the reader's role here, then who else is. Words in
+              a row rather than a pill and a count strip, shown at every width:
+              who is here is the point of the place. */}
+          <p className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-muted-foreground text-sm">
+            {roleBadgeLabel ? (
+              <>
+                <span>{roleBadgeLabel}</span>
+                <span aria-hidden>·</span>
+              </>
+            ) : null}
+            <InitiativeMembersPeek initiativeId={initiative.id} memberCount={memberCount} />
+          </p>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
           {canManageInitiative ? (
@@ -213,30 +228,24 @@ export const InitiativeDetailPage = ({ tool }: InitiativeDetailPageProps = {}) =
         </div>
       </div>
 
-      <Collapsible className="group sm:hidden">
-        <CollapsibleTrigger asChild>
-          <Button variant="ghost" size="sm" className="h-8 px-0 text-muted-foreground">
-            {t("common:toolbar.details")}
-            <ChevronDown className="h-4 w-4 transition-transform group-data-[state=open]:rotate-180" />
-          </Button>
-        </CollapsibleTrigger>
-        <CollapsibleContent className="space-y-3 pt-2">
-          <div className="flex flex-wrap items-center gap-2">
-            {initiative.is_default ? <Badge variant="outline">{t("detail.default")}</Badge> : null}
-            {roleBadgeLabel ? <Badge variant="secondary">{roleBadgeLabel}</Badge> : null}
-          </div>
-          {headerDetails}
-        </CollapsibleContent>
-      </Collapsible>
-
       <Tabs value={activeTab}>
-        <TabsBar>
+        {/* Words on a rule rather than a pill bar, the open one underlined in
+            the initiative's colour — the same colour as the rule by its name. */}
+        <TabsBar
+          className="h-auto gap-5 rounded-none border-b bg-transparent p-0"
+          style={{ "--initiative": color } as CSSProperties}
+        >
           {TOOL_TABS.filter(([tabTool]) => availableTabs.includes(tabTool)).map(([tabTool]) => (
-            <TabsTrigger key={tabTool} value={tabTool} asChild>
+            <TabsTrigger
+              key={tabTool}
+              value={tabTool}
+              className="-mb-px rounded-none border-transparent border-b-2 px-0 pt-1 pb-2 data-[state=active]:border-(--initiative) data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+              asChild
+            >
               {/* A real link, so a tab is shareable and answers the back
                     button. `search={{}}` clears the page cursor: all six tabs
                     now share one search schema, so a ?page from the queue tab
-                    would otherwise follow the reader into documents. */}
+                    would otherwise follow the reader into files. */}
               <Link to={gp(toolListRoute(tabTool, initiative.id))} search={{}}>
                 {t(`detail.${toolCamelPlural(tabTool)}` as never)}
               </Link>

@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   buildRecentCounterGroupItem,
-  buildRecentDocumentItem,
+  buildRecentFileItem,
   buildRecentItem,
   buildRecentProjectItem,
   buildRecentQueueItem,
@@ -42,7 +42,7 @@ describe("RecentTabsBar", () => {
   it("renders one tab per item with its name and entity-specific icons", () => {
     const items = [
       buildRecentProjectItem({ name: "Lost Mines", icon: "⚒️" }),
-      buildRecentDocumentItem({ name: "Session Notes" }),
+      buildRecentFileItem({ name: "Session Notes" }),
       buildRecentQueueItem({ name: "Combat" }),
       buildRecentCounterGroupItem({ name: "HP Trackers" }),
     ];
@@ -63,10 +63,10 @@ describe("RecentTabsBar", () => {
     expect(screen.getByText("⚒️")).toBeInTheDocument();
   });
 
-  it("links each item to its guild-scoped detail page", () => {
+  it("links each item to its community-scoped detail page", () => {
     const items = [
       buildRecentProjectItem({ entity_id: 11, name: "ProjectX" }),
-      buildRecentDocumentItem({ entity_id: 22, name: "DocY" }),
+      buildRecentFileItem({ entity_id: 22, name: "DocY" }),
       buildRecentQueueItem({ entity_id: 33, name: "QueueZ" }),
       buildRecentCounterGroupItem({ entity_id: 44, name: "GroupW" }),
     ];
@@ -83,10 +83,7 @@ describe("RecentTabsBar", () => {
       "href",
       "/c/1/i/5/projects/11"
     );
-    expect(screen.getByRole("link", { name: /DocY/ })).toHaveAttribute(
-      "href",
-      "/c/1/i/5/documents/22"
-    );
+    expect(screen.getByRole("link", { name: /DocY/ })).toHaveAttribute("href", "/c/1/i/5/files/22");
     expect(screen.getByRole("link", { name: /QueueZ/ })).toHaveAttribute(
       "href",
       "/c/1/i/5/queues/33"
@@ -97,16 +94,16 @@ describe("RecentTabsBar", () => {
     );
   });
 
-  // Only calendars can be guild-level (an app installs one). Those keep a
-  // guild address rather than being wedged under an initiative they lack.
-  it("links a guild-level calendar at its guild route", () => {
+  // Only calendars can be community-level (a plug-in installs one). Those keep a
+  // community address rather than being wedged under an initiative they lack.
+  it("links a community-level calendar at its community route", () => {
     renderWithProviders(
       <RecentTabsBar
         items={[
           buildRecentItem({
             entity_type: "calendar",
             entity_id: 12,
-            name: "AppCal",
+            name: "PluginCal",
             initiative_id: null,
           }),
         ]}
@@ -116,7 +113,7 @@ describe("RecentTabsBar", () => {
       />
     );
 
-    expect(screen.getByRole("link", { name: /AppCal/ })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /PluginCal/ })).toHaveAttribute(
       "href",
       "/c/1/calendars/12"
     );

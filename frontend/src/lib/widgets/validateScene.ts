@@ -25,6 +25,7 @@ import {
   type SceneSpec,
   SERIES_LABELS,
   SERIES_MARKS,
+  SERIES_TIME_UNITS,
   type Series,
   type SeriesPoint,
   STACK_DIRECTIONS,
@@ -330,6 +331,7 @@ const parseNode = (raw: unknown, depth: number, budget: Budget): SceneNode => {
         format: optFormat(node.format),
         xLabel: optText(node.xLabel),
         yLabel: optText(node.yLabel),
+        xTime: oneOf(node.xTime, SERIES_TIME_UNITS),
         showLegend: optBool(node.showLegend),
         labels: oneOf(node.labels, SERIES_LABELS),
         target: optNum(node.target),
@@ -345,7 +347,7 @@ const parseNode = (raw: unknown, depth: number, budget: Budget): SceneNode => {
         lanes: asList(node.lanes).map((lane) => parseLane(lane, 0, lanes)),
         start: optNum(node.start),
         end: optNum(node.end),
-        scale: oneOf(node.scale, ["day", "week", "month", "quarter"] as const),
+        scale: oneOf(node.scale, ["day", "week", "month", "quarter", "year"] as const),
         now: optNum(node.now),
       });
     }

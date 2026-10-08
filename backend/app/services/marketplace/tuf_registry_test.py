@@ -29,9 +29,9 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
-from app.core.messages import AppServiceMessages
+from app.core.messages import PluginServiceMessages
 from app.core.messages import MarketplaceRegistryMessages as Codes
-from app.models.platform.app_service_registration import AppServiceRegistration
+from app.models.platform.plugin_service_registration import PluginServiceRegistration
 from app.models.platform.app_setting import AppSetting
 from app.models.platform.marketplace import (
     MarketplaceListing,
@@ -47,9 +47,9 @@ from app.services.marketplace import tuf_registry
 from app.services.marketplace.catalog import upsert_listing
 from app.services.platform.app_settings import ensure_settings_row
 from app.testing import (
-    create_app_service_registration,
+    create_plugin_service_registration,
     create_publisher,
-    sample_app_jwks,
+    sample_plugin_jwks,
 )
 from app.testing.tuf_repository import (
     BASE_URL,
@@ -59,7 +59,7 @@ from app.testing.tuf_repository import (
 )
 
 
-APP_UID = "ACME0000000001"
+PLUGIN_UID = "ACME0000000001"
 BOARD_UID = "ACME0000000002"
 OTHER_UID = "ACME0000000003"
 
@@ -103,12 +103,12 @@ async def _listing(session: AsyncSession, uid: str) -> MarketplaceListing | None
 
 async def _registration(
     session: AsyncSession, public_id: str
-) -> AppServiceRegistration | None:
+) -> PluginServiceRegistration | None:
     session.expire_all()
     return (
         await session.exec(
-            select(AppServiceRegistration).where(
-                AppServiceRegistration.public_id == public_id
+            select(PluginServiceRegistration).where(
+                PluginServiceRegistration.public_id == public_id
             )
         )
     ).first()
@@ -140,7 +140,7 @@ class TestApplying:
     async def test_publishers_listings_and_registrations_land(
         self, session, repo, trusted
     ):
-        repo.add_listing("acme", APP_UID, slug="tracker", name="Tracker")
+        repo.add_listing("acme", PLUGIN_UID, slug="tracker", name="Tracker")
         repo.add_listing("acme", BOARD_UID, slug="board", kind="dashboard")
         repo.publish()
 
@@ -157,22 +157,22 @@ class TestApplying:
         assert publisher.verified is True
         publisher_id = publisher.id
 
-        app = await _listing(session, APP_UID)
-        assert app is not None
-        assert app.source == "registry"
-        assert app.public_id == "acme.tracker"
-        assert app.publisher == "Acme Corp"
-        assert app.publisher_id == publisher_id
-        assert app.publisher_verified is True
-        assert app.avatar_url.startswith("/api/v1/marketplace/media/")
-        assert len(app.images) == 1
+        plugin = await _listing(session, PLUGIN_UID)
+        assert plugin is not None
+        assert plugin.source == "registry"
+        assert plugin.public_id == "acme.tracker"
+        assert plugin.publisher == "Acme Corp"
+        assert plugin.publisher_id == publisher_id
+        assert plugin.publisher_verified is True
+        assert plugin.avatar_url.startswith("/api/v1/marketplace/media/")
+        assert len(plugin.images) == 1
         board = await _listing(session, BOARD_UID)
         assert board is not None and board.kind == "dashboard"
 
         registration = await _registration(session, "acme.tracker")
         assert registration is not None
         assert registration.source == "registry"
-        assert registration.listing_uid == APP_UID
+        assert registration.listing_uid == PLUGIN_UID
         assert registration.publisher_id == publisher_id
         assert registration.image_digest == "ghcr.io/acme/tracker@sha256:" + "0" * 64
         assert (registration.base_url, registration.jwks) == (None, None)
@@ -208,7 +208,7 @@ class TestApplying:
     async def test_a_container_is_not_live_until_the_operator_places_it(
         self, session, repo, trusted
     ):
-        repo.add_listing("acme", APP_UID, slug="tracker")
+        repo.add_listing("acme", PLUGIN_UID, slug="tracker")
         repo.publish()
         await _refresh(session, repo)
         registration = await _registration(session, "acme.tracker")
@@ -221,20 +221,20 @@ class TestApplying:
         assert await _live(session, registration.id) is False
 
         await registrations_service.update_registration(
-            session, registration.id, jwks=sample_app_jwks()
+            session, registration.id, jwks=sample_plugin_jwks()
         )
         assert await _live(session, registration.id) is True
 
-    async def test_a_hosted_app_is_refused(self, session, repo, trusted):
+    async def test_a_hosted_plugin_is_refused(self, session, repo, trusted):
         hosted = container_registration(kind="hosted", base_url=BASE_URL)
         del hosted["image"]
-        repo.add_listing("acme", APP_UID, slug="tracker", registration=hosted)
+        repo.add_listing("acme", PLUGIN_UID, slug="tracker", registration=hosted)
         repo.publish()
 
         result, _ = await _refresh(session, repo)
 
         assert [item.code for item in result.skipped] == [Codes.LISTING_REJECTED]
-        assert await _listing(session, APP_UID) is None
+        assert await _listing(session, PLUGIN_UID) is None
         assert await _registration(session, "acme.tracker") is None
 
     async def test_the_ceiling_keeps_only_scopes_this_build_defines(
@@ -242,7 +242,7 @@ class TestApplying:
     ):
         repo.add_listing(
             "acme",
-            APP_UID,
+            PLUGIN_UID,
             slug="tracker",
             registration=container_registration(
                 scope_ceiling=["projects:read", "starships:write"]
@@ -257,21 +257,21 @@ class TestApplying:
         assert registration is not None
         assert registration.scope_ceiling == ["projects:read"]
 
-    async def test_a_sector_is_kept_only_for_this_projects_own_apps(
+    async def test_a_sector_is_kept_only_for_this_projects_own_plugins(
         self, session, repo, trusted
     ):
-        repo.add_publisher("morelitea", name="Morelitea")
+        repo.add_publisher("beyonders-studio", name="BeyondersStudio")
         sectored = container_registration(reference_sectors=["billing", "weather"])
         repo.add_listing(
-            "morelitea", "MRXT0000000001", slug="auto", registration=sectored
+            "beyonders-studio", "MRXT0000000001", slug="auto", registration=sectored
         )
-        repo.add_listing("acme", APP_UID, slug="tracker", registration=sectored)
+        repo.add_listing("acme", PLUGIN_UID, slug="tracker", registration=sectored)
         repo.publish()
 
         result, _ = await _refresh(session, repo)
 
         assert result.ok, result
-        ours = await _registration(session, "morelitea.auto")
+        ours = await _registration(session, "beyonders-studio.auto")
         assert ours is not None and ours.reference_sectors == ["billing"]
         theirs = await _registration(session, "acme.tracker")
         assert theirs is not None and theirs.reference_sectors == []
@@ -291,7 +291,7 @@ class TestApplying:
     async def test_an_unchanged_repository_is_not_read_again(
         self, session, repo, trusted
     ):
-        repo.add_listing("acme", APP_UID, slug="tracker")
+        repo.add_listing("acme", PLUGIN_UID, slug="tracker")
         repo.publish()
         await _refresh(session, repo)
 
@@ -303,7 +303,7 @@ class TestApplying:
     async def test_the_verified_metadata_is_kept_and_a_root_rotation_followed(
         self, session, repo, trusted
     ):
-        repo.add_listing("acme", APP_UID, slug="tracker")
+        repo.add_listing("acme", PLUGIN_UID, slug="tracker")
         repo.publish()
         await _refresh(session, repo)
 
@@ -361,7 +361,7 @@ class TestOtherSources:
 
     async def test_an_operators_publisher_wins(self, session, repo, trusted):
         await create_publisher(session, prefix="acme", display_name="Ours")
-        repo.add_listing("acme", APP_UID, slug="tracker")
+        repo.add_listing("acme", PLUGIN_UID, slug="tracker")
         repo.publish()
 
         result, _ = await _refresh(session, repo)
@@ -369,38 +369,38 @@ class TestOtherSources:
         assert [item.code for item in result.skipped] == [Codes.PUBLISHER_CONFLICT]
         publisher = await _publisher(session, "acme")
         assert publisher is not None and publisher.display_name == "Ours"
-        assert await _listing(session, APP_UID) is None
+        assert await _listing(session, PLUGIN_UID) is None
 
     async def test_the_seeded_publisher_is_kept_up_to_date_but_not_switched_on(
         self, session, repo, trusted
     ):
         await create_publisher(
             session,
-            prefix="morelitea",
+            prefix="beyonders-studio",
             display_name="Seeded",
             enabled=False,
             source="seed",
         )
-        repo.add_publisher("morelitea", name="Morelitea")
-        repo.add_listing("morelitea", "MRXT0000000001", slug="github")
+        repo.add_publisher("beyonders-studio", name="BeyondersStudio")
+        repo.add_listing("beyonders-studio", "MRXT0000000001", slug="github")
         repo.publish()
 
         result, _ = await _refresh(session, repo)
 
         assert result.ok, result
-        publisher = await _publisher(session, "morelitea")
+        publisher = await _publisher(session, "beyonders-studio")
         assert publisher is not None
-        assert publisher.display_name == "Morelitea"
+        assert publisher.display_name == "BeyondersStudio"
         assert publisher.enabled is False
 
     async def test_a_registration_another_listing_holds_is_not_taken(
         self, session, repo, trusted
     ):
         await create_publisher(session, prefix="acme", source="registry")
-        await create_app_service_registration(
+        await create_plugin_service_registration(
             session, public_id="acme.tracker", listing_uid=OTHER_UID
         )
-        repo.add_listing("acme", APP_UID, slug="tracker")
+        repo.add_listing("acme", PLUGIN_UID, slug="tracker")
         repo.publish()
 
         result, _ = await _refresh(session, repo)
@@ -417,10 +417,10 @@ class TestOtherSources:
         self, session, repo, trusted
     ):
         await create_publisher(session, prefix="acme", source="registry")
-        set_up = await create_app_service_registration(
+        set_up = await create_plugin_service_registration(
             session, public_id="acme.tracker", mandatory=True
         )
-        repo.add_listing("acme", APP_UID, slug="tracker")
+        repo.add_listing("acme", PLUGIN_UID, slug="tracker")
         repo.publish()
 
         result, _ = await _refresh(session, repo)
@@ -428,7 +428,10 @@ class TestOtherSources:
         assert result.skipped == []
         registration = await _registration(session, "acme.tracker")
         assert registration is not None and registration.id == set_up.id
-        assert (registration.source, registration.listing_uid) == ("registry", APP_UID)
+        assert (registration.source, registration.listing_uid) == (
+            "registry",
+            PLUGIN_UID,
+        )
         assert registration.scope_ceiling == ["projects:read", "projects:write"]
         assert (registration.base_url, registration.mandatory) == (
             set_up.base_url,
@@ -439,7 +442,7 @@ class TestOtherSources:
     async def test_the_operators_deployment_facts_survive_a_refresh(
         self, session, repo, trusted
     ):
-        repo.add_listing("acme", APP_UID, slug="tracker")
+        repo.add_listing("acme", PLUGIN_UID, slug="tracker")
         repo.publish()
         await _refresh(session, repo)
         registration = await _registration(session, "acme.tracker")
@@ -448,13 +451,13 @@ class TestOtherSources:
         with pytest.raises(HTTPException) as refused:
             await registrations_service.delete_registration(session, registration.id)
         assert refused.value.status_code == 409
-        assert refused.value.detail == AppServiceMessages.REGISTRY_MANAGED
+        assert refused.value.detail == PluginServiceMessages.REGISTRY_MANAGED
 
         await registrations_service.update_registration(
             session,
             registration.id,
             base_url="https://tracker.internal.test",
-            jwks=sample_app_jwks(),
+            jwks=sample_plugin_jwks(),
             mandatory=True,
             enabled=False,
         )
@@ -464,7 +467,7 @@ class TestOtherSources:
         assert registration is not None
         assert (registration.enabled, registration.mandatory) == (False, True)
         assert registration.base_url == "https://tracker.internal.test"
-        assert registration.jwks == sample_app_jwks()
+        assert registration.jwks == sample_plugin_jwks()
 
     async def test_an_entry_places_the_container_and_the_registry_keeps_the_rest(
         self, session, repo, trusted, monkeypatch, tmp_path
@@ -472,10 +475,10 @@ class TestOtherSources:
         """The entry gives what this deployment knows (where the container
         runs, the key its pod signs with, whether every community gets it);
         the registry keeps the rest, and later refreshes keep applying."""
-        repo.add_listing("acme", APP_UID, slug="tracker")
+        repo.add_listing("acme", PLUGIN_UID, slug="tracker")
         repo.publish()
         await _refresh(session, repo)
-        config = tmp_path / "apps.json"
+        config = tmp_path / "plugins.json"
         config.write_text(
             json.dumps(
                 [
@@ -483,13 +486,13 @@ class TestOtherSources:
                         "public_id": "acme.tracker",
                         "base_url": "http://tracker.internal.test:8080",
                         "allowed_origins": ["https://initiative.example.test"],
-                        "jwks": sample_app_jwks(),
+                        "jwks": sample_plugin_jwks(),
                         "mandatory": True,
                     }
                 ]
             )
         )
-        monkeypatch.setattr(settings, "APP_SERVICES_CONFIG", str(config))
+        monkeypatch.setattr(settings, "PLUGIN_SERVICES_CONFIG", str(config))
 
         reconciled = await registrations_service.reconcile_from_config(session)
         assert (reconciled.updated, reconciled.skipped) == (1, 0)
@@ -507,30 +510,30 @@ class TestOtherSources:
         assert result.skipped == []
         registration = await _registration(session, "acme.tracker")
         assert registration is not None
-        assert registration.jwks == sample_app_jwks()
+        assert registration.jwks == sample_plugin_jwks()
         assert registration.scope_ceiling == ["projects:read", "projects:write"]
 
-    async def test_an_entry_waits_for_the_registry_to_bring_its_app(
+    async def test_an_entry_waits_for_the_registry_to_bring_its_plugin(
         self, session, repo, trusted, monkeypatch, tmp_path
     ):
-        config = tmp_path / "apps.json"
+        config = tmp_path / "plugins.json"
         config.write_text(
             json.dumps(
                 [
                     {
                         "public_id": "acme.tracker",
                         "base_url": "http://tracker.internal.test:8080",
-                        "jwks": sample_app_jwks(),
+                        "jwks": sample_plugin_jwks(),
                     }
                 ]
             )
         )
-        monkeypatch.setattr(settings, "APP_SERVICES_CONFIG", str(config))
+        monkeypatch.setattr(settings, "PLUGIN_SERVICES_CONFIG", str(config))
         reconciled = await registrations_service.reconcile_from_config(session)
         assert (reconciled.updated, reconciled.waiting) == (0, 1)
         assert await _registration(session, "acme.tracker") is None
 
-        repo.add_listing("acme", APP_UID, slug="tracker")
+        repo.add_listing("acme", PLUGIN_UID, slug="tracker")
         repo.publish()
         result, _ = await _refresh(session, repo)
 
@@ -539,7 +542,7 @@ class TestOtherSources:
         assert registration is not None and registration.id is not None
         assert registration.source == "registry"
         assert registration.base_url == "http://tracker.internal.test:8080"
-        assert registration.jwks == sample_app_jwks()
+        assert registration.jwks == sample_plugin_jwks()
         assert await _live(session, registration.id) is True
 
 
@@ -552,17 +555,17 @@ class TestRefusals:
     async def test_an_expired_timestamp_is_refused_and_the_catalog_kept(
         self, session, repo, trusted
     ):
-        repo.add_listing("acme", APP_UID, slug="tracker", name="Tracker")
+        repo.add_listing("acme", PLUGIN_UID, slug="tracker", name="Tracker")
         repo.publish()
         await _refresh(session, repo)
         first_success = (await _status(session)).last_success_at
 
-        repo.add_listing("acme", APP_UID, slug="tracker", name="Renamed")
+        repo.add_listing("acme", PLUGIN_UID, slug="tracker", name="Renamed")
         repo.publish(timestamp_expires=datetime.now(timezone.utc) - timedelta(hours=1))
         result, _ = await _refresh(session, repo)
 
         assert result.code == Codes.EXPIRED
-        listing = await _listing(session, APP_UID)
+        listing = await _listing(session, PLUGIN_UID)
         assert listing is not None and listing.name == "Tracker"
         status = await _status(session)
         assert status is not None
@@ -570,7 +573,7 @@ class TestRefusals:
         assert status.last_success_at == first_success
 
     async def test_tampered_metadata_is_refused(self, session, repo, trusted):
-        repo.add_listing("acme", APP_UID, slug="tracker")
+        repo.add_listing("acme", PLUGIN_UID, slug="tracker")
         repo.publish()
         path = "metadata/1.acme.json"
         repo.files[path] = repo.files[path].replace(b"listing.json", b"listing.jsoN", 1)
@@ -581,12 +584,12 @@ class TestRefusals:
         assert [(item.name, item.code) for item in result.skipped] == [
             ("acme", Codes.METADATA_REJECTED)
         ]
-        assert await _listing(session, APP_UID) is None
+        assert await _listing(session, PLUGIN_UID) is None
 
     async def test_a_tampered_top_level_role_refuses_the_whole_repository(
         self, session, repo, trusted
     ):
-        repo.add_listing("acme", APP_UID, slug="tracker")
+        repo.add_listing("acme", PLUGIN_UID, slug="tracker")
         repo.publish()
         path = "metadata/1.targets.json"
         repo.files[path] = repo.files[path].replace(b'"acme"', b'"acmf"', 1)
@@ -594,24 +597,24 @@ class TestRefusals:
         result, _ = await _refresh(session, repo)
 
         assert result.code == Codes.METADATA_REJECTED
-        assert await _listing(session, APP_UID) is None
+        assert await _listing(session, PLUGIN_UID) is None
 
     async def test_a_tampered_target_costs_its_listing_and_nothing_else(
         self, session, repo, trusted
     ):
-        repo.add_listing("acme", APP_UID, slug="tracker", name="Tracker")
+        repo.add_listing("acme", PLUGIN_UID, slug="tracker", name="Tracker")
         repo.add_listing("acme", BOARD_UID, slug="board", kind="dashboard")
         repo.publish()
         await _refresh(session, repo)
 
-        repo.add_listing("acme", APP_UID, slug="tracker", name="Renamed")
+        repo.add_listing("acme", PLUGIN_UID, slug="tracker", name="Renamed")
         repo.publish()
-        served = repo.served_path(f"publishers/acme/{APP_UID}/listing.json", "acme")
+        served = repo.served_path(f"publishers/acme/{PLUGIN_UID}/listing.json", "acme")
         repo.files[served] = repo.files[served].replace(b"Renamed", b"Changed")
         result, _ = await _refresh(session, repo)
 
         assert [item.code for item in result.skipped] == [Codes.TARGET_REJECTED]
-        listing = await _listing(session, APP_UID)
+        listing = await _listing(session, PLUGIN_UID)
         assert listing is not None
         assert listing.name == "Tracker"
         assert listing.available is True
@@ -621,7 +624,7 @@ class TestRefusals:
     async def test_a_publisher_whose_role_expired_is_unknown_not_withdrawn(
         self, session, repo, trusted
     ):
-        repo.add_listing("acme", APP_UID, slug="tracker")
+        repo.add_listing("acme", PLUGIN_UID, slug="tracker")
         repo.publish()
         await _refresh(session, repo)
 
@@ -631,7 +634,7 @@ class TestRefusals:
         assert [(item.name, item.code) for item in result.skipped] == [
             ("acme", Codes.EXPIRED)
         ]
-        listing = await _listing(session, APP_UID)
+        listing = await _listing(session, PLUGIN_UID)
         assert listing is not None and listing.available is True
 
 
@@ -644,18 +647,18 @@ class TestWithdrawal:
     async def test_a_listing_that_leaves_is_withdrawn_and_kept(
         self, session, repo, trusted
     ):
-        repo.add_listing("acme", APP_UID, slug="tracker")
+        repo.add_listing("acme", PLUGIN_UID, slug="tracker")
         repo.add_listing("acme", BOARD_UID, slug="board", kind="dashboard")
         repo.publish()
         await _refresh(session, repo)
 
-        repo.remove_listing("acme", APP_UID)
+        repo.remove_listing("acme", PLUGIN_UID)
         repo.publish()
         result, _ = await _refresh(session, repo)
 
         assert result.ok, result
         assert result.withdrawn == 1
-        listing = await _listing(session, APP_UID)
+        listing = await _listing(session, PLUGIN_UID)
         assert listing is not None and listing.available is False
         registration = await _registration(session, "acme.tracker")
         assert registration is not None and registration.enabled is False
@@ -674,7 +677,7 @@ class TestConfiguration:
         row.marketplace_registry_enabled = False
         session.add(row)
         await session.commit()
-        repo.add_listing("acme", APP_UID, slug="tracker")
+        repo.add_listing("acme", PLUGIN_UID, slug="tracker")
         repo.publish()
 
         result, fetcher = await _refresh(session, repo)
@@ -682,7 +685,7 @@ class TestConfiguration:
         assert result.ran is False
         assert result.code == Codes.DISABLED
         assert fetcher.requested == []
-        assert await _listing(session, APP_UID) is None
+        assert await _listing(session, PLUGIN_UID) is None
         assert isinstance(row, AppSetting)
 
     async def test_a_placeholder_root_is_not_configured(
@@ -710,7 +713,7 @@ class TestConfiguration:
             _write_root(tmp_path / "shipped.json", other.root_bytes()),
         )
         monkeypatch.setattr(settings, "MARKETPLACE_REGISTRY_ROOT", str(trusted))
-        repo.add_listing("acme", APP_UID, slug="tracker")
+        repo.add_listing("acme", PLUGIN_UID, slug="tracker")
         repo.publish()
 
         result, _ = await _refresh(session, repo)
@@ -725,13 +728,13 @@ class TestConfiguration:
     ):
         stranger = TufRepository()
         stranger.add_publisher("acme")
-        stranger.add_listing("acme", APP_UID, slug="tracker")
+        stranger.add_listing("acme", PLUGIN_UID, slug="tracker")
         stranger.publish()
 
         result, _ = await _refresh(session, stranger)
 
         assert result.code == Codes.METADATA_REJECTED
-        assert await _listing(session, APP_UID) is None
+        assert await _listing(session, PLUGIN_UID) is None
 
     def test_the_shipped_root_is_the_registrys_first_root(self):
         """The image carries a real root, so a fresh deployment follows the
@@ -782,14 +785,14 @@ class TestFetching:
 
 class TestBundle:
     async def test_a_bundle_applies_like_a_fetch(self, session, repo, trusted):
-        repo.add_listing("acme", APP_UID, slug="tracker")
+        repo.add_listing("acme", PLUGIN_UID, slug="tracker")
         repo.publish()
 
         result = await tuf_registry.apply_bundle(session, repo.bundle())
 
         assert result.ok, result
         assert result.upserted == 1
-        assert await _listing(session, APP_UID) is not None
+        assert await _listing(session, PLUGIN_UID) is not None
         status = await _status(session)
         assert status is not None and status.source == tuf_registry.BUNDLE_SOURCE
 
@@ -798,7 +801,7 @@ class TestBundle:
         row.marketplace_registry_enabled = False
         session.add(row)
         await session.commit()
-        repo.add_listing("acme", APP_UID, slug="tracker")
+        repo.add_listing("acme", PLUGIN_UID, slug="tracker")
         repo.publish()
 
         result = await tuf_registry.apply_bundle(session, repo.bundle())
@@ -806,7 +809,7 @@ class TestBundle:
         assert result.ok, result
 
     async def test_a_tampered_bundle_is_refused(self, session, repo, trusted):
-        repo.add_listing("acme", APP_UID, slug="tracker")
+        repo.add_listing("acme", PLUGIN_UID, slug="tracker")
         repo.publish()
         path = "metadata/1.targets.json"
         repo.files[path] = repo.files[path].replace(b'"acme"', b'"acmf"', 1)
@@ -814,7 +817,7 @@ class TestBundle:
         result = await tuf_registry.apply_bundle(session, repo.bundle())
 
         assert result.code == Codes.METADATA_REJECTED
-        assert await _listing(session, APP_UID) is None
+        assert await _listing(session, PLUGIN_UID) is None
 
     async def test_something_that_is_not_a_bundle_is_refused(self, session, trusted):
         with pytest.raises(tuf_registry.RegistryError) as refused:

@@ -16,8 +16,9 @@ from sqlalchemy import text
 from sqlmodel import delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.db import cohorts
-from app.models.platform.guild import GuildInvite, GuildRole
+from app.db import post_commit
+from app.db.advisory_locks import LockNamespace, advisory_lock
+from app.models.platform.guild import GuildInvite, CommunityRole
 from app.models.tenant.initiative import InitiativeMember, InitiativeRoleModel
 from app.services.platform import guilds as guild_service
 from app.testing.factories import (
@@ -122,7 +123,7 @@ async def test_get_guild_by_id(session: AsyncSession):
 
 async def test_get_guild_not_found(session: AsyncSession):
     """Test that getting nonexistent guild raises error."""
-    with pytest.raises(ValueError, match="GUILD_NOT_FOUND"):
+    with pytest.raises(ValueError, match="COMMUNITY_NOT_FOUND"):
         await guild_service.get_guild(session, guild_id=99999)
 
 
@@ -161,7 +162,7 @@ async def test_create_guild_creates_superadmin_membership(session: AsyncSession)
     )
 
     assert membership is not None
-    assert membership.role == GuildRole.superadmin
+    assert membership.role == CommunityRole.superadmin
 
 
 async def test_ensure_membership_creates_new(session: AsyncSession):
@@ -173,12 +174,12 @@ async def test_ensure_membership_creates_new(session: AsyncSession):
         session,
         guild_id=guild.id,
         user_id=user.id,
-        role=GuildRole.member,
+        role=CommunityRole.member,
     )
 
     assert membership.guild_id == guild.id
     assert membership.user_id == user.id
-    assert membership.role == GuildRole.member
+    assert membership.role == CommunityRole.member
 
 
 async def test_ensure_membership_returns_existing(session: AsyncSession):
@@ -191,7 +192,7 @@ async def test_ensure_membership_returns_existing(session: AsyncSession):
         session,
         user=user,
         guild=guild,
-        role=GuildRole.member,
+        role=CommunityRole.member,
     )
 
     # Ensure membership should return the same one
@@ -199,12 +200,12 @@ async def test_ensure_membership_returns_existing(session: AsyncSession):
         session,
         guild_id=guild.id,
         user_id=user.id,
-        role=GuildRole.admin,  # Different role, but should not change without force_role
+        role=CommunityRole.admin,  # Different role, but should not change without force_role
     )
 
     assert second.guild_id == first.guild_id
     assert second.user_id == first.user_id
-    assert second.role == GuildRole.member  # Should still be member
+    assert second.role == CommunityRole.member  # Should still be member
 
 
 async def test_ensure_membership_enforces_max_users(session: AsyncSession):
@@ -215,12 +216,12 @@ async def test_ensure_membership_enforces_max_users(session: AsyncSession):
 
     # Fills the single seat.
     await guild_service.ensure_membership(
-        session, guild_id=guild.id, user_id=first.id, role=GuildRole.member
+        session, guild_id=guild.id, user_id=first.id, role=CommunityRole.member
     )
 
     with pytest.raises(guild_service.GuildCapacityError):
         await guild_service.ensure_membership(
-            session, guild_id=guild.id, user_id=second.id, role=GuildRole.member
+            session, guild_id=guild.id, user_id=second.id, role=CommunityRole.member
         )
 
 
@@ -232,15 +233,15 @@ async def test_ensure_membership_allows_up_to_max_users(session: AsyncSession):
     second = await create_user(session, email="within-second@example.com")
 
     await guild_service.ensure_membership(
-        session, guild_id=guild.id, user_id=first.id, role=GuildRole.member
+        session, guild_id=guild.id, user_id=first.id, role=CommunityRole.member
     )
     # Re-ensuring an existing member is a no-op even though the guild is not yet
     # full — the cap check only runs on a genuine insert.
     await guild_service.ensure_membership(
-        session, guild_id=guild.id, user_id=first.id, role=GuildRole.member
+        session, guild_id=guild.id, user_id=first.id, role=CommunityRole.member
     )
     await guild_service.ensure_membership(
-        session, guild_id=guild.id, user_id=second.id, role=GuildRole.member
+        session, guild_id=guild.id, user_id=second.id, role=CommunityRole.member
     )
 
     assert await guild_service.count_members(session, guild_id=guild.id) == 2
@@ -252,7 +253,7 @@ async def test_ensure_membership_unlimited_by_default(session: AsyncSession):
     for i in range(3):
         user = await create_user(session, email=f"unlimited-{i}@example.com")
         await guild_service.ensure_membership(
-            session, guild_id=guild.id, user_id=user.id, role=GuildRole.member
+            session, guild_id=guild.id, user_id=user.id, role=CommunityRole.member
         )
 
     assert await guild_service.count_members(session, guild_id=guild.id) == 3
@@ -272,7 +273,7 @@ async def test_redeem_invite_blocked_when_full(session: AsyncSession):
         session, guild_id=guild.id, created_by=creator.id, max_uses=5
     )
     await guild_service.ensure_membership(
-        session, guild_id=guild.id, user_id=seat_holder.id, role=GuildRole.member
+        session, guild_id=guild.id, user_id=seat_holder.id, role=CommunityRole.member
     )
 
     with pytest.raises(guild_service.GuildCapacityError):
@@ -312,7 +313,10 @@ async def test_concurrent_joins_cannot_exceed_user_cap(session: AsyncSession, en
         async with maker() as worker:
             try:
                 await guild_service.ensure_membership(
-                    worker, guild_id=guild.id, user_id=user_id, role=GuildRole.member
+                    worker,
+                    guild_id=guild.id,
+                    user_id=user_id,
+                    role=CommunityRole.member,
                 )
                 await worker.commit()
                 return True
@@ -337,7 +341,7 @@ async def test_ensure_membership_force_role_updates(session: AsyncSession):
         session,
         user=user,
         guild=guild,
-        role=GuildRole.member,
+        role=CommunityRole.member,
     )
 
     # Force upgrade to admin
@@ -345,11 +349,11 @@ async def test_ensure_membership_force_role_updates(session: AsyncSession):
         session,
         guild_id=guild.id,
         user_id=user.id,
-        role=GuildRole.admin,
+        role=CommunityRole.admin,
         force_role=True,
     )
 
-    assert membership.role == GuildRole.admin
+    assert membership.role == CommunityRole.admin
 
 
 async def test_list_memberships(session: AsyncSession):
@@ -521,7 +525,7 @@ async def test_redeem_invite_for_user(session: AsyncSession):
         user_id=invitee.id,
     )
     assert membership is not None
-    assert membership.role == GuildRole.member
+    assert membership.role == CommunityRole.member
 
     # Check invite use count increased
     stmt = select(GuildInvite).where(GuildInvite.id == invite.id)
@@ -677,7 +681,7 @@ async def test_redeem_email_bound_invite_matching_user_succeeds(
         session, guild_id=guild.id, user_id=invitee.id
     )
     assert membership is not None
-    assert membership.role == GuildRole.member
+    assert membership.role == CommunityRole.member
 
     stmt = select(GuildInvite).where(GuildInvite.id == invite.id)
     result = await session.exec(stmt)
@@ -712,7 +716,7 @@ async def test_redeem_unbound_invite_any_user_succeeds(session: AsyncSession):
         session, guild_id=guild.id, user_id=redeemer.id
     )
     assert membership is not None
-    assert membership.role == GuildRole.member
+    assert membership.role == CommunityRole.member
 
 
 async def test_delete_guild_invite(session: AsyncSession):
@@ -792,7 +796,7 @@ async def test_list_memberships_reads_retention_per_guild(session: AsyncSession)
 
     guild_30 = await create_guild(session, creator=user)
     await create_guild_membership(
-        session, user=user, guild=guild_30, role=GuildRole.admin
+        session, user=user, guild=guild_30, role=CommunityRole.admin
     )
     await route_session_to_guild(session, guild_30.id)
     setting = (await session.exec(select(GuildSetting))).one()
@@ -803,7 +807,7 @@ async def test_list_memberships_reads_retention_per_guild(session: AsyncSession)
     # A guild with the seeded settings row keeps the 90-day default.
     guild_default = await create_guild(session, creator=user)
     await create_guild_membership(
-        session, user=user, guild=guild_default, role=GuildRole.admin
+        session, user=user, guild=guild_default, role=CommunityRole.admin
     )
     await session.commit()
 
@@ -884,7 +888,7 @@ async def test_new_member_is_enrolled_in_auto_join_initiatives(session: AsyncSes
     joiner = await create_user(session, email="joiner@example.com")
     await guild_service.ensure_membership(session, guild_id=guild.id, user_id=joiner.id)
     await session.commit()
-    await cohorts.settle(session)
+    await post_commit.settle(session)
 
     roles = await _initiative_role_names(session, guild_id=guild.id, user_id=joiner.id)
     assert roles == {welcome.id: "member", lounge.id: "member"}
@@ -935,7 +939,7 @@ async def test_archived_and_deleted_auto_join_initiatives_are_skipped(
     joiner = await create_user(session, email="joiner@example.com")
     await guild_service.ensure_membership(session, guild_id=guild.id, user_id=joiner.id)
     await session.commit()
-    await cohorts.settle(session)
+    await post_commit.settle(session)
 
     roles = await _initiative_role_names(session, guild_id=guild.id, user_id=joiner.id)
     assert set(roles) == {live.id}
@@ -957,7 +961,7 @@ async def test_returning_member_is_not_re_enrolled(session: AsyncSession):
 
     await guild_service.ensure_membership(session, guild_id=guild.id, user_id=member.id)
     await session.commit()
-    await cohorts.settle(session)
+    await post_commit.settle(session)
 
     roles = await _initiative_role_names(session, guild_id=guild.id, user_id=member.id)
     assert later.id not in roles
@@ -974,10 +978,10 @@ async def test_guild_admin_is_not_enrolled_as_a_member(session: AsyncSession):
 
     second_admin = await create_user(session, email="admin2@example.com")
     await guild_service.ensure_membership(
-        session, guild_id=guild.id, user_id=second_admin.id, role=GuildRole.admin
+        session, guild_id=guild.id, user_id=second_admin.id, role=CommunityRole.admin
     )
     await session.commit()
-    await cohorts.settle(session)
+    await post_commit.settle(session)
 
     roles = await _initiative_role_names(
         session, guild_id=guild.id, user_id=second_admin.id
@@ -998,9 +1002,9 @@ async def test_guild_without_auto_join_initiatives_admits_normally(
         session, guild_id=guild.id, user_id=joiner.id
     )
     await session.commit()
-    await cohorts.settle(session)
+    await post_commit.settle(session)
 
-    assert membership.role == GuildRole.member
+    assert membership.role == CommunityRole.member
     assert (
         await _initiative_role_names(session, guild_id=guild.id, user_id=joiner.id)
         == {}
@@ -1034,9 +1038,9 @@ async def test_enrolment_failure_does_not_fail_the_join(session: AsyncSession, c
             session, guild_id=guild.id, user_id=joiner.id
         )
         await session.commit()
-        await cohorts.settle(session)
+        await post_commit.settle(session)
 
-    assert membership.role == GuildRole.member
+    assert membership.role == CommunityRole.member
     roles = await _initiative_role_names(session, guild_id=guild.id, user_id=joiner.id)
     assert set(roles) == {healthy.id}
     assert any("auto-join" in record.message for record in caplog.records)
@@ -1047,13 +1051,7 @@ async def test_enrolment_failure_does_not_fail_the_join(session: AsyncSession, c
 
 async def _try_lock(probe, guild_id: int) -> bool:
     """Whether a second connection can still take one guild's seat lock."""
-    row = (
-        await probe.exec(
-            text("SELECT pg_try_advisory_xact_lock(:ns, :gid) AS taken"),
-            params={"ns": guild_service.SEAT_LOCK_NAMESPACE, "gid": guild_id},
-        )
-    ).one()
-    return bool(row.taken if hasattr(row, "taken") else row)
+    return await advisory_lock(probe, LockNamespace.GUILD_SEATS, guild_id, wait=False)
 
 
 async def test_the_seat_lock_excludes_another_connection(session, role_session):

@@ -10,7 +10,7 @@ The rule we hold ourselves to is that **authorization is enforced in the databas
 
 A guild is the tenancy boundary, and it is **structural**:
 
-- Every guild's content — initiatives, projects, tasks, documents, calendars, queues, counters, tags, comments — lives in its **own PostgreSQL schema** (`guild_<id>`), provisioned when the guild is created and dropped when it's deleted.
+- Every guild's content — initiatives, projects, tasks, files, calendars, queues, counters, tags, comments — lives in its **own PostgreSQL schema** (`guild_<id>`), provisioned when the guild is created and dropped when it's deleted.
 - Shared identity and configuration (users, guild memberships, invites, app settings, access grants, OIDC mappings) lives in `public`. **`public` holds no guild content on any install.**
 - A request is routed into exactly one guild's schema with `SET ROLE`. The login role holds no standing access to any guild schema — the per-guild roles are granted `WITH INHERIT FALSE`, so a session must assume one explicitly and holds nothing until it does.
 
@@ -23,7 +23,7 @@ Every read or write of guild data passes the same nested checks, outermost first
 1. **Guild** — the schema boundary plus the per-request role above.
 2. **Initiative** — within a guild, content of an initiative you're not a member of is not reachable. This is the hard isolation boundary between efforts in the same guild, enforced by row-level security.
 3. **Initiative role** — which kinds of tools a member may use, and how.
-4. **Per-item sharing (DAC)** — the final privilege gate on a specific project, document, or other tool instance.
+4. **Per-item sharing (DAC)** — the final privilege gate on a specific project, file, or other tool instance.
 
 Two deliberate overrides sit above them:
 
@@ -45,7 +45,7 @@ Within an initiative, teams decide who sees each individual item:
 
 - **Read, write, and owner** levels, recorded in a single polymorphic `resource_grants` table.
 - A grant's subject is **a user, an initiative role, or all initiative members** — so access can be handed to a whole role at once.
-- Grants are scoped per resource: access to one project or document never implies access to another.
+- Grants are scoped per resource: access to one project or file never implies access to another.
 
 DAC decides the final level in application code, over grant rows that are themselves protected by the initiative-level policies above. Row-level security guarantees the boundary; DAC decides who sees what inside it.
 
@@ -103,7 +103,7 @@ If you discover a security vulnerability, please report it responsibly. **Do not
 
 ### How to Report
 
-Email **security@morelitea.com** with:
+Email **security@beyonders.studio** with:
 
 - A description of the vulnerability
 - Steps to reproduce

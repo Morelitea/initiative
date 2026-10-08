@@ -13,7 +13,7 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 
-from app.db.schema_provisioning import PLATFORM_SUSPENDED, platform_role_name
+from app.db.public_rls import PLATFORM_SUSPENDED, platform_tier, role_name
 from app.testing import as_role, create_user
 from app.models.platform.notification import NotificationType
 
@@ -21,11 +21,11 @@ pytestmark = pytest.mark.always
 
 
 def _writable() -> str:
-    return platform_role_name("base")
+    return role_name("platform_base")
 
 
 def _read_floor() -> str:
-    return platform_role_name("base_ro")
+    return role_name("platform_base_ro")
 
 
 @pytest.fixture(autouse=True)
@@ -68,7 +68,7 @@ async def test_the_read_floor_reads_exactly_what_the_writable_one_does(engine):
 
 @pytest.mark.parametrize("verb", ["INSERT", "UPDATE", "DELETE", "TRUNCATE"])
 async def test_the_suspended_role_writes_nothing(engine, verb):
-    suspended = platform_role_name(PLATFORM_SUSPENDED)
+    suspended = role_name(platform_tier(PLATFORM_SUSPENDED))
     async with engine.connect() as conn:
         writable = (
             await conn.execute(
@@ -101,7 +101,7 @@ async def test_the_read_floor_takes_no_default_privileges(engine):
 async def test_a_suspended_account_reads_its_own_rows(session):
     me = await create_user(session)
     other = await create_user(session)
-    async with as_role(session, platform_role_name(PLATFORM_SUSPENDED), me.id):
+    async with as_role(session, role_name(platform_tier(PLATFORM_SUSPENDED)), me.id):
         ids = {r[0] for r in (await session.exec(text("SELECT id FROM users"))).all()}
     assert me.id in ids
     assert other.id not in ids
@@ -110,7 +110,7 @@ async def test_a_suspended_account_reads_its_own_rows(session):
 @pytest.mark.parametrize(
     "statement",
     [
-        "UPDATE users SET full_name = 'changed' WHERE id = :uid",
+        "UPDATE users SET timezone = 'UTC' WHERE id = :uid",
         "INSERT INTO notifications (user_id, type, data) "
         f"VALUES (:uid, '{NotificationType.account_suspended.value}', '{{}}')",
         "DELETE FROM notifications WHERE user_id = :uid",
@@ -118,7 +118,7 @@ async def test_a_suspended_account_reads_its_own_rows(session):
 )
 async def test_a_suspended_account_writes_nothing(session, statement):
     me = await create_user(session)
-    async with as_role(session, platform_role_name(PLATFORM_SUSPENDED), me.id):
+    async with as_role(session, role_name(platform_tier(PLATFORM_SUSPENDED)), me.id):
         with pytest.raises(DBAPIError) as refused:
             await session.exec(text(statement), params={"uid": me.id})
         await session.rollback()

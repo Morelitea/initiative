@@ -15,9 +15,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
 from app.core.messages import AIMessages
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.schemas.ai_settings import AIProvider, ConnectionScope, ResolvedAISettings
-from app.testing import create_document, create_task, emitted
+from app.testing import create_file, create_task, emitted
 
 
 CONNECTION_ID = 41
@@ -47,7 +47,9 @@ async def test_a_checklist_request_records_what_carried_it(
     from app.api.v1.tenant_endpoints import tasks as tasks_endpoints
     from app.services import ai_generation
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     task = await create_task(session, a.project, title="Ship it")
     _wire_ai(monkeypatch, tasks_endpoints)
 
@@ -82,7 +84,9 @@ async def test_a_description_request_records_its_own_purpose(
     from app.api.v1.tenant_endpoints import tasks as tasks_endpoints
     from app.services import ai_generation
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     task = await create_task(session, a.project)
     _wire_ai(monkeypatch, tasks_endpoints)
 
@@ -102,29 +106,27 @@ async def test_a_description_request_records_its_own_purpose(
     assert row["target"] == {"type": "task", "id": task.id}
 
 
-async def test_a_document_summary_records_the_document_it_sent(
+async def test_a_file_summary_records_the_file_it_sent(
     client: AsyncClient, session: AsyncSession, acting_user, monkeypatch, capfd
 ):
-    from app.api.v1.tenant_endpoints import documents as documents_endpoints
+    from app.api.v1.tenant_endpoints import files as files_endpoints
 
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
-    document = await create_document(session, a.initiative, a.user)
-    _wire_ai(monkeypatch, documents_endpoints)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
+    file = await create_file(session, a.initiative, a.user)
+    _wire_ai(monkeypatch, files_endpoints)
 
     async def _summarize(**kwargs):
         return "A summary"
 
-    monkeypatch.setattr(documents_endpoints, "generate_document_summary", _summarize)
+    monkeypatch.setattr(files_endpoints, "generate_file_summary", _summarize)
     capfd.readouterr()
 
-    response = await client.post(
-        a.g(f"/documents/{document.id}/ai/summary"), headers=a.headers
-    )
+    response = await client.post(a.g(f"/files/{file.id}/ai/summary"), headers=a.headers)
     assert response.status_code == 200, response.text
 
     (row,) = emitted(capfd, AuditEventType.AI_REQUEST_SENT)
     assert row["actor_user_id"] == a.user.id
-    assert row["target"] == {"type": "document", "id": document.id}
+    assert row["target"] == {"type": "file", "id": file.id}
     assert row["detail"]["purpose"] == "summary"
     assert row["detail"]["initiative_id"] == a.initiative.id
 
@@ -133,7 +135,9 @@ async def test_a_deployment_with_no_ai_sends_nothing_and_records_nothing(
     client: AsyncClient, session: AsyncSession, acting_user, capfd
 ):
     """Nothing left the deployment, so there is no disclosure to write down."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     task = await create_task(session, a.project)
     capfd.readouterr()
 

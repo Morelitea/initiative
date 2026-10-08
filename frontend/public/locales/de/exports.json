@@ -8,6 +8,7 @@
     "error": "Export fehlgeschlagen. Versuche es erneut.",
     "selected": "Auswahl exportieren",
     "ownerRequired": "Exportieren kann nur, wer all diese Einträge auch löschen darf.",
+    "noCommonFormat": "Für diese Einträge gibt es kein gemeinsames Exportformat.",
     "headingBackup": "Sicherung",
     "headingReport": "Bericht",
     "formatPdf": "PDF-Dokument",
@@ -31,7 +32,7 @@
   },
   "wizard": {
     "titleInitiative": "Initiative exportieren",
-    "titleGuild": "Community exportieren",
+    "titleCommunity": "Community exportieren",
     "titleEntities_one": "{{count}} Eintrag exportieren",
     "titleEntities_other": "{{count}} Einträge exportieren",
     "back": "Zurück",
@@ -59,9 +60,9 @@
       "noDestination": "Dieser Export ist größer als {{limit}} und auf diesem Server ist kein Exportordner eingerichtet, daher kann er nicht heruntergeladen werden. Bitte die Person, die diesen Server betreibt, einen einzurichten."
     },
     "report": {
-      "documentNative": "Textdokumente",
-      "documentSpreadsheet": "Tabellen",
-      "documentOthersNote": "Whiteboards und Links werden als JSON exportiert; hochgeladene Dateien bleiben unverändert."
+      "fileNative": "Textdokumente",
+      "fileSpreadsheet": "Tabellen",
+      "fileOthersNote": "Whiteboards und Links werden als JSON exportiert; hochgeladene Dateien bleiben unverändert."
     },
     "format": {
       "prompt": "Wähle ein Format"
@@ -124,9 +125,8 @@
     }
   },
   "entry": {
-    "guildTitle": "Diese Community exportieren",
-    "guildDescription": "Lade die Daten jeder Initiative als importierbares Backup oder als Bericht nach Wahl herunter. Freigaberegeln gelten: Der Export enthält, was du sehen kannst.",
-    "initiativeTitle": "Diese Initiative exportieren",
+    "communityTitle": "Diese Community exportieren",
+    "communityDescription": "Lade die Daten jeder Initiative als importierbares Backup oder als Bericht nach Wahl herunter. Freigaberegeln gelten: Der Export enthält, was du sehen kannst.",
     "initiativeDescription": "Lade die Daten dieser Initiative als importierbares Backup oder als Bericht nach Wahl herunter. Freigaberegeln gelten: Der Export enthält, was du sehen kannst.",
     "open": "Exportieren…"
   },
@@ -162,13 +162,13 @@
       "tasks": "Aufgaben",
       "events": "Termine",
       "project": "Projekt",
-      "document": "Dokument",
+      "file": "Datei",
       "queue": "Warteschlange",
       "calendar": "Kalender",
       "post": "Beitrag",
       "wiki": "Wiki",
       "initiative": "Initiative",
-      "guild": "Community",
+      "community": "Community",
       "gallery": "Galerie",
       "counter-group": "Zählergruppe",
       "dashboard": "Dashboard"

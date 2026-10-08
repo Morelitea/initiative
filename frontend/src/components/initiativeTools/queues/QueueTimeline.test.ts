@@ -6,7 +6,7 @@ import { buildTimeline, type TimelineRow } from "./QueueTimeline";
 
 /**
  * Build a queue where visible items, sorted by position descending, are
- * [A, B, C]. Tests below tweak `current_item`, `current_round`, and
+ * [A, B, C]. Tests below tweak `current_item_id`, `current_round`, and
  * `is_active` on top of this baseline.
  */
 const a = buildQueueItem({ id: 1, label: "A", position: 30 });
@@ -18,7 +18,7 @@ const baseQueue = buildQueue({
   current_round: 1,
   // Insertion order intentionally out of sort order to exercise sorting.
   items: [b, a, c],
-  current_item: a,
+  current_item_id: a.id,
 });
 
 const labels = (rows: TimelineRow[]): string[] =>
@@ -39,24 +39,24 @@ describe("buildTimeline", () => {
 
   it("rotates and moves the round divider into the rotation as turns advance", () => {
     // Current = B: round-1 items are B, C; A rolls into round 2 behind the divider.
-    const rotated = { ...baseQueue, current_item: b };
+    const rotated = { ...baseQueue, current_item_id: b.id };
     expect(labels(buildTimeline(rotated))).toEqual(["B", "C", "--R2--", "A"]);
   });
 
   it("places the divider immediately after the last current-round item", () => {
-    const tailQueue = { ...baseQueue, current_item: c };
+    const tailQueue = { ...baseQueue, current_item_id: c.id };
     expect(labels(buildTimeline(tailQueue))).toEqual(["C", "--R2--", "A", "B"]);
   });
 
   it("keeps a constant row count across every turn so the divider can morph in place", () => {
     // The same items at every rotation step — only the divider's slot moves.
-    const states = [a, b, c].map((current) => ({ ...baseQueue, current_item: current }));
+    const states = [a, b, c].map((current) => ({ ...baseQueue, current_item_id: current.id }));
     const rowCounts = states.map((q) => buildTimeline(q).length);
     expect(new Set(rowCounts).size).toBe(1);
   });
 
   it("reflects the queue's current_round on divider labels", () => {
-    const round5 = { ...baseQueue, current_item: c, current_round: 5 };
+    const round5 = { ...baseQueue, current_item_id: c.id, current_round: 5 };
     const rows = buildTimeline(round5);
     const divider = rows.find((r) => r.kind === "round-divider");
     expect(divider).toEqual({ kind: "round-divider", round: 6 });
@@ -68,7 +68,7 @@ describe("buildTimeline", () => {
 
   it("shows hidden items below a 'Hidden' divider so they remain editable", () => {
     const hidden = { ...a, is_visible: false };
-    const queue = { ...baseQueue, items: [hidden, b, c], current_item: b };
+    const queue = { ...baseQueue, items: [hidden, b, c], current_item_id: b.id };
     expect(labels(buildTimeline(queue))).toEqual(["B", "C", "--R2--", "--Hidden--", "A"]);
   });
 
@@ -76,7 +76,7 @@ describe("buildTimeline", () => {
     const idle = {
       ...baseQueue,
       is_active: false,
-      current_item: null,
+      current_item_id: null,
       items: [a, b, c],
     };
     expect(labels(buildTimeline(idle))).toEqual(["A", "B", "C"]);
@@ -89,7 +89,7 @@ describe("buildTimeline", () => {
     const stoppedMidRotation = {
       ...baseQueue,
       is_active: false,
-      current_item: b,
+      current_item_id: b.id,
       current_round: 4,
       items: [a, b, c],
     };
@@ -98,12 +98,12 @@ describe("buildTimeline", () => {
 
   it("still shows hidden items when there are no visible items", () => {
     const onlyHidden = { ...a, is_visible: false };
-    const queue = buildQueue({ is_active: true, items: [onlyHidden], current_item: null });
+    const queue = buildQueue({ is_active: true, items: [onlyHidden], current_item_id: null });
     expect(labels(buildTimeline(queue))).toEqual(["--Hidden--", "A"]);
   });
 
   it("returns an empty timeline for a queue with no items at all", () => {
-    const empty = buildQueue({ is_active: true, items: [], current_item: null });
+    const empty = buildQueue({ is_active: true, items: [], current_item_id: null });
     expect(buildTimeline(empty)).toEqual([]);
   });
 
@@ -113,7 +113,7 @@ describe("buildTimeline", () => {
     const queue = {
       ...baseQueue,
       items: [{ ...a, held_at_round: 1 }, b, c],
-      current_item: b,
+      current_item_id: b.id,
     };
     expect(labels(buildTimeline(queue))).toEqual(["--Held--", "A", "--Sep--", "B", "C", "--R2--"]);
   });
@@ -126,7 +126,7 @@ describe("buildTimeline", () => {
         { ...c, held_at_round: 1 }, // pos 10
         b, // active
       ],
-      current_item: b,
+      current_item_id: b.id,
     };
     // Held block: A (30), C (10); separator; rotation: B; trailing R2 divider.
     expect(labels(buildTimeline(queue))).toEqual(["--Held--", "A", "C", "--Sep--", "B", "--R2--"]);
@@ -136,7 +136,7 @@ describe("buildTimeline", () => {
     const queue = {
       ...baseQueue,
       items: [{ ...a, held_at_round: 1 }, b, { ...c, is_visible: false }],
-      current_item: b,
+      current_item_id: b.id,
     };
     expect(labels(buildTimeline(queue))).toEqual([
       "--Held--",
@@ -158,7 +158,7 @@ describe("buildTimeline", () => {
         { ...b, held_at_round: 1 },
         { ...c, held_at_round: 1 },
       ],
-      current_item: null,
+      current_item_id: null,
     };
     expect(labels(buildTimeline(queue))).toEqual(["--Held--", "A", "B", "C"]);
   });

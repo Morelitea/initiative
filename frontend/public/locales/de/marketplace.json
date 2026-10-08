@@ -1,6 +1,7 @@
 {
   "title": "Marktplatz",
   "subtitle": "Fertige Dashboards, die du einer Initiative hinzufügen kannst.",
+  "subtitleProjects": "Fertige Projekte, die du in eine Initiative kopieren kannst. Jede Installation ist ein neues, eigenes Projekt.",
   "searchPlaceholder": "Marktplatz durchsuchen…",
   "backToMarketplace": "Zurück zum Marktplatz",
   "browse": "Marktplatz durchsuchen",
@@ -24,13 +25,21 @@
   "detail": {
     "installs_one": "{{count}} Installation",
     "installs_other": "{{count}} Installationen",
+    "minimumAge": "Ab {{age}} Jahren",
     "install": "Zu einer Initiative hinzufügen",
     "preview": "Vorschau",
     "previewIsSample": "Beispiel mit Beispieldaten",
     "needsUpdate": "Benötigt eine neuere Version der App.",
     "withdrawn": "Wird nicht mehr angeboten.",
     "notFound": "Eintrag nicht gefunden",
-    "notFoundDescription": "Er wurde vielleicht zurückgezogen, oder der Link stimmt nicht."
+    "notFoundDescription": "Er wurde vielleicht zurückgezogen, oder der Link stimmt nicht.",
+    "notAvailableHere": "In dieser App nicht verfügbar",
+    "notAvailableHereDescription": "Dieser Eintrag gehört nicht zum Katalog, den diese App anbietet."
+  },
+  "projectPreview": {
+    "showing": "Leeres Projekt oder Beispiel anzeigen",
+    "blank": "Leer",
+    "example": "Beispiel"
   },
   "install": {
     "title": "{{name}} hinzufügen",
@@ -40,7 +49,13 @@
     "action": "Hinzufügen",
     "done": "{{name}} hinzugefügt.",
     "failed": "Dieser Eintrag konnte nicht hinzugefügt werden.",
-    "noInitiatives": "Du kannst noch in keiner Initiative Dashboards erstellen. Frage eine Initiativleitung nach Zugriff."
+    "noInitiatives": "Du kannst dies noch in keiner Initiative hinzufügen. Frage eine Initiativleitung nach Zugriff.",
+    "descriptionCopy": "Wähle, wohin es kommt. Es wird deine eigene Kopie, die du danach umbenennen und ändern kannst.",
+    "startFrom": "Womit du beginnst",
+    "startBlank": "Leer beginnen",
+    "startExample": "Mit dem Beispiel beginnen",
+    "startsOn": "Startdatum",
+    "startsOnHelp": "Die Daten werden so verschoben, dass das früheste auf diesen Tag fällt."
   },
   "update": {
     "available": "Version {{version}} verfügbar",
@@ -52,6 +67,6 @@
     "description": "Der Katalog konnte nicht geladen werden. Versuche es gleich noch einmal."
   },
   "installedUnknown": "Es konnte nicht geprüft werden, welche davon du bereits hast – deshalb ist unten nichts als installiert markiert.",
-  "subtitleApps": "Apps ergänzen etwas, das die ganze Community teilt. Nur der Superadmin der Community kann sie hinzufügen.",
+  "subtitlePlugins": "Plug-ins ergänzen etwas, das die ganze Community teilt. Nur der Superadmin der Community kann sie hinzufügen.",
   "subtitleAuto": "Automatisierungen laufen im Hintergrund für die ganze Community."
 }

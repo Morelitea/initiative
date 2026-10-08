@@ -4,8 +4,8 @@ import { endOfDay, endOfMonth, format, startOfDay, startOfMonth } from "date-fns
 import { HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 
-import { buildGuild, buildProject, buildTask, writerCan } from "@/__tests__/factories";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { buildCommunity, buildTask, writerCan } from "@/__tests__/factories";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { createTestQueryClient, renderPage } from "@/__tests__/helpers/render";
 import type { FilterCondition, FilterGroup } from "@/api/generated/initiativeAPI.schemas";
@@ -50,30 +50,20 @@ function renderCalendars() {
  */
 function stubEntries(
   { events = [], tasks = [] }: { events?: unknown[]; tasks?: unknown[] },
-  projects = [buildProject({ id: PROJECT_ID, initiative_id: INITIATIVE_ID, name: "Apollo" })],
   calendars: unknown[] = []
 ) {
   const requests: URLSearchParams[] = [];
   server.use(
-    guildHttp.get("/calendar-entries/", ({ request }) => {
+    communityHttp.get("/calendar-entries/", ({ request }) => {
       requests.push(new URL(request.url).searchParams);
       return HttpResponse.json({ events, tasks });
     }),
-    guildHttp.get("/calendars/", () =>
+    communityHttp.get("/calendars/", () =>
       HttpResponse.json({
         items: calendars,
         total_count: calendars.length,
         page: 1,
         page_size: 100,
-        has_next: false,
-      })
-    ),
-    guildHttp.get("/projects/", () =>
-      HttpResponse.json({
-        items: projects,
-        total_count: projects.length,
-        page: 1,
-        page_size: 0,
         has_next: false,
       })
     )
@@ -85,6 +75,12 @@ const parseConditions = (params: URLSearchParams) =>
   JSON.parse(params.get("conditions") ?? "[]") as (FilterCondition | FilterGroup)[];
 
 const isGroup = (c: FilterCondition | FilterGroup): c is FilterGroup => "conditions" in c;
+
+/** Export sits in the toolbar's "More actions" menu. */
+const exportFromMenu = async (user: ReturnType<typeof userEvent.setup>) => {
+  await user.click(await screen.findByRole("button", { name: /more actions/i }));
+  await user.click(await screen.findByRole("menuitem", { name: /^export/i }));
+};
 
 describe("CalendarsView calendar-entries query", () => {
   it("issues a single calendar-entries request windowed to the dates the view renders", async () => {
@@ -107,6 +103,21 @@ describe("CalendarsView calendar-entries query", () => {
     expect(groups).toHaveLength(0);
   });
 
+  it("says why a range could not be shown", async () => {
+    stubEntries({});
+    server.use(
+      communityHttp.get("/calendar-entries/", () =>
+        HttpResponse.json({ detail: "CALENDAR_WINDOW_TOO_FULL" }, { status: 422 })
+      )
+    );
+
+    renderCalendars();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "This range has too many repeating events to show at once. Pick a shorter range"
+    );
+  });
+
   it("renders every in-window task the aggregate returns", async () => {
     // The aggregate returns all in-window tasks in one payload; the page used to
     // walk paginated /tasks and silently drop anything past the hundredth.
@@ -126,40 +137,68 @@ describe("CalendarsView calendar-entries query", () => {
     expect(screen.getByText("Task 1")).toBeInTheDocument();
   });
 
-  it("lists a task calendar per project with in-window tasks and hides its tasks when toggled off", async () => {
-    // The panel derives one read-only calendar per project FROM the tasks
-    // payload — a project with no task in the window gets no row.
-    stubEntries(
-      {
-        tasks: [
-          buildTask({
-            id: 1,
-            title: "Apollo task",
-            project_id: PROJECT_ID,
-            due_date: inFocusMonth(3),
-          }),
-        ],
-      },
-      [
-        buildProject({ id: PROJECT_ID, initiative_id: INITIATIVE_ID, name: "Apollo" }),
-        buildProject({ id: 2, initiative_id: INITIATIVE_ID, name: "Zeus" }),
-      ]
-    );
+  it("lists a task toggle per project with in-window tasks and hides its tasks when toggled off", async () => {
+    // The filters derive one toggle per project FROM the tasks payload — a
+    // project with no task in the window gets no row.
+    const requests = stubEntries({
+      tasks: [
+        buildTask({
+          id: 1,
+          title: "Apollo task",
+          project_id: PROJECT_ID,
+          project_name: "Apollo",
+          due_date: inFocusMonth(3),
+        }),
+      ],
+    });
 
     const user = userEvent.setup();
     renderCalendars();
 
     expect(await screen.findByText("Apollo task")).toBeInTheDocument();
 
-    // The visibility panel lives behind the filter bar's Calendars dropdown.
-    await user.click(screen.getByRole("button", { name: /calendars/i }));
-    // Only Apollo has a task in the window, so only it gets a panel row.
+    // Which tasks show is a filter: the projects' toggles sit in the panel.
+    await user.click(screen.getByRole("button", { name: /^filters$/i }));
+    // Named from the task, which carries its project's name.
     expect(await screen.findByRole("checkbox", { name: "Apollo" })).toBeInTheDocument();
-    expect(screen.queryByRole("checkbox", { name: "Zeus" })).toBeNull();
 
-    // Unchecking the project's calendar hides its tasks from the view.
+    // Unchecking the project hides its tasks from the view, and says so.
     await user.click(screen.getByRole("checkbox", { name: "Apollo" }));
     await waitFor(() => expect(screen.queryByText("Apollo task")).toBeNull());
+    expect(screen.getByRole("button", { name: /1 active/i })).toBeInTheDocument();
+
+    // Switching tasks off stops asking for them at all.
+    await user.click(screen.getByRole("checkbox", { name: "Apollo" }));
+    expect(await screen.findByText("Apollo task")).toBeInTheDocument();
+    await user.click(screen.getByRole("switch", { name: "Tasks" }));
+    await waitFor(() => expect(requests.at(-1)?.get("include_tasks")).toBe("false"));
+    expect(screen.queryByText("Apollo task")).toBeNull();
+  });
+
+  it("heads the tab's toolbar with the calendar picker, under the initiative's own title", async () => {
+    stubEntries({}, [
+      {
+        id: 3,
+        name: "Team",
+        description: null,
+        color: "#6366f1",
+        initiative_id: INITIATIVE_ID,
+        community_id: 1,
+        created_by: 1,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        can: writerCan(),
+        comments_enabled: true,
+        archived_at: null,
+        tags: [],
+        grants: [],
+      },
+    ]);
+    renderCalendars();
+
+    const heading = await screen.findByRole("heading", { level: 2, name: /all calendars/i });
+    expect(within(heading).getByRole("button", { name: /all calendars/i })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 1 })).toBeNull();
   });
 
   it("fetches where the date range meets the month on screen, and exports the range", async () => {
@@ -169,7 +208,7 @@ describe("CalendarsView calendar-entries query", () => {
       description: null,
       color: "#6366f1",
       initiative_id: INITIATIVE_ID,
-      guild_id: 1,
+      community_id: 1,
       created_by: 1,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -179,10 +218,10 @@ describe("CalendarsView calendar-entries query", () => {
       tags: [],
       grants: [],
     };
-    const requests = stubEntries({}, undefined, [calendar]);
+    const requests = stubEntries({}, [calendar]);
     const exports: URLSearchParams[] = [];
     server.use(
-      guildHttp.get("/exports/events", ({ request }) => {
+      communityHttp.get("/exports/events", ({ request }) => {
         exports.push(new URL(request.url).searchParams);
         return new HttpResponse("BEGIN:VCALENDAR", {
           headers: { "Content-Type": "text/calendar" },
@@ -211,7 +250,7 @@ describe("CalendarsView calendar-entries query", () => {
 
     // The export takes the range itself, not the window on screen.
     await user.keyboard("{Escape}");
-    await user.click(screen.getByRole("button", { name: /^export$/i }));
+    await exportFromMenu(user);
     await waitFor(() => expect(exports).toHaveLength(1));
     const range = dateRangeParams({ from, until });
     expect(exports[0].get("start_after")).toBe(range.start_after);
@@ -225,15 +264,15 @@ describe("CalendarsView calendar-entries query", () => {
   });
 });
 
-describe("CalendarsView on a guild calendar", () => {
-  /** The calendar the app mounts: guild-level, so it belongs to no initiative. */
-  const guildCalendar = {
+describe("CalendarsView on a community calendar", () => {
+  /** The calendar the plug-in mounts: community-level, so it belongs to no initiative. */
+  const communityCalendar = {
     id: 42,
     name: "Community calendar",
     description: null,
     color: "#6366f1",
     initiative_id: null,
-    guild_id: 1,
+    community_id: 1,
     created_by: 1,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
@@ -248,29 +287,18 @@ describe("CalendarsView on a guild calendar", () => {
   it("asks for its own events only, and reads nothing initiative-shaped", async () => {
     const entries: URLSearchParams[] = [];
     const calendarList: string[] = [];
-    const projectList: string[] = [];
     server.use(
-      guildHttp.get("/calendar-entries/", ({ request }) => {
+      communityHttp.get("/calendar-entries/", ({ request }) => {
         entries.push(new URL(request.url).searchParams);
         return HttpResponse.json({ events: [], tasks: [] });
       }),
-      guildHttp.get("/calendars/", ({ request }) => {
+      communityHttp.get("/calendars/", ({ request }) => {
         calendarList.push(request.url);
         return HttpResponse.json({
           items: [],
           total_count: 0,
           page: 1,
           page_size: 100,
-          has_next: false,
-        });
-      }),
-      guildHttp.get("/projects/", ({ request }) => {
-        projectList.push(request.url);
-        return HttpResponse.json({
-          items: [],
-          total_count: 0,
-          page: 1,
-          page_size: 0,
           has_next: false,
         });
       })
@@ -280,31 +308,36 @@ describe("CalendarsView on a guild calendar", () => {
     queryClient.setQueryData(VIEW_PREFERENCES_QUERY_KEY, {
       items: { [CALENDAR_VIEW_MODE_KEY]: "list" },
     });
-    const Page = () => <CalendarsView soloCalendar={guildCalendar} />;
+    const Page = () => <CalendarsView soloCalendar={communityCalendar} />;
     renderPage(Page, { queryClient });
 
     await waitFor(() => expect(entries.length).toBeGreaterThan(0));
 
+    // Titled with its name and a way to its settings; there is nothing to pick.
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Community calendar" })
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Settings" })).toBeInTheDocument();
+
     // Exactly this calendar, no task leg, and no initiative to narrow to.
-    expect(entries[0].getAll("calendar_ids")).toEqual([String(guildCalendar.id)]);
+    expect(entries[0].getAll("calendar_ids")).toEqual([String(communityCalendar.id)]);
     expect(entries[0].get("include_tasks")).toBe("false");
     expect(entries[0].get("initiative_id")).toBeNull();
 
     // The panel, the task-calendar rows and the filter bar are all initiative-
-    // shaped, so the surface never lists the guild's calendars or projects.
+    // shaped, so the surface never lists the community's calendars.
     expect(calendarList).toEqual([]);
-    expect(projectList).toEqual([]);
   });
 });
 
-describe("CalendarsView on the calendar app's own surface", () => {
-  const guildCalendar = (id: number, name: string) => ({
+describe("CalendarsView on the calendar plug-in's own surface", () => {
+  const communityCalendar = (id: number, name: string) => ({
     id,
     name,
     description: null,
     color: "#6366f1",
     initiative_id: null,
-    guild_id: 1,
+    community_id: 1,
     created_by: 1,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
@@ -315,17 +348,19 @@ describe("CalendarsView on the calendar app's own surface", () => {
     grants: [],
   });
 
-  /** Serve the guild's calendars, recording what the page asked for. */
-  function stubGuildScope(calendars: ReturnType<typeof guildCalendar>[], events: unknown[] = []) {
+  /** Serve the community's calendars, recording what the page asked for. */
+  function stubCommunityScope(
+    calendars: ReturnType<typeof communityCalendar>[],
+    events: unknown[] = []
+  ) {
     const entries: URLSearchParams[] = [];
     const calendarList: URLSearchParams[] = [];
-    const projectList: string[] = [];
     server.use(
-      guildHttp.get("/calendar-entries/", ({ request }) => {
+      communityHttp.get("/calendar-entries/", ({ request }) => {
         entries.push(new URL(request.url).searchParams);
         return HttpResponse.json({ events, tasks: [] });
       }),
-      guildHttp.get("/calendars/", ({ request }) => {
+      communityHttp.get("/calendars/", ({ request }) => {
         calendarList.push(new URL(request.url).searchParams);
         return HttpResponse.json({
           items: calendars,
@@ -334,62 +369,50 @@ describe("CalendarsView on the calendar app's own surface", () => {
           page_size: 200,
           has_next: false,
         });
-      }),
-      guildHttp.get("/projects/", ({ request }) => {
-        projectList.push(request.url);
-        return HttpResponse.json({
-          items: [],
-          total_count: 0,
-          page: 1,
-          page_size: 0,
-          has_next: false,
-        });
       })
     );
-    return { entries, calendarList, projectList };
+    return { entries, calendarList };
   }
 
-  function renderGuildScope() {
+  function renderCommunityScope() {
     const queryClient = createTestQueryClient();
     queryClient.setQueryData(VIEW_PREFERENCES_QUERY_KEY, {
       items: { [CALENDAR_VIEW_MODE_KEY]: "list" },
     });
     // The community's own calendars are its admins' to add.
-    const guild = buildGuild({ id: 1, role: "admin" });
-    return renderPage(() => <CalendarsView guildScope />, {
+    const community = buildCommunity({ id: 1, role: "admin" });
+    return renderPage(() => <CalendarsView communityScope />, {
       queryClient,
-      guilds: { activeGuildId: 1, activeGuild: guild, guilds: [guild] },
+      communities: { activeCommunityId: 1, activeCommunity: community, communities: [community] },
     });
   }
 
-  it("asks for the guild's own calendars and overlays all of them", async () => {
-    const { entries, calendarList, projectList } = stubGuildScope([
-      guildCalendar(42, "Holidays"),
-      guildCalendar(43, "Game nights"),
+  it("asks for the community's own calendars and overlays all of them", async () => {
+    const { entries, calendarList } = stubCommunityScope([
+      communityCalendar(42, "Holidays"),
+      communityCalendar(43, "Game nights"),
     ]);
 
-    renderGuildScope();
+    renderCommunityScope();
 
     await waitFor(() => expect(entries.length).toBeGreaterThan(0));
 
     // The list is asked for by scope, not inferred from an absent initiative —
     // otherwise it would answer with every initiative's calendars too.
-    expect(calendarList[0].get("scope")).toBe("guild");
+    expect(calendarList[0].get("scope")).toBe("community");
     // The events are asked for by scope too, rather than by naming the
     // calendars: the list above is one page of them, and an event on a calendar
     // past the end of it would simply not be drawn.
-    expect(entries[0].get("scope")).toBe("guild");
+    expect(entries[0].get("scope")).toBe("community");
     expect(entries[0].getAll("calendar_ids")).toEqual([]);
     expect(entries[0].get("include_tasks")).toBe("false");
     expect(entries[0].get("initiative_id")).toBeNull();
-    // Projects are task-shaped, and this surface holds no tasks.
-    expect(projectList).toEqual([]);
   });
 
   const midsummer = {
     id: 1,
     calendar_id: 42,
-    guild_id: 1,
+    community_id: 1,
     title: "Midsummer",
     description: null,
     start_at: inFocusMonth(3),
@@ -402,29 +425,34 @@ describe("CalendarsView on the calendar app's own surface", () => {
   };
 
   it("lets a reader hide one of them, and keeps it hidden the next time", async () => {
-    stubGuildScope([guildCalendar(42, "Holidays"), guildCalendar(43, "Game nights")], [midsummer]);
+    stubCommunityScope(
+      [communityCalendar(42, "Holidays"), communityCalendar(43, "Game nights")],
+      [midsummer]
+    );
 
     const user = userEvent.setup();
-    const { unmount } = renderGuildScope();
+    const { unmount } = renderCommunityScope();
 
     expect(await screen.findByText("Midsummer")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: /calendars/i }));
+    await user.click(screen.getByRole("button", { name: "All calendars" }));
     await user.click(await screen.findByRole("checkbox", { name: "Holidays" }));
     await waitFor(() => expect(screen.queryByText("Midsummer")).toBeNull());
 
     unmount();
-    renderGuildScope();
+    renderCommunityScope();
 
-    expect(await screen.findByRole("button", { name: /1 calendar hidden/i })).toBeInTheDocument();
+    // One calendar left on: the title is its name, with its settings beside it.
+    expect(await screen.findByRole("button", { name: "Game nights" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Settings" })).toBeInTheDocument();
     expect(screen.queryByText("Midsummer")).toBeNull();
   });
 
   it("exports every date of the calendars on screen, leaving out a hidden one", async () => {
-    stubGuildScope([guildCalendar(42, "Holidays"), guildCalendar(43, "Game nights")]);
+    stubCommunityScope([communityCalendar(42, "Holidays"), communityCalendar(43, "Game nights")]);
     const exports: URLSearchParams[] = [];
     server.use(
-      guildHttp.get("/exports/events", ({ request }) => {
+      communityHttp.get("/exports/events", ({ request }) => {
         exports.push(new URL(request.url).searchParams);
         return new HttpResponse("BEGIN:VCALENDAR", {
           headers: { "Content-Type": "text/calendar" },
@@ -433,54 +461,61 @@ describe("CalendarsView on the calendar app's own surface", () => {
     );
 
     const user = userEvent.setup();
-    renderGuildScope();
+    renderCommunityScope();
 
-    await user.click(await screen.findByRole("button", { name: /^export$/i }));
+    await exportFromMenu(user);
     await waitFor(() => expect(exports).toHaveLength(1));
-    expect(exports[0].get("scope")).toBe("guild");
+    expect(exports[0].get("scope")).toBe("community");
     expect(exports[0].getAll("calendar_ids")).toEqual([]);
     expect(exports[0].get("start_after")).toBeNull();
 
-    await user.click(screen.getByRole("button", { name: /calendars/i }));
+    await user.click(screen.getByRole("button", { name: "All calendars" }));
     await user.click(await screen.findByRole("checkbox", { name: "Holidays" }));
     await user.keyboard("{Escape}");
-    await user.click(screen.getByRole("button", { name: /^export$/i }));
+    await exportFromMenu(user);
     await waitFor(() => expect(exports).toHaveLength(2));
-    expect(exports[1].get("scope")).toBe("guild");
+    expect(exports[1].get("scope")).toBe("community");
     expect(exports[1].getAll("exclude_calendar_ids")).toEqual(["42"]);
   });
 
-  it("puts the picker and the way to add a calendar on the page, not behind the filter button", async () => {
-    stubGuildScope([guildCalendar(42, "Holidays"), guildCalendar(43, "Game nights")]);
+  it("titles the page with the picker and puts the way to add a calendar on it", async () => {
+    stubCommunityScope([communityCalendar(42, "Holidays"), communityCalendar(43, "Game nights")]);
 
-    renderGuildScope();
+    renderCommunityScope();
 
-    // The picker rides the toolbar row: this surface has no other filter, so
+    // The picker is the page's title: this surface has no other filter, so
     // there is no disclosure to open before reaching it.
-    expect(await screen.findByRole("button", { name: /calendars/i })).toBeInTheDocument();
+    const title = await screen.findByRole("heading", { level: 1, name: "All calendars" });
+    expect(within(title).getByRole("button", { name: "All calendars" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /filters/i })).toBeNull();
     // Adding a calendar is offered on a populated surface too, not only from
     // the empty state.
     expect(screen.getByRole("button", { name: /new calendar/i })).toBeInTheDocument();
   });
 
-  it("says how many calendars are switched off while the picker is shut", async () => {
-    stubGuildScope([guildCalendar(42, "Holidays"), guildCalendar(43, "Game nights")]);
+  it("says how many calendars are showing, and shows them all again from the top", async () => {
+    stubCommunityScope([
+      communityCalendar(42, "Holidays"),
+      communityCalendar(43, "Game nights"),
+      communityCalendar(44, "Birthdays"),
+    ]);
 
     const user = userEvent.setup();
-    renderGuildScope();
+    renderCommunityScope();
 
-    await user.click(await screen.findByRole("button", { name: /calendars/i }));
+    await user.click(await screen.findByRole("button", { name: "All calendars" }));
     await user.click(await screen.findByRole("checkbox", { name: "Holidays" }));
-    await user.keyboard("{Escape}");
+    expect(await screen.findByRole("button", { name: "2 calendars" })).toBeInTheDocument();
 
-    expect(await screen.findByRole("button", { name: /1 calendar hidden/i })).toBeInTheDocument();
+    await user.click(screen.getByRole("checkbox", { name: "All calendars" }));
+    expect(screen.getByRole("checkbox", { name: "Holidays" })).toBeChecked();
+    expect(screen.getByRole("button", { name: "All calendars" })).toBeInTheDocument();
   });
 
   it("offers to make the first one rather than showing an empty grid", async () => {
-    stubGuildScope([]);
+    stubCommunityScope([]);
 
-    renderGuildScope();
+    renderCommunityScope();
 
     expect(await screen.findByText(/no calendars yet/i)).toBeInTheDocument();
     // An admin adds one here without holding an initiative role.

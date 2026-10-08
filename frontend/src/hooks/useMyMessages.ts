@@ -16,13 +16,13 @@ import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/reac
 import { useEffect, useRef, useSyncExternalStore } from "react";
 
 import {
-  acceptInvitationApiV1MeDmConversationsConversationIdAcceptPost as acceptInvitation,
-  checkRosterApiV1MeDmRosterCheckPost as checkRoster,
-  createConversationApiV1MeDmConversationsPost as createConversation,
-  createGroupConversationApiV1MeDmConversationsGroupPost as createGroup,
-  leaveConversationApiV1MeDmConversationsConversationIdDelete as leaveConversation,
-  listConversationsApiV1MeDmConversationsGet as listConversations,
-  markConversationReadApiV1MeDmConversationsConversationIdReadPost as reportThreadRead,
+  acceptInvitation,
+  checkRoster,
+  createConversation,
+  createGroupConversation as createGroup,
+  leaveConversation,
+  listConversations,
+  markConversationRead as reportThreadRead,
 } from "@/api/generated/direct-messages/direct-messages";
 import { invalidate, q } from "@/api/query-keys";
 import type { PeerKeyChange, StoredMessage } from "@/crypto/messaging";
@@ -57,8 +57,8 @@ import {
   useDmSettings,
   usePendingContactRequests,
 } from "@/hooks/useDirectMessages";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { toast } from "@/lib/mascotToast";
 
 export const messageKeys = {
   conversations: ["dm", "conversations"] as const,
@@ -285,11 +285,13 @@ function useCollectVerification(enabled: boolean) {
   const { phase } = useVerification();
   const running = phase === "waiting" || phase === "compare";
   // A comparison that ends verified released a device from this browser's own
-  // store, which only these queries read: the prompt about it, and the
-  // collection that was leaving its messages waiting.
+  // store, which only these queries read: the prompt about it, the notice on
+  // the device that was verified, and the collection that was leaving its
+  // messages waiting.
   useEffect(() => {
     if (phase !== "verified") return;
     void queryClient.invalidateQueries({ queryKey: messageKeys.ownDevice });
+    void queryClient.invalidateQueries({ queryKey: messageKeys.historyAsk });
     void queryClient.invalidateQueries({ queryKey: messageKeys.inbox });
   }, [phase, queryClient]);
   return useQuery({

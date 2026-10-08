@@ -12,15 +12,21 @@ from pathlib import Path
 
 from app.core.messages import QueryMessages
 from app.db.session import routed_context
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.services.fields.spec import FieldType
 from app.services.marketplace import builtin
 from app.services.tenant.dashboard_definition import WIDGET_SPECS
-from app.testing import create_initiative_member, create_project, create_task
+from app.models.tenant.file import FileType
+from app.testing import (
+    create_file,
+    create_initiative_member,
+    create_project,
+    create_task,
+)
 
 
 async def test_a_member_can_run_a_query(client, acting_user):
-    actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    actor = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     response = await client.post(
         actor.g("/query"),
         json={"sql": "SELECT count(*) AS n FROM projects"},
@@ -28,12 +34,12 @@ async def test_a_member_can_run_a_query(client, acting_user):
     )
     assert response.status_code == 200
     body = response.json()
-    assert body["columns"] == [{"name": "n", "type": "number"}]
+    assert body["columns"] == [{"name": "n", "type": "number", "grain": None}]
     assert body["truncated"] is False
 
 
 async def test_the_rows_come_back_positionally(client, acting_user):
-    actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    actor = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     response = await client.post(
         actor.g("/query"),
         json={"sql": "SELECT 1 AS a, 2 AS b FROM projects LIMIT 1"},
@@ -41,13 +47,13 @@ async def test_the_rows_come_back_positionally(client, acting_user):
     )
     assert response.status_code == 200
     assert response.json()["columns"] == [
-        {"name": "a", "type": "number"},
-        {"name": "b", "type": "number"},
+        {"name": "a", "type": "number", "grain": None},
+        {"name": "b", "type": "number", "grain": None},
     ]
 
 
 async def test_a_statement_the_surface_refuses_says_which_word(client, acting_user):
-    actor = await acting_user(guild_role=GuildRole.member, initiative=True)
+    actor = await acting_user(guild_role=CommunityRole.member, initiative=True)
     response = await client.post(
         actor.g("/query"),
         json={"sql": "SELECT id FROM users"},
@@ -58,7 +64,7 @@ async def test_a_statement_the_surface_refuses_says_which_word(client, acting_us
 
 
 async def test_a_write_is_refused_before_it_reaches_the_database(client, acting_user):
-    actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    actor = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     response = await client.post(
         actor.g("/query"),
         json={"sql": "DELETE FROM tasks"},
@@ -71,7 +77,7 @@ async def test_a_write_is_refused_before_it_reaches_the_database(client, acting_
 async def test_a_statement_the_database_cannot_finish_is_a_refusal(client, acting_user):
     """It parsed and resolved; the database had the last word on it. That is
     still something the reader can correct, so it comes back as one."""
-    actor = await acting_user(guild_role=GuildRole.member, initiative=True)
+    actor = await acting_user(guild_role=CommunityRole.member, initiative=True)
     response = await client.post(
         actor.g("/query"),
         json={"sql": "SELECT count(*) / 0 AS n FROM projects"},
@@ -82,7 +88,7 @@ async def test_a_statement_the_database_cannot_finish_is_a_refusal(client, actin
 
 
 async def test_describing_a_statement_names_its_columns_and_types(client, acting_user):
-    actor = await acting_user(guild_role=GuildRole.member, initiative=True)
+    actor = await acting_user(guild_role=CommunityRole.member, initiative=True)
     response = await client.post(
         actor.g("/query/describe"),
         json={"sql": "SELECT name, created_at, archived_at, id FROM projects"},
@@ -90,10 +96,10 @@ async def test_describing_a_statement_names_its_columns_and_types(client, acting
     )
     assert response.status_code == 200
     assert response.json()["columns"] == [
-        {"name": "name", "type": "text"},
-        {"name": "created_at", "type": "date"},
-        {"name": "archived_at", "type": "date"},
-        {"name": "id", "type": "number"},
+        {"name": "name", "type": "text", "grain": None},
+        {"name": "created_at", "type": "date", "grain": None},
+        {"name": "archived_at", "type": "date", "grain": None},
+        {"name": "id", "type": "number", "grain": None},
     ]
 
 
@@ -101,20 +107,22 @@ async def test_a_closed_vocabulary_describes_as_one(client, acting_user):
     """``priority`` is a database enum, which is the same signal the field
     registry reads — so a query's shape and a dataset's fields say it the
     same way."""
-    actor = await acting_user(guild_role=GuildRole.member, initiative=True)
+    actor = await acting_user(guild_role=CommunityRole.member, initiative=True)
     response = await client.post(
         actor.g("/query/describe"),
         json={"sql": "SELECT priority FROM tasks"},
         headers=actor.headers,
     )
     assert response.status_code == 200
-    assert response.json()["columns"] == [{"name": "priority", "type": "enum"}]
+    assert response.json()["columns"] == [
+        {"name": "priority", "type": "enum", "grain": None}
+    ]
 
 
 async def test_a_field_that_names_a_row_describes_as_a_reference(client, acting_user):
     """``project_id`` holds an integer and means a project. A query's shape says
     that in the same word the dataset's fields do."""
-    actor = await acting_user(guild_role=GuildRole.member, initiative=True)
+    actor = await acting_user(guild_role=CommunityRole.member, initiative=True)
     response = await client.post(
         actor.g("/query/describe"),
         json={"sql": "SELECT project_id, title FROM tasks"},
@@ -122,15 +130,15 @@ async def test_a_field_that_names_a_row_describes_as_a_reference(client, acting_
     )
     assert response.status_code == 200
     assert response.json()["columns"] == [
-        {"name": "project_id", "type": "reference"},
-        {"name": "title", "type": "text"},
+        {"name": "project_id", "type": "reference", "grain": None},
+        {"name": "title", "type": "text", "grain": None},
     ]
 
 
 async def test_describing_runs_nothing(client, session, acting_user):
     """A statement that would fail while running still describes, because
     describing plans and does not execute."""
-    actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    actor = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await create_project(session, actor.initiative, actor.user)
     described = await client.post(
         actor.g("/query/describe"),
@@ -143,12 +151,14 @@ async def test_describing_runs_nothing(client, session, acting_user):
         headers=actor.headers,
     )
     assert described.status_code == 200
-    assert described.json()["columns"] == [{"name": "n", "type": "number"}]
+    assert described.json()["columns"] == [
+        {"name": "n", "type": "number", "grain": None}
+    ]
     assert ran.status_code == 400
 
 
 async def test_a_statement_that_does_not_resolve_does_not_describe(client, acting_user):
-    actor = await acting_user(guild_role=GuildRole.member, initiative=True)
+    actor = await acting_user(guild_role=CommunityRole.member, initiative=True)
     response = await client.post(
         actor.g("/query/describe"),
         json={"sql": "SELECT id FROM users"},
@@ -159,8 +169,8 @@ async def test_a_statement_that_does_not_resolve_does_not_describe(client, actin
 
 
 async def test_a_non_member_cannot_reach_the_guilds_queries(client, acting_user):
-    resident = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    outsider = await acting_user(guild_role=GuildRole.member)
+    resident = await acting_user(guild_role=CommunityRole.admin, initiative=True)
+    outsider = await acting_user(guild_role=CommunityRole.member)
     response = await client.post(
         resident.g("/query"),
         json={"sql": "SELECT count(*) AS n FROM projects"},
@@ -174,10 +184,10 @@ async def test_a_query_returns_what_its_author_reaches_and_no_more(
 ):
     """Two members of one guild, one of them not in the initiative. The same
     statement answers differently, because the policies read who is asking."""
-    author = await acting_user(guild_role=GuildRole.member, initiative=True)
+    author = await acting_user(guild_role=CommunityRole.member, initiative=True)
     await create_project(session, author.initiative, author.user)
 
-    stranger = await acting_user(guild_role=GuildRole.member, guild=author.guild)
+    stranger = await acting_user(guild_role=CommunityRole.member, guild=author.guild)
 
     statement = {"sql": "SELECT count(*) AS n FROM projects"}
     mine = await client.post(author.g("/query"), json=statement, headers=author.headers)
@@ -195,7 +205,7 @@ async def test_a_built_query_answers_with_its_sql_and_its_shape(client, acting_u
     """The builder describes and the server writes the SQL, so what comes back
     is both halves the builder needs: the statement to store, and the columns
     its slot pickers offer."""
-    actor = await acting_user(guild_role=GuildRole.member, initiative=True)
+    actor = await acting_user(guild_role=CommunityRole.member, initiative=True)
     response = await client.post(
         actor.g("/query/build"),
         json={
@@ -214,8 +224,8 @@ async def test_a_built_query_answers_with_its_sql_and_its_shape(client, acting_u
     body = response.json()
     assert body["sql"].startswith("SELECT priority, count(*) AS tasks FROM tasks")
     assert body["columns"] == [
-        {"name": "priority", "type": "enum"},
-        {"name": "tasks", "type": "number"},
+        {"name": "priority", "type": "enum", "grain": None},
+        {"name": "tasks", "type": "number", "grain": None},
     ]
     assert body["relations"] == ["tasks"]
 
@@ -223,7 +233,7 @@ async def test_a_built_query_answers_with_its_sql_and_its_shape(client, acting_u
 async def test_a_built_query_can_be_run_as_it_came_back(client, session, acting_user):
     """The whole point of building server-side: a statement somebody clicked
     together is one this surface will run."""
-    actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    actor = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await create_project(session, actor.initiative, actor.user)
     built = await client.post(
         actor.g("/query/build"),
@@ -241,7 +251,7 @@ async def test_a_built_query_can_be_run_as_it_came_back(client, session, acting_
 async def test_a_built_query_brackets_what_it_was_told_to(client, session, acting_user):
     """ "High or urgent, and mine" is one description and two words. What comes
     back has to be a statement this surface runs, brackets and all."""
-    actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    actor = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     project = await create_project(session, actor.initiative, actor.user)
     await create_task(session, project, priority="high")
     await create_task(session, project, priority="low")
@@ -280,7 +290,7 @@ async def test_a_built_query_brackets_what_it_was_told_to(client, session, actin
 async def test_a_built_query_keeps_a_date_a_distance(client, acting_user):
     """A tile asking about the next 30 days has to still be asking that next
     month, so the offset is what the statement carries."""
-    actor = await acting_user(guild_role=GuildRole.member, initiative=True)
+    actor = await acting_user(guild_role=CommunityRole.member, initiative=True)
     response = await client.post(
         actor.g("/query/build"),
         json={
@@ -296,7 +306,7 @@ async def test_a_built_query_keeps_a_date_a_distance(client, acting_user):
 
 
 async def test_a_builder_cannot_describe_a_dataset_nobody_declared(client, acting_user):
-    actor = await acting_user(guild_role=GuildRole.member, initiative=True)
+    actor = await acting_user(guild_role=CommunityRole.member, initiative=True)
     response = await client.post(
         actor.g("/query/build"),
         json={"dataset": "pg_shadow", "columns": [{"field": "usename"}]},
@@ -317,14 +327,14 @@ class TestReadingOneInitiative:
     async def test_a_query_answers_for_the_initiative_it_names(
         self, client, session, acting_user
     ):
-        actor = await acting_user(guild_role=GuildRole.member, initiative=True)
+        actor = await acting_user(guild_role=CommunityRole.member, initiative=True)
         await create_project(session, actor.initiative, actor.user)
 
         # A second initiative in the same guild, with the same reader in it
         # and a project of theirs in it — so what the narrowing removes is
         # something this reader can otherwise see.
         other = await acting_user(
-            guild_role=GuildRole.member, guild=actor.guild, initiative=True
+            guild_role=CommunityRole.member, guild=actor.guild, initiative=True
         )
         await create_initiative_member(session, other.initiative, actor.user)
         await create_project(session, other.initiative, actor.user)
@@ -353,9 +363,9 @@ class TestReadingOneInitiative:
     ):
         """Naming one the reader is not in returns nothing, rather than its
         rows: the scope narrows an answer, it does not authorize one."""
-        actor = await acting_user(guild_role=GuildRole.member, initiative=True)
+        actor = await acting_user(guild_role=CommunityRole.member, initiative=True)
         stranger = await acting_user(
-            guild_role=GuildRole.member, guild=actor.guild, initiative=True
+            guild_role=CommunityRole.member, guild=actor.guild, initiative=True
         )
         await create_project(session, stranger.initiative, stranger.user)
 
@@ -375,12 +385,12 @@ class TestReadingOneInitiative:
     ):
         """Tasks resolve their initiative through their project, so narrowing
         has to follow the same path the policies do."""
-        actor = await acting_user(guild_role=GuildRole.member, initiative=True)
+        actor = await acting_user(guild_role=CommunityRole.member, initiative=True)
         mine = await create_project(session, actor.initiative, actor.user)
         await create_task(session, mine)
 
         other = await acting_user(
-            guild_role=GuildRole.member, guild=actor.guild, initiative=True
+            guild_role=CommunityRole.member, guild=actor.guild, initiative=True
         )
         await create_initiative_member(session, other.initiative, actor.user)
         theirs = await create_project(session, other.initiative, actor.user)
@@ -426,7 +436,7 @@ class TestEveryShippedDashboardDrawsItsShape:
                     yield listing["public_id"], widget, sql
 
     async def test_each_widget_gets_the_columns_it_draws(self, client, acting_user):
-        actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        actor = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         checked = 0
         for public_id, widget, sql in self._widgets():
             response = await client.post(
@@ -478,7 +488,7 @@ class TestGroupingByPerson:
     async def test_work_can_be_counted_by_the_person_doing_it(
         self, client, session, acting_user
     ):
-        actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        actor = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         project = await create_project(session, actor.initiative, actor.user)
         await create_task(session, project, assignees=[actor.user])
         await create_task(session, project, assignees=[actor.user])
@@ -500,8 +510,8 @@ class TestGroupingByPerson:
         assert response.status_code == 200, response.json()
         body = response.json()
         assert body["columns"] == [
-            {"name": "person", "type": "text"},
-            {"name": "tasks", "type": "number"},
+            {"name": "person", "type": "text", "grain": None},
+            {"name": "tasks", "type": "number", "grain": None},
         ]
         # The unassigned task is not somebody's work, so it is not a row here.
         assert body["rows"] == [[body["rows"][0][0], 2]]
@@ -511,8 +521,8 @@ class TestGroupingByPerson:
     ):
         """A person is an account platform-wide; a member is a member of this
         guild. Listing them answers the second question."""
-        actor = await acting_user(guild_role=GuildRole.member, initiative=True)
-        stranger = await acting_user(guild_role=GuildRole.member, initiative=True)
+        actor = await acting_user(guild_role=CommunityRole.member, initiative=True)
+        stranger = await acting_user(guild_role=CommunityRole.member, initiative=True)
 
         response = await client.post(
             actor.g("/query"),
@@ -527,9 +537,9 @@ class TestGroupingByPerson:
     async def test_a_name_the_guild_does_not_render_falls_back_to_the_handle(
         self, client, session, acting_user
     ):
-        """``display_name`` is what a chart groups by either way, so a guild
-        that shows no real names still gets one column per person."""
-        actor = await acting_user(guild_role=GuildRole.member, initiative=True)
+        """``display_name`` is what a chart groups by either way, so a member
+        who set no name in the guild still gets a column of their own."""
+        actor = await acting_user(guild_role=CommunityRole.member, initiative=True)
         response = await client.post(
             actor.g("/query"),
             json={"sql": "SELECT display_name FROM members"},
@@ -551,11 +561,11 @@ class TestAskingAboutTheReader:
     async def test_the_same_statement_answers_from_whoever_asks(
         self, client, session, acting_user
     ):
-        author = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        author = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         # Both reach every row here, so the only thing that can separate the
         # two answers is who is asking.
         reader = await acting_user(
-            guild_role=GuildRole.admin,
+            guild_role=CommunityRole.admin,
             guild=author.guild,
             initiative=author.initiative,
             initiative_role="member",
@@ -585,7 +595,7 @@ class TestAskingAboutTheReader:
     async def test_it_reaches_the_person_through_a_relation(
         self, client, session, acting_user
     ):
-        actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        actor = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         project = await create_project(session, actor.initiative, actor.user)
         await create_task(session, project, assignees=[actor.user])
         await create_task(session, project)
@@ -601,10 +611,37 @@ class TestAskingAboutTheReader:
         assert response.status_code == 200, response.json()
         assert response.json()["rows"] == [[1]]
 
+    async def test_a_file_is_read_through_the_version_it_shows(
+        self, client, session, acting_user
+    ):
+        actor = await acting_user(guild_role=CommunityRole.admin, initiative=True)
+        await create_file(
+            session,
+            actor.initiative,
+            actor.user,
+            file_type=FileType.file,
+            file_url="/uploads/1/brief.pdf",
+            file_size=2048,
+        )
+
+        response = await client.post(
+            actor.g("/query"),
+            json={
+                "sql": (
+                    "SELECT current_version.file_content_type AS type,"
+                    " current_version.file_size AS size FROM files"
+                ),
+                "initiative_id": actor.initiative.id,
+            },
+            headers=actor.headers,
+        )
+        assert response.status_code == 200, response.json()
+        assert response.json()["rows"] == [["application/pdf", 2048]]
+
     async def test_a_name_the_surface_keeps_is_refused_where_it_is_written(
         self, client, acting_user
     ):
-        actor = await acting_user(guild_role=GuildRole.member, initiative=True)
+        actor = await acting_user(guild_role=CommunityRole.member, initiative=True)
         response = await client.post(
             actor.g("/query"),
             json={"sql": "SELECT count(*) AS me FROM projects"},
@@ -623,7 +660,7 @@ async def test_a_trashed_task_is_not_in_the_answer(client, acting_user, session)
     """
     from datetime import datetime, timezone
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     await create_task(session, a.project, title="kept")
     binned = await create_task(session, a.project, title="binned")
 
@@ -663,7 +700,7 @@ async def test_the_trash_is_still_reachable_where_it_is_managed(
     """
     from datetime import datetime, timezone
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     binned = await create_task(session, a.project, title="binned")
     task_id = binned.id
 
@@ -704,7 +741,7 @@ class TestEveryShippedDashboardReportsOnLiveWork:
 
         from app.services import query as query_service
 
-        actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
+        actor = await acting_user(guild_role=CommunityRole.admin, initiative=True)
         live = await create_project(session, actor.initiative, actor.user)
         await create_task(session, live, title="live work")
 

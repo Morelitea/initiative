@@ -53,6 +53,7 @@ __all__ = [
     "revoke_chain",
     "revoke_all_for_user",
     "delete_all_for_user",
+    "follow_devices",
     "purge_dead_sessions",
     "process_dead_session_purge",
     "SESSION_PURGE_POLL_SECONDS",
@@ -84,17 +85,29 @@ def _generate_refresh_token() -> str:
     return secrets.token_urlsafe(_REFRESH_TOKEN_BYTES)
 
 
+#: How long a device's session stands unused: the phone and desktop apps stay
+#: signed in where a browser would not.
+DEVICE_REFRESH_TTL = timedelta(days=90)
+
+
 async def _narrowed_ttl(
-    session: AsyncSession, *, user_id: int, requested: timedelta | None
+    session: AsyncSession,
+    *,
+    user_id: int,
+    requested: timedelta | None,
+    device: bool,
 ) -> timedelta:
     """How long the refresh row may stand.
 
-    The deployment's own window unless the caller named one, narrowed by what
-    a community held to the compliance standard asks of its members. Resolved
+    The deployment's own window, or the device window, unless the caller named
+    one, narrowed by what a community held to the compliance standard asks of
+    its members. Resolved
     here rather than by each caller: a rotation learns whose session it is
     from the token it was handed, so there is one place that knows.
     """
-    ttl = requested or timedelta(days=settings.AUTH_REFRESH_TTL_DAYS)
+    ttl = requested or (
+        DEVICE_REFRESH_TTL if device else timedelta(days=settings.AUTH_REFRESH_TTL_DAYS)
+    )
     idle = await session_lifetime.idle_window(session, user_id=user_id)
     return min(ttl, idle) if idle is not None else ttl
 
@@ -179,6 +192,7 @@ _REVOKE_CHAIN_SQL = text(
     UPDATE auth_sessions SET revoked_at = :now
     WHERE revoked_at IS NULL
       AND id IN (SELECT id FROM ancestors UNION SELECT id FROM descendants)
+    RETURNING id
     """
 )
 
@@ -193,6 +207,7 @@ async def create_session(
     user_agent: str | None = None,
     ip: str | None = None,
     device_name: str | None = None,
+    device: bool = False,
     refresh_ttl: timedelta | None = None,
     now: datetime | None = None,
 ) -> IssuedSession:
@@ -213,7 +228,9 @@ async def create_session(
     so a sign-in that fails leaves the deletion exactly where it was.
     """
     issued = now or utcnow()
-    ttl = await _narrowed_ttl(session, user_id=user_id, requested=refresh_ttl)
+    ttl = await _narrowed_ttl(
+        session, user_id=user_id, requested=refresh_ttl, device=device
+    )
     # The end of the whole chain, read once here and carried forward from now
     # on. ``expires_at`` is the idle window and never outlives it.
     chain_ends = await session_lifetime.chain_deadline(
@@ -232,6 +249,7 @@ async def create_session(
         user_agent=user_agent,
         ip=ip,
         device_name=device_name,
+        device=device,
     )
     session.add(row)
     await session.flush()
@@ -256,6 +274,7 @@ async def rotate_session(
     ip: str | None = None,
     device_name: str | None = None,
     refresh_ttl: timedelta | None = None,
+    idle: timedelta = timedelta(0),
     now: datetime | None = None,
 ) -> RotationResult:
     """Single-use rotate: spend the presented refresh token, mint its successor.
@@ -263,6 +282,12 @@ async def rotate_session(
     Carries ``amr``/``satisfied_providers``/``provider_auth`` (and device
     metadata) forward from the parent unless overridden — a step-up rotation
     passes the widened set.
+
+    ``idle`` is how long ago the person last did something, as the client
+    reports it. The idle window runs from then, not from the renewal, so a
+    client renewing on its own keeps the session no longer than the person's
+    last input allows. A session whose window has already run out from there
+    is ended, and answers ``EXPIRED``.
 
     **Returns** a :class:`RotationResult` (never raises for a bad token) —
     ``ROTATED`` carries the new :class:`IssuedSession`; ``UNKNOWN``/``EXPIRED``/
@@ -299,6 +324,19 @@ async def rotate_session(
     if row.chain_expires_at is not None and row.chain_expires_at <= issued:
         return RotationResult(RefreshOutcome.EXPIRED, user_id=row.user_id)
 
+    # Whose session this is only becomes known here, from the token that was
+    # presented, so the window it may stand for is worked out now rather than
+    # by a caller that could not have known.
+    ttl = await _narrowed_ttl(
+        session, user_id=row.user_id, requested=refresh_ttl, device=row.device
+    )
+    if idle >= ttl:
+        # Nobody has been here for the whole window. Ended rather than left to
+        # expire, so a later renewal cannot take it up again.
+        await revoke_session(session, session_id=row.id, now=issued)
+        return RotationResult(RefreshOutcome.EXPIRED, user_id=row.user_id)
+    active_at = issued - idle
+
     # Atomic single-use claim: only one caller can flip revoked_at NULL→now, so
     # two concurrent refreshes with the same token can't both mint a child.
     claimed = (
@@ -316,11 +354,6 @@ async def rotate_session(
         return RotationResult(RefreshOutcome.REUSED, user_id=row.user_id)
     # Keep the in-session parent honest (the raw UPDATE bypassed the ORM).
     await session.refresh(row)
-
-    # Whose session this is only becomes known here, from the token that was
-    # presented, so the window it may stand for is worked out now rather than
-    # by a caller that could not have known.
-    ttl = await _narrowed_ttl(session, user_id=row.user_id, requested=refresh_ttl)
 
     raw = _generate_refresh_token()
     child = AuthSession(
@@ -340,20 +373,38 @@ async def rotate_session(
         parent_id=row.id,
         created_at=issued,
         chain_expires_at=row.chain_expires_at,
-        expires_at=_capped(issued + ttl, row.chain_expires_at),
+        expires_at=_capped(active_at + ttl, row.chain_expires_at),
         user_agent=user_agent if user_agent is not None else row.user_agent,
         ip=ip if ip is not None else row.ip,
         device_name=device_name if device_name is not None else row.device_name,
+        device=row.device,
+        continues_since=row.continues_since,
     )
     session.add(child)
     await session.flush()
-    from app.services.platform import push_tokens
-
-    await push_tokens.follow_session(session, from_id=row.id, to_id=child.id)
+    await follow_devices(session, from_id=row.id, to_id=child.id)
     return RotationResult(
         RefreshOutcome.ROTATED,
         issued=IssuedSession(session=child, refresh_token=raw),
     )
+
+
+async def follow_devices(
+    session: AsyncSession, *, from_id: uuid.UUID, to_id: uuid.UUID
+) -> None:
+    """Move what a device registered under one session to the session taking
+    its place: its push registrations and its message key store.
+
+    Called wherever a session is succeeded — a renewal, a step-up, a
+    replacement — so a device's push row and key store go on naming the same
+    live sign-in, which is how a message finds the phone that can read it. Does
+    not commit: it lands with the session change.
+    """
+    # Imported here: both reach back into the auth package.
+    from app.services.platform import dm_transport, push_tokens
+
+    await push_tokens.follow_session(session, from_id=from_id, to_id=to_id)
+    await dm_transport.follow_session(session, from_id=from_id, to_id=to_id)
 
 
 async def get_live_session_by_refresh_token(
@@ -393,7 +444,9 @@ async def get_live_session_by_refresh_token(
 _LIVE_SESSIONS_SQL = text(
     """
     WITH RECURSIVE live AS (
-        SELECT id, parent_id, created_at, last_used_at, user_agent, ip, device_name
+        SELECT
+            id, parent_id, created_at, last_used_at, user_agent, ip, device_name,
+            device
         FROM auth_sessions
         WHERE user_id = :uid AND revoked_at IS NULL AND expires_at > :now
     ),
@@ -412,7 +465,8 @@ _LIVE_SESSIONS_SQL = text(
         live.last_used_at,
         live.user_agent,
         host(live.ip) AS ip,
-        live.device_name
+        live.device_name,
+        live.device
     FROM live JOIN roots ON roots.tip = live.id
     ORDER BY COALESCE(live.last_used_at, roots.started_at) DESC
     """
@@ -433,6 +487,8 @@ class LiveSession:
     user_agent: str | None
     ip: str | None
     device_name: str | None
+    #: Opened by the phone or desktop app.
+    device: bool
 
 
 async def list_live_for_user(
@@ -515,18 +571,41 @@ async def revoke_session(
     return result.rowcount
 
 
+async def _revoke_until_settled(
+    session: AsyncSession, statement: Any, params: dict[str, object]
+) -> list[Any]:
+    """Run a revoking ``statement`` until a pass after the first ends nothing,
+    and return every row it revoked.
+
+    A renewal that claimed a row before the first pass holds it until it
+    commits. That pass waits for it and skips the row it spent, and the row
+    the renewal opened is visible only to the next statement, so each pass
+    revokes what the one before could not see.
+    """
+    revoked: list[Any] = []
+    passes = 0
+    while True:
+        found = (await session.exec(statement, params=params)).all()
+        revoked.extend(found)
+        passes += 1
+        if not found and passes > 1:
+            return revoked
+
+
 async def revoke_chain(
     session: AsyncSession,
     *,
     session_id: uuid.UUID,
     now: datetime | None = None,
-) -> int:
+) -> set[uuid.UUID]:
     """Revoke every still-live session in ``session_id``'s rotation chain (theft
-    response, or unlink-provider cleanup). Returns the number of rows revoked."""
-    result = await session.exec(
-        _REVOKE_CHAIN_SQL, params={"sid": session_id, "now": now or utcnow()}
+    response, or unlink-provider cleanup). Returns the ids it revoked, which
+    include the live row a renewal has moved the chain to, one committed while
+    this ran among them."""
+    rows = await _revoke_until_settled(
+        session, _REVOKE_CHAIN_SQL, {"sid": session_id, "now": now or utcnow()}
     )
-    return result.rowcount
+    return {row.id for row in rows}
 
 
 async def revoke_all_for_user(
@@ -535,25 +614,36 @@ async def revoke_all_for_user(
     user_id: int,
     now: datetime | None = None,
     except_session_id: str | None = None,
-) -> int:
+) -> dict[uuid.UUID, bool]:
     """Revoke all of a user's live sessions — the refresh-side of "sign out
     everywhere" (paired with the ``users.token_version`` bump that invalidates
-    outstanding access tokens). Returns the number of rows revoked.
+    outstanding access tokens). Returns each revoked id and whether it was a
+    device's session, a renewal committed while this ran included.
 
-    ``except_session_id`` spares one, for the caller who asked: a change made
-    from a settings page should not sign that page out. Left unset, nothing is
-    spared and this is "everywhere" in full.
+    ``except_session_id`` spares one sign-in, for the caller who asked: a change
+    made from a settings page should not sign that page out. Its renewals are
+    spared with it. Left unset, nothing is spared and this is "everywhere" in
+    full.
     """
-    sql = (
-        "UPDATE auth_sessions SET revoked_at = :now "
-        "WHERE user_id = :uid AND revoked_at IS NULL"
-    )
     params: dict[str, object] = {"now": now or utcnow(), "uid": user_id}
+    kept = ""
     if except_session_id is not None:
-        sql += " AND id <> CAST(:keep AS uuid)"
+        kept = (
+            "WITH RECURSIVE kept AS ("
+            " SELECT id FROM auth_sessions WHERE id = CAST(:keep AS uuid)"
+            " UNION"
+            " SELECT s.id FROM auth_sessions s JOIN kept k ON s.parent_id = k.id"
+            ") "
+        )
         params["keep"] = except_session_id
-    result = await session.exec(text(sql), params=params)
-    return result.rowcount
+    statement = text(
+        kept + "UPDATE auth_sessions SET revoked_at = :now "
+        "WHERE user_id = :uid AND revoked_at IS NULL"
+        + (" AND id NOT IN (SELECT id FROM kept)" if kept else "")
+        + " RETURNING id, device"
+    )
+    rows = await _revoke_until_settled(session, statement, params)
+    return {row.id: row.device for row in rows}
 
 
 async def delete_all_for_user(session: AsyncSession, *, user_id: int) -> int:

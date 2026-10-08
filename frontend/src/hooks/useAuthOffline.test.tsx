@@ -28,14 +28,28 @@ vi.mock("@/api/client", () => ({
   setAuthToken: vi.fn(),
   getAuthToken: () => null,
   clearUploadToken: vi.fn(),
+  watchForActivity: () => () => undefined,
+  startSessionActivity: vi.fn(),
+  forgetSessionActivity: vi.fn(),
+}));
+
+// Generated calls arrive here: the account read answers from `get`, every POST
+// is recorded on `post`, and nothing else answers.
+vi.mock("@/api/mutator", () => ({
+  apiMutator: async ({ method, url, data }: { method: string; url: string; data?: unknown }) => {
+    if (url === "/api/v1/me") return (await get(url)).data;
+    if (method === "POST") return (await post(url, data)).data;
+    throw new Error(`No answer for ${url}`);
+  },
 }));
 
 vi.mock("@/crypto/messaging", () => ({
   forgetMessagesOnThisDevice: vi.fn(),
+  serveAccount: vi.fn(),
 }));
 
 const clearWhiteboards = vi.fn();
-vi.mock("@/components/documents/whiteboardSceneCache", () => ({
+vi.mock("@/components/files/whiteboardSceneCache", () => ({
   clearAllWhiteboardSceneCaches: () => clearWhiteboards(),
 }));
 
@@ -103,7 +117,7 @@ beforeEach(() => {
 
 describe("bootstrapping with no answer from the server", () => {
   it("keeps the last-known user, marked unverified", async () => {
-    snapshot = buildUser({ full_name: "Alice" });
+    snapshot = buildUser();
     const stored = snapshot;
     get.mockRejectedValue({ request: {}, message: "Network Error" });
 

@@ -43,6 +43,9 @@ from app.models.tenant._mixins import CreatedByMixin
 #: every guild schema.
 STREAM_LENGTH = 32
 
+#: Longest subject a filer may give a case: a line, as a task's title is.
+FILER_SUBJECT_LENGTH = 200
+
 #: Longest dedupe key the writer will store. A key is built from a rule's name
 #: plus the ids it keys on, never from anything a submitter typed.
 DEDUPE_KEY_LENGTH = 200
@@ -76,6 +79,28 @@ class IntakeBinding(CreatedByMixin, table=True):
     # is what the task endpoints already fall back to — so a project whose
     # statuses are rearranged keeps working without anybody revisiting this row.
     default_status_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            Integer,
+            ForeignKey("task_statuses.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
+    )
+
+    # The status that means "waiting on whoever filed it", and the one a case
+    # goes back to when they answer. NULL where the project has no such
+    # status: a filer is then never told the case is waiting on them, and
+    # their answer moves nothing. Read, like the landing status, against the
+    # project when used.
+    awaiting_filer_status_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            Integer,
+            ForeignKey("task_statuses.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
+    )
+    active_status_id: Optional[int] = Field(
         default=None,
         sa_column=Column(
             Integer,
@@ -150,4 +175,26 @@ class IntakeCase(SQLModel, table=True):
     #: How many times the source has been seen, the opening included.
     occurrences: int = Field(
         default=1, sa_column=Column(Integer, nullable=False, server_default="1")
+    )
+
+    #: The account that filed the case, when a person did. A weak ref like
+    #: every other on this plane: an erased account leaves a dangling id. What
+    #: connects somebody to the case they filed, so they can follow it.
+    filer_user_id: Optional[int] = Field(
+        default=None, sa_column=Column(Integer, nullable=True, index=True)
+    )
+    #: What they called it, as they wrote it. Their own words and never
+    #: changed: the task's title is the people handling it's to rename.
+    filer_subject: Optional[str] = Field(
+        default=None,
+        sa_column=Column(String(length=FILER_SUBJECT_LENGTH), nullable=True),
+    )
+    #: What the filer was last told about the case: the state they were shown,
+    #: and the newest reply said to them. The ticket sweep compares these with
+    #: the case as it is now and tells them only about what moved.
+    filer_notified_state: Optional[str] = Field(
+        default=None, sa_column=Column(String(length=16), nullable=True)
+    )
+    filer_notified_comment_id: Optional[int] = Field(
+        default=None, sa_column=Column(Integer, nullable=True)
     )

@@ -2,7 +2,7 @@
 
 Covers cascade-stamp on parent deletion, dedup-by-deleted_at on restore,
 the needs-reassignment branch, and the upload-preservation invariants for
-file-type and native documents.
+uploaded and native files.
 """
 
 import pytest
@@ -14,7 +14,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.db.schema_provisioning import guild_schema_name
 from app.db.soft_delete_filter import select_including_deleted
 from app.models.platform.user import User
-from app.models.tenant.document import Document, DocumentType
+from app.models.tenant.file import File, FileType
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.project import Project
 from app.models.tenant.queue import Queue
@@ -212,7 +212,7 @@ async def test_restrictive_delete_policy_exists_on_each_soft_delete_table(
     expected = {
         "projects",
         "tasks",
-        "documents",
+        "files",
         "comments",
         "initiatives",
         "tags",
@@ -245,8 +245,8 @@ async def test_restrictive_delete_policy_exists_on_each_soft_delete_table(
 # ---------------------------------------------------------------------------
 
 
-async def test_soft_delete_document_preserves_uploads(session: AsyncSession):
-    """Soft-deleting a native document leaves its referenced Upload row
+async def test_soft_delete_file_preserves_uploads(session: AsyncSession):
+    """Soft-deleting a native file leaves its referenced Upload row
     alone so the image still works after a restore."""
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
@@ -260,10 +260,10 @@ async def test_soft_delete_document_preserves_uploads(session: AsyncSession):
     session.add(upload)
     await session.commit()
 
-    doc = Document(
+    doc = File(
         initiative_id=initiative.id,
         name="With image",
-        document_type=DocumentType.native,
+        file_type=FileType.native,
         content={"text": "uses /uploads/abc123.png"},
         featured_image_url="/uploads/abc123.png",
         created_by=user.id,
@@ -286,18 +286,18 @@ async def test_soft_delete_document_preserves_uploads(session: AsyncSession):
     assert upload_row is not None
 
 
-async def test_purge_document_uploads_escapes_like_wildcards(session: AsyncSession):
+async def test_purge_file_uploads_escapes_like_wildcards(session: AsyncSession):
     """Filenames legitimately contain '_' (a LIKE metacharacter that means
     'any single character'). The orphan check must escape it before
-    interpolating into the LIKE pattern, otherwise a doomed document
+    interpolating into the LIKE pattern, otherwise a doomed file
     referencing /uploads/file_v2.png could appear pinned by an unrelated
-    document referencing /uploads/fileXv2.png — and we'd skip cleanup.
+    file referencing /uploads/fileXv2.png — and we'd skip cleanup.
 
     Regression: the previous implementation interpolated the URL directly
     into the pattern without escaping, leaking blobs on disk."""
     from sqlmodel import select
 
-    from app.services.tenant.attachments import purge_document_uploads
+    from app.services.tenant.attachments import purge_file_uploads
 
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
@@ -313,10 +313,10 @@ async def test_purge_document_uploads_escapes_like_wildcards(session: AsyncSessi
 
     # The doomed doc references /uploads/file_v2.png — pinned via
     # featured_image_url so extract_upload_urls picks it up cleanly.
-    doomed = Document(
+    doomed = File(
         initiative_id=initiative.id,
         name="Doomed",
-        document_type=DocumentType.native,
+        file_type=FileType.native,
         content={},
         featured_image_url="/uploads/file_v2.png",
         created_by=user.id,
@@ -324,11 +324,11 @@ async def test_purge_document_uploads_escapes_like_wildcards(session: AsyncSessi
     # The decoy uses /uploads/fileXv2.png embedded in content. Without
     # escaping, the LIKE pattern '%/uploads/file_v2.png%' matches the
     # decoy's content (since '_' is "any single char"), and the doomed
-    # doc's URL appears pinned by an unrelated document.
-    decoy = Document(
+    # doc's URL appears pinned by an unrelated file.
+    decoy = File(
         initiative_id=initiative.id,
         name="Decoy",
-        document_type=DocumentType.native,
+        file_type=FileType.native,
         content={"src": "/uploads/fileXv2.png"},
         created_by=user.id,
     )
@@ -336,7 +336,7 @@ async def test_purge_document_uploads_escapes_like_wildcards(session: AsyncSessi
     session.add(decoy)
     await session.commit()
 
-    await purge_document_uploads(session, [doomed])
+    await purge_file_uploads(session, [doomed])
     await session.commit()
 
     # The Upload row backing /uploads/file_v2.png had no other reference,
@@ -358,7 +358,7 @@ async def test_trash_listing_dedupes_nested_comment_replies(
     parent_comment_id pointing at a still-trashed row.
     """
     from app.models.tenant.comment import Comment
-    from app.models.platform.guild import GuildRole
+    from app.models.platform.guild import CommunityRole
     from app.testing.factories import (
         create_guild_membership,
         get_auth_headers,
@@ -366,7 +366,9 @@ async def test_trash_listing_dedupes_nested_comment_replies(
 
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=user, guild=guild, role=CommunityRole.admin
+    )
     initiative = await create_initiative(session, guild, user)
     project = await create_project(session, initiative, user)
     task = await _create_task(session, project, title="Task with comments")
@@ -396,7 +398,7 @@ async def test_trash_listing_dedupes_nested_comment_replies(
     await session.commit()
 
     # Hit the listing endpoint and confirm only the parent appears. Guild context
-    # is path-based now (/c/{guild_id}); the headers just carry auth.
+    # is path-based now (/c/{community_id}); the headers just carry auth.
     headers = get_auth_headers(user)
     response = await client.get(f"/api/v1/c/{guild.id}/trash/", headers=headers)
     assert response.status_code == 200, response.text
@@ -412,7 +414,7 @@ async def test_trash_listings_page_newest_first(session: AsyncSession, client):
     merge of each guild's newest rows."""
     from datetime import datetime
 
-    from app.models.platform.guild import GuildRole
+    from app.models.platform.guild import CommunityRole
     from app.testing.factories import create_guild_membership, get_auth_headers
 
     user = await create_user(session)
@@ -421,7 +423,7 @@ async def test_trash_listings_page_newest_first(session: AsyncSession, client):
     for _ in range(2):
         guild = await create_guild(session, creator=user)
         await create_guild_membership(
-            session, user=user, guild=guild, role=GuildRole.admin
+            session, user=user, guild=guild, role=CommunityRole.admin
         )
         guilds.append(guild)
         initiatives.append(await create_initiative(session, guild, user))
@@ -449,7 +451,7 @@ async def test_trash_listings_page_newest_first(session: AsyncSession, client):
             page += 1
 
     def keyed(items: list[dict]) -> list[tuple[int, str, int]]:
-        return [(i["guild_id"], i["entity_type"], i["entity_id"]) for i in items]
+        return [(i["community_id"], i["entity_type"], i["entity_id"]) for i in items]
 
     guild_total, guild_items = await walk(f"/api/v1/c/{guilds[0].id}/trash/")
     mine_total, mine_items = await walk("/api/v1/me/trash")
@@ -465,76 +467,55 @@ async def test_trash_listings_page_newest_first(session: AsyncSession, client):
     assert {i["deleted_by_id"] for i in mine_items} == {user.id}
 
 
-async def test_purge_document_uploads_removes_all_version_blobs(session: AsyncSession):
-    """A purged file document must clean up the Upload rows for ALL of its
-    historical versions, not just the current blob mirrored on the documents
-    row."""
+async def test_purging_a_uploaded_file_takes_every_version(session: AsyncSession):
+    """A purged uploaded file takes every version of its file with it — the
+    version rows, the one it points at included, and their Upload rows."""
     from sqlmodel import select
 
-    from app.models.tenant.document import DocumentFileVersion
-    from app.services.tenant.attachments import purge_document_uploads
+    from app.models.tenant.file import FileVersion
+    from app.services.tenant import file_versions
+    from app.services.tenant.soft_delete import hard_purge_entity
+    from app.testing.factories import create_file
 
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
     initiative = await create_initiative(session, guild, user)
-
-    # Current blob (mirrored on the document) + one historical version blob.
-    current_name = "doc_v2.pdf"
-    old_name = "doc_v1.pdf"
-    for name in (current_name, old_name):
-        session.add(
-            Upload(
-                filename=name,
-                created_by=user.id,
-                size_bytes=10,
-            )
-        )
-    doomed = Document(
-        initiative_id=initiative.id,
+    names = ["doc_v1.pdf", "doc_v2.pdf"]
+    doomed = await create_file(
+        session,
+        initiative,
+        user,
         name="Doomed file",
-        document_type=DocumentType.file,
-        content={},
-        file_url=f"/uploads/{current_name}",
-        file_content_type="application/pdf",
-        file_size=10,
-        original_filename=current_name,
-        created_by=user.id,
+        file_type=FileType.file,
+        file_url=f"/uploads/{names[0]}",
+        original_filename=names[0],
     )
-    session.add(doomed)
-    await session.flush()
     session.add_all(
-        [
-            DocumentFileVersion(
-                document_id=doomed.id,
-                version_number=1,
-                file_url=f"/uploads/{old_name}",
-                file_content_type="application/pdf",
-                file_size=10,
-                original_filename=old_name,
-                created_by=user.id,
-            ),
-            DocumentFileVersion(
-                document_id=doomed.id,
-                version_number=2,
-                file_url=f"/uploads/{current_name}",
-                file_content_type="application/pdf",
-                file_size=10,
-                original_filename=current_name,
-                created_by=user.id,
-            ),
-        ]
+        Upload(filename=name, created_by=user.id, size_bytes=10) for name in names
+    )
+    newest = await file_versions.add_version(
+        session,
+        doomed,
+        created_by=user.id,
+        file_url=f"/uploads/{names[1]}",
+        file_content_type="application/pdf",
+        original_filename=names[1],
     )
     await session.commit()
+    assert (newest.version_number, doomed.current_version_id) == (2, newest.id)
 
-    await purge_document_uploads(session, [doomed])
+    await soft_delete_entity(
+        session, doomed, deleted_by_user_id=user.id, retention_days=30
+    )
+    await session.commit()
+    await hard_purge_entity(session, doomed)
     await session.commit()
 
-    remaining = (
-        await session.exec(
-            select(Upload).where(Upload.filename.in_([current_name, old_name]))
-        )
-    ).all()
-    assert remaining == []
+    uploads = await session.exec(select(Upload).where(Upload.filename.in_(names)))
+    versions = await session.exec(
+        select(FileVersion).where(FileVersion.file_id == doomed.id)
+    )
+    assert (uploads.all(), versions.all()) == ([], [])
 
 
 # ---------------------------------------------------------------------------
@@ -542,7 +523,7 @@ async def test_purge_document_uploads_removes_all_version_blobs(session: AsyncSe
 # ---------------------------------------------------------------------------
 
 
-def _wikilink_content(target_document_id: int) -> dict:
+def _wikilink_content(target_file_id: int) -> dict:
     return {
         "root": {
             "type": "root",
@@ -552,7 +533,7 @@ def _wikilink_content(target_document_id: int) -> dict:
                     "children": [
                         {
                             "type": "wikilink",
-                            "documentId": target_document_id,
+                            "documentId": target_file_id,
                             "children": [],
                         }
                     ],
@@ -562,12 +543,13 @@ def _wikilink_content(target_document_id: int) -> dict:
     }
 
 
-async def test_hard_purge_unresolves_wikilinks_in_linking_documents(
+async def test_hard_purge_unresolves_wikilinks_in_linking_files(
     session: AsyncSession,
 ):
-    """Purging a document rewrites links pointing at it in surviving documents
-    (documentId -> null, yjs_state cleared) and takes the edges with it, so
-    nothing dangles after the row is gone."""
+    """Purging a file rewrites links pointing at it in surviving files
+    (documentId -> null) and takes the edges with it, so nothing dangles after
+    the row is gone. A Yjs state the editor cannot read is cleared, and the
+    next session makes it from the repaired content."""
     from sqlmodel import select
 
     from app.core.relationships import RelationshipType, node_id
@@ -576,13 +558,13 @@ async def test_hard_purge_unresolves_wikilinks_in_linking_documents(
     from app.services.tenant import content_references
     from app.services.tenant.relationships import Endpoint
     from app.services.tenant.soft_delete import hard_purge_entity
-    from app.testing.factories import create_document
+    from app.testing.factories import create_file
 
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
     initiative = await create_initiative(session, guild, user)
-    target = await create_document(session, initiative, user, name="Target")
-    linking = await create_document(
+    target = await create_file(session, initiative, user, name="Target")
+    linking = await create_file(
         session,
         initiative,
         user,
@@ -592,7 +574,7 @@ async def test_hard_purge_unresolves_wikilinks_in_linking_documents(
     )
     await content_references.sync_for_entity(
         session,
-        Endpoint(SearchEntityType.document, linking.id),
+        Endpoint(SearchEntityType.file, linking.id),
         body=linking.content,
         author_id=user.id,
     )
@@ -608,9 +590,9 @@ async def test_hard_purge_unresolves_wikilinks_in_linking_documents(
 
     refreshed = (
         await session.exec(
-            select(Document)
-            .where(Document.id == linking.id)
-            .options(undefer(Document.content), undefer(Document.yjs_state))
+            select(File)
+            .where(File.id == linking.id)
+            .options(undefer(File.content), undefer(File.yjs_state))
         )
     ).one()
     wikilink_node = refreshed.content["root"]["children"][0]["children"][0]
@@ -622,7 +604,7 @@ async def test_hard_purge_unresolves_wikilinks_in_linking_documents(
         await session.exec(
             select(EntityRelationship).where(
                 EntityRelationship.target_node
-                == node_id(SearchEntityType.document, target.id),
+                == node_id(SearchEntityType.file, target.id),
                 EntityRelationship.relationship_type
                 == RelationshipType.references.value,
             )
@@ -631,22 +613,22 @@ async def test_hard_purge_unresolves_wikilinks_in_linking_documents(
     assert edges == []
 
 
-async def test_hard_purge_unresolves_wikilinks_in_trashed_linking_documents(
+async def test_hard_purge_unresolves_wikilinks_in_trashed_linking_files(
     session: AsyncSession,
 ):
-    """A linking document sitting in the trash gets its links unresolved too —
+    """A linking file sitting in the trash gets its links unresolved too —
     restoring it after the purge must not bring back a dangling link."""
     from app.core.search import SearchEntityType
     from app.services.tenant import content_references
     from app.services.tenant.relationships import Endpoint
     from app.services.tenant.soft_delete import hard_purge_entity
-    from app.testing.factories import create_document
+    from app.testing.factories import create_file
 
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
     initiative = await create_initiative(session, guild, user)
-    target = await create_document(session, initiative, user, name="Target")
-    linking = await create_document(
+    target = await create_file(session, initiative, user, name="Target")
+    linking = await create_file(
         session,
         initiative,
         user,
@@ -655,13 +637,13 @@ async def test_hard_purge_unresolves_wikilinks_in_trashed_linking_documents(
     )
     await content_references.sync_for_entity(
         session,
-        Endpoint(SearchEntityType.document, linking.id),
+        Endpoint(SearchEntityType.file, linking.id),
         body=linking.content,
         author_id=user.id,
     )
     await session.commit()
 
-    # Both documents go to the trash; only the target is purged.
+    # Both files go to the trash; only the target is purged.
     await soft_delete_entity(
         session, linking, deleted_by_user_id=user.id, retention_days=30
     )
@@ -675,9 +657,9 @@ async def test_hard_purge_unresolves_wikilinks_in_trashed_linking_documents(
 
     refreshed = (
         await session.exec(
-            select_including_deleted(Document)
-            .where(Document.id == linking.id)
-            .options(undefer(Document.content))
+            select_including_deleted(File)
+            .where(File.id == linking.id)
+            .options(undefer(File.content))
         )
     ).one()
     wikilink_node = refreshed.content["root"]["children"][0]["children"][0]
@@ -728,21 +710,21 @@ async def test_restore_initiative_brings_back_an_archived_queues_items(
     assert refreshed_queue.archived_at is not None
 
 
-async def test_restore_initiative_brings_back_an_archived_documents_comments(
+async def test_restore_initiative_brings_back_an_archived_files_comments(
     session: AsyncSession,
 ):
-    """Same rule, one hop further down: archiving a document never touches the
+    """Same rule, one hop further down: archiving a file never touches the
     comments on it, so they come back out of the trash unstamped."""
     from app.models.tenant.comment import Comment
     from app.services.tenant.archive import archive_entity
-    from app.testing.factories import create_comment, create_document
+    from app.testing.factories import create_comment, create_file
 
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
     initiative = await create_initiative(session, guild, user)
-    document = await create_document(session, initiative, user)
-    comment = await create_comment(session, user, document=document)
-    await archive_entity(session, document)
+    file = await create_file(session, initiative, user)
+    comment = await create_comment(session, user, file=file)
+    await archive_entity(session, file)
     await session.commit()
 
     await soft_delete_entity(
@@ -802,7 +784,7 @@ async def test_trash_listing_shows_a_trashed_wiki_alone(session: AsyncSession, c
     threads come back with it, so none of them is offered on its own.
 
     Restoring it puts each page back under the address it had."""
-    from app.models.platform.guild import GuildRole
+    from app.models.platform.guild import CommunityRole
     from app.models.tenant.wiki import WikiPage
     from app.testing.factories import (
         create_comment,
@@ -814,7 +796,9 @@ async def test_trash_listing_shows_a_trashed_wiki_alone(session: AsyncSession, c
 
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=user, guild=guild, role=CommunityRole.admin
+    )
     initiative = await create_initiative(session, guild, user)
     wiki = await create_wiki(session, initiative, user)
     page = await create_wiki_page(session, wiki, user, title="Step 1")
@@ -1005,13 +989,15 @@ async def test_nothing_comes_back_under_something_still_in_the_trash(
     or it would be live under something in the bin. An archive over both, which
     stamps a child that can carry one, does not change that. Runs over every
     edge of the trash tree, so a new one is held to it."""
-    from app.models.platform.guild import GuildRole
+    from app.models.platform.guild import CommunityRole
     from app.services.tenant.archive import archive_entity, unarchive_entity
     from app.testing.factories import create_guild_membership, get_auth_headers
 
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=user, guild=guild, role=CommunityRole.admin
+    )
     initiative = await create_initiative(session, guild, user)
     built: dict[type, SQLModel] = {}
     parent = await _build(session, parent_model, initiative, user, built)
@@ -1048,7 +1034,7 @@ async def test_the_trash_works_inside_an_archive(session: AsyncSession, client, 
     """Archived content can still be thrown away and brought back: it comes
     back into the archive, as everything around it is. A tool nobody owns comes
     back to whoever wrote it, archived or not."""
-    from app.models.platform.guild import GuildRole
+    from app.models.platform.guild import CommunityRole
     from app.services.tenant import ownership as ownership_service
     from app.services.tenant.archive import archive_entity
     from app.testing.factories import (
@@ -1059,7 +1045,9 @@ async def test_the_trash_works_inside_an_archive(session: AsyncSession, client, 
 
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=user, guild=guild, role=CommunityRole.admin
+    )
     initiative = await create_initiative(session, guild, user)
     row = await _build(session, model, initiative, user, {})
     tool = ownership_service.tool_for_row(row)
@@ -1098,7 +1086,7 @@ async def test_every_tool_takes_its_thread_to_the_trash_and_back(
     the thread, the trash lists only the tool, and restoring it brings the
     thread back. Runs over the ``Tool`` enum, so a new tool is held to it."""
     from app.core.tools import Tool
-    from app.models.platform.guild import GuildRole
+    from app.models.platform.guild import CommunityRole
     from app.models.tenant.comment import Comment
     from app.testing.factories import (
         TOOL_FACTORIES,
@@ -1109,7 +1097,9 @@ async def test_every_tool_takes_its_thread_to_the_trash_and_back(
 
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=user, guild=guild, role=CommunityRole.admin
+    )
     initiative = await create_initiative(session, guild, user)
 
     threads: dict[Tool, tuple[int, int | None]] = {}

@@ -1,11 +1,5 @@
-from typing import Optional, TYPE_CHECKING
-
 from sqlalchemy import Column, Float
-from sqlmodel import Field, Relationship, SQLModel
-
-if TYPE_CHECKING:  # pragma: no cover
-    from app.models.tenant.project import Project
-    from app.models.platform.user_profile_view import MemberProfile
+from sqlmodel import Field, SQLModel
 
 
 class ProjectOrder(SQLModel, table=True):
@@ -17,11 +11,3 @@ class ProjectOrder(SQLModel, table=True):
         default=0,
         sa_column=Column(Float, nullable=False, server_default="0"),
     )
-
-    user: Optional["MemberProfile"] = Relationship(
-        sa_relationship_kwargs={
-            "primaryjoin": "foreign(ProjectOrder.user_id) == MemberProfile.id",
-            "viewonly": True,
-        }
-    )
-    project: Optional["Project"] = Relationship(back_populates="orders")

@@ -13,7 +13,7 @@ from sqlmodel import select
 
 from app.db.authorization import sql_values, standing_arg
 from app.models.platform.access_grant import SettingsLevel
-from app.models.platform.guild import GUILD_STORED_ROLES, GuildRole
+from app.models.platform.guild import GUILD_STORED_ROLES, CommunityRole
 from app.models.platform.user import UserRole
 from app.models.tenant.resource_grant import (
     RESOURCE_LEVEL_LADDER,
@@ -30,9 +30,9 @@ from app.testing import (
 
 
 def test_a_value_list_is_spelled_from_the_enum():
-    assert sql_values(r.value for r in (GuildRole.admin, GuildRole.superadmin)) == (
-        "'admin', 'superadmin'"
-    )
+    assert sql_values(
+        r.value for r in (CommunityRole.admin, CommunityRole.superadmin)
+    ) == ("'admin', 'superadmin'")
     assert sql_values(level.value for level in WRITE_LEVELS) == "'write', 'owner'"
 
 
@@ -56,15 +56,15 @@ async def test_the_standing_reads_the_admin_fact_off_the_ladder(
     a = await acting_user(guild_role=rung)
     s = await role_session("app_user")
     context = await route_as(s, user_id=a.user.id, guild_id=a.guild.id)
-    assert context.guild_admin is rung.reaches(GuildRole.admin)
-    assert context.guild_seat is rung.reaches(GuildRole.superadmin)
+    assert context.guild_admin is rung.reaches(CommunityRole.admin)
+    assert context.guild_seat is rung.reaches(CommunityRole.superadmin)
 
 
 @pytest.mark.parametrize("level", list(SettingsLevel))
 async def test_the_settings_rung_reads_the_grant_off_the_ladder(
     session, acting_user, role_session, level
 ):
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
     support = await create_user(session, role=UserRole.support)
     await create_access_grant(
         session,
@@ -83,9 +83,9 @@ async def test_the_settings_rung_reads_the_grant_off_the_ladder(
 async def test_the_write_leg_reads_the_sharing_ladder(
     session, acting_user, role_session, level
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",

@@ -1,11 +1,11 @@
 """Destroy guilds whose retention window has run out.
 
-Deleting a guild no longer destroys it: it moves to ``GuildStatus.deleted``
+Deleting a guild no longer destroys it: it moves to ``CommunityStatus.deleted``
 and keeps everything — the shared rows, the ``guild_<id>`` schema, the stored
 blobs — so a platform operator can put the community back. This worker is what
 eventually does the destroying, and it does exactly what the delete used to do
 inline: remove the shared guild row (whose ``ON DELETE CASCADE`` clears the
-roster), forget the identities its apps knew its members by, then drop the
+roster), forget the identities its plug-ins knew its members by, then drop the
 schema and purge the blobs. Each pass then reclaims any ``guild_<id>`` schema
 whose row is already gone — a teardown that deleted the row but did not finish
 dropping the schema, here or where a guild's creation was rolled back.
@@ -15,30 +15,31 @@ one left ``on_hold`` for longer than the deployment's hold window moves to
 ``deleted`` exactly as a deletion from its danger zone would, and the
 retention window then starts like any other.
 
-Polled by ``background_tasks._loop_worker`` once an hour on ``SystemSessionLocal``
+Polled by ``background_tasks.Loop`` once an hour on ``SystemSessionLocal``
 (the ``app_admin`` login). It works on ``public.guilds``; the one thing it does
-inside a guild's schema, deleting a held community's app connections, runs on
+inside a guild's schema, deleting a held community's plug-in connections, runs on
 a system session from that community's cohort. The schema is dropped wholesale
 on the provisioning engine.
 """
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 import logging
 
 from sqlalchemy import text
-from sqlmodel import delete, select
+from sqlmodel import delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
-from app.db import cohorts
+from app.db import cohorts, post_commit
 from app.db.guild_migrations import GUILD_SCHEMA_REGEX
 from app.db.schema_provisioning import deprovision_guild
 from app.db.session import SystemSessionLocal, set_rls_context
-from app.models.platform.guild import Guild, GuildStatus
+from app.models.platform.guild import Guild
 from app.services import audit as audit_service
-from app.services.marketplace import app_refs
+from app.services.marketplace import plugin_refs
+from app.services.platform.retention import COMMUNITY_DELETION, COMMUNITY_HOLD
 from app.db.request_context import SystemGuild, Unattributed
 
 
@@ -48,179 +49,67 @@ logger = logging.getLogger(__name__)
 GUILD_PURGE_POLL_SECONDS = 3600
 
 
-def purge_at(deleted_at: datetime, retention_days: int) -> datetime:
-    """When a guild deleted at ``deleted_at`` is destroyed."""
-    return deleted_at + timedelta(days=retention_days)
-
-
-async def retention_days(session: AsyncSession) -> int | None:
-    """This deployment's window, or None where it keeps deleted communities.
-
-    Read per sweep rather than cached: an operator who has just turned the
-    window off is asking for the next sweep to destroy nothing, and a figure
-    read at import would destroy something first.
-    """
-    from app.services.platform import app_settings as app_settings_service
-
-    row = await app_settings_service.get_app_settings(session)
-    return row.deleted_community_retention_days
-
-
-async def hold_deletion_days(session: AsyncSession) -> int | None:
-    """This deployment's hold window, or None where a hold never runs out.
-
-    Read per sweep, like the retention window, so a change applies to the next
-    pass rather than after a restart.
-    """
-    from app.services.platform import app_settings as app_settings_service
-
-    row = await app_settings_service.get_app_settings(session)
-    return row.on_hold_community_deletion_days
-
-
-def hold_deletes_at(held_at: datetime, days: int) -> datetime:
-    """When a community put on hold at ``held_at`` is deleted."""
-    return held_at + timedelta(days=days)
-
-
-async def _lock_expired_hold(
-    session: AsyncSession, guild_id: int, *, cutoff: datetime
-) -> Guild | None:
-    """The guild, locked, if it is still on hold and was put there by
-    ``cutoff``; None if the hold was lifted since the pass began."""
-    return (
-        await session.exec(
-            select(Guild)
-            .where(
-                Guild.id == guild_id,
-                Guild.status == GuildStatus.on_hold.value,
-                Guild.status_changed_at.is_not(None),
-                Guild.status_changed_at <= cutoff,
-            )
-            .with_for_update()
-        )
-    ).one_or_none()
-
-
-async def _delete_expired_hold(
-    session: AsyncSession, guild_id: int, *, cutoff: datetime
-) -> bool:
+async def _delete_expired_hold(session: AsyncSession, guild: Guild, _days: int) -> None:
     """Delete one community whose hold has run out. Mirrors the danger-zone
-    delete: its apps let go, the status moves to ``deleted``, the seat is
+    delete: its plug-ins let go, the status moves to ``deleted``, the seat is
     written to, and billing is told to read what happened.
 
-    One transaction from the lock to the status write, so a hold lifted while
-    the pass runs leaves the community exactly as it was. Its app connections
-    are deleted in its own schema first, under that lock, so a status write
-    that fails leaves a held community without them, which the next pass
-    deletes. Nobody asked for this deletion, so the roster stays whatever its
-    size.
+    Runs in the transaction that claimed the row and commits it, so a hold
+    lifted while the pass runs leaves the community exactly as it was. Its
+    plug-in connections are deleted in its own schema first, under that claim,
+    so a status write that fails leaves a held community without them, which
+    the next pass deletes. Nobody asked for this deletion, so the roster stays
+    whatever its size.
     """
     from app.services import email as email_service
     from app.services.platform import billing_ping
     from app.services.platform import guilds as guilds_service
-    from app.services.tenant import app_connections as app_connections_service
-    from app.services.tenant import app_revocation as app_revocation_service
+    from app.services.tenant import plugin_connections as plugin_connections_service
 
-    await set_rls_context(session, Unattributed())
-    guild = await _lock_expired_hold(session, guild_id, cutoff=cutoff)
-    if guild is None:
-        await session.commit()
-        return False
-
+    guild_id = guild.id
     async with cohorts.system_session(guild_id) as guild_session:
         await set_rls_context(guild_session, SystemGuild(guild_id))
-        await app_connections_service.delete_guild_connections(guild_session)
+        await plugin_connections_service.delete_guild_connections(guild_session)
+        # The plug-ins are told once this commits, whatever happens below.
         await guild_session.commit()
-        revocations = app_revocation_service.drain_revocations(guild_session)
 
-    try:
-        notice = await guilds_service.soft_delete_guild(
-            session, guild, via="hold_expired", keep_roster=True
-        )
-        await session.commit()
-    finally:
-        # The connections are gone either way, so the apps are told either way.
-        await app_revocation_service.dispatch_revocations(revocations)
+    notice = await guilds_service.soft_delete_guild(
+        session, guild, via="hold_expired", keep_roster=True
+    )
+    await session.commit()
 
     await email_service.announce_community_deleted(session, notice)
     # These live on other connections, so they go after the commit that made
-    # the deletion real.
-    await app_refs.forget_guild(guild_id=guild_id, keep_billing=True)
+    # the deletion real, and after the revocations, which name the guild by
+    # them.
+    await post_commit.settle(guild_session)
+    await plugin_refs.forget_guild(guild_id=guild_id, keep_billing=True)
     billing_ping.notify_lifecycle_changed(guild_id)
-    return True
 
 
 async def delete_expired_holds(session: AsyncSession, *, now: datetime) -> int:
-    """One pass over held communities. Returns how many were deleted.
+    """One pass of :data:`~app.services.platform.retention.COMMUNITY_HOLD`.
+    Returns how many communities were deleted.
 
     Counted from ``status_changed_at``, which is stamped when a community is
     put on hold and not again while it stays there, so a hold written twice
     does not restart the clock.
     """
-    await set_rls_context(session, Unattributed())
-    days = await hold_deletion_days(session)
-    if days is None:
-        return 0
-    cutoff = now - timedelta(days=days)
-    guild_ids = list(
-        await session.exec(
-            select(Guild.id)
-            .where(
-                Guild.status == GuildStatus.on_hold.value,
-                Guild.status_changed_at.is_not(None),
-                Guild.status_changed_at <= cutoff,
-            )
-            .order_by(Guild.status_changed_at.asc())
-        )
-    )
-    await session.commit()
-    deleted = 0
-    for guild_id in guild_ids:
-        try:
-            if await _delete_expired_hold(session, guild_id, cutoff=cutoff):
-                deleted += 1
-        except Exception:
-            # One community that fails must not hold up the rest; it is due
-            # again on the next pass.
-            logger.exception("guild purge: deleting held guild %s failed", guild_id)
-            await session.rollback()
-    if deleted:
-        logger.info("guild purge: deleted %d guild(s) whose hold ran out", deleted)
-    return deleted
+    return await COMMUNITY_HOLD.sweep(session, now=now, act=_delete_expired_hold)
 
 
-async def _due_guild_ids(
-    session: AsyncSession, *, now: datetime, retention: int
-) -> list[int]:
-    """Guilds whose retention has run out, oldest deletion first.
-
-    A ``deleted`` row with no ``status_changed_at`` cannot happen — the delete
-    stamps it in the same write — and is skipped rather than treated as
-    infinitely old, because "no deletion time" must never read as "purge now".
-    """
-    cutoff = now - timedelta(days=retention)
-    rows = await session.exec(
-        select(Guild.id, Guild.status_changed_at)
-        .where(
-            Guild.status == GuildStatus.deleted.value,
-            Guild.status_changed_at.is_not(None),
-            Guild.status_changed_at <= cutoff,
-        )
-        .order_by(Guild.status_changed_at.asc())
-    )
-    return [row[0] for row in rows]
-
-
-async def _purge_one(session: AsyncSession, guild_id: int, *, retention: int) -> None:
+async def _destroy(session: AsyncSession, guild: Guild, days: int) -> None:
     """Destroy one guild. Mirrors the sequence the delete endpoint used to run.
 
-    The row goes first and is committed on its own: that is the reliable part,
-    and it is what makes the guild gone. The schema drop and blob purge follow;
-    if they fail, :func:`reclaim_orphaned_guilds` drops the schema on the next
-    pass, whereas a failed cleanup that rolled back the row would leave the
-    guild due for purge forever.
+    The row goes first, recorded and committed in the transaction that claimed
+    it: that is the reliable part, and it is what makes the guild gone. The
+    schema drop and blob purge follow; if they fail,
+    :func:`reclaim_orphaned_guilds` drops the schema on the next pass, whereas
+    a failed cleanup that rolled back the row would leave the guild due for
+    purge forever.
     """
+    guild_id = guild.id
+    await session.exec(delete(Guild).where(Guild.id == guild_id))
     await audit_service.record(
         session,
         event_type=AuditEventType.GUILD_PURGED,
@@ -228,14 +117,13 @@ async def _purge_one(session: AsyncSession, guild_id: int, *, retention: int) ->
         guild_id=guild_id,
         target_type="guild",
         target_id=guild_id,
-        detail={"retention_days": retention},
+        detail={"retention_days": days},
     )
-    await session.exec(delete(Guild).where(Guild.id == guild_id))
     await session.commit()
 
     # These live on other connections, so they go after the commit that made
     # the purge real.
-    await app_refs.forget_guild(guild_id=guild_id)
+    await plugin_refs.forget_guild(guild_id=guild_id)
     try:
         await deprovision_guild(guild_id)
     except Exception:
@@ -247,25 +135,13 @@ async def _purge_one(session: AsyncSession, guild_id: int, *, retention: int) ->
 
 
 async def purge_due_guilds(session: AsyncSession, *, now: datetime) -> int:
-    """One pass. Returns how many guilds were destroyed.
+    """One pass of :data:`~app.services.platform.retention.COMMUNITY_DELETION`.
+    Returns how many guilds were destroyed.
 
     Split out from the loop entry point so tests can drive it with the test
     session and a chosen ``now``.
     """
-    await set_rls_context(session, Unattributed())
-    retention = await retention_days(session)
-    if retention is None:
-        # This deployment keeps deleted communities. Nothing is ever destroyed
-        # on a timer; restoring and purging are both somebody's decision.
-        return 0
-    guild_ids = await _due_guild_ids(session, now=now, retention=retention)
-    for guild_id in guild_ids:
-        # ids collide across schemas, so clear the identity map between guilds.
-        session.expunge_all()
-        await _purge_one(session, guild_id, retention=retention)
-    if guild_ids:
-        logger.info("guild purge: destroyed %d guild(s)", len(guild_ids))
-    return len(guild_ids)
+    return await COMMUNITY_DELETION.sweep(session, now=now, act=_destroy)
 
 
 async def _orphaned_guild_ids(session: AsyncSession) -> list[int]:

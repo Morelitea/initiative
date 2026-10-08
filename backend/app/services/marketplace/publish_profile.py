@@ -192,6 +192,7 @@ def _strip_project(env: dict[str, Any]) -> None:
         ]
         task["description"] = _clean_markdown(task.get("description"), handles)
         task["assignee_handles"] = []
+        task["assignee_names"] = []
         task["comments"] = []
         task["mention_handles"] = []
         task["archived_at"] = None
@@ -204,10 +205,10 @@ def _strip_project(env: dict[str, Any]) -> None:
         ]
 
 
-def _strip_document(env: dict[str, Any]) -> None:
+def _strip_file(env: dict[str, Any]) -> None:
     env["mention_handles"] = []
     content = env.get("content")
-    if env.get("document_type") == "native":
+    if env.get("file_type") == "native":
         env["content"] = _clean_editor_state(content)
 
 
@@ -261,7 +262,7 @@ def _strip_nothing(env: dict[str, Any]) -> None:
 
 _STRIPPERS: dict[Tool, Callable[[dict[str, Any]], None]] = {
     Tool.project: _strip_project,
-    Tool.document: _strip_document,
+    Tool.file: _strip_file,
     Tool.queue: _strip_queue,
     Tool.counter_group: _strip_nothing,
     Tool.calendar: _strip_calendar,

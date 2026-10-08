@@ -1,13 +1,21 @@
 import uuid
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
-from typing import Any, Iterable, Sequence
+from typing import Any, Iterable, Literal, Sequence
 
 import bcrypt
 import jwt
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
 from cryptography.hazmat.primitives.serialization import load_pem_public_key
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationError,
+    ValidationInfo,
+    field_validator,
+)
 
 from app.core.config import settings
 
@@ -50,9 +58,83 @@ def load_verification_keys(pem_bundle: str) -> tuple[Any, ...]:
     return tuple(keys)
 
 
-# Deliberately a constant, not a setting: every encode/verify in this module
-# assumes HS256, and a configurable JWT algorithm invites algorithm-confusion.
+# Deliberately constants, not settings: each signing key has one algorithm.
+#: Tokens this deployment both mints and verifies, and the shared-secret
+#: billing console handoffs: :func:`sign_hs256` / :func:`verify_hs256`.
 JWT_ALGORITHM = "HS256"
+#: Tokens another service verifies against our published public key:
+#: :func:`sign_rs256`.
+HANDOFF_JWT_ALGORITHM = "RS256"
+
+#: ``iss`` on every token this deployment mints that names an issuer. Pinned on
+#: both sides of each boundary — not a deployment knob.
+TOKEN_ISSUER = "initiative"
+
+
+def sign_hs256(
+    payload: dict[str, Any],
+    *,
+    key: str | None = None,
+    headers: dict[str, Any] | None = None,
+) -> str:
+    """Sign ``payload`` as an HS256 JWT.
+
+    ``key`` defaults to the deployment's JWT signing key; a handoff into a
+    service that shares a secret with us passes that secret instead.
+    """
+    return jwt.encode(
+        payload,
+        settings.jwt_signing_key if key is None else key,
+        algorithm=JWT_ALGORITHM,
+        headers=headers,
+    )
+
+
+def verify_hs256(
+    token: str,
+    *,
+    audience: str,
+    require: list[str],
+    issuer: str | None = None,
+) -> dict[str, Any]:
+    """Verify an HS256 JWT this deployment signed; return its claims.
+
+    Checks the signature against the JWT signing key, ``exp``, the
+    ``audience``, the ``issuer`` when one is given, and that every claim in
+    ``require`` is present. Raises :class:`jwt.PyJWTError` on any failure.
+    """
+    return jwt.decode(
+        token,
+        settings.jwt_signing_key,
+        algorithms=[JWT_ALGORITHM],
+        audience=audience,
+        issuer=issuer,
+        options={"require": require},
+    )
+
+
+def sign_rs256(
+    payload: dict[str, Any],
+    private_pem: str,
+    kid: str | None,
+    *,
+    typ: str | None = None,
+) -> str:
+    """Sign ``payload`` as an RS256 JWT for a service that verifies it with
+    the public half of ``private_pem``.
+
+    The header carries ``kid`` when there is one, so the receiver picks the
+    right key during a rotation, and ``typ`` when the token kind names one.
+    """
+    headers: dict[str, Any] = {}
+    if typ:
+        headers["typ"] = typ
+    if kid:
+        headers["kid"] = kid
+    return jwt.encode(
+        payload, private_pem, algorithm=HANDOFF_JWT_ALGORITHM, headers=headers
+    )
+
 
 # Cookie names are part of the auth contract, not deployment configuration.
 SESSION_COOKIE_NAME = "session_token"
@@ -205,7 +287,6 @@ def password_needs_rehash(hashed_password: str | None) -> bool:
 # session-JWT verification path (added with ``/auth/refresh``) MUST check both,
 # and the upload/handoff paths already reject anything carrying this audience.
 AUTH_ACCESS_AUDIENCE = "initiative:access"
-AUTH_TOKEN_ISSUER = "initiative"
 
 #: The ``WWW-Authenticate`` challenge for a session that authenticated, but not
 #: to the level the guild being addressed asks for — RFC 9470 §3. A protocol
@@ -259,15 +340,14 @@ def mint_access_token(
         "ver": token_version,
         "amr": amr,
         "sat": satisfied_providers,
-        "iss": AUTH_TOKEN_ISSUER,
+        "iss": TOKEN_ISSUER,
         "aud": AUTH_ACCESS_AUDIENCE,
         "iat": int(issued.timestamp()),
         "exp": issued + ttl,
     }
     if provider_auth:
         payload["satd"] = provider_auth
-    token = jwt.encode(payload, settings.jwt_signing_key, algorithm=JWT_ALGORITHM)
-    return token, int(ttl.total_seconds())
+    return sign_hs256(payload), int(ttl.total_seconds())
 
 
 def decode_session_token(token: str) -> dict[str, Any]:
@@ -283,13 +363,11 @@ def decode_session_token(token: str) -> dict[str, Any]:
     carries its own ``aud`` — and the pre-session JWT this accepted until
     0.69.0, whose holder renews through the refresh cookie and carries on.
     """
-    return jwt.decode(
+    return verify_hs256(
         token,
-        settings.jwt_signing_key,
-        algorithms=[JWT_ALGORITHM],
         audience=AUTH_ACCESS_AUDIENCE,
-        issuer=AUTH_TOKEN_ISSUER,
-        options={"require": ["exp", "sub", "ver", "aud", "iss"]},
+        issuer=TOKEN_ISSUER,
+        require=["exp", "sub", "ver", "aud", "iss"],
     )
 
 
@@ -300,7 +378,7 @@ def decode_session_token(token: str) -> dict[str, Any]:
 # HttpOnly session cookie to <img>/<iframe> media loads, so the URL has to carry
 # the credential as a ``?token=`` query param. The 7-day session JWT never goes
 # in a URL; instead the app mints one of these: a short-lived, uploads-only JWT
-# that the /uploads route (and document download routes) accept via ``?token=``
+# that the /uploads route (and file download routes) accept via ``?token=``
 # but that is useless for any other API call (it carries no ``ver`` and a distinct
 # ``aud``/``scope``, so ``get_current_user`` rejects it).
 # ──────────────────────────────────────────────────────────────────────────
@@ -321,6 +399,33 @@ class UploadTokenError(Exception):
     """Raised when a presented upload token fails verification."""
 
 
+class UploadTokenClaims(BaseModel):
+    """What an upload token carries, copied from the session that minted it.
+
+    Validated from the token's claims by their wire names: ``sub`` the user
+    id, ``sat`` the satisfied provider ids, ``satc`` what those providers
+    asserted, ``amr`` the markers the minting session recorded about how it
+    was opened, and ``scope``, which names the uploads scope.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    user_id: int = Field(validation_alias="sub")
+    satisfied: frozenset[int] = Field(frozenset(), validation_alias="sat")
+    claims: dict[str, Any] = Field({}, validation_alias="satc")
+    #: Narrowed again by the caller against the closed vocabulary: what a
+    #: token says about itself is not what decides which markers count.
+    markers: frozenset[str] = Field(frozenset(), validation_alias="amr")
+    scope: Literal["uploads"]
+
+    @field_validator("satisfied", "claims", "markers", mode="before")
+    @classmethod
+    def _null_reads_as_empty(cls, value: Any, info: ValidationInfo) -> Any:
+        if value is not None:
+            return value
+        return {} if info.field_name == "claims" else ()
+
+
 def create_upload_token(
     *,
     user_id: int,
@@ -328,6 +433,7 @@ def create_upload_token(
     satisfied_claims: dict | None = None,
     session_amr: Iterable[str] = (),
     expires_in: timedelta = UPLOAD_TOKEN_LIFETIME,
+    not_after: datetime | None = None,
 ) -> tuple[str, int]:
     """Mint a short-lived, uploads-scoped JWT for ``user_id``.
 
@@ -340,8 +446,14 @@ def create_upload_token(
     ``satisfied_claims`` what those providers asserted, so a download or
     keepalive in a guild with a requirement carries the same standing as the
     session that requested it (bounded by this token's short lifetime).
+
+    ``not_after`` is the latest the token may stand, whatever ``expires_in``
+    says: the expiry of the credential that asked for it.
     """
     now = datetime.now(timezone.utc)
+    expires = now + expires_in
+    if not_after is not None:
+        expires = min(expires, not_after)
     payload: dict[str, Any] = {
         "sub": str(user_id),
         "aud": UPLOAD_TOKEN_AUDIENCE,
@@ -353,18 +465,13 @@ def create_upload_token(
         # as from the session that asked for it.
         "amr": sorted(session_amr),
         "iat": int(now.timestamp()),
-        "exp": now + expires_in,
+        "exp": expires,
     }
-    token = jwt.encode(payload, settings.jwt_signing_key, algorithm=JWT_ALGORITHM)
-    return token, int(expires_in.total_seconds())
+    return sign_hs256(payload), max(0, int((expires - now).total_seconds()))
 
 
-def verify_upload_token(
-    token: str,
-) -> tuple[int, frozenset[int], dict, frozenset[str]]:
-    """Verify a scoped upload token; return the user id, its satisfied set,
-    what those providers asserted, and the markers the minting session
-    recorded about how it was opened.
+def verify_upload_token(token: str) -> UploadTokenClaims:
+    """Verify a scoped upload token and return what it carries.
 
     Raises :class:`UploadTokenError` on any failure (bad signature, expired,
     wrong audience, missing/extra-scoped claims). The caller treats that as
@@ -372,39 +479,14 @@ def verify_upload_token(
     accepting it as a session credential.
     """
     try:
-        payload = jwt.decode(
+        payload = verify_hs256(
             token,
-            settings.jwt_signing_key,
-            algorithms=[JWT_ALGORITHM],
             audience=UPLOAD_TOKEN_AUDIENCE,
-            options={"require": ["exp", "iat", "sub", "aud"]},
+            require=["exp", "iat", "sub", "aud"],
         )
-    except jwt.PyJWTError as exc:
+        return UploadTokenClaims.model_validate(payload)
+    except (jwt.PyJWTError, ValidationError) as exc:
         raise UploadTokenError(str(exc)) from exc
-
-    if payload.get("scope") != UPLOAD_TOKEN_SCOPE:
-        raise UploadTokenError("not an uploads-scoped token")
-
-    sub = payload.get("sub")
-    try:
-        user_id = int(sub)
-    except (TypeError, ValueError) as exc:
-        raise UploadTokenError("sub must be a numeric user id") from exc
-    try:
-        satisfied = frozenset(int(pid) for pid in payload.get("sat") or ())
-    except (TypeError, ValueError) as exc:
-        raise UploadTokenError("sat must be a list of provider ids") from exc
-    claims = payload.get("satc")
-    if claims is not None and not isinstance(claims, dict):
-        raise UploadTokenError("satc must be an object")
-    return (
-        user_id,
-        satisfied,
-        dict(claims or {}),
-        # Narrowed again by the caller against the closed vocabulary: what a
-        # token says about itself is not what decides which markers count.
-        frozenset(str(v) for v in payload.get("amr") or ()),
-    )
 
 
 HANDLE_OFFER_AUDIENCE = "initiative:handle-offer"
@@ -423,7 +505,7 @@ def create_handle_offer(name: str, discriminator: int) -> str:
         "iat": int(now.timestamp()),
         "exp": now + HANDLE_OFFER_LIFETIME,
     }
-    return jwt.encode(payload, settings.jwt_signing_key, algorithm=JWT_ALGORITHM)
+    return sign_hs256(payload)
 
 
 def read_handle_offer(token: str | None, name: str) -> int | None:
@@ -432,12 +514,8 @@ def read_handle_offer(token: str | None, name: str) -> int | None:
     if not token:
         return None
     try:
-        payload = jwt.decode(
-            token,
-            settings.jwt_signing_key,
-            algorithms=[JWT_ALGORITHM],
-            audience=HANDLE_OFFER_AUDIENCE,
-            options={"require": ["exp", "aud"]},
+        payload = verify_hs256(
+            token, audience=HANDLE_OFFER_AUDIENCE, require=["exp", "aud"]
         )
     except jwt.PyJWTError:
         return None
@@ -454,8 +532,8 @@ class HandoffSigningNotConfiguredError(RuntimeError):
     response (503) rather than mint an unverifiable token."""
 
 
-def _resolve_handoff_signing_material() -> tuple[str, str, str | None]:
-    """Return (private_key_pem, "RS256", kid) for signing handoff JWTs.
+def _resolve_handoff_signing_material() -> tuple[str, str | None]:
+    """Return (private_key_pem, kid) for signing handoff JWTs.
 
     Handoff tokens cross a trust boundary: the receiving service verifies them
     with the public half of this key, so they are always RS256 — never a
@@ -471,7 +549,7 @@ def _resolve_handoff_signing_material() -> tuple[str, str, str | None]:
         raise HandoffSigningNotConfiguredError(
             "HANDOFF_SIGNING_PRIVATE_KEY_PEM is required to mint handoff tokens"
         )
-    return private_pem, "RS256", settings.HANDOFF_SIGNING_KEY_ID
+    return private_pem, settings.HANDOFF_SIGNING_KEY_ID
 
 
 BILLING_PORTAL_AUDIENCE = "initiative:billing-portal"
@@ -482,29 +560,12 @@ BILLING_PORTAL_AUDIENCE = "initiative:billing-portal"
 # disagree.
 BILLING_PORTAL_HANDOFF_LIFETIME = timedelta(seconds=60)
 
-BILLING_HANDOFF_GUILD_NAME_MAX = 120
-
-
-def _handoff_display_name(guild_name: str | None) -> str | None:
-    """The community name as a handoff carries it, or ``None`` for no name.
-
-    Trimmed and truncated. This is a label to print, so shortening one is a
-    cosmetic loss; letting it through unbounded is a broken session.
-    """
-    trimmed = (guild_name or "").strip()
-    if not trimmed:
-        return None
-    if len(trimmed) <= BILLING_HANDOFF_GUILD_NAME_MAX:
-        return trimmed
-    return trimmed[: BILLING_HANDOFF_GUILD_NAME_MAX - 1].rstrip() + "…"
-
 
 def create_billing_portal_handoff_token(
     *,
     guild_role: str,
     user_ref: str,
     guild_ref: str,
-    guild_name: str | None = None,
     expires_in: timedelta = BILLING_PORTAL_HANDOFF_LIFETIME,
 ) -> tuple[str, int]:
     """Mint the billing-portal handoff token (RS256; raises if unconfigured).
@@ -520,89 +581,114 @@ def create_billing_portal_handoff_token(
         "jti": str(uuid.uuid4()),
         "sub": user_ref,
         "aud": BILLING_PORTAL_AUDIENCE,
-        "iss": "initiative",
+        "iss": TOKEN_ISSUER,
         "iat": int(now.timestamp()),
         "exp": now + expires_in,
-        "guild_role": guild_role,
+        "community_role": guild_role,
         "user_ref": user_ref,
-        "guild_ref": guild_ref,
+        "community_ref": guild_ref,
     }
-    display_name = _handoff_display_name(guild_name)
-    if display_name:
-        payload["guild_name"] = display_name
-    key, algorithm, kid = _resolve_handoff_signing_material()
-    headers: dict[str, Any] | None = {"kid": kid} if kid else None
-    token = jwt.encode(payload, key, algorithm=algorithm, headers=headers)
+    token = sign_rs256(payload, *_resolve_handoff_signing_material())
     return token, int(expires_in.total_seconds())
 
 
-class AppPlatformSigningNotConfiguredError(RuntimeError):
-    """Raised when app-platform signing material is needed but absent.
+BILLING_INSIGHTS_AUDIENCE = "initiative:billing-insights"
+BILLING_INSIGHTS_HANDOFF_LIFETIME = timedelta(seconds=60)
 
-    The app platform has its own dedicated keypair and deliberately no
-    fallback to any other configured key: an app verifies context JWTs against
+
+def billing_insights_handoff_enabled() -> bool:
+    """True when this deployment can mint the insights handoff."""
+    return bool(settings.BILLING_URL and settings.HANDOFF_SIGNING_PRIVATE_KEY_PEM)
+
+
+def create_billing_insights_handoff_token(
+    *,
+    user_ref: str,
+    expires_in: timedelta = BILLING_INSIGHTS_HANDOFF_LIFETIME,
+) -> tuple[str, int]:
+    """Mint the handoff into the billing service's insights page.
+
+    The same RS256 key as the portal handoff, under its own audience, so
+    neither token opens the other's door. It names the person by billing's
+    pairwise reference and nothing else: no community and no grant, because
+    the page shows nothing about any one community.
+    """
+    now = datetime.now(timezone.utc)
+    payload: dict[str, Any] = {
+        "jti": str(uuid.uuid4()),
+        "sub": user_ref,
+        "aud": BILLING_INSIGHTS_AUDIENCE,
+        "iss": TOKEN_ISSUER,
+        "iat": int(now.timestamp()),
+        "exp": now + expires_in,
+    }
+    token = sign_rs256(payload, *_resolve_handoff_signing_material())
+    return token, int(expires_in.total_seconds())
+
+
+class PluginPlatformSigningNotConfiguredError(RuntimeError):
+    """Raised when plugin-platform signing material is needed but absent.
+
+    The plug-in platform has its own dedicated keypair and deliberately no
+    fallback to any other configured key: a plug-in verifies context JWTs against
     the published public half, and two boundaries sharing one key would share
     one rotation. Callers translate this into a fail-closed 503.
     """
 
 
-#: The key the deployment generated for the app platform, as
+#: The key the deployment generated for the plug-in platform, as
 #: ``(private_pem, kid)``, loaded at startup. Used only while
-#: ``APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM`` is unset.
-_stored_app_platform_key: tuple[str, str] | None = None
+#: ``PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM`` is unset.
+_stored_plugin_platform_key: tuple[str, str] | None = None
 
 
-def use_stored_app_platform_signing_key(private_pem: str, kid: str) -> None:
-    """Sign app-platform tokens with the deployment's stored key."""
-    global _stored_app_platform_key
-    _stored_app_platform_key = (private_pem, kid)
+def use_stored_plugin_platform_signing_key(private_pem: str, kid: str) -> None:
+    """Sign plugin-platform tokens with the deployment's stored key."""
+    global _stored_plugin_platform_key
+    _stored_plugin_platform_key = (private_pem, kid)
 
 
-def app_platform_signing_enabled() -> bool:
-    """True when this deployment can sign for the app platform."""
+def plugin_platform_signing_enabled() -> bool:
+    """True when this deployment can sign for the plug-in platform."""
     return bool(
-        settings.APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM or _stored_app_platform_key
+        settings.PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM or _stored_plugin_platform_key
     )
 
 
-def resolve_app_platform_signing_material() -> tuple[str, str, str | None]:
-    """Return (private_key_pem, "RS256", kid) for app-platform tokens.
+def resolve_plugin_platform_signing_material() -> tuple[str, str | None]:
+    """Return (private_key_pem, kid) for plugin-platform tokens.
 
-    ``APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM`` when it is set, with
-    ``APP_PLATFORM_SIGNING_KEY_ID``; otherwise the key the deployment generated
+    ``PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM`` when it is set, with
+    ``PLUGIN_PLATFORM_SIGNING_KEY_ID``; otherwise the key the deployment generated
     and stored, with its RFC 7638 thumbprint as the kid.
     """
-    private_pem = settings.APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM
+    private_pem = settings.PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM
     if private_pem:
-        return private_pem, "RS256", settings.APP_PLATFORM_SIGNING_KEY_ID
-    if _stored_app_platform_key is not None:
-        stored_pem, kid = _stored_app_platform_key
-        return stored_pem, "RS256", kid
-    raise AppPlatformSigningNotConfiguredError(
-        "no app platform signing key is loaded; it has no fallback to another "
+        return private_pem, settings.PLUGIN_PLATFORM_SIGNING_KEY_ID
+    if _stored_plugin_platform_key is not None:
+        return _stored_plugin_platform_key
+    raise PluginPlatformSigningNotConfiguredError(
+        "no plug-in platform signing key is loaded; it has no fallback to another "
         "service's key"
     )
 
 
 # Pinned on both sides of the boundary — not deployment knobs.
-#: ``iss`` on the tokens this deployment mints for app services.
-APP_PLATFORM_ISSUER = "initiative"
 #: ``aud`` is this prefix plus the registration's public_id, so a token minted
-#: for one app is not accepted by another.
-APP_PLATFORM_AUDIENCE_PREFIX = "initiative-app:"
-#: ``typ`` in the header of each kind of token an app receives (RFC 8725
-#: §3.11): a call to an endpoint or a hook, and a page handoff. An app checks it
+#: for one plug-in is not accepted by another.
+PLUGIN_PLATFORM_AUDIENCE_PREFIX = "initiative-plugin:"
+#: ``typ`` in the header of each kind of token a plug-in receives (RFC 8725
+#: §3.11): a call to an endpoint or a hook, and a page handoff. A plug-in checks it
 #: to take each kind only where it expects that kind.
-APP_CONTEXT_TOKEN_TYPE = "initiative-context+jwt"
-APP_HANDOFF_TOKEN_TYPE = "initiative-handoff+jwt"
+PLUGIN_CONTEXT_TOKEN_TYPE = "initiative-context+jwt"
+PLUGIN_HANDOFF_TOKEN_TYPE = "initiative-handoff+jwt"
 
 
-def app_platform_audience(public_id: str) -> str:
-    """The ``aud`` a token minted for one app service carries."""
-    return f"{APP_PLATFORM_AUDIENCE_PREFIX}{public_id}"
+def plugin_platform_audience(public_id: str) -> str:
+    """The ``aud`` a token minted for one plug-in service carries."""
+    return f"{PLUGIN_PLATFORM_AUDIENCE_PREFIX}{public_id}"
 
 
-BILLING_SUPPORT_HANDOFF_ISSUER = "initiative"
 BILLING_SUPPORT_HANDOFF_AUDIENCE = "initiative:billing-support"
 
 BILLING_SUPPORT_CONSOLE = "support"
@@ -649,7 +735,6 @@ def create_billing_support_handoff_token(
     grant_id: int | str,
     user_ref: str,
     guild_ref: str,
-    guild_name: str | None = None,
     approver_ref: str | None = None,
     expires_in: timedelta = BILLING_SUPPORT_HANDOFF_LIFETIME,
     console: str = BILLING_SUPPORT_CONSOLE,
@@ -678,17 +763,14 @@ def create_billing_support_handoff_token(
         "jti": str(uuid.uuid4()),
         "sub": user_ref,
         "aud": _BILLING_CONSOLE_AUDIENCES[console],
-        "iss": BILLING_SUPPORT_HANDOFF_ISSUER,
+        "iss": TOKEN_ISSUER,
         "iat": int(now.timestamp()),
         "exp": int((now + lifetime).timestamp()),
         "grant_id": str(grant_id),
         "user_ref": user_ref,
-        "guild_ref": guild_ref,
+        "community_ref": guild_ref,
     }
-    display_name = _handoff_display_name(guild_name)
-    if display_name:
-        payload["guild_name"] = display_name
     if approver_ref is not None:
         payload["approver"] = approver_ref
-    token = jwt.encode(payload, secret, algorithm="HS256", headers={"kid": kid})
+    token = sign_hs256(payload, key=secret, headers={"kid": kid})
     return token, int(lifetime.total_seconds())

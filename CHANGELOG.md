@@ -10,18 +10,175 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Each release publishes its API spec (API).** The GitHub release carries `openapi.json`, the OpenAPI spec of the image it ships, to generate a client from or check one against.
-
-### Changed
-
-- **Duplicate a project, document, queue, counter group, gallery or dashboard into any initiative** where you can create one, from **Settings › Advanced**. The copy brings what is inside it with their tags and links, and keeps its sharing while it stays in the same initiative. Anyone who can read a template can copy it.
-- **A duplicated task keeps its links** to other tasks, and is named "(Copy)" like every other copy. Checklists keep their ticks only when copied from a template; a duplicated project's start over.
-- **App and API integrations:** documents are copied with `POST /documents/{id}/duplicate`, which takes the same body as every other tool's duplicate. `POST /documents/{id}/copy` has been removed.
+- **Task tables sort by status and by tag.** Status sorts in the order of the project's board, and tags by each task's first tag alphabetically, with untagged tasks last.
 
 ### Fixed
 
-- **A post that goes up after its poll's deadline** opens the poll instead of posting it already closed. The author can set a new deadline.
-- Dialogs and pop-up forms that are taller than the screen now scroll, so their buttons are always within reach. A custom property with many options, for one, could not be saved because **Save** sat below the screen.
-- **A project's built-in filter presets** (All, Incomplete, Unassigned, Mine) now show in your language, unless someone has renamed them.
+- **Direct messages arrive again.** The first message to a new device never opened on the other end, so messages stopped arriving and a new device never got its history. Messages left waiting open once the receiving device is updated. Your own devices may ask to be verified once more, and conversations may say a key changed.
+- **A new device gets its whole history**, however long, and even while your newest conversation is an invitation you haven't answered. The notice asking you to verify it goes away once you have.
+- **A device keeps receiving messages** when some sent to it can never be opened, such as ones from a device that has since signed out. Those are cleared instead of holding up everything behind them.
+- **The notification list scrolls again.** With more unread than fit, everything past the first few was cut off with no way to reach it.
+- **The prompt to turn on push notifications sits below the notch on iPhone** instead of under it, where its text was hidden.
+- **Updating the desktop app no longer leaves a white window.** The splash screen covers the window while it reloads into an update, in your theme. An update that takes a while to start on a slow disk is no longer undone and offered again. One that really doesn't start is undone and its download removed, rather than kept on disk.
+- **The name you go by in a community is used everywhere in it.** Notifications and their emails, post bylines, who read a post or voted in a poll, who uploaded a picture, the moderation roster, and your cursor in a shared file all used your handle. Exports now say who exported them by that name too, and a project report lists its assignees by name. Notifications you already have keep the handle they were sent with.
+- **Exporting a project's tasks keeps your view of it.** From the table, the export lists tasks in the order you sorted them, as it already kept your filters, and a selection exports in that order too. Exporting a project from its settings now starts from the same filters and order, which you can still change before exporting.
+
+## [0.75.2] - 2026-10-07
+
+### Changed
+
+- **A community's location is one field you type into.** A country, a city or a full address, as short or as long as you like, with places suggested as you type and the closest ones first. Pick one to put the community on the map; the card shows the location exactly as you wrote it, with your own name for the place in front. **Near me** sorts by distance, so a community just over a border counts as nearby.
+- **A file's featured image keeps its own shape.** It used to be cropped to a wide banner across the top of the file; now it shows whole, at its own proportions, and stops short of filling the screen.
+
+### Fixed
+
+- **"Every current initiative" places a plug-in in every initiative in the community**, including ones you are not a member of. It used to reach only your own initiatives, so automations stayed silent everywhere else while the setting said every initiative. If you chose it before, open the plug-in's settings and choose **Every current initiative** again to reach the rest.
+
+## [0.75.1] - 2026-10-07
+
+### Changed
+
+- **Sign-up refuses anyone under the minimum age for an account where they are**, from 13 to 16 depending on the country, and no account is made. This only applies while the age check is on. **Server operators:** set `CLIENT_COUNTRY_HEADER` so the minimum follows the country; unset, 16 applies to everyone.
+
+### Fixed
+
+- **Turning the age check off now stops every age question.** With **Check members' age** off under **Platform settings › Community**, every account counts as an adult: nobody is asked for a date of birth, plug-ins with a minimum age open for everyone, and direct messages work without answering.
+
+## [0.75.0] - 2026-10-07
+
+### Added
+
+- **A Projects marketplace.** Start a project from a ready-made one: a sales pipeline, a hiring pipeline, a bug tracker, a content calendar, a grant tracker, a product launch or facility maintenance. Find them on the marketplace's **Projects** shelf, or under **From the marketplace** when you create a project. Start blank or from a filled-in example, and its dates land on the day you pick.
+- **Passkeys work inside the Android app**: signing in, adding one, and answering a community that asks for one, without leaving for the browser. Where the phone won't let the app do it for your server, and on iPhone, the browser opens as before. **Server operators:** nothing to set up, but if your reverse proxy answers `/.well-known/` itself, pass `/.well-known/assetlinks.json` through to Initiative.
+- **Plug-ins can have a minimum age**, which may differ by country. Someone younger than a plug-in's minimum where they are can't open or use it; their community can still install it. **Server operators:** set `CLIENT_COUNTRY_HEADER` (`CF-IPCountry` behind Cloudflare) so the limits apply by country; unset, a plug-in's highest minimum applies to everyone.
+- **Billing insights** for operators and owners, under **Operator dashboard → Billing** on servers connected to a billing service: revenue, subscribers and cancellations across every community, without opening any one of them. The new `billing.insights` capability gates it.
+- **"This wasn't me" in account emails.** Signs your account out everywhere and turns off its API keys. When a change looks out of place, the email to your other addresses can undo it too.
+- **Some sign-in changes wait two days** when made from somewhere your account is new to, with **Cancel the change** in every email and in your settings. Signing in with a passkey skips the wait.
+- **Remove a phone or computer** from **User settings › Security › Where you're signed in**. It is signed out and loses the messages only it held.
+- **A desktop app** for Windows, Mac and Linux, with system notifications, an unread count and a tray icon. Get it from the **Download** page. **Server operators:** nothing to set up; the **Phone and desktop notifications** switches (formerly **Mobile notifications**) cover it.
+- **Duplicate more.** Counters, queue items, events and wiki pages can be duplicated on their own, and any tool but a notice can be copied into another initiative from **Settings › Advanced**. A duplicated task keeps its links.
+- **A display name for each community**, set from its **Members** page.
+- **Keep an initiative's content in**: a switch under **Initiative settings › Export** that stops exporting, sharing or moving content out of it.
+- **Moderators can revoke someone's API keys** from **Operator dashboard › Users**.
+- **Prometheus metrics** for pages opened, tools created and active accounts, and **opt-in browser analytics** through Grafana Faro (`FARO_COLLECTOR_URL`). See **Running a server › Configuration**.
+- **Follow the help requests you've filed** from **My Tickets** in the sidebar: where each stands, what the team said, and your answers, updated as they come. The team replies from a panel on the case, kept apart from its comments. **Server operators:** on the **Intake** page, pick the statuses that wait on the requester and that their answer moves a case to (**Set this up for me** creates both); security and moderation each need an initiative of their own.
+- **Run a dashboard as Individual or Initiative.** Under a dashboard's **Settings → Details**: Individual (the default) shows each person only what they can see; Initiative shows everyone the same numbers, with full read access to the initiative. A new role permission, **Run dashboards as Initiative**, says who may turn it on or change such a dashboard's tiles; managers always can.
+- **Filters can match all or any.** Choose once at the top, add a group for the other kind, and choose to leave out, include, or count only archived work and templates. Deleted things are never counted.
+- **Push notifications without Firebase.** Turn on **Send push notifications** and leave the rest empty: your server registers itself once with BeyondersStudio's push relay and sends through it. iPhone pushes always go through the relay; with your own Firebase service account, Android pushes still go straight to Firebase. The relay passes the text on and never keeps it. Your server never holds a phone's token for the relay: the app registers it with the relay itself and gives your server a handle that reaches that phone for your server only. Your server contacts the relay only once a phone that needs it shows up (an iPhone, or Android without your own Firebase), and tells it nothing about where it runs. See **Running a server › Push notifications**.
+- **A timeline can be drawn in years.**
+- **Close an event's RSVP.** Under an event's **Settings → Attendees**, turn off **Anyone who can see it may RSVP** and only the attendees you add can answer. On, as before, answering adds you to the attendees. A repeating event's occurrences follow the series.
+- **Plug-ins can show your community's usage** on **Community settings › Usage**, below storage and members.
+- **A plug-in's listing shows its minimum age** where it declares one, for the country your browser is set to.
+- **Report a marketplace listing or a plug-in** with the flag on its listing page or at the top of the plug-in. Reports go to whoever runs the server. Plug-ins BeyondersStudio publishes have no flag.
+- **Plug-ins can create custom properties.** A community can grant a plug-in **Properties**, which lets it read an initiative's property definitions and add new ones. A plug-in that can change something, such as a task, can still fill in that thing's properties without it.
+- **A plug-in can say which plug-in API it needs**, as `min_plugin_api` in its listing or manifest (`"4.1"`). A server that doesn't provide that API refuses to install or upgrade to it, and says why; listings that don't say keep working. The plug-in API document (`/api/v1/plugin-platform/openapi.json`) is now versioned as the plug-in SDK it matches, not as the server release.
+
+### Changed
+
+- **The paw print trophy is redrawn** as the project's own artwork, and **the raised fist trophy now uses a public-domain drawing** of the same symbol, so no trophy carries a share-alike licence any more.
+- **A phone's sign-in keeps one push registration**: a new token replaces the one it held, and an account can register at most 30 an hour. One account can no longer pile up tokens the push relay answers as dead, which would get the whole server's pushes suspended.
+- **Anything under `/.well-known/` that Initiative doesn't serve answers 404**, not the app's page, and the app association files are cached for an hour.
+- **The old `morelitea` publisher is no longer trusted.** Plug-ins this project ships are published as `beyonders-studio`, and the seeded `morelitea` publisher is removed on upgrade, or, if anything is still registered or listed under it, kept as an ordinary unverified publisher.
+- **Files have a new icon**, a stack of pages rather than a scroll, since a file can be a spreadsheet, a whiteboard, an upload or a link as well as a document.
+- **A task's assignee chip names two people** before counting the rest, so a task held by two shows both names.
+- **A new wiki page opens ready to write in**, rather than as a blank page to read.
+- **Your date of birth is kept, encrypted**, and every account is asked it once. It's used only to check age limits, never shown back, and never sold. If it was entered wrongly, whoever runs the server can reset the question.
+- **Documents are now called Files.** Text documents, whiteboards, spreadsheets, links and uploads live in the Files tool. Upgrading moves what is already stored, including plug-in grants, webhook subscriptions and the SQL in dashboards. Links to the old `/documents/…` pages and `/go/document/…` no longer open, and saved list layouts for the tool start fresh. Backups made before the rename still restore.
+- **Plug-ins that can write to a queue or counter group can add its items and counters**, edit counters, reset all counters and sort them.
+- **The documents table drops its Projects column**; a document's links show on its own page, as every tool's do.
+- **A project list works like every other tool's**: grid, list and tag layouts, the shared filters and table sorting. Drag projects into your own order on the first page; pin and favourite from each card. The pinned section and the favourites-only filter are gone, and favourites stay in the sidebar.
+- **Apps are now called plug-ins.** **Server operators:** rename `APP_PLATFORM_SIGNING_KEY_ID`, `APP_PLATFORM_SIGNING_PRIVATE_KEY_PEM` and `APP_SERVICES_CONFIG` to `PLUGIN_PLATFORM_SIGNING_KEY_ID`, `PLUGIN_PLATFORM_SIGNING_PRIVATE_KEY_PEM` and `PLUGIN_SERVICES_CONFIG`.
+- **Dashboard queries read a file's type, size and name through `current_version`** (`current_version.file_size` on `documents` and `gallery_images`), the version the file shows. The new `document_versions` and `gallery_image_versions` datasets hold every version.
+- **Every tool's list can tag, duplicate and delete several items at once**, as documents could. The documents list now works like the other tools' lists, and the view you pick (archived, templates) is kept in the address.
+- **Plans can be changed from the phone apps where the store allows it.** The iPhone app on the US App Store, and the Android app from Google Play in the US, UK, Australia and the EEA, open the billing portal in your browser. Elsewhere the apps still show your plan without offering to change it, and apps embedded in a community are told so too. An Android app installed outside Google Play works like the web.
+- **The Android app is now `studio.beyonders.initiative`**, published by Beyonders Studio. It installs beside the old app rather than updating it, and upgraded servers no longer accept the old app: install the new one, sign in, then uninstall the old one. **Self-hosted Firebase:** register an Android app under the new package name; see **Push notifications**.
+- **The image is now `ghcr.io/beyonders-studio/initiative`**, on the GitHub Container Registry, and the project lives at `github.com/beyonders-studio/initiative`. Docker Hub's `morelitea/initiative` keeps the releases it has but gets no new ones: change your compose file's `image:` line to `ghcr.io/beyonders-studio/initiative:latest` (or `:stable`, or a version). The update notice now reads the project's GitHub releases.
+- **First-party plug-ins are published as `beyonders-studio`** (`beyonders-studio.github`, `beyonders-studio.automations`, …), and the default marketplace registry moves to `https://beyonders-studio.github.io/initiative-developer/public/`. **Self-hosted:** a plug-in installed under a `morelitea.` id is no longer treated as first-party; remove it and install its `beyonders-studio.` listing. If you set `MARKETPLACE_REGISTRY_URL` to the old address, change or unset it.
+- **The pricing page shows the billing portal's own plan cards**, in your language and your currency, laid out the same as on the portal.
+- **The `route` label of `initiative_page_views_total` now reads `/c/$communityId/…`.**
+- **Accounts no longer have a name.** You're your handle, or the display name you set in a community. Saved names are deleted on upgrade. **Server operators:** `FIRST_OWNER_FULL_NAME` is ignored.
+- **Mentions always show the name a person goes by now**, or **Former member** once they've left, and search finds mentions by that name. **Server operators:** the first start rebuilds each community's search index.
+- **The server prepares documents for live editing**, and live editing works across several copies of the server. **Server operators:** the editor helper uses about 90 MB while running; see **Running more than one copy**.
+- **Changing your email addresses asks you to confirm it's you.**
+- **The jackalope mascot is called Yonder now**, not Chester.
+- **The phone and desktop apps open straight to sign-in.** The website's front pages (welcome, pricing, download, what's new) are no longer part of the apps.
+- **On iPhone, an app update is sent to the App Store**, not to an APK download.
+- **The iPhone app shows the curated marketplace**: listings that ship with Initiative and those from the Initiative registry. Plug-ins a community already added open too; one BeyondersStudio doesn't publish shows a one-time note first saying who made it.
+- **The Android app connects to `https://` servers only.** **Server operators:** a server on plain `http://` needs HTTPS before the app can reach it; browsers are unaffected.
+- **The phone app never goes back to an update older than itself**, and on iPhone a new feature release arrives through the App Store.
+- **An app installed from Google Play is sent back to Play** when it needs updating.
+- **The phone and desktop apps stay signed in for ninety days** of not being used, and show as one row each in your sessions. An app last opened before 0.70 asks you to sign in once.
+- **The sign-in page says which server you're signing in to.** In the phone app, tap its name to switch servers.
+- **API access is set per member.** A community's superadmin turns one person's personal API keys on or off from the **API access** column in **Community settings › Users**, which stops keys they already made too. It replaces the community-wide switch on the **Security** tab and, like it, applies only where the server grants the community the security standard. Members of a community that had keys switched off start with them off. Personal API keys never reach a community through an access grant.
+- **Rate limits count per account, not per network**, so people sharing an office address no longer share a limit or lock each other out.
+- **Links in notification emails sent before this release no longer open.** Open the notification in the app instead.
+- **User settings are reorganised.** **Interface** is now **Preferences**, and the **Danger Zone** tab has moved into **Account**.
+- **One header for every tool page**, with status, tags and properties editable in place, and a tidier, more consistent layout throughout.
+- **Every tool list can be shown as cards, a list or by tag**, and dashboard, counter and queue cards preview what's inside.
+- **Connections look the same on every tool and wiki page**, as cards or a list.
+- **A document leads with its featured image**, replacing the **Metadata** section.
+- **An initiative's page is quieter**, with who's online shown as faces.
+- **Expanding the guild rail shows each guild as a card.**
+- **Calendars:** pick which to see from the title, show or hide project tasks from **Filters**, and export from **More actions**.
+- **No initiative is the default any more.** A "Default Initiative" can be renamed, archived or deleted.
+- **The app asks where your Initiative runs** on its first screen, and signed-out pages show which server you're on.
+- **The app opens faster.**
+- **Documentation and Ask for help are separate buttons** at the foot of the sidebar.
+- **Clearer query builder.** Plain names for columns and fields ("Due date", not `due_date`) and shorter, plainer wording throughout.
+- **"Published figures" are removed.** **Run dashboard as → Initiative** replaces them. A dashboard that published figures goes back to showing each person their own numbers on upgrade; switch it to Initiative to share them again.
+
+### Fixed
+
+- **Signing out of the phone app, or pointing it at another server, stops its push notifications** from the server it left, also when push was set up before the app last restarted.
+- **A listing no catalog directory publishes any more is withdrawn**, even when no directory is set. This removes the old built-in Automations listing earlier releases left in the marketplace. A community that installed it keeps what it has.
+- **Delete Node in a document's right-click menu removes a smart chip or mention** when opened on one, instead of doing nothing.
+- **Notifications inbox.** Clicking a finished export now downloads it, as the bell does, and items are grouped under the day they happened where you are.
+- **Notification switches reach queued email.** Turning email off for a community or the server, or hiding notification content, now also applies to emails already waiting to go out, such as a digest held for its next send.
+- **An imported dashboard keeps its tags**, as other tools do.
+- **Queues, counters and calendars** keep their own tags in backups. A queue item's notes can be cleared, a queue, counter group or counter can no longer be saved with a blank name, and a trashed queue item no longer shows when a deleted queue is opened.
+- **Galleries and wiki pages you've opened are kept for offline use**, as other tools' are. The command palette shows a link document's site icon, and the image dialog in the editor is translated.
+- **A plug-in can create things again.** The owner record a plug-in's new item gets was still written under the plug-in's old name, so creating anything failed.
+- **Someone who loses access to a calendar, queue or other tool is taken off what is in it.** Event attendees, people on queue items and person fields now let go of them when sharing changes, as task assignees already did.
+- **Files restored from a backup or brought in with a wiki or gallery import keep a version history and a type**, as uploaded ones do; a file whose type isn't one the tool shows is skipped and reported.
+- **A comment that fails to post, save or delete says so in words** rather than showing a raw message key.
+- **Importing a link document checks its address**, as creating one does: an address that isn't `http://` or `https://` is refused.
+- **On a phone browser, the sidebar's bottom row is no longer hidden behind the browser's toolbar.**
+- **Image captions in documents and wiki pages are saved.**
+- **`RATE_LIMIT_STORAGE_URI` accepts a `redis://` URL.**
+- **The phone and desktop apps keep your messages when a session times out**, and message notifications reach current phones again.
+- **The twelve-hour session standard no longer signs people out every fifteen minutes** while they're working.
+- **Password managers no longer lock accounts** by submitting the sign-in form several times.
+- **Unlocking an account or resetting its password lets its holder straight back in.**
+- **Built-in dashboard templates update again** after upgrading to 0.74.
+- **Dialogs taller than the screen scroll**, so their buttons stay within reach.
+- **Repeating events keep their dates within the calendar**, and a range with too many occurrences asks for a shorter one.
+- **A post published after its poll's deadline** opens the poll instead of posting it closed.
+- **Voting in a poll or editing a notice no longer marks it unread** or raises its "Read by" count.
+- **Dashboard settings accept only the values a widget asks for**, including in imported dashboards.
+- **A new dashboard offers Run as Initiative straight away** to people who may turn it on.
+- **A failed dashboard update shows one message, not two**, and a poll nobody has answered says so.
+- **Comments offer Delete only to people who can delete them**, and ask first.
+- **Reports and help requests:** escalated reports carry what reporters wrote, repeat reports add to the case, the help form hides while the support project is archived, non-owner operators can switch help requests on, and both are limited per account.
+- **Access grants show as expired** when their time runs out.
+- **The operator's Users page no longer offers actions on accounts above your role.**
+- **A community reached through a settings grant shows its icon and banner.**
+- **A document filed in a wiki shows its own connections.**
+- **New queue items and events attach only things from their own initiative.**
+- **Project filter presets show in your language**, and the time zone picker shows UTC.
+- **An account made through a provider with no email address can make a confirmed address its primary.**
+- **Grouping by week, month, quarter or year works in charts.** Dates showed as long raw numbers and came back out of order; they're now labelled by their period and sorted oldest first.
+- **Heatmaps show weekly, monthly, quarterly and yearly data** instead of scattering it over a day calendar.
+- **A wiki's "Show when a page was last updated" setting is saved**, and editing a wiki or one of its pages dates it.
+- **A new, copied or moved wiki page shows its tags and properties straight away.**
+- **Exporting a wiki keeps its settings**: page order, contents depth, connections, last-updated, reading width, accent colour and template page come back when it is imported.
+- **Plug-ins with a wiki's or gallery's write access can add, edit and move its pages and pictures**, and upload new versions of a picture. Removing them stays with people.
+- **Community locations.** A community can say where it is, from just a country down to a street address, with its own name for the place ("Queen Anne Neighborhood, Seattle, WA"). It shows on the community's front page and its card; street and postcode stay behind a hover or tap. The directory's search finds communities by place too, country names included, and **Near me** puts the closest ones first. Sign-up asks where you are when you're looking for a community.
+- **Clearing an event's description or location saves.** The emptied field used to come back.
+- **Saving an event or calendar with an empty required field is refused** instead of failing with a server error.
+- **A calendar's color follows what was saved**, and can no longer look cleared.
+- **A calendar or event link you can't open says so** instead of loading forever.
+- **iCal import problems show in your language.**
+- **An initiative's calendar shows only its own tasks**, and the community calendar shows none.
 
 ## [0.74.0] - 2026-10-01
 
@@ -38,6 +195,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **A new front page and Download page.**
+- **Chester is now a jackalope**, from the Beyonders Studio logo.
 - **Search and filters cover the whole list**, not just what's loaded.
 - **All-day events are the same days for everyone**, whatever their timezone.
 - **Comments open on the newest conversations**, with **Load older comments** for the rest.
@@ -2465,13 +2623,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **From v0.30.0**: No action needed — the baseline migration is a no-op for existing databases. You can safely remove `docker/init-db.sh` if present.
 - **From pre-v0.30.0 (v0.14.1–v0.29.x)**: The application will detect the old schema and exit with instructions. Run the upgrade script before starting:
   ```bash
-  curl -fsSL https://raw.githubusercontent.com/Morelitea/initiative/main/scripts/upgrade-to-baseline.sql \
+  curl -fsSL https://raw.githubusercontent.com/beyonders-studio/initiative/main/scripts/upgrade-to-baseline.sql \
     -o upgrade-to-baseline.sql
   psql -v ON_ERROR_STOP=1 -f upgrade-to-baseline.sql "$DATABASE_URL"
   ```
   If psql is not available on your host (e.g. Synology, Unraid), pipe through the Postgres container:
   ```bash
-  curl -fsSL https://raw.githubusercontent.com/Morelitea/initiative/main/scripts/upgrade-to-baseline.sql | \
+  curl -fsSL https://raw.githubusercontent.com/beyonders-studio/initiative/main/scripts/upgrade-to-baseline.sql | \
     docker exec -i initiative-db psql -v ON_ERROR_STOP=1 -U initiative -d initiative
   ```
   Then restart the application. The baseline migration will create database roles, RLS policies, and grants automatically.

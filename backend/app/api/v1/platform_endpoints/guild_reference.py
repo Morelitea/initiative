@@ -12,10 +12,10 @@ Reached two ways, and no member is involved in either — this is a fact about
 a guild, asked for by a service, and a member's credential is never a way to
 learn it:
 
-* **An installation token** of an app whose registration came from the
+* **An installation token** of a plug-in whose registration came from the
   registry verified under the root shipped in the image, and names the sector
   in its ``reference_sectors``. The guild is the token's install's; a
-  ``guild_ref`` is optional and, when given, has to be the caller's own name
+  ``community_ref`` is optional and, when given, has to be the caller's own name
   for that same guild.
 * **The bundled-service channel**, which an operator names and wires, with a
   reference of the caller's own.
@@ -34,23 +34,23 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import SessionDep, oauth2_scheme, SystemSessionDep
-from app.api.v1.platform_endpoints.app_installation import installation_caller
-from app.core.app_access_token import is_access_token
+from app.api.v1.platform_endpoints.plugin_installation import installation_caller
 from app.core.config import settings
+from app.core.identify import presented_credential
+from app.core.plugin_access_token import is_access_token
 from app.core.messages import BundledChannelMessages
-from app.models.platform.app_service_registration import (
-    AppServiceRegistration,
+from app.models.platform.plugin_service_registration import (
+    PluginServiceRegistration,
     RegistrationSource,
 )
 from app.models.platform.identity_ref import IdentityEntity, IdentityPurpose
 from app.schemas.marketplace.guild_reference import (
-    GuildReferenceRead,
-    GuildReferenceRequest,
+    CommunityReferenceRead,
+    CommunityReferenceRequest,
     InstallationReferenceRequest,
 )
-from app.services.marketplace import app_refs
+from app.services.marketplace import plugin_refs
 from app.services.marketplace.bundled_channel import (
-    BundledChannelError,
     verify_bundled_envelope,
 )
 from app.services.marketplace.tuf_registry import configured_root_is_builtin
@@ -80,11 +80,10 @@ async def _answer_installation(
     request: Request,
     session: AsyncSession,
     system_session: AsyncSession,
-    bearer: str,
     body: bytes,
-) -> GuildReferenceRead:
+) -> CommunityReferenceRead:
     """Name the token's community in a sector its registration carries."""
-    installation = await installation_caller(request, session, bearer)
+    installation = await installation_caller(request, session)
 
     try:
         payload = InstallationReferenceRequest.model_validate_json(body)
@@ -101,8 +100,8 @@ async def _answer_installation(
     public_id = installation.registration.public_id
     row = (
         await system_session.exec(
-            select(AppServiceRegistration).where(
-                AppServiceRegistration.public_id == public_id
+            select(PluginServiceRegistration).where(
+                PluginServiceRegistration.public_id == public_id
             )
         )
     ).first()
@@ -116,9 +115,9 @@ async def _answer_installation(
         raise _sector_refused()
 
     guild_id = installation.guild_id
-    if payload.guild_ref is not None:
-        named = await app_refs.guild_for_app_ref(
-            ref=payload.guild_ref, public_id=public_id
+    if payload.community_ref is not None:
+        named = await plugin_refs.guild_for_plugin_ref(
+            ref=payload.community_ref, public_id=public_id
         )
         if named != guild_id:
             raise HTTPException(
@@ -134,43 +133,31 @@ async def _answer_installation(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=BundledChannelMessages.NO_SUCH_NAME,
         )
-    return GuildReferenceRead(purpose=payload.purpose, guild_ref=ref)
+    return CommunityReferenceRead(purpose=payload.purpose, community_ref=ref)
 
 
-@router.post("/community-reference", response_model=GuildReferenceRead)
-async def read_guild_reference(
+@router.post("/community-reference", response_model=CommunityReferenceRead)
+async def read_community_reference(
     request: Request,
     session: SessionDep,
     system_session: SystemSessionDep,
+    # Declares the scheme for the API description; read by ``presented_credential``.
     bearer: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
-) -> GuildReferenceRead:
+) -> CommunityReferenceRead:
     """Name the caller's guild in another sector."""
     body = await request.body()
-    if bearer and is_access_token(bearer):
-        return await _answer_installation(
-            request, session, system_session, bearer, body
-        )
-    try:
-        verify_bundled_envelope(
-            method=request.method,
-            path=request.url.path,
-            headers=request.headers,
-            body=body,
-        )
-    except BundledChannelError as exc:
-        # Unconfigured is this deployment's own gap rather than the caller's
-        # fault, and retryable; everything else is a refusal.
-        raise HTTPException(
-            status_code=(
-                status.HTTP_503_SERVICE_UNAVAILABLE
-                if exc.code == BundledChannelMessages.NOT_CONFIGURED
-                else status.HTTP_403_FORBIDDEN
-            ),
-            detail=exc.code,
-        ) from exc
+    presented = presented_credential(request)
+    if presented is not None and presented.bearer and is_access_token(presented.token):
+        return await _answer_installation(request, session, system_session, body)
+    verify_bundled_envelope(
+        method=request.method,
+        path=request.url.path,
+        headers=request.headers,
+        body=body,
+    )
 
     try:
-        payload = GuildReferenceRequest.model_validate_json(body)
+        payload = CommunityReferenceRequest.model_validate_json(body)
     except ValidationError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -185,8 +172,8 @@ async def read_guild_reference(
 
     # The reference must be one of the CALLER's own. Resolving says which
     # install minted it; this says that install is the caller's.
-    guild_id = await app_refs.guild_for_app_ref(
-        ref=payload.guild_ref,
+    guild_id = await plugin_refs.guild_for_plugin_ref(
+        ref=payload.community_ref,
         public_id=(settings.BUNDLED_SERVICE_PUBLIC_ID or "").strip(),
     )
     if guild_id is None:
@@ -203,4 +190,4 @@ async def read_guild_reference(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=BundledChannelMessages.NO_SUCH_NAME,
         )
-    return GuildReferenceRead(purpose=payload.purpose, guild_ref=ref)
+    return CommunityReferenceRead(purpose=payload.purpose, community_ref=ref)

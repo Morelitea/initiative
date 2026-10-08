@@ -10,7 +10,8 @@ excluded from the report formats, matching the on-screen list defaults — save
 the ones archived along with the project, which the list shows too.
 
 ``filters.tasks`` narrows each project's tasks to those the task list
-answers with the same filters (``TaskFilters``); without it, every task rides.
+answers with the same filters (``TaskFilters``), in the order its ``sorting``
+asks for; without it, every task rides, in the project's own order.
 
 Access rule for every format: the owner rung on the project, or read from an
 initiative or community backup, enforced by ``ToolExportAdapter.fetch`` at
@@ -24,7 +25,7 @@ from datetime import datetime
 from typing import Any, ClassVar
 
 from pydantic import BaseModel, ConfigDict, field_validator
-from sqlalchemy import Subquery, func
+from sqlalchemy import Select, func
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -70,6 +71,7 @@ class TaskFilters(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     conditions: str | None = None
+    sorting: str | None = None
     include_archived: bool = False
 
     @field_validator("conditions")
@@ -80,6 +82,14 @@ class TaskFilters(BaseModel):
         from app.services.tenant.task_queries import check_task_conditions
 
         check_task_conditions(value)
+        return value
+
+    @field_validator("sorting")
+    @classmethod
+    def _sortable(cls, value: str | None) -> str | None:
+        from app.db.query import parse_sort_fields
+
+        parse_sort_fields(value)
         return value
 
 
@@ -148,19 +158,10 @@ class ProjectAdapter(ToolExportAdapter):
         )
         return await build_project_export(
             session,
-            project_id=project.id,
+            project,
             exported_by_handle=handle_of(user),
             source_instance_url=settings.APP_URL,
             source_guild_id=guild_id,
-        )
-
-    async def initiative_ids(
-        self, session: AsyncSession, user: User, guild_id: int, initiative_id: int, /
-    ) -> list[int]:
-        from app.services.tenant.project_export import list_project_ids_for_export
-
-        return await list_project_ids_for_export(
-            session, user, guild_id, initiative_ids=[initiative_id]
         )
 
     async def reach(
@@ -195,9 +196,9 @@ class ProjectAdapter(ToolExportAdapter):
         envelopes: list[ProjectExportEnvelope],
         ctx: BuildContext,
         /,
-    ) -> set[str | None] | None:
-        """The refs of the tasks the export's task filters leave; ``None``
-        keeps every task."""
+    ) -> list[str | None] | None:
+        """The refs of the tasks the export's task filters leave, in the order
+        they list them; ``None`` keeps every task."""
         from app.services.tenant.project_export import task_ref
 
         tasks = getattr(ctx.filters, "tasks", None)
@@ -217,7 +218,7 @@ class ProjectAdapter(ToolExportAdapter):
         kept = await matching_tasks(
             session, ctx.user, projects, tasks, getattr(ctx.now.tzinfo, "key", None)
         )
-        return {task_ref(task_id) for task_id in kept}
+        return [task_ref(task_id) for task_id in kept]
 
     def title(self, envelope: ProjectExportEnvelope, /) -> str:
         return envelope.project.name
@@ -225,8 +226,9 @@ class ProjectAdapter(ToolExportAdapter):
     def item(self, envelope: ProjectExportEnvelope, ctx: BuildContext, /) -> RenderItem:
         kept: Any = ctx.prepared
         if kept is not None:
+            order = {ref: index for index, ref in enumerate(kept)}
             # A link to a task this export left out has nothing to land on.
-            left_out = {t.external_ref for t in envelope.tasks} - kept
+            left_out = {t.external_ref for t in envelope.tasks} - order.keys()
             envelope = envelope.model_copy(
                 update={
                     "tasks": [
@@ -239,8 +241,10 @@ class ProjectAdapter(ToolExportAdapter):
                                 ]
                             }
                         )
-                        for t in envelope.tasks
-                        if t.external_ref in kept
+                        for t in sorted(
+                            (t for t in envelope.tasks if t.external_ref in order),
+                            key=lambda t: order[t.external_ref],
+                        )
                     ]
                 }
             )
@@ -255,9 +259,10 @@ async def _matching(
     project_ids: Collection[int],
     tasks: TaskFilters,
     tz: str | None,
-) -> Subquery | None:
+) -> Select | None:
     """The ids of these projects' tasks that the task list shows with
-    ``tasks``, as one statement; ``None`` when there are no projects.
+    ``tasks``, in its order, as one statement; ``None`` when there are no
+    projects.
 
     The export has already been allowed these projects, so the list's question
     about which projects the reader reaches is not asked again: the filters
@@ -266,7 +271,7 @@ async def _matching(
     from app.services.tenant import task_queries
 
     query = await task_queries.parse_task_list_query(
-        session, tasks.conditions, None, tz
+        session, tasks.conditions, tasks.sorting, tz
     )
     build = await task_queries.guild_task_query_builder(
         session,
@@ -276,7 +281,9 @@ async def _matching(
         include_archived=tasks.include_archived,
         projects=project_ids,
     )
-    return build(select(Task.id)).subquery() if build is not None else None
+    if build is None:
+        return None
+    return task_queries.list_statement(build, query).with_only_columns(Task.id)
 
 
 async def matching_tasks(
@@ -285,13 +292,13 @@ async def matching_tasks(
     project_ids: Collection[int],
     tasks: TaskFilters,
     tz: str | None,
-) -> set[int]:
+) -> list[int]:
     """The ids of these projects' tasks that the task list shows with
-    ``tasks``."""
+    ``tasks``, in the order it lists them."""
     matched = await _matching(session, user, project_ids, tasks, tz)
     if matched is None:
-        return set()
-    return set(await session.exec(select(matched.c.id)))
+        return []
+    return list(await session.exec(matched))
 
 
 async def count_matching_tasks(
@@ -306,7 +313,11 @@ async def count_matching_tasks(
     matched = await _matching(session, user, project_ids, tasks, tz)
     if matched is None:
         return 0
-    return (await session.exec(select(func.count()).select_from(matched))).one()
+    return (
+        await session.exec(
+            select(func.count()).select_from(matched.order_by(None).subquery())
+        )
+    ).one()
 
 
 def build_project_item(
@@ -361,7 +372,7 @@ def _report_payload(
                 if t.priority
                 else "",
                 "due": t.due_date.strftime("%Y-%m-%d") if t.due_date else "",
-                "assignees": ", ".join(t.assignee_handles),
+                "assignees": ", ".join(t.assignee_names),
             }
             for t in tasks
         ],

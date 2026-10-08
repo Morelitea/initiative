@@ -4,30 +4,27 @@
     "tabs": {
       "profile": "Profil",
       "account": "Konto",
-      "interface": "Oberfläche",
+      "interface": "Präferenzen",
       "notifications": "Benachrichtigungen",
       "ai": "KI",
-      "import": "Importieren",
       "security": "Sicherheit",
       "trash": "Papierkorb",
-      "danger": "Gefahrenzone",
       "privacy": "Privatsphäre"
     },
     "loginRequired": "Du musst angemeldet sein, um dein Profil zu verwalten.",
     "goToLogin": "Zur Anmeldung"
   },
-  "guildLayout": {
+  "communityLayout": {
     "title": "Community-Einstellungen",
     "permissionDenied": "Du benötigst zusätzliche Berechtigungen, um diese Seite anzuzeigen.",
     "viewOnly": "Du siehst diese Einstellungen über eine Zugriffsfreigabe. Um sie zu ändern, ist zusätzlich eine Lese-/Schreibfreigabe nötig.",
     "restricted": {
       "read_only": {
-        "label": "Schreibgeschützt",
         "message": "Diese Community ist schreibgeschützt. Wende dich an die Betreiber dieses Servers, um den vollen Zugriff wiederherzustellen."
       }
     },
     "tabs": {
-      "guild": "Community",
+      "community": "Community",
       "users": "Benutzer",
       "initiatives": "Initiativen",
       "trash": "Papierkorb",
@@ -46,24 +43,16 @@
     }
   },
   "profile": {
-    "fullNameLabel": "Vollständiger Name",
-    "fullNamePlaceholder": "Dein Name",
     "currentPasswordLabel": "Aktuelles Passwort",
-    "currentPasswordPlaceholder": "Aktuelles Passwort eingeben",
     "currentPasswordRequired": "Gib dein aktuelles Passwort ein, um ein neues festzulegen.",
     "newPasswordLabel": "Neues Passwort",
-    "confirmPasswordLabel": "Passwort bestätigen",
-    "passwordPlaceholder": "••••••••",
     "avatarLabel": "Avatar",
     "avatarUploadTab": "Hochladen",
     "avatarUrlTab": "URL",
     "avatarUrlPlaceholder": "https://example.com/avatar.jpg",
     "removeUploadedAvatar": "Hochgeladenen Avatar entfernen",
-    "passwordsMismatch": "Passwörter stimmen nicht überein",
     "saveChanges": "Änderungen speichern",
     "saving": "Speichern…",
-    "reset": "Zurücksetzen",
-    "updateSuccess": "Profil aktualisiert",
     "updateError": "Profil konnte nicht aktualisiert werden",
     "avatarUploadHelp": "Beliebiges Bild. Es wird für dich quadratisch zugeschnitten und verkleinert.",
     "avatar": {
@@ -102,14 +91,34 @@
     "primaryFailed": "Die Hauptadresse konnte nicht geändert werden.",
     "removeDialogTitle": "Diese Adresse entfernen?",
     "removeDialogDescription": "Mit <strong>{{email}}</strong> melden Sie sich nicht mehr an, und Ihre Kontopost geht nicht mehr dorthin.",
-    "removeCancel": "Abbrechen",
-    "removeConfirm": "Entfernen"
+    "removeConfirm": "Entfernen",
+    "passwordLabel": "Aktuelles Passwort",
+    "addDialogTitle": "Diese Adresse hinzufügen?",
+    "addDialogDescription": "Wir senden einen Link an <strong>{{email}}</strong>, um sie zu bestätigen.",
+    "addConfirm": "Hinzufügen",
+    "primaryDialogTitle": "Diese Adresse als Hauptadresse festlegen?",
+    "primaryDialogDescription": "Passwort-Zurücksetzungen und Anmeldecodes gehen zuerst an <strong>{{email}}</strong>.",
+    "primaryConfirm": "Als Hauptadresse festlegen"
+  },
+  "heldChange": {
+    "title": "Eine Änderung steht aus",
+    "primary": "{{subject}} wird am {{date}} deine Hauptadresse.",
+    "removeAddress": "{{subject}} wird am {{date}} aus deinem Konto entfernt.",
+    "secondFactorOff": "Die Zwei-Faktor-Authentifizierung wird am {{date}} deaktiviert.",
+    "lastPasskey": "Dein letzter Passkey, {{subject}}, wird am {{date}} entfernt.",
+    "description": "Sie wartet zwei Tage, und alle Adressen deines Kontos haben eine E-Mail dazu bekommen. Bis dahin ändert sich nichts.",
+    "cancel": "Änderung abbrechen",
+    "applyNow": "Jetzt mit Passkey ausführen",
+    "cancelled": "Die Änderung ist abgebrochen.",
+    "applied": "Die Änderung ist ausgeführt.",
+    "cancelFailed": "Die Änderung konnte nicht abgebrochen werden. Versuch es noch einmal.",
+    "applyFailed": "Die Änderung konnte nicht sofort ausgeführt werden. Versuch es noch einmal.",
+    "waits": "Diese Änderung wartet bis {{date}}. Alle Adressen deines Kontos haben eine E-Mail dazu bekommen."
   },
   "security": {
     "loadingDevices": "Geräte werden geladen…",
     "devicesError": "Geräte konnten nicht geladen werden.",
     "unknownDevice": "Unbekanntes Gerät",
-    "loggedIn": "Angemeldet {{date}}",
     "revokeDialogCancel": "Abbrechen",
     "revoking": "Wird widerrufen…",
     "revokeError": "Gerätezugriff konnte nicht widerrufen werden",
@@ -123,36 +132,24 @@
     "keyNamePlaceholder": "z. B. reporting-script",
     "expirationLabel": "Ablauf (optional)",
     "neverExpires": "Läuft nie ab",
-    "expirationHelp": "Lass das Feld leer für einen Schlüssel, der nie abläuft.",
     "readOnlyLabel": "Nur Lesen",
     "readOnlyHelp": "Der Schlüssel kann Daten lesen, aber niemals etwas erstellen, ändern oder löschen. Empfohlen für Automatisierungen und Integrationen.",
-    "guildLabel": "Community-Zugriff",
-    "guildAllGuilds": "Alle meine Communitys",
-    "guildHelp": "Beschränke den Schlüssel auf eine einzige Community. Er kann dann nicht auf Daten anderer Communitys zugreifen.",
+    "communityLabel": "Community-Zugriff",
+    "communityAllCommunities": "Alle meine Communitys",
+    "communityHelp": "Beschränke den Schlüssel auf eine einzige Community. Er kann dann nicht auf Daten anderer Communitys zugreifen.",
     "generateButton": "API-Schlüssel generieren",
     "generating": "Wird generiert…",
     "nameRequired": "Name ist erforderlich",
     "createSuccess": "API-Schlüssel erstellt",
     "createError": "API-Schlüssel konnte nicht erstellt werden",
-    "existingTitle": "Vorhandene Schlüssel",
-    "existingDescription": "Es werden nur die letzten Zeichen angezeigt. Rotiere Schlüssel regelmäßig.",
     "loadingKeys": "API-Schlüssel werden geladen…",
     "keysError": "API-Schlüssel konnten nicht geladen werden.",
     "noKeys": "Noch keine API-Schlüssel.",
-    "columnName": "Name",
-    "columnPrefix": "Präfix",
-    "columnStatus": "Status",
-    "columnScope": "Geltungsbereich",
-    "columnLastUsed": "Zuletzt verwendet",
-    "columnExpires": "Läuft ab",
-    "columnActions": "Aktionen",
-    "statusActive": "Aktiv",
     "statusExpired": "Abgelaufen",
     "statusDisabled": "Deaktiviert",
     "scopeReadOnly": "Nur Lesen",
-    "scopeGuild": "Community: {{guild}}",
+    "scopeCommunity": "Community: {{community}}",
     "scopeFull": "Voller Zugriff",
-    "never": "Nie",
     "deleteButton": "Löschen",
     "deleting": "Wird entfernt…",
     "deleteSuccess": "API-Schlüssel gelöscht",
@@ -167,13 +164,28 @@
     "signOutDialogTitle": "Dieses Gerät abmelden?",
     "signOutDialogDescription": "Damit endet die Sitzung auf <bold>{{deviceName}}</bold>. Es muss sich erneut anmelden.",
     "signOutConfirm": "Abmelden",
+    "removeDevice": "Gerät entfernen",
+    "notSignedIn": "nicht angemeldet",
+    "removeDeviceDialogTitle": "Dieses Gerät entfernen?",
+    "removeDeviceDialogDescription": "<bold>{{deviceName}}</bold> wird abgemeldet und bekommt nichts mehr zugestellt. Wird es je wieder angemeldet, werden die Nachrichten, die nur es hatte, darauf gelöscht.",
+    "removeDeviceConfirm": "Gerät entfernen",
+    "removedDevice": "Gerät entfernt",
     "signedOutOne": "Abgemeldet",
     "signOutOthers": "Überall sonst abmelden",
     "signOutOthersDialogTitle": "Überall sonst abmelden?",
     "signOutOthersDialogDescription_one": "Damit endet {{count}} weitere Sitzung. Hier bleibst du angemeldet.",
     "signOutOthersDialogDescription_other": "Damit enden alle {{count}} weiteren Sitzungen. Hier bleibst du angemeldet.",
     "signOutOthersConfirm": "Überall sonst abmelden",
-    "signedOutOthers": "Überall sonst abgemeldet"
+    "signedOutOthers": "Überall sonst abgemeldet",
+    "apiKeysTitle": "API-Schlüssel",
+    "apiKeysDescription": "Für Skripte und Integrationen. Das Geheimnis eines Schlüssels wird nur einmal angezeigt, wenn du ihn erstellst.",
+    "newKeyButton": "Neuer API-Schlüssel",
+    "keyCreated": "Erstellt {{date}}",
+    "keyLastUsed": "Zuletzt verwendet {{date}}",
+    "keyNeverUsed": "Nie verwendet",
+    "keyExpires": "Läuft ab {{date}}",
+    "deleteDialogTitle": "Diesen API-Schlüssel löschen?",
+    "deleteDialogDescription": "Alles, was {{name}} verwendet, funktioniert sofort nicht mehr."
   },
   "ai": {
     "loading": "KI-Einstellungen werden geladen…",
@@ -191,7 +203,7 @@
     "testError": "Verbindung konnte nicht getestet werden",
     "httpWarning": "Es wird ein unverschlüsselter HTTP-Endpunkt verwendet. Konfiguriere TLS/HTTPS für den Produktivbetrieb."
   },
-  "guildAI": {
+  "communityAI": {
     "title": "Community-KI",
     "adminOnly": "Nur Community-Admins können KI-Verbindungen verwalten. Um deinen eigenen Schlüssel festzulegen, öffne „KI“ in deinen Profileinstellungen.",
     "connectionsTitle": "Community-Verbindungen",
@@ -208,8 +220,8 @@
     "mode_disabled_description": "KI-Funktionen sind für alle deaktiviert.",
     "mode_platform": "Von der Plattform verwaltet",
     "mode_platform_description": "Du definierst die KI-Verbindungen, die jede Community verwendet.",
-    "mode_guild": "Von der Community verwaltet",
-    "mode_guild_description": "Jeder Community-Admin definiert eigene KI-Verbindungen.",
+    "mode_community": "Von der Community verwaltet",
+    "mode_community_description": "Jeder Community-Admin definiert eigene KI-Verbindungen.",
     "saveMode": "Speichern",
     "savingMode": "Wird gespeichert…",
     "modeSaved": "KI-Einstellungen aktualisiert",
@@ -219,9 +231,9 @@
   },
   "marketplaceRegistry": {
     "title": "Marketplace-Registry",
-    "description": "Apps und Inhalte aus der Initiative-Registry. Alles, was sie bringt, wird vor der Verwendung mit dem Signaturschlüssel geprüft, der in diesen Server eingebaut ist.",
+    "description": "Plug-ins und Inhalte aus der Initiative-Registry. Alles, was sie bringt, wird vor der Verwendung mit dem Signaturschlüssel geprüft, der in diesen Server eingebaut ist.",
     "toggleLabel": "Der Registry folgen",
-    "toggleHelp": "Ausgeschaltet fragt dieser Server die Registry nicht mehr nach Aktualisierungen. Bereits übernommene Einträge und Apps bleiben.",
+    "toggleHelp": "Ausgeschaltet fragt dieser Server die Registry nicht mehr nach Aktualisierungen. Bereits übernommene Einträge und Plug-ins bleiben.",
     "enabledToast": "Dieser Server folgt der Registry wieder.",
     "disabledToast": "Dieser Server folgt der Registry nicht mehr.",
     "saveError": "Die Registry-Einstellung konnte nicht geändert werden.",
@@ -252,8 +264,6 @@
     "bundleError": "Das Paket konnte nicht übernommen werden."
   },
   "interface": {
-    "title": "Oberflächeneinstellungen",
-    "description": "Passe deine Oberflächeneinstellungen an.",
     "colorTheme": "Farbdesign",
     "colorThemeDescription": "Wähle ein Farbdesign für die Anwendung.",
     "weekStartsOn": "Woche beginnt am",
@@ -273,7 +283,6 @@
     "languageDescription": "Wähle deine bevorzugte Sprache für die Oberfläche.",
     "updateSuccess": "Oberflächeneinstellungen aktualisiert",
     "updateError": "Oberflächeneinstellungen konnten nicht aktualisiert werden",
-    "themePreview": "Designvorschau",
     "themeDescriptions": {
       "kobold": "Das klassische Initiative-Design in tiefen Indigotönen.",
       "displacer": "Beruhigendes Pastelldesign nach dem Vorbild von Catppuccin (Latte/Macchiato).",
@@ -283,8 +292,6 @@
       "orc": "Erdiges Grün mit leuchtend orkhautgrünen Akzenten. ORK ORK ORK!",
       "aboleth": "Dunkler Unterschlupf nach dem Vorbild von Monokai, mit leuchtenden biolumineszenten Akzenten."
     },
-    "lightMode": "Hell",
-    "darkMode": "Dunkel",
     "taskCompletionVisualFeedback": {
       "label": "Effekt beim Abschließen einer Aufgabe",
       "description": "Ein bisschen Spaß, wenn du eine dir zugewiesene Aufgabe abschließt.",
@@ -310,11 +317,27 @@
     },
     "keepScreenAwake": {
       "label": "Bildschirm aktiv halten",
-      "description": "Verhindert, dass sich der Bildschirm dieses Geräts verdunkelt oder sperrt, solange die App geöffnet ist. Diese Einstellung wird nur auf diesem Gerät gespeichert.",
+      "description": "Verhindert, dass sich der Bildschirm dieses Geräts verdunkelt oder sperrt, solange die App geöffnet ist.",
       "unsupported": "Dein Browser unterstützt das Aktivhalten des Bildschirms nicht."
     },
+    "desktopKeepRunning": {
+      "label": "Weiterlaufen, wenn das Fenster geschlossen wird",
+      "description": "Bleibt im Infobereich, damit Benachrichtigungen weiter ankommen. Beenden über das Symbol im Infobereich."
+    },
+    "desktopOpenAtLogin": {
+      "label": "Beim Start des Computers öffnen",
+      "description": "Startet Initiative, wenn du dich an diesem Computer anmeldest."
+    },
+    "desktopAutoUpdate": {
+      "label": "App automatisch aktualisieren",
+      "description": "Wenn dein Server eine neuere Desktop-App braucht, wird sie heruntergeladen und beim Neustart installiert."
+    },
     "completionTitle": "Wenn du eine Aufgabe abschließt",
-    "completionDescription": "Was die App tut, sobald eine Aufgabe abgehakt ist. Probier jede Variante aus, bevor du sie behältst."
+    "completionDescription": "Was die App tut, sobald eine Aufgabe abgehakt ist. Probier jede Variante aus, bevor du sie behältst.",
+    "appearanceTitle": "Darstellung",
+    "regionTitle": "Sprache und Zeit",
+    "deviceTitle": "Dieses Gerät",
+    "deviceDescription": "Nur auf diesem Gerät gespeichert, nicht in deinem Konto."
   },
   "notifications": {
     "title": "Benachrichtigungseinstellungen",
@@ -324,11 +347,7 @@
     "pushBlocked": "Blockiert",
     "pushNotEnabled": "Nicht aktiviert",
     "enablePush": "Push-Benachrichtigungen aktivieren",
-    "pushBlockedTitle": "Push-Benachrichtigungen sind blockiert",
     "pushBlockedDescription": "Um Push-Benachrichtigungen zu aktivieren, öffne deine Geräteeinstellungen, suche diese App und aktiviere die Benachrichtigungen.",
-    "timezone": "Zeitzone",
-    "timezonePlaceholder": "Zeitzone auswählen",
-    "timezoneEmpty": "Keine Zeitzone gefunden.",
     "toggleError": "Benachrichtigungseinstellungen konnten nicht aktualisiert werden",
     "categoryHeader": "Kategorie",
     "categories": {
@@ -364,7 +383,8 @@
     "channels": {
       "in_app": "Glocke",
       "email": "E-Mail",
-      "push": "Mobil"
+      "push": "Mobil",
+      "desktop": "Desktop"
     },
     "groups": {
       "addressed_to_me": "An mich gerichtet",
@@ -391,14 +411,14 @@
     },
     "quietHours": {
       "title": "Ruhezeiten",
-      "description": "E-Mail und Mobil über Nacht zurückhalten. Die Glocke sammelt weiter, und am Ende geht eine Zusammenfassung raus.",
+      "description": "E-Mail, Mobil und Desktop über Nacht zurückhalten. Die Glocke sammelt weiter, und am Ende geht eine Zusammenfassung raus.",
       "from": "Von",
       "to": "Bis"
     },
     "communities": {
       "title": "Pro Community",
       "description": "Ein Regler pro Community. Stell eine leiser, ohne sonst etwas zu ändern.",
-      "levelLabel": "Wie viel {{guild}} sagt",
+      "levelLabel": "Wie viel {{community}} sagt",
       "mutedHelp": "Diese Community sagt gar nichts — auch nicht, wenn dich jemand direkt nennt.",
       "levels": {
         "everything": "Alles",
@@ -426,7 +446,7 @@
       "respectPresenceHelp": "Wenn du schon hier bist, hat die Glocke es dir gesagt. E-Mail wartet ein paar Minuten, Mobil bleibt still.",
       "pause": {
         "title": "Benachrichtigungen pausieren",
-        "description": "E-Mail und Mobil pausieren an den Tagen, die du wählst. Die Glocke sammelt weiter, und zum Schluss bekommst du eine Zusammenfassung.",
+        "description": "E-Mail, Mobil und Desktop pausieren an den Tagen, die du wählst. Die Glocke sammelt weiter, und zum Schluss bekommst du eine Zusammenfassung.",
         "active": "Pausiert bis {{until}}",
         "scheduled": "Pause von {{from}} bis {{until}}",
         "resume": "Fortsetzen",
@@ -441,7 +461,9 @@
         "note": "Passwort-Zurücksetzungen und Anmelde-E-Mails kommen weiterhin an. Das sind keine Benachrichtigungen."
       },
       "saved": "Gespeichert",
-      "saveError": "Einstellung konnte nicht gespeichert werden"
+      "saveError": "Einstellung konnte nicht gespeichert werden",
+      "zone": "Zeiten gelten für {{timezone}}.",
+      "changeZone": "Zeitzone ändern"
     },
     "weekdays": {
       "1": "Montag",
@@ -451,7 +473,8 @@
       "5": "Freitag",
       "6": "Samstag",
       "7": "Sonntag"
-    }
+    },
+    "quietTitle": "Nicht stören"
   },
   "dangerZone": {
     "serverConnection": "Serververbindung",
@@ -461,10 +484,15 @@
     "deactivateTitle": "Konto deaktivieren",
     "deactivateDescription": "Deaktiviere dein Konto vorübergehend. Dein Name, deine E-Mail und deine Inhalte bleiben erhalten, aber du wirst aus jeder Community entfernt, in der du Mitglied bist – ein erneuter Beitritt erfordert eine neue Einladung. Die Person, die diesen Server betreibt, kann dein Konto später wieder aktivieren.",
     "permanentDeleteTitle": "Konto löschen",
-    "permanentDeleteDescriptionText": "Ihr Konto verschwindet sofort für alle anderen. Endgültig gelöscht wird zunächst nichts — melden Sie sich vorher wieder an, und die Löschung ist abgesagt, mit Ihren Communitys und Ihrer Arbeit genau so, wie Sie sie verlassen haben. Danach gehen Projekte an andere über, und Kommentare und Dokumente bleiben, zeigen aber „[Gelöschter Nutzer]“.",
+    "permanentDeleteDescriptionText": "Ihr Konto verschwindet sofort für alle anderen. Endgültig gelöscht wird zunächst nichts — melden Sie sich vorher wieder an, und die Löschung ist abgesagt, mit Ihren Communitys und Ihrer Arbeit genau so, wie Sie sie verlassen haben. Danach gehen Projekte an andere über, und Kommentare und Dateien bleiben, zeigen aber „[Gelöschter Nutzer]“.",
     "cannotBeUndone": "Eine Anmeldung stoppt die Löschung.",
     "deactivateButton": "Konto deaktivieren",
-    "deleteButton": "Konto löschen"
+    "deleteButton": "Konto löschen",
+    "title": "Konto schließen"
+  },
+  "accountDeletion": {
+    "typeToConfirmPrefix": "Tippe",
+    "typeToConfirmSuffix": "zum Bestätigen"
   },
   "deleteAccount": {
     "title": "Konto löschen",
@@ -485,6 +513,7 @@
     "softDeleteRadioDescription": "Dein Name, deine E-Mail und dein Avatar werden entfernt und du kannst dich nicht mehr anmelden. Von dir verfasste Kommentare, Aufgaben und andere Inhalte bleiben als „Gelöschter Benutzer“ sichtbar. Dies kann nicht rückgängig gemacht werden.",
     "cannotDelete": "Konto kann nicht gelöscht werden:",
     "cannotDeactivate": "Konto kann nicht deaktiviert werden:",
+    "soleSuperadminBlocker": "Du bist der einzige Superadmin von {{communityName}}. Mach zuerst ein anderes Mitglied zum Superadmin oder lösche die Community.",
     "resolveIssues": "Bitte behebe diese Probleme, bevor du dein Konto löschst.",
     "resolveIssuesDeactivate": "Bitte behebe diese Probleme, bevor du dein Konto deaktivierst.",
     "eligible": "Dein Konto ist zum Löschen berechtigt.",
@@ -494,8 +523,6 @@
     "softDeleteConfirmDescription": "Dein Name, deine E-Mail und dein Avatar werden entfernt. Du kannst dich nicht mehr anmelden. Von dir verfasste Kommentare, Aufgaben und andere Inhalte bleiben als „Gelöschter Benutzer“ sichtbar. Dies kann nicht rückgängig gemacht werden.",
     "confirmPasswordLabel": "Bestätige dein Passwort",
     "enterPassword": "Gib dein Passwort ein",
-    "typeToConfirmPrefix": "Tippe",
-    "typeToConfirmSuffix": "zum Bestätigen",
     "deactivateAccount": "Konto deaktivieren",
     "deleteAccountButton": "Konto löschen",
     "checking": "Wird geprüft…",
@@ -516,9 +543,9 @@
     "saveInterface": "Oberflächeneinstellungen speichern",
     "savingInterface": "Speichern…",
     "interfaceSuccess": "Oberflächeneinstellungen aktualisiert",
-    "chesterPlayground": {
-      "title": "Chester-Toast-Spielwiese",
-      "description": "Löse jeden Toast-Typ aus, um seine Chester-Variante und Animation in der Vorschau zu sehen.",
+    "yonderPlayground": {
+      "title": "Yonder-Toast-Spielwiese",
+      "description": "Löse jeden Toast-Typ aus, um seine Yonder-Variante und Animation in der Vorschau zu sehen.",
       "default": {
         "label": "Standard (untätig)",
         "message": "Nur eine Benachrichtigung"
@@ -582,7 +609,6 @@
   "email": {
     "platformOnly": "Nur der Plattform-Eigentümer kann die E-Mail-Einstellungen verwalten.",
     "title": "SMTP-E-Mail",
-    "description": "Konfiguriere den SMTP-Server, der für Transaktions-E-Mails verwendet wird.",
     "loading": "E-Mail-Einstellungen werden geladen…",
     "loadError": "E-Mail-Einstellungen konnten nicht geladen werden.",
     "hostLabel": "Host",
@@ -615,7 +641,7 @@
     "loading": "Einstellungen für Push-Benachrichtigungen werden geladen…",
     "loadError": "Einstellungen für Push-Benachrichtigungen konnten nicht geladen werden.",
     "title": "Firebase Cloud Messaging",
-    "description": "Das Firebase-Projekt, bei dem sich die mobilen Apps registrieren und über das der Server Push-Benachrichtigungen sendet.",
+    "description": "Optional. Ohne Dienstkontoschlüssel laufen Push-Benachrichtigungen über das Push-Relay von BeyondersStudio, und diese Felder können leer bleiben. Mit einem laufen Android-Pushes über dein eigenes Firebase-Projekt; iPhone-Pushes nutzen immer das Relay.",
     "enabledLabel": "Push-Benachrichtigungen senden",
     "enabledHelp": "Die mobilen Apps übernehmen das beim nächsten Öffnen. Kein Neustart nötig.",
     "fields": {
@@ -694,8 +720,8 @@
       "confirmAction": "Entziehen",
       "saved": "Zugangswege aktualisiert.",
       "saveError": "Die Zugangswege konnten nicht geändert werden.",
-      "guildsRequire_one": "{{count}} Community verlangt eine Anmeldung über einen eigenen Anbieter.",
-      "guildsRequire_other": "{{count}} Communities verlangen eine Anmeldung über einen eigenen Anbieter.",
+      "communitiesRequire_one": "{{count}} Community verlangt eine Anmeldung über einen eigenen Anbieter.",
+      "communitiesRequire_other": "{{count}} Communities verlangen eine Anmeldung über einen eigenen Anbieter.",
       "totp": {
         "label": "Zwei-Faktor-Authentifizierung aktivieren",
         "help": "Lass Leute ihr Konto mit einem Code aus einer Authenticator-App schützen. Einschalten tut das jede Person für sich; hier geht es darum, ob der Server es überhaupt anbietet."
@@ -760,8 +786,6 @@
     }
   },
   "platformUsers": {
-    "title": "Plattformbenutzer",
-    "description": "Verwalte alle Benutzer auf der Plattform.",
     "loading": "Benutzer werden geladen…",
     "loadError": "Benutzer konnten nicht geladen werden.",
     "filterPlaceholder": "Nach Handle filtern…",
@@ -835,6 +859,14 @@
       "avatarRemoved": "Profilbild entfernt.",
       "avatarConfirmTitle": "Dieses Profilbild entfernen?",
       "avatarConfirmBody": "Das Bild von {{handle}} wird entfernt und die Person wird benachrichtigt. Sie kann ein neues hochladen.",
+      "apiKeysLabel": "API-Schlüssel",
+      "apiKeysHelp_one": "{{count}} Schlüssel funktioniert noch. Widerrufen schaltet ihn sofort ab; die Person kann einen neuen erstellen.",
+      "apiKeysHelp_other": "{{count}} Schlüssel funktionieren noch. Widerrufen schaltet sie sofort ab; die Person kann neue erstellen.",
+      "apiKeysRevoke": "Widerrufen",
+      "apiKeysRevoked": "API-Schlüssel widerrufen.",
+      "apiKeysConfirmTitle": "Diese API-Schlüssel widerrufen?",
+      "apiKeysConfirmBody_one": "Der Schlüssel von {{handle}} funktioniert ab sofort nicht mehr. Er bleibt als deaktiviert in der Liste, und die Person kann einen neuen erstellen.",
+      "apiKeysConfirmBody_other": "Alle {{count}} Schlüssel von {{handle}} funktionieren ab sofort nicht mehr. Sie bleiben als deaktiviert in der Liste, und die Person kann neue erstellen.",
       "access": "Zugriff",
       "suspendLabel": "Gesperrt",
       "suspendHelp": "Ein gesperrtes Konto kann sich anmelden und nachlesen, warum, und erreicht sonst nichts.",
@@ -866,8 +898,8 @@
     "hardDeleteDescription": "Alle Benutzerdaten werden aus der Datenbank entfernt. Von diesem Benutzer verfasste Kommentare, Aufgaben und andere Inhalte werden per Kaskade gelöscht. Kann nicht rückgängig gemacht werden.",
     "blockersTitle": "Blockierungen",
     "blockersDescription": "Die folgenden Probleme müssen behoben werden, bevor dieser Benutzer gelöscht werden kann:",
-    "guildBlockerTitle": "Einziger Superadmin der Community: {{guildName}}",
-    "guildBlockerDescription": "Wer das Konto besitzt, kann ein anderes Mitglied zum Superadmin machen. Oder du nimmst Notfallzugriff auf die Community und ernennst in ihren Einstellungen einen Superadmin oder löschst die Community dort.",
+    "communityBlockerTitle": "Einziger Superadmin der Community: {{communityName}}",
+    "communityBlockerDescription": "Wer das Konto besitzt, kann ein anderes Mitglied zum Superadmin machen. Oder du nimmst Notfallzugriff auf die Community und ernennst in ihren Einstellungen einen Superadmin oder löschst die Community dort.",
     "checkAgain": "Erneut prüfen",
     "confirmTitle": "Löschung bestätigen",
     "confirmDeactivateTitle": "Deaktivierung bestätigen",
@@ -886,7 +918,6 @@
     "preferWindowHelp": "Das Konto behält alles und verschwindet für alle anderen. Am Ende der Frist wird es gelöscht, sofern es niemand zurückholt."
   },
   "accessGrants": {
-    "title": "Zugriffsanfragen",
     "description": "Fordere zeitlich begrenzten Zugriff auf eine Community an, deren Mitglied du nicht bist, und genehmige ihn.",
     "requestTitle": "Zugriff anfordern",
     "requestDescription": "Fordere temporären, eingeschränkten Zugriff auf eine Community an. Genehmiger gewähren ihn und er läuft automatisch ab.",
@@ -906,8 +937,8 @@
     },
     "queueTitle": "Genehmigungen",
     "queueDescription": "Gewähre, verweigere oder widerrufe zeitlich begrenzte Zugriffsanfragen.",
-    "guildIdLabel": "Community-ID",
-    "guildIdPlaceholder": "z. B. 42",
+    "communityIdLabel": "Community-ID",
+    "communityIdPlaceholder": "z. B. 42",
     "levelNone": "Keiner",
     "nothingAsked": "Wähle Zugriff auf Inhalte, auf Einstellungen oder beides.",
     "levelRead": "Nur Lesen",
@@ -965,14 +996,14 @@
       "integrations": "Integrationen"
     }
   },
-  "appServices": {
-    "platformOnly": "Nur Plattform-Eigentümer können App-Dienste verwalten.",
-    "loading": "App-Dienste werden geladen…",
-    "loadError": "App-Dienste konnten nicht geladen werden.",
-    "title": "App-Dienste",
-    "description": "Die Apps, die diese Instanz ausführt. Das Listing einer App sagt, was sie ist und darf; hier gibst du an, wo sie antwortet und mit welchen Schlüsseln sie signiert.",
-    "empty": "Noch keine App-Dienste. Eine App erscheint hier, sobald ihr Listing eintrifft oder du sie hinzufügst.",
-    "addService": "App-Dienst hinzufügen",
+  "pluginServices": {
+    "platformOnly": "Nur Plattform-Eigentümer können Plug-in-Dienste verwalten.",
+    "loading": "Plug-in-Dienste werden geladen…",
+    "loadError": "Plug-in-Dienste konnten nicht geladen werden.",
+    "title": "Plug-in-Dienste",
+    "description": "Die Plug-ins, die diese Instanz ausführt. Das Listing eines Plug-ins sagt, was es ist und darf; hier gibst du an, wo es antwortet und mit welchen Schlüsseln es signiert.",
+    "empty": "Noch keine Plug-in-Dienste. Ein Plug-in erscheint hier, sobald sein Listing eintrifft oder du es hinzufügst.",
+    "addService": "Plug-in-Dienst hinzufügen",
     "edit": "Bearbeiten",
     "delete": "Löschen",
     "cancel": "Abbrechen",
@@ -983,44 +1014,45 @@
     "notLiveBadge": "Nicht aktiv",
     "registryBadge": "Aus der Registry",
     "imageSummary": "Container-Image: {{image}}",
-    "needsAddress": "Läuft als Container. Bearbeite sie und gib die Adresse an, unter der du sie betreibst, damit sie aktiv wird.",
+    "declarativeSummary": "Initiative führt die Aufrufe dieses Plug-ins selbst aus. Es braucht keine Adresse und keine Schlüssel, nur seine Anbieterwerte.",
+    "needsAddress": "Läuft als Container. Bearbeite es und gib die Adresse an, unter der du es betreibst, damit es aktiv wird.",
     "publisherSummary": "Herausgeber: {{name}}",
     "listingSummary": "Listing:",
-    "noListing": "Wartet auf ihr Listing",
-    "scopeCeilingSummary": "Berechtigungsbereiche, aus ihrem Listing: {{scopes}}",
+    "noListing": "Wartet auf sein Listing",
+    "scopeCeilingSummary": "Berechtigungsbereiche, aus seinem Listing: {{scopes}}",
     "allowedOriginsSummary": "Erlaubte Herkünfte: {{origins}}",
     "disabledBadge": "Deaktiviert",
-    "disabledHelp": "Diese App ist für jede Community gestoppt, die sie installiert hat. Es wurde nichts gelöscht.",
+    "disabledHelp": "Dieses Plug-in ist für jede Community gestoppt, die es installiert hat. Es wurde nichts gelöscht.",
     "publisherDisabledBadge": "Herausgeber abgeschaltet",
-    "publisherDisabledHelp": "Jede App von {{name}} ist gestoppt, weil ihr Herausgeber abgeschaltet ist. Es wurde nichts gelöscht.",
+    "publisherDisabledHelp": "Jedes Plug-in von {{name}} ist gestoppt, weil sein Herausgeber abgeschaltet ist. Es wurde nichts gelöscht.",
     "noKeysHelp": "Nicht aktiv, solange Signaturschlüssel fehlen. Bearbeite die Registrierung, um einen Schlüsselsatz einzufügen oder seine Adresse anzugeben.",
     "mandatoryBadge": "In jeder Community",
-    "mandatoryHelp": "Wird automatisch in jeder Community installiert. Community-Administratorinnen und -administratoren können sie weder entfernen noch abschalten.",
+    "mandatoryHelp": "Wird automatisch in jeder Community installiert. Community-Administratorinnen und -administratoren können es weder entfernen noch abschalten.",
     "keysTitle": "Signaturschlüssel",
-    "keysHelp": "Die öffentlichen Schlüssel, mit denen diese App ihre Nachweise für Zugriffstoken signiert. Die App ist erst aktiv, wenn sie einen eingefügten Schlüsselsatz oder eine Schlüsselsatz-Adresse hat. Beides ist auch möglich.",
+    "keysHelp": "Die öffentlichen Schlüssel, mit denen dieses Plug-in seine Nachweise für Zugriffstoken signiert. Das Plug-in ist erst aktiv, wenn es einen eingefügten Schlüsselsatz oder eine Schlüsselsatz-Adresse hat. Beides ist auch möglich.",
     "jwksLabel": "Eingefügter Schlüsselsatz (JWKS)",
-    "jwksHelp": "Füge den Schlüsselsatz ein, den die App veröffentlicht, oder lies ihn bei einer gespeicherten App mit „Verbinden“ direkt von der App. Zwei Einträge bedeuten, dass gerade rotiert wird. Ein leeres Feld entfernt ihn.",
+    "jwksHelp": "Füge den Schlüsselsatz ein, den das Plug-in veröffentlicht, oder lies ihn bei einem gespeicherten Plug-in mit „Verbinden“ direkt vom Plug-in. Zwei Einträge bedeuten, dass gerade rotiert wird. Ein leeres Feld entfernt ihn.",
     "jwksInvalid": "Das ist kein gültiges JSON.",
     "jwksUriLabel": "Schlüsselsatz-Adresse",
     "jwksUriPlaceholder": "https://github-app.example.com/.well-known/jwks.json",
-    "jwksUriHelp": "Wo die App ihren Schlüsselsatz veröffentlicht, damit eine Schlüsselrotation hier keine Änderung braucht. Sie muss https sein und auf demselben Origin wie die Basis-URL liegen; jede andere Adresse lehnt der Server ab. Ein leeres Feld entfernt sie.",
+    "jwksUriHelp": "Wo das Plug-in seinen Schlüsselsatz veröffentlicht, damit eine Schlüsselrotation hier keine Änderung braucht. Die Adresse muss https sein und auf demselben Origin wie die Basis-URL liegen; jede andere Adresse lehnt der Server ab. Ein leeres Feld entfernt sie.",
     "connect": "Verbinden",
     "connectReading": "Schlüssel werden gelesen…",
-    "connectHelp": "Liest den Schlüsselsatz, den die App unter ihrer gespeicherten Basis-URL bereitstellt, und hinterlegt ihn anstelle einer Schlüsselsatz-Adresse, sobald du seine Fingerabdrücke bestätigst.",
+    "connectHelp": "Liest den Schlüsselsatz, den das Plug-in unter seiner gespeicherten Basis-URL bereitstellt, und hinterlegt ihn anstelle einer Schlüsselsatz-Adresse, sobald du dessen Fingerabdrücke bestätigst.",
     "connectSaveFirst": "Speichere die neue Basis-URL und verbinde dann.",
-    "connectKeysTitle": "Schlüssel, die die App bereitstellt",
-    "connectKeysHelp": "Vergleiche jeden Fingerabdruck mit dem, den der Container der App beim Start protokolliert (app key fingerprint: …). Hinterlege sie nur, wenn sie übereinstimmen.",
+    "connectKeysTitle": "Schlüssel, die das Plug-in bereitstellt",
+    "connectKeysHelp": "Vergleiche jeden Fingerabdruck mit dem, den der Container des Plug-ins beim Start protokolliert (app key fingerprint: …). Hinterlege sie nur, wenn sie übereinstimmen.",
     "connectKid": "Schlüssel-ID: {{kid}}",
     "connectConfirm": "Diese Schlüssel hinterlegen",
     "connectPinning": "Wird hinterlegt…",
     "connectDismiss": "Nicht hinterlegen",
-    "connected": "Schlüssel hinterlegt. Einen neuen Schlüsselsatz der App übernimmt Initiative erst, wenn du erneut verbindest.",
-    "connectError": "Die Schlüssel der App konnten nicht gelesen werden.",
+    "connected": "Schlüssel hinterlegt. Einen neuen Schlüsselsatz des Plug-ins übernimmt Initiative erst, wenn du erneut verbindest.",
+    "connectError": "Die Schlüssel des Plug-ins konnten nicht gelesen werden.",
     "vendorTitle": "Anbieter-Client",
-    "vendorHelp": "Was der Anbieter dieser App für diesen Server ausgestellt hat. Initiative verbindet damit Communities und Mitglieder mit dem Anbieter. Ein Geheimnis wird nach dem Speichern nie wieder angezeigt; gib ein neues ein, um es zu ersetzen.",
+    "vendorHelp": "Was der Anbieter dieses Plug-ins für diesen Server ausgestellt hat. Initiative verbindet damit Communities und Mitglieder mit dem Anbieter. Ein Geheimnis wird nach dem Speichern nie wieder angezeigt; gib ein neues ein, um es zu ersetzen.",
     "vendorSecretSet": "Gesetzt. Zum Ersetzen neu eingeben.",
     "vendorEmpty": "Nicht gesetzt",
-    "vendorMissingHelp": "Nicht aktiv, solange der Anbieter-Client fehlt. Bearbeite die Registrierung und trage die Werte ein, die die App verlangt.",
+    "vendorMissingHelp": "Nicht aktiv, solange der Anbieter-Client fehlt. Bearbeite die Registrierung und trage die Werte ein, die das Plug-in verlangt.",
     "redirectTitle": "Adressen für den Anbieter",
     "redirectHelp": "Trage diese Adressen in den Einstellungen dieses Clients beim Anbieter ein. Er schickt Personen an die Rückruf- und die Einrichtungs-Adresse zurück und seine Webhooks an die Webhook-Adresse.",
     "callbackUrlLabel": "Rückruf-Adresse",
@@ -1031,7 +1063,7 @@
     "composeCopied": "Compose-Dienst kopiert.",
     "composeHelp": "Füge diesen Dienst der docker-compose.yml hinzu, mit der Initiative läuft, und führe dann docker compose up -d aus. Die Basis-URL unten ist die Adresse, unter der er im Compose-Netzwerk antwortet.",
     "vendorSetupTitle": "GitHub App erstellen",
-    "vendorSetupHelp": "GitHub öffnet sich mit den Berechtigungen und Ereignissen dieser App und den Adressen von Initiative. Bestätige dort, und GitHub schickt die Werte der neuen App hierher zurück, sodass du keinen davon tippen oder kopieren musst.",
+    "vendorSetupHelp": "GitHub öffnet sich mit den Berechtigungen und Ereignissen dieses Plug-ins und den Adressen von Initiative. Bestätige dort, und GitHub schickt die Werte der neuen App hierher zurück, sodass du keinen davon tippen oder kopieren musst.",
     "vendorSetupOrganizationLabel": "GitHub-Organisation",
     "vendorSetupOrganizationPlaceholder": "Optional",
     "vendorSetupOrganizationHelp": "Die Organisation, der die neue App gehört. Leer lassen, um sie unter deinem eigenen GitHub-Konto zu erstellen.",
@@ -1041,54 +1073,54 @@
     "vendorSetupFinishing": "Die Werte der GitHub App werden gespeichert…",
     "vendorSetupDone": "GitHub App erstellt. Ihre Werte sind gespeichert.",
     "vendorSetupFailed": "Die Werte der GitHub App konnten nicht gespeichert werden.",
-    "vendorSetupBack": "Zurück zu den App-Diensten",
-    "createTitle": "App-Dienst hinzufügen",
-    "editTitle": "App-Dienst bearbeiten",
-    "createDescription": "Gib einer App ihre Adresse und Schlüssel, bevor ihr Listing eintrifft. Was sie ist und darf, kommt aus ihrem Listing. Sie ist aktiv, sobald sie Signaturschlüssel hat.",
-    "editDescription": "Änderungen gelten für jede Community, die diese App installiert hat.",
-    "publicIdLabel": "App-Kennung",
-    "publicIdPlaceholder": "herausgeber.app-name",
-    "publicIdHelp": "Geschrieben als herausgeber.app-name, in Kleinbuchstaben. Der Teil vor dem Punkt ist der Herausgeber der App.",
+    "vendorSetupBack": "Zurück zu den Plug-in-Diensten",
+    "createTitle": "Plug-in-Dienst hinzufügen",
+    "editTitle": "Plug-in-Dienst bearbeiten",
+    "createDescription": "Gib einem Plug-in seine Adresse und Schlüssel, bevor sein Listing eintrifft. Was es ist und darf, kommt aus seinem Listing. Es ist aktiv, sobald es Signaturschlüssel hat.",
+    "editDescription": "Änderungen gelten für jede Community, die dieses Plug-in installiert hat.",
+    "publicIdLabel": "Plug-in-Kennung",
+    "publicIdPlaceholder": "publisher.plugin-name",
+    "publicIdHelp": "Geschrieben als publisher.plugin-name, in Kleinbuchstaben. Der Teil vor dem Punkt ist der Herausgeber des Plug-ins.",
     "publicIdHelpEdit": "Die Kennung lässt sich nach dem Anlegen der Registrierung nicht mehr ändern.",
     "baseUrlLabel": "Basis-URL",
     "baseUrlPlaceholder": "http://initiative-github:8080",
-    "baseUrlHelp": "Wohin der Server von Initiative die App ruft. Das darf eine private Adresse im eigenen Netz sein.",
+    "baseUrlHelp": "Wo der Server von Initiative das Plug-in aufruft. Das darf eine private Adresse im eigenen Netz sein.",
     "embedOriginLabel": "Browser-Adresse",
     "embedOriginPlaceholder": "https://github-app.example.com",
-    "embedOriginHelp": "Wo der Browser eines Mitglieds die eingebetteten Oberflächen und Verbindungsseiten dieser App lädt. Leer lassen, wenn die App für beides unter der Basis-URL antwortet.",
+    "embedOriginHelp": "Wo der Browser eines Mitglieds die eingebetteten Oberflächen und Verbindungsseiten dieses Plug-ins lädt. Leer lassen, wenn das Plug-in für beides unter der Basis-URL antwortet.",
     "embedOriginSummary": "Browser: {{origin}}",
     "allowedOriginsLabel": "Erlaubte Herkünfte",
     "allowedOriginsPlaceholder": "https://app.example.com",
     "allowedOriginsHelp": "Eine pro Zeile. Leer lassen, um nur die Herkunft der Browser-Adresse zu erlauben.",
     "allowedOriginsHelpEdit": "Eine pro Zeile. Leer lassen, um die aktuellen Herkünfte beizubehalten.",
     "mandatoryLabel": "In jeder Community installieren",
-    "created": "App-Dienst registriert.",
-    "saved": "App-Dienst aktualisiert.",
-    "deleted": "App-Dienst gelöscht.",
+    "created": "Plug-in-Dienst registriert.",
+    "saved": "Plug-in-Dienst aktualisiert.",
+    "deleted": "Plug-in-Dienst gelöscht.",
     "enabledToast": "{{name}} ist wieder aktiv.",
     "disabledToast": "{{name}} ist deaktiviert.",
-    "saveError": "Der App-Dienst konnte nicht gespeichert werden.",
-    "deleteError": "Der App-Dienst konnte nicht gelöscht werden.",
-    "toggleError": "Der App-Dienst konnte nicht geändert werden.",
+    "saveError": "Der Plug-in-Dienst konnte nicht gespeichert werden.",
+    "deleteError": "Der Plug-in-Dienst konnte nicht gelöscht werden.",
+    "toggleError": "Der Plug-in-Dienst konnte nicht geändert werden.",
     "disableTitle": "{{name}} deaktivieren?",
-    "disableDescription": "Jede Community, die diese App installiert hat, erreicht sie sofort nicht mehr – Daten, Konfiguration, Ereignisse und eingebettete Seiten werden abgelehnt. Es wird nichts gelöscht, und du kannst sie jederzeit wieder einschalten.",
-    "disableConfirm": "App-Dienst deaktivieren",
+    "disableDescription": "Jede Community, die dieses Plug-in installiert hat, erreicht es sofort nicht mehr – Daten, Konfiguration, Ereignisse und eingebettete Seiten werden abgelehnt. Es wird nichts gelöscht, und du kannst es jederzeit wieder einschalten.",
+    "disableConfirm": "Plug-in-Dienst deaktivieren",
     "deleteTitle": "{{name}} löschen?",
-    "deleteDescription": "Die Registrierung wird endgültig entfernt. Jede Community, die diese App installiert hat, erreicht sie nicht mehr, und für ein erneutes Hinzufügen musst du sie noch einmal registrieren.",
-    "deleteConfirmLabel": "Zum Bestätigen die App-Kennung eingeben"
+    "deleteDescription": "Die Registrierung wird endgültig entfernt. Jede Community, die dieses Plug-in installiert hat, erreicht es nicht mehr, und für ein erneutes Hinzufügen musst du es noch einmal registrieren.",
+    "deleteConfirmLabel": "Zum Bestätigen die Plug-in-Kennung eingeben"
   },
   "operatorDashboard": {
     "title": "Operator-Dashboard",
     "tabs": {
       "users": "Benutzer",
       "access": "Zugriff",
-      "guilds": "Communitys",
+      "communities": "Communitys",
       "placement": "Zuordnung bei Anmeldung",
-      "announcements": "Ankündigungen"
+      "announcements": "Ankündigungen",
+      "billing": "Abrechnung"
     }
   },
   "providerPlacement": {
-    "title": "Zuordnung bei Anmeldung",
     "description": "Ordne die Leute, die ein Anmeldeanbieter anmeldet – nach der Gruppe oder dem Verzeichnis, das er meldet –, einer Community zu, und dort einer Initiative, wenn du eine nennst.",
     "loading": "Zuordnungsregeln werden geladen…",
     "loadError": "Zuordnungsregeln konnten nicht geladen werden. Bitte versuche es erneut.",
@@ -1156,10 +1188,10 @@
       "agreed": "Für {{community}} zugestimmt"
     }
   },
-  "guilds": {
+  "communities": {
     "title": "Community-Limits",
     "description": "Lege pro Community Obergrenzen für Speicher und Benutzeranzahl fest. Ein Limit unter die aktuelle Nutzung zu senken, blockiert neue Uploads oder Mitglieder, entfernt aber nie vorhandene Dateien oder Mitglieder.",
-    "platformOnly": "Du benötigst die Plattform-Eigentümerrolle, um Community-Limits zu verwalten.",
+    "platformOnly": "Du benötigst die Operator- oder Eigentümerrolle, um Community-Limits zu verwalten.",
     "loading": "Communitys werden geladen…",
     "loadError": "Communitys konnten nicht geladen werden. Bitte versuche es erneut.",
     "filterByName": "Communitys nach Namen filtern",
@@ -1190,7 +1222,7 @@
     },
     "columns": {
       "id": "ID",
-      "guild": "Community",
+      "community": "Community",
       "users": "Benutzer",
       "storageLimit": "Speicherlimit",
       "status": "Status",
@@ -1200,8 +1232,6 @@
       "noPlan": "Kein Tarif",
       "openLabel": "Abrechnung für {{name}} öffnen",
       "openError": "Das Abrechnungsportal konnte nicht geöffnet werden.",
-      "operatorLabel": "Abrechnungsvorgänge für {{name}}",
-      "operations": "Vorgänge",
       "factor": {
         "title": "Bestätige, dass du es bist",
         "description": "Wenn du die Abrechnung für {{name}} öffnest, erhältst du eine Abrechnungsfreigabe. Gib einen Code aus deiner Authenticator-App oder einen Wiederherstellungscode ein.",
@@ -1253,7 +1283,7 @@
       "open": "Community wiederherstellen",
       "purgesOn": "Gelöscht. Alle Inhalte werden am {{date}} endgültig entfernt.",
       "purgesSoon": "Gelöscht. Alle Inhalte werden am Ende der Aufbewahrungsfrist endgültig entfernt.",
-      "retained": "Bis dahin wurde nichts entfernt — beim Wiederherstellen kommt die Community genau so zurück, wie sie war, bis auf ihre App-Verbindungen.",
+      "retained": "Bis dahin wurde nichts entfernt — beim Wiederherstellen kommt die Community genau so zurück, wie sie war, bis auf ihre Plug-in-Verbindungen.",
       "title": "{{name}} wiederherstellen",
       "seatDescription": "Es ist niemand mehr da, der diese Community leiten kann. Wählen Sie, wer sie übernimmt.",
       "seatLabel": "Wer leitet sie",
@@ -1262,7 +1292,7 @@
       "seatHelp": "Die Person wird Superadmin: der Sitz, der andere ernennt, die Abrechnung erreicht und die Anmeldung festlegt.",
       "statusDescription": "Wählen Sie, in welchem Zustand die Community zurückkommt.",
       "statusLabel": "Kommt zurück als",
-      "appsNote": "Die App-Verbindungen wurden beim Löschen beendet und kommen nicht zurück. Die Admins können sie neu verbinden.",
+      "pluginsNote": "Die Plug-in-Verbindungen wurden beim Löschen beendet und kommen nicht zurück. Die Admins können sie neu verbinden.",
       "confirm": "Wiederherstellen",
       "done": "{{name}} wiederhergestellt.",
       "error": "Die Community konnte nicht wiederhergestellt werden. Bitte erneut versuchen."
@@ -1273,7 +1303,7 @@
     "loading": "Speichereinstellungen werden geladen…",
     "loadError": "Speichereinstellungen konnten nicht geladen werden.",
     "title": "Objektspeicher",
-    "description": "Lege fest, wo hochgeladene Dateien (Dokumente, Anhänge) gespeichert werden. Standard ist das lokale Dateisystem; wechsle zu einem S3-kompatiblen Speicher für skalierbare oder geteilte Deployments.",
+    "description": "Lege fest, wo hochgeladene Dateien und Anhänge gespeichert werden. Standard ist das lokale Dateisystem; wechsle zu einem S3-kompatiblen Speicher für skalierbare oder geteilte Deployments.",
     "backendLabel": "Speicher-Backend",
     "backendLocal": "Lokales Dateisystem",
     "backendS3": "S3-kompatibel",
@@ -1317,7 +1347,7 @@
       "failed": "Fehlgeschlagen"
     }
   },
-  "guildAuth": {
+  "communityAuth": {
     "shareUrl": {
       "title": "Anmeldelink für Mitglieder",
       "description": "Teile diesen Link mit Mitgliedern — er bietet die Anmeldeanbieter dieser Community an und führt sie direkt in die Community.",
@@ -1348,15 +1378,6 @@
       "requirePasskey": "Zusätzlich einen Passkey verlangen",
       "requirePasskeyHelp": "Mitglieder müssen sich in dieser Sitzung mit einem Passkey angemeldet oder einen vorgelegt haben. Sie können ihn ohne Abmelden nachreichen.",
       "factorRequiredByPlatform": "Dein Server verlangt bereits von allen einen zweiten Faktor — hier gibt es nichts hinzuzufügen."
-    },
-    "apiAccess": {
-      "title": "API-Zugriff",
-      "description": "Ob ein persönlicher API-Schlüssel für diese Community verwendet werden darf.",
-      "allowLabel": "Persönliche API-Schlüssel erlauben",
-      "allowHelp": "Mitglieder können einen Schlüssel erstellen und ihn hier verwenden — für Skripte, Integrationen und MCP-Clients.",
-      "blockedHelp": "Für diese Community lässt sich kein Schlüssel erstellen, und ein bereits erstellter erreicht sie nicht mehr. Ihre Schlüssel für andere Communities behalten Mitglieder.",
-      "saved": "API-Zugriff gespeichert",
-      "error": "API-Zugriff konnte nicht gespeichert werden"
     },
     "sessionLimit": {
       "title": "Sitzungsdauer",
@@ -1601,7 +1622,7 @@
     "newTitle": "Neue Verbindung",
     "editTitle": "Verbindung bearbeiten",
     "platformDialogDescription": "Jede Community kann diese Verbindung verwenden.",
-    "guildDialogDescription": "Mitglieder dieser Community können diese Verbindung verwenden.",
+    "communityDialogDescription": "Mitglieder dieser Community können diese Verbindung verwenden.",
     "labelLabel": "Bezeichnung",
     "labelPlaceholder": "z. B. Team OpenAI",
     "apiKeyPlaceholderExisting": "••••••••",
@@ -1624,10 +1645,9 @@
     "allowMemberKeysDescription": "Mitglieder können dieser Verbindung einen persönlichen API-Schlüssel hinzufügen."
   },
   "memberAI": {
-    "title": "Meine KI",
     "description": "Sieh alle KI-Verbindungen, die dir in deinen Communitys zur Verfügung stehen. Füge dort, wo es erlaubt ist, deinen eigenen API-Schlüssel hinzu und wähle die Verbindung, die du verwendest.",
     "noneAvailable": "Dir sind noch keine KI-Verbindungen verfügbar.",
-    "sharedKeyGuild": "Verwendet einen gemeinsamen Schlüssel, den die Community-Administration festgelegt hat.",
+    "sharedKeyCommunity": "Verwendet einen gemeinsamen Schlüssel, den die Community-Administration festgelegt hat.",
     "sharedKeyPlatform": "Verwendet einen gemeinsamen Schlüssel, den die Person festgelegt hat, die diesen Server betreibt.",
     "selected": "In Verwendung",
     "requiresKey": "Benötigt deinen Schlüssel",
@@ -1656,10 +1676,10 @@
     "disabledToast": "Das Community-Verzeichnis ist deaktiviert.",
     "saveError": "Das Community-Verzeichnis konnte nicht geändert werden. Bitte versuche es erneut.",
     "platformOnly": "Du benötigst die Plattform-Eigentümerrolle, um ein Community-Verzeichnis zu betreiben.",
-    "ageGateLabel": "Mitglieder bestätigen lassen, dass sie mindestens 16 sind",
-    "ageGateHelpText": "Solange dies aktiv ist, wird jede Person, die über das Verzeichnis einer gelisteten Community beitritt, einmal um eine Altersbestätigung gebeten; die Antwort bleibt an ihrem Konto. Nur dieser Beitritt ist davon betroffen – Communitys mit Einladung fragen nie. Nur dort deaktivieren, wo bereits feststeht, dass jedes Konto einer erwachsenen Person gehört.",
+    "ageGateLabel": "Alter der Mitglieder prüfen",
+    "ageGateHelpText": "Solange dies aktiv ist, fragt die Registrierung nach dem Geburtsdatum und weist alle ab, die jünger sind als das Mindestalter für ein Konto in ihrem Land. Auch der Beitritt zu einer gelisteten Community über das Verzeichnis, Direktnachrichten und Plug-ins mit Mindestalter brauchen diese Antwort. Communitys mit Einladung fragen nie. Nur dort deaktivieren, wo bereits feststeht, dass jedes Konto einer erwachsenen Person gehört.",
     "ageGateOffTitle": "Nicht mehr nach dem Alter fragen?",
-    "ageGateOffBody": "Das Deaktivieren erklärt, dass jedes Konto dieser Installation einer Person ab 18 Jahren gehört. Beim Beitritt zu einer gelisteten Community wird niemand mehr um eine Altersbestätigung gebeten.",
+    "ageGateOffBody": "Das Deaktivieren erklärt, dass jedes Konto dieser Installation einer Person ab 18 Jahren gehört. Niemand wird mehr nach dem Alter gefragt, und Plug-ins mit Mindestalter stehen allen offen.",
     "ageGateOffConfirm": "Hier sind alle mindestens 18",
     "defaultDmLabel": "Direktnachrichten für neue Konten",
     "defaultDmHelpText": "Die Einstellung, mit der ein Konto startet. Sie wird einmal gelesen, wenn das Konto erstellt wird – eine Änderung öffnet kein bestehendes Konto und schließt auch keines. „Privat“ ist die Voreinstellung; damit werden Personen nach und nach erreichbar, sobald sie es selbst wählen.",
@@ -1709,12 +1729,9 @@
     }
   },
   "account": {
-    "identityTitle": "Deine Anmeldung",
-    "identityDescription": "Dein Name, deine Adresse, dein Handle und die Uhr, nach der du lebst.",
     "passwordTitle": "Passwort",
     "passwordDescription": "Hier änderst du es. Auf diesem Gerät bleibst du angemeldet.",
     "passwordsOffDescription": "Die Anmeldung per Passwort ist auf diesem Server ausgeschaltet, daher kannst du hier kein Passwort festlegen oder ändern.",
-    "fullNameHelp": "Nur Communitys, die Klarnamen anzeigen, verwenden ihn. Überall sonst bist du dein Handle.",
     "setPasswordTitle": "Passwort festlegen",
     "setPasswordDescription": "Dein Konto meldet sich ohne Passwort an. Lege hier eines fest, um einen weiteren Zugangsweg zu haben.",
     "removePassword": "Passwort entfernen",
@@ -1723,7 +1740,9 @@
     "removePasswordBody": "Ab jetzt meldet dich dein Passkey an, und auf allen anderen Geräten wirst du abgemeldet. Sollte dein Passkey je verloren gehen, legst du mit einem Wiederherstellungscode ein neues Passwort fest. Wenn du weniger als drei Codes hast, bekommst du einen neuen Satz angezeigt – bewahre ihn auf.",
     "removePasswordCodes": "Bewahre diese Codes sicher auf. Sollte dein Passkey je verloren gehen, legst du mit einem Wiederherstellungscode ein neues Passwort fest. Jeder Code funktioniert einmal, und du siehst sie nicht noch einmal. Alle Codes, die du vorher hattest, funktionieren nicht mehr.",
     "passwordRemoved": "Dein Passwort wurde entfernt.",
-    "removePasswordError": "Dein Passwort konnte nicht entfernt werden."
+    "removePasswordError": "Dein Passwort konnte nicht entfernt werden.",
+    "passwordSaved": "Passwort gespeichert",
+    "changePassword": "Passwort ändern"
   },
   "privacy": {
     "dm": {
@@ -1743,7 +1762,6 @@
       "platformDisabled": "Diese Installation bietet keine Direktnachrichten, daher gibt es hier nichts einzustellen. Wird die Funktion wieder aktiviert, sind die bisherige Regel und die Listen wieder da."
     },
     "receipts": {
-      "title": "Lesebestätigungen",
       "label": "Anderen zeigen, wenn ihre Nachrichten dich erreichen",
       "help": "Sie sehen, wann eine Nachricht auf einem deiner Geräte angekommen ist und wann du sie gelesen hast. Wenn du das ausschaltest, sehen sie beides nicht – genau wie bei jemandem, der die App nicht geöffnet hat. Ihre siehst du weiterhin."
     },
@@ -1891,7 +1909,6 @@
     "valuesHint": "Mehrere durch Kommas trennen. Die eigene Verbindung einer Community ersetzt dies vollständig; nichts hiervon wird mit ihren Angaben zusammengeführt."
   },
   "platformSecurity": {
-    "title": "Sicherheit",
     "description": "Wie lange jemand angemeldet bleiben darf, welches Captcha neuen Personen gestellt wird und was eine Benachrichtigung mitnimmt, wenn sie die App verlässt."
   },
   "notificationDelivery": {
@@ -1900,9 +1917,9 @@
     "saved": "Benachrichtigungseinstellungen gespeichert",
     "error": "Benachrichtigungseinstellungen konnten nicht gespeichert werden",
     "push": {
-      "label": "Mobile Benachrichtigungen",
-      "onHelp": "Benachrichtigungen erreichen Telefone über Apple und Google.",
-      "offHelp": "Dieser Server sendet nichts an ein Telefon und speichert keine Geräteregistrierungen."
+      "label": "Benachrichtigungen auf Telefon und Desktop",
+      "onHelp": "Benachrichtigungen erreichen Telefone über Apple und Google und die Desktop-App direkt.",
+      "offHelp": "Dieser Server sendet nichts an ein Telefon oder die Desktop-App und speichert keine Geräteregistrierungen."
     },
     "email": {
       "label": "E-Mail-Benachrichtigungen",
@@ -1915,16 +1932,16 @@
       "offHelp": "Eine Benachrichtigung, die die App verlässt, nennt, worum es geht: wer gehandelt hat und woran."
     }
   },
-  "guildNotifications": {
+  "communityNotifications": {
     "title": "Benachrichtigungen, die die App verlassen",
     "description": "Was die Benachrichtigungen dieser Community mitnehmen, wenn sie die App verlassen. Der Server beantwortet dieselben drei Fragen für alle; es gilt die strengere Antwort.",
     "saved": "Benachrichtigungseinstellungen gespeichert",
     "error": "Benachrichtigungseinstellungen konnten nicht gespeichert werden",
     "push": {
-      "label": "Mobile Benachrichtigungen",
-      "onHelp": "Die Benachrichtigungen dieser Community erreichen die Telefone der Mitglieder.",
-      "offHelp": "Zu dieser Community wird nichts an ein Telefon gesendet. Die Glocke bleibt, und E-Mail ebenfalls, falls sie aktiv ist.",
-      "platformHelp": "Dieser Server sendet nichts an ein Telefon – hier gibt es nichts zu entscheiden."
+      "label": "Benachrichtigungen auf Telefon und Desktop",
+      "onHelp": "Die Benachrichtigungen dieser Community erreichen die Telefone und Desktop-Apps der Mitglieder.",
+      "offHelp": "Zu dieser Community wird nichts an ein Telefon oder die Desktop-App gesendet. Die Glocke bleibt, und E-Mail ebenfalls, falls sie aktiv ist.",
+      "platformHelp": "Dieser Server sendet nichts an ein Telefon oder die Desktop-App – hier gibt es nichts zu entscheiden."
     },
     "email": {
       "label": "E-Mail-Benachrichtigungen",
@@ -1938,5 +1955,17 @@
       "offHelp": "Benachrichtigungen zu dieser Community nennen, worum es geht, sobald sie die App verlassen.",
       "platformHelp": "Dieser Server blendet Details überall aus – diese Community ist bereits abgedeckt."
     }
+  },
+  "billingInsights": {
+    "title": "Abrechnungskennzahlen",
+    "description": "Wie das Geschäft über alle Communities läuft: Umsatz, Abonnenten und Kündigungen.",
+    "fromPaddle": "Umsatz, wiederkehrender Umsatz, Erstattungen, Rückbuchungen und Abonnentenzahlen kommen direkt vom Zahlungsanbieter, so wie er sie berechnet hat.",
+    "fromBilling": "Communities nach Tarif, Testphasen, überfällige Zahlungen und Kündigungen kommen aus den eigenen Daten der Abrechnung.",
+    "noCommunity": "Es öffnet keine Community und braucht keine Zugriffsfreigabe: Nichts auf der Seite nennt eine Community, einen Kunden oder eine Person.",
+    "open": "Abrechnungskennzahlen öffnen",
+    "opening": "Wird geöffnet…",
+    "openError": "Die Abrechnungskennzahlen konnten nicht geöffnet werden.",
+    "notConfigured": "Diese Installation hat keinen Abrechnungsdienst oder keinen Signaturschlüssel für die Übergabe.",
+    "platformOnly": "Abrechnungskennzahlen sind für Plattformbetreiber und Eigentümer."
   }
 }

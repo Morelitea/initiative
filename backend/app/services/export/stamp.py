@@ -15,15 +15,15 @@ from dataclasses import replace
 from datetime import datetime, timezone
 from typing import Any
 
-from app.core.user_display import display_name
-from app.models.platform.user import User
 from app.services.export.contract import RenderRequest
 
 _STAMPED_FORMATS = frozenset({"pdf", "md", "docx", "xlsx"})
 
 
-def stamp_export(request: RenderRequest, user: User) -> RenderRequest:
-    """Return ``request`` with ``exported`` on every item rendered as a document."""
+def stamp_export(request: RenderRequest, by: str) -> RenderRequest:
+    """Return ``request`` with ``exported`` on every item rendered as a document,
+    naming ``by`` — the exporter as the community names them
+    (``user_display.name_here``)."""
     now = datetime.now(timezone.utc)
     exported: dict[str, Any] = {
         "date": {
@@ -35,9 +35,7 @@ def stamp_export(request: RenderRequest, user: User) -> RenderRequest:
             "second": now.second,
         }
     }
-    # Some OAuth-provisioned accounts carry no name at all.
-    if by := display_name(user):
-        exported["by"] = by
+    exported["by"] = by
     batch = tuple(
         replace(item, data={**item.data, "exported": exported})
         if (item.format or request.format) in _STAMPED_FORMATS

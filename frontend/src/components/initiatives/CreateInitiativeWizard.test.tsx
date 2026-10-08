@@ -8,14 +8,14 @@ import userEvent from "@testing-library/user-event";
 import { HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 
-import { buildGuild, buildInitiative } from "@/__tests__/factories";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { buildCommunity, buildInitiative } from "@/__tests__/factories";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 
 import { CreateInitiativeWizard } from "./CreateInitiativeWizard";
 
-vi.mock("@/lib/chesterToast", () => ({
+vi.mock("@/lib/mascotToast", () => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
 }));
 
@@ -27,11 +27,11 @@ function stubCreate() {
   const rolePatches: Record<string, unknown>[] = [];
   const patchedInitiatives: string[] = [];
   server.use(
-    guildHttp.post("/initiatives/", async ({ request }) => {
+    communityHttp.post("/initiatives/", async ({ request }) => {
       created.push((await request.json()) as Record<string, unknown>);
       return HttpResponse.json(buildInitiative({ id: 7, name: "Apollo" }), { status: 201 });
     }),
-    guildHttp.get("/initiatives/:id/roles", ({ params }) =>
+    communityHttp.get("/initiatives/:id/roles", ({ params }) =>
       // A roles lookup against an initiative that is not the one just created
       // is the bug, so answer it the way the server would: with nothing.
       String(params.id) === "7"
@@ -47,7 +47,7 @@ function stubCreate() {
           ])
         : new HttpResponse(null, { status: 404 })
     ),
-    guildHttp.patch("/initiatives/:id/roles/:roleId", async ({ request, params }) => {
+    communityHttp.patch("/initiatives/:id/roles/:roleId", async ({ request, params }) => {
       patchedInitiatives.push(String(params.id));
       rolePatches.push((await request.json()) as Record<string, unknown>);
       return HttpResponse.json({ id: 2 });
@@ -58,7 +58,10 @@ function stubCreate() {
 
 const renderWizard = () =>
   renderPage(() => <CreateInitiativeWizard open onOpenChange={() => {}} />, {
-    guilds: { activeGuildId: 1, activeGuild: buildGuild({ id: 1, role: "admin" }) },
+    communities: {
+      activeCommunityId: 1,
+      activeCommunity: buildCommunity({ id: 1, role: "admin" }),
+    },
   });
 
 const nameIt = async (name = "Apollo") => {
@@ -80,10 +83,10 @@ describe("CreateInitiativeWizard", () => {
     renderWizard();
     await nameIt();
 
-    // Projects and documents start ticked; turning both off leaves nowhere to
+    // Projects and files start ticked; turning both off leaves nowhere to
     // put anything, which is the one combination the wizard will not build.
     await userEvent.click(await screen.findByRole("switch", { name: /Projects/ }));
-    await userEvent.click(screen.getByRole("switch", { name: /Documents/ }));
+    await userEvent.click(screen.getByRole("switch", { name: /Files/ }));
 
     expect(screen.getByRole("button", { name: "Next: Membership" })).toBeDisabled();
     expect(screen.getByText(/needs somewhere to put things/i)).toBeInTheDocument();
@@ -104,7 +107,7 @@ describe("CreateInitiativeWizard", () => {
     expect(created[0]).toMatchObject({
       name: "Apollo",
       projects_enabled: true,
-      documents_enabled: true,
+      files_enabled: true,
       calendars_enabled: true,
       queues_enabled: false,
       galleries_enabled: false,
@@ -161,7 +164,7 @@ describe("CreateInitiativeWizard", () => {
     });
   });
 
-  it("takes projects and documents back off members for managers only", async () => {
+  it("takes projects and files back off members for managers only", async () => {
     const { rolePatches } = stubCreate();
     renderWizard();
     await nameIt();
@@ -171,15 +174,15 @@ describe("CreateInitiativeWizard", () => {
     await userEvent.click(screen.getByRole("button", { name: "Create initiative" }));
 
     // "Managers only" is a revoke, not a no-op: the built-in member role
-    // arrives already holding projects and documents, so writing nothing would
+    // arrives already holding projects and files, so writing nothing would
     // leave members able to see exactly what this answer says they cannot.
     await waitFor(() => expect(rolePatches).toHaveLength(1));
     expect(rolePatches[0]).toMatchObject({
       permissions: {
         projects_enabled: false,
-        documents_enabled: false,
+        files_enabled: false,
         create_projects: false,
-        create_documents: false,
+        create_files: false,
       },
     });
   });
@@ -200,7 +203,10 @@ describe("CreateInitiativeWizard", () => {
   it("explains what an initiative is when it is the community's first", async () => {
     stubCreate();
     renderPage(() => <CreateInitiativeWizard open isFirst onOpenChange={() => {}} />, {
-      guilds: { activeGuildId: 1, activeGuild: buildGuild({ id: 1, role: "admin" }) },
+      communities: {
+        activeCommunityId: 1,
+        activeCommunity: buildCommunity({ id: 1, role: "admin" }),
+      },
     });
 
     expect(await screen.findByText("Your first initiative")).toBeInTheDocument();
@@ -210,7 +216,7 @@ describe("CreateInitiativeWizard", () => {
     expect(more).toHaveAttribute("target", "_blank");
     expect(more).toHaveAttribute(
       "href",
-      "https://morelitea.github.io/initiative/en/guides/initiatives/"
+      "https://beyonders-studio.github.io/initiative/en/guides/initiatives/"
     );
   });
 

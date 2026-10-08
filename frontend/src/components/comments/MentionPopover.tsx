@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import type { SearchSuggestion, UserSummary } from "@/api/generated/initiativeAPI.schemas";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useInitiative } from "@/hooks/useInitiatives";
-import { useGuildPickerSuggestions } from "@/hooks/useSearch";
+import { useCommunityPickerSuggestions } from "@/hooks/useSearch";
 import { useInitiativeMemberSearch } from "@/hooks/useUsers";
 import { getInitials } from "@/lib/initials";
 import type { ActiveMention } from "@/lib/mentions";
@@ -30,7 +30,7 @@ interface MentionPopoverProps {
   /** The mention being typed — who or what, and how much of it. */
   active: ActiveMention;
   initiativeId: number;
-  /** The thing this comment is on, as a reference (`document:12`). Never
+  /** The thing this comment is on, as a reference (`file:12`). Never
    *  offered: a remark about something does not point back at it. */
   subject?: string | null;
   /** Pixel anchor (relative to the field) so the popover sits under the word
@@ -60,7 +60,7 @@ const memberRow = (member: UserSummary): Row => {
     // apart. Nothing to add when the line above already IS the handle.
     subtitle: handle === label ? null : handle,
     leading: (
-      <Avatar className="h-5 w-5 shrink-0 text-[10px]">
+      <Avatar className="h-5 w-5 shrink-0 text-3xs">
         {src ? <AvatarImage src={src} alt={label} /> : null}
         <AvatarFallback userId={member.id}>{getInitials(label)}</AvatarFallback>
       </Avatar>
@@ -110,7 +110,7 @@ export const MentionPopover = ({
   const positionClass = anchor ? "" : "top-full left-0 mt-1";
   const positionStyle = anchor ? { top: anchor.top, left: anchor.left } : undefined;
 
-  // A guild-level surface — a community calendar, say — belongs to no
+  // A community-level surface — a community calendar, say — belongs to no
   // initiative, so there is nothing initiative-scoped to offer.
   const inInitiative = initiativeId > 0;
   const members = useInitiativeMemberSearch(initiativeId, {
@@ -125,7 +125,7 @@ export const MentionPopover = ({
     : (active.types ?? MENTIONABLE_TYPES);
   // A bare trigger names nothing yet, so the list opens on what was most
   // recently worked on instead of on nothing at all.
-  const suggestions = useGuildPickerSuggestions(active.query, {
+  const suggestions = useCommunityPickerSuggestions(active.query, {
     types,
     initiative_id: initiativeId,
     // A mention points at work, not at the blueprint work is started from.

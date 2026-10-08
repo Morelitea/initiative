@@ -1,14 +1,8 @@
 {
-  "title": "Contadores",
-  "group": "Grupo de contadores",
-  "groups": "Grupos de contadores",
-  "counter": "Contador",
   "noGroups": "Aún no hay grupos de contadores",
   "noGroupsDescription": "Los grupos de contadores reúnen valores numéricos relacionados —como PG, munición o puntuaciones— que puedes incrementar, decrementar o ajustar directamente.",
   "createGroup": "Crear grupo de contadores",
-  "name": "Nombre",
   "namePlaceholder": "Introduce el nombre del grupo",
-  "description": "Descripción",
   "descriptionPlaceholder": "Descripción opcional",
   "initiative": "Iniciativa",
   "selectInitiative": "Selecciona una iniciativa",
@@ -31,7 +25,6 @@
   "viewModeRequiresBounds": "La barra de progreso y el reloj segmentado requieren mínimo y máximo.",
   "increment": "Incrementar",
   "decrement": "Decrementar",
-  "reset": "Restablecer",
   "resetAll": "Restablecer todo",
   "resetAllConfirm": "¿Restablecer cada contador de este grupo a su valor inicial?",
   "sort": "Ordenar",
@@ -41,12 +34,10 @@
   "sortCountDesc": "Valor (mayor→menor)",
   "noCounters": "No hay contadores en este grupo",
   "noCountersDescription": "Añade contadores para empezar a llevar el control de los valores.",
-  "reorder": "Reordenar",
   "dragToReorder": "Arrastra para reordenar",
   "switchToGridView": "Cambiar a vista de cuadrícula",
   "switchToRowView": "Cambiar a vista de lista",
   "more": "Más acciones",
-  "permissions": "Permisos",
   "error": "Algo salió mal",
   "loading": "Cargando contadores...",
   "loadError": "No se pudieron cargar los contadores.",
@@ -60,8 +51,6 @@
   "noAccessDescription": "No tienes permiso para ver este grupo de contadores.",
   "backToGroups": "Volver a los grupos de contadores",
   "backToGroup": "Volver al grupo",
-  "counterCount_one": "{{count}} contador",
-  "counterCount_other": "{{count}} contadores",
   "focus": {
     "openFocus": "Abrir pantalla completa",
     "exit": "Salir de la pantalla completa",
@@ -71,17 +60,9 @@
     "notFound": "Contador no encontrado en este grupo"
   },
   "createFirst": "Crea tu primer grupo de contadores",
-  "settings": "Configuración",
-  "details": "Detalles",
-  "access": "Acceso",
-  "advanced": "Avanzado",
-  "dangerZone": "Zona de peligro",
-  "dangerZoneDescription": "Acciones destructivas. Los grupos eliminados van a la papelera y se pueden restaurar antes de que finalice el período de retención.",
   "filters": {
-    "heading": "Filtros",
     "searchGroups": "Buscar grupos de contadores...",
     "searchLabel": "Nombre o descripción",
     "noMatchingGroups": "Ningún grupo de contadores coincide con tus filtros."
-  },
-  "tags": "Etiquetas"
+  }
 }

@@ -42,6 +42,7 @@ class FakeWebSocket:
     def __init__(self, frames: list[bytes], cookies: dict | None = None) -> None:
         self._frames = list(frames)
         self.cookies = cookies or {}
+        self.headers: dict[str, str] = {}
         self.accepted = False
         self.closed_with: int | None = None
         self.sent: list[dict] = []

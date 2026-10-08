@@ -37,9 +37,6 @@ class SharedResource:
     user_grant_count: int
     #: How many roles hold one.
     role_grant_count: int
-    #: True when a published dashboard is a grantee — the resource is readable
-    #: through it by whoever can read that.
-    via_dashboard: bool
 
 
 @lru_cache(maxsize=1)
@@ -137,7 +134,6 @@ async def initiative_sharing(
                 all_initiative_members=any(g.all_initiative_members for g in held),
                 user_grant_count=sum(1 for g in held if g.user_id is not None),
                 role_grant_count=sum(1 for g in held if g.role_id is not None),
-                via_dashboard=any(g.dashboard_id is not None for g in held),
             )
         )
     return resources

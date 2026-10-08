@@ -18,9 +18,8 @@ interface BulkAccessBarProps {
 }
 
 /**
- * The toolbar shown above a list while items are selected — a count and an
- * "Edit access" action. Mirrors the documents bulk toolbar so every list feels
- * the same.
+ * The toolbar shown above a list while items are selected — a count, the
+ * page's own actions, and an "Edit access" action.
  */
 export function BulkAccessBar({
   count,

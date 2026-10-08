@@ -51,7 +51,7 @@ const MIN_WIDTH_FOR_CAPTION = 8;
  * why "now" rides in on the node instead of being read from this side's clock.
  */
 export function TimelineNode({ node }: { node: Node }) {
-  const { t, i18n } = useTranslation("dashboards");
+  const { t, i18n } = useTranslation(["dashboards", "common"]);
   const locale = i18n.language;
 
   const weekStart = useMemo(() => weekStartDay(locale), [locale]);
@@ -181,7 +181,7 @@ export function TimelineNode({ node }: { node: Node }) {
           {major.segments.map((segment) => (
             <div
               key={segment.at}
-              className="absolute top-0 h-4 truncate border-l px-1 font-medium text-[10px] text-muted-foreground leading-4"
+              className="absolute top-0 h-4 truncate border-l px-1 font-medium text-3xs text-muted-foreground leading-4"
               style={{
                 left: `${at(segment.start)}%`,
                 width: `${at(segment.end) - at(segment.start)}%`,
@@ -193,7 +193,7 @@ export function TimelineNode({ node }: { node: Node }) {
           {ticks.map((tick) => (
             <div
               key={tick.at}
-              className="absolute bottom-1 truncate px-1 text-[10px] text-muted-foreground"
+              className="absolute bottom-1 truncate px-1 text-3xs text-muted-foreground"
               style={{ left: `${at(tick.at)}%` }}
             >
               {tickLabel(tick)}
@@ -201,10 +201,10 @@ export function TimelineNode({ node }: { node: Node }) {
           ))}
           {nowAt !== undefined && (
             <div
-              className="absolute bottom-0 -translate-x-1/2 whitespace-nowrap rounded-sm bg-primary px-1 font-medium text-[9px] text-primary-foreground leading-4"
+              className="absolute bottom-0 -translate-x-1/2 whitespace-nowrap rounded-sm bg-primary px-1 font-medium text-3xs text-primary-foreground leading-4"
               style={{ left: `${nowAt}%` }}
             >
-              {t("timeline.today")}
+              {t("common:calendar.today")}
             </div>
           )}
         </div>
@@ -331,7 +331,7 @@ function LaneRow({ row, range, onToggle, formatDate, focused, onFocus }: LaneRow
             {label}
           </span>
           {lane.caption && (
-            <span className="shrink-0 text-[10px] text-muted-foreground tabular-nums">
+            <span className="shrink-0 text-3xs text-muted-foreground tabular-nums">
               {lane.caption}
             </span>
           )}
@@ -392,7 +392,7 @@ function SpanMark({ span, range, formatDate }: SpanMarkProps) {
         />
         {span.label && (
           <span
-            className="absolute top-1/2 -translate-y-1/2 whitespace-nowrap pl-2 text-[10px] text-muted-foreground"
+            className="absolute top-1/2 -translate-y-1/2 whitespace-nowrap pl-2 text-3xs text-muted-foreground"
             style={{ left: `${left}%` }}
           >
             {span.label}
@@ -429,7 +429,7 @@ function SpanMark({ span, range, formatDate }: SpanMarkProps) {
         </div>
         {showBeside && (
           <span
-            className="absolute top-1/2 -translate-y-1/2 whitespace-nowrap pl-1.5 font-medium text-[10px] text-muted-foreground tabular-nums"
+            className="absolute top-1/2 -translate-y-1/2 whitespace-nowrap pl-1.5 font-medium text-3xs text-muted-foreground tabular-nums"
             style={{ left: `${right}%` }}
           >
             {beside}
@@ -474,7 +474,7 @@ function SpanMark({ span, range, formatDate }: SpanMarkProps) {
       {showBeside && (
         <span
           className={cn(
-            "absolute top-1/2 -translate-y-1/2 whitespace-nowrap pl-1.5 text-[10px] text-muted-foreground",
+            "absolute top-1/2 -translate-y-1/2 whitespace-nowrap pl-1.5 text-3xs text-muted-foreground",
             span.baseline && "-mt-1"
           )}
           style={{ left: `${right}%` }}

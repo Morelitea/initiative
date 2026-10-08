@@ -13,7 +13,7 @@ interface DeleteInitiativeDialogProps {
 /**
  * The single delete-initiative confirmation flow: a type-the-name-to-confirm
  * guard before the whole tree (projects, docs, queues, events) is soft-deleted
- * to trash. Shared by the per-initiative settings page and the guild settings
+ * to trash. Shared by the per-initiative settings page and the community settings
  * Initiatives table so there is exactly one delete workflow to maintain. The
  * caller owns the mutation (via onConfirm/isDeleting); this only gates it.
  *

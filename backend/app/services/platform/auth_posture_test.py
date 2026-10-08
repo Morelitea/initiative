@@ -3,7 +3,7 @@
 Each rule in ``PLATFORM_RULES`` and ``COMMUNITY_RULES`` has a case below: a
 loose and a tight value, and how to put the tight one in place. What the
 rules have of their own (the stranded-account count, a provider's
-connection, the device-token sweep) is tested beside the routes that take it.
+connection) is tested beside the routes that take it.
 """
 
 from dataclasses import dataclass
@@ -117,7 +117,6 @@ CASES: dict[tuple[str, str], Case] = {
         unmet=LoginMethod.totp.value,
     ),
     ("community", "enforce_compliance_session"): Case(False, True, GUILD_SETTINGS),
-    ("community", "allow_api_keys"): Case(True, False, GUILD_SETTINGS),
     ("community", "allow_push_notifications"): Case(True, False, GUILD_SETTINGS),
     ("community", "allow_email_notifications"): Case(True, False, GUILD_SETTINGS),
     ("community", "redact_notification_content"): Case(False, True, GUILD_SETTINGS),
@@ -186,7 +185,10 @@ async def test_tightening_asks_for_entitlement_offer_and_writer(
         refused = await _refused(
             await _context(session, scope, entitled=False), key, case.tight
         )
-        assert (refused.status_code, refused.detail) == (404, "GUILD_AUTH_NOT_ENABLED")
+        assert (refused.status_code, refused.detail) == (
+            404,
+            "COMMUNITY_AUTH_NOT_ENABLED",
+        )
     if case.unoffer is None:
         return
     ctx = await _context(session, scope)

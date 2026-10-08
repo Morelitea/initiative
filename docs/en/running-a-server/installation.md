@@ -19,7 +19,7 @@ A machine (yours, or a cloud box) with:
 
 ```bash
 # 1. Download the example compose file
-curl -O https://raw.githubusercontent.com/Morelitea/initiative/main/docker-compose.example.yml
+curl -O https://raw.githubusercontent.com/beyonders-studio/initiative/main/docker-compose.example.yml
 cp docker-compose.example.yml docker-compose.yml
 
 # 2. Edit configuration — set a strong SECRET_KEY and POSTGRES_PASSWORD
@@ -44,7 +44,7 @@ The example file ships **PostgreSQL 17** and sensible defaults already wired tog
 
 Two things need to persist across restarts and upgrades:
 
-- **The database** — your projects, tasks, documents, and so on.
+- **The database** — your projects, tasks, comments, and so on.
 - **Uploaded files** — mounted at `/app/uploads` in the container.
 
 The example compose file sets up volumes for both. Make sure those volumes live somewhere your [backups](backups-and-updates.md) will capture.
@@ -111,7 +111,7 @@ Published images run on `linux/amd64` and `linux/arm64`. Pick a tag by how you f
 | `0.53`, `0` | the newest release in that line | you want fixes without choosing each one |
 | `0.53.3` | nowhere, ever | you upgrade when you decide to, and not a minute before |
 
-The example compose file uses `latest`. To follow `stable`, change its `image:` line to `morelitea/initiative:stable`, then:
+The example compose file uses `latest`. To follow `stable`, change its `image:` line to `ghcr.io/beyonders-studio/initiative:stable`, then:
 
 ```bash
 docker compose pull && docker compose up -d
@@ -124,9 +124,9 @@ Three days is the least a release waits, not a timer: `stable` moves when we pro
 You never have to. But every image is signed by the workflow that built it, and carries a list of everything inside it (an SBOM) and a record of how it was built. If your setup checks images before running them, this is the check, using [cosign](https://docs.sigstore.dev/cosign/system_config/installation/):
 
 ```bash
-cosign verify morelitea/initiative:stable \
+cosign verify ghcr.io/beyonders-studio/initiative:stable \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-  --certificate-identity-regexp '^https://github\.com/Morelitea/initiative/\.github/workflows/docker-image\.yml@refs/(heads/(main|release/v.+)|tags/v.+)$'
+  --certificate-identity-regexp '^https://github\.com/beyonders-studio/initiative/\.github/workflows/docker-image\.yml@refs/(heads/(main|release/v.+)|tags/v.+)$'
 ```
 
 It passes only for an image our release workflow built from a release branch or tag. Images from `dev` are signed as well, from `refs/heads/dev`, which this deliberately doesn't accept.
@@ -134,7 +134,7 @@ It passes only for an image our release workflow built from a release branch or 
 To read the SBOM:
 
 ```bash
-docker buildx imagetools inspect morelitea/initiative:stable --format '{{ json .SBOM }}'
+docker buildx imagetools inspect ghcr.io/beyonders-studio/initiative:stable --format '{{ json .SBOM }}'
 ```
 
 ## First-time setup checklist

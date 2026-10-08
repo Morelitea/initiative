@@ -3,22 +3,22 @@
 The catalog itself is platform data — one shared set of listings with globally
 unique ids, and no guild column anywhere in it. Browsing it is nevertheless
 guild-addressed, because what is *offered* depends on the guild asking: a
-dashboard an app ships with draws that app's widgets, so it appears only where
-the app is installed.
+dashboard a plug-in ships with draws that plug-in's widgets, so it appears only where
+the plug-in is installed.
 
 That makes the guild a required part of the question rather than a filter the
 client applies afterwards, and it puts browse on the same footing as the
 install: both run on the guild-routed session, and both read the guild's own
-installs through :func:`installed_app_uids`, so a card and the install behind
+installs through :func:`installed_plugin_uids`, so a card and the install behind
 it always agree.
 
 Listings are written by the system engine (boot seeding, the operator's
 catalog directory, the registry refresh) through the platform routes. Installing
 writes the guild's own schema: a tool's listing through that tool's importer
-(below), an app through the guild's app routes.
+(below), a plug-in through the guild's plug-in routes.
 """
 
-from typing import Annotated, Optional
+from typing import Annotated, List, Optional
 
 from fastapi import (
     APIRouter,
@@ -38,12 +38,15 @@ from app.api.deps import (
     CurrentUser,
 )
 from app.core.messages import ImportEngineMessages, MarketplaceMessages
+from app.db.query import build_paginated_response
 from app.models.platform.marketplace import MarketplaceListing
 from app.schemas.platform.marketplace import (
     ListingKind,
+    ListingSource,
     ListingStartFrom,
     MarketplaceInstallRequest,
     MarketplaceInstallResult,
+    MarketplaceListingCaller,
     MarketplaceListingDetail,
     MarketplaceListingPage,
     MarketplaceShareRequest,
@@ -52,11 +55,10 @@ from app.schemas.platform.marketplace import (
 )
 from app.services.marketplace import catalog as catalog_service
 from app.services.marketplace import registration_lookup
-from app.services.import_engine.contract import ImportEngineError
 from app.services.marketplace.definitions import TOOL_LISTING_KINDS
 from app.services.marketplace.installs import (
     count_install,
-    installed_app_uids,
+    installed_plugin_uids,
     listing_is_offered,
     resolve_listing_install,
 )
@@ -67,7 +69,7 @@ from app.services.marketplace.listing_assets import (
     UploadedImageError,
     store_uploaded_image,
 )
-from app.services.tenant import guild_apps as guild_apps_service
+from app.services.tenant import guild_plugins as guild_plugins_service
 from app.services.tenant.attachments import FileTooLargeError, read_upload_bounded
 from app.services.marketplace.publish_profile import export_for_listing
 from app.services.marketplace.tool_listings import (
@@ -93,21 +95,24 @@ async def list_marketplace_listings(
     current_user: CurrentUser,
     guild_context: GuildContextDep,
     kind: Optional[ListingKind] = Query(default=None),  # type: ignore[valid-type]
-    q: Optional[str] = Query(default=None, max_length=200),
+    search: Optional[str] = Query(default=None, max_length=200),
+    source: Optional[List[ListingSource]] = Query(default=None),  # type: ignore[valid-type]
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=24, ge=1, le=MAX_PAGE_SIZE),
 ) -> MarketplaceListingPage:
     """A page of listings this guild can install, searchable by name,
-    description, or publisher.
+    description, or publisher, and narrowed to the given ``source`` values
+    when any are named.
 
-    A guild with none of an app installed sees the same catalog as before —
-    the apps themselves, and the dashboards that stand alone.
+    A guild with none of a plug-in installed sees the same catalog as before —
+    the plug-ins themselves, and the dashboards that stand alone.
     """
     listings, total = await catalog_service.list_listings(
         session,
         kind=kind,
-        query=q,
-        bundled_with=sorted(await installed_app_uids(session)),
+        query=search,
+        bundled_with=sorted(await installed_plugin_uids(session)),
+        sources=[value.value for value in source] if source else None,
         page=page,
         page_size=page_size,
     )
@@ -116,11 +121,17 @@ async def list_marketplace_listings(
         session, [listing.latest_version_id for listing in listings]
     )
     return MarketplaceListingPage(
-        items=[
-            serialize_listing_summary(listing, versions.get(listing.latest_version_id))
-            for listing in listings
-        ],
-        total=total,
+        **build_paginated_response(
+            [
+                serialize_listing_summary(
+                    listing, versions.get(listing.latest_version_id)
+                )
+                for listing in listings
+            ],
+            total,
+            page,
+            page_size,
+        )
     )
 
 
@@ -128,15 +139,15 @@ async def _detail(session, listing: MarketplaceListing) -> MarketplaceListingDet
     """A listing's page, or the answer the shelf gives by leaving it out.
 
     Two things put a listing out of reach, and both read as *not found* here
-    because both are already true of the shelf: an app whose service this
-    deployment does not run, and a dashboard whose app this guild has not
+    because both are already true of the shelf: a plug-in whose service this
+    deployment does not run, and a dashboard whose plug-in this guild has not
     installed.
     """
     latest = await catalog_service.get_listing_version(
         session, listing.latest_version_id
     )
-    offered = await registration_lookup.app_is_offered(
-        latest.definition if latest else None
+    offered = await registration_lookup.plugin_is_offered(
+        latest.definition if latest else None, listing_uid=listing.uid
     ) and await listing_is_offered(session, listing)
     if not offered:
         raise HTTPException(
@@ -146,24 +157,37 @@ async def _detail(session, listing: MarketplaceListing) -> MarketplaceListingDet
     summary = serialize_listing_summary(listing, latest)
     definition = dict(latest.definition) if latest else {}
     # What the install dialog asks the seat about, from the version it would
-    # install and the registration's ceiling. Empty for anything not an app.
+    # install and the registration's ceiling. Empty for anything not a plug-in.
     requested: list[str] = []
     grantable: list[str] = []
-    if listing.kind == "app":
-        requested = guild_apps_service.requested_scopes(definition)
+    callers: list[MarketplaceListingCaller] = []
+    if listing.kind == "plugin":
+        installed = await guild_plugins_service.installed_plugin_ids(session)
+        requested = guild_plugins_service.offered_scopes(definition, installed)
         registration = await registration_lookup.registration_for_definition(definition)
-        grantable = guild_apps_service.grantable_scopes(
-            definition, registration.scope_ceiling if registration else ()
+        grantable = guild_plugins_service.grantable_scopes(
+            definition, registration.scope_ceiling if registration else (), installed
         )
+        public_id = registration_lookup.service_public_id(
+            definition, listing_public_id=listing.public_id
+        )
+        if public_id is not None:
+            callers = [
+                MarketplaceListingCaller(id=plugin.id, name=plugin.name)
+                for plugin in await guild_plugins_service.plugin_callers(
+                    session, public_id
+                )
+            ]
     return MarketplaceListingDetail(
         **summary.model_dump(),
         requested_scopes=requested,
         grantable_scopes=grantable,
-        app_names=await guild_apps_service.app_scope_names(session, requested),
+        plugin_names=await guild_plugins_service.plugin_scope_names(session, requested),
         has_initiative_surfaces=(
-            listing.kind == "app"
-            and guild_apps_service.has_initiative_surfaces(definition)
+            listing.kind == "plugin"
+            and guild_plugins_service.has_initiative_surfaces(definition)
         ),
+        callers=callers,
         long_description=listing.long_description,
         # A preview of what installing would produce. The install path re-reads
         # the catalog itself, so this is display data, not an input.
@@ -190,7 +214,7 @@ async def resolve_marketplace_listing(
     This is what an installed instance uses to find where it came from: the
     instance stores the uid, and the catalog answers with the listing and the
     version it currently publishes. A listing this guild can no longer take —
-    a bundled dashboard whose app it removed — answers 404, which is what
+    a bundled dashboard whose plug-in it removed — answers 404, which is what
     stops an update being offered that the install would refuse.
     """
     listing = await catalog_service.get_listing_by_uid(session, uid)
@@ -238,7 +262,7 @@ async def install_marketplace_listing(
     permission and nothing more. The copy is the member's: it records the
     listing and version it came from, and nothing links it back.
 
-    Apps and profile packs install elsewhere; a uid naming one reads as not
+    Plug-ins and profile packs install elsewhere; a uid naming one reads as not
     found here, as it would from any installer that cannot install it.
     """
     # Installing is authoring, like any import: a community whose content is
@@ -264,20 +288,17 @@ async def install_marketplace_listing(
             detail=MarketplaceMessages.LISTING_HAS_NO_EXAMPLE,
         )
 
-    try:
-        result = await install_tool_listing(
-            session,
-            tool=tool,
-            listing=listing,
-            version=version,
-            user=current_user,
-            guild_id=guild_context.guild_id,
-            initiative_id=payload.initiative_id,
-            start_from=payload.start_from.value,
-            starts_on=payload.starts_on,
-        )
-    except ImportEngineError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.code) from exc
+    result = await install_tool_listing(
+        session,
+        tool=tool,
+        listing=listing,
+        version=version,
+        user=current_user,
+        guild_id=guild_context.guild_id,
+        initiative_id=payload.initiative_id,
+        start_from=payload.start_from.value,
+        starts_on=payload.starts_on,
+    )
     await session.commit()
     await count_install(guild_context.guild_id, listing.id)
     return MarketplaceInstallResult(
@@ -401,33 +422,23 @@ async def share_to_marketplace(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=MarketplaceMessages.SHARE_IMAGE_INVALID,
             ) from exc
-        try:
-            listing, version = await local_listings.submit_share(
-                system,
-                tool=tool,
-                envelope=envelope,
-                example=example,
-                name=payload.name,
-                description=payload.description,
-                long_description=payload.long_description,
-                release_notes=payload.release_notes,
-                # The handle, which names the account the same way on every
-                # shelf; a real name is each community's to show or not.
-                publisher=handle_of(current_user),
-                submitter_id=current_user.id,
-                listing_uid=payload.listing_uid,
-                images=image_paths,
-                hold_for_review=hold,
-            )
-        except local_listings.LocalListingError as exc:
-            raise HTTPException(
-                status_code=(
-                    status.HTTP_404_NOT_FOUND
-                    if exc.not_found
-                    else status.HTTP_422_UNPROCESSABLE_CONTENT
-                ),
-                detail=exc.code,
-            ) from exc
+        listing, version = await local_listings.submit_share(
+            system,
+            tool=tool,
+            envelope=envelope,
+            example=example,
+            name=payload.name,
+            description=payload.description,
+            long_description=payload.long_description,
+            release_notes=payload.release_notes,
+            # The handle, which names the account the same way on every
+            # shelf; a real name is each community's to show or not.
+            publisher=handle_of(current_user),
+            submitter_id=current_user.id,
+            listing_uid=payload.listing_uid,
+            images=image_paths,
+            hold_for_review=hold,
+        )
         await audit_service.record(
             system,
             event_type=AuditEventType.MARKETPLACE_LISTING_SHARED,

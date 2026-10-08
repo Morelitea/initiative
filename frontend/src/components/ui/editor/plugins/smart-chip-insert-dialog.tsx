@@ -20,7 +20,7 @@ import { $createReferenceEmbedNode } from "@/components/ui/editor/nodes/referenc
 import { $createSmartChipNode } from "@/components/ui/editor/nodes/smart-chip-node";
 import { SMART_CHIP_MENU } from "@/components/ui/editor/plugins/smart-chip-menu";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { useGuildPickerSuggestions } from "@/hooks/useSearch";
+import { useCommunityPickerSuggestions } from "@/hooks/useSearch";
 import { MENTIONABLE_TYPES } from "@/lib/mentions";
 import { hitIcon } from "@/lib/searchResults";
 import { CHIP_ENTITY_TYPES, chipEntityType, chipKindsFor } from "@/lib/smartChips";
@@ -58,7 +58,7 @@ export function SmartChipInsertDialog({
   activeEditor,
   onClose,
 }: SmartChipInsertDialogProps) {
-  const { t } = useTranslation(["documents", "search"]);
+  const { t } = useTranslation(["editor", "search"]);
   const searchRef = useRef<HTMLInputElement>(null);
   const factsRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState("");
@@ -89,7 +89,7 @@ export function SmartChipInsertDialog({
     searched,
     stale,
     isFetching,
-  } = useGuildPickerSuggestions(debounced, {
+  } = useCommunityPickerSuggestions(debounced, {
     types,
     initiative_id: initiativeId ?? undefined,
     is_template: false,

@@ -1,9 +1,9 @@
 """Import-side pydantic mirrors of the export envelopes.
 
 Each model parses the dict shape its export adapter emits (see
-``services/export/adapters/{document,queue,counter_group,calendar,post}.py``)
-with ``extra="ignore"``: informational export fields (queue member/document/
-task display text, event ids and timestamps, linked document titles) parse
+``services/export/adapters/{file,queue,counter_group,calendar,post}.py``)
+with ``extra="ignore"``: informational export fields (queue member/file/
+task display text, event ids and timestamps, linked file titles) parse
 and drop — they reference guild-local state an import cannot rebind.
 
 Every envelope is schema version 1. There is no support for reading an
@@ -16,9 +16,10 @@ from __future__ import annotations
 
 from typing import Any, Literal, Optional
 
-from pydantic import ConfigDict, model_validator
+from pydantic import ConfigDict, Field, model_validator
 
 from app.models.tenant.property import PropertyType
+from app.models.tenant.wiki import WikiPageOrder, WikiReadingWidth
 from app.schemas.base import SanitizedBaseModel
 
 CURRENT_SCHEMA_VERSION = 1
@@ -50,11 +51,12 @@ class EnvelopePropertyValue(SanitizedBaseModel):
     value_boolean: Optional[bool] = None
     value_json: Any = None
     value_handle: Optional[str] = None
+    value_name: Optional[str] = None
 
 
-class DocumentEnvelope(_EnvelopeBase):
-    type: Literal["initiative-document"]
-    document_type: str  # native | spreadsheet | smart_link | whiteboard
+class FileEnvelope(_EnvelopeBase):
+    type: Literal["initiative-file"]
+    file_type: str  # native | spreadsheet | smart_link | whiteboard
     name: str
     content: dict[str, Any] = {}
     tags: list[str] = []
@@ -141,8 +143,8 @@ class WikiFiledUpload(SanitizedBaseModel):
     properties: list[EnvelopePropertyValue] = []
 
 
-class WikiFiledDocument(SanitizedBaseModel):
-    """A document filed in a wiki, and where it sits there.
+class WikiFiledFile(SanitizedBaseModel):
+    """A file filed in a wiki, and where it sits there.
 
     Exactly one of ``envelope`` (a text document, spreadsheet, whiteboard or
     link, whole) and ``upload`` (a file, whose bytes ride under ``assets/``).
@@ -153,10 +155,10 @@ class WikiFiledDocument(SanitizedBaseModel):
 
     page: Optional[str] = None
     position: Optional[int] = None
-    envelope: Optional[DocumentEnvelope] = None
+    envelope: Optional[FileEnvelope] = None
     upload: Optional[WikiFiledUpload] = None
-    #: What the document was called where it came from — ``document:7`` — so
-    #: a reference to it in a page points at the document it became.
+    #: What the file was called where it came from — ``file:7`` — so
+    #: a reference to it in a page points at the file it became.
     external_ref: Optional[str] = None
 
 
@@ -165,18 +167,29 @@ class WikiEnvelope(_EnvelopeBase):
 
     What it deliberately drops is the sharing, for the reason every envelope
     drops it: who may read this is a fact about the community it was written
-    in, not about the writing. ``home_page`` crosses as a slug like the tree.
+    in, not about the writing. ``home_page`` and ``template_page`` cross as
+    slugs like the tree.
+
+    The settings are absent in an export taken before they were carried, and
+    a wiki imported from one keeps the defaults.
     """
 
     type: Literal["initiative-wiki"]
     name: str
     description: Optional[str] = None
     home_page: Optional[str] = None
+    template_page: Optional[str] = None
+    page_order: Optional[WikiPageOrder] = None
+    contents_depth: Optional[int] = Field(default=None, ge=2, le=4)
+    show_connections: Optional[bool] = None
+    show_updated_at: Optional[bool] = None
+    reading_width: Optional[WikiReadingWidth] = None
+    accent_color: Optional[str] = Field(default=None, max_length=32)
     tags: list[str] = []
     properties: list[EnvelopePropertyValue] = []
     pages: list[WikiPageEnvelope] = []
-    #: The documents filed in the wiki, when its export carried them.
-    documents: list[WikiFiledDocument] = []
+    #: The files filed in the wiki, when its export carried them.
+    files: list[WikiFiledFile] = []
 
 
 class GalleryImageEnvelope(SanitizedBaseModel):
@@ -234,7 +247,7 @@ class QueueEnvelopeItem(SanitizedBaseModel):
     is_current: bool = False
     tags: list[str] = []
     properties: list[EnvelopePropertyValue] = []
-    # `member`, `documents`, `tasks` are informational display text in the
+    # `member`, `files`, `tasks` are informational display text in the
     # export — ignored here (extra="ignore"), counted as a warning on apply.
     member: Optional[str] = None
     #: What this item was called where it came from — a thing a reference
@@ -248,6 +261,7 @@ class QueueEnvelope(_EnvelopeBase):
     description: Optional[str] = None
     is_active: bool = False
     current_round: int = 1
+    tags: list[str] = []
     properties: list[EnvelopePropertyValue] = []
     items: list[QueueEnvelopeItem] = []
 
@@ -274,6 +288,7 @@ class CounterGroupEnvelope(_EnvelopeBase):
     type: Literal["initiative-counter-group"]
     name: str
     description: Optional[str] = None
+    tags: list[str] = []
     properties: list[EnvelopePropertyValue] = []
     counters: list[CounterEnvelopeItem] = []
 
@@ -292,7 +307,7 @@ class DashboardEnvelope(_EnvelopeBase):
     type: Literal["initiative-dashboard"]
     name: str
     description: Optional[str] = None
-    # Present only for a dashboard built on a built-in app. Dropped on import
+    # Present only for a dashboard built on a built-in plug-in. Dropped on import
     # when the destination has no such listing, so the dashboard arrives as an
     # ordinary one rather than pointing at nothing.
     listing_uid: Optional[str] = None
@@ -368,7 +383,7 @@ class PostEnvelope(_EnvelopeBase):
     tags: list[str] = []
     properties: list[EnvelopePropertyValue] = []
     poll: Optional[PostPollEnvelope] = None
-    #: The handles the body's mention nodes name, as a document's are.
+    #: The handles the body's mention nodes name, as a file's are.
     mention_handles: list[str] = []
 
     @model_validator(mode="after")
@@ -428,5 +443,6 @@ class CalendarEnvelope(_EnvelopeBase):
     name: str
     description: Optional[str] = None
     color: Optional[str] = None
+    tags: list[str] = []
     properties: list[EnvelopePropertyValue] = []
     events: list[EventEnvelopeItem] = []

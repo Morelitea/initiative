@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import { CheckCircle2, Download, ExternalLink, Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -6,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogHeader,
@@ -14,7 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useChangelog } from "@/hooks/useSettings";
-import { CHANGELOG_URL } from "@/lib/links";
+import { CHANGELOG_URL, RELEASES_URL } from "@/lib/links";
 import { cn } from "@/lib/utils";
 
 /**
@@ -40,7 +42,7 @@ export const VersionDialog = ({
   hasUpdate = false,
   isLoadingVersion = false,
 }: VersionDialogProps) => {
-  const { t } = useTranslation("guilds");
+  const { t } = useTranslation("communities");
 
   const { data, isLoading } = useChangelog({ limit: 20 });
 
@@ -50,7 +52,9 @@ export const VersionDialog = ({
       <DialogContent className="flex h-[80vh] flex-col gap-0 sm:max-w-2xl">
         <DialogHeader className="shrink-0">
           <DialogTitle>{t("version.versionInformation")}</DialogTitle>
-          <DialogDescription>{t("version.currentVersionAndChangelog")}</DialogDescription>
+          <DialogDescription className="sr-only">
+            {t("version.currentVersionAndChangelog")}
+          </DialogDescription>
         </DialogHeader>
 
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
@@ -95,14 +99,14 @@ export const VersionDialog = ({
             )}
             {hasUpdate && (
               <p className="text-muted-foreground text-sm">
-                {t("version.newVersionOnDockerHub")}{" "}
+                {t("version.newVersionOnGitHub")}{" "}
                 <a
-                  href="https://hub.docker.com/r/morelitea/initiative"
+                  href={RELEASES_URL}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-primary hover:underline"
                 >
-                  Docker Hub
+                  GitHub
                 </a>
               </p>
             )}
@@ -156,6 +160,16 @@ export const VersionDialog = ({
                   <ExternalLink className="h-4 w-4" />
                 </a>
               </Button>
+              {/* The licence notices that travel with the app; out of the
+                  way on purpose, since few people go looking. */}
+              <DialogClose asChild>
+                <Link
+                  to="/licences"
+                  className="mt-3 block text-center text-muted-foreground text-xs hover:text-foreground hover:underline"
+                >
+                  {t("version.openSourceLicences")}
+                </Link>
+              </DialogClose>
             </div>
           </div>
         </div>

@@ -1,0 +1,556 @@
+{
+  "uid": "ZMKKCD9KEXC97T",
+  "public_id": "core.bug-tracker",
+  "kind": "project",
+  "name": "Bug tracker",
+  "publisher": "Initiative",
+  "description": "Reports come in, get sorted, get fixed. In that order, ideally.",
+  "long_description": "New bugs land in Triage, where somebody decides how bad each one is before it goes to the Backlog. From there it is In progress, In review and Done, or Won't fix for the ones that are really features.\n\nEvery report has a severity, the part of the product it is in, the version it was found in and whether anyone has made it happen twice. Severity says how bad it is for the person who hit it. Priority says when you will get to it. They are allowed to disagree.",
+  "avatar_url": "/marketplace/core-bug-tracker.svg",
+  "images": [],
+  "version": "1.0.0",
+  "release_notes": "The first version.",
+  "definition": {
+    "type": "initiative-project",
+    "schema_version": 1,
+    "app_version": "0.74.0",
+    "exported_at": "2000-01-03T00:00:00",
+    "project": {
+      "name": "Bug tracker",
+      "icon": "🐛",
+      "description": "New reports land in Triage. Somebody decides what each one is before anyone starts fixing it.",
+      "is_template": false,
+      "start_date": null,
+      "end_date": null,
+      "properties": []
+    },
+    "tags": [],
+    "task_statuses": [
+      {
+        "name": "Triage",
+        "category": "backlog",
+        "position": 0,
+        "color": null,
+        "icon": null,
+        "is_default": true
+      },
+      {
+        "name": "Backlog",
+        "category": "todo",
+        "position": 1,
+        "color": null,
+        "icon": null,
+        "is_default": false
+      },
+      {
+        "name": "In progress",
+        "category": "in_progress",
+        "position": 2,
+        "color": null,
+        "icon": null,
+        "is_default": false
+      },
+      {
+        "name": "In review",
+        "category": "in_progress",
+        "position": 3,
+        "color": null,
+        "icon": "eye",
+        "is_default": false
+      },
+      {
+        "name": "Done",
+        "category": "done",
+        "position": 4,
+        "color": null,
+        "icon": null,
+        "is_default": false
+      },
+      {
+        "name": "Won't fix",
+        "category": "done",
+        "position": 5,
+        "color": "#94A3B8",
+        "icon": "circle-x",
+        "is_default": false
+      }
+    ],
+    "property_definitions": [
+      {
+        "name": "Severity",
+        "type": "select",
+        "position": 0.0,
+        "color": null,
+        "options": [
+          {
+            "value": "critical",
+            "label": "Critical",
+            "color": "#EF4444"
+          },
+          {
+            "value": "major",
+            "label": "Major",
+            "color": "#F97316"
+          },
+          {
+            "value": "minor",
+            "label": "Minor",
+            "color": "#EAB308"
+          },
+          {
+            "value": "cosmetic",
+            "label": "Cosmetic",
+            "color": "#94A3B8"
+          }
+        ]
+      },
+      {
+        "name": "Component",
+        "type": "text",
+        "position": 1.0,
+        "color": null,
+        "options": null
+      },
+      {
+        "name": "Version found",
+        "type": "text",
+        "position": 2.0,
+        "color": null,
+        "options": null
+      },
+      {
+        "name": "Reproducible",
+        "type": "checkbox",
+        "position": 3.0,
+        "color": null,
+        "options": null
+      }
+    ],
+    "tasks": []
+  },
+  "example": {
+    "type": "initiative-project",
+    "schema_version": 1,
+    "app_version": "0.74.0",
+    "exported_at": "2000-01-03T00:00:00",
+    "project": {
+      "name": "Bug tracker",
+      "icon": "🐛",
+      "description": "New reports land in Triage. Somebody decides what each one is before anyone starts fixing it.",
+      "is_template": false,
+      "start_date": null,
+      "end_date": null,
+      "properties": []
+    },
+    "tags": [],
+    "task_statuses": [
+      {
+        "name": "Triage",
+        "category": "backlog",
+        "position": 0,
+        "color": null,
+        "icon": null,
+        "is_default": true
+      },
+      {
+        "name": "Backlog",
+        "category": "todo",
+        "position": 1,
+        "color": null,
+        "icon": null,
+        "is_default": false
+      },
+      {
+        "name": "In progress",
+        "category": "in_progress",
+        "position": 2,
+        "color": null,
+        "icon": null,
+        "is_default": false
+      },
+      {
+        "name": "In review",
+        "category": "in_progress",
+        "position": 3,
+        "color": null,
+        "icon": "eye",
+        "is_default": false
+      },
+      {
+        "name": "Done",
+        "category": "done",
+        "position": 4,
+        "color": null,
+        "icon": null,
+        "is_default": false
+      },
+      {
+        "name": "Won't fix",
+        "category": "done",
+        "position": 5,
+        "color": "#94A3B8",
+        "icon": "circle-x",
+        "is_default": false
+      }
+    ],
+    "property_definitions": [
+      {
+        "name": "Severity",
+        "type": "select",
+        "position": 0.0,
+        "color": null,
+        "options": [
+          {
+            "value": "critical",
+            "label": "Critical",
+            "color": "#EF4444"
+          },
+          {
+            "value": "major",
+            "label": "Major",
+            "color": "#F97316"
+          },
+          {
+            "value": "minor",
+            "label": "Minor",
+            "color": "#EAB308"
+          },
+          {
+            "value": "cosmetic",
+            "label": "Cosmetic",
+            "color": "#94A3B8"
+          }
+        ]
+      },
+      {
+        "name": "Component",
+        "type": "text",
+        "position": 1.0,
+        "color": null,
+        "options": null
+      },
+      {
+        "name": "Version found",
+        "type": "text",
+        "position": 2.0,
+        "color": null,
+        "options": null
+      },
+      {
+        "name": "Reproducible",
+        "type": "checkbox",
+        "position": 3.0,
+        "color": null,
+        "options": null
+      }
+    ],
+    "tasks": [
+      {
+        "title": "Checkout button does nothing on the second try",
+        "description": "**Steps to reproduce**\n\n1. Add an item to the cart.\n2. Click Checkout and close the payment window.\n3. Click Checkout again.\n\nNothing happens. One customer reported it; nobody has seen it since.",
+        "priority": "urgent",
+        "start_date": null,
+        "due_date": null,
+        "recurrence": null,
+        "status_name": "Triage",
+        "position": 0.0,
+        "tags": [],
+        "assignee_handles": [],
+        "checklist": [],
+        "properties": [
+          {
+            "property_name": "Severity",
+            "property_type": "select",
+            "value_text": "critical"
+          },
+          {
+            "property_name": "Component",
+            "property_type": "text",
+            "value_text": "Checkout"
+          },
+          {
+            "property_name": "Version found",
+            "property_type": "text",
+            "value_text": "2.4.0"
+          },
+          {
+            "property_name": "Reproducible",
+            "property_type": "checkbox",
+            "value_boolean": false
+          }
+        ]
+      },
+      {
+        "title": "Dates show a day early for customers west of London",
+        "description": "**Steps to reproduce**\n\n1. Set your computer to Pacific time.\n2. Open any order.\n\nThe delivery date is one day before the one in the confirmation email.",
+        "priority": "medium",
+        "start_date": null,
+        "due_date": null,
+        "recurrence": null,
+        "status_name": "Triage",
+        "position": 1.0,
+        "tags": [],
+        "assignee_handles": [],
+        "checklist": [],
+        "properties": [
+          {
+            "property_name": "Severity",
+            "property_type": "select",
+            "value_text": "major"
+          },
+          {
+            "property_name": "Component",
+            "property_type": "text",
+            "value_text": "Orders"
+          },
+          {
+            "property_name": "Version found",
+            "property_type": "text",
+            "value_text": "2.4.0"
+          },
+          {
+            "property_name": "Reproducible",
+            "property_type": "checkbox",
+            "value_boolean": true
+          }
+        ]
+      },
+      {
+        "title": "Search ignores accents",
+        "description": "**Steps to reproduce**\n\nSearch for \"cafe\" and \"café\" separately. They return different results.",
+        "priority": "low",
+        "start_date": null,
+        "due_date": null,
+        "recurrence": null,
+        "status_name": "Backlog",
+        "position": 2.0,
+        "tags": [],
+        "assignee_handles": [],
+        "checklist": [],
+        "properties": [
+          {
+            "property_name": "Severity",
+            "property_type": "select",
+            "value_text": "minor"
+          },
+          {
+            "property_name": "Component",
+            "property_type": "text",
+            "value_text": "Search"
+          },
+          {
+            "property_name": "Version found",
+            "property_type": "text",
+            "value_text": "2.3.1"
+          },
+          {
+            "property_name": "Reproducible",
+            "property_type": "checkbox",
+            "value_boolean": true
+          }
+        ]
+      },
+      {
+        "title": "Password reset email arrives after the link expires",
+        "description": "**Steps to reproduce**\n\nRequest a reset during busy hours. The email can take longer than the fifteen minutes the link lasts.",
+        "priority": "high",
+        "start_date": null,
+        "due_date": null,
+        "recurrence": null,
+        "status_name": "In progress",
+        "position": 3.0,
+        "tags": [],
+        "assignee_handles": [],
+        "checklist": [
+          {
+            "text": "Find out where it is queued",
+            "done": true
+          },
+          {
+            "text": "Lengthen the link or speed up the queue",
+            "done": false
+          },
+          {
+            "text": "Add a test",
+            "done": false
+          }
+        ],
+        "properties": [
+          {
+            "property_name": "Severity",
+            "property_type": "select",
+            "value_text": "major"
+          },
+          {
+            "property_name": "Component",
+            "property_type": "text",
+            "value_text": "Accounts"
+          },
+          {
+            "property_name": "Version found",
+            "property_type": "text",
+            "value_text": "2.3.0"
+          },
+          {
+            "property_name": "Reproducible",
+            "property_type": "checkbox",
+            "value_boolean": true
+          }
+        ]
+      },
+      {
+        "title": "Export cuts off at 1,000 rows",
+        "description": "**Steps to reproduce**\n\nExport a report with more than 1,000 rows. The file ends at row 1,000 without saying so.",
+        "priority": "high",
+        "start_date": null,
+        "due_date": null,
+        "recurrence": null,
+        "status_name": "In review",
+        "position": 4.0,
+        "tags": [],
+        "assignee_handles": [],
+        "checklist": [
+          {
+            "text": "Fix",
+            "done": true
+          },
+          {
+            "text": "Test with 50,000 rows",
+            "done": true
+          },
+          {
+            "text": "Review",
+            "done": false
+          }
+        ],
+        "properties": [
+          {
+            "property_name": "Severity",
+            "property_type": "select",
+            "value_text": "major"
+          },
+          {
+            "property_name": "Component",
+            "property_type": "text",
+            "value_text": "Reports"
+          },
+          {
+            "property_name": "Version found",
+            "property_type": "text",
+            "value_text": "2.2.0"
+          },
+          {
+            "property_name": "Reproducible",
+            "property_type": "checkbox",
+            "value_boolean": true
+          }
+        ]
+      },
+      {
+        "title": "Logo is blurry on high-resolution screens",
+        "description": "**Steps to reproduce**\n\nOpen the site on any recent laptop and look at the top left corner.",
+        "priority": "low",
+        "start_date": null,
+        "due_date": null,
+        "recurrence": null,
+        "status_name": "Done",
+        "position": 5.0,
+        "tags": [],
+        "assignee_handles": [],
+        "checklist": [],
+        "properties": [
+          {
+            "property_name": "Severity",
+            "property_type": "select",
+            "value_text": "cosmetic"
+          },
+          {
+            "property_name": "Component",
+            "property_type": "text",
+            "value_text": "Branding"
+          },
+          {
+            "property_name": "Version found",
+            "property_type": "text",
+            "value_text": "2.1.0"
+          },
+          {
+            "property_name": "Reproducible",
+            "property_type": "checkbox",
+            "value_boolean": true
+          }
+        ]
+      },
+      {
+        "title": "Dark mode makes the error messages invisible",
+        "description": "**Steps to reproduce**\n\nTurn on dark mode and submit an empty form. The red text is on a red background.",
+        "priority": "medium",
+        "start_date": null,
+        "due_date": null,
+        "recurrence": null,
+        "status_name": "Done",
+        "position": 6.0,
+        "tags": [],
+        "assignee_handles": [],
+        "checklist": [],
+        "properties": [
+          {
+            "property_name": "Severity",
+            "property_type": "select",
+            "value_text": "major"
+          },
+          {
+            "property_name": "Component",
+            "property_type": "text",
+            "value_text": "Design system"
+          },
+          {
+            "property_name": "Version found",
+            "property_type": "text",
+            "value_text": "2.3.0"
+          },
+          {
+            "property_name": "Reproducible",
+            "property_type": "checkbox",
+            "value_boolean": true
+          }
+        ]
+      },
+      {
+        "title": "App does not work in a browser from 2009",
+        "description": "**Steps to reproduce**\n\nUse a browser from 2009.",
+        "priority": "low",
+        "start_date": null,
+        "due_date": null,
+        "recurrence": null,
+        "status_name": "Won't fix",
+        "position": 7.0,
+        "tags": [],
+        "assignee_handles": [],
+        "checklist": [],
+        "properties": [
+          {
+            "property_name": "Severity",
+            "property_type": "select",
+            "value_text": "minor"
+          },
+          {
+            "property_name": "Component",
+            "property_type": "text",
+            "value_text": "Browser support"
+          },
+          {
+            "property_name": "Version found",
+            "property_type": "text",
+            "value_text": "2.4.0"
+          },
+          {
+            "property_name": "Reproducible",
+            "property_type": "checkbox",
+            "value_boolean": true
+          }
+        ]
+      }
+    ]
+  }
+}

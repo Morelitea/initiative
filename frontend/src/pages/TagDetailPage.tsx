@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { StatusMessage } from "@/components/StatusMessage";
-import { SearchResultRow } from "@/components/search/SearchResultRow";
+import { SearchResultList } from "@/components/search/SearchResultRow";
 import { TagDetailSkeleton } from "@/components/skeletons/PageSkeletons";
 import {
   AlertDialog,
@@ -22,7 +22,7 @@ import { ColorPickerPopover } from "@/components/ui/color-picker-popover";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsBar, TabsContent, TabsTrigger } from "@/components/ui/tabs";
 import { useDeleteTag, useTag, useTagEntities, useUpdateTag } from "@/hooks/useTags";
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
 import { TOOL_ICONS, TOOLS, toolNavLabelKey } from "@/lib/tools";
 
 export const TagDetailPage = () => {
@@ -211,9 +211,7 @@ export const TagDetailPage = () => {
           </TabsBar>
           {groups.map(({ tool, hits }) => (
             <TabsContent key={tool} value={tool}>
-              {hits.map((hit) => (
-                <SearchResultRow key={`${hit.entity_type}-${hit.entity_id}`} hit={hit} />
-              ))}
+              <SearchResultList hits={hits} />
             </TabsContent>
           ))}
         </Tabs>

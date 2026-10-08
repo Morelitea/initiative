@@ -14,10 +14,10 @@ import { Flag } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { ReportDialog } from "@/components/moderation/ReportDialog";
+import { FileTicketDialog } from "@/components/tickets/FileTicketDialog";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useAuth } from "@/hooks/useAuth";
 
 export interface ReportButtonProps {
@@ -28,7 +28,7 @@ export interface ReportButtonProps {
   authorId?: number | null;
   /** Override the community sent with the report. Defaults to the active one,
    *  which is right for anything reported from inside a community. */
-  guildId?: number | null;
+  communityId?: number | null;
   className?: string;
   size?: "sm" | "icon";
 }
@@ -37,13 +37,13 @@ export const ReportButton = ({
   targetType,
   targetId,
   authorId,
-  guildId,
+  communityId,
   className,
   size = "icon",
 }: ReportButtonProps) => {
   const { t } = useTranslation("moderation");
   const { user } = useAuth();
-  const activeGuildId = useActiveGuildId();
+  const activeCommunityId = useActiveCommunityId();
   const [open, setOpen] = useState(false);
 
   // Signed in, and not the author. A signed-out reader has nothing to report
@@ -72,12 +72,11 @@ export const ReportButton = ({
         </Tooltip>
       </TooltipProvider>
       {open && (
-        <ReportDialog
+        <FileTicketDialog
           open={open}
           onOpenChange={setOpen}
-          targetType={targetType}
-          targetId={targetId}
-          guildId={guildId === undefined ? activeGuildId : guildId}
+          ticket={{ stream: "moderation", targetType, targetId }}
+          communityId={(communityId === undefined ? activeCommunityId : communityId) ?? null}
         />
       )}
     </>

@@ -12,7 +12,6 @@
     "urgent": "Dringend"
   },
   "filters": {
-    "heading": "Filter",
     "statusCategory": "Statuskategorie",
     "filterByStatusCategory": "Nach Statuskategorie filtern",
     "allStatusCategories": "Alle Statuskategorien",
@@ -21,9 +20,9 @@
     "priorityLabel": "Priorität",
     "allPriorities": "Alle Prioritäten",
     "noPriorities": "Keine Prioritäten verfügbar",
-    "filterByGuild": "Nach Community filtern",
-    "allGuilds": "Alle Communitys",
-    "noGuilds": "Keine Communitys verfügbar",
+    "filterByCommunity": "Nach Community filtern",
+    "allCommunities": "Alle Communitys",
+    "noCommunities": "Keine Communitys verfügbar",
     "filterPlaceholder": "Aufgaben filtern..."
   },
   "columns": {
@@ -33,7 +32,7 @@
     "startDate": "Startdatum",
     "dueDate": "Fälligkeitsdatum",
     "dateWindow": "Zeitfenster",
-    "guild": "Community",
+    "community": "Community",
     "projectPath": "Projektpfad",
     "priority": "Priorität",
     "tags": "Tags",
@@ -44,7 +43,7 @@
     "markInProgress": "Aufgabe als in Bearbeitung markieren"
   },
   "errors": {
-    "guildContext": "Der Community-Kontext für diese Aufgabe konnte nicht ermittelt werden.",
+    "communityContext": "Der Community-Kontext für diese Aufgabe konnte nicht ermittelt werden.",
     "statusUpdate": "Aufgabenstatus konnte nicht aktualisiert werden.",
     "statusNoMatch": "Aufgabenstatus konnte nicht aktualisiert werden. Kein passender Status gefunden."
   },
@@ -134,10 +133,10 @@
   },
   "myTasks": {
     "title": "Meine Aufgaben",
-    "noGuild": "Keine Community",
+    "noCommunity": "Keine Community",
     "loadError": "Deine Aufgaben konnten nicht geladen werden.",
     "groupByDate": "Datum",
-    "groupByGuild": "Community"
+    "groupByCommunity": "Community"
   },
   "myCalendar": {
     "title": "Mein Kalender"
@@ -154,7 +153,6 @@
     "addPlaceholder": "Checklisten-Element hinzufügen",
     "itemPlaceholder": "Checklisten-Element",
     "readOnlyPlaceholder": "Schreibgeschützt",
-    "readOnlyMessage": "Du hast nur Lesezugriff, daher sind Änderungen an der Checkliste deaktiviert.",
     "aiDialogTitle": "KI-generierte Checkliste",
     "aiDialogDescription": "Wähle die Schritte aus, die du dieser Aufgabe hinzufügen möchtest.",
     "addSelected": "Ausgewählte hinzufügen ({{count}})",
@@ -190,29 +188,10 @@
     "moving": "Wird verschoben…",
     "moveTask": "Aufgabe verschieben"
   },
-  "bulkEditTags": {
-    "title": "Tags bearbeiten",
-    "descriptionAdd": "Tags zu {{count}} ausgewählten Aufgabe hinzufügen.",
-    "descriptionAdd_other": "Tags zu {{count}} ausgewählten Aufgaben hinzufügen.",
-    "descriptionRemove": "Tags von {{count}} ausgewählten Aufgabe entfernen.",
-    "descriptionRemove_other": "Tags von {{count}} ausgewählten Aufgaben entfernen.",
-    "tabAdd": "Hinzufügen",
-    "tabRemove": "Entfernen",
-    "addPlaceholder": "Tags zum Hinzufügen auswählen...",
-    "removePlaceholder": "Tags zum Entfernen auswählen...",
-    "noTags": "Keine Tags an den ausgewählten Aufgaben.",
-    "applying": "Wird angewendet…",
-    "apply": "Anwenden",
-    "tagsAdded": "Tags zu {{count}} Aufgabe hinzugefügt",
-    "tagsAdded_other": "Tags zu {{count}} Aufgaben hinzugefügt",
-    "tagsRemoved": "Tags von {{count}} Aufgabe entfernt",
-    "tagsRemoved_other": "Tags von {{count}} Aufgaben entfernt",
-    "updateError": "Tags können derzeit nicht aktualisiert werden."
-  },
   "createWizard": {
     "title": "Aufgabe hinzufügen",
     "lastUsed": "Zuletzt verwendet",
-    "selectGuild": "Eine Community auswählen",
+    "selectCommunity": "Eine Community auswählen",
     "selectInitiative": "Eine Initiative auswählen",
     "selectProject": "Ein Projekt auswählen",
     "noInitiatives": "Keine Initiativen in dieser Community gefunden.",

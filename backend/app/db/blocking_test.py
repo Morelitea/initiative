@@ -17,7 +17,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.relationships import ENDPOINT_KINDS
 from app.core.search import SearchEntityType
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.db.blocking import OPEN_WHEN, blocking_kinds, open_expr
 from app.db.reference_targets import resolve_many
 from app.models.tenant.task import TaskStatusCategory
@@ -26,7 +26,7 @@ from app.testing.factories import (
     create_calendar_event,
     create_counter,
     create_counter_group,
-    create_document,
+    create_file,
     create_task,
 )
 from app.testing.schema_harness import route_session_to_guild
@@ -56,10 +56,10 @@ def test_a_kind_with_no_rule_has_no_opinion():
     tables = {
         key.split(".")[-1]: table for key, table in SQLModel.metadata.tables.items()
     }
-    assert "documents" not in OPEN_WHEN
+    assert "files" not in OPEN_WHEN
     # NULL, not false: "this never finishes" is not the same claim as "this is
     # finished", and only one of them should keep a blocker off a count.
-    assert open_expr("documents", tables["documents"]).compile().string == "NULL"
+    assert open_expr("files", tables["files"]).compile().string == "NULL"
 
 
 # ---------------------------------------------------------------------------
@@ -76,7 +76,9 @@ async def _is_open(
 
 
 async def test_a_task_is_open_until_it_is_done(session: AsyncSession, acting_user):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     todo = await create_task(
         session, a.project, status_category=TaskStatusCategory.todo
     )
@@ -90,7 +92,7 @@ async def test_a_task_is_open_until_it_is_done(session: AsyncSession, acting_use
 
 
 async def test_an_event_blocks_until_it_has_passed(session: AsyncSession, acting_user):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     calendar = await create_calendar(session, a.initiative, a.user)
     now = datetime.now(timezone.utc)
     upcoming = await create_calendar_event(
@@ -123,7 +125,7 @@ async def test_a_recurring_event_has_no_opinion(session: AsyncSession, acting_us
     """It has no last occurrence for an end date to be the end of. NULL rather
     than "finished", so a surface that dims a dealt-with blocker does not strike
     through an event that recurs forever."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     calendar = await create_calendar(session, a.initiative, a.user)
     now = datetime.now(timezone.utc)
     event = await create_calendar_event(
@@ -145,7 +147,7 @@ async def test_a_recurring_event_has_no_opinion(session: AsyncSession, acting_us
 async def test_a_counter_blocks_until_it_reaches_its_target(
     session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     group = await create_counter_group(session, a.initiative, a.user)
     short = await create_counter(session, group, count=3, max=10)
     reached = await create_counter(session, group, count=10, max=10)
@@ -163,7 +165,7 @@ async def test_a_counter_blocks_until_it_reaches_its_target(
 async def test_a_counter_with_no_target_has_no_finish_line(
     session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     group = await create_counter_group(session, a.initiative, a.user)
     counter = await create_counter(session, group, count=3, max=None)
 
@@ -176,7 +178,9 @@ async def test_a_counter_with_no_target_has_no_finish_line(
 async def test_a_project_is_open_until_its_work_is_done(
     session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     await create_task(session, a.project, status_category=TaskStatusCategory.todo)
 
     await route_session_to_guild(session, a.guild.id)
@@ -189,7 +193,9 @@ async def test_a_project_is_open_until_its_work_is_done(
 async def test_a_project_closes_when_every_task_is_done(
     session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     await create_task(session, a.project, status_category=TaskStatusCategory.done)
     await create_task(session, a.project, status_category=TaskStatusCategory.done)
 
@@ -203,7 +209,9 @@ async def test_a_project_closes_when_every_task_is_done(
 async def test_an_empty_project_has_not_finished(session: AsyncSession, acting_user):
     """ "All of them are done" is vacuously true of no tasks at all, and a
     project nobody has filled in is the one thing it certainly is not."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
 
     await route_session_to_guild(session, a.guild.id)
     assert (
@@ -217,7 +225,9 @@ async def test_an_archived_task_neither_holds_a_project_open_nor_closes_it(
 ):
     """Archived work is not work anybody is waiting on. A project holding only
     archived tasks has still never finished anything."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
     done = await create_task(
         session, a.project, status_category=TaskStatusCategory.done
     )
@@ -237,10 +247,10 @@ async def test_an_archived_task_neither_holds_a_project_open_nor_closes_it(
     assert done.completed_at is not None
 
 
-async def test_a_document_never_answers(session: AsyncSession, acting_user):
-    """Nothing on a document says when it stops holding something up."""
-    a = await acting_user(guild_role=GuildRole.member, initiative=True)
-    doc = await create_document(session, a.initiative, a.user)
+async def test_a_file_never_answers(session: AsyncSession, acting_user):
+    """Nothing on a file says when it stops holding something up."""
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
+    doc = await create_file(session, a.initiative, a.user)
 
     await route_session_to_guild(session, a.guild.id)
-    assert await _is_open(session, SearchEntityType.document, doc.id, a.user.id) is None
+    assert await _is_open(session, SearchEntityType.file, doc.id, a.user.id) is None

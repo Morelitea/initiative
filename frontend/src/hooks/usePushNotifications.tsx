@@ -6,7 +6,8 @@ import { useEffect, useState } from "react";
 
 import { useAuth } from "@/hooks/useAuth";
 import { useServer } from "@/hooks/useServer";
-import { registerPushToken } from "@/lib/pushRegistration";
+import { syncFirebaseProject } from "@/lib/firebaseProject";
+import { type ApnsEnvironment, registerDeviceForPush } from "@/lib/pushRegistration";
 import { returnPath } from "@/lib/returnPath";
 import FirebaseRuntime from "@/plugins/firebaseRuntime";
 
@@ -21,12 +22,14 @@ interface UsePushNotificationsReturn {
 export const usePushNotifications = (): UsePushNotificationsReturn => {
   const { user } = useAuth();
   const { isNativePlatform, serverUrl } = useServer();
+  // Push reaches the phone apps; the desktop app has none.
+  const pushPlatform = isNativePlatform && Capacitor.getPlatform() !== "electron";
   const router = useRouter();
   const [permissionStatus, setPermissionStatus] = useState<PermissionState>("prompt");
   const [fcmEnabled, setFcmEnabled] = useState<boolean>(false);
 
   useEffect(() => {
-    if (!isNativePlatform || !user) {
+    if (!pushPlatform || !user) {
       return;
     }
 
@@ -34,6 +37,7 @@ export const usePushNotifications = (): UsePushNotificationsReturn => {
     let registrationErrorListener: PluginListenerHandle;
     let pushReceivedListener: PluginListenerHandle;
     let pushActionListener: PluginListenerHandle;
+    let apnsEnvironment: ApnsEnvironment | undefined;
 
     const setupListeners = async () => {
       try {
@@ -44,6 +48,7 @@ export const usePushNotifications = (): UsePushNotificationsReturn => {
         }
 
         try {
+          await syncFirebaseProject(serverUrl);
           const initResult = await FirebaseRuntime.initialize({ serverUrl });
 
           if (!initResult.success) {
@@ -56,6 +61,7 @@ export const usePushNotifications = (): UsePushNotificationsReturn => {
           }
 
           console.log("Firebase initialized successfully for push notifications");
+          apnsEnvironment = initResult.apnsEnvironment;
           setFcmEnabled(true);
         } catch (err) {
           console.error("Failed to initialize Firebase:", err);
@@ -71,11 +77,18 @@ export const usePushNotifications = (): UsePushNotificationsReturn => {
         registrationListener = await PushNotifications.addListener(
           "registration",
           async (token) => {
-            console.log("Push registration success, token:", token.value);
-            // Send token to backend
+            const platform = Capacitor.getPlatform();
+            if (platform !== "ios" && platform !== "android") return;
+            // The server is told the token itself, or the push relay's handle
+            // for it where the server sends this platform's pushes through
+            // the relay.
             try {
-              await registerPushToken(token.value, Capacitor.getPlatform());
-              console.log("Push token registered with backend");
+              await registerDeviceForPush({
+                serverUrl,
+                token: token.value,
+                platform,
+                apnsEnvironment,
+              });
             } catch (err) {
               console.error("Failed to register push token with backend:", err);
             }
@@ -108,15 +121,15 @@ export const usePushNotifications = (): UsePushNotificationsReturn => {
             // A path in this app, or nowhere.
             const targetPath = returnPath(data.target_path as string | undefined);
             if (targetPath) {
-              const guildId = data.guild_id as string | undefined;
-              if (guildId) {
+              const communityId = data.community_id as string | undefined;
+              if (communityId) {
                 router.navigate({
                   to: "/navigate",
-                  search: { guild_id: guildId, target: targetPath },
+                  search: { community_id: communityId, target: targetPath },
                 });
               } else {
-                // Cross-guild notifications (e.g. the overdue digest) name an
-                // app-level route with no guild to switch into.
+                // Cross-community notifications (e.g. the overdue digest) name an
+                // app-level route with no community to switch into.
                 router.navigate({ to: targetPath });
               }
             }
@@ -150,11 +163,11 @@ export const usePushNotifications = (): UsePushNotificationsReturn => {
       void pushReceivedListener?.remove();
       void pushActionListener?.remove();
     };
-  }, [user, isNativePlatform, serverUrl, router]);
+  }, [user, pushPlatform, serverUrl, router]);
 
   const requestPermission = async () => {
-    if (!isNativePlatform) {
-      console.warn("Push notifications not supported on web");
+    if (!pushPlatform) {
+      console.warn("Push notifications not supported on this platform");
       return;
     }
 
@@ -166,6 +179,7 @@ export const usePushNotifications = (): UsePushNotificationsReturn => {
     // Initialize Firebase if not already done
     if (!fcmEnabled) {
       try {
+        await syncFirebaseProject(serverUrl);
         const initResult = await FirebaseRuntime.initialize({ serverUrl });
 
         if (!initResult.success) {
@@ -205,6 +219,6 @@ export const usePushNotifications = (): UsePushNotificationsReturn => {
   return {
     permissionStatus,
     requestPermission,
-    isSupported: isNativePlatform && fcmEnabled,
+    isSupported: pushPlatform && fcmEnabled,
   };
 };

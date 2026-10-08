@@ -25,14 +25,14 @@ import { ToolSettingsPermissionRequired } from "@/components/tools/settings/Tool
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { toast } from "@/lib/chesterToast";
-import { useGuildPath } from "@/lib/guildUrl";
-import { toolGuildBrowseTarget, toolListRoute } from "@/lib/tools";
+import { useCommunityPath } from "@/lib/communityUrl";
+import { toast } from "@/lib/mascotToast";
+import { toolCommunityBrowseTarget, toolListRoute } from "@/lib/tools";
 
 export const ToolSettingsAdvancedPage = () => {
   const { t } = useTranslation("common");
   const router = useRouter();
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
   const { tool, entity, remove, advancedExtra } = useToolSettings();
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -51,10 +51,10 @@ export const ToolSettingsAdvancedPage = () => {
         toast.success(t("toolSettings.deleted", { name: entity.name }));
         setDeleteDialogOpen(false);
         // Back to the tool's tab in the initiative this entity belonged to.
-        // A guild-level entity (an app's calendar) has no tab, so it falls back
-        // to the guild home browsing that tool.
+        // A community-level entity (a plug-in's calendar) has no tab, so it falls back
+        // to the community home browsing that tool.
         if (entity.initiative_id == null) {
-          const browse = toolGuildBrowseTarget(tool);
+          const browse = toolCommunityBrowseTarget(tool);
           router.navigate({ to: gp(browse.to), search: browse.search });
         } else {
           router.navigate({ to: gp(toolListRoute(tool, entity.initiative_id)) });
@@ -78,7 +78,7 @@ export const ToolSettingsAdvancedPage = () => {
       <ToolArchiveCard />
 
       {entity.can.delete && (
-        <Card className="border-destructive/40 bg-destructive/5 shadow-sm">
+        <Card className="border-destructive/50">
           <CardHeader>
             <CardTitle>{t("toolSettings.dangerZone")}</CardTitle>
             <CardDescription>{t("toolSettings.dangerZoneDescription")}</CardDescription>

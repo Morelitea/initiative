@@ -1,9 +1,12 @@
 # Contributor License Agreement
 
+Version 2, effective 2026-10-07.
+
 Thank you for your interest in contributing to this project (the "Project").
 
 This Contributor License Agreement ("Agreement") is between you ("You") and
-the Project maintainer(s) ("We", "Us").
+Morelitea LLC, doing business as Beyonders Studio, together with its
+successors and assigns ("We", "Us").
 
 ## 1. Definitions
 
@@ -49,4 +52,21 @@ Your Contributions are provided "as is", without warranty of any kind.
 
 ## 7. Acceptance
 
-You agree to this Agreement by submitting a Contribution to the Project.
+You accept this Agreement by signing it through the CLA check on a pull
+request to the Project. When the check asks You to sign, post this comment on
+the pull request, exactly:
+
+    I have read the CLA Document and I hereby sign the CLA
+
+The check records Your signature (Your GitHub account, the pull request and
+the time) on the Project's `cla-signatures` branch. You sign once, and the
+signature covers every Contribution You submit after it.
+
+## 8. Versions
+
+This is version 2 of this Agreement. It applies to Contributions submitted on
+or after 2026-10-07.
+
+Contributions submitted before 2026-10-07 were made under version 1 of this
+Agreement. By signing version 2, You also grant Us the terms of this version
+for every Contribution You submitted to the Project before that date.

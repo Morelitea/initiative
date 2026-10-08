@@ -1,5 +1,5 @@
 /**
- * Sheet identity for multi-sheet spreadsheet documents.
+ * Sheet identity for multi-sheet spreadsheet files.
  *
  * A workbook is an ordered list of sheets. Each sheet carries a stable
  * ``id`` (never shown, never reused — formulas and Yjs containers key off
@@ -8,7 +8,7 @@
  *
  * Names therefore have to survive a round-trip through formula text, so
  * this module owns three related rules, all mirrored by the backend
- * normalizer in ``backend/app/services/tenant/documents_spreadsheet.py``:
+ * normalizer in ``backend/app/services/tenant/files_spreadsheet.py``:
  *
  *   - **sanitize** — strip the characters Excel forbids in a sheet name
  *     (they are the same ones the formula grammar uses as delimiters) and
@@ -43,9 +43,9 @@ export const visibleSheets = (sheets: readonly SheetMeta[]): SheetMeta[] =>
  *  never has to silently truncate or rename. */
 export const MAX_SHEET_NAME_LENGTH = 31;
 
-/** Upper bound on sheets per document. Not an Excel limit — a bound on
+/** Upper bound on sheets per file. Not an Excel limit — a bound on
  *  how large one JSON snapshot can get, since the whole workbook is
- *  PATCHed as a single ``document.content`` blob. */
+ *  PATCHed as a single ``file.content`` blob. */
 export const MAX_SHEETS = 64;
 
 /** The first sheet of every workbook uses a fixed id so that two clients

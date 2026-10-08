@@ -27,7 +27,6 @@
     "reloadNow": "Recharger maintenant"
   },
   "operator": {
-    "title": "Annonces",
     "subtitle": "Avis destinés aux personnes qui utilisent cette installation. Chacun s'affiche une fois et reste mémorisé par personne.",
     "new": "Nouvelle annonce",
     "newTitle": "Nouvelle annonce",
@@ -58,7 +57,7 @@
     "publishedOn": "Publiée le {{date}}",
     "notPublished": "Non publiée",
     "audience": "{{role}} et au-dessus",
-    "guildAdminsOnly": "Administrateurs de communauté uniquement",
+    "communityAdminsOnly": "Administrateurs de communauté uniquement",
     "status": {
       "draft": "Brouillon",
       "scheduled": "Programmée",
@@ -78,8 +77,8 @@
       "category": "Catégorie",
       "minRole": "Rôle plateforme minimum",
       "minRoleHint": "Seules les personnes à ce niveau ou au-dessus la voient.",
-      "guildAdminsOnly": "Administrateurs de communauté uniquement",
-      "guildAdminsOnlyHint": "N'afficher que pour celles qui administrent au moins une communauté.",
+      "communityAdminsOnly": "Administrateurs de communauté uniquement",
+      "communityAdminsOnlyHint": "N'afficher que pour celles qui administrent au moins une communauté.",
       "publishedAt": "Publier le",
       "expiresAt": "Arrêter de l'afficher le",
       "expiresHint": "Laissez vide pour continuer à l'afficher. Une date de fin la retire aussi de la page des annonces.",

@@ -1,12 +1,12 @@
 {
   "layout": {
-    "footerDisclaimer": "Ce message a été envoyé par Initiative. Si vous ne l'attendiez pas, vous pouvez ignorer cet e-mail.",
-    "updateNotifications": "Modifier les paramètres de notifications"
+    "footerDisclaimer": "Ce message vous a été envoyé par Initiative. Si vous ne l'attendiez pas, vous pouvez ignorer cet e-mail.",
+    "updateNotifications": "Modifier les paramètres de notification"
   },
   "test": {
-    "subject": "Test de configuration SMTP",
+    "subject": "Test de la configuration SMTP",
     "title": "E-mail de test SMTP",
-    "body": "Ceci est un e-mail de test confirmant que les paramètres SMTP sont correctement configurés."
+    "body": "Cet e-mail de test confirme que les paramètres SMTP sont correctement configurés."
   },
   "verification": {
     "subject": "Vérifiez votre compte Initiative",
@@ -14,8 +14,8 @@
     "greeting": "Bonjour <strong>{{name}}</strong>,",
     "body": "Confirmez votre adresse e-mail pour terminer la configuration de votre compte Initiative.",
     "buttonLabel": "Vérifier l'adresse e-mail",
-    "fallbackText": "Si le bouton ne fonctionne pas, copiez et collez ce lien dans votre navigateur :",
-    "textBody": "Confirmez votre compte Initiative en visitant {{link}}"
+    "fallbackText": "Si le bouton ne fonctionne pas, copiez ce lien et collez-le dans votre navigateur :",
+    "textBody": "Confirmez votre compte Initiative en vous rendant sur {{link}}"
   },
   "passwordReset": {
     "subject": "Réinitialisez votre mot de passe Initiative",
@@ -23,16 +23,16 @@
     "greeting": "Bonjour <strong>{{name}}</strong>,",
     "body": "Nous avons reçu une demande de réinitialisation de votre mot de passe Initiative.",
     "buttonLabel": "Réinitialiser le mot de passe",
-    "fallbackText": "Si vous n'avez pas effectué cette demande, vous pouvez ignorer cet e-mail. Le lien expire bientôt.",
-    "textBody": "Réinitialisez votre mot de passe Initiative en visitant {{link}}"
+    "fallbackText": "Si vous n'êtes pas à l'origine de cette demande, vous pouvez ignorer cet e-mail. Le lien expirera bientôt.",
+    "textBody": "Réinitialisez votre mot de passe Initiative en vous rendant sur {{link}}"
   },
   "initiativeAdded": {
-    "subject": "Ajouté à l'initiative {{initiativeName}}",
+    "subject": "Ajout à l'initiative {{initiativeName}}",
     "title": "Vous avez rejoint une nouvelle initiative",
     "greeting": "Bonjour <strong>{{name}}</strong>,",
-    "body": "Vous avez été ajouté(e) à l'initiative <strong>{{initiativeName}}</strong>.",
+    "body": "Vous avez été ajouté à l'initiative <strong>{{initiativeName}}</strong>.",
     "buttonLabel": "Voir les initiatives",
-    "textBody": "Vous avez été ajouté(e) à l'initiative {{initiativeName}}. Visitez {{link}} pour la consulter."
+    "textBody": "Vous avez été ajouté à l'initiative {{initiativeName}}. Rendez-vous sur {{link}} pour la consulter."
   },
   "projectAdded": {
     "subject": "Nouveau projet dans {{initiativeName}}",
@@ -40,7 +40,7 @@
     "greeting": "Bonjour <strong>{{name}}</strong>,",
     "body": "Un nouveau projet, <strong>{{projectName}}</strong>, a été ajouté à l'initiative <strong>{{initiativeName}}</strong>.",
     "buttonLabel": "Ouvrir le projet",
-    "textBody": "Un nouveau projet, {{projectName}}, a été ajouté à l'initiative {{initiativeName}}. Consultez-le à l'adresse {{link}}."
+    "textBody": "Un nouveau projet, {{projectName}}, a été ajouté à l'initiative {{initiativeName}}. Consultez-le sur {{link}}."
   },
   "taskAssignment": {
     "subject": "Nouvelles tâches qui vous sont assignées",
@@ -49,15 +49,15 @@
     "body": "Voici votre récapitulatif horaire des tâches qui vous sont assignées :",
     "assignedBy": "assigné par <strong>{{name}}</strong>",
     "inProject": "dans <strong>{{projectName}}</strong>",
-    "footer": "Visitez Initiative pour examiner les tâches.",
+    "footer": "Rendez-vous sur Initiative pour passer les tâches en revue.",
     "textBody": "Voici votre récapitulatif horaire des tâches qui vous sont assignées :",
     "redactedItem": "Une tâche vous a été attribuée"
   },
   "mention": {
-    "document": {
-      "subject": "Vous avez été mentionné(e) dans {{document}}",
+    "file": {
+      "subject": "Vous avez été mentionné(e) dans {{file}}",
       "title": "Vous avez été mentionné(e)",
-      "body": "<strong>{{actor}}</strong> vous a mentionné(e) dans <strong>{{document}}</strong>"
+      "body": "<strong>{{actor}}</strong> vous a mentionné(e) dans <strong>{{file}}</strong>"
     },
     "comment": {
       "subject": "Vous avez été mentionné(e) dans un commentaire",
@@ -140,13 +140,13 @@
     }
   },
   "overdue": {
-    "subject": "Rappel de tâches en retard",
-    "title": "Rappel de tâches en retard",
+    "subject": "Rappel : tâches en retard",
+    "title": "Rappel : tâches en retard",
     "greeting": "Bonjour <strong>{{name}}</strong>,",
     "body_one": "Vous avez <strong>{{count}}</strong> tâche en retard :",
     "body_other": "Vous avez <strong>{{count}}</strong> tâches en retard :",
     "taskDetail": "projet : <strong>{{projectName}}</strong>, échéance <strong>{{dueDate}}</strong>",
-    "footer": "Visitez Initiative pour vous remettre sur la bonne voie.",
+    "footer": "Rendez-vous sur Initiative pour reprendre le fil.",
     "textBody_one": "Vous avez {{count}} tâche en retard :",
     "textBody_other": "Vous avez {{count}} tâches en retard :",
     "redactedItem": "Une tâche est en retard"
@@ -254,6 +254,11 @@
       "subject": "La double authentification est désactivée",
       "title": "La double authentification est désactivée",
       "body": "Votre compte ne demande plus de code à la connexion, et les codes de secours que vous aviez ont été supprimés. Vous avez été déconnecté partout ailleurs."
+    },
+    "disableHeld": {
+      "subject": "L'authentification à deux facteurs va être désactivée",
+      "title": "L'authentification à deux facteurs va être désactivée",
+      "body": "L'authentification à deux facteurs sera désactivée le <strong>{{date}}</strong>. D'ici là, votre compte demande toujours un code à la connexion, et vous pouvez l'annuler dans Sécurité, dans vos paramètres."
     }
   },
   "passwordRemoved": {
@@ -279,7 +284,43 @@
       "subject": "Une clé d'accès a été retirée de votre compte",
       "title": "Une clé d'accès a été retirée de votre compte",
       "body": "La clé d'accès <strong>{{passkey}}</strong> ne permet plus de vous connecter. Vos autres moyens de connexion sont inchangés et vous restez connecté partout où vous l'étiez."
+    },
+    "removalHeld": {
+      "subject": "Votre dernière clé d'accès va être retirée",
+      "title": "Votre dernière clé d'accès va être retirée",
+      "body": "La clé d'accès <strong>{{passkey}}</strong>, la dernière de votre compte, sera retirée le <strong>{{date}}</strong>. D'ici là, elle permet toujours de vous connecter, et vous pouvez annuler le retrait dans Sécurité, dans vos paramètres."
     }
+  },
+  "address": {
+    "fallbackText": "Si ce n'était pas vous, connectez-vous et vérifiez sans attendre les adresses de votre compte, puis contactez la personne qui gère ce site.",
+    "proved": {
+      "subject": "Une adresse a été ajoutée à votre compte",
+      "title": "Une adresse a été ajoutée à votre compte",
+      "body": "<strong>{{address}}</strong> est désormais confirmée sur votre compte et peut servir à vous connecter."
+    },
+    "primary": {
+      "subject": "Votre adresse e-mail principale a changé",
+      "title": "Votre adresse e-mail principale a changé",
+      "body": "<strong>{{address}}</strong> est désormais l'adresse principale de votre compte. Les réinitialisations de mot de passe et les codes de connexion y arrivent en premier."
+    },
+    "removed": {
+      "subject": "Une adresse a été retirée de votre compte",
+      "title": "Une adresse a été retirée de votre compte",
+      "body": "<strong>{{address}}</strong> a été retirée de votre compte et ne peut plus servir à vous connecter."
+    },
+    "primaryHeld": {
+      "subject": "Votre adresse e-mail principale va changer",
+      "title": "Votre adresse e-mail principale va changer",
+      "body": "<strong>{{address}}</strong> deviendra l'adresse principale de votre compte le <strong>{{date}}</strong>. D'ici là, rien ne change, et vous pouvez l'annuler dans Compte, dans vos paramètres."
+    },
+    "removalHeld": {
+      "subject": "Une adresse va être retirée de votre compte",
+      "title": "Une adresse va être retirée de votre compte",
+      "body": "<strong>{{address}}</strong> sera retirée de votre compte le <strong>{{date}}</strong>. D'ici là, elle permet toujours de vous connecter, et vous pouvez annuler le retrait dans Compte, dans vos paramètres."
+    }
+  },
+  "accountNotice": {
+    "notMe": "Ce n'était pas moi"
   },
   "digest": {
     "hourly": {
@@ -370,23 +411,17 @@
   "communityOnHold": {
     "subject": "{{community}} est en attente",
     "title": "{{community}} est en attente",
-    "greeting": "Bonjour,",
     "body": "<strong>{{community}}</strong> est en attente : personne ne peut l’ouvrir pour le moment, ni ses membres ni ses administrateurs. Rien n’y a été modifié ni supprimé.",
     "bodyDeleting": "<strong>{{community}}</strong> est en attente et sera supprimée le <strong>{{date}}</strong> si son forfait n’est pas rétabli. D’ici là, personne ne peut l’ouvrir, ni ses membres ni ses administrateurs, et rien n’y a été modifié ni supprimé.",
     "bodyDeletingUnlessLifted": "<strong>{{community}}</strong> est en attente et sera supprimée le <strong>{{date}}</strong> si la mise en attente n’est pas levée. D’ici là, personne ne peut l’ouvrir, ni ses membres ni ses administrateurs, et rien n’y a été modifié ni supprimé.",
     "contact": "Contactez <strong>{{contact}}</strong> pour régler la situation.",
     "contactNobody": "Contactez la personne qui gère ce serveur pour régler la situation.",
-    "textBody": "{{community}} est en attente : personne ne peut l’ouvrir pour le moment. Rien n’y a été modifié ni supprimé.",
-    "textBodyDeleting": "{{community}} est en attente et sera supprimée le {{date}} si son forfait n’est pas rétabli. D’ici là, personne ne peut l’ouvrir, et rien n’y a été modifié ni supprimé.",
-    "textBodyDeletingUnlessLifted": "{{community}} est en attente et sera supprimée le {{date}} si la mise en attente n’est pas levée. D’ici là, personne ne peut l’ouvrir, et rien n’y a été modifié ni supprimé.",
-    "textContact": "Contactez {{contact}} pour régler la situation.",
-    "textContactNobody": "Contactez la personne qui gère ce serveur pour régler la situation.",
     "buttonLabel": "Rétablir le forfait"
   },
   "communityTrialEnding": {
     "subject": "L’essai de {{community}} se termine le {{date}}",
     "title": "L’essai de {{community}} se termine le {{date}}",
-    "body": "L’essai de <strong>{{community}}</strong> se termine le <strong>{{date}}</strong>. Abonnez-vous dans le portail de facturation d’ici là pour continuer à modifier : ensuite, la communauté passe en lecture seule jusqu’au choix d’un forfait.",
+    "body": "L’essai de <strong>{{community}}</strong> se termine le <strong>{{date}}</strong>. Ensuite, son forfait continue et est facturé au moyen de paiement enregistré. Vérifiez vos informations de facturation, ou annulez d’ici là si vous ne souhaitez pas continuer.",
     "buttonLabel": "Ouvrir le portail de facturation"
   },
   "communityTrialEnded": {

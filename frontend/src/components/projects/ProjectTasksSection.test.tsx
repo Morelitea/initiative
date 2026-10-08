@@ -21,13 +21,15 @@ import {
   buildTask,
   buildTaskListResponse,
 } from "@/__tests__/factories";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import { ProjectTasksSection } from "@/components/projects/ProjectTasksSection";
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
+import { setItem } from "@/lib/storage";
 import { fireTaskCompletionFeedback } from "@/lib/taskCompletionFeedback";
 
+vi.mock("@/lib/csv", () => ({ downloadBlob: vi.fn() }));
 vi.mock("@/lib/taskCompletionFeedback", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/taskCompletionFeedback")>()),
   fireTaskCompletionFeedback: vi.fn(),
@@ -41,7 +43,7 @@ let lastConditions: Condition[] = [];
 const captureTaskRequests = () => {
   lastConditions = [];
   server.use(
-    guildHttp.get("/tasks/", ({ request }) => {
+    communityHttp.get("/tasks/", ({ request }) => {
       const raw = new URL(request.url).searchParams.get("conditions");
       if (raw) lastConditions = JSON.parse(raw) as Condition[];
       return HttpResponse.json(buildTaskListResponse([]));
@@ -66,10 +68,10 @@ const section = (options: { routerSearch?: Record<string, unknown> } = {}) =>
 
 const fieldsUsed = () => lastConditions.map((entry) => entry.field ?? `group:${entry.logic}`);
 
-/** The guild's tags, which the default handler leaves empty. */
+/** The community's tags, which the default handler leaves empty. */
 const withTags = (ids: number[]) => {
   server.use(
-    guildHttp.get("/tags/", () =>
+    communityHttp.get("/tags/", () =>
       HttpResponse.json(ids.map((id) => buildTag({ id, name: `Tag ${id}` })))
     )
   );
@@ -294,7 +296,7 @@ describe("ProjectTasksSection presets", () => {
     // An id that cannot be checked may be hiding every task in the project.
     // Showing more than was asked for is recoverable; an unexplained empty
     // list is not.
-    server.use(guildHttp.get("/tags/", () => new HttpResponse(null, { status: 500 })));
+    server.use(communityHttp.get("/tags/", () => new HttpResponse(null, { status: 500 })));
     rememberFilters({ tag_ids: [7] });
     section();
 
@@ -314,7 +316,7 @@ describe("ProjectTasksSection presets", () => {
 
   it("hides the curation affordances from someone who may not curate", async () => {
     server.use(
-      guildHttp.get("/projects/:projectId/filter-presets/", () =>
+      communityHttp.get("/projects/:projectId/filter-presets/", () =>
         HttpResponse.json({ items: [], can_manage: false })
       )
     );
@@ -376,7 +378,7 @@ describe("ProjectTasksSection presets", () => {
 
   it("offers the way back even to someone who may not curate presets", async () => {
     server.use(
-      guildHttp.get("/projects/:projectId/filter-presets/", () =>
+      communityHttp.get("/projects/:projectId/filter-presets/", () =>
         HttpResponse.json({ items: buildDefaultFilterPresets(1), can_manage: false })
       )
     );
@@ -408,6 +410,45 @@ describe("ProjectTasksSection presets", () => {
   });
 });
 
+describe("ProjectTasksSection export", () => {
+  /** The `sorting` of the export request a PDF export sends. */
+  const exportSorting = async (view: string) => {
+    let sorting: string | null = "unsent";
+    server.use(
+      communityHttp.get("/exports/tasks", ({ request }) => {
+        sorting = new URL(request.url).searchParams.get("sorting");
+        return new HttpResponse(new Uint8Array([0x25]), {
+          headers: { "Content-Type": "application/pdf" },
+        });
+      })
+    );
+    section({ routerSearch: { view } });
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: /^export$/i }));
+    await user.click(await screen.findByRole("menuitem", { name: /pdf document/i }));
+    await waitFor(() => expect(sorting).not.toBe("unsent"));
+    return sorting;
+  };
+
+  beforeEach(() => {
+    setItem(
+      "initiative-project-1-task-table",
+      JSON.stringify({ grouping: [], sorting: [{ id: "due date", desc: true }] })
+    );
+  });
+
+  it("lists the tasks in the order the reader sorted the table", async () => {
+    expect(JSON.parse((await exportSorting("table")) ?? "null")).toEqual([
+      { field: "due_date", dir: "desc" },
+      { field: "position", dir: "asc" },
+    ]);
+  });
+
+  it("keeps the project's order from a view the table's sort does not reach", async () => {
+    expect(await exportSorting("kanban")).toBeNull();
+  });
+});
+
 describe("ProjectTasksSection ticking tasks off", () => {
   const statuses = buildDefaultTaskStatuses(1);
   const [todo, , done] = statuses;
@@ -434,8 +475,8 @@ describe("ProjectTasksSection ticking tasks off", () => {
       })
     );
     server.use(
-      guildHttp.get("/tasks/", () => HttpResponse.json(buildTaskListResponse(tasks))),
-      guildHttp.patch(
+      communityHttp.get("/tasks/", () => HttpResponse.json(buildTaskListResponse(tasks))),
+      communityHttp.patch(
         "/tasks/:taskId",
         () => new Promise<Response>((resolve) => replies.push(resolve))
       )

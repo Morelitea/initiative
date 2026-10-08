@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import type { WidgetBinding } from "@/hooks/useWidgetData";
@@ -60,12 +60,12 @@ const serve = () => {
         relations: params.dataset === "tasks" ? [{ name: "project", dataset: "projects" }] : [],
       })
     ),
-    guildHttp.post("/query/build", async ({ request }) => {
+    communityHttp.post("/query/build", async ({ request }) => {
       asked.build += 1;
       described.build = (await request.json()) as Record<string, unknown>;
       return HttpResponse.json({ sql: BUILT_SQL, columns: [], relations: ["tasks"] });
     }),
-    guildHttp.post("/query/describe", async ({ request }) => {
+    communityHttp.post("/query/describe", async ({ request }) => {
       asked.describe += 1;
       const body = (await request.json()) as { sql: string };
       // The validator refuses a name the registry does not have; everything
@@ -78,7 +78,7 @@ const serve = () => {
         relations: ["tasks"],
       });
     }),
-    guildHttp.post("/query", () =>
+    communityHttp.post("/query", () =>
       HttpResponse.json({
         columns: [
           { name: "priority", type: "text" },
@@ -120,7 +120,7 @@ const mount = (which: DefinitionWidget) =>
       onOpenChange={() => {}}
       onSave={onSave}
     />,
-    { guilds: { activeGuildId: 2 } }
+    { communities: { activeCommunityId: 2 } }
   );
 
 const sqlBox = () => screen.getByRole("textbox", { name: /statement/i });
@@ -418,6 +418,10 @@ describe("what a new statement leaves out", () => {
 
     await screen.findByRole("tab", { name: /build/i });
     await waitFor(() => expect(screen.queryByText(/no filters/i)).not.toBeInTheDocument());
+    // As a choice the author can change, not rows to read through.
+    expect(await screen.findByRole("combobox", { name: /^archived$/i })).toHaveTextContent(
+      /leave out/i
+    );
   });
 
   it("leaves a statement somebody already wrote alone", async () => {

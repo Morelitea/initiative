@@ -39,7 +39,7 @@ export const describePlacementMatch = (rule: RuleMatch, t: TFunction<"settings">
 /** The two standings a rule may hand out, spelled out rather than
  *  interpolated into the key. */
 export const placementRoleLabel = (role: string, t: TFunction<"settings">): string =>
-  role === "admin" ? t("guildAuth.rules.role.admin") : t("guildAuth.rules.role.member");
+  role === "admin" ? t("communityAuth.rules.role.admin") : t("communityAuth.rules.role.member");
 
 /** Marks a rule that places nobody right now, with the reason on hover or
  *  focus. */

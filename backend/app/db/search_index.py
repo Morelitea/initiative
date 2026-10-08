@@ -11,20 +11,22 @@ be gated by one initiative and indexed under another — the argument
 
 Chunking is a length rule, not a per-table setting: an extractor yields text and
 the trigger splits it if it is long. A tag's name is one chunk by the same code
-path that gives a long document several.
+path that gives a long file several.
 """
 
 from __future__ import annotations
 
 import hashlib
 from collections.abc import Callable
+from typing import Any
 from dataclasses import dataclass, replace
 
-from sqlalchemy import DateTime, Enum, MetaData
+from sqlalchemy import JSON, DateTime, Enum, MetaData
 from sqlmodel import SQLModel
 
+from app.core.identity_boundary import STORED_MENTION
 from app.core.search import SearchEntityType
-from app.core.tools import Tool
+from app.core.tools import KINDS, Tool
 from app.db.initiative_rls import COMMENT_PARENTS, initiative_locator
 
 #: How a row reaches the trigger's dynamic lookups: as ``$1`` in an EXECUTE.
@@ -40,6 +42,12 @@ MAX_CHUNKS = 2000
 
 #: How much of a comment stands in for its title.
 COMMENT_PREVIEW_CHARS = 140
+
+#: What an entry holds for each person its body mentions: this and their id, as
+#: a word of its own. The parser never starts a word with it, so nothing typed
+#: is read as one; a search names a person's mentions by rewriting a word that
+#: names them (``app.services.tenant.search``).
+MENTION_LEXEME = "@"
 
 
 @dataclass(frozen=True)
@@ -132,7 +140,7 @@ def _with_words(expr: str) -> str:
 def _post_text(row: str) -> str:
     """A post's searchable text: every word in its Lexical body.
 
-    The same recursive ``text`` path a native document uses — a text node, a
+    The same recursive ``text`` path a native file uses — a text node, a
     mention, and a smart chip's label all keep their words in a field of that
     name — read from ``body`` rather than ``content``, which is what a post
     calls the column. A post whose body is only a picture indexes on its
@@ -144,22 +152,31 @@ def _post_text(row: str) -> str:
 def _wiki_page_text(row: str) -> str:
     """A wiki page's searchable text: every word in its Lexical body.
 
-    The same recursive ``text`` path a post and a native document use. A page
-    needs no branch of its own — a page is always prose, where a document's
+    The same recursive ``text`` path a post and a native file use. A page
+    needs no branch of its own — a page is always prose, where a file's
     ``content`` holds a different shape per type.
     """
     return _json_text(row, "strict $.**.text")
 
 
+def _current_filename(row: str, versions: str) -> str:
+    """The uploaded filename of the version a row shows (its
+    ``current_version_id`` in ``versions``), or empty where it shows none."""
+    return (
+        f"coalesce((SELECT v.original_filename FROM {versions} v"  # noqa: S608 — stated names
+        f" WHERE v.id = {row}.current_version_id), '')"
+    )
+
+
 def _gallery_image_text(row: str) -> str:
     """A picture's searchable text: its caption, and the filename split into
     words so ``round-4-detail.png`` is found by ``detail``."""
-    filename = f"coalesce({row}.original_filename, '')"
+    filename = _current_filename(row, "gallery_image_versions")
     return f"coalesce({row}.caption, '') || ' ' || {_with_words(filename)}"
 
 
-def _document_text(row: str) -> str:
-    """A document's searchable text, by what kind of document it is.
+def _file_text(row: str) -> str:
+    """A file's searchable text, by what kind of file it is.
 
     ``content`` holds a different shape per type, so there is no single
     expression. ``native`` and ``whiteboard`` share one: a Lexical text node
@@ -167,7 +184,7 @@ def _document_text(row: str) -> str:
     named ``text``, and the recursive path reaches nested cases — a mention, a
     wikilink, an image caption's own editor state.
 
-    A ``file`` document contributes nothing here: its bytes live in ``uploads``,
+    An uploaded file contributes nothing here: its bytes live in ``uploads``,
     so its name, description and uploaded filename are all there is to index.
     """
     leaves = _json_text(row, "strict $.**.text")
@@ -181,13 +198,13 @@ def _document_text(row: str) -> str:
     )
     url = _with_words(f"coalesce({row}.content ->> 'url', '')")
     return (
-        f"(CASE {row}.document_type::text"
+        f"(CASE {row}.file_type::text"
         f" WHEN 'native' THEN {leaves}"
         f" WHEN 'whiteboard' THEN {leaves}"
         f" WHEN 'spreadsheet' THEN {cells}"
         f" WHEN 'smart_link' THEN {url}"
         " ELSE '' END)"
-        " || ' ' || " + _with_words(f"coalesce({row}.original_filename, '')")
+        " || ' ' || " + _with_words(_current_filename(row, "file_versions"))
     )
 
 
@@ -204,14 +221,25 @@ def _task_text(row: str) -> str:
     return f"coalesce({row}.description, '') || ' ' || {lines}"
 
 
+#: What a cut preview can end inside: a mention or reference, a markdown
+#: picture or link, or a stored file's address.
+_UNFINISHED_TAIL = r"(?:(?:[@!]|#\w+)?\[[^\]\n]*(?:\](?:\([^)\n]*)?)?|\S*/uploads/\S*)$"
+
+
 def _comment_preview(row: str) -> str:
     """The opening of a comment, as the line a result is shown by.
 
     A comment has no title. Storing the whole of one would put an essay where a
     name goes; the full text is still indexed as the body, so what matched is
-    findable either way.
+    findable either way. A mention, reference, picture or link, or a stored
+    file's address, that the cut goes through is left out whole.
     """
-    return f"left({row}.content, {COMMENT_PREVIEW_CHARS})"
+    content = f"{row}.content"
+    return (
+        f"CASE WHEN length({content}) > {COMMENT_PREVIEW_CHARS} THEN"
+        f" regexp_replace(left({content}, {COMMENT_PREVIEW_CHARS}), '{_UNFINISHED_TAIL}', '')"
+        f" ELSE {content} END"
+    )
 
 
 def _comment_dac(row: str) -> tuple[str, str]:
@@ -268,6 +296,44 @@ def _flag_expr(table: str, flag: str, row: str) -> str | None:
     return f"{row}.{column}"
 
 
+def _written(table: str, source: "SearchSource") -> tuple[str, ...]:
+    """The body columns somebody writes in: all of them, less a column that only
+    names a kind (an enum) or another row (a foreign key)."""
+    columns = SQLModel.metadata.tables[table].columns
+    return tuple(
+        c
+        for c in source.body
+        if not isinstance(columns[c].type, Enum) and not columns[c].foreign_keys
+    )
+
+
+def _mentions_expr(table: str, source: "SearchSource", row: str = ROW) -> str:
+    """Row expression yielding the people a source's body mentions, as words.
+
+    A markdown mention in any written column, and in an editor state a mention
+    node's ``mentionUserId`` as well. Empty where the source writes nothing.
+    """
+    columns = SQLModel.metadata.tables[table].columns
+    markdown = STORED_MENTION.pattern
+    found: list[str] = []
+    for column in _written(table, source):
+        value = f"{row}.{column}"
+        if isinstance(columns[column].type, JSON):
+            found.append(
+                "SELECT v #>> '{}' FROM jsonb_path_query("
+                f"{value}, 'strict $.**.mentionUserId ? (@.type() == \"number\")',"
+                " '{}'::jsonb, true) v"
+            )
+            value = f"{value}::text"
+        found.append(f"SELECT m[2] FROM regexp_matches({value}, '{markdown}', 'g') m")
+    if not found:
+        return ""
+    return (
+        f"ARRAY(SELECT DISTINCT '{MENTION_LEXEME}' || id"
+        f" FROM ({' UNION ALL '.join(found)}) AS mentioned(id))"
+    )
+
+
 def _body_expr(source: "SearchSource", row: str = ROW) -> str:
     """Row expression yielding a source's body text."""
     if source.body_sql is not None:
@@ -290,12 +356,20 @@ def _tool_source(tool: Tool) -> SearchSource:
     )
 
 
+def _inside(kind: SearchEntityType, **fields: Any) -> SearchSource:
+    """A row inside a tool, gated by the sharing of the tool it lives in."""
+    inside = KINDS[kind.value]
+    return SearchSource(
+        kind, dac_tool=inside.parent, dac_id=inside.parent_column, **fields
+    )
+
+
 #: Where a tool's text is not simply its name and description. A tool absent
 #: from here is not an omission — it is a tool that takes the shape above.
 TOOL_OVERRIDES: dict[Tool, dict[str, object]] = {
-    Tool.document: {
-        "body": ("content", "document_type", "original_filename"),
-        "body_sql": _document_text,
+    Tool.file: {
+        "body": ("content", "file_type", "current_version_id"),
+        "body_sql": _file_text,
     },
     # A post's text is what it says, not a summary of it: the headline is the
     # title and the Lexical body is the body. There is no `description`.
@@ -306,64 +380,54 @@ TOOL_OVERRIDES: dict[Tool, dict[str, object]] = {
 #:
 #: The six tools are derived; what is written out is what a tool does not
 #: describe — the entities that live INSIDE one, the guild's vocabulary, and
-#: comments. Those differ from each other in ways no rule covers: which column
-#: is the title, which parent's sharing governs them.
+#: comments. Those differ from each other in ways no rule covers, like which
+#: column is the title; which tool's sharing governs one inside a tool is its
+#: kind's (``KINDS``).
 SEARCH_SOURCES: dict[str, SearchSource] = {
     **{
         tool.plural: replace(_tool_source(tool), **TOOL_OVERRIDES.get(tool, {}))
         for tool in Tool
     },
-    "tasks": SearchSource(
+    "tasks": _inside(
         SearchEntityType.task,
         title="title",
         body=("description", "checklist"),
         body_sql=_task_text,
-        dac_tool=Tool.project,
-        dac_id="project_id",
     ),
-    "queue_items": SearchSource(
+    "queue_items": _inside(
         SearchEntityType.queue_item,
         title="label",
         body=("notes",),
-        dac_tool=Tool.queue,
-        dac_id="queue_id",
     ),
-    "counters": SearchSource(
+    "counters": _inside(
         SearchEntityType.counter,
         title="name",
-        dac_tool=Tool.counter_group,
-        dac_id="counter_group_id",
     ),
-    "calendar_events": SearchSource(
+    "calendar_events": _inside(
         SearchEntityType.calendar_event,
         title="title",
         body=("description", "location"),
-        dac_tool=Tool.calendar,
-        dac_id="calendar_id",
     ),
     # A picture is found by what somebody called it, or failing that by the
     # name of the file they uploaded — which is often the only name it has.
-    "gallery_images": SearchSource(
+    "gallery_images": _inside(
         SearchEntityType.gallery_image,
         title="title",
         title_sql=lambda row: (
-            f"coalesce(nullif({row}.title, ''), {row}.original_filename, '')"
+            f"coalesce(nullif({row}.title, ''),"
+            f" {_current_filename(row, 'gallery_image_versions')})"
         ),
-        body=("caption", "original_filename"),
+        body=("caption", "current_version_id"),
         body_sql=_gallery_image_text,
-        dac_tool=Tool.gallery,
-        dac_id="gallery_id",
     ),
     # A page is found by its title and by what is written on it. Its body is a
-    # Lexical state, the same shape a native document's is, so it is read by the
+    # Lexical state, the same shape a native file's is, so it is read by the
     # same extractor rather than a second one.
-    "wiki_pages": SearchSource(
+    "wiki_pages": _inside(
         SearchEntityType.wiki_page,
         title="title",
         body=("content",),
         body_sql=_wiki_page_text,
-        dac_tool=Tool.wiki,
-        dac_id="wiki_id",
     ),
     # Guild-level vocabulary: no initiative, no sharing gate. Reaching the query
     # at all means being in the guild, which is the whole gate for a tag.
@@ -397,11 +461,7 @@ def written_columns() -> dict[type[SQLModel], tuple[str, ...]]:
         if mapper.local_table.name in SEARCH_SOURCES
     }
     written = {
-        models[table]: tuple(
-            column
-            for column in source.body
-            if not isinstance(models[table].__table__.c[column].type, Enum)
-        )
+        models[table]: _written(table, source)
         for table, source in SEARCH_SOURCES.items()
     }
     return {model: columns for model, columns in written.items() if columns}
@@ -415,7 +475,7 @@ NOT_SEARCHABLE: dict[str, str] = {
     "search_entries": "the index itself",
     "uploads": "stored files, found through the content that shows them",
     "event_outbox": "change log, not content",
-    "app_event_outbox": "app events awaiting delivery, not content",
+    "plugin_event_outbox": "plug-in events awaiting delivery, not content",
     "resource_grants": "sharing rows carry no text",
     "property_definitions": "field config, reached from the tool it configures",
     "webhook_subscriptions": "integration config",
@@ -426,7 +486,7 @@ NOT_SEARCHABLE: dict[str, str] = {
     "recent_views": "one member's own viewing state",
     "project_filter_presets": "one member's saved filters",
     "task_statuses": "column names, reached from the project",
-    "document_file_versions": "history of a document already indexed",
+    "file_versions": "history of a file already indexed",
     "gallery_image_versions": "history of a picture already indexed",
     "post_polls": "the question a notice asks, reached from the notice",
     "post_poll_options": "a poll's choices, reached from the notice",
@@ -508,12 +568,19 @@ CREATE OR REPLACE FUNCTION {write_fn}(
     p_title       text,
     p_body        text,
     p_archived    boolean,
-    p_template    boolean
+    p_template    boolean,
+    p_mentions    text[]
 ) RETURNS void
     LANGUAGE plpgsql AS $write$
 DECLARE
     v_title text := coalesce(p_title, '');
     v_body  text := coalesce(p_body, '');
+    -- Every chunk carries them: a mention says who the whole entity is about,
+    -- so "Ada budget" finds a long file whose mention and words sit apart.
+    v_people tsvector := coalesce((
+        SELECT string_agg(quote_literal(l) || ':1B', ' ')
+          FROM unnest(p_mentions) l
+    )::tsvector, '');
     v_chunk text;
     v_ix    smallint := 0;
     v_pos   integer := 1;
@@ -558,11 +625,11 @@ BEGIN
             ') VALUES ($1, $2, $3, $4, nullif($5, ''''), $6, $7, nullif($8, ''''),'
             '  coalesce($9, false), coalesce($10, false), now(),'
             '  setweight(to_tsvector(''simple'', $7), ''A'') ||'
-            '  setweight(to_tsvector(''simple'', $8), ''B''))',
+            '  setweight(to_tsvector(''simple'', $8), ''B'') || $11)',
             p_schema
         ) USING p_entity_type, p_entity_id, v_ix, p_initiative,
                 p_dac_tool, p_dac_id, v_title, v_chunk,
-                p_archived, p_template;
+                p_archived, p_template, v_people;
 
         v_ix := v_ix + 1;
         v_pos := v_pos + v_cut;
@@ -586,6 +653,7 @@ DECLARE
     v_dac_tool   text;
     v_archived   boolean := false;
     v_template   boolean := false;
+    v_mentions   text[];
 BEGIN
     IF TG_OP = 'DELETE' THEN
         v_row := OLD;
@@ -629,11 +697,14 @@ BEGIN
     IF TG_ARGV[8] <> '' THEN
         EXECUTE 'SELECT ' || TG_ARGV[8] INTO v_template USING v_row;
     END IF;
+    IF TG_ARGV[9] <> '' THEN
+        EXECUTE 'SELECT ' || TG_ARGV[9] INTO v_mentions USING v_row;
+    END IF;
 
     PERFORM {write_fn}(
         TG_TABLE_SCHEMA, TG_ARGV[1], v_entity, v_initiative,
         v_dac_tool, v_dac_id, v_title, v_body,
-        v_archived, v_template
+        v_archived, v_template, v_mentions
     );
     RETURN NULL;
 END
@@ -702,11 +773,12 @@ def _write_call(table: str, source: SearchSource, row: str, schema: str) -> str:
     body = _body_expr(source, row) or "''"
     archived = _flag_expr(table, "archived", row) or "false"
     template = _flag_expr(table, "template", row) or "false"
+    mentions = _mentions_expr(table, source, row) or "NULL::text[]"
     return (
         f"{WRITE_FUNCTION}({schema}, '{source.entity_type.value}', {row}.id,"
         f" ({initiative_locator(table)(row)})::integer,"
         f" {dac_tool}, {dac_id}, {_title_expr(source, row)}, {body},"
-        f" {archived}, {template})"
+        f" {archived}, {template}, {mentions})"
     )
 
 
@@ -739,10 +811,11 @@ def _dependency_block(
 
 
 def _call_args(table: str, source: SearchSource) -> list[str]:
-    """The nine trigger arguments, shared by both triggers on a table.
+    """The ten trigger arguments, shared by both triggers on a table.
 
     An argument is the empty string where the source has nothing to say — no
-    body, no sharing gate, no flag column — and the function skips it.
+    body, no sharing gate, no flag column, nobody it could mention — and the
+    function skips it.
     """
     locator = initiative_locator(table)
     dac_tool, dac_id = _dac_exprs(source)
@@ -755,7 +828,8 @@ def _call_args(table: str, source: SearchSource) -> list[str]:
         f"    {_quoted(dac_tool)},",
         f"    {_quoted(dac_id)},",
         f"    {_quoted(_flag_expr(table, 'archived', ROW) or '')},",
-        f"    {_quoted(_flag_expr(table, 'template', ROW) or '')}",
+        f"    {_quoted(_flag_expr(table, 'template', ROW) or '')},",
+        f"    {_quoted(_mentions_expr(table, source))}",
     ]
 
 

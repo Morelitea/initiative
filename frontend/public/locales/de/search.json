@@ -1,7 +1,7 @@
 {
   "title": "Suche",
-  "titleInGuild": "{{guildName}} durchsuchen",
-  "placeholder": "{{guildName}} durchsuchen",
+  "titleInCommunity": "{{communityName}} durchsuchen",
+  "placeholder": "{{communityName}} durchsuchen",
   "prompt": {
     "title": "Diese Community durchsuchen",
     "description": "Finde alles über seinen Namen oder über das, was darin steht."
@@ -23,7 +23,7 @@
   "types": {
     "project": "Projekt",
     "task": "Aufgabe",
-    "document": "Dokument",
+    "file": "Datei",
     "queue": "Ablauf",
     "queue_item": "Ablaufelement",
     "counter_group": "Zählergruppe",

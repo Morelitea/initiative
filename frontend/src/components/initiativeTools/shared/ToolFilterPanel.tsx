@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 /** How many filters are set, as a small pill; nothing while none are. */
 export const FilterCountBadge = ({ count }: { count: number }) =>
   count > 0 ? (
-    <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 font-medium text-[11px] text-primary-foreground tabular-nums">
+    <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 font-medium text-2xs text-primary-foreground tabular-nums">
       {count}
     </span>
   ) : null;
@@ -37,7 +37,7 @@ export const ToolFilterButton = ({
 
   return (
     <Button
-      variant={open || activeCount > 0 ? "secondary" : "outline"}
+      variant={open || activeCount > 0 ? "secondary" : "ghost"}
       size="sm"
       className="h-9 gap-2"
       aria-expanded={open}
@@ -56,8 +56,6 @@ export const ToolFilterButton = ({
 type ToolFilterPanelProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Heading for the mobile sheet. */
-  title: string;
   /** Resets every filter this panel owns; omitted when there is nothing to
    *  clear (e.g. a list whose only filter is a search box). */
   onClear?: () => void;
@@ -85,7 +83,6 @@ type ToolFilterPanelProps = {
 export const ToolFilterPanel = ({
   open,
   onOpenChange,
-  title,
   onClear,
   activeCount = 0,
   actions,
@@ -121,7 +118,7 @@ export const ToolFilterPanel = ({
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent side="bottom" className="max-h-[85svh] overflow-y-auto">
           <SheetHeader className="mb-4 text-left">
-            <SheetTitle>{title}</SheetTitle>
+            <SheetTitle>{t("toolbar.filters")}</SheetTitle>
           </SheetHeader>
           {fields(
             leading || actions ? (

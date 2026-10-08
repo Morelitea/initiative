@@ -1,21 +1,16 @@
 import { Browser } from "@capacitor/browser";
-import {
-  browserSupportsWebAuthn,
-  type PublicKeyCredentialCreationOptionsJSON,
-  startRegistration,
-  WebAuthnError,
-} from "@simplewebauthn/browser";
+import { browserSupportsWebAuthn, WebAuthnError } from "@simplewebauthn/browser";
 import { KeyRound, Pencil, Trash2 } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
-  getListPasskeysApiV1AuthPasskeysGetQueryKey,
-  useBeginPasskeyRegistrationApiV1AuthPasskeysRegisterBeginPost,
-  useFinishPasskeyRegistrationApiV1AuthPasskeysRegisterFinishPost,
-  useListPasskeysApiV1AuthPasskeysGet,
-  useRemovePasskeyApiV1AuthPasskeysPasskeyIdRemovePost,
-  useRenamePasskeyApiV1AuthPasskeysPasskeyIdPatch,
+  getListPasskeysQueryKey,
+  useBeginPasskeyRegistration,
+  useFinishPasskeyRegistration,
+  useListPasskeys,
+  useRemovePasskey,
+  useRenamePasskey,
 } from "@/api/generated/auth/auth";
 import type {
   PasskeyRead,
@@ -34,12 +29,14 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { WizardDialog } from "@/components/ui/wizard-dialog";
+import { useAnnounceHeld } from "@/hooks/useHeldChange";
 import { useServer } from "@/hooks/useServer";
 import { useWizard } from "@/hooks/useWizard";
-import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { formatDateTime } from "@/lib/formatDate";
+import { toast } from "@/lib/mascotToast";
 import { hasReservedSigil } from "@/lib/mentions";
+import { appRunsPasskeys, createCredential, PasskeyNeedsBrowserError } from "@/lib/passkeys";
 import { queryClient } from "@/lib/queryClient";
 
 /** Where this very section lives, for the app to send a phone to a browser. */
@@ -65,10 +62,11 @@ const PROMPT_MESSAGE_KEYS: Record<string, PromptMessageKey> = {
 /**
  * Which line to show when the prompt ends without a credential.
  *
- * `startRegistration` raises a {@link WebAuthnError} named after the browser's
- * own exception, and anything else that lands in the same catch keeps whatever
- * name it had; both are read the same way, and a name with no line of its own
- * gets the general one.
+ * `createCredential` raises a {@link WebAuthnError} named after the browser's
+ * own exception, or the app's refusal under the browser's name for it, and
+ * anything else that lands in the same catch keeps whatever name it had; all
+ * are read the same way, and a name with no line of its own gets the general
+ * one.
  */
 const promptMessageKey = (error: unknown): PromptMessageKey => {
   const name = error instanceof WebAuthnError || error instanceof Error ? error.name : "";
@@ -84,18 +82,21 @@ const promptMessageKey = (error: unknown): PromptMessageKey => {
  * the form, so a prompt that ended in nothing can be tried again without
  * retyping it.
  *
- * The app cannot hold that conversation — a passkey belongs to the deployment's
- * domain, which is the browser's idea of where it is, not the app's — so on a
- * phone the Add button opens this page in the system browser instead. Renaming
- * and removing are ordinary requests and work anywhere.
+ * On Android the app holds that conversation itself when the deployment names
+ * it. Anywhere else on a phone — a passkey belongs to the deployment's domain,
+ * which is the browser's idea of where it is, not the app's — the Add button
+ * opens this page in the system browser instead. Renaming and removing are
+ * ordinary requests and work anywhere.
  */
 export const PasskeysSection = () => {
   const { t } = useTranslation(["settings", "errors", "common"]);
+  const announceHeld = useAnnounceHeld();
   const { isNativePlatform, getServerOrigin } = useServer();
+  /** A phone whose app cannot make the credential itself. */
+  const browserOnly = isNativePlatform && !appRunsPasskeys();
 
-  const list = useListPasskeysApiV1AuthPasskeysGet();
-  const refresh = () =>
-    queryClient.invalidateQueries({ queryKey: getListPasskeysApiV1AuthPasskeysGetQueryKey() });
+  const list = useListPasskeys();
+  const refresh = () => queryClient.invalidateQueries({ queryKey: getListPasskeysQueryKey() });
 
   const [addOpen, setAddOpen] = useState(false);
   const { step, go, back, reset } = useWizard<AddStep>("details");
@@ -122,8 +123,9 @@ export const PasskeysSection = () => {
   // the page knows whether it is in a secure context — served over plain http
   // at anything but localhost, it is not, and no credential API exists to ask.
   //
-  // On a phone the ceremony happens in the system browser, so this webview's
-  // own context says nothing; only the server's half speaks for it. The same
+  // On a phone the ceremony happens in the app's credential manager or the
+  // system browser, so this webview's own context says nothing; only the
+  // server's half speaks for it. The same
   // goes for what this browser can do, below.
   const siteUnsupported =
     list.data?.site_supported === false || (!isNativePlatform && !window.isSecureContext);
@@ -131,8 +133,8 @@ export const PasskeysSection = () => {
   // stays where it is — it can still be renamed, and removed — but there is
   // nothing to add.
   const offered = list.data?.offered ?? true;
-  // On a phone the ceremony happens in the system browser, so what this webview
-  // can do says nothing about whether a passkey can be added.
+  // On a phone the ceremony happens outside this webview, so what it can do
+  // says nothing about whether a passkey can be added.
   const unsupported = !isNativePlatform && !browserSupportsWebAuthn();
 
   const closeAdd = () => {
@@ -143,7 +145,7 @@ export const PasskeysSection = () => {
     setError(null);
   };
 
-  const finish = useFinishPasskeyRegistrationApiV1AuthPasskeysRegisterFinishPost({
+  const finish = useFinishPasskeyRegistration({
     mutation: {
       onSuccess: () => {
         toast.success(t("passkeys.added"));
@@ -157,17 +159,13 @@ export const PasskeysSection = () => {
     },
   });
 
-  const begin = useBeginPasskeyRegistrationApiV1AuthPasskeysRegisterBeginPost({
+  const begin = useBeginPasskeyRegistration({
     mutation: {
       onSuccess: async (data) => {
         setError(null);
         go("prompting");
         try {
-          // The server renders the options the way the credential API wants
-          // them; the generated schema carries them as an open object.
-          const credential = await startRegistration({
-            optionsJSON: data.options as unknown as PublicKeyCredentialCreationOptionsJSON,
-          });
+          const credential = await createCredential(data.options);
           finish.mutate({
             data: {
               credential: credential as unknown as PasskeyRegisterFinishCredential,
@@ -175,6 +173,11 @@ export const PasskeysSection = () => {
             },
           });
         } catch (err) {
+          if (err instanceof PasskeyNeedsBrowserError) {
+            closeAdd();
+            openInBrowser();
+            return;
+          }
           setError(t(promptMessageKey(err)));
           back();
         }
@@ -183,7 +186,7 @@ export const PasskeysSection = () => {
     },
   });
 
-  const rename = useRenamePasskeyApiV1AuthPasskeysPasskeyIdPatch({
+  const rename = useRenamePasskey({
     mutation: {
       onSuccess: () => {
         toast.success(t("passkeys.renamed"));
@@ -194,10 +197,11 @@ export const PasskeysSection = () => {
     },
   });
 
-  const remove = useRemovePasskeyApiV1AuthPasskeysPasskeyIdRemovePost({
+  const remove = useRemovePasskey({
     mutation: {
-      onSuccess: () => {
-        toast.success(t("passkeys.removed"));
+      onSuccess: (result) => {
+        if (result.held) announceHeld(result.held);
+        else toast.success(t("passkeys.removed"));
         void refresh();
         setRemoveTarget(null);
         setRemovePassword("");
@@ -206,10 +210,14 @@ export const PasskeysSection = () => {
     },
   });
 
+  const openInBrowser = () => {
+    const origin = getServerOrigin();
+    if (origin) void Browser.open({ url: `${origin}${SECURITY_PAGE_PATH}` });
+  };
+
   const openAdd = () => {
-    if (isNativePlatform) {
-      const origin = getServerOrigin();
-      if (origin) void Browser.open({ url: `${origin}${SECURITY_PAGE_PATH}` });
+    if (browserOnly) {
+      openInBrowser();
       return;
     }
     reset();
@@ -261,7 +269,7 @@ export const PasskeysSection = () => {
         ? t("passkeys.siteUnsupported")
         : unsupported
           ? t("passkeys.unsupported")
-          : isNativePlatform
+          : browserOnly
             ? t("passkeys.addFromBrowser")
             : null;
 

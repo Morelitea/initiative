@@ -43,6 +43,7 @@ from app.services.tenant import task_completion
 from app.services.tenant import task_description as task_description_service
 from app.services.tenant import task_series
 from app.services.tenant import task_statuses as task_statuses_service
+from app.services.tenant.names import copy_name
 from app.services.tenant.task_completion import sync_completed_at
 
 
@@ -382,7 +383,7 @@ async def copy_tasks(
             repeat = recurrence.moved(repeat, date_shift) if repeat else None
         copy = Task(
             project_id=target.id,
-            title=f"{source.title} (Copy)" if beside else source.title,
+            title=copy_name(source.title) if beside else source.title,
             description=source.description,
             task_status_id=status_id,
             priority=source.priority,

@@ -12,7 +12,7 @@ Every one of those is currently stored in one person's head, or in a chat messag
 
 ## Making one
 
-From an initiative's sidebar, choose **Queues → New queue**, give it a **name** and an optional **description**, and start adding items.
+From the initiative's **Queues** tab, choose **Create Queue**, give it a **name** and an optional **description**, and start adding items with **Add Item**.
 
 An **item** is usually a person, but it doesn't have to be — it's whatever takes turns. Tables at a fundraiser, agenda points, sections of a script.
 
@@ -23,24 +23,29 @@ Each item can carry:
 | **Label** | What the item is called. Usually a name. |
 | **Color** | So the queue is readable at a glance across a room. |
 | **Position** | Where it sits in the order. Drag to rearrange. |
-| **Member** | Link the item to an actual person in your community. |
+| **Linked member** | Link the item to an actual person in your community. |
 | **Notes** | The detail that doesn't fit in a label — "has a key", "vegetarian", "back on the 14th". |
-| **Documents and tasks** | Link the thing this turn is *about*, so nobody has to go hunting for it when their turn arrives. |
+| **Tags** | The same tags as everything else. |
+| **Attached** | The files and tasks this turn is *about*, so nobody has to go hunting for it when their turn arrives. Anything from the same initiative that isn't archived. |
 | **Visible / hidden** | Keep somebody in the queue without showing them right now. |
 
 ## Running one
 
-**Start** the queue and it begins tracking. From there:
+The controls sit in the strip at the top of the queue, beside its status and tags. **Start** the queue and it begins tracking. From there:
 
-- **Next turn** and **Previous turn** step through the order.
-- **Hold** parks the current turn without losing the place — the person stepped out, the item isn't ready, the answer is "not yet". **Release** picks it back up.
+- **Next Turn** and **Previous Turn** step through the order.
+- **Hold** parks the current turn without losing the place — the person stepped out, the item isn't ready, the answer is "not yet". When they're back, **Act** takes their turn, either at their old place in the order (**Act in place**) or right where the queue is now (**Act and reposition**).
 - **Round** counts how many times you've been all the way round, which is the number people usually actually want.
-- **Reset** starts it over from the top.
+- **Reset** starts it over from the top. **Stop** pauses it until the next time it's needed.
+
+In the list of queues, each card shows whose turn it is and who's next, so a glance at the initiative is enough.
 
 ![A turn-tracking queue](../images/tools/queue.png)
 
 !!! tip "Hidden items still hold their place"
     Marking somebody hidden takes them off the display without removing them from the order — right for the volunteer who's away this month and back next. Delete them only if they're actually gone.
+
+**Duplicate**, in an item's edit window, adds another just like it at the same place in the order, with "(Copy)" on the end of its name. That is the second goblin sorted.
 
 ## Things people use them for
 
@@ -53,13 +58,11 @@ Each item can carry:
 
 ## Sharing and comments
 
-Queues share exactly like projects and documents: per-queue access at **Viewer**, **Editor** or **Owner**, or open to everyone in the initiative. Select several queues in the list view to change access on all of them at once.
-
-Every queue has its own comment thread, which you can switch off under **Settings → Details** if the queue is the kind nobody needs to discuss.
+Queues share exactly like every other tool: per-queue access at **Viewer**, **Editor** or **Owner**, or open to everyone in the initiative. Tags, comments, connections, copies and changing access on several at once all work the way they do everywhere — see [Tools](tools.md).
 
 ## Related
 
-- [Tools](tools.md) — the other optional tools.
-- [Sharing projects & documents](../sharing/sharing-projects-and-documents.md) — the access levels in full.
+- [Tools](tools.md) — what every tool shares.
+- [Sharing projects & files](../sharing/sharing-projects-and-files.md) — the access levels in full.
 - [Tags](tags.md) — labeling queues and their items.
 - [Your space](your-space.md#my-tools) — every queue that's reached you, from every community, in one table.

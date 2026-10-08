@@ -5,22 +5,6 @@ profile decorations under `frontend/public/decorations/` are not our drawings.
 They are used as published rather than redrawn, and they keep their own terms.
 Each file also carries its credit in an SVG `<metadata>` element.
 
-## Creative Commons Attribution-ShareAlike
-
-- **`trophies/heritage-fist.svg`** — the raised fist is
-  [BLM Fist](https://commons.wikimedia.org/wiki/File:BLM_Fist.svg) by
-  **FireDragonValo**, from Wikimedia Commons, licensed
-  [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). Recoloured
-  and placed on a disc; the outline is unchanged. This one file is distributed
-  under CC BY-SA 4.0, not the AGPL.
-
-- **`trophies/pets-paw.svg`** — the print is
-  [Paw-print](https://commons.wikimedia.org/wiki/File:Paw-print.svg) by
-  **Mistman123**, from Wikimedia Commons, licensed
-  [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/). Recoloured
-  and placed on a disc; the outline is unchanged. This one file is distributed
-  under CC BY-SA 3.0, not the AGPL.
-
 ## Public domain
 
 These carry no conditions; they are listed so the drawings are credited to the
@@ -37,6 +21,11 @@ people who made them.
   megabytes, which is not a thing to send anybody for a profile banner.
 - **`banners/pets-fetch.svg`** — a public-domain drawing of a dog, on the black
   it was drawn on, baked to a banner-sized image.
+- **`trophies/heritage-fist.svg`** — the raised fist is *Raised fist
+  pictogram* from [Openclipart](https://openclipart.org/)
+  ([FreeSVG](https://freesvg.org/vector-image-of-raised-fist-pictogram)),
+  released to the public domain. Recoloured and placed on a disc; the outline
+  is unchanged.
 - **`trophies/faith-*.svg`** — the religious symbols are drawn from Wikimedia
   Commons, all public domain, used as published and only recoloured and scaled
   onto our disc:

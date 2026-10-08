@@ -14,11 +14,6 @@ on:
         required: false
         type: string
         default: ""
-      ref:
-        description: What to check out, when not the run's own ref (a schedule runs from main).
-        required: false
-        type: string
-        default: ""
   push:
     branches: [dev]
   pull_request:
@@ -38,8 +33,6 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ inputs.ref }}
 
       - name: Set up Docker Buildx
         if: inputs.image == ''
@@ -63,7 +56,7 @@ jobs:
             APT_REFRESH=${{ steps.build.outputs.day }}
           cache-from: type=gha,scope=docker-build-linux-amd64
           load: true
-          tags: morelitea/initiative:latest
+          tags: ghcr.io/beyonders-studio/initiative:latest
 
       - name: Pull the image to run
         if: inputs.image != ''
@@ -71,11 +64,11 @@ jobs:
           IMAGE: ${{ inputs.image }}
         run: |
           docker pull "$IMAGE"
-          docker tag "$IMAGE" morelitea/initiative:latest
+          docker tag "$IMAGE" ghcr.io/beyonders-studio/initiative:latest
 
       - name: Start it as the example compose file does
         # The file as shipped, with the image under test as the
-        # morelitea/initiative:latest it names.
+        # ghcr.io/beyonders-studio/initiative:latest it names.
         run: |
           mkdir -p "$RUNNER_TEMP/install"
           cp docker-compose.example.yml "$RUNNER_TEMP/install/docker-compose.yml"

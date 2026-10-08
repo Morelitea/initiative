@@ -4,16 +4,11 @@ import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { NotificationRead } from "@/api/generated/initiativeAPI.schemas";
-import {
-  exportDownloadTarget,
-  notificationLink,
-  notificationText,
-} from "@/components/notifications/notificationLine";
+import { notificationText, openNotification } from "@/components/notifications/notificationLine";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { RelativeTime } from "@/components/ui/relative-time";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from "@/hooks/useAuth";
 import { useNotificationStreamConnected } from "@/hooks/useNotificationStream";
 import {
@@ -21,13 +16,17 @@ import {
   useMarkAllNotificationsRead,
   useMarkNotificationRead,
 } from "@/hooks/useNotifications";
-import { downloadExportArtifact } from "@/lib/exportDownload";
+import { useStoreSellingAnswer } from "@/lib/storeSelling";
+import type { TranslateFn } from "@/types/i18n";
 
 // How often the bell asks on its own, which is only ever when there is no
 // channel to ask for it.
 const NOTIFICATION_POLL_INTERVAL_MS = 30_000;
 
 export const NotificationBell = () => {
+  // Plan lines are worded by whether this device may sell; re-render once a
+  // phone's store has said.
+  useStoreSellingAnswer();
   const [open, setOpen] = useState(false);
   // Rows read while the popover is open. The list is unread-only, so without
   // this they would vanish under the pointer and reflow what is beneath them.
@@ -39,7 +38,7 @@ export const NotificationBell = () => {
   const { user } = useAuth();
   // "exports" is loaded alongside so the export download's cross-namespace
   // toast keys (exports:export.*) are available when clicked from the bell.
-  const { t } = useTranslation(["guilds", "exports"]);
+  const { t } = useTranslation(["communities", "exports"]);
   const isEnabled = Boolean(user);
   const streamConnected = useNotificationStreamConnected();
 
@@ -86,35 +85,21 @@ export const NotificationBell = () => {
   const unreadCount = notificationsQuery.unreadCount;
   const hasUnread = unreadCount > 0;
 
-  const handleNotificationClick = async (notification: NotificationRead) => {
-    // Not awaited: the read is applied to the cache as it is sent, so the dot
-    // and the badge have already moved, and nothing below depends on the
-    // server having answered. Waiting for it only ever showed as a stall
-    // between the click and the page it opens.
+  const handleNotificationClick = (notification: NotificationRead) => {
+    // The read is not awaited: it is applied to the cache as it is sent, so
+    // the dot and the badge have already moved. The row keeps its place,
+    // dimmed, until the popover closes.
     if (!notification.read_at) {
       readWhileOpen.current.set(notification.id, notification);
       setJustRead((seen) => [...seen, notification.id]);
-      markReadMutation.mutate(notification.id);
     }
-    // A finished export is fetched, not navigated to: the artifact lives
-    // behind the job-gated download endpoint, so the click IS the download.
-    const exportTarget = exportDownloadTarget(notification);
-    if (exportTarget) {
-      setOpen(false);
-      await downloadExportArtifact(
-        exportTarget.guildId,
-        exportTarget.jobId,
-        t as (key: string, options?: Record<string, unknown>) => string,
-        exportTarget.source,
-        exportTarget.format
-      );
-      return;
-    }
-    const target = notificationLink(notification);
-    if (target) {
-      // A target carrying a query string (an app's consent screen opens from
-      // `?app=`) goes as an href, so the query stays search rather than path.
-      router.navigate(target.includes("?") ? { href: target } : { to: target });
+    if (
+      openNotification(notification, {
+        markRead: markReadMutation.mutate,
+        navigate: (options) => router.navigate(options),
+        t: t as TranslateFn,
+      })
+    ) {
       setOpen(false);
     }
   };
@@ -136,7 +121,10 @@ export const NotificationBell = () => {
       );
     }
     return (
-      <ScrollArea className="max-h-80 min-h-0">
+      // The list is the one part that scrolls, so the bound and the overflow
+      // belong on it. A max-height alone on a wrapper only clips: the element
+      // that overflows has to be the one carrying the limit.
+      <div className="max-h-80 min-h-0 overflow-y-auto">
         <ul className="divide-y">
           {notifications.map((notification) => (
             <li key={notification.id}>
@@ -145,14 +133,11 @@ export const NotificationBell = () => {
                 className={`flex w-full items-start gap-3 px-2 py-3 text-left transition hover:bg-accent/50 ${
                   justRead.includes(notification.id) ? "opacity-50" : ""
                 }`}
-                onClick={() => void handleNotificationClick(notification)}
+                onClick={() => handleNotificationClick(notification)}
               >
                 <div className="flex-1">
                   <p className="text-foreground text-sm">
-                    {notificationText(
-                      notification,
-                      t as (key: string, options?: Record<string, unknown>) => string
-                    )}
+                    {notificationText(notification, t as TranslateFn)}
                   </p>
                   <RelativeTime
                     date={notification.created_at}
@@ -166,7 +151,7 @@ export const NotificationBell = () => {
             </li>
           ))}
         </ul>
-      </ScrollArea>
+      </div>
     );
   };
 
@@ -202,7 +187,7 @@ export const NotificationBell = () => {
             // each get a dot instead.
             <Badge
               aria-hidden
-              className="absolute -top-1 -right-1 h-5 min-w-5 justify-center rounded-full px-1 py-0 text-[11px]"
+              className="absolute -top-1 -right-1 h-5 min-w-5 justify-center rounded-full px-1 py-0 text-2xs"
             >
               {unreadCount > 99 ? "99+" : unreadCount}
             </Badge>

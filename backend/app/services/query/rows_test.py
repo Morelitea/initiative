@@ -1,4 +1,4 @@
-"""A statement over rows an app returned.
+"""A statement over rows a plug-in returned.
 
 Two things are worth testing separately, because they fail differently. What
 the *planner* refuses is refused while somebody is looking at it, so it has to
@@ -36,7 +36,7 @@ def run(sql: str, rows=ROWS):
 
 class TestWhatThePlannerRefuses:
     def test_a_column_the_endpoint_does_not_return(self):
-        """The whole reason an app declares its output: this is refused while
+        """The whole reason a plug-in declares its output: this is refused while
         its author is looking at it, not on the tile afterwards."""
         with pytest.raises(QueryError) as refused:
             plan("SELECT margin FROM rows", READS)
@@ -44,7 +44,7 @@ class TestWhatThePlannerRefuses:
         assert "margin" in refused.value.subject
 
     def test_the_reader(self):
-        """``me`` is a row of ours. These rows are an app's, and it has never
+        """``me`` is a row of ours. These rows are a plug-in's, and it has never
         heard of the person reading them."""
         with pytest.raises(QueryError) as refused:
             plan("SELECT shop FROM rows WHERE shop = me", READS)
@@ -211,8 +211,8 @@ class TestWhatItAnswers:
         )
         assert [row[0] for row in answered] == ["big", "small", "big", "small"]
 
-    def test_rows_the_app_left_a_column_out_of(self):
-        """An app is not a table: a key it did not send reads as absent rather
+    def test_rows_the_plugin_left_a_column_out_of(self):
+        """A plug-in is not a table: a key it did not send reads as absent rather
         than failing the whole read."""
         assert run("SELECT revenue FROM rows", [{"shop": "west"}]) == ((None,),)
 
@@ -222,7 +222,7 @@ class TestItAgreesWithPostgres:
 
     Each of these was accepted by the planner and then quietly ignored or got
     wrong by the evaluator, which is the one failure mode worth most: the same
-    statement over a task list and over an app's rows answering differently.
+    statement over a task list and over a plug-in's rows answering differently.
     """
 
     def test_distinct_returns_each_row_once(self):

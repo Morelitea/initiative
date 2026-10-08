@@ -6,15 +6,15 @@
  */
 
 import {
-  acknowledgeQueueApiV1MeDmQueueAckPost as ackQueue,
-  collectQueueApiV1MeDmQueueGet as collectQueue,
+  acknowledgeQueue as ackQueue,
+  collectQueue,
 } from "@/api/generated/direct-messages/direct-messages";
 
 import { type Context, ensureDeviceContext } from "./device";
 import { type Batch, KINDS, type KindSpec, unpack } from "./envelope";
 import { requestHistory, serveHistory } from "./historySync";
 import { acknowledge } from "./send";
-import { type Destination, readPreKey, readWithHeldSession } from "./sessions";
+import { type Destination, readPreKey, readWithHeldSession, type Unread } from "./sessions";
 import { accountPickle, peerKeyChanges } from "./store";
 import { runThreadCatchUps, serveThreadHistory } from "./threadHistory";
 
@@ -31,28 +31,30 @@ async function rosterOf(ctx: Context, conversationId: string): Promise<number[]>
  * confirmed devices -- its outbox arriving from another client -- or a device
  * of somebody on the conversation's roster. A device of this account's that is
  * waiting to be confirmed is noted as having something here, and its message
- * waits in the queue until it is.
+ * waits in the queue until it is. One found in none of those, with every
+ * directory read, is a device that is no longer there to be read from.
  */
 async function senderOf(
   ctx: Context,
   conversationId: string,
   identityKey: string,
   asking: Set<string>
-): Promise<Destination | undefined> {
+): Promise<Destination | Unread> {
   const own = ctx.own.devices.find((device) => device.identityKey === identityKey);
   if (own) return { ...own, origin: "self" };
   const waiting = ctx.own.held.find((device) => device.identityKey === identityKey);
   if (waiting) {
     asking.add(waiting.id);
-    return undefined;
+    return "waiting";
   }
+  let unread = false;
   for (const userId of await rosterOf(ctx, conversationId)) {
-    const theirs = (await ctx.directory(userId)).devices.find(
-      (device) => device.identityKey === identityKey
-    );
+    const directory = await ctx.directory(userId);
+    unread ||= directory.unavailable === true;
+    const theirs = directory.devices.find((device) => device.identityKey === identityKey);
     if (theirs) return { ...theirs, origin: "other" };
   }
-  return undefined;
+  return unread ? "retry" : "unreadable";
 }
 
 /**
@@ -98,54 +100,64 @@ async function collectOnce({ receipts = true }: { receipts?: boolean }): Promise
   await requestHistory(ctx).catch(() => undefined);
   await runThreadCatchUps(ctx).catch(() => undefined);
 
-  const { items } = await collectQueue({ device_id: ctx.device });
-  if (items.length > 0 && !(await accountPickle.get())) {
-    throw new Error("this device has no key store");
-  }
-
   const batch: Batch = { own: ctx.own.devices, landed: new Map(), asking: [] };
   const waiting = new Set<string>();
   const touched = new Set<string>();
-  const collected: number[] = [];
-  for (const item of items) {
-    try {
-      const read =
-        item.message_type === 0
-          ? await readPreKey(item, (identityKey) =>
-              senderOf(ctx, item.conversation_id, identityKey, waiting)
-            )
-          : await readWithHeldSession(item, new Set(await rosterOf(ctx, item.conversation_id)));
-      if (read === null) continue;
-      // `null` is a kind from a later version: understood well enough to know it
-      // is not for this one, and taken off the server rather than tried again.
-      const envelope = unpack(read.plaintext, String(item.id));
-      const kind: KindSpec<unknown> | null = envelope && KINDS[envelope.kind];
-      if (
-        envelope &&
-        kind &&
-        (kind.from === "any" || kind.from === (read.mine ? "self" : "other"))
-      ) {
-        const changed = await kind.handle(
-          envelope,
-          {
-            conversationId: item.conversation_id,
-            createdAt: item.created_at,
-            mine: read.mine,
-            author: read.author,
-            device: read.device,
-          },
-          batch
-        );
-        if (changed) touched.add(changed);
+  // A page at a time, past what is left behind: a message from a device
+  // waiting to be verified stays on the server, and so does one that could not
+  // be tried this time, and a queue that began with a page of those would
+  // otherwise never be read past them.
+  let after: number | undefined;
+  for (;;) {
+    const page = await collectQueue({ device_id: ctx.device, after });
+    if (page.items.length === 0) break;
+    if (!(await accountPickle.get())) throw new Error("this device has no key store");
+    const collected: number[] = [];
+    for (const item of page.items) {
+      try {
+        const read =
+          item.message_type === 0
+            ? await readPreKey(item, (identityKey) =>
+                senderOf(ctx, item.conversation_id, identityKey, waiting)
+              )
+            : await readWithHeldSession(item, new Set(await rosterOf(ctx, item.conversation_id)));
+        // Taken off the server: nothing here will ever open it, and left there
+        // it would sit in front of everything after it and count against the
+        // space this device's queue is allowed.
+        if (read === "unreadable") collected.push(item.id);
+        if (typeof read === "string") continue;
+        // `null` is a kind from a later version: understood well enough to know it
+        // is not for this one, and taken off the server rather than tried again.
+        const envelope = unpack(read.plaintext, String(item.id));
+        const kind: KindSpec<unknown> | null = envelope && KINDS[envelope.kind];
+        if (
+          envelope &&
+          kind &&
+          (kind.from === "any" || kind.from === (read.mine ? "self" : "other"))
+        ) {
+          const changed = await kind.handle(
+            envelope,
+            {
+              conversationId: item.conversation_id,
+              createdAt: item.created_at,
+              mine: read.mine,
+              author: read.author,
+              device: read.device,
+            },
+            batch
+          );
+          if (changed) touched.add(changed);
+        }
+        collected.push(item.id);
+      } catch {
+        // Read but not written down: left on the server, to be tried again.
       }
-      collected.push(item.id);
-    } catch {
-      // A message this device cannot read is left on the server rather than
-      // acknowledged away: it stays collectable if the reason is fixable.
     }
-  }
-  if (collected.length > 0) {
-    await ackQueue({ device_id: ctx.device, message_ids: collected });
+    if (collected.length > 0) {
+      await ackQueue({ device_id: ctx.device, message_ids: collected });
+    }
+    if (!page.more) break;
+    after = page.items[page.items.length - 1].id;
   }
   // What the prompt about a new device of this account's reads, so the
   // history it asked for is offered already ticked.

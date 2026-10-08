@@ -2,7 +2,7 @@
  * What the router actually resolves each URL to.
  *
  * The initiative subtree puts a tool tab (`/i/5/projects`) beside the
- * initiative's own static children (`/i/5/settings`, `/i/5/apps/3`), and every
+ * initiative's own static children (`/i/5/settings`, `/i/5/plugins/3`), and every
  * link in the app is a plain string rather than a typed route id — so nothing
  * else checks that a built path lands where it was meant to. These failures
  * would otherwise appear only at runtime, as a blank page.
@@ -19,8 +19,8 @@ const router = createRouter({ routeTree, context: buildRouterContext() });
 /**
  * The id of the innermost route a pathname resolves to.
  *
- * A path under `/c/{id}` with no page behind it still matches the guild
- * *layout*, so "nothing serves this" reads as resolving to `GUILD` rather than
+ * A path under `/c/{id}` with no page behind it still matches the community
+ * *layout*, so "nothing serves this" reads as resolving to `COMMUNITY` rather than
  * to null — that is what the deleted-route cases below assert.
  */
 function resolvedRouteId(pathname: string): string {
@@ -28,8 +28,8 @@ function resolvedRouteId(pathname: string): string {
   return String(matches.at(-1)?.routeId ?? "__none__");
 }
 
-const GUILD = "/_serverRequired/_authenticated/c/$guildId";
-const INITIATIVE = `${GUILD}/i/$initiativeId`;
+const COMMUNITY = "/_serverRequired/_authenticated/c/$communityId";
+const INITIATIVE = `${COMMUNITY}/i/$initiativeId`;
 
 describe("initiative route resolution", () => {
   it.each([
@@ -38,7 +38,7 @@ describe("initiative route resolution", () => {
     ["/c/1/i/5/projects/7", `${INITIATIVE}/projects/$projectId/`],
     ["/c/1/i/5/projects/7/settings", `${INITIATIVE}/projects/$projectId/settings/`],
     ["/c/1/i/5/projects/7/tasks/22", `${INITIATIVE}/projects/$projectId/tasks/$taskId`],
-    ["/c/1/i/5/documents/3", `${INITIATIVE}/documents/$documentId/`],
+    ["/c/1/i/5/files/3", `${INITIATIVE}/files/$fileId/`],
     ["/c/1/i/5/queues/4", `${INITIATIVE}/queues/$queueId/`],
     ["/c/1/i/5/counter-groups/6", `${INITIATIVE}/counter-groups/$counterGroupId/`],
     [
@@ -52,10 +52,10 @@ describe("initiative route resolution", () => {
     expect(resolvedRouteId(pathname)).toBe(routeId);
   });
 
-  // The initiatives list is the guild home, so the bare `/i` segment serves
-  // nothing of its own and falls back to the guild layout.
-  it("leaves the bare initiatives segment to the guild layout", () => {
-    expect(resolvedRouteId("/c/1/i")).toBe(GUILD);
+  // The initiatives list is the community home, so the bare `/i` segment serves
+  // nothing of its own and falls back to the community layout.
+  it("leaves the bare initiatives segment to the community layout", () => {
+    expect(resolvedRouteId("/c/1/i")).toBe(COMMUNITY);
   });
 
   // The tab routes are siblings of these; a tool segment that collided with
@@ -63,7 +63,7 @@ describe("initiative route resolution", () => {
   it("keeps the initiative's own children ahead of the tool tabs", () => {
     // `/settings` is a layout now; its index serves the details section.
     expect(resolvedRouteId("/c/1/i/5/settings")).toBe(`${INITIATIVE}/settings/`);
-    expect(resolvedRouteId("/c/1/i/5/apps/3")).toBe(`${INITIATIVE}/apps/$appId`);
+    expect(resolvedRouteId("/c/1/i/5/plugins/3")).toBe(`${INITIATIVE}/plugins/$pluginId`);
   });
 
   // Each settings section is an address of its own, so a manager can be linked
@@ -88,7 +88,7 @@ describe("initiative route resolution", () => {
     ],
     ["/c/1/i/5/queues/4/settings", `${INITIATIVE}/queues/$queueId/settings/`],
     ["/c/1/i/5/queues/4/settings/advanced", `${INITIATIVE}/queues/$queueId/settings/advanced`],
-    ["/c/1/i/5/documents/3/settings/access", `${INITIATIVE}/documents/$documentId/settings/access`],
+    ["/c/1/i/5/files/3/settings/access", `${INITIATIVE}/files/$fileId/settings/access`],
     [
       "/c/1/i/5/counter-groups/6/settings/advanced",
       `${INITIATIVE}/counter-groups/$counterGroupId/settings/advanced`,
@@ -98,7 +98,7 @@ describe("initiative route resolution", () => {
       `${INITIATIVE}/dashboards/$dashboardId/settings/access`,
     ],
     ["/c/1/i/5/calendars/2/settings", `${INITIATIVE}/calendars/$calendarId/settings/`],
-    ["/c/1/calendars/2/settings/access", `${GUILD}/calendars/$calendarId/settings/access`],
+    ["/c/1/calendars/2/settings/access", `${COMMUNITY}/calendars/$calendarId/settings/access`],
   ])("resolves %s", (pathname, routeId) => {
     expect(resolvedRouteId(pathname)).toBe(routeId);
   });
@@ -116,28 +116,28 @@ describe("initiative route resolution", () => {
     expect(resolvedRouteId("/c/1/i/5/dashboards/gallery")).toBe(`${INITIATIVE}/dashboards/gallery`);
   });
 
-  // Only calendars can be guild-level; those keep their pre-initiative routes.
-  it("resolves a guild-level calendar and its events", () => {
-    expect(resolvedRouteId("/c/1/calendars/2")).toBe(`${GUILD}/calendars/$calendarId/`);
+  // Only calendars can be community-level; those keep their pre-initiative routes.
+  it("resolves a community-level calendar and its events", () => {
+    expect(resolvedRouteId("/c/1/calendars/2")).toBe(`${COMMUNITY}/calendars/$calendarId/`);
     expect(resolvedRouteId("/c/1/calendars/2/events/8")).toBe(
-      `${GUILD}/calendars/$calendarId/events/$eventId/`
+      `${COMMUNITY}/calendars/$calendarId/events/$eventId/`
     );
   });
 
-  // The calendar app's own surface — the guild's calendars, not a roll-up of
+  // The calendar plug-in's own surface — the community's calendars, not a roll-up of
   // its initiatives'. That is why this one address survives the list below.
-  it("resolves the guild's calendars", () => {
-    expect(resolvedRouteId("/c/1/calendars")).toBe(`${GUILD}/calendars/`);
+  it("resolves the community's calendars", () => {
+    expect(resolvedRouteId("/c/1/calendars")).toBe(`${COMMUNITY}/calendars/`);
   });
 
   it("resolves the entity-reference resolver", () => {
-    expect(resolvedRouteId("/c/1/go/document/42")).toBe(`${GUILD}/go/$refType/$refId`);
+    expect(resolvedRouteId("/c/1/go/file/42")).toBe(`${COMMUNITY}/go/$refType/$refId`);
   });
 
-  // Deleted on purpose — the guild home is the cross-initiative browse now.
+  // Deleted on purpose — the community home is the cross-initiative browse now.
   it.each([
     "/c/1/projects",
-    "/c/1/documents",
+    "/c/1/files",
     "/c/1/queues",
     "/c/1/dashboards",
     "/c/1/counter-groups",
@@ -148,6 +148,6 @@ describe("initiative route resolution", () => {
     "/c/1/initiatives",
     "/c/1/initiatives/5",
   ])("no longer serves %s", (path) => {
-    expect(resolvedRouteId(path)).toBe(GUILD);
+    expect(resolvedRouteId(path)).toBe(COMMUNITY);
   });
 });

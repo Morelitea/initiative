@@ -46,7 +46,7 @@ interface StatusPillProps {
  * word and the colour to change; a new, empty one opens that way at once,
  * and one closed with no word is taken away. */
 export function StatusPill({ nodeKey, text, color }: StatusPillProps) {
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation("editor");
   const [editor] = useLexicalComposerContext();
   const isEditable = useLexicalEditable();
   const [open, setOpen] = useState(() => isEditable && text === "");
@@ -96,7 +96,7 @@ export function StatusPill({ nodeKey, text, color }: StatusPillProps) {
       className={cn(PILL, shown === "neutral" && CHIP_TONE_CLASSES.neutral)}
       style={pillStyle(shown)}
     >
-      {text || t("editor.statusPlaceholder")}
+      {text || t("statusPlaceholder")}
     </span>
   );
 
@@ -107,7 +107,7 @@ export function StatusPill({ nodeKey, text, color }: StatusPillProps) {
   return (
     <Popover open={open} onOpenChange={close}>
       <PopoverTrigger asChild>
-        <button type="button" className="cursor-pointer" aria-label={t("editor.editStatus")}>
+        <button type="button" className="cursor-pointer" aria-label={t("editStatus")}>
           {pill}
         </button>
       </PopoverTrigger>
@@ -123,8 +123,8 @@ export function StatusPill({ nodeKey, text, color }: StatusPillProps) {
         <Input
           autoFocus
           value={draft}
-          placeholder={t("editor.statusPlaceholder")}
-          aria-label={t("editor.statusText")}
+          placeholder={t("statusPlaceholder")}
+          aria-label={t("statusText")}
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === "Enter") {
@@ -138,14 +138,14 @@ export function StatusPill({ nodeKey, text, color }: StatusPillProps) {
             <button
               key={option}
               type="button"
-              aria-label={t(`editor.statusColors.${option}`)}
+              aria-label={t(`statusColors.${option}`)}
               aria-pressed={option === draftColor}
               onClick={() => pick(option)}
               className={cn(PILL, "mx-0", option === "neutral" && CHIP_TONE_CLASSES.neutral)}
               style={pillStyle(option)}
             >
               {option === draftColor ? <Check className="size-3" /> : null}
-              {t(`editor.statusColors.${option}`)}
+              {t(`statusColors.${option}`)}
             </button>
           ))}
         </div>
@@ -159,7 +159,7 @@ export function StatusPill({ nodeKey, text, color }: StatusPillProps) {
           }}
         >
           <Trash2 className="size-4" />
-          {t("editor.removeStatus")}
+          {t("removeStatus")}
         </Button>
       </PopoverContent>
     </Popover>

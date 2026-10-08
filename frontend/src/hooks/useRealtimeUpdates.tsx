@@ -1,28 +1,29 @@
 import { useParams } from "@tanstack/react-router";
 import { useEffect } from "react";
 
-import { apiClient, getAuthToken } from "@/api/client";
+import { getAuthToken } from "@/api/client";
 import type { DashboardDataResponse } from "@/api/generated/initiativeAPI.schemas";
+import { readMe } from "@/api/generated/users/users";
 import { invalidate, q, type Spec } from "@/api/query-keys";
 import { syncComments } from "@/hooks/useComments";
 import { canvasIsStale, dashboardDataKey } from "@/hooks/useSqlQuery";
 import { openLiveSocket } from "@/lib/liveSocket";
 import { queryClient } from "@/lib/queryClient";
 import { TOOLS, toolPlural } from "@/lib/tools";
-import { buildGuildWsUrl } from "@/lib/wsUrl";
+import { buildCommunityWsUrl } from "@/lib/wsUrl";
 
 import { useAuth } from "./useAuth";
 
-const buildWebsocketUrl = (guildId: number) => {
+const buildWebsocketUrl = (communityId: number) => {
   if (typeof window === "undefined") {
     return null;
   }
   try {
     // Token is sent via MSG_AUTH message, not URL params
-    return buildGuildWsUrl(guildId, "events/updates");
+    return buildCommunityWsUrl(communityId, "events/updates");
   } catch {
     const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-    return `${protocol}://${window.location.host}/api/v1/c/${guildId}/events/updates`;
+    return `${protocol}://${window.location.host}/api/v1/c/${communityId}/events/updates`;
   }
 };
 
@@ -33,7 +34,7 @@ export type ResourceRef = { type: string; id: number };
 export type RealtimeChange = {
   resource?: ResourceRef;
   parents?: ResourceRef[];
-  /** The initiative the change is in, or null for the guild's own. */
+  /** The initiative the change is in, or null for the community's own. */
   initiative_id?: number | null;
   action?: string;
   /** The columns an update touched, by name. Empty on create and delete. */
@@ -81,10 +82,12 @@ const RESOURCE_SPECS: Record<string, (id: number, recount: boolean) => Spec[]> =
     ])
   ),
   tasks: (id) => [q.task(id), q.allTasks()],
-  // The guild's recent-activity list is a comment feed of its own. Which thread
+  // The community's recent-activity list is a comment feed of its own. Which thread
   // moved is a question about the parent, below.
   comments: () => [q.recentComments()],
   calendar_events: (id) => [q.calendarEvent(id), q.allCalendarEvents()],
+  // The wiki it is in is named as its parent, which refreshes the tree.
+  wiki_pages: (id) => [q.wikiPage(id)],
   // An initiative's roster, its roles, what those roles permit and its
   // property definitions all report against the initiative itself — none of
   // those rows has a route of its own — so "the initiative changed" has to
@@ -97,11 +100,11 @@ const RESOURCE_SPECS: Record<string, (id: number, recount: boolean) => Spec[]> =
     q.allProperties(),
   ],
   tags: (id) => [q.tag(id), q.allTags()],
-  // An install belongs to no initiative, so it arrives guild-wide with no
+  // An install belongs to no initiative, so it arrives community-wide with no
   // parent to carry it — this is the only thing that refreshes the sidebar's
-  // app list and the settings dialog for another admin's install, rename or
-  // configuration. Takes no id: the reads are keyed by guild, not by install.
-  apps: () => [q.apps()],
+  // plug-in list and the settings dialog for another admin's install, rename or
+  // configuration. Takes no id: the reads are keyed by community, not by install.
+  plugins: () => [q.plugins()],
 };
 
 /**
@@ -125,6 +128,7 @@ const CONTAINER_SPECS: Record<string, (id: number, direct: boolean) => Spec[]> =
   ),
   tasks: (id, direct) => (direct ? [q.task(id), q.allTasks()] : [q.task(id)]),
   calendar_events: (id) => [q.calendarEvent(id)],
+  wiki_pages: (id) => [q.wikiPage(id)],
 };
 
 const isRef = (value: unknown): value is ResourceRef => {
@@ -151,7 +155,7 @@ const note = (into: Map<string, [ResourceRef, boolean]>, ref: ResourceRef, flag:
  * and it is brought up to date rather than read again — the comments the batch
  * named are read back one by one and put into the pages already open.
  */
-export const applyChanges = (changes: readonly RealtimeChange[], guildId: number) => {
+export const applyChanges = (changes: readonly RealtimeChange[], communityId: number) => {
   const resources = new Map<string, [ResourceRef, boolean]>();
   const containers = new Map<string, [ResourceRef, boolean]>();
   const threads = new Map<string, { parent: ResourceRef; commentIds: Set<number> }>();
@@ -184,19 +188,19 @@ export const applyChanges = (changes: readonly RealtimeChange[], guildId: number
   if (specs.length > 0) void invalidate(...specs);
 
   for (const { parent, commentIds } of threads.values()) {
-    void syncComments(guildId, parent, [...commentIds]);
+    void syncComments(communityId, parent, [...commentIds]);
   }
 
   // A dashboard's answer is keyed by the dashboard, not by anything a change
   // names, so it is matched by what its widgets read: stale when a change is
-  // to one of those tables, in its initiative. Initiative ids are per guild,
-  // so only this guild's canvases are asked.
-  const [scope, kind] = dashboardDataKey(guildId, 0);
+  // to one of those tables, in its initiative. Initiative ids are per community,
+  // so only this community's canvases are asked.
+  const [scope, kind] = dashboardDataKey(communityId, 0);
   void queryClient.invalidateQueries({
     predicate: (query) =>
       query.queryKey[0] === scope &&
       query.queryKey[1] === kind &&
-      query.queryKey[2] === guildId &&
+      query.queryKey[2] === communityId &&
       canvasIsStale(query.state.data as DashboardDataResponse | undefined, changes),
   });
 };
@@ -207,26 +211,26 @@ export const useRealtimeUpdates = () => {
   // without changing who is signed in, and rebuilding the socket for that would
   // drop every subscription over a no-op.
   const userId = user?.id ?? null;
-  // Key the socket off THIS tab's URL guild (the /c/{guildId} route param), so
-  // each tab streams its own guild. On personal routes (/, /me/*) there's no
+  // Key the socket off THIS tab's URL community (the /c/{communityId} route param), so
+  // each tab streams its own community. On personal routes (/, /me/*) there's no
   // param → null → no socket. The backend authorizes the socket from the same
   // path segment, so the URL is the single source of truth.
-  const params = useParams({ strict: false }) as { guildId?: string };
-  const routeGuildId = params.guildId ? Number(params.guildId) : null;
+  const params = useParams({ strict: false }) as { communityId?: string };
+  const routeCommunityId = params.communityId ? Number(params.communityId) : null;
 
   useEffect(() => {
-    // The socket is scoped to a single guild — in personal mode there's
+    // The socket is scoped to a single community — in personal mode there's
     // nothing to subscribe to, and the backend would reject the auth payload.
-    if (userId === null || routeGuildId === null) {
+    if (userId === null || routeCommunityId === null) {
       return;
     }
-    const wsUrl = buildWebsocketUrl(routeGuildId);
+    const wsUrl = buildWebsocketUrl(routeCommunityId);
     if (!wsUrl) {
       return;
     }
 
-    // Effect-scoped, so unmount and guild-switch clear the timer with the
-    // socket rather than invalidating for a guild this tab has left.
+    // Effect-scoped, so unmount and community-switch clear the timer with the
+    // socket rather than invalidating for a community this tab has left.
     let pending: RealtimeChange[] = [];
     let frameTimer: number | null = null;
 
@@ -239,13 +243,13 @@ export const useRealtimeUpdates = () => {
         frameTimer = null;
         const batch = pending;
         pending = [];
-        applyChanges(batch, routeGuildId);
+        applyChanges(batch, routeCommunityId);
       }, FRAME_DEBOUNCE_MS);
     };
 
     const connection = openLiveSocket({
       url: wsUrl,
-      // The guild is in the address, so the frame carries the credential and
+      // The community is in the address, so the frame carries the credential and
       // the gap this tab is asking to have answered. The credential is read as
       // the frame is written rather than captured, so a socket that reconnects
       // presents the one current then — it renews on its own clock while the
@@ -264,8 +268,8 @@ export const useRealtimeUpdates = () => {
         if (frame.more) {
           // A write too large to name row by row — an import, a purge — or a
           // gap this socket was away for. Either way the frame says so instead
-          // of carrying ids, and the answer is to read the guild again.
-          void invalidate(q.guildContent());
+          // of carrying ids, and the answer is to read the community again.
+          void invalidate(q.communityContent());
           return;
         }
         const changes = frame.changes ?? [];
@@ -278,7 +282,7 @@ export const useRealtimeUpdates = () => {
         // for itself. It matters for a tab left open: nothing else here would
         // ask, and it would go on showing what it last drew.
         console.warn("Realtime socket was not admitted; reading the account");
-        void apiClient.get("/users/me").catch(() => {
+        void readMe().catch(() => {
           // Whatever it was, the answer has already been acted on.
         });
       },
@@ -291,5 +295,5 @@ export const useRealtimeUpdates = () => {
         frameTimer = null;
       }
     };
-  }, [userId, routeGuildId]);
+  }, [userId, routeCommunityId]);
 };

@@ -17,10 +17,9 @@ const userSettingsTabs = [
   { value: "interface", labelKey: "layout.tabs.interface", path: "/profile/interface" },
   { value: "notifications", labelKey: "layout.tabs.notifications", path: "/profile/notifications" },
   { value: "privacy", labelKey: "layout.tabs.privacy", path: "/profile/privacy" },
-  { value: "ai", labelKey: "layout.tabs.ai", path: "/profile/ai" },
   { value: "security", labelKey: "layout.tabs.security", path: "/profile/security" },
+  { value: "ai", labelKey: "layout.tabs.ai", path: "/profile/ai" },
   { value: "trash", labelKey: "layout.tabs.trash", path: "/profile/trash" },
-  { value: "danger", labelKey: "layout.tabs.danger", path: "/profile/danger" },
 ] as const;
 
 /**
@@ -46,7 +45,7 @@ export const UserSettingsLayout = () => {
 
   if (!user) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-6">
         <p className="text-destructive">{t("layout.loginRequired")}</p>
         <Button asChild variant="link" className="px-0">
           <Link to="/login">{t("layout.goToLogin")}</Link>

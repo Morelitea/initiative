@@ -26,10 +26,10 @@ Three outcomes appear below, and the distinction is the point:
 account a delivery was read as. It is ordinary authorship now, so it belongs to
 the third group with the rest.
 
-The two erasure paths are both exercised, because they do not do the same
-things: ``soft_delete_user`` is what the product runs (the deletion request and
-the retention purge; the row stays, emptied), and ``hard_delete_user`` is the
-operator's removal of the row itself.
+Both erasure paths run the same per-guild erasure and differ only in what
+happens to the shared ``users`` row: ``soft_delete_user`` is what the product
+runs (the deletion request and the retention purge; the row stays, emptied), and
+``hard_delete_user`` is the operator's removal of the row itself.
 """
 
 from __future__ import annotations
@@ -38,16 +38,17 @@ import secrets
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
+import pytest
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.ai_member_key import GuildAIMemberKey
 from app.models.tenant.ai_member_pref import GuildAIMemberPref
 from app.models.tenant.comment import Comment
 from app.models.tenant.event_reminder_dispatch import EventReminderDispatch
-from app.models.tenant.app_member_consent import AppMemberConsent
-from app.models.tenant.guild_app_user_connection import GuildAppUserConnection
+from app.models.tenant.plugin_member_consent import PluginMemberConsent
+from app.models.tenant.guild_plugin_user_connection import GuildPluginUserConnection
 from app.models.tenant.initiative import InitiativeJoinRequest
 from app.models.tenant.reaction import Reaction
 from app.models.tenant.reaction_digest import ReactionDigestItem
@@ -59,9 +60,9 @@ from app.testing.factories import (
     create_calendar,
     create_calendar_event,
     create_comment,
-    create_document,
+    create_file,
     create_guild,
-    create_guild_app,
+    create_guild_plugin,
     create_guild_membership,
     create_initiative,
     create_initiative_member,
@@ -74,9 +75,9 @@ from app.testing.schema_harness import route_session_to_guild
 
 
 def _service_definition() -> dict:
-    """A service app declaring one connection, so a credential row has a home."""
+    """A service plug-in declaring one connection, so a credential row has a home."""
     return {
-        "app_kind": "service",
+        "plugin_kind": "service",
         "service": {"public_id": "tests.erasure", "protocol": 1},
         "features": [],
         "default_name": "Erasure",
@@ -97,21 +98,21 @@ async def _seed(session: AsyncSession) -> SimpleNamespace:
     victim = await create_user(session, email=f"leaver-{secrets.token_hex(4)}@e.test")
     guild = await create_guild(session, creator=keeper)
     await create_guild_membership(
-        session, user=victim, guild=guild, role=GuildRole.member
+        session, user=victim, guild=guild, role=CommunityRole.member
     )
     initiative = await create_initiative(session, guild, keeper)
     await create_initiative_member(session, initiative=initiative, user=victim)
     project = await create_project(session, initiative, keeper)
     task = await create_task(session, project)
-    document = await create_document(session, initiative, keeper)
+    file = await create_file(session, initiative, keeper)
     calendar = await create_calendar(session, initiative, keeper)
     event = await create_calendar_event(session, calendar, keeper)
-    app = await create_guild_app(
+    plugin = await create_guild_plugin(
         session, guild, keeper, definition=_service_definition()
     )
 
     # Authorship: a comment they wrote, and an emoji they put on it.
-    comment = await create_comment(session, victim, document=document)
+    comment = await create_comment(session, victim, file=file)
     reaction = await create_reaction(session, victim, comment=comment)
 
     now = datetime.now(timezone.utc)
@@ -120,12 +121,15 @@ async def _seed(session: AsyncSession) -> SimpleNamespace:
         # Held in custody for them: an API key and the preference beside it.
         "ai_key": GuildAIMemberKey(
             user_id=victim.id,
-            connection_scope="guild",
+            connection_scope="community",
             connection_id=1,
             api_key_encrypted="ciphertext",
         ),
         "ai_pref": GuildAIMemberPref(
-            user_id=victim.id, connection_scope="guild", connection_id=1, enabled=True
+            user_id=victim.id,
+            connection_scope="community",
+            connection_id=1,
+            enabled=True,
         ),
         # A receipt that a reminder for this event reached this person.
         "dispatch": EventReminderDispatch(
@@ -135,32 +139,32 @@ async def _seed(session: AsyncSession) -> SimpleNamespace:
             sent_at=now,
         ),
         # A vendor credential they connected, and one they blocked for somebody.
-        "connection": GuildAppUserConnection(
-            app_id=app.id,
+        "connection": GuildPluginUserConnection(
+            plugin_id=plugin.id,
             connection_id="admin",
             user_id=victim.id,
             connection_ref=secrets.token_hex(8),
         ),
-        "blocked_connection": GuildAppUserConnection(
-            app_id=app.id,
+        "blocked_connection": GuildPluginUserConnection(
+            plugin_id=plugin.id,
             connection_id="admin",
             user_id=keeper.id,
             connection_ref=secrets.token_hex(8),
             blocked_at=now,
             blocked_by_id=victim.id,
         ),
-        # Consent for an app to act as them, and one they withdrew for
+        # Consent for a plug-in to act as them, and one they withdrew for
         # somebody else.
-        "consent": AppMemberConsent(
-            install_id=app.id,
+        "consent": PluginMemberConsent(
+            install_id=plugin.id,
             user_id=victim.id,
             label="Act as me",
             requested_access="read",
             granted_access="read",
             granted_at=now,
         ),
-        "revoked_consent": AppMemberConsent(
-            install_id=app.id,
+        "revoked_consent": PluginMemberConsent(
+            install_id=plugin.id,
             user_id=keeper.id,
             label="Act as me",
             requested_access="read",
@@ -323,7 +327,7 @@ async def test_a_block_they_placed_outlives_them(session: AsyncSession, role_ses
     s = await _seed(session)
     await user_service.soft_delete_user(await role_session("app_admin"), s.victim_id)
     row = await _reread(
-        session, s.guild_id, GuildAppUserConnection, s.blocked_connection
+        session, s.guild_id, GuildPluginUserConnection, s.blocked_connection
     )
     assert row is not None
     assert row.blocked_by_id == s.victim_id
@@ -332,23 +336,23 @@ async def test_a_block_they_placed_outlives_them(session: AsyncSession, role_ses
 # --- the erasure path ends what the account opened ---------------------------
 
 
-async def test_erasure_ends_the_credentials_they_connected(
-    session: AsyncSession, role_session
+@pytest.mark.parametrize(
+    "erase",
+    [user_service.soft_delete_user, user_service.hard_delete_user],
+    ids=["soft", "hard"],
+)
+async def test_erasure_ends_what_they_opened_to_plugins(
+    session: AsyncSession, role_session, erase
 ):
-    """Losing the account has to end the vendor access it opened."""
+    """Losing the account ends the vendor access it opened and what a plug-in
+    could do as them, on both erasure paths."""
     s = await _seed(session)
-    await user_service.soft_delete_user(await role_session("app_admin"), s.victim_id)
+    await erase(await role_session("app_admin"), s.victim_id)
     assert (
-        await _reread(session, s.guild_id, GuildAppUserConnection, s.connection) is None
+        await _reread(session, s.guild_id, GuildPluginUserConnection, s.connection)
+        is None
     )
-
-
-async def test_erasure_ends_what_an_app_could_do_as_them(
-    session: AsyncSession, role_session
-):
-    s = await _seed(session)
-    await user_service.soft_delete_user(await role_session("app_admin"), s.victim_id)
-    assert await _reread(session, s.guild_id, AppMemberConsent, s.consent) is None
+    assert await _reread(session, s.guild_id, PluginMemberConsent, s.consent) is None
 
 
 async def test_the_reminder_ledger_forgets_them(session: AsyncSession, role_session):
@@ -369,7 +373,7 @@ async def test_a_consent_they_revoked_keeps_naming_them(
     a record of something they did, and reads like the block above."""
     s = await _seed(session)
     await user_service.soft_delete_user(await role_session("app_admin"), s.victim_id)
-    row = await _reread(session, s.guild_id, AppMemberConsent, s.revoked_consent)
+    row = await _reread(session, s.guild_id, PluginMemberConsent, s.revoked_consent)
     assert row is not None
     assert row.revoked_by_id == s.victim_id
 

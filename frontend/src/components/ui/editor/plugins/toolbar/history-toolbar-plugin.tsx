@@ -8,16 +8,16 @@ import { useHistoryActions } from "@/components/ui/editor/plugins/toolbar/toolba
 
 export function HistoryToolbarPlugin() {
   const { undo, redo, canUndo, canRedo } = useHistoryActions();
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation("editor");
 
   return (
     <ButtonGroup>
       <Button
         disabled={!canUndo}
         onClick={undo}
-        title={`${t("editor.undo")} (${IS_APPLE ? "⌘Z" : "Ctrl+Z"})`}
+        title={`${t("undo")} (${IS_APPLE ? "⌘Z" : "Ctrl+Z"})`}
         type="button"
-        aria-label={t("editor.undo")}
+        aria-label={t("undo")}
         size="icon"
         className="h-8! w-8!"
         variant="outline"
@@ -27,9 +27,9 @@ export function HistoryToolbarPlugin() {
       <Button
         disabled={!canRedo}
         onClick={redo}
-        title={`${t("editor.redo")} (${IS_APPLE ? "⇧⌘Z" : "Ctrl+Y"})`}
+        title={`${t("redo")} (${IS_APPLE ? "⇧⌘Z" : "Ctrl+Y"})`}
         type="button"
-        aria-label={t("editor.redo")}
+        aria-label={t("redo")}
         variant="outline"
         size="icon"
         className="h-8! w-8!"

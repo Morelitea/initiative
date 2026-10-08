@@ -6,7 +6,7 @@ the calendar flows from its resource-grant DAC (``resource_grants`` +
 ``PUT /{id}/grants``). Events themselves carry no grants.
 
 A calendar with no initiative is a **guild calendar** — it belongs to the guild
-itself, and lives inside the calendar app, whose install owns it. Guild admins
+itself, and lives inside the calendar plug-in, whose install owns it. Guild admins
 make one and decide its sharing; a member with a write grant on it writes its
 events.
 """
@@ -15,7 +15,6 @@ from datetime import datetime, timezone
 from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api import resource_access
 from app.api.actor_route import ActorRoute
@@ -25,12 +24,12 @@ from app.api.deps import (
     ActorUserDep,
     IncludeDeletedDep,
     RLSSessionDep,
-    app_scope,
+    plugin_scope,
 )
 from app.core.messages import CalendarMessages, GuildMessages
 from app.core.tools import Tool
 from app.models.tenant.calendar import Calendar
-from app.models.tenant.guild_app import GuildApp
+from app.models.tenant.guild_plugin import GuildPlugin
 from app.models.platform.user import User
 from app.schemas.tenant.calendar import (
     CalendarCreate,
@@ -40,34 +39,15 @@ from app.schemas.tenant.calendar import (
 from app.schemas.tenant.tool import serialize_tool
 from app.services.tenant import properties as properties_service
 from app.services.tenant import attachments as attachments_service
-from app.services import permissions as permissions_service
 from app.services.tenant import calendars as calendars_service
-from app.services.tenant import guild_apps as guild_apps_service
-from app.services.tenant import ownership as ownership_service
+from app.services.tenant import guild_plugins as guild_plugins_service
 from app.services.tenant import tags as tags_service
 
 router = APIRouter(route_class=ActorRoute)
 
-#: The routes an installed app may call, under the calendars scopes.
-CalendarsRead = Annotated[ActorContext, Depends(app_scope("calendars:read"))]
-CalendarsWrite = Annotated[ActorContext, Depends(app_scope("calendars:write"))]
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-async def _refetch_calendar(session: AsyncSession, calendar_id: int) -> Calendar:
-    calendar = await calendars_service.get_calendar(
-        session, calendar_id, populate_existing=True
-    )
-    if not calendar:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=Tool.calendar.not_found_code,
-        )
-    return calendar
+#: The routes an installed plug-in may call, under the calendars scopes.
+CalendarsRead = Annotated[ActorContext, Depends(plugin_scope("calendars:read"))]
+CalendarsWrite = Annotated[ActorContext, Depends(plugin_scope("calendars:write"))]
 
 
 # ---------------------------------------------------------------------------
@@ -105,35 +85,35 @@ async def create_calendar(
     admin), and its creator gets the owner grant. A **guild** calendar —
     ``initiative_id`` omitted — belongs to no initiative, so neither has
     anything to say about it: it is the guild admin's to make. It needs the
-    calendar app, whose install owns it and whose removal takes it along.
+    calendar plug-in, whose install owns it and whose removal takes it along.
 
-    An installed app creates initiative calendars only: a guild calendar is
-    owned by the calendar app's install, which is community configuration.
+    An installed plug-in creates initiative calendars only: a guild calendar is
+    owned by the calendar plug-in's install, which is community configuration.
     What it creates is owned by its install, whose owner row the table's
     trigger writes; it sets no initial sharing.
     """
-    resource_access.refuse_app_sharing(guild_context, calendar_in, "grants")
-    app: Optional[GuildApp] = None
+    resource_access.refuse_plugin_sharing(guild_context, calendar_in, "grants")
+    plugin: Optional[GuildPlugin] = None
     initiative_id = calendar_in.initiative_id
 
     if initiative_id is None and current_user is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=CalendarMessages.APP_INITIATIVE_REQUIRED,
+            detail=CalendarMessages.PLUGIN_INITIATIVE_REQUIRED,
         )
     if initiative_id is None:
         if not guild_context.is_admin:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=GuildMessages.GUILD_ADMIN_REQUIRED,
+                detail=GuildMessages.COMMUNITY_ADMIN_REQUIRED,
             )
-        app = await guild_apps_service.find_mounting_app(
+        plugin = await guild_plugins_service.find_mounting_plugin(
             session, tool=Tool.calendar.value
         )
-        if app is None:
+        if plugin is None:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=CalendarMessages.GUILD_APP_REQUIRED,
+                detail=CalendarMessages.GUILD_PLUGIN_REQUIRED,
             )
     else:
         await resource_access.prepare_create(
@@ -150,7 +130,7 @@ async def create_calendar(
     session.add(calendar)
     await session.flush()
 
-    if app is None:
+    if plugin is None:
         await resource_access.grant_initial_sharing(
             session,
             guild_context,
@@ -162,23 +142,12 @@ async def create_calendar(
             grants=calendar_in.grants,
         )
     else:
-        # The app is the container, so it owns this: uninstalling trashes what
-        # the install owns. The owner grant names the install row, so an
-        # uninstall holding that row finishes first and this insert fails.
-        await ownership_service.set_resource_owner(
+        # The plug-in is the container, so it owns this.
+        await calendars_service.give_to_install(
             session,
-            tool=Tool.calendar,
-            row=calendar,
-            new_owner=ownership_service.Owner(app_install_id=app.id),
-        )
-        # The default sharing, at guild scope, reads as every member of the guild.
-        await permissions_service.replace_resource_grants(
-            session,
-            resource_type=Tool.calendar.value,
-            resource_id=calendar.id,
+            calendar,
+            install_id=plugin.id,
             guild_id=guild_context.guild_id,
-            initiative_id=None,
-            owner_id=None,
             grants=calendar_in.grants,
             actor_user_id=guild_context.user_id,
         )
@@ -195,10 +164,7 @@ async def create_calendar(
     await attachments_service.claim_uploads(session, calendar)
     await properties_service.write_on_create(session, calendar, calendar_in.properties)
     await session.commit()
-    hydrated = await _refetch_calendar(session, calendar.id)
-    return serialize_tool(
-        CalendarRead, hydrated, user_id=guild_context.user_id, context=guild_context
-    )
+    return await read_after_write(session, calendar.id, current_user, guild_context)
 
 
 @router.patch("/{calendar_id}", response_model=CalendarRead)
@@ -219,29 +185,15 @@ async def update_calendar(
         guild_context,
         access="write",
     )
-    updated = False
-    update_data = calendar_in.model_dump(exclude_unset=True)
-
-    if "name" in update_data and update_data["name"] is not None:
-        calendar.name = update_data["name"].strip()
-        updated = True
-    if "description" in update_data:
-        calendar.description = update_data["description"]
-        updated = True
-    if "color" in update_data and update_data["color"] is not None:
-        calendar.color = update_data["color"]
-        updated = True
-
-    if updated:
+    data = calendar_in.model_dump(exclude_unset=True)
+    if data:
+        for field, value in data.items():
+            setattr(calendar, field, value)
         calendar.updated_at = datetime.now(timezone.utc)
         session.add(calendar)
         await attachments_service.claim_uploads(session, calendar)
         await session.commit()
-
-    hydrated = await _refetch_calendar(session, calendar.id)
-    return serialize_tool(
-        CalendarRead, hydrated, user_id=guild_context.user_id, context=guild_context
-    )
+    return await read_after_write(session, calendar_id, current_user, guild_context)
 
 
 # ---------------------------------------------------------------------------
@@ -260,7 +212,14 @@ async def read_after_write(
     Registered in ``tool_lists.TOOL_LISTS`` so the shared sharing route
     (``tool_grants.py``) answers in this tool's own shape.
     """
-    hydrated = await _refetch_calendar(session, calendar_id)
+    calendar = await calendars_service.get_calendar(
+        session, calendar_id, populate_existing=True
+    )
+    if not calendar:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=Tool.calendar.not_found_code,
+        )
     return serialize_tool(
-        CalendarRead, hydrated, user_id=guild_context.user_id, context=guild_context
+        CalendarRead, calendar, user_id=guild_context.user_id, context=guild_context
     )

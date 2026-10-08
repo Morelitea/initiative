@@ -24,7 +24,6 @@ secret), so billing can authenticate the nudge without a second credential.
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import hmac
 import json
@@ -39,26 +38,21 @@ import httpx
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.config import settings
+from app.db import post_commit
 from app.models.platform.identity_ref import IdentityEntity, IdentityPurpose
-from app.services.platform.identity_refs import billing_guild_ref, existing_ref
+from app.services.platform.identity_refs import billing_ref, existing_ref
 
 logger = logging.getLogger(__name__)
 
 MEMBERSHIP_PING_PATH = "/api/v1/pings/membership"
 LIFECYCLE_PING_PATH = "/api/v1/pings/lifecycle"
-PAYMENT_ISSUE_PATH = "/api/v1/payment-issue"
 PLAN_SUMMARY_PATH = "/api/v1/plan-summary"
 
 # httpx defaults to no total deadline; keep the whole attempt short — the
 # ping is advisory and must never hold resources behind a slow billing pod.
 _PING_TIMEOUT = httpx.Timeout(3.0, connect=2.0)
-_PAYMENT_ISSUE_TIMEOUT = httpx.Timeout(2.0, connect=1.0)
-_PAYMENT_ISSUE_MAX_BYTES = 256
+_PLAN_SUMMARY_TIMEOUT = httpx.Timeout(2.0, connect=1.0)
 _PLAN_SUMMARY_MAX_BYTES = 1024
-
-# Strong references so in-flight pings aren't garbage-collected mid-send
-# (asyncio keeps only weak refs to tasks).
-_pending_pings: set[asyncio.Task] = set()
 
 
 def billing_ping_enabled() -> bool:
@@ -84,7 +78,9 @@ def _build_ping(ping_path: str, guild_ref: str) -> tuple[str, bytes, dict[str, s
     billing's verifier will see, so a base URL with a path prefix still signs
     correctly.
     """
-    return _signed_post(ping_path, {"guild_ref": guild_ref, "event_id": uuid4().hex})
+    return _signed_post(
+        ping_path, {"community_ref": guild_ref, "event_id": uuid4().hex}
+    )
 
 
 def _signed_post(route: str, payload: dict) -> tuple[str, bytes, dict[str, str]]:
@@ -109,7 +105,7 @@ async def _send_membership_ping(guild_id: int) -> None:
     """One attempt, no retry; never raises (task exceptions would only spam
     the loop's never-retrieved handler)."""
     try:
-        guild_ref = await billing_guild_ref(guild_id=guild_id)
+        guild_ref = await billing_ref(IdentityEntity.guild, guild_id)
         url, body, headers = build_membership_ping(guild_ref)
         async with httpx.AsyncClient(timeout=_PING_TIMEOUT) as client:
             await client.post(url, content=body, headers=headers)
@@ -145,9 +141,7 @@ async def _send_lifecycle_ping(guild_id: int) -> None:
 def _dispatch(send, guild_id: int) -> None:
     if not billing_ping_enabled():
         return
-    task = asyncio.create_task(send(int(guild_id)))
-    _pending_pings.add(task)
-    task.add_done_callback(_pending_pings.discard)
+    post_commit.spawn(send(int(guild_id)))
 
 
 def notify_membership_changed(guild_id: int) -> None:
@@ -167,37 +161,6 @@ def notify_lifecycle_changed(guild_id: int) -> None:
     Call **after** the commit, so the status it points at is the new one.
     """
     _dispatch(_send_lifecycle_ping, guild_id)
-
-
-def build_payment_issue_query(guild_ref: str) -> tuple[str, bytes, dict[str, str]]:
-    return _signed_post(PAYMENT_ISSUE_PATH, {"guild_ref": guild_ref})
-
-
-async def guild_payment_failed(guild_id: int) -> bool:
-    if not billing_ping_enabled():
-        return False
-    try:
-        guild_ref = await existing_ref(
-            entity_type=IdentityEntity.guild,
-            entity_id=guild_id,
-            purpose=IdentityPurpose.billing,
-        )
-        if guild_ref is None:
-            return False
-        url, body, headers = build_payment_issue_query(guild_ref)
-        async with httpx.AsyncClient(
-            timeout=_PAYMENT_ISSUE_TIMEOUT, follow_redirects=False
-        ) as client:
-            response = await client.post(url, content=body, headers=headers)
-        if (
-            response.status_code != 200
-            or len(response.content) > _PAYMENT_ISSUE_MAX_BYTES
-        ):
-            return False
-        answer = response.json()
-    except Exception:
-        return False
-    return isinstance(answer, dict) and answer.get("payment_failed") is True
 
 
 class PlanCharge(BaseModel):
@@ -234,15 +197,15 @@ class PlanSummary(BaseModel):
 
 
 def build_plan_summary_query(guild_ref: str) -> tuple[str, bytes, dict[str, str]]:
-    return _signed_post(PLAN_SUMMARY_PATH, {"guild_ref": guild_ref})
+    return _signed_post(PLAN_SUMMARY_PATH, {"community_ref": guild_ref})
 
 
 async def guild_plan_summary(guild_id: int) -> PlanSummary | None:
     """Ask billing for ``guild_id``'s plan, or ``None`` when it cannot say.
 
-    A read. The signed POST is a query like :func:`guild_payment_failed`'s and
-    changes nothing on billing's side: initiative never writes to billing, and
-    every change to a plan is made in the billing portal.
+    A read. The signed POST is a query and changes nothing on billing's side:
+    initiative never writes to billing, and every change to a plan is made in
+    the billing portal.
 
     A guild billing holds no reference for has never been there, so it has no
     trial, charge or failure to report: that is an empty summary, not a
@@ -260,7 +223,7 @@ async def guild_plan_summary(guild_id: int) -> PlanSummary | None:
             return PlanSummary()
         url, body, headers = build_plan_summary_query(guild_ref)
         async with httpx.AsyncClient(
-            timeout=_PAYMENT_ISSUE_TIMEOUT, follow_redirects=False
+            timeout=_PLAN_SUMMARY_TIMEOUT, follow_redirects=False
         ) as client:
             response = await client.post(url, content=body, headers=headers)
         if (
@@ -271,3 +234,12 @@ async def guild_plan_summary(guild_id: int) -> PlanSummary | None:
         return PlanSummary.model_validate_json(response.content)
     except Exception:
         return None
+
+
+async def guild_payment_failed(guild_id: int) -> bool:
+    """Whether billing reports ``guild_id``'s last payment as failed.
+
+    Read from the plan summary; a summary billing cannot give says no.
+    """
+    summary = await guild_plan_summary(guild_id)
+    return summary is not None and summary.payment_failed

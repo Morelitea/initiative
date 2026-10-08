@@ -7,13 +7,10 @@ the account is told afterwards, and what a session opened by an assertion
 records about how it was opened.
 """
 
-import json
 import secrets
-from types import SimpleNamespace
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
-import webauthn
 from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -39,7 +36,10 @@ from app.testing import (
     emitted,
     get_auth_headers,
     get_auth_token,
+    registration_for,
+    signed_in_headers,
     stub_assertion,
+    stub_registration,
 )
 
 
@@ -49,54 +49,9 @@ BEGIN = "/api/v1/auth/passkeys/register/begin"
 FINISH = "/api/v1/auth/passkeys/register/finish"
 
 
-def _verifier(**kwargs):
-    """Stand in for the library's registration check.
-
-    It answers with what a real ceremony reports, keyed off the credential id
-    the request carried so two registrations are two credentials.
-    """
-    credential = kwargs["credential"]
-    assert kwargs["expected_rp_id"] == passkey_service.relying_party_id()
-    assert kwargs["expected_origin"] == passkey_service.expected_origin()
-    raw_id = credential.get("rawId") or credential.get("id") or ""
-    return SimpleNamespace(
-        credential_id=webauthn.base64url_to_bytes(raw_id),
-        credential_public_key=b"public-key-bytes",
-        sign_count=0,
-        aaguid="00000000-0000-0000-0000-000000000000",
-        user_verified=True,
-        credential_backed_up=True,
-    )
-
-
 @pytest.fixture
 def ceremony(monkeypatch):
-    monkeypatch.setattr(
-        passkey_service.webauthn, "verify_registration_response", _verifier
-    )
-
-
-def _credential(challenge: str, *, credential_id: str = "credential-one") -> dict:
-    """What the browser hands back, with the challenge inside the client data
-    it signed — which is where the server reads it from."""
-    raw_id = bytes_to_base64url(credential_id.encode())
-    client_data = json.dumps(
-        {
-            "type": "webauthn.create",
-            "challenge": challenge,
-            "origin": "http://localhost:5173",
-        }
-    ).encode()
-    return {
-        "id": raw_id,
-        "rawId": raw_id,
-        "type": "public-key",
-        "response": {
-            "clientDataJSON": bytes_to_base64url(client_data),
-            "attestationObject": bytes_to_base64url(b"attestation"),
-            "transports": ["internal", "hybrid"],
-        },
-    }
+    stub_registration(monkeypatch)
 
 
 async def _account(session: AsyncSession, email: str) -> User:
@@ -131,7 +86,7 @@ async def _register(
     response = await client.post(
         FINISH,
         json={
-            "credential": _credential(challenge, credential_id=credential_id),
+            "credential": registration_for(challenge, credential_id=credential_id),
             "name": name,
         },
         headers=get_auth_headers(user),
@@ -313,12 +268,12 @@ async def test_the_options_name_this_deployment(
     assert options["challenge"]
 
 
-async def test_a_deployment_on_plain_http_cannot_begin_one(
+async def test_a_deployment_on_plain_http_cannot_begin_one_or_sign_in(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
     """A credential is bound to a named host reached over https, so a
     deployment addressed otherwise says so instead of sending options the
-    browser will not answer."""
+    browser will not answer — for a sign-in as for a registration."""
     from app.core.config import settings
 
     monkeypatch.setattr(settings, "APP_URL", "http://intranet.local")
@@ -331,6 +286,10 @@ async def test_a_deployment_on_plain_http_cannot_begin_one(
     )
     assert response.status_code == 400
     assert response.json()["detail"] == "PASSKEY_SITE_UNSUPPORTED"
+
+    signed_in = await client.post(SIGN_IN_BEGIN, json={})
+    assert signed_in.status_code == 400
+    assert signed_in.json()["detail"] == "PASSKEY_SITE_UNSUPPORTED"
 
 
 async def test_an_account_at_the_limit_cannot_begin_another(
@@ -359,7 +318,7 @@ async def test_a_challenge_nobody_issued_is_refused(
     user = await _account(session, "pk-unknown@example.com")
     response = await client.post(
         FINISH,
-        json={"credential": _credential("never-issued"), "name": "Laptop"},
+        json={"credential": registration_for("never-issued"), "name": "Laptop"},
         headers=get_auth_headers(user),
     )
     assert response.status_code == 400
@@ -394,7 +353,7 @@ async def test_only_the_transports_webauthn_names_are_kept(
     so what is kept is what the specification names."""
     user = await _account(session, "pk-transports@example.com")
     challenge = await _begin(client, user)
-    credential = _credential(challenge)
+    credential = registration_for(challenge)
     credential["response"]["transports"] = ["usb", "nonsense", 123, "<b>x</b>"]
 
     response = await client.post(
@@ -435,7 +394,7 @@ async def test_a_challenge_answers_one_registration(
     user = await _account(session, "pk-once@example.com")
     user_id = user.id
     challenge = await _begin(client, user)
-    credential = _credential(challenge)
+    credential = registration_for(challenge)
 
     first = await client.post(
         FINISH,
@@ -470,7 +429,7 @@ async def test_a_challenge_belongs_to_the_account_that_began_it(
 
     response = await client.post(
         FINISH,
-        json={"credential": _credential(challenge), "name": "Laptop"},
+        json={"credential": registration_for(challenge), "name": "Laptop"},
         headers=get_auth_headers(two),
     )
     assert response.status_code == 400
@@ -495,7 +454,7 @@ async def test_a_ceremony_that_does_not_verify_is_refused(
 
     response = await client.post(
         FINISH,
-        json={"credential": _credential(challenge), "name": "Laptop"},
+        json={"credential": registration_for(challenge), "name": "Laptop"},
         headers=get_auth_headers(user),
     )
     assert response.status_code == 400
@@ -586,9 +545,9 @@ async def test_removing_forgets_the_credential(
     response = await client.post(
         f"/api/v1/auth/passkeys/{body['id']}/remove",
         json={"current_password": PASSWORD},
-        headers=get_auth_headers(user),
+        headers=await signed_in_headers(session, user, amr=["hwk"]),
     )
-    assert response.status_code == 204, response.text
+    assert response.status_code == 200, response.text
 
     session.expire_all()
     rows = (
@@ -630,7 +589,7 @@ async def test_the_account_is_told_about_both_changes(
 ):
     sent: list[dict] = []
 
-    async def record(user, pieces) -> None:
+    async def record(user, pieces, **_) -> None:
         sent.append(
             {"user_id": user.id, "subject": pieces.subject, "body": pieces.body}
         )
@@ -647,9 +606,9 @@ async def test_the_account_is_told_about_both_changes(
     response = await client.post(
         f"/api/v1/auth/passkeys/{body['id']}/remove",
         json={"current_password": PASSWORD},
-        headers=get_auth_headers(user),
+        headers=await signed_in_headers(session, user, amr=["hwk"]),
     )
-    assert response.status_code == 204, response.text
+    assert response.status_code == 200, response.text
     assert sent[-1]["subject"] == email_t("passkey.removed.subject", "en", escape=False)
     assert "Phone" in sent[-1]["body"]
 
@@ -1000,7 +959,7 @@ async def test_a_sign_in_challenge_cannot_finish_a_registration(
     refused = await client.post(
         FINISH,
         json={
-            "credential": _credential(
+            "credential": registration_for(
                 sign_in_challenge, credential_id="credential-two"
             ),
             "name": "Laptop",
@@ -1072,14 +1031,14 @@ async def test_a_phone_is_handed_a_code(
     ]
 
 
-async def test_an_older_app_is_handed_a_named_device_token(
+async def test_an_older_app_is_asked_to_update(
     client: AsyncClient, session: AsyncSession, assertion
 ):
-    """An app bundle from before the code flow sends no challenge, and is handed
-    a device token under a name even when it sent none."""
-    from app.services.platform import user_tokens
-
+    """An app bundle from before the code flow sends no challenge, and can only
+    be handed a session through the code, so it is asked to update and nothing
+    is opened."""
     user = await _account(session, "pk-unnamed@example.com")
+    user_id = user.id
     await create_passkey(session, user)
 
     challenge = await _begin_sign_in(client)
@@ -1091,11 +1050,12 @@ async def test_an_older_app_is_handed_a_named_device_token(
             "device_name": "  ",
         },
     )
-    assert response.status_code == 200, response.text
-    handed = parse_qs(urlsplit(response.json()["redirect_to"]).query)
-    record = await user_tokens.get_device_token(session, token=handed["token"][0])
-    assert record is not None
-    assert record.device_name == "Mobile Device"
+    assert response.status_code == 400, response.text
+    assert response.json()["detail"] == "NATIVE_APP_UPDATE_REQUIRED"
+    session.expire_all()
+    assert (
+        await session.exec(select(AuthSession).where(AuthSession.user_id == user_id))
+    ).all() == []
 
 
 # ---------------------------------------------------------------------------
@@ -1137,7 +1097,7 @@ async def test_a_withdrawn_method_stops_new_registrations(
         headers=get_auth_headers(user),
     )
     assert began.status_code == 403
-    assert began.json()["detail"] == "PASSKEY_NOT_PERMITTED"
+    assert began.json()["detail"] == "SETTINGS_LOGIN_METHOD_NOT_PERMITTED"
 
     listed = await client.get("/api/v1/auth/passkeys", headers=get_auth_headers(user))
     assert listed.status_code == 200, listed.text
@@ -1394,27 +1354,8 @@ async def test_a_standing_credential_cannot_step_up(
     assert response.status_code == 403
     assert response.json()["detail"] == "SESSION_REQUIRED"
 
-
-async def test_a_device_token_cannot_step_up(
-    client: AsyncClient, session: AsyncSession
-):
-    """The same rule for the app's own standing credential, and it is answered
-    before a ceremony is begun: nothing is stored for a request that has no
-    session to add the key to."""
-    from app.services.platform import user_tokens
-
-    user = await _account(session, "pk-stepup-device@example.com")
-    await create_passkey(session, user)
-    token = await user_tokens.create_device_token(
-        session, user_id=user.id, device_name="Phone"
-    )
-
-    response = await client.post(
-        STEP_UP_BEGIN, headers={"Authorization": f"DeviceToken {token}"}
-    )
-    assert response.status_code == 403
-    assert response.json()["detail"] == "SESSION_REQUIRED"
-
+    # Answered before a ceremony is begun: nothing is stored for a request
+    # that has no session to add the key to.
     session.expire_all()
     rows = (
         await session.exec(
@@ -1436,7 +1377,7 @@ async def test_a_withdrawn_method_stops_a_step_up(
 
     began = await client.post(STEP_UP_BEGIN, headers=headers)
     assert began.status_code == 403
-    assert began.json()["detail"] == "PASSKEY_NOT_PERMITTED"
+    assert began.json()["detail"] == "SETTINGS_LOGIN_METHOD_NOT_PERMITTED"
 
     finished = await client.post(
         STEP_UP_FINISH,
@@ -1444,7 +1385,7 @@ async def test_a_withdrawn_method_stops_a_step_up(
         headers=headers,
     )
     assert finished.status_code == 403
-    assert finished.json()["detail"] == "PASSKEY_NOT_PERMITTED"
+    assert finished.json()["detail"] == "SETTINGS_LOGIN_METHOD_NOT_PERMITTED"
 
 
 # ---------------------------------------------------------------------------
@@ -1462,21 +1403,6 @@ async def _passwordless(session: AsyncSession, email: str) -> User:
     )
 
 
-async def _just_signed_in(session: AsyncSession, user: User) -> dict[str, str]:
-    """Headers naming a session row opened a moment ago — what an account with
-    no password to re-check answers with."""
-    from app.services.auth import sessions as session_service
-
-    issued = await session_service.create_session(
-        session, user_id=user.id, amr=["webauthn"], satisfied_providers=[]
-    )
-    await session.commit()
-    return {
-        "Authorization": "Bearer "
-        + get_auth_token(user, session_id=issued.session.id, amr=["webauthn"])
-    }
-
-
 async def test_the_last_credential_of_a_passwordless_account_stays(
     client: AsyncClient, session: AsyncSession
 ):
@@ -1488,7 +1414,7 @@ async def test_the_last_credential_of_a_passwordless_account_stays(
     response = await client.post(
         f"/api/v1/auth/passkeys/{row.id}/remove",
         json={},
-        headers=await _just_signed_in(session, user),
+        headers=await signed_in_headers(session, user, amr=["webauthn"]),
     )
     assert response.status_code == 409
     assert response.json()["detail"] == "PASSKEY_IS_LAST_METHOD"
@@ -1501,7 +1427,7 @@ async def test_a_withdrawn_method_does_not_free_the_last_credential(
     with nothing that opens a session, so the credential stays."""
     user = await _passwordless(session, "pk-last-withdrawn@example.com")
     row = await create_passkey(session, user, credential_id="last-withdrawn")
-    headers = await _just_signed_in(session, user)
+    headers = await signed_in_headers(session, user, amr=["webauthn"])
     await _withdraw_passkeys(session)
 
     response = await client.post(
@@ -1520,9 +1446,9 @@ async def test_a_password_beside_it_lets_the_credential_go(
     response = await client.post(
         f"/api/v1/auth/passkeys/{row.id}/remove",
         json={"current_password": PASSWORD},
-        headers=get_auth_headers(user),
+        headers=await signed_in_headers(session, user, amr=["hwk"]),
     )
-    assert response.status_code == 204, response.text
+    assert response.status_code == 200, response.text
 
 
 async def test_a_second_credential_lets_the_first_go(
@@ -1535,6 +1461,35 @@ async def test_a_second_credential_lets_the_first_go(
     response = await client.post(
         f"/api/v1/auth/passkeys/{first.id}/remove",
         json={},
-        headers=await _just_signed_in(session, user),
+        headers=await signed_in_headers(session, user, amr=["webauthn"]),
     )
-    assert response.status_code == 204, response.text
+    assert response.status_code == 200, response.text
+
+
+async def test_the_last_passkey_removed_from_a_new_sign_in_waits(
+    client: AsyncClient, session: AsyncSession
+):
+    """One of two goes at once. The last one waits, and stays until then."""
+    user = await _account(session, "pk-held@example.com")
+    first = await create_passkey(session, user, credential_id="held-one")
+    last = await create_passkey(session, user, credential_id="held-two", name="Phone")
+    first_id, last_id = first.id, last.id
+    headers = await signed_in_headers(session, user)
+
+    gone = await client.post(
+        f"/api/v1/auth/passkeys/{first_id}/remove",
+        json={"current_password": PASSWORD},
+        headers=headers,
+    )
+    assert gone.status_code == 200, gone.text
+
+    held = await client.post(
+        f"/api/v1/auth/passkeys/{last_id}/remove",
+        json={"current_password": PASSWORD},
+        headers=headers,
+    )
+    assert held.status_code == 202, held.text
+    assert held.json()["held"]["kind"] == "last_passkey"
+    assert held.json()["held"]["subject"] == "Phone"
+    session.expire_all()
+    assert await session.get(UserPasskey, last_id) is not None

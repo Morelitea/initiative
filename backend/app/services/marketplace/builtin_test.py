@@ -20,18 +20,23 @@ ships but cannot read or validate must never take its own listing down.
 import pathlib
 
 import pytest
-from sqlmodel import select
+from sqlmodel import col, select
 
+from app.models.platform.guild import CommunityRole
 from app.models.platform.marketplace import MarketplaceListing
+from app.models.tenant.property import PropertyValue
+from app.models.tenant.task import Task
 from app.services.marketplace import catalog as catalog_service
 from app.services.marketplace.builtin import (
     load_builtin_manifests,
     seed_builtin_listings,
 )
 from app.services.query import resolve
+from app.testing import route_session_to_guild
 from app.services.tenant.dashboard_definition import WIDGET_SPECS
 from app.services.marketplace.definitions import (
     RESERVED_PUBLIC_ID_PREFIX,
+    TOOL_LISTING_KINDS,
     normalize_publisher,
     normalize_listing_definition,
 )
@@ -42,6 +47,35 @@ pytestmark = pytest.mark.always
 async def _seeded(session) -> dict[str, MarketplaceListing]:
     listings = (await session.exec(select(MarketplaceListing))).all()
     return {listing.public_id: listing for listing in listings}
+
+
+def _listed_tasks(envelope: dict) -> list[tuple[str, bool, int]]:
+    """Each task a project listing ships: its title, whether it repeats, and
+    how many property values it carries."""
+    return sorted(
+        (task["title"], task.get("recurrence") is not None, len(task["properties"]))
+        for task in envelope["tasks"]
+    )
+
+
+async def _installed_tasks(session, guild_id: int, project_id: int):
+    """The same of the tasks an install created."""
+    await route_session_to_guild(session, guild_id)
+    tasks = (
+        await session.exec(select(Task).where(Task.project_id == project_id))
+    ).all()
+    valued = (
+        await session.exec(
+            select(PropertyValue.entity_id).where(
+                PropertyValue.entity_type == "task",
+                col(PropertyValue.entity_id).in_([task.id for task in tasks]),
+            )
+        )
+    ).all()
+    return sorted(
+        (task.title, task.recurrence is not None, valued.count(task.id))
+        for task in tasks
+    )
 
 
 class TestShippedManifests:
@@ -159,6 +193,51 @@ class TestShippedManifests:
             )
             assert version is not None, f"{listing.public_id} is not installable"
 
+    async def test_every_shipped_tool_listing_installs(
+        self, client, acting_user, session
+    ):
+        """Validating reads a listing's shape; only installing runs the
+        importer, which is what places its repeat rules and select values, and
+        drops one it cannot read rather than refusing the install."""
+        await seed_builtin_listings(session)
+        await session.commit()
+        actor = await acting_user(guild_role=CommunityRole.member, initiative=True)
+        for tool in TOOL_LISTING_KINDS.values():
+            setattr(actor.initiative, tool.view_permission, True)
+        session.add(actor.initiative)
+        await session.commit()
+
+        for manifest in load_builtin_manifests():
+            if manifest["kind"] not in TOOL_LISTING_KINDS:
+                continue
+            for start_from in (
+                ("blank", "example") if manifest.get("example") else ("blank",)
+            ):
+                response = await client.post(
+                    actor.g(f"/marketplace/listings/by-uid/{manifest['uid']}/install"),
+                    json={
+                        "initiative_id": actor.initiative.id,
+                        "start_from": start_from,
+                    },
+                    headers=actor.headers,
+                )
+                assert response.status_code == 201, (
+                    manifest["public_id"],
+                    start_from,
+                    response.text,
+                )
+                if manifest["kind"] == "project":
+                    shipped = manifest[
+                        "example" if start_from == "example" else "definition"
+                    ]
+                    installed = await _installed_tasks(
+                        session, actor.guild.id, response.json()["result"]["entity_id"]
+                    )
+                    assert installed == _listed_tasks(shipped), (
+                        manifest["public_id"],
+                        start_from,
+                    )
+
 
 class TestWithdrawingWhatIsNoLongerShipped:
     """The catalog follows the files, in both directions."""
@@ -175,12 +254,12 @@ class TestWithdrawingWhatIsNoLongerShipped:
         return {
             "uid": uid,
             "public_id": public_id,
-            "kind": "app",
+            "kind": "plugin",
             "name": public_id,
             "publisher": "Tests",
             "description": "A shipped listing.",
             "version": "1.0.0",
-            "definition": {"app_kind": "tool_instance", "tool": "calendar"},
+            "definition": {"plugin_kind": "tool_instance", "tool": "calendar"},
         }
 
     async def test_a_listing_dropped_from_the_build_leaves_the_shelf(
@@ -210,7 +289,7 @@ class TestWithdrawingWhatIsNoLongerShipped:
         await self._seed_dir(tmp_path, [good])
         await seed_builtin_listings(session, tmp_path)
 
-        broken = {**good, "definition": {"app_kind": "nonsense"}}
+        broken = {**good, "definition": {"plugin_kind": "nonsense"}}
         await self._seed_dir(tmp_path, [broken])
         await seed_builtin_listings(session, tmp_path)
 
@@ -232,18 +311,18 @@ class TestWithdrawingWhatIsNoLongerShipped:
         assert listings["core.keep4"].available is True
 
     def _bundling_manifest(self, *, uid: str, public_id: str, dash_uid: str) -> dict:
-        """A service app that ships a dashboard arranged from its own widgets."""
-        endpoint = f"app.{public_id}.open-items"
+        """A service plug-in that ships a dashboard arranged from its own widgets."""
+        endpoint = f"plugin.{public_id}.open-items"
         return {
             "uid": uid,
             "public_id": public_id,
-            "kind": "app",
+            "kind": "plugin",
             "name": public_id,
             "publisher": "Tests",
-            "description": "A shipped app with a dashboard.",
+            "description": "A shipped plug-in with a dashboard.",
             "version": "1.0.0",
             "definition": {
-                "app_kind": "service",
+                "plugin_kind": "service",
                 "service": {"public_id": public_id, "protocol": 1},
                 "features": ["endpoints", "widgets", "dashboards"],
                 "endpoints": [{"id": endpoint, "direction": "read"}],
@@ -274,7 +353,7 @@ class TestWithdrawingWhatIsNoLongerShipped:
     async def test_a_bundled_dashboard_is_claimed_by_the_pass_that_publishes_it(
         self, session, tmp_path
     ):
-        """Its uid lives inside its app's manifest, so the sweep has to read the
+        """Its uid lives inside its plug-in's manifest, so the sweep has to read the
         manifest to know the build still ships it."""
         await self._seed_dir(
             tmp_path,
@@ -292,7 +371,7 @@ class TestWithdrawingWhatIsNoLongerShipped:
         assert listings["core.bundler"].available is True
         assert listings["core.bundler-overview"].available is True
 
-    async def test_dropping_the_bundling_app_withdraws_its_dashboard(
+    async def test_dropping_the_bundling_plugin_withdraws_its_dashboard(
         self, session, tmp_path
     ):
         await self._seed_dir(

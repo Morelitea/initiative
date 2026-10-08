@@ -19,7 +19,7 @@ import { HttpResponse } from "msw";
 import { useEffect, useRef } from "react";
 import { describe, expect, it } from "vitest";
 
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import { SmartChipInsertDialog } from "@/components/ui/editor/plugins/smart-chip-insert-dialog";
@@ -52,7 +52,7 @@ describe("SmartChipInsertDialog", () => {
   );
 
   it("puts the caret in the search box, and keeps it", async () => {
-    server.use(guildHttp.get("/search/recent", () => HttpResponse.json([])));
+    server.use(communityHttp.get("/search/recent", () => HttpResponse.json([])));
 
     renderPage(pageWithThief());
 
@@ -65,7 +65,7 @@ describe("SmartChipInsertDialog", () => {
   // suggestion mouse-only, so what is asserted is the ownership.
   it("lets the keyboard reach the suggestions", async () => {
     server.use(
-      guildHttp.get("/search/recent", () =>
+      communityHttp.get("/search/recent", () =>
         HttpResponse.json([
           {
             entity_type: "calendar_event",

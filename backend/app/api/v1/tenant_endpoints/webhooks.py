@@ -9,19 +9,19 @@ initiative's changes; omitting it means the whole community's, which is why
 registering one of those is a guild admin's to do. Nobody's standing is read at
 delivery: an envelope is identifiers and changed column names, and a consumer
 reads current state back through the REST path, where every gate applies to the
-read. An installed app calling back does so on its own token, whose standing is
+read. An installed plug-in calling back does so on its own token, whose standing is
 read on every call.
 
 So a subscription is the community's integration configuration rather than the
 personal property of whoever registered it, and it outlives their membership,
 their role and their account.
 
-  POST   /api/v1/c/{guild_id}/webhooks/subscriptions
+  POST   /api/v1/c/{community_id}/webhooks/subscriptions
     body: {target_url, event_types, fields?, initiative_id?}
     → returns subscription + plaintext hmac_secret (one-time)
-  GET    /api/v1/c/{guild_id}/webhooks/subscriptions
-  PATCH  /api/v1/c/{guild_id}/webhooks/subscriptions/{id}
-  DELETE /api/v1/c/{guild_id}/webhooks/subscriptions/{id}
+  GET    /api/v1/c/{community_id}/webhooks/subscriptions
+  PATCH  /api/v1/c/{community_id}/webhooks/subscriptions/{id}
+  DELETE /api/v1/c/{community_id}/webhooks/subscriptions/{id}
 
 Every read includes ``dead_letter_count`` — how many of the poller's ledger
 rows for that subscription (``app.services.tenant.outbox_poller``) gave up
@@ -34,10 +34,10 @@ the content it watches: initiative write access for an initiative-scoped
 subscription, guild admin for a community-wide one. Authorship is not a gate in
 this app.
 
-An installed app registers and removes subscriptions on its installation token.
+An installed plug-in registers and removes subscriptions on its installation token.
 What it may register depends on the
 event types it names — each needs the read scope of its tool — so the two
-routes take :func:`app.api.deps.app_scope_checked` and the service asks those
+routes take :func:`app.api.deps.plugin_scope_checked` and the service asks those
 scopes of the install's standing. An install sees and removes only the
 subscriptions it registered.
 """
@@ -55,7 +55,7 @@ from app.api.deps import (
     ActorContext,
     ActorSessionDep,
     RLSSessionDep,
-    app_scope_checked,
+    plugin_scope_checked,
     get_current_active_user,
     GuildContextDep,
 )
@@ -72,11 +72,6 @@ from app.schemas.tenant.webhook_subscription import (
 )
 from app.services.tenant import webhook_refs
 from app.services.tenant import webhook_subscriptions as subscriptions_service
-from app.services.tenant.webhook_subscriptions import (
-    WebhookSubscriptionNotFoundError,
-    WebhookSubscriptionScopeError,
-    WebhookSubscriptionVocabularyError,
-)
 from app.services.webhook_target_url import (
     WebhookTargetUrlError,
     WebhookTargetUrlPrivateError,
@@ -87,12 +82,12 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(route_class=ActorRoute)
 
-#: The routes an installed app may call. Registering asks the read scope of
+#: The routes an installed plug-in may call. Registering asks the read scope of
 #: each event type's tool, which the service checks once it has the body;
 #: removing reaches only the install's own subscriptions.
 SubscriptionsByEventType = Annotated[
     ActorContext,
-    Depends(app_scope_checked(webhook_events.event_read_scopes(), per="event type")),
+    Depends(plugin_scope_checked(webhook_events.event_read_scopes(), per="event type")),
 ]
 
 
@@ -128,7 +123,7 @@ async def _named(
 
     Minted rather than stored, and in the same sector its deliveries use, so
     what a receiver reads here is what it will be sent — all of them in one
-    session. An installed app that registered one names no person on it, and
+    session. An installed plug-in that registered one names no person on it, and
     its standing already carries what the install calls the guild, so nothing
     is minted for it here.
     """
@@ -139,14 +134,14 @@ async def _named(
         own = {
             row.id
             for row in rows
-            if row.app_install_id == actor.install_id and row.created_by is None
+            if row.plugin_install_id == actor.install_id and row.created_by is None
         }
     minted = iter(
         await webhook_refs.names_for_subscribers(
             guild_id=guild_id,
             subscribers=[
                 (
-                    row.app_install_id,
+                    row.plugin_install_id,
                     row.id,
                     () if row.created_by is None else (row.created_by,),
                 )
@@ -164,7 +159,7 @@ async def _named(
         reads.append(
             WebhookSubscriptionRead(
                 id=row.id,
-                guild_ref=guild_ref,
+                community_ref=guild_ref,
                 initiative_id=row.initiative_id,
                 created_by_ref=(
                     None if row.created_by is None else actor_refs[row.created_by]
@@ -201,39 +196,30 @@ async def create_subscription(
     log of the scope it names, the initiative it was registered against or, for
     one a guild admin registers, the whole community.
 
-    An installed app registers one as its community, naming no person: each
+    An installed plug-in registers one as its community, naming no person: each
     event type needs the read scope of its tool, a token narrowed to one
     initiative registers for that initiative only, and a community-wide one
-    needs a token that is not narrowed. Otherwise 403 (``APP_SCOPE_REQUIRED``).
+    needs a token that is not narrowed. Otherwise 403 (``PLUGIN_SCOPE_REQUIRED``).
 
     Target policy: ``target_url`` must be https and resolve to a public unicast
     address; private, loopback and link-local addresses are rejected.
     """
     await _validate_target_url(str(payload.target_url))
 
-    try:
-        if isinstance(guild_context, InstallContext):
-            (
-                subscription,
-                secret,
-            ) = await subscriptions_service.create_install_subscription(
-                session, context=guild_context, payload=payload
-            )
-        else:
-            subscription, secret = await subscriptions_service.create_subscription(
-                session,
-                payload=payload,
-                created_by=guild_context.user_id,
-                guild_id=guild_context.guild_id,
-            )
-    except WebhookSubscriptionVocabularyError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=exc.code
-        ) from exc
-    except WebhookSubscriptionScopeError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail=exc.code
-        ) from exc
+    if isinstance(guild_context, InstallContext):
+        (
+            subscription,
+            secret,
+        ) = await subscriptions_service.create_install_subscription(
+            session, context=guild_context, payload=payload
+        )
+    else:
+        subscription, secret = await subscriptions_service.create_subscription(
+            session,
+            payload=payload,
+            created_by=guild_context.user_id,
+            guild_id=guild_context.guild_id,
+        )
 
     return WebhookSubscriptionCreated(
         # A subscription that was just created has no delivery history yet.
@@ -288,23 +274,13 @@ async def update_subscription(
     if payload.target_url is not None:
         await _validate_target_url(str(payload.target_url))
 
-    try:
-        row = await subscriptions_service.update_subscription(
-            session,
-            subscription_id=subscription_id,
-            guild_id=guild_context.guild_id,
-            payload=payload,
-            actor_user_id=current_user.id,
-        )
-    except WebhookSubscriptionNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=WebhookSubscriptionMessages.NOT_FOUND,
-        ) from exc
-    except WebhookSubscriptionVocabularyError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=exc.code
-        ) from exc
+    row = await subscriptions_service.update_subscription(
+        session,
+        subscription_id=subscription_id,
+        guild_id=guild_context.guild_id,
+        payload=payload,
+        actor_user_id=current_user.id,
+    )
     counts = await subscriptions_service.dead_letter_counts(
         session, subscription_ids=[row.id]
     )
@@ -326,22 +302,16 @@ async def delete_subscription(
 ) -> None:
     """Hard-delete a subscription. Who may is the DELETE policy, the same gates
     that govern the content it watches; a cross-guild lookup is a 404. An
-    installed app reaches only the subscriptions it registered, and any other
+    installed plug-in reaches only the subscriptions it registered, and any other
     is a 404."""
     by_install = isinstance(guild_context, InstallContext)
-    try:
-        await subscriptions_service.delete_subscription(
-            session,
-            subscription_id=subscription_id,
-            guild_id=guild_context.guild_id,
-            actor_user_id=guild_context.user_id,
-            by_install=by_install,
-        )
-    except WebhookSubscriptionNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=WebhookSubscriptionMessages.NOT_FOUND,
-        ) from exc
+    await subscriptions_service.delete_subscription(
+        session,
+        subscription_id=subscription_id,
+        guild_id=guild_context.guild_id,
+        actor_user_id=guild_context.user_id,
+        by_install=by_install,
+    )
     if by_install:
         # An install's subscriptions are named in the install's own sector,
         # which outlives any one of them; there is nothing of this one's to
@@ -349,10 +319,10 @@ async def delete_subscription(
         return
 
     # The names this subscription minted for itself. Only its own sector: one an
-    # app registered is named in that app's, which belongs to the install and
+    # plug-in registered is named in that plug-in's, which belongs to the install and
     # outlives any single subscription.
     #
-    # Reported rather than raised, like the same step on app uninstall: the row
+    # Reported rather than raised, like the same step on plug-in uninstall: the row
     # is already gone and committed, so failing the request here would answer
     # "no" to something that happened, and the retry it invites answers 404.
     try:

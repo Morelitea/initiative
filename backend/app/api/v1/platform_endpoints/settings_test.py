@@ -21,7 +21,7 @@ from app.core.intake import IntakeStream
 from app.core.messages import GuildMessages
 from app.db.session import set_rls_context
 from app.models.platform.app_setting import AppSetting
-from app.models.platform.guild import Guild, GuildRole, GuildStatus
+from app.models.platform.guild import Guild, CommunityRole, CommunityStatus
 from app.models.platform.access_grant import AccessLevel
 from app.models.platform.user import UserRole
 from app.models.tenant.intake import IntakeBinding
@@ -49,7 +49,7 @@ async def owner(acting_user):
 
 @pytest.fixture
 async def operator(acting_user):
-    """An account holding ``guilds.manage`` and not ``config.manage`` — the
+    """An account holding ``communities.manage`` and not ``config.manage`` — the
     Guilds tab is theirs, the configuration pages are not."""
     return await acting_user("operator")
 
@@ -97,8 +97,8 @@ _GUILD_DIALS = [
     pytest.param("max_users", 25, None, 0, id="user-cap"),
     pytest.param(
         "status",
-        GuildStatus.suspended.value,
-        GuildStatus.active.value,
+        CommunityStatus.suspended.value,
+        CommunityStatus.active.value,
         "nope",
         id="lifecycle-status",
     ),
@@ -118,11 +118,11 @@ async def test_the_guilds_tab_lists_every_guild_with_its_dials(
     """The tab lists every guild — not just the reader's own — with its member
     count and each dial. An unset cap reads null, a guild nobody has moved
     reads active with no transition stamped, and a guild with no membership
-    rows reports 0 members. Read here by an operator (``guilds.manage``), which
+    rows reports 0 members. Read here by an operator (``communities.manage``), which
     is the tier the tab is for."""
     theirs = await create_guild(session, name="Dialled Guild", **{dial: value})
     await create_guild_membership(
-        session, user=operator.user, guild=theirs, role=GuildRole.admin
+        session, user=operator.user, guild=theirs, role=CommunityRole.admin
     )
     untouched_guild = await create_guild(session, name="Untouched Guild")
 
@@ -181,7 +181,7 @@ async def test_each_dial_moves_on_its_own(
     before = {
         "max_storage_bytes": 2048,
         "max_users": 5,
-        "status": GuildStatus.read_only.value,
+        "status": CommunityStatus.read_only.value,
     }
     guild = await create_guild(session, **before)
 
@@ -226,12 +226,12 @@ async def test_a_real_status_transition_is_stamped(
 
     resp = await client.patch(
         f"{GUILDS}/{guild.id}",
-        json={"status": GuildStatus.suspended.value},
+        json={"status": CommunityStatus.suspended.value},
         headers=operator.headers,
     )
 
     assert resp.status_code == 200, resp.text
-    assert resp.json()["status"] == GuildStatus.suspended.value
+    assert resp.json()["status"] == CommunityStatus.suspended.value
     assert resp.json()["status_changed_at"] is not None
 
 
@@ -240,7 +240,7 @@ async def test_a_status_change_nudges_billing_and_a_hold_tells_the_seat(
 ) -> None:
     """Every transition nudges billing to read the status; one into on_hold
     also tells the community's seat holder, once."""
-    from app.models.platform.guild import GuildRole
+    from app.models.platform.guild import CommunityRole
     from app.models.platform.notification import Notification, NotificationType
     from app.services.platform import billing_ping
     from app.testing import create_guild_membership, create_user
@@ -250,11 +250,11 @@ async def test_a_status_change_nudges_billing_and_a_hold_tells_the_seat(
     guild = await create_guild(session)
     seat = await create_user(session)
     await create_guild_membership(
-        session, user=seat, guild=guild, role=GuildRole.superadmin
+        session, user=seat, guild=guild, role=CommunityRole.superadmin
     )
     guild_id, guild_name, seat_id = guild.id, guild.name, seat.id
 
-    for status in (GuildStatus.suspended, GuildStatus.on_hold):
+    for status in (CommunityStatus.suspended, CommunityStatus.on_hold):
         resp = await client.patch(
             f"{GUILDS}/{guild_id}",
             json={"status": status.value},
@@ -270,7 +270,7 @@ async def test_a_status_change_nudges_billing_and_a_hold_tells_the_seat(
         await session.exec(
             select(Notification).where(
                 Notification.user_id == seat_id,
-                Notification.type == NotificationType.guild_on_hold,
+                Notification.type == NotificationType.community_on_hold,
             )
         )
     ).all()
@@ -331,7 +331,7 @@ async def test_guild_auth_options_are_operator_only(
     guild-facing PATCH — they are operator fields (like caps and status). The
     guild-admin endpoint simply doesn't accept them, leaving the set empty."""
     guild = await create_guild(session, auth_options=[])
-    a = await acting_user(guild_role=GuildRole.admin, guild=guild)
+    a = await acting_user(guild_role=CommunityRole.admin, guild=guild)
     guild_id = guild.id
 
     resp = await client.patch(
@@ -356,7 +356,7 @@ async def test_lowering_the_cap_below_the_headcount_keeps_the_members(
     """
     guild = await create_guild(session)
     await create_guild_membership(
-        session, user=operator.user, guild=guild, role=GuildRole.admin
+        session, user=operator.user, guild=guild, role=CommunityRole.admin
     )
     await create_guild_membership(session, guild=guild)
 
@@ -383,7 +383,7 @@ async def test_raising_cap_reopens_joins(
         session, guild_id=guild.id, created_by=operator.user.id, max_uses=5
     )
     await guild_service.ensure_membership(
-        session, guild_id=guild.id, user_id=operator.user.id, role=GuildRole.admin
+        session, guild_id=guild.id, user_id=operator.user.id, role=CommunityRole.admin
     )
     await session.commit()
 
@@ -395,7 +395,7 @@ async def test_raising_cap_reopens_joins(
         json={"code": invite.code},
     )
     assert blocked.status_code == 403
-    assert blocked.json()["detail"] == "GUILD_USER_LIMIT_REACHED"
+    assert blocked.json()["detail"] == "COMMUNITY_USER_LIMIT_REACHED"
 
     patched = await client.patch(
         f"{GUILDS}/{guild.id}", json={"max_users": 5}, headers=operator.headers
@@ -769,7 +769,7 @@ async def test_a_guild_that_is_not_there_is_a_404(
     )
 
     assert resp.status_code == 404
-    assert resp.json()["detail"] == "GUILD_NOT_FOUND"
+    assert resp.json()["detail"] == "COMMUNITY_NOT_FOUND"
 
 
 async def test_billing_handoff_self_issues_a_grant_and_names_it(
@@ -782,7 +782,7 @@ async def test_billing_handoff_self_issues_a_grant_and_names_it(
 
     from app.core.security import (
         BILLING_SUPPORT_HANDOFF_AUDIENCE,
-        BILLING_SUPPORT_HANDOFF_ISSUER,
+        TOKEN_ISSUER,
     )
     from app.models.platform.access_grant import AccessGrant
 
@@ -801,15 +801,15 @@ async def test_billing_handoff_self_issues_a_grant_and_names_it(
         _TEST_HANDOFF_SECRET,
         algorithms=[header["alg"]],
         audience=BILLING_SUPPORT_HANDOFF_AUDIENCE,
-        issuer=BILLING_SUPPORT_HANDOFF_ISSUER,
+        issuer=TOKEN_ISSUER,
     )
     # Everyone on the token is named by reference, `sub` included; no row id
     # of ours is in the claims at all.
     assert payload["sub"] == payload["user_ref"]
     assert payload["user_ref"].startswith("ubil_")
-    assert payload["guild_ref"].startswith("gbil_")
+    assert payload["community_ref"].startswith("gbil_")
     assert "guild_id" not in payload
-    assert payload["guild_name"] == guild.name
+    assert "guild_name" not in payload
     assert payload["jti"]
     # Lifetime stays inside the receiver's ceiling.
     assert payload["exp"] - payload["iat"] <= 300
@@ -827,6 +827,33 @@ async def test_billing_handoff_self_issues_a_grant_and_names_it(
     assert payload["approver"] == payload["user_ref"]
     assert grant.access_level == "read"
     assert grant.status == "approved"
+
+
+async def test_billing_handoff_records_the_grant_it_issues(
+    client: AsyncClient, session: AsyncSession, owner, monkeypatch, capfd
+):
+    """A billing grant is self-issued like breaking glass, so it is recorded
+    the same way — once, when it is issued, and not again when it is reused."""
+    from app.core.audit_events import AuditEventType
+    from app.testing.audit import emitted
+
+    _configure_billing(monkeypatch)
+    guild = await create_guild(session)
+    capfd.readouterr()
+
+    first = await client.post(_handoff(guild.id), headers=owner.headers)
+    second = await client.post(_handoff(guild.id), headers=owner.headers)
+    assert first.status_code == second.status_code == 200
+
+    issued = emitted(capfd, AuditEventType.ACCESS_GRANT_SELF_ISSUED)
+    assert len(issued) == 1
+    assert issued[0]["actor_user_id"] == owner.user.id
+    assert issued[0]["guild_id"] == guild.id
+    assert issued[0]["detail"] == {
+        "purpose": "billing",
+        "level": "read",
+        "self_approved": True,
+    }
 
 
 async def test_billing_handoff_reuses_a_live_grant(
@@ -876,7 +903,7 @@ async def test_billing_handoff_breaks_glass_even_for_a_member(
     from app.models.platform.access_grant import AccessGrant
 
     _configure_billing(monkeypatch)
-    a = await acting_user("owner", guild_role=GuildRole.admin)
+    a = await acting_user("owner", guild_role=CommunityRole.admin)
 
     resp = await client.post(_handoff(a.guild.id), headers=a.headers)
     assert resp.status_code == 200
@@ -933,14 +960,14 @@ async def test_billing_grant_does_not_block_a_content_break_glass(
     billing = await service.break_glass(
         session,
         actor=owner.user,
-        payload=BreakGlassCreate(guild_id=guild.id, reason="billing portal"),
+        payload=BreakGlassCreate(community_id=guild.id, reason="billing portal"),
         purpose=AccessGrantPurpose.billing,
         level=AccessLevel.read.value,
     )
     content = await service.break_glass(
         session,
         actor=owner.user,
-        payload=BreakGlassCreate(guild_id=guild.id, reason="incident"),
+        payload=BreakGlassCreate(community_id=guild.id, reason="incident"),
         level=AccessLevel.read_write.value,
     )
     assert billing.purpose == "billing"
@@ -975,7 +1002,7 @@ async def test_billing_grant_does_not_block_a_content_request(
     await service.break_glass(
         session,
         actor=support.user,
-        payload=BreakGlassCreate(guild_id=guild.id, reason="billing portal"),
+        payload=BreakGlassCreate(community_id=guild.id, reason="billing portal"),
         purpose=AccessGrantPurpose.billing,
         level=AccessLevel.read.value,
     )
@@ -986,7 +1013,7 @@ async def test_billing_grant_does_not_block_a_content_request(
             asks=[("content", AccessLevel.read.value)],
             requester=support.user,
             payload=AccessGrantCreate(
-                guild_id=guild.id,
+                community_id=guild.id,
                 reason="investigating a ticket",
                 access_level=AccessLevel.read,
             ),
@@ -1073,9 +1100,10 @@ async def test_a_zero_hour_limit_is_refused(client: AsyncClient, owner):
 # ---------------------------------------------------------------------------
 
 _CONFIG_MANAGE = "config.manage"  # owner only
-_GUILDS_MANAGE = "guilds.manage"  # operator and owner
+_GUILDS_MANAGE = "communities.manage"  # operator and owner
+_BILLING_INSIGHTS = "billing.insights"  # operator and owner
 
-#: (capability, method, path — ``{guild_id}`` is filled in, json body or None)
+#: (capability, method, path — ``{community_id}`` is filled in, json body or None)
 _ROUTES: list[tuple[str, str, str, dict | None]] = [
     (_CONFIG_MANAGE, "get", "/api/v1/settings/storage", None),
     (_CONFIG_MANAGE, "put", "/api/v1/settings/storage", {"backend": "local"}),
@@ -1095,9 +1123,10 @@ _ROUTES: list[tuple[str, str, str, dict | None]] = [
         {"session_max_hours": 12},
     ),
     (_GUILDS_MANAGE, "get", GUILDS, None),
-    (_GUILDS_MANAGE, "patch", GUILDS + "/{guild_id}", {"max_storage_bytes": 1024}),
-    (_GUILDS_MANAGE, "patch", GUILDS + "/{guild_id}", {"status": "suspended"}),
-    (_GUILDS_MANAGE, "post", GUILDS + "/{guild_id}/billing/service-handoff", None),
+    (_GUILDS_MANAGE, "patch", GUILDS + "/{community_id}", {"max_storage_bytes": 1024}),
+    (_GUILDS_MANAGE, "patch", GUILDS + "/{community_id}", {"status": "suspended"}),
+    (_GUILDS_MANAGE, "post", GUILDS + "/{community_id}/billing/service-handoff", None),
+    (_BILLING_INSIGHTS, "post", "/api/v1/settings/billing/insights-handoff", None),
 ]
 
 #: The tiers each capability sits above.
@@ -1109,6 +1138,7 @@ _BELOW_THE_BAR: dict[str, list[UserRole]] = {
         UserRole.operator,
     ],
     _GUILDS_MANAGE: [UserRole.member, UserRole.support, UserRole.moderator],
+    _BILLING_INSIGHTS: [UserRole.member, UserRole.support, UserRole.moderator],
 }
 
 
@@ -1128,13 +1158,13 @@ async def test_a_tier_below_the_bar_reaches_none_of_its_routes(
     say the request reached the handler. The caller is the target guild's own
     admin, which is a guild role and so changes nothing here."""
     _configure_billing(monkeypatch)
-    a = await acting_user(tier, guild_role=GuildRole.admin)
+    a = await acting_user(tier, guild_role=CommunityRole.admin)
 
     for gate, method, path, body in _ROUTES:
         if gate != capability:
             continue
         resp = await getattr(client, method)(
-            path.format(guild_id=a.guild.id),
+            path.format(community_id=a.guild.id),
             headers=a.headers,
             **({"json": body} if body is not None else {}),
         )
@@ -1160,7 +1190,7 @@ async def test_every_route_needs_an_account(
     """Unauthenticated callers are rejected outright (401), never reaching the
     system-engine handlers."""
     resp = await getattr(client, method)(
-        path.format(guild_id=1), **({"json": body} if body is not None else {})
+        path.format(community_id=1), **({"json": body} if body is not None else {})
     )
 
     assert resp.status_code == 401, f"{method.upper()} {path}: {resp.status_code}"
@@ -1224,6 +1254,23 @@ async def test_help_requests_switch_on_once_a_stream_is_bound(client, session, o
 
     assert response.status_code == 200, response.text
     assert (await guild_administration(session, guild)).support_enabled is True
+
+
+async def test_the_community_list_says_whether_help_has_somewhere_to_go(
+    client, session, acting_user
+):
+    """The switch is held until a support stream is bound, and the operator
+    flipping it reads that from the list they flip it on — not from the intake
+    settings, which are the owner's."""
+    operator = await acting_user("operator")
+
+    before = await client.get(GUILDS, headers=operator.headers)
+    await _bind_support_stream(session)
+    after = await client.get(GUILDS, headers=operator.headers)
+
+    assert before.status_code == after.status_code == 200, before.text
+    assert before.json()["support_bound"] is False
+    assert after.json()["support_bound"] is True
 
 
 async def test_help_requests_can_always_be_switched_off(client, session, owner):
@@ -1297,3 +1344,80 @@ async def test_cookie_consent_is_owner_only(client, operator):
     )
 
     assert response.status_code == 403
+
+
+# --- Operator dashboard: the billing insights page ---
+
+_INSIGHTS = "/api/v1/settings/billing/insights-handoff"
+
+
+async def test_the_insights_handoff_names_a_person_and_no_community(
+    client: AsyncClient, operator, monkeypatch, handoff_signing_key
+) -> None:
+    """RS256 under the portal's key, its own audience, and nothing about any
+    community or grant — the page it opens shows none."""
+    import jwt
+
+    from app.core.config import settings as app_settings
+    from app.core.security import BILLING_INSIGHTS_AUDIENCE
+
+    monkeypatch.setattr(app_settings, "BILLING_URL", "https://billing.example.com")
+
+    resp = await client.post(_INSIGHTS, headers=operator.headers)
+
+    assert resp.status_code == 200, resp.text
+    token = resp.json()["handoff_token"]
+    payload = jwt.decode(
+        token,
+        handoff_signing_key,
+        algorithms=["RS256"],
+        audience=BILLING_INSIGHTS_AUDIENCE,
+        issuer="initiative",
+    )
+    assert payload["sub"].startswith("ubil_")
+    for absent in ("guild_ref", "guild_id", "community_ref", "grant_id", "user_id"):
+        assert absent not in payload
+
+
+@pytest.mark.parametrize(
+    "billing_url,signing,expected,detail",
+    [
+        pytest.param(None, True, 404, "BILLING_PORTAL_NOT_CONFIGURED", id="no-portal"),
+        pytest.param(
+            "https://billing.example.com",
+            False,
+            503,
+            "BILLING_PORTAL_SIGNING_NOT_CONFIGURED",
+            id="no-signing-key",
+        ),
+    ],
+)
+async def test_the_insights_button_says_what_the_deployment_is_missing(
+    client: AsyncClient, operator, monkeypatch, billing_url, signing, expected, detail
+) -> None:
+    from app.core.config import settings as app_settings
+
+    monkeypatch.setattr(app_settings, "BILLING_URL", billing_url)
+    if not signing:
+        monkeypatch.setattr(app_settings, "HANDOFF_SIGNING_PRIVATE_KEY_PEM", None)
+
+    resp = await client.post(_INSIGHTS, headers=operator.headers)
+
+    assert resp.status_code == expected
+    assert resp.json()["detail"] == detail
+
+
+@pytest.mark.parametrize("signing", [True, False])
+async def test_the_app_config_says_whether_insights_can_open(
+    client: AsyncClient, monkeypatch, handoff_signing_key, signing
+) -> None:
+    from app.core.config import settings as app_settings
+
+    monkeypatch.setattr(app_settings, "BILLING_URL", "https://billing.example.com")
+    if not signing:
+        monkeypatch.setattr(app_settings, "HANDOFF_SIGNING_PRIVATE_KEY_PEM", None)
+
+    resp = await client.get("/api/v1/config")
+
+    assert resp.status_code == 200
+    assert resp.json()["billing"]["insights"] is signing

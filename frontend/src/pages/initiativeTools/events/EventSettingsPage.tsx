@@ -20,14 +20,16 @@ import {
   FormSkeleton,
   SkeletonRegion,
 } from "@/components/skeletons/PageSkeletons";
+import { ToolAccessStatus } from "@/components/ToolAccessStatus";
 import { TagPicker } from "@/components/tags";
-import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
+import { ToolPageHeader } from "@/components/tools/ToolPageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
   useCalendarEvent,
@@ -38,16 +40,16 @@ import {
 } from "@/hooks/useCalendarEvents";
 import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useServerForm } from "@/hooks/useServerForm";
-import { toast } from "@/lib/chesterToast";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { formatDate, formatDateTime } from "@/lib/formatDate";
-import { useGuildPath } from "@/lib/guildUrl";
+import { toast } from "@/lib/mascotToast";
 import { allDayReference, fromStored, rulePayload } from "@/lib/recurrence";
 import { eventRoute, eventSettingsRoute, toolDetailRoute, toolListRoute } from "@/lib/tools";
 
 export function EventSettingsPage() {
   const { t } = useTranslation(["calendars", "common", "access"]);
   const router = useRouter();
-  const gp = useGuildPath();
+  const gp = useCommunityPath();
   const { eventId: eventIdParam, calendarId: calendarIdParam } = useParams({ strict: false }) as {
     eventId?: string;
     calendarId?: string;
@@ -59,9 +61,10 @@ export function EventSettingsPage() {
   const occurrence =
     occurrenceParam && !Number.isNaN(Date.parse(occurrenceParam)) ? occurrenceParam : undefined;
 
-  const { data: event, isLoading } = useCalendarEvent(Number.isFinite(eventId) ? eventId : null);
+  const eventQuery = useCalendarEvent(Number.isFinite(eventId) ? eventId : null);
+  const event = eventQuery.data;
   // The path supplies the initiative while this loads; the event is the
-  // authority once it arrives, and null is a guild-level calendar's address.
+  // authority once it arrives, and null is a community-level calendar's address.
   const initiativeId = useCanonicalInitiativeId(event?.initiative_id);
 
   // Two cards, each with its own Save button — so two forms. One shared form
@@ -126,7 +129,7 @@ export function EventSettingsPage() {
 
   // Attendee candidates come from whatever the event's calendar belongs to
   // (MemberMultiSelect below): every member of its initiative, or every member
-  // of the guild when the calendar belongs to no initiative. Event DAC (the
+  // of the community when the calendar belongs to no initiative. Event DAC (the
   // ShareControl below) is a separate concern tracked in #948. The current
   // attendees carry their own user summaries, so the chips render immediately.
   const attendeeUsers = useMemo(
@@ -142,26 +145,29 @@ export function EventSettingsPage() {
 
   const range = useEventTiming(details.values);
 
-  const updateEvent = useUpdateCalendarEvent(eventId, {
-    onSuccess: () => toast.success(t("detailsUpdated")),
+  const updateEvent = useUpdateCalendarEvent({
+    onSuccess: () => toast.success(t("common:toolSettings.detailsUpdated")),
   });
 
   const setAttendees = useSetEventAttendees(eventId, {
-    onSuccess: () => toast.success(t("detailsUpdated")),
+    onSuccess: () => toast.success(t("common:toolSettings.detailsUpdated")),
   });
 
   // Its own instance of the update, so a tag change saves without the
   // details toast.
-  const saveTags = useUpdateCalendarEvent(eventId);
+  const saveTags = useUpdateCalendarEvent();
+  const saveRsvpOpen = useUpdateCalendarEvent({
+    onSuccess: () => toast.success(t("common:toolSettings.detailsUpdated")),
+  });
 
-  // Tags persist immediately on change (like tasks/documents), no Save button.
+  // Tags persist immediately on change (like tasks/files), no Save button.
   // Optimistically update, then roll back to the prior selection if the save
   // fails (the hook surfaces an error toast on its own).
   const handleTagsChange = (newTags: TagSummary[]) => {
     const previous = tags;
     setTags(newTags);
     saveTags.mutate(
-      { tag_ids: newTags.map((tag) => tag.id) },
+      { eventId, data: { tag_ids: newTags.map((tag) => tag.id) } },
       { onError: () => setTags(previous) }
     );
   };
@@ -209,12 +215,16 @@ export function EventSettingsPage() {
     if (target === null) return;
     updateEvent.mutate(
       {
-        title: sent.title.trim() || undefined,
-        description: sent.description.trim() || undefined,
-        location: sent.location.trim() || undefined,
-        ...range,
-        all_day: sent.allDay,
-        ...target,
+        eventId,
+        data: {
+          title: sent.title.trim() || undefined,
+          // Emptied, they are cleared.
+          description: sent.description.trim() || null,
+          location: sent.location.trim() || null,
+          ...range,
+          all_day: sent.allDay,
+          ...target,
+        },
       },
       {
         onSuccess: (saved) => {
@@ -228,9 +238,10 @@ export function EventSettingsPage() {
   const handleSaveRepeat = () => {
     const sent = repeat.values;
     if (sent.rule === "custom") return;
-    updateEvent.mutate(rulePayload(sent.rule, { allDay: event?.all_day }), {
-      onSuccess: () => repeat.settle(sent),
-    });
+    updateEvent.mutate(
+      { eventId, data: rulePayload(sent.rule, { allDay: event?.all_day }) },
+      { onSuccess: () => repeat.settle(sent) }
+    );
   };
 
   const handleSaveAttendees = async () => {
@@ -269,7 +280,7 @@ export function EventSettingsPage() {
   });
   const [extraDate, setExtraDate] = useState("");
 
-  if (isLoading) {
+  if (eventQuery.isLoading) {
     return (
       <SkeletonRegion label={t("loadingEvent")}>
         <DetailPageSkeleton actions={0} description={false}>
@@ -279,32 +290,34 @@ export function EventSettingsPage() {
     );
   }
 
-  if (!event) {
+  if (eventQuery.isError || !event) {
     return (
-      <div className="p-8 text-center">
-        <p className="text-muted-foreground">{t("notFound")}</p>
-        <Button variant="link" asChild className="mt-2">
-          <Link to={gp(toolListRoute(Tool.calendar, initiativeId))}>{t("backToEvents")}</Link>
-        </Button>
-      </div>
+      <ToolAccessStatus
+        error={eventQuery.error}
+        keys="calendars:"
+        backTo={gp(
+          calendarId == null
+            ? toolListRoute(Tool.calendar, initiativeId)
+            : toolDetailRoute(Tool.calendar, initiativeId, calendarId)
+        )}
+        backLabel={t("backToEvents")}
+      />
     );
   }
 
   return (
     <div className="space-y-6">
-      <ToolBreadcrumb
+      <ToolPageHeader
         tool={Tool.calendar}
         initiativeId={initiativeId}
-        trail={[
-          { label: event.title, to: eventRoute(initiativeId, event.calendar_id, eventId) },
-          { label: t("common:toolSettings.title") },
-        ]}
+        trail={[{ label: event.title, to: eventRoute(initiativeId, event.calendar_id, eventId) }]}
+        title={t("common:toolSettings.title")}
       />
 
       {/* Details */}
       <Card>
         <CardHeader>
-          <CardTitle>{t("details")}</CardTitle>
+          <CardTitle>{t("common:toolSettings.tabDetails")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
@@ -337,7 +350,7 @@ export function EventSettingsPage() {
             {updateEvent.isPending ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                {t("saving")}
+                {t("common:toolSettings.saving")}
               </>
             ) : (
               t("common:save")
@@ -423,7 +436,7 @@ export function EventSettingsPage() {
           {event.recurrence ? (
             <div className="flex flex-wrap items-end gap-2">
               <div className="space-y-2">
-                <Label>{t("occurrence.addDate")}</Label>
+                <Label className="sr-only">{t("occurrence.addDate")}</Label>
                 <DateTimePicker
                   value={extraDate}
                   onChange={setExtraDate}
@@ -462,11 +475,31 @@ export function EventSettingsPage() {
             emptyMessage={t("noAttendees")}
           />
 
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <Label htmlFor="event-rsvp-open" className="text-sm">
+                {t("rsvpOpen")}
+              </Label>
+              <p className="text-muted-foreground text-xs">
+                {event.series_id != null ? t("occurrence.followsSeries") : t("rsvpOpenHint")}
+              </p>
+            </div>
+            <Switch
+              id="event-rsvp-open"
+              checked={event.rsvp_open}
+              disabled={!event.can.edit || event.series_id != null || saveRsvpOpen.isPending}
+              onCheckedChange={(next) =>
+                saveRsvpOpen.mutate({ eventId, data: { rsvp_open: next } })
+              }
+              className="mt-0.5 shrink-0"
+            />
+          </div>
+
           <Button onClick={() => void handleSaveAttendees()} disabled={setAttendees.isPending}>
             {setAttendees.isPending ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                {t("saving")}
+                {t("common:toolSettings.saving")}
               </>
             ) : (
               t("common:save")
@@ -478,7 +511,7 @@ export function EventSettingsPage() {
       {/* Tags */}
       <Card>
         <CardHeader>
-          <CardTitle>{t("tags")}</CardTitle>
+          <CardTitle>{t("common:toolSettings.tags")}</CardTitle>
         </CardHeader>
         <CardContent>
           <TagPicker selectedTags={tags} onChange={handleTagsChange} />
@@ -486,7 +519,7 @@ export function EventSettingsPage() {
       </Card>
 
       {/* Custom Properties — defined per initiative, so an event on a
-          guild-level calendar has none to offer. */}
+          community-level calendar has none to offer. */}
       {event.initiative_id !== null && (
         <Card>
           <CardHeader>
@@ -507,7 +540,7 @@ export function EventSettingsPage() {
       {/* Danger Zone */}
       <Card className="border-destructive/50">
         <CardHeader>
-          <CardTitle className="text-destructive">{t("dangerZone")}</CardTitle>
+          <CardTitle className="text-destructive">{t("common:toolSettings.dangerZone")}</CardTitle>
           <CardDescription>{t("dangerZoneDescription")}</CardDescription>
         </CardHeader>
         <CardContent>

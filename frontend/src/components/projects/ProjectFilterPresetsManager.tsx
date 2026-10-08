@@ -22,7 +22,7 @@ import {
   useUpdateFilterPreset,
 } from "@/hooks/useFilterPresets";
 import { useUpdateProject } from "@/hooks/useProjects";
-import { specFromApi, type TASK_VIEW_MODES, taskFilterCount } from "@/lib/filters/taskFilters";
+import { specFromApi, type TaskViewMode, taskFilterCount } from "@/lib/filters/taskFilters";
 import { cn } from "@/lib/utils";
 
 type ProjectFilterPresetsManagerProps = {
@@ -80,7 +80,7 @@ export const ProjectFilterPresetsManager = ({
               disabled={!canManage || updateProject.isPending}
               onValueChange={(value) =>
                 updateProject.mutate({
-                  default_view_mode: value as (typeof TASK_VIEW_MODES)[number],
+                  default_view_mode: value as TaskViewMode,
                 })
               }
             >
@@ -223,7 +223,7 @@ const PresetRow = ({
       <span className="min-w-0 flex-1 truncate text-muted-foreground text-sm">
         {count === 0
           ? t("projects:settings.presetNoFilters")
-          : t("projects:filters.heading") + ` · ${count}`}
+          : t("common:toolbar.filters") + ` · ${count}`}
       </span>
       <Button
         type="button"

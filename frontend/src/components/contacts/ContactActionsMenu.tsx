@@ -23,7 +23,7 @@ import {
   useRequestMessage,
   useStopIgnoring,
 } from "@/hooks/useDirectMessages";
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
 import { getUrlHandle, getUserHandle } from "@/lib/userDisplay";
 
 /**

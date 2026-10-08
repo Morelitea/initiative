@@ -20,7 +20,7 @@ const base: PlatformAuthSettingsResponse = {
     { method: "password", enabled: true, primary: true, answers_factor: false, would_strand: 0 },
     { method: "sso", enabled: true, primary: true, answers_factor: false, would_strand: 0 },
   ],
-  guilds_requiring_sign_in: 0,
+  communities_requiring_sign_in: 0,
   factor_methods_permitted: false,
   session_max_hours: null,
   session_idle_minutes: null,
@@ -67,10 +67,13 @@ describe("SessionLifetimeSection", () => {
     });
   });
 
-  it("will not save an unchanged limit", () => {
+  it("will not save an unchanged or fractional limit", () => {
     settings = { ...base, session_max_hours: 12 };
     renderWithProviders(<SessionLifetimeSection />);
 
+    expect(screen.getByRole("button", { name: /save/i })).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText(/hours/i), { target: { value: "1.5" } });
     expect(screen.getByRole("button", { name: /save/i })).toBeDisabled();
   });
 

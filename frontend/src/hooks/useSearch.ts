@@ -1,44 +1,44 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import type {
-  SearchGuildApiV1CGuildIdSearchGetParams,
+  SearchCommunityParams,
   SearchResults,
   SearchSuggestion,
-  SuggestGuildApiV1CGuildIdSearchSuggestGetParams,
+  SuggestCommunityParams,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
-  getRecentGuildApiV1CGuildIdSearchRecentGetQueryKey,
-  getSearchGuildApiV1CGuildIdSearchGetQueryKey,
-  getSuggestGuildApiV1CGuildIdSearchSuggestGetQueryKey,
-  recentGuildApiV1CGuildIdSearchRecentGet,
-  searchGuildApiV1CGuildIdSearchGet,
-  suggestGuildApiV1CGuildIdSearchSuggestGet,
+  getRecentCommunityQueryKey,
+  getSearchCommunityQueryKey,
+  getSuggestCommunityQueryKey,
+  recentCommunity,
+  searchCommunity,
+  suggestCommunity,
 } from "@/api/generated/search/search";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import type { QueryOpts } from "@/types/query";
 
 /**
- * Ranked matches across everything in the active guild.
+ * Ranked matches across everything in the active community.
  *
  * `keepPreviousData` is what makes the results page usable while typing: the
  * previous answer stays on screen instead of the list emptying between
  * keystrokes.
  */
-export const useGuildSearch = (
-  params: SearchGuildApiV1CGuildIdSearchGetParams,
+export const useCommunitySearch = (
+  params: SearchCommunityParams,
   options?: QueryOpts<SearchResults>
 ) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   return useQuery<SearchResults>({
-    queryKey: getSearchGuildApiV1CGuildIdSearchGetQueryKey(guildId, params),
-    queryFn: () => searchGuildApiV1CGuildIdSearchGet(guildId, params),
+    queryKey: getSearchCommunityQueryKey(communityId, params),
+    queryFn: () => searchCommunity(communityId, params),
     placeholderData: keepPreviousData,
     ...options,
   });
 };
 
 /** What a caller narrows a lookup to, beyond the words themselves. */
-export type SuggestFilters = Omit<SuggestGuildApiV1CGuildIdSearchSuggestGetParams, "q">;
+export type SuggestFilters = Omit<SuggestCommunityParams, "search">;
 
 /**
  * Every field a lookup narrows by, named once.
@@ -92,18 +92,18 @@ const splitFilters = <TData>(
  * ranking, prefix matching and every access gate without asking for them.
  *
  * It answers only the half of a picker's job that starts with typed words;
- * `useGuildPickerSuggestions` is what a picker asks, and calls this in turn.
+ * `useCommunityPickerSuggestions` is what a picker asks, and calls this in turn.
  */
-export const useGuildSearchSuggest = (
+export const useCommunitySearchSuggest = (
   query: string,
   options?: QueryOpts<SearchSuggestion[]> & SuggestFilters
 ) => {
-  const guildId = useActiveGuildId();
+  const communityId = useActiveCommunityId();
   const { filters, queryOptions } = splitFilters<SearchSuggestion[]>(options);
-  const params: SuggestGuildApiV1CGuildIdSearchSuggestGetParams = { q: query, ...filters };
+  const params: SuggestCommunityParams = { search: query, ...filters };
   return useQuery<SearchSuggestion[]>({
-    queryKey: getSuggestGuildApiV1CGuildIdSearchSuggestGetQueryKey(guildId, params),
-    queryFn: () => suggestGuildApiV1CGuildIdSearchSuggestGet(guildId, params),
+    queryKey: getSuggestCommunityQueryKey(communityId, params),
+    queryFn: () => suggestCommunity(communityId, params),
     placeholderData: keepPreviousData,
     ...queryOptions,
   });
@@ -116,16 +116,18 @@ export const useGuildSearchSuggest = (
  * the lookup is — so a picker's suggestions and its search are the same set of
  * things, and picking from the list can never offer what typing could not find.
  *
- * Not exported: a picker asks `useGuildPickerSuggestions`, which switches to
+ * Not exported: a picker asks `useCommunityPickerSuggestions`, which switches to
  * this on its own. Asking for recents directly is asking half a question.
  */
-const useGuildRecentSuggestions = (options?: QueryOpts<SearchSuggestion[]> & SuggestFilters) => {
-  const guildId = useActiveGuildId();
+const useCommunityRecentSuggestions = (
+  options?: QueryOpts<SearchSuggestion[]> & SuggestFilters
+) => {
+  const communityId = useActiveCommunityId();
   const { filters, queryOptions } = splitFilters<SearchSuggestion[]>(options);
   const params = { ...filters };
   return useQuery<SearchSuggestion[]>({
-    queryKey: getRecentGuildApiV1CGuildIdSearchRecentGetQueryKey(guildId, params),
-    queryFn: () => recentGuildApiV1CGuildIdSearchRecentGet(guildId, params),
+    queryKey: getRecentCommunityQueryKey(communityId, params),
+    queryFn: () => recentCommunity(communityId, params),
     ...queryOptions,
   });
 };
@@ -163,7 +165,7 @@ export interface PickerSuggestions {
  * Both questions take the same narrowing and run under the same gates, so the
  * list a picker opens on can never hold something typing would refuse to find.
  */
-export const useGuildPickerSuggestions = (
+export const useCommunityPickerSuggestions = (
   query: string,
   options?: QueryOpts<SearchSuggestion[]> & SuggestFilters
 ): PickerSuggestions => {
@@ -172,8 +174,8 @@ export const useGuildPickerSuggestions = (
   // Both are called every render and only one is switched on: a switched-off
   // query keeps the answer it was last given, which belongs to the other
   // question.
-  const recents = useGuildRecentSuggestions({ ...narrowing, enabled: enabled && !searched });
-  const matches = useGuildSearchSuggest(query, { ...narrowing, enabled: enabled && searched });
+  const recents = useCommunityRecentSuggestions({ ...narrowing, enabled: enabled && !searched });
+  const matches = useCommunitySearchSuggest(query, { ...narrowing, enabled: enabled && searched });
   const active = searched ? matches : recents;
   return {
     items: active.data ?? NOTHING,

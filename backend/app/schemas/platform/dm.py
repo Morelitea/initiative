@@ -8,11 +8,12 @@ state the screen can render.
 from datetime import datetime
 from typing import Dict, List, Optional
 
-from pydantic import ConfigDict, Field
+from pydantic import AliasChoices, ConfigDict, Field
 
 from app.models.platform.user import Presence, UserStatus
 from app.models.platform.user_dm_settings import DmPolicy
 from app.schemas.base import SanitizedBaseModel
+from app.schemas.query import PageMeta
 from app.schemas.platform.user import ProfileDecorations
 
 
@@ -26,7 +27,7 @@ class CommunityDmToggle(SanitizedBaseModel):
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
-    guild_id: int
+    community_id: int = Field(validation_alias=AliasChoices("community_id", "guild_id"))
     name: str
     icon_url: Optional[str] = None
     enabled: bool
@@ -38,15 +39,17 @@ class DirectMessageSettingsRead(SanitizedBaseModel):
     dm_policy: DmPolicy
     #: In the reader's own rail order, the same rule My Contacts uses.
     communities: List[CommunityDmToggle]
-    #: NULL while the account has not answered the age question, which holds
-    #: the policy at ``private`` whatever it says.
+    #: NULL while the account has not answered the age question.
     age_confirmed_at: Optional[datetime] = None
+    #: Whether the age question is still owed: unanswered, on a deployment
+    #: that checks age. True holds the policy at ``private`` whatever it says.
+    age_answer_required: bool = False
     #: Whether this account's clients report a message as delivered and read.
     send_receipts: bool = True
 
 
 class CommunityDmToggleUpdate(SanitizedBaseModel):
-    guild_id: int
+    community_id: int
     enabled: bool
 
 
@@ -75,11 +78,8 @@ class IgnoredAccountRead(SanitizedBaseModel):
     created_at: datetime
 
 
-class IgnoredAccountsResponse(SanitizedBaseModel):
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
+class IgnoredAccountsResponse(PageMeta):
     items: List[IgnoredAccountRead]
-    total: int
 
 
 class DirectMessagePermissionRead(SanitizedBaseModel):
@@ -131,7 +131,7 @@ class ContactGrantRead(SanitizedBaseModel):
     discriminator: int
     avatar_url: Optional[str] = None
     #: Carried so a grant renders as an ordinary contact row wherever one is
-    #: listed. No ``full_name``: a real name is a per-guild disclosure, and a
+    #: listed. No ``display_name``: that name belongs to one community, and a
     #: grant may name somebody the reader shares no community with.
     status: UserStatus = UserStatus.active
     presence: Presence = Presence.offline

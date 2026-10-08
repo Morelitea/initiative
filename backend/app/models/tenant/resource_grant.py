@@ -1,6 +1,6 @@
 """Polymorphic per-resource access grants — the single DAC table.
 
-One row grants access to a resource at a level for exactly one of five grantee
+One row grants access to a resource at a level for exactly one of four grantee
 kinds:
 
 - a **user** (``user_id`` set),
@@ -10,10 +10,8 @@ kinds:
   gives the Viewer/Editor level. The backend aggregates every member of the
   row's ``initiative_id`` for it (see ``app.services.permissions``).
   ``all_initiative_members`` may only be set when there is no user/role grantee
-  (enforced by the ``resource_grants_one_grantee`` check),
-- a **dashboard** (``dashboard_id`` set), which a published view is read
-  through, or
-- an **installed app** (``app_install_id`` set), the install acting as its
+  (enforced by the ``resource_grants_one_grantee`` check), or
+- an **installed plug-in** (``plugin_install_id`` set), the install acting as its
   community.
 
 Replaces the per-resource ``*_permissions`` / ``*_role_permissions`` tables.
@@ -42,7 +40,6 @@ from app.core.tools import Tool  # noqa: F401  (re-exported for grant callers)
 from app.models.tenant._mixins import CreatedByMixin
 
 if TYPE_CHECKING:  # pragma: no cover
-    from app.models.tenant.initiative import InitiativeRoleModel
     from app.models.platform.user_profile_view import MemberProfile
 
 
@@ -79,21 +76,13 @@ class ResourceGrant(CreatedByMixin, table=True):
 
     __table_args__ = (
         # Exactly one grantee kind per row: a user, an initiative role, the
-        # whole initiative (all_initiative_members), a dashboard, or an app
-        # install. This keeps the old XOR (never user AND role) and forbids the
+        # whole initiative (all_initiative_members), or a plug-in install. This keeps the old XOR (never user AND role) and forbids the
         # share boolean whenever another grantee is set.
         CheckConstraint(
             "(user_id IS NOT NULL)::int + (role_id IS NOT NULL)::int "
-            "+ (all_initiative_members)::int + (dashboard_id IS NOT NULL)::int "
-            "+ (app_install_id IS NOT NULL)::int = 1",
+            "+ (all_initiative_members)::int "
+            "+ (plugin_install_id IS NOT NULL)::int = 1",
             name="resource_grants_one_grantee",
-        ),
-        # A dashboard reads and never writes, so a grant made to one carries no
-        # other level. Said here as well as in the code that writes it, because
-        # a level is what the access function reads.
-        CheckConstraint(
-            "dashboard_id IS NULL OR level = 'read'",
-            name="resource_grants_dashboard_reads",
         ),
         # A resource has one owner or none. Nothing else in the schema said so,
         # and the re-homing paths that used to upgrade every initiative manager
@@ -112,8 +101,7 @@ class ResourceGrant(CreatedByMixin, table=True):
             "resource_id",
             "user_id",
             "role_id",
-            "dashboard_id",
-            "app_install_id",
+            "plugin_install_id",
             name="resource_grants_unique_grantee",
             postgresql_nulls_not_distinct=True,
         ),
@@ -158,28 +146,16 @@ class ResourceGrant(CreatedByMixin, table=True):
             nullable=True,
         ),  # indexed by composite partial ix_resource_grants_role
     )
-    #: The dashboard this resource is readable *through*. A published view: the
-    #: tile shows the same rows to everyone the dashboard reaches, rather than
-    #: each viewer's own. It answers only while a request is drawing that
-    #: dashboard — see ``resource_access`` and ``app.via_dashboard_id``.
-    dashboard_id: Optional[int] = Field(
-        default=None,
-        sa_column=Column(
-            Integer,
-            ForeignKey("dashboards.id", ondelete="CASCADE"),
-            nullable=True,
-        ),  # indexed by the partial ix_resource_grants_dashboard
-    )
-    #: The installed app this grant is made to. The row says what the install
+    #: The installed plug-in this grant is made to. The row says what the install
     #: may reach when it acts as its community; uninstalling removes its
     #: grants with it.
-    app_install_id: Optional[int] = Field(
+    plugin_install_id: Optional[int] = Field(
         default=None,
         sa_column=Column(
             Integer,
-            ForeignKey("guild_apps.id", ondelete="CASCADE"),
+            ForeignKey("guild_plugins.id", ondelete="CASCADE"),
             nullable=True,
-        ),  # indexed by the partial ix_resource_grants_app_install
+        ),  # indexed by the partial ix_resource_grants_plugin_install
     )
     level: ResourceAccessLevel = Field(
         sa_column=Column(String(length=16), nullable=False)
@@ -197,13 +173,6 @@ class ResourceGrant(CreatedByMixin, table=True):
         sa_column=Column(DateTime(timezone=True), nullable=False),
     )
 
-    # For serialization (role grants surface the role's name/display_name).
-    role: Optional["InitiativeRoleModel"] = Relationship(
-        sa_relationship_kwargs={
-            "foreign_keys": "ResourceGrant.role_id",
-            "viewonly": True,
-        }
-    )
     user: Optional["MemberProfile"] = Relationship(
         sa_relationship_kwargs={
             "primaryjoin": "foreign(ResourceGrant.user_id) == MemberProfile.id",

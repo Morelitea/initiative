@@ -13,7 +13,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
 
 /** Long enough to read the tick, short enough not to look stuck. */
 const CONFIRM_MS = 2000;

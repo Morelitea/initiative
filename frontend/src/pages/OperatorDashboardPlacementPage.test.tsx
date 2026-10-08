@@ -16,7 +16,7 @@ import type {
   ProviderPlacementRuleRead,
 } from "@/api/generated/initiativeAPI.schemas";
 
-vi.mock("@/lib/chesterToast", () => ({
+vi.mock("@/lib/mascotToast", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
@@ -33,9 +33,9 @@ const rule = (overrides: Partial<ProviderPlacementRuleRead> = {}): ProviderPlace
   claim_value: "eng",
   scope_claim: null,
   scope_value: null,
-  guild_id: 7,
-  guild_name: "Engineering",
-  guild_role: "member",
+  community_id: 7,
+  community_name: "Engineering",
+  community_role: "member",
   initiative_id: null,
   initiative_name: null,
   initiative_role_id: null,
@@ -86,9 +86,9 @@ describe("OperatorDashboardPlacementPage", () => {
           claim_value: null,
           scope_claim: "idp",
           scope_value: "acme-adfs",
-          guild_id: 8,
-          guild_name: "Partners",
-          guild_role: "admin",
+          community_id: 8,
+          community_name: "Partners",
+          community_role: "admin",
           applies: false,
         }),
       ],
@@ -186,8 +186,8 @@ describe("OperatorDashboardPlacementPage", () => {
     let waiting = [
       {
         connection_id: 41,
-        guild_id: 7,
-        guild_name: "Engineering",
+        community_id: 7,
+        community_name: "Engineering",
         provider_display_name: "Google",
         claim: "hd",
         claim_values: ["acme.com"],

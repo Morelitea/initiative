@@ -18,7 +18,7 @@ from sqlalchemy.dialects import postgresql
 
 import app.db.schema_provisioning as schema_provisioning
 from app.db.schema_provisioning import SEARCH_MATCH_FUNCTION, SEARCH_OPCLASS
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.search_entry import SearchEntry
 from app.services.tenant.search import search_match_clause
 
@@ -66,7 +66,7 @@ async def test_the_stock_operator_is_left_alone(session):
 async def test_the_guild_index_is_built_against_the_operator_class(
     session, acting_user
 ):
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
     definition = (
         await session.exec(
             text(
@@ -115,7 +115,7 @@ async def test_an_index_built_without_the_operator_is_rebuilt_later(
 
     from app.db.schema_provisioning import apply_guild_search
 
-    a = await acting_user(guild_role=GuildRole.admin)
+    a = await acting_user(guild_role=CommunityRole.admin)
     schema = f"guild_{a.guild.id}"
 
     async def index_def() -> str:

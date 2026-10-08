@@ -1,22 +1,19 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
-  clearProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultDelete,
-  createAuthProviderApiV1SettingsAuthProvidersPost,
-  deleteAuthProviderApiV1SettingsAuthProvidersProviderIdDelete,
-  discoverAuthProviderApiV1SettingsAuthProvidersDiscoverPost,
-  getGetProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultGetQueryKey,
-  getListAuthProvidersApiV1SettingsAuthProvidersGetQueryKey,
-  getProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultGet,
-  listAuthProvidersApiV1SettingsAuthProvidersGet,
-  setProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultPut,
-  testAuthProviderApiV1SettingsAuthProvidersProviderIdTestPost,
-  updateAuthProviderApiV1SettingsAuthProvidersProviderIdPatch,
+  clearProviderDefault,
+  createAuthProvider,
+  deleteAuthProvider,
+  discoverAuthProvider,
+  getGetProviderDefaultQueryKey,
+  getListAuthProvidersQueryKey,
+  getProviderDefault,
+  listAuthProviders,
+  setProviderDefault,
+  testAuthProvider,
+  updateAuthProvider,
 } from "@/api/generated/auth-providers/auth-providers";
-import {
-  getAppConfigApiV1ConfigGet,
-  getGetAppConfigApiV1ConfigGetQueryKey,
-} from "@/api/generated/config/config";
+import { getAppConfig, getGetAppConfigQueryKey } from "@/api/generated/config/config";
 import type {
   AppConfig,
   AuthProviderCreate,
@@ -26,25 +23,25 @@ import type {
   CaptchaSettingsResponse,
   CaptchaSettingsUpdate,
   ChangelogResponse,
+  CommunityNarrowingPending,
   CommunitySettingsResponse,
   CommunitySettingsUpdate,
   EmailSettingsResponse,
   EmailSettingsUpdate,
   FCMConfigResponse,
-  GetChangelogApiV1ChangelogGetParams,
-  GuildNarrowingPending,
+  GetChangelogParams,
   InterfaceSettingsResponse,
   InterfaceSettingsUpdate,
-  ListPlatformGuildStorageApiV1SettingsCommunitiesGetParams,
+  ListPlatformCommunityStorageParams,
   NotificationSettingsResponse,
   NotificationSettingsUpdate,
   OIDCSettingsResponse,
   PlatformAuthSettingsResponse,
   PlatformAuthSettingsUpdate,
-  PlatformGuildRestore,
-  PlatformGuildStorageListResponse,
-  PlatformGuildStorageRead,
-  PlatformGuildStorageUpdate,
+  PlatformCommunityRestore,
+  PlatformCommunityStorageListResponse,
+  PlatformCommunityStorageRead,
+  PlatformCommunityStorageUpdate,
   PlatformProviderDefaultRead,
   PlatformProviderDefaultUpdate,
   PushSettingsResponse,
@@ -55,48 +52,45 @@ import type {
   StorageTestResponse,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
-  agreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPut,
-  getCaptchaSettingsApiV1SettingsCaptchaGet,
-  getEmailSettingsApiV1SettingsEmailGet,
-  getFcmConfigApiV1SettingsFcmConfigGet,
-  getGetCaptchaSettingsApiV1SettingsCaptchaGetQueryKey,
-  getGetEmailSettingsApiV1SettingsEmailGetQueryKey,
-  getGetFcmConfigApiV1SettingsFcmConfigGetQueryKey,
-  getGetNotificationSettingsApiV1SettingsNotificationsGetQueryKey,
-  getGetOidcSettingsApiV1SettingsAuthGetQueryKey,
-  getGetPlatformAuthSettingsApiV1SettingsAuthPlatformGetQueryKey,
-  getGetPushSettingsApiV1SettingsPushGetQueryKey,
-  getGetStorageBackfillStatusApiV1SettingsStorageBackfillGetQueryKey,
-  getGetStorageSettingsApiV1SettingsStorageGetQueryKey,
-  getListPlatformGuildStorageApiV1SettingsCommunitiesGetQueryKey,
-  getNotificationSettingsApiV1SettingsNotificationsGet,
-  getOidcSettingsApiV1SettingsAuthGet,
-  getPlatformAuthSettingsApiV1SettingsAuthPlatformGet,
-  getPushSettingsApiV1SettingsPushGet,
-  getReadGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGetQueryKey,
-  getStorageBackfillStatusApiV1SettingsStorageBackfillGet,
-  getStorageSettingsApiV1SettingsStorageGet,
-  listPlatformGuildStorageApiV1SettingsCommunitiesGet,
-  readGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGet,
-  restorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePost,
-  sendTestEmailApiV1SettingsEmailTestPost,
-  startStorageBackfillApiV1SettingsStorageBackfillPost,
-  testStorageConnectionApiV1SettingsStorageTestPost,
-  updateCaptchaSettingsApiV1SettingsCaptchaPut,
-  updateCommunitySettingsApiV1SettingsCommunityPut,
-  updateEmailSettingsApiV1SettingsEmailPut,
-  updateInterfaceSettingsApiV1SettingsInterfacePut,
-  updateNotificationSettingsApiV1SettingsNotificationsPut,
-  updatePlatformAuthSettingsApiV1SettingsAuthPlatformPatch,
-  updatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatch,
-  updatePushSettingsApiV1SettingsPushPut,
-  updateStorageSettingsApiV1SettingsStoragePut,
-  useReadCommunitySettingsApiV1SettingsCommunityGet,
+  agreeCommunityNarrowing,
+  getCaptchaSettings,
+  getEmailSettings,
+  getFcmConfig,
+  getGetCaptchaSettingsQueryKey,
+  getGetEmailSettingsQueryKey,
+  getGetFcmConfigQueryKey,
+  getGetNotificationSettingsQueryKey,
+  getGetOidcSettingsQueryKey,
+  getGetPlatformAuthSettingsQueryKey,
+  getGetPushSettingsQueryKey,
+  getGetStorageBackfillStatusQueryKey,
+  getGetStorageSettingsQueryKey,
+  getListPlatformCommunityStorageQueryKey,
+  getNotificationSettings,
+  getOidcSettings,
+  getPlatformAuthSettings,
+  getPushSettings,
+  getReadCommunityNarrowingsQueryKey,
+  getStorageBackfillStatus,
+  getStorageSettings,
+  listPlatformCommunityStorage,
+  readCommunityNarrowings,
+  restorePlatformCommunity,
+  sendTestEmail,
+  startStorageBackfill,
+  testStorageConnection,
+  updateCaptchaSettings,
+  updateCommunitySettings,
+  updateEmailSettings,
+  updateInterfaceSettings,
+  updateNotificationSettings,
+  updatePlatformAuthSettings,
+  updatePlatformCommunityStorage,
+  updatePushSettings,
+  updateStorageSettings,
+  useReadCommunitySettings,
 } from "@/api/generated/settings/settings";
-import {
-  getChangelogApiV1ChangelogGet,
-  getGetChangelogApiV1ChangelogGetQueryKey,
-} from "@/api/generated/version/version";
+import { getChangelog, getGetChangelogQueryKey } from "@/api/generated/version/version";
 import { invalidate, q } from "@/api/query-keys";
 import { useApiMutation } from "@/hooks/useApiMutation";
 import type { MutationOpts } from "@/types/mutation";
@@ -106,129 +100,125 @@ import type { QueryOpts } from "@/types/query";
 
 export const useOidcSettings = (options?: QueryOpts<OIDCSettingsResponse>) => {
   return useQuery<OIDCSettingsResponse>({
-    queryKey: getGetOidcSettingsApiV1SettingsAuthGetQueryKey(),
-    queryFn: () => getOidcSettingsApiV1SettingsAuthGet(),
+    queryKey: getGetOidcSettingsQueryKey(),
+    queryFn: () => getOidcSettings(),
     ...options,
   });
 };
 
 export const useAuthProviders = (options?: QueryOpts<AuthProviderOwnerRead[]>) => {
   return useQuery<AuthProviderOwnerRead[]>({
-    queryKey: getListAuthProvidersApiV1SettingsAuthProvidersGetQueryKey(),
-    queryFn: () => listAuthProvidersApiV1SettingsAuthProvidersGet(),
+    queryKey: getListAuthProvidersQueryKey(),
+    queryFn: () => listAuthProviders(),
     ...options,
   });
 };
 
 /** What a community says its own arrivals look like, for the operator. */
-export const useGuildNarrowings = (
-  guildId: number,
-  options?: QueryOpts<GuildNarrowingPending[]>
+export const useCommunityNarrowings = (
+  communityId: number,
+  options?: QueryOpts<CommunityNarrowingPending[]>
 ) => {
-  return useQuery<GuildNarrowingPending[]>({
-    queryKey: getReadGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGetQueryKey(guildId),
-    queryFn: () => readGuildNarrowingsApiV1SettingsCommunitiesGuildIdNarrowingsGet(guildId),
+  return useQuery<CommunityNarrowingPending[]>({
+    queryKey: getReadCommunityNarrowingsQueryKey(communityId),
+    queryFn: () => readCommunityNarrowings(communityId),
     ...options,
   });
 };
 
 /** Agree that a community's claim values are its own, or withdraw that. */
-export const useAgreeGuildNarrowing = (
-  guildId: number,
-  options?: MutationOpts<GuildNarrowingPending, { connectionId: number; agreed: boolean }>
+export const useAgreeCommunityNarrowing = (
+  communityId: number,
+  options?: MutationOpts<CommunityNarrowingPending, { connectionId: number; agreed: boolean }>
 ) =>
-  useApiMutation<GuildNarrowingPending, { connectionId: number; agreed: boolean }>(
+  useApiMutation<CommunityNarrowingPending, { connectionId: number; agreed: boolean }>(
     {
       mutationFn: ({ connectionId, agreed }) =>
-        agreeGuildNarrowingApiV1SettingsCommunitiesGuildIdNarrowingsConnectionIdPut(
-          guildId,
-          connectionId,
-          { agreed }
-        ),
-      invalidate: () => invalidate(q.guildNarrowings(guildId)),
+        agreeCommunityNarrowing(communityId, connectionId, { agreed }),
+      invalidate: () => invalidate(q.communityNarrowings(communityId)),
     },
     options
   );
 
 export const useEmailSettings = (options?: QueryOpts<EmailSettingsResponse>) => {
   return useQuery<EmailSettingsResponse>({
-    queryKey: getGetEmailSettingsApiV1SettingsEmailGetQueryKey(),
-    queryFn: () => getEmailSettingsApiV1SettingsEmailGet(),
+    queryKey: getGetEmailSettingsQueryKey(),
+    queryFn: () => getEmailSettings(),
     ...options,
   });
 };
 
 export const useStorageSettings = (options?: QueryOpts<StorageSettingsResponse>) => {
   return useQuery<StorageSettingsResponse>({
-    queryKey: getGetStorageSettingsApiV1SettingsStorageGetQueryKey(),
-    queryFn: () => getStorageSettingsApiV1SettingsStorageGet(),
+    queryKey: getGetStorageSettingsQueryKey(),
+    queryFn: () => getStorageSettings(),
     ...options,
   });
 };
 
 export const useStorageBackfillStatus = (options?: QueryOpts<StorageBackfillStatusResponse>) => {
   return useQuery<StorageBackfillStatusResponse>({
-    queryKey: getGetStorageBackfillStatusApiV1SettingsStorageBackfillGetQueryKey(),
-    queryFn: () => getStorageBackfillStatusApiV1SettingsStorageBackfillGet(),
+    queryKey: getGetStorageBackfillStatusQueryKey(),
+    queryFn: () => getStorageBackfillStatus(),
     ...options,
   });
 };
 
 export const useCaptchaSettings = (options?: QueryOpts<CaptchaSettingsResponse>) =>
   useQuery<CaptchaSettingsResponse>({
-    queryKey: getGetCaptchaSettingsApiV1SettingsCaptchaGetQueryKey(),
-    queryFn: () => getCaptchaSettingsApiV1SettingsCaptchaGet(),
+    queryKey: getGetCaptchaSettingsQueryKey(),
+    queryFn: () => getCaptchaSettings(),
     ...options,
   });
 
 export const usePushSettings = (options?: QueryOpts<PushSettingsResponse>) =>
   useQuery<PushSettingsResponse>({
-    queryKey: getGetPushSettingsApiV1SettingsPushGetQueryKey(),
-    queryFn: () => getPushSettingsApiV1SettingsPushGet(),
+    queryKey: getGetPushSettingsQueryKey(),
+    queryFn: () => getPushSettings(),
     ...options,
   });
 
 /** The branding page's values, read from the public config they live in. */
 export const useInterfaceSettings = (options?: QueryOpts<AppConfig>) => {
   return useQuery<AppConfig>({
-    queryKey: getGetAppConfigApiV1ConfigGetQueryKey(),
-    queryFn: () => getAppConfigApiV1ConfigGet(),
+    queryKey: getGetAppConfigQueryKey(),
+    queryFn: () => getAppConfig(),
     ...options,
   });
 };
 
 export const useFcmConfig = () => {
   return useQuery<FCMConfigResponse>({
-    queryKey: getGetFcmConfigApiV1SettingsFcmConfigGetQueryKey(),
-    queryFn: () => getFcmConfigApiV1SettingsFcmConfigGet(),
+    queryKey: getGetFcmConfigQueryKey(),
+    queryFn: () => getFcmConfig(),
     staleTime: 5 * 60 * 1000,
   });
 };
 
 /**
- * One page of guilds with their storage caps, for the platform settings →
- * Guilds tab, searched and sorted on the server. Operator and above
- * (`guilds.manage`); pass `{ enabled }` to skip the request for anyone else.
+ * One page of communities with their storage caps, for the platform settings →
+ * Communities tab, searched and sorted on the server. Operator and above
+ * (`communities.manage`); pass `{ enabled }` to skip the request for anyone else.
  */
-export const usePlatformGuilds = (
-  params: ListPlatformGuildStorageApiV1SettingsCommunitiesGetParams,
-  options?: QueryOpts<PlatformGuildStorageListResponse>
+export const usePlatformCommunities = (
+  params: ListPlatformCommunityStorageParams,
+  options?: QueryOpts<PlatformCommunityStorageListResponse>
 ) => {
-  return useQuery<PlatformGuildStorageListResponse>({
-    queryKey: getListPlatformGuildStorageApiV1SettingsCommunitiesGetQueryKey(params),
-    queryFn: () => listPlatformGuildStorageApiV1SettingsCommunitiesGet(params),
+  return useQuery<PlatformCommunityStorageListResponse>({
+    queryKey: getListPlatformCommunityStorageQueryKey(params),
+    queryFn: () => listPlatformCommunityStorage(params),
     placeholderData: keepPreviousData,
     ...options,
   });
 };
 
 export const useChangelog = (
-  params: GetChangelogApiV1ChangelogGetParams,
+  params: GetChangelogParams,
   options?: QueryOpts<ChangelogResponse>
 ) => {
   return useQuery<ChangelogResponse>({
-    queryKey: getGetChangelogApiV1ChangelogGetQueryKey(params),
-    queryFn: () => getChangelogApiV1ChangelogGet(params),
+    queryKey: getGetChangelogQueryKey(params),
+    queryFn: () => getChangelog(params),
     ...options,
   });
 };
@@ -240,7 +230,7 @@ export const useCreateAuthProvider = (
 ) =>
   useApiMutation<AuthProviderOwnerRead, AuthProviderCreate>(
     {
-      mutationFn: (data) => createAuthProviderApiV1SettingsAuthProvidersPost(data),
+      mutationFn: (data) => createAuthProvider(data),
       invalidate: () => invalidate(q.authProviders()),
     },
     options
@@ -251,8 +241,7 @@ export const useUpdateAuthProvider = (
 ) =>
   useApiMutation<AuthProviderOwnerRead, { providerId: number; data: AuthProviderUpdate }>(
     {
-      mutationFn: ({ providerId, data }) =>
-        updateAuthProviderApiV1SettingsAuthProvidersProviderIdPatch(providerId, data),
+      mutationFn: ({ providerId, data }) => updateAuthProvider(providerId, data),
       invalidate: () => invalidate(q.authProviders()),
     },
     options
@@ -261,8 +250,7 @@ export const useUpdateAuthProvider = (
 export const useDeleteAuthProvider = (options?: MutationOpts<void, number>) =>
   useApiMutation<void, number>(
     {
-      mutationFn: (providerId) =>
-        deleteAuthProviderApiV1SettingsAuthProvidersProviderIdDelete(providerId),
+      mutationFn: (providerId) => deleteAuthProvider(providerId),
       invalidate: () => invalidate(q.authProviders()),
     },
     options
@@ -274,7 +262,7 @@ export const useDiscoverAuthProvider = (
   options?: MutationOpts<AuthProviderProbeResult, { issuer: string }>
 ) =>
   useApiMutation<AuthProviderProbeResult, { issuer: string }>(
-    { mutationFn: (data) => discoverAuthProviderApiV1SettingsAuthProvidersDiscoverPost(data) },
+    { mutationFn: (data) => discoverAuthProvider(data) },
     options
   );
 
@@ -282,8 +270,7 @@ export const useDiscoverAuthProvider = (
 export const useTestAuthProvider = (options?: MutationOpts<AuthProviderProbeResult, number>) =>
   useApiMutation<AuthProviderProbeResult, number>(
     {
-      mutationFn: (providerId) =>
-        testAuthProviderApiV1SettingsAuthProvidersProviderIdTestPost(providerId),
+      mutationFn: (providerId) => testAuthProvider(providerId),
     },
     options
   );
@@ -294,9 +281,7 @@ export const useUpdateInterfaceSettings = (
   useApiMutation<InterfaceSettingsResponse, InterfaceSettingsUpdate>(
     {
       mutationFn: (data) =>
-        updateInterfaceSettingsApiV1SettingsInterfacePut(
-          data as Parameters<typeof updateInterfaceSettingsApiV1SettingsInterfacePut>[0]
-        ),
+        updateInterfaceSettings(data as Parameters<typeof updateInterfaceSettings>[0]),
       // The cookie-notice switch shares this endpoint and is also on the boot
       // config, which is where the notice itself reads it.
       invalidate: () => invalidate(q.appConfig()),
@@ -312,7 +297,7 @@ export const useUpdateInterfaceSettings = (
  * SPA acts on it — the server applies it when an account is made. So it is
  * read here, behind the capability that writes it.
  */
-export const useCommunitySettings = () => useReadCommunitySettingsApiV1SettingsCommunityGet();
+export const useCommunitySettings = () => useReadCommunitySettings();
 
 /**
  * Turn the community directory on or off for the whole deployment (owner only).
@@ -326,9 +311,7 @@ export const useUpdateCommunitySettings = (
   useApiMutation<CommunitySettingsResponse, CommunitySettingsUpdate>(
     {
       mutationFn: (data) =>
-        updateCommunitySettingsApiV1SettingsCommunityPut(
-          data as Parameters<typeof updateCommunitySettingsApiV1SettingsCommunityPut>[0]
-        ),
+        updateCommunitySettings(data as Parameters<typeof updateCommunitySettings>[0]),
       invalidate: () => invalidate(q.appConfig(), q.communitySettings()),
     },
     options
@@ -344,8 +327,8 @@ export const useUpdateCommunitySettings = (
  */
 export const useNotificationSettings = (options?: QueryOpts<NotificationSettingsResponse>) =>
   useQuery<NotificationSettingsResponse>({
-    queryKey: getGetNotificationSettingsApiV1SettingsNotificationsGetQueryKey(),
-    queryFn: () => getNotificationSettingsApiV1SettingsNotificationsGet(),
+    queryKey: getGetNotificationSettingsQueryKey(),
+    queryFn: () => getNotificationSettings(),
     ...options,
   });
 
@@ -358,7 +341,7 @@ export const useUpdateNotificationSettings = (
 ) =>
   useApiMutation<NotificationSettingsResponse, NotificationSettingsUpdate>(
     {
-      mutationFn: (data) => updateNotificationSettingsApiV1SettingsNotificationsPut(data),
+      mutationFn: (data) => updateNotificationSettings(data),
       invalidate: () => invalidate(q.notificationSettings()),
     },
     options
@@ -366,8 +349,8 @@ export const useUpdateNotificationSettings = (
 
 export const usePlatformAuthSettings = (options?: QueryOpts<PlatformAuthSettingsResponse>) =>
   useQuery<PlatformAuthSettingsResponse>({
-    queryKey: getGetPlatformAuthSettingsApiV1SettingsAuthPlatformGetQueryKey(),
-    queryFn: () => getPlatformAuthSettingsApiV1SettingsAuthPlatformGet(),
+    queryKey: getGetPlatformAuthSettingsQueryKey(),
+    queryFn: () => getPlatformAuthSettings(),
     ...options,
   });
 
@@ -383,7 +366,7 @@ export const useUpdatePlatformAuthSettings = (
 ) =>
   useApiMutation<PlatformAuthSettingsResponse, PlatformAuthSettingsUpdate>(
     {
-      mutationFn: (data) => updatePlatformAuthSettingsApiV1SettingsAuthPlatformPatch(data),
+      mutationFn: (data) => updatePlatformAuthSettings(data),
       invalidate: () => invalidate(q.platformAuthSettings(), q.authSettings(), q.appConfig()),
     },
     options
@@ -398,7 +381,7 @@ export const useUpdateCaptchaSettings = (
 ) =>
   useApiMutation<CaptchaSettingsResponse, CaptchaSettingsUpdate>(
     {
-      mutationFn: (data) => updateCaptchaSettingsApiV1SettingsCaptchaPut(data),
+      mutationFn: (data) => updateCaptchaSettings(data),
       invalidate: () => invalidate(q.captchaSettings(), q.appConfig()),
     },
     options
@@ -413,7 +396,7 @@ export const useUpdatePushSettings = (
 ) =>
   useApiMutation<PushSettingsResponse, PushSettingsUpdate>(
     {
-      mutationFn: (data) => updatePushSettingsApiV1SettingsPushPut(data),
+      mutationFn: (data) => updatePushSettings(data),
       invalidate: () => invalidate(q.pushSettings(), q.fcmConfig()),
     },
     options
@@ -424,22 +407,19 @@ export const useUpdateEmailSettings = (
 ) =>
   useApiMutation<EmailSettingsResponse, EmailSettingsUpdate>(
     {
-      mutationFn: (data) =>
-        updateEmailSettingsApiV1SettingsEmailPut(
-          data as Parameters<typeof updateEmailSettingsApiV1SettingsEmailPut>[0]
-        ),
+      mutationFn: (data) => updateEmailSettings(data as Parameters<typeof updateEmailSettings>[0]),
       invalidate: () => invalidate(q.emailSettings()),
     },
     options
   );
 
 export const useSendTestEmail = (
-  options?: MutationOpts<void, Parameters<typeof sendTestEmailApiV1SettingsEmailTestPost>[0]>
+  options?: MutationOpts<void, Parameters<typeof sendTestEmail>[0]>
 ) =>
-  useApiMutation<void, Parameters<typeof sendTestEmailApiV1SettingsEmailTestPost>[0]>(
+  useApiMutation<void, Parameters<typeof sendTestEmail>[0]>(
     {
       mutationFn: async (data) => {
-        await sendTestEmailApiV1SettingsEmailTestPost(data);
+        await sendTestEmail(data);
       },
     },
     options
@@ -451,9 +431,7 @@ export const useUpdateStorageSettings = (
   useApiMutation<StorageSettingsResponse, StorageSettingsUpdate>(
     {
       mutationFn: (data) =>
-        updateStorageSettingsApiV1SettingsStoragePut(
-          data as Parameters<typeof updateStorageSettingsApiV1SettingsStoragePut>[0]
-        ),
+        updateStorageSettings(data as Parameters<typeof updateStorageSettings>[0]),
       invalidate: () => invalidate(q.storageSettings()),
     },
     options
@@ -465,9 +443,7 @@ export const useTestStorageConnection = (
   useApiMutation<StorageTestResponse, StorageSettingsUpdate>(
     {
       mutationFn: (data) =>
-        testStorageConnectionApiV1SettingsStorageTestPost(
-          data as Parameters<typeof testStorageConnectionApiV1SettingsStorageTestPost>[0]
-        ),
+        testStorageConnection(data as Parameters<typeof testStorageConnection>[0]),
     },
     options
   );
@@ -477,39 +453,46 @@ export const useStartStorageBackfill = (
 ) =>
   useApiMutation<StorageBackfillStatusResponse, void>(
     {
-      mutationFn: () => startStorageBackfillApiV1SettingsStorageBackfillPost(),
+      mutationFn: () => startStorageBackfill(),
     },
     options
   );
 
-export const useRestoreGuild = (
-  options?: MutationOpts<PlatformGuildStorageRead, { guildId: number; data: PlatformGuildRestore }>
-) =>
-  useApiMutation<PlatformGuildStorageRead, { guildId: number; data: PlatformGuildRestore }>(
-    {
-      mutationFn: ({ guildId, data }) =>
-        restorePlatformGuildApiV1SettingsCommunitiesGuildIdRestorePost(guildId, data),
-      invalidate: () => invalidate(q.platformGuilds()),
-    },
-    options
-  );
-
-export const useUpdateGuildStorage = (
+export const useRestoreCommunity = (
   options?: MutationOpts<
-    PlatformGuildStorageRead,
-    { guildId: number; data: PlatformGuildStorageUpdate }
+    PlatformCommunityStorageRead,
+    { communityId: number; data: PlatformCommunityRestore }
   >
 ) =>
-  useApiMutation<PlatformGuildStorageRead, { guildId: number; data: PlatformGuildStorageUpdate }>(
+  useApiMutation<
+    PlatformCommunityStorageRead,
+    { communityId: number; data: PlatformCommunityRestore }
+  >(
     {
-      mutationFn: ({ guildId, data }) =>
-        updatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatch(
-          guildId,
-          data as Parameters<
-            typeof updatePlatformGuildStorageApiV1SettingsCommunitiesGuildIdPatch
-          >[1]
+      mutationFn: ({ communityId, data }) => restorePlatformCommunity(communityId, data),
+      invalidate: () => invalidate(q.platformCommunities()),
+    },
+    options
+  );
+
+export const useUpdateCommunityStorage = (
+  options?: MutationOpts<
+    PlatformCommunityStorageRead,
+    { communityId: number; data: PlatformCommunityStorageUpdate }
+  >
+) =>
+  useApiMutation<
+    PlatformCommunityStorageRead,
+    { communityId: number; data: PlatformCommunityStorageUpdate }
+  >(
+    {
+      mutationFn: ({ communityId, data }) =>
+        updatePlatformCommunityStorage(
+          communityId,
+          data as Parameters<typeof updatePlatformCommunityStorage>[1]
         ),
-      invalidate: () => invalidate(q.platformGuilds()),
+      // The help-request switch decides what "Ask for help" offers.
+      invalidate: () => invalidate(q.platformCommunities(), q.ticketAvailability()),
     },
     options
   );
@@ -521,11 +504,8 @@ export const useProviderDefault = (
   options?: QueryOpts<PlatformProviderDefaultRead | null>
 ) => {
   return useQuery<PlatformProviderDefaultRead | null>({
-    queryKey: getGetProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultGetQueryKey(
-      providerId as number
-    ),
-    queryFn: () =>
-      getProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultGet(providerId as number),
+    queryKey: getGetProviderDefaultQueryKey(providerId as number),
+    queryFn: () => getProviderDefault(providerId as number),
     enabled: providerId !== null,
     ...options,
   });
@@ -535,8 +515,7 @@ const useInvalidateProviderDefault = (providerId: number) => {
   const queryClient = useQueryClient();
   return () => {
     void queryClient.invalidateQueries({
-      queryKey:
-        getGetProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultGetQueryKey(providerId),
+      queryKey: getGetProviderDefaultQueryKey(providerId),
     });
   };
 };
@@ -544,8 +523,7 @@ const useInvalidateProviderDefault = (providerId: number) => {
 export const useSetProviderDefault = (providerId: number) => {
   const invalidate = useInvalidateProviderDefault(providerId);
   return useMutation({
-    mutationFn: (data: PlatformProviderDefaultUpdate) =>
-      setProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultPut(providerId, data),
+    mutationFn: (data: PlatformProviderDefaultUpdate) => setProviderDefault(providerId, data),
     onSuccess: invalidate,
   });
 };
@@ -553,8 +531,7 @@ export const useSetProviderDefault = (providerId: number) => {
 export const useClearProviderDefault = (providerId: number) => {
   const invalidate = useInvalidateProviderDefault(providerId);
   return useMutation({
-    mutationFn: () =>
-      clearProviderDefaultApiV1SettingsAuthProvidersProviderIdDefaultDelete(providerId),
+    mutationFn: () => clearProviderDefault(providerId),
     onSuccess: invalidate,
   });
 };

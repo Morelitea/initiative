@@ -20,7 +20,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useRemoveInitiativeMember } from "@/hooks/useInitiatives";
-import { toast } from "@/lib/chesterToast";
+import { toast } from "@/lib/mascotToast";
 import { getUserDisplayName } from "@/lib/userDisplay";
 
 export interface RemoveInitiativeMemberDialogProps {

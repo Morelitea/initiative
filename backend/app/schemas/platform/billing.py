@@ -16,7 +16,7 @@ from pydantic import Field, model_validator
 from app.core.messages import BillingMessages
 from app.models.platform.billing import BillingSource
 from app.models.platform.identity_ref import REF_MAX_LENGTH
-from app.models.platform.guild import BILLING_SETTABLE_STATUSES, GuildStatus
+from app.models.platform.guild import BILLING_SETTABLE_STATUSES, CommunityStatus
 from app.schemas.base import SanitizedBaseModel
 
 
@@ -25,7 +25,7 @@ _ACTOR_REQUIRED_SOURCES = frozenset(
 )
 
 
-class BillingGuildTierApply(SanitizedBaseModel):
+class BillingCommunityTierApply(SanitizedBaseModel):
     """Body of ``POST /billing/community-tier``.
 
     Tier *definitions* live in the billing service's own database; what
@@ -41,7 +41,7 @@ class BillingGuildTierApply(SanitizedBaseModel):
     same id is a safe no-op.
     """
 
-    guild_ref: str = Field(min_length=1, max_length=REF_MAX_LENGTH)
+    community_ref: str = Field(min_length=1, max_length=REF_MAX_LENGTH)
     event_id: str = Field(min_length=1, max_length=128)
     source: BillingSource
     # Acting human for manual ops (support grant id / staff id); NULL for
@@ -51,12 +51,12 @@ class BillingGuildTierApply(SanitizedBaseModel):
     tier_name: Optional[str] = Field(default=None, max_length=64)
     max_storage_bytes: Optional[int] = Field(default=None, ge=0)
     max_users: Optional[int] = Field(default=None, ge=1)
-    status: Optional[GuildStatus] = None
+    status: Optional[CommunityStatus] = None
     feature_keys: Optional[list[str]] = Field(default=None, max_length=64)
     plan_is_free: Optional[bool] = None
 
     @model_validator(mode="after")
-    def _support_source_is_storage_only(self) -> "BillingGuildTierApply":
+    def _support_source_is_storage_only(self) -> "BillingCommunityTierApply":
         """support_manual may only change the storage cap, and must name an
         actor; other fields require paddle_webhook or platinum_invoice.
         (The cannot-lower rule for the storage cap needs the current DB value
@@ -73,7 +73,7 @@ class BillingGuildTierApply(SanitizedBaseModel):
         return self
 
 
-class BillingGuildTierRead(SanitizedBaseModel):
+class BillingCommunityTierRead(SanitizedBaseModel):
     """State of the billing-writable surface after (or instead of) a write.
 
     ``applied`` is False when the event id had already been claimed — the
@@ -83,11 +83,11 @@ class BillingGuildTierRead(SanitizedBaseModel):
     name for it the two services share.
     """
 
-    guild_ref: str
+    community_ref: str
     tier_name: Optional[str] = None
     max_storage_bytes: Optional[int] = None
     max_users: Optional[int] = None
-    status: GuildStatus
+    status: CommunityStatus
     feature_keys: list[str] = Field(default_factory=list)
     plan_is_free: Optional[bool] = None
     member_count: int
@@ -102,8 +102,9 @@ class BillingCommunityNoticeKind(str, Enum):
     trial_ended = "trial_ended"
 
 
-#: The sources that send a community notice. Only the trial's end, for now.
-_NOTICE_SOURCES = frozenset({BillingSource.trial_expiry})
+#: The sources that send a community notice. Only Paddle's, for now: a trial
+#: is Paddle's, and billing times its notices off the dates Paddle reports.
+_NOTICE_SOURCES = frozenset({BillingSource.paddle_webhook})
 
 
 class BillingCommunityNotice(SanitizedBaseModel):
@@ -118,7 +119,7 @@ class BillingCommunityNotice(SanitizedBaseModel):
     nobody twice.
     """
 
-    guild_ref: str = Field(min_length=1, max_length=REF_MAX_LENGTH)
+    community_ref: str = Field(min_length=1, max_length=REF_MAX_LENGTH)
     event_id: str = Field(min_length=1, max_length=128)
     source: BillingSource
     kind: BillingCommunityNoticeKind
@@ -143,35 +144,37 @@ class BillingCommunityNoticeRead(SanitizedBaseModel):
 
 
 class BillingUsageRequest(SanitizedBaseModel):
-    """Body of ``POST /billing/usage`` — the storage read.
+    """Body of ``POST /billing/usage`` — the usage read.
 
     The guild rides the signed body (not a query string) so the envelope's
     HMAC covers it, like every other verb on this boundary.
     """
 
-    guild_ref: str = Field(min_length=1, max_length=REF_MAX_LENGTH)
+    community_ref: str = Field(min_length=1, max_length=REF_MAX_LENGTH)
 
 
 class BillingUsageRead(SanitizedBaseModel):
-    """Current stored bytes for one guild — the same figure
-    ``enforce_storage_quota`` reads. Read-only; the app never pushes usage
-    anywhere."""
+    """Current stored bytes and member count for one guild — the figures
+    ``enforce_storage_quota`` and the ``max_users`` check read. Billing needs
+    the count so a seat purchase is never cut below the people already in the
+    community. Read-only; the app never pushes usage anywhere."""
 
-    guild_ref: str
+    community_ref: str
     usage_bytes: int
+    member_count: int
 
 
-class BillingGuildNameRequest(SanitizedBaseModel):
+class BillingCommunityNameRequest(SanitizedBaseModel):
     """Body of ``POST /billing/community-name``.
 
     The guild rides the signed body rather than a query string, so the
     envelope's HMAC covers it — like every other verb on this boundary.
     """
 
-    guild_ref: str = Field(min_length=1, max_length=REF_MAX_LENGTH)
+    community_ref: str = Field(min_length=1, max_length=REF_MAX_LENGTH)
 
 
-class BillingGuildNameRead(SanitizedBaseModel):
+class BillingCommunityNameRead(SanitizedBaseModel):
     """What a guild calls itself, so a person is shown that and not a reference.
 
     A reference is what the two services key on and is unreadable by design;
@@ -179,25 +182,25 @@ class BillingGuildNameRead(SanitizedBaseModel):
     Nothing else about the guild travels with it.
     """
 
-    guild_ref: str
+    community_ref: str
     name: str
 
 
-class BillingGuildStatusRequest(SanitizedBaseModel):
+class BillingCommunityStatusRequest(SanitizedBaseModel):
     """Body of ``POST /billing/community-status``.
 
     The guild rides the signed body rather than a query string, so the
     envelope's HMAC covers it — like every other verb on this boundary.
     """
 
-    guild_ref: str = Field(min_length=1, max_length=REF_MAX_LENGTH)
+    community_ref: str = Field(min_length=1, max_length=REF_MAX_LENGTH)
 
 
-class BillingGuildStatusRead(SanitizedBaseModel):
+class BillingCommunityStatusRead(SanitizedBaseModel):
     """Where one guild is in its lifecycle, ``deleted`` included."""
 
-    guild_ref: str
-    status: GuildStatus
+    community_ref: str
+    status: CommunityStatus
 
 
 class BillingPortalHandoffResponse(SanitizedBaseModel):

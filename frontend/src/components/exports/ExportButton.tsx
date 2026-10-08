@@ -32,7 +32,7 @@ export interface ExportExtraAction {
 }
 
 export interface ExportButtonProps {
-  /** Source create route, e.g. "/exports/tasks" — relative to /c/{guildId}. */
+  /** Source create route, e.g. "/exports/tasks" — relative to /c/{communityId}. */
   endpoint: string;
   /** The selector for the snapshot (filters, ids, project id, …). */
   params: Record<string, unknown>;

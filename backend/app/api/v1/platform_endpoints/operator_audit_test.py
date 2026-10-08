@@ -11,7 +11,7 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.platform.user import UserRole
 from app.testing import emitted
 from app.testing.factories import (
@@ -122,8 +122,9 @@ async def test_closing_someone_elses_account_is_recorded_against_them(
     assert rows[0]["detail"] == {"self": False}
 
 
+@pytest.mark.parametrize("action", ["deactivate", "hard_delete"])
 async def test_closing_an_account_records_every_community_it_left(
-    client: AsyncClient, session: AsyncSession, capfd
+    client: AsyncClient, session: AsyncSession, action: str, capfd
 ):
     operator = await create_user(session, role=UserRole.operator)
     operator_id = operator.id
@@ -131,12 +132,12 @@ async def test_closing_an_account_records_every_community_it_left(
     guild = await create_guild(session, creator=owner)
     guild_id = guild.id
     await create_guild_membership(
-        session, user=owner, guild=guild, role=GuildRole.superadmin
+        session, user=owner, guild=guild, role=CommunityRole.superadmin
     )
     target = await create_user(session)
     target_id = target.id
     await create_guild_membership(
-        session, user=target, guild=guild, role=GuildRole.member
+        session, user=target, guild=guild, role=CommunityRole.member
     )
     capfd.readouterr()
 
@@ -144,7 +145,7 @@ async def test_closing_an_account_records_every_community_it_left(
         "DELETE",
         f"/api/v1/operator/users/{target_id}",
         headers=get_auth_headers(operator),
-        json={"action": "deactivate"},
+        json={"action": action},
     )
     assert response.status_code == 200, response.text
 

@@ -1,8 +1,8 @@
 """Writing down what was done.
 
 One function. A call site is a single line, and adding a newly-audited action
-is that line plus an ``AuditEventType`` member and its metadata row — there is
-no second place to register anything.
+is that line plus an ``AuditEventType`` member, which carries its own metadata —
+there is no second place to register anything.
 
 The record is one JSON line on the ``audit`` logger, written after the
 transaction that performed the action commits, so the line and the action
@@ -25,11 +25,10 @@ import logging
 from collections.abc import Iterable, Mapping
 from datetime import datetime, timezone
 from enum import Enum
+from functools import partial
 from typing import Any, Optional
 from uuid import uuid4
 
-from sqlalchemy import event
-from sqlalchemy.orm import Session, SessionTransaction
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import audit_context
@@ -37,45 +36,23 @@ from app.core.audit_events import (
     SCHEMA_VERSION,
     SERVICE,
     AuditCategory,
-    AuditEventMeta,
     AuditEventType,
-    meta_for,
 )
+from app.db import post_commit
 
 audit_logger = logging.getLogger("audit")
 
-#: Envelopes staged in a session, each with the transaction it was staged in,
-#: waiting on the commit. Kept on ``Session.info`` rather than in a module
-#: global so concurrent requests never share a queue.
-_PENDING = "audit_pending_envelopes"
 
-
-def _current_transaction(session: AsyncSession) -> SessionTransaction:
-    """The innermost transaction open on ``session``, begun here if none is:
-    a record needs one to ride, so that a rollback before the first
-    statement still discards it."""
-    sync = session.sync_session
-    return sync.get_nested_transaction() or sync.get_transaction() or sync.begin()
-
-
-def _within(txn: SessionTransaction | None, ancestor: SessionTransaction) -> bool:
-    while txn is not None:
-        if txn is ancestor:
-            return True
-        txn = txn.parent
-    return False
-
-
-def _identifies_the_caller(meta: AuditEventMeta) -> bool:
+def _identifies_the_caller(event_type: AuditEventType) -> bool:
     """Whether this event's line carries where the request came from.
 
     Two families need it: getting in, and reaching past the communities you
     belong to. For a sign-in, the address is most of what tells one from
     another; for privileged access, it is part of what the access is reviewed
-    against. Somebody making a document in their own community is not either
+    against. Somebody making a file in their own community is not either
     of those, and their line carries the request id alone.
     """
-    return meta.category is AuditCategory.AUTHENTICATION or meta.tier == 1
+    return event_type.category is AuditCategory.AUTHENTICATION or event_type.tier == 1
 
 
 def _write(envelope: dict[str, Any]) -> None:
@@ -89,35 +66,6 @@ def _write(envelope: dict[str, Any]) -> None:
         audit_logger.info(json.dumps(envelope, separators=(",", ":")))
     except Exception:  # pragma: no cover - a broken handler, not our logic
         logging.getLogger(__name__).exception("audit log line could not be emitted")
-
-
-@event.listens_for(Session, "after_commit")
-def _emit_committed_envelopes(session: Session) -> None:
-    """Ship the lines for work that actually landed."""
-    for _txn, envelope in session.info.pop(_PENDING, []):
-        _write(envelope)
-
-
-@event.listens_for(Session, "after_soft_rollback")
-def _discard_uncommitted_envelopes(
-    session: Session, previous_transaction: SessionTransaction
-) -> None:
-    """Drop the lines for work that did not land.
-
-    A savepoint's rollback drops what was staged inside it and keeps the
-    rest; the outermost rollback drops everything.
-    """
-    pending = session.info.get(_PENDING)
-    if not pending:
-        return
-    if previous_transaction.parent is None:
-        session.info.pop(_PENDING, None)
-        return
-    session.info[_PENDING] = [
-        (txn, envelope)
-        for txn, envelope in pending
-        if not _within(txn, previous_transaction)
-    ]
 
 
 async def record(
@@ -148,9 +96,7 @@ async def record(
         target_id=target_id,
         detail=detail,
     )
-    session.info.setdefault(_PENDING, []).append(
-        (_current_transaction(session), envelope)
-    )
+    post_commit.after_commit(session, partial(_write, envelope))
     return envelope
 
 
@@ -198,7 +144,6 @@ def _envelope(
     The request context is read here rather than when the line goes out, so a
     record staged now and committed later says where it came from.
     """
-    meta = meta_for(event_type)
     return {
         # The key a collector routes on: this line is the audit stream, and
         # the application's own logs are not.
@@ -215,10 +160,12 @@ def _envelope(
         "target": (
             {"type": target_type, "id": target_id} if target_type is not None else None
         ),
-        "tier": meta.tier,
-        "category": meta.category.value,
-        "is_write": meta.is_write,
-        "context": audit_context.envelope_context(caller=_identifies_the_caller(meta)),
+        "tier": event_type.tier,
+        "category": event_type.category.value,
+        "is_write": event_type.is_write,
+        "context": audit_context.envelope_context(
+            caller=_identifies_the_caller(event_type)
+        ),
         "detail": detail or {},
     }
 
@@ -275,3 +222,37 @@ def changed_fields(
 def snapshot(obj: Any, names: Iterable[str]) -> dict[str, Any]:
     """The named attributes of ``obj``, for a before/after ``changed_fields``."""
     return {name: getattr(obj, name) for name in names}
+
+
+async def record_settings_change(
+    session: AsyncSession,
+    *,
+    guild_id: int | None,
+    actor_user_id: int | None,
+    area: str,
+    before: Mapping[str, Any],
+    after: Mapping[str, Any],
+    extras: Mapping[str, Any] | None = None,
+) -> None:
+    """Stage the record for one area of a guild's settings, when it moved.
+
+    ``guild_id`` ``None`` is the deployment's own settings row. ``extras`` ride
+    along in the detail beside what ``changed_fields`` reports.
+    """
+    changes = changed_fields(before, after)
+    if not changes["changed"]:
+        return
+    platform = guild_id is None
+    await record(
+        session,
+        event_type=(
+            AuditEventType.PLATFORM_SETTINGS_CHANGED
+            if platform
+            else AuditEventType.GUILD_SETTINGS_CHANGED
+        ),
+        actor_user_id=actor_user_id,
+        guild_id=guild_id,
+        target_type=None if platform else "guild",
+        target_id=guild_id,
+        detail={"area": area, **changes, **(extras or {})},
+    )

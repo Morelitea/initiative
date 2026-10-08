@@ -42,11 +42,12 @@ def appIdSuffix = findProperty('initiativeAppIdSuffix')?.toString()?.trim() ?: '
 def appLabel = findProperty('initiativeAppLabel')?.toString()?.trim() ?: 'Initiative'
 
 android {
-    namespace = "com.morelitea.initiative"
+    namespace = "studio.beyonders.initiative"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.morelitea.initiative" + appIdSuffix
-        manifestPlaceholders = [appLabel: appLabel]
+        applicationId "studio.beyonders.initiative" + appIdSuffix
+        // Plain-HTTP servers only in a debug build, for testing against a server on the LAN.
+        manifestPlaceholders = [appLabel: appLabel, usesCleartextTraffic: "false"]
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode appVersionCode
@@ -69,6 +70,9 @@ android {
         }
     }
     buildTypes {
+        debug {
+            manifestPlaceholders = [usesCleartextTraffic: "true"]
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
@@ -95,6 +99,10 @@ dependencies {
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation project(':capacitor-cordova-android-plugins')
+
+    // Play billing country, to decide whether a Play install may link to the web for plans.
+    // Only getBillingConfigAsync is used; nothing is bought through Play.
+    implementation 'com.android.billingclient:billing:8.0.0'
 
     // Firebase for runtime initialization (push notifications)
     implementation platform('com.google.firebase:firebase-bom:33.7.0')

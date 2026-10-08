@@ -19,7 +19,7 @@ Same software, same protections — nothing is held back from the version you ru
 
 The rule is a simple one: **communities own community data, and people own their own.** In practice that means:
 
-- **A community's content belongs to the community.** Its projects, tasks, documents, and files are the group's, and its admins act for the group — they decide who may see what, what gets exported, and what gets deleted. Writing a task doesn't make it privately yours any more than minuting a meeting makes the minutes yours.
+- **A community's content belongs to the community.** Its projects, tasks and files are the group's, and its admins act for the group — they decide who may see what, what gets exported, and what gets deleted. Writing a task doesn't make it privately yours any more than minuting a meeting makes the minutes yours.
 - **Your account is yours.** Your profile, your picture, your preferences, your handle and email address — yours across every community you're in, and yours to take with you or delete.
 - **Your messages are yours and the other person's**, and nobody else's. Not the community's, not an admin's, not ours. See [Private messages](private-messages.md).
 
@@ -72,7 +72,9 @@ Signing out clears the session and renewal cookies. Clearing your browser's site
 
 ### Optional
 
-Initiative knows two: **analytics** — which pages get used and where people get stuck, counted in aggregate — and **marketing**, which link brought you here and reaching you about Initiative elsewhere.
+Initiative knows two: **analytics** — which pages get used, the errors people run into and how fast pages load, with the browser and device, grouped by a random id for each visit and never by account — and **marketing**, which link brought you here and reaching you about Initiative elsewhere.
+
+Separately, a deployment that collects server metrics counts pages opened by their pattern (`/c/$communityId/…`). That count keeps nothing in the browser and records nothing about who opened the page, so it needs no switch.
 
 **You are only asked about the ones your deployment actually uses.** Both ship switched off, so a server run by a group for itself uses neither and never asks about either. Where a deployment has configured one, it gets a switch, and that switch starts off. Ignoring the question, closing the chooser, or never being asked all leave everything optional off.
 
@@ -105,7 +107,7 @@ Fonts are served from the deployment's own server, and no page loads a script fr
 
 Initiative is built to avoid locking your information in:
 
-- **Export any tool** — a project, a document, a wiki, a calendar and the rest — to a portable file you can keep or re-import elsewhere, from its **Settings → Advanced**. Exporting belongs to whoever can delete the thing: its owner, and anyone who can see everything in its initiative.
+- **Export any tool** — a project, a file, a wiki, a calendar and the rest — to a portable file you can keep or re-import elsewhere, from its **Settings → Advanced**. Exporting belongs to whoever can delete the thing: its owner, and anyone who can see everything in its initiative.
 - **Export spreadsheets** as CSV or Excel (XLSX).
 - **Export calendar events** as standard `.ics` files.
 - Platform operators can **export the user list** as CSV.
@@ -124,16 +126,18 @@ Where an erasure has to complete sooner than the retention window allows, a plat
 
 Actions that change who can reach what, how the deployment is configured, or where data goes are **recorded** in an audit log. Every entry is written out as one line to the deployment's log platform, which is where it is kept, queried and retained. Entries name accounts by id rather than by name or email address, never contain a password or a key, and outlive the accounts and communities they name. Each entry also records the request it came from: an identifier for that request, the network address it arrived from, and the browser or app it was made with. What is recorded:
 
-- **Privileged access.** When a platform operator or owner uses an emergency "break-glass" grant, or a time-bound access request is approved, the entry says who, which community, and why. While that access is live, **every request made under it is recorded individually** — the route, the method, the response, and the grant it was made under — so what was reached is on the record and not only that access was held. Editing a document or a wiki page happens over a live connection rather than a request, and is recorded separately the first time it happens in a session.
-- **Membership and roles.** Joining or leaving a community or an initiative, a change of role in either, invites issued and withdrawn, and every change to how a project, document or other item is shared.
-- **Configuration.** Sign-in providers and claim rules, a community's sign-in requirement and settings, email, storage and AI settings, app services and installed apps.
+- **Privileged access.** When a platform operator or owner uses an emergency "break-glass" grant, or a time-bound access request is approved, the entry says who, which community, and why. While that access is live, **every request made under it is recorded individually** — the route, the method, the response, and the grant it was made under — so what was reached is on the record and not only that access was held. Editing a file or a wiki page happens over a live connection rather than a request, and is recorded separately the first time it happens in a session.
+- **Membership and roles.** Joining or leaving a community or an initiative, a change of role in either, invites issued and withdrawn, and every change to how a project, file or other item is shared.
+- **Configuration.** Sign-in providers and claim rules, a community's sign-in requirement and settings, email, storage and AI settings, plug-in services and installed plug-ins.
 - **Accounts and data.** Accounts created, deactivated, anonymized or deleted; communities created, deleted or exported; member lists exported; permanent deletion from the trash; API keys and webhooks; and each time content is sent to an AI provider.
 
 ### Age, and what we ask for
 
-Communities that list themselves in the community directory can be found by anyone signed in, which means they are open to people you have not met. Joining one from the directory asks your date of birth, once, and requires you to be 16 or older.
+Every account is asked its date of birth once — at sign-up, or the first time it signs in after that without one. Communities listed in the community directory can be found by anyone signed in, so joining one requires you to be 16 or older. Plug-ins can also set a minimum age, which may differ by country: someone younger than a plug-in's minimum where they are cannot open or use it, though their community can still install it.
 
-**The date is not kept.** It is used to work out whether you are old enough and then discarded. Your account records that you answered and when — never the date itself. There is no field for it, nothing logs it, and it is not sold or shared with anyone.
+**The date is kept, encrypted.** It is stored apart from the rest of your account, encrypted at rest, and read only to check an age limit. No response ever sends it back — to you included — nothing logs it, and it is not sold or shared with anyone. Deleting your account deletes it. If you entered it wrongly, whoever runs the server can reset the question so you can answer again.
+
+**Where you are comes from your connection, not from you.** A plug-in's minimum age can depend on the country you are in. Where the server sits behind a provider that reports a visitor's country, that is read for the request and not stored. Where it cannot be told, the plug-in's highest minimum age applies.
 
 The question belongs to the community rather than to the way in: every route into a listed one is covered, an invite included. A private community — one that has not listed itself — never asks, whoever brings somebody in, and no other part of Initiative asks. An account that has not answered keeps every community it already belongs to and everything in it.
 
@@ -153,7 +157,7 @@ A question worth answering before you have to ask it: if somebody with legal aut
 
 | Asked for | What exists |
 |---|---|
-| Projects, tasks, documents, files | Held on your behalf, and readable. This is your working data. |
+| Projects, tasks, files | Held on your behalf, and readable. This is your working data. |
 | The content of direct messages | **Nothing.** They are end-to-end encrypted; no key to them exists outside the devices in the conversation. |
 | That two people have a conversation, and when | The fact and the timing. Encryption hides what was said, not that anyone spoke. |
 | Account details | Handle, email address, and account timestamps. |

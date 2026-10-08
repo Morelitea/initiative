@@ -2,10 +2,11 @@
  * Browsing the catalog.
  *
  * The load-bearing detail is where "already installed" comes from. The catalog
- * is platform-level and holds nothing about this guild, so the badge has to be
- * derived from the guild's own dashboards — matched on the listing uid an
+ * is platform-level and holds nothing about this community, so the badge has to be
+ * derived from the community's own dashboards — matched on the listing uid an
  * install pins, not on the name or the public id.
  */
+import { Capacitor } from "@capacitor/core";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -23,7 +24,7 @@ vi.mock("@/hooks/useMarketplace", () => ({
 }));
 
 let installedFailed = false;
-let installedApps: { listing_uid: string }[] = [];
+let installedPlugins: { listing_uid: string }[] = [];
 
 vi.mock("@/hooks/useDashboards", () => ({
   useInstalledListings: () => ({
@@ -32,15 +33,16 @@ vi.mock("@/hooks/useDashboards", () => ({
   }),
 }));
 
-vi.mock("@/hooks/useGuildApps", () => ({
-  useGuildApps: () => ({
-    data: installedFailed ? undefined : { items: installedApps },
+vi.mock("@/hooks/useCommunityPlugins", () => ({
+  useCommunityPlugins: () => ({
+    data: installedFailed ? undefined : { items: installedPlugins },
     isError: installedFailed,
   }),
 }));
 
 const listing = (overrides: Partial<MarketplaceListingSummary> = {}) =>
   ({
+    id: 1,
     uid: "SPRNT000000001",
     public_id: "core.sprint",
     kind: "dashboard",
@@ -60,7 +62,7 @@ const listing = (overrides: Partial<MarketplaceListingSummary> = {}) =>
 
 beforeEach(() => {
   installed = {};
-  installedApps = [];
+  installedPlugins = [];
   installedFailed = false;
   listingsFor.mockReturnValue({
     data: { items: [listing()], total: 1 },
@@ -80,39 +82,49 @@ describe("MarketplaceBrowsePage", () => {
   it("asks the catalog only for dashboards", async () => {
     // Defaulted by the page itself: `useSearch({ strict: false })` does not run
     // the route's validation, so a page that leaned on it would drop the filter
-    // and mix apps into the grid.
+    // and mix plug-ins into the grid.
     renderPage(MarketplaceBrowsePage);
     await screen.findByText("Sprint health");
     expect(listingsFor).toHaveBeenCalledWith(expect.objectContaining({ kind: "dashboard" }));
   });
 
-  it("asks for apps on the apps shelf", async () => {
-    renderPage(MarketplaceBrowsePage, { routerSearch: { kind: "app" } });
+  it("asks for plug-ins on the plug-ins shelf", async () => {
+    renderPage(MarketplaceBrowsePage, { routerSearch: { kind: "plugin" } });
     await screen.findByText("Sprint health");
-    expect(listingsFor).toHaveBeenCalledWith(expect.objectContaining({ kind: "app" }));
+    expect(listingsFor).toHaveBeenCalledWith(expect.objectContaining({ kind: "plugin" }));
   });
 
-  it("marks an installed app on the apps shelf", async () => {
+  it("marks an installed plug-in on the plug-ins shelf", async () => {
     // Each shelf asks its own tool: the dashboards aggregate knows nothing
-    // about apps, so reading installed state from it here would report every
-    // app as not installed.
-    installedApps = [{ listing_uid: "SPRNT000000001" }];
-    renderPage(MarketplaceBrowsePage, { routerSearch: { kind: "app" } });
+    // about plug-ins, so reading installed state from it here would report every
+    // plug-in as not installed.
+    installedPlugins = [{ listing_uid: "SPRNT000000001" }];
+    renderPage(MarketplaceBrowsePage, { routerSearch: { kind: "plugin" } });
     expect(await screen.findByText("Installed")).toBeInTheDocument();
   });
 
-  it("does not read app installs from the dashboard aggregate", async () => {
+  it("does not read plug-in installs from the dashboard aggregate", async () => {
     installed = { SPRNT000000001: 1 };
-    installedApps = [];
-    renderPage(MarketplaceBrowsePage, { routerSearch: { kind: "app" } });
+    installedPlugins = [];
+    renderPage(MarketplaceBrowsePage, { routerSearch: { kind: "plugin" } });
     await screen.findByText("Sprint health");
     expect(screen.queryByText("Installed")).toBeNull();
   });
 
-  it("marks a listing this guild already installed", async () => {
+  it("marks nothing installed on the projects shelf", async () => {
+    // A project installs as a new copy every time, so the dashboards' counts
+    // say nothing about it, even for the same uid.
+    installed = { SPRNT000000001: 1 };
+    renderPage(MarketplaceBrowsePage, { routerSearch: { kind: "project" } });
+    await screen.findByText("Sprint health");
+    expect(listingsFor).toHaveBeenCalledWith(expect.objectContaining({ kind: "project" }));
+    expect(screen.queryByText("Installed")).toBeNull();
+  });
+
+  it("marks a listing this community already installed", async () => {
     // Counted server-side over every dashboard. Deriving this from the
     // paginated dashboard list would mark some installs and miss the rest once
-    // a guild has more dashboards than fit on a page.
+    // a community has more dashboards than fit on a page.
     installed = { SPRNT000000001: 1 };
     renderPage(MarketplaceBrowsePage);
     expect(await screen.findByText("Installed")).toBeInTheDocument();
@@ -133,7 +145,7 @@ describe("MarketplaceBrowsePage", () => {
     await user.type(await screen.findByRole("textbox"), "burndown");
 
     await waitFor(() =>
-      expect(listingsFor).toHaveBeenCalledWith(expect.objectContaining({ q: "burndown" }))
+      expect(listingsFor).toHaveBeenCalledWith(expect.objectContaining({ search: "burndown" }))
     );
   });
 
@@ -166,5 +178,46 @@ describe("MarketplaceBrowsePage", () => {
     listingsFor.mockReturnValue({ data: { items: [], total: 0 }, isLoading: false });
     renderPage(MarketplaceBrowsePage);
     expect(await screen.findByText(/nothing here yet|no matches/i)).toBeInTheDocument();
+  });
+
+  it("shows only the curated catalogue on an iPhone", async () => {
+    vi.spyOn(Capacitor, "getPlatform").mockReturnValue("ios");
+    listingsFor.mockReturnValue({
+      data: {
+        items: [
+          listing(),
+          listing({
+            uid: "PRTR000000001A",
+            public_id: "acme.extra",
+            name: "Operator extra",
+            source: "operator",
+            publisher: "Acme",
+          }),
+        ],
+        total: 2,
+      },
+      isLoading: false,
+    });
+    renderPage(MarketplaceBrowsePage);
+
+    expect(await screen.findByText("Sprint health")).toBeInTheDocument();
+    expect(screen.queryByText("Operator extra")).toBeNull();
+    expect(listingsFor).toHaveBeenCalledWith(
+      expect.objectContaining({ source: ["builtin", "registry"] })
+    );
+  });
+
+  it("shows the whole catalogue elsewhere", async () => {
+    listingsFor.mockReturnValue({
+      data: {
+        items: [listing({ public_id: "acme.extra", name: "Operator extra", source: "operator" })],
+        total: 1,
+      },
+      isLoading: false,
+    });
+    renderPage(MarketplaceBrowsePage);
+
+    expect(await screen.findByText("Operator extra")).toBeInTheDocument();
+    expect(listingsFor).toHaveBeenCalledWith(expect.objectContaining({ source: undefined }));
   });
 });

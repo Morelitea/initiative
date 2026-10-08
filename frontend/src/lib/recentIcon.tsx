@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
-import type { RecentItemRead, Tool } from "@/api/generated/initiativeAPI.schemas";
-import { getDocumentIcon, getDocumentIconColor } from "@/lib/fileUtils";
+import { type RecentItemRead, Tool } from "@/api/generated/initiativeAPI.schemas";
+import { fileIcon } from "@/lib/fileIcon";
 import { TOOL_ICONS } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
@@ -9,24 +9,19 @@ import { cn } from "@/lib/utils";
  * Render the entity-specific icon for a recent item in the layout tabs bar.
  *
  * - Projects show the emoji icon set on the project itself.
- * - Documents resolve to the same icon + color used in document lists
- *   (via ``getDocumentIcon`` / ``getDocumentIconColor``).
+ * - Files resolve to the same icon + color used in file lists
+ *   (via ``fileIcon``).
  * - Every other tool renders its registry icon.
  */
 export function renderRecentIcon(item: RecentItemRead): ReactNode {
   switch (item.entity_type) {
-    case "project": {
+    case Tool.project: {
       if (!item.icon) return null;
       return <span className="text-base leading-none">{item.icon}</span>;
     }
-    case "document": {
-      const Icon = getDocumentIcon(item.document_type, item.mime_type, item.original_filename);
-      const color = getDocumentIconColor(
-        item.document_type,
-        item.mime_type,
-        item.original_filename
-      );
-      return <Icon className={cn("h-4 w-4", color)} />;
+    case Tool.file: {
+      const { Icon, colorClass } = fileIcon(item);
+      return <Icon className={cn("h-4 w-4", colorClass)} />;
     }
     default: {
       const Icon = TOOL_ICONS[item.entity_type as Tool];

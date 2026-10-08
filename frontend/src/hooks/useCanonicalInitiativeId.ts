@@ -1,7 +1,7 @@
 import { useParams, useRouter } from "@tanstack/react-router";
 import { useEffect } from "react";
 
-import { canonicalInitiativePath } from "@/lib/guildUrl";
+import { canonicalInitiativePath } from "@/lib/communityUrl";
 
 /**
  * The initiative an entity page is addressed under.
@@ -16,7 +16,7 @@ import { canonicalInitiativePath } from "@/lib/guildUrl";
  * in place (no history entry) to the entity's own address, and every caller
  * gets the entity's initiative back.
  *
- * Pass `undefined` while loading. Pass `null` for a genuinely guild-level
+ * Pass `undefined` while loading. Pass `null` for a genuinely community-level
  * entity (only calendars have any) — that is an address, not a missing value.
  */
 export function useCanonicalInitiativeId(

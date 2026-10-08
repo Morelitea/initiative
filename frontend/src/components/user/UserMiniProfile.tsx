@@ -90,7 +90,7 @@ export const UserMiniProfile = ({
   // not, so the two together say more than either. The handle below says who
   // they are when the community shows no names, so this is left out rather
   // than repeated.
-  const name = summary?.full_name?.trim() ? getUserDisplayName(summary, "") : "";
+  const name = summary?.display_name?.trim() ? getUserDisplayName(summary, "") : "";
 
   // Nothing came back and nothing was known: the account is gone, or was never
   // this reader's to see. The server does not distinguish them, so neither

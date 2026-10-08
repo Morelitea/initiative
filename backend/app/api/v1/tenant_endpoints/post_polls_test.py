@@ -12,7 +12,7 @@ from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.post_poll import PostPoll, PostPollVote
 from app.testing import create_post, create_post_poll, lexical_body
 
@@ -44,7 +44,7 @@ def _option_id(body: dict, text: str) -> int:
 async def test_create_post_with_a_poll(client: AsyncClient, acting_user, session):
     """A notice and its question are one submission — there is no window where
     the post exists and the poll failed to attach."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _posts_enabled(session, a.initiative)
 
     response = await client.post(
@@ -71,7 +71,7 @@ async def test_create_post_with_a_poll(client: AsyncClient, acting_user, session
 async def test_a_post_without_a_poll_serializes_none(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _posts_enabled(session, a.initiative)
     post = await create_post(session, a.initiative, a.user)
 
@@ -86,7 +86,7 @@ async def test_poll_needs_two_distinct_choices(
 ):
     """One choice is not a question, and two that say the same thing are one
     choice wearing two labels."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _posts_enabled(session, a.initiative)
     post = await create_post(session, a.initiative, a.user)
 
@@ -106,7 +106,7 @@ async def test_poll_needs_two_distinct_choices(
 
 
 async def test_poll_cannot_be_born_closed(client: AsyncClient, acting_user, session):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _posts_enabled(session, a.initiative)
     post = await create_post(session, a.initiative, a.user)
     past = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
@@ -125,11 +125,11 @@ async def test_writing_a_poll_needs_write_access(
     client: AsyncClient, acting_user, session
 ):
     """Answering is a reader's gesture; asking is an edit of the notice."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _posts_enabled(session, a.initiative)
     post = await create_post(session, a.initiative, a.user)
     b = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -145,7 +145,7 @@ async def test_writing_a_poll_needs_write_access(
 async def test_deleting_the_poll_leaves_the_notice(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _posts_enabled(session, a.initiative)
     post = await create_post(session, a.initiative, a.user)
     await create_post_poll(session, post)
@@ -164,7 +164,7 @@ async def test_deleting_the_poll_leaves_the_notice(
 async def test_deleting_a_poll_that_is_not_there(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _posts_enabled(session, a.initiative)
     post = await create_post(session, a.initiative, a.user)
 
@@ -184,12 +184,12 @@ async def test_rewrite_may_change_everything_but_the_choices(
 ):
     """A ballot cast for "Tuesday" must not become a ballot for whatever takes
     third place — but the question and the switches around it stay editable."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _posts_enabled(session, a.initiative)
     post = await create_post(session, a.initiative, a.user)
     await create_post_poll(session, post)
     b = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -235,7 +235,7 @@ async def test_reordering_the_choices_is_a_change(
 ):
     """Order is what a voter saw, so swapping two choices is not a cosmetic
     edit once somebody has picked one of them."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _posts_enabled(session, a.initiative)
     post = await create_post(session, a.initiative, a.user)
     poll = await create_post_poll(session, post)
@@ -257,7 +257,7 @@ async def test_anonymity_can_be_turned_on_but_never_off(
 ):
     """People answered on the understanding their names were not attached, and
     that cannot be revoked afterwards."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _posts_enabled(session, a.initiative)
     post = await create_post(session, a.initiative, a.user)
     poll = await create_post_poll(session, post, is_anonymous=True)
@@ -286,19 +286,23 @@ async def test_anonymity_can_be_turned_on_but_never_off(
 
 
 async def test_a_reader_may_answer(client: AsyncClient, acting_user, session):
-    """Answering is a read-level gesture, like reacting — not an edit."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    """Answering is a read-level gesture, like reacting — not an edit. The
+    answer is the post as this reader sees it, read state included."""
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _posts_enabled(session, a.initiative)
     post = await create_post(session, a.initiative, a.user)
     await create_post_poll(session, post)
     b = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
     )
     read = await client.get(a.g(f"/posts/{post.id}"), headers=b.headers)
     thursday = _option_id(read.json(), "Thursday")
+    await client.post(
+        a.g("/posts/read"), headers=b.headers, json={"post_ids": [post.id]}
+    )
 
     response = await client.put(
         a.g(f"/posts/{post.id}/poll/vote"),
@@ -307,6 +311,7 @@ async def test_a_reader_may_answer(client: AsyncClient, acting_user, session):
     )
 
     assert response.status_code == 200, response.text
+    assert response.json()["is_read"] is True
     poll = response.json()["poll"]
     assert poll["has_voted"] is True
     assert poll["total_voters"] == 1
@@ -319,7 +324,7 @@ async def test_answering_again_replaces_the_first_answer(
     client: AsyncClient, acting_user, session
 ):
     """Changing your mind is a vote, not a second vote."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _posts_enabled(session, a.initiative)
     post = await create_post(session, a.initiative, a.user)
     await create_post_poll(session, post)
@@ -348,7 +353,7 @@ async def test_answering_again_replaces_the_first_answer(
 async def test_single_choice_refuses_two_answers(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _posts_enabled(session, a.initiative)
     post = await create_post(session, a.initiative, a.user)
     poll = await create_post_poll(session, post)
@@ -367,7 +372,7 @@ async def test_multiple_choice_counts_a_voter_once(
 ):
     """``total_voters`` is people, not ticks: somebody who picked both answers
     is one voter, and the larger number would say nothing."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _posts_enabled(session, a.initiative)
     post = await create_post(session, a.initiative, a.user)
     poll = await create_post_poll(session, post, allows_multiple=True)
@@ -386,7 +391,7 @@ async def test_multiple_choice_counts_a_voter_once(
 async def test_a_ballot_cannot_name_another_polls_choice(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _posts_enabled(session, a.initiative)
     post = await create_post(session, a.initiative, a.user)
     other = await create_post(session, a.initiative, a.user, name="Another notice")
@@ -406,7 +411,7 @@ async def test_a_ballot_cannot_name_another_polls_choice(
 async def test_a_closed_poll_takes_no_more_answers(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _posts_enabled(session, a.initiative)
     post = await create_post(session, a.initiative, a.user)
     poll = await create_post_poll(
@@ -426,7 +431,7 @@ async def test_a_closed_poll_takes_no_more_answers(
 async def test_a_draft_collects_no_answers(client: AsyncClient, acting_user, session):
     """A question nobody has been asked yet has no answers to collect — not
     even from the author previewing their own draft."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _posts_enabled(session, a.initiative)
     post = await create_post(
         session,
@@ -448,7 +453,7 @@ async def test_a_draft_collects_no_answers(client: AsyncClient, acting_user, ses
 
 
 async def test_retracting_an_answer(client: AsyncClient, acting_user, session):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _posts_enabled(session, a.initiative)
     post = await create_post(session, a.initiative, a.user)
     poll = await create_post_poll(session, post)
@@ -472,7 +477,7 @@ async def test_retracting_when_there_was_no_answer(
     client: AsyncClient, acting_user, session
 ):
     """Asking for a state a thing is already in is not an error."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _posts_enabled(session, a.initiative)
     post = await create_post(session, a.initiative, a.user)
     await create_post_poll(session, post)
@@ -489,11 +494,11 @@ async def test_answering_a_notice_you_cannot_read(
 ):
     """The poll is reached through the post, so the post's own sharing is the
     gate — a member outside the initiative never reaches the question."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _posts_enabled(session, a.initiative)
     post = await create_post(session, a.initiative, a.user)
     poll = await create_post_poll(session, post)
-    outsider = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    outsider = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
 
     response = await client.put(
         a.g(f"/posts/{post.id}/poll/vote"),
@@ -514,7 +519,7 @@ async def test_hidden_results_wait_for_this_readers_answer(
 ):
     """Withheld only while there is still something to steer: once this reader
     has answered, the numbers are theirs to see."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _posts_enabled(session, a.initiative)
     post = await create_post(session, a.initiative, a.user)
     poll = await create_post_poll(session, post, hide_results=True)
@@ -540,7 +545,7 @@ async def test_hidden_results_open_when_the_poll_closes(
 ):
     """A closed poll has nothing left to steer, so its numbers are shown even
     to somebody who never answered."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _posts_enabled(session, a.initiative)
     post = await create_post(session, a.initiative, a.user)
     await create_post_poll(
@@ -568,12 +573,12 @@ async def test_the_roster_names_who_chose_what(
 ):
     """Both sides add up: everybody named under a choice is counted by the
     tally above it, and the waiting side is the rest of the audience."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _posts_enabled(session, a.initiative)
     post = await create_post(session, a.initiative, a.user)
     poll = await create_post_poll(session, post)
     b = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -604,7 +609,7 @@ async def test_an_anonymous_poll_has_no_roster(
 ):
     """Counts are shown either way; what anonymity hides is the names behind
     them, and it hides them from the author too."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _posts_enabled(session, a.initiative)
     post = await create_post(session, a.initiative, a.user)
     poll = await create_post_poll(session, post, is_anonymous=True)
@@ -627,7 +632,7 @@ async def test_the_roster_waits_with_the_results(
 ):
     """A roster is the results with names on, so it is withheld wherever they
     are — otherwise counting the names would read them out."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _posts_enabled(session, a.initiative)
     post = await create_post(session, a.initiative, a.user)
     await create_post_poll(session, post, hide_results=True)
@@ -641,7 +646,7 @@ async def test_the_roster_waits_with_the_results(
 async def test_the_board_carries_its_polls(client: AsyncClient, acting_user, session):
     """A board renders its questions, so the list carries them — a page of five
     cards must not be five more requests."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _posts_enabled(session, a.initiative)
     post = await create_post(session, a.initiative, a.user)
     poll = await create_post_poll(session, post)
@@ -672,7 +677,7 @@ async def test_your_own_notice_is_never_unread_and_never_counted(
     """The author is on neither side of the read roster, so the card must not
     count them either — a "Read by 1" over a roster listing nobody is the same
     receipt being counted and then not listed."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _posts_enabled(session, a.initiative)
     post = await create_post(session, a.initiative, a.user)
 
@@ -697,11 +702,11 @@ async def test_the_unread_filter_skips_your_own_notices(
 ):
     """Otherwise every notice somebody ever posted would sit in their own
     unread filter forever — there is no receipt that could ever clear it."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _posts_enabled(session, a.initiative)
     mine = await create_post(session, a.initiative, a.user, name="Mine")
     b = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -725,7 +730,7 @@ async def test_multiple_choice_can_be_turned_on_but_never_off(
 ):
     """Somebody who ticked two answers would otherwise be left holding two
     ballots on a poll that takes one, and the roster would list them twice."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _posts_enabled(session, a.initiative)
     post = await create_post(session, a.initiative, a.user)
     poll = await create_post_poll(session, post, allows_multiple=True)
@@ -756,7 +761,7 @@ async def test_two_choices_that_say_the_same_thing_answer_with_a_code(
 ):
     """A rule somebody trips over while typing answers with something the
     composer can put into words, not a validation error nobody can read."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _posts_enabled(session, a.initiative)
     post = await create_post(session, a.initiative, a.user)
 
@@ -776,12 +781,12 @@ async def test_the_lock_is_answered_even_when_the_numbers_are_not(
     """An author of a hidden-results poll needs to know the question is fixed
     before they start editing it. ``total_voters`` cannot tell them — it is the
     withheld number — so the lock is its own answer."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _posts_enabled(session, a.initiative)
     post = await create_post(session, a.initiative, a.user)
     poll = await create_post_poll(session, post, hide_results=True)
     b = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -805,7 +810,7 @@ async def test_the_lock_is_answered_even_when_the_numbers_are_not(
 async def test_an_unanswered_poll_is_not_locked(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _posts_enabled(session, a.initiative)
     post = await create_post(session, a.initiative, a.user)
     await create_post_poll(session, post)
@@ -820,7 +825,7 @@ async def test_an_unanswered_poll_is_not_locked(
 async def test_a_copy_is_a_draft_whose_lapsed_poll_opens_when_posted(
     client: AsyncClient, acting_user, session
 ):
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _posts_enabled(session, a.initiative)
     post = await create_post(
         session, a.initiative, a.user, pinned_at=datetime.now(timezone.utc)

@@ -1,6 +1,7 @@
 {
   "title": "Marketplace",
   "subtitle": "Ready-made dashboards you can add to an initiative.",
+  "subtitleProjects": "Ready-made projects you can copy into an initiative. Each install is a new project of your own.",
   "searchPlaceholder": "Search the marketplace…",
   "backToMarketplace": "Back to the marketplace",
   "browse": "Browse the marketplace",
@@ -24,13 +25,21 @@
   "detail": {
     "installs_one": "{{count}} install",
     "installs_other": "{{count}} installs",
+    "minimumAge": "Ages {{age}}+",
     "install": "Add to an initiative",
     "preview": "Preview",
     "previewIsSample": "Example shown with sample data",
     "needsUpdate": "Needs a newer version of the app.",
     "withdrawn": "No longer offered.",
     "notFound": "Listing not found",
-    "notFoundDescription": "It may have been withdrawn, or the link may be wrong."
+    "notFoundDescription": "It may have been withdrawn, or the link may be wrong.",
+    "notAvailableHere": "Not available in this app",
+    "notAvailableHereDescription": "This listing isn't part of the catalogue this app offers."
+  },
+  "projectPreview": {
+    "showing": "Show the blank project or the example",
+    "blank": "Blank",
+    "example": "Example"
   },
   "install": {
     "title": "Add {{name}}",
@@ -40,7 +49,13 @@
     "action": "Add",
     "done": "{{name}} added.",
     "failed": "Could not add that listing.",
-    "noInitiatives": "You cannot create dashboards in any initiative yet. Ask an initiative manager for access."
+    "noInitiatives": "You cannot add this to any initiative yet. Ask an initiative manager for access.",
+    "descriptionCopy": "Choose where it goes. It arrives as your own copy, which you can rename and change afterwards.",
+    "startFrom": "What to start from",
+    "startBlank": "Start blank",
+    "startExample": "Start from the example",
+    "startsOn": "Start date",
+    "startsOnHelp": "Its dates are moved so that the earliest one falls on this day."
   },
   "update": {
     "available": "Version {{version}} available",
@@ -52,6 +67,6 @@
     "description": "The catalog could not be reached. Try again in a moment."
   },
   "installedUnknown": "Couldn't check which of these you already have, so nothing below is marked as installed.",
-  "subtitleApps": "Apps add something the whole community shares. Only the community's superadmin can add them.",
+  "subtitlePlugins": "Plug-ins add something the whole community shares. Only the community's superadmin can add them.",
   "subtitleAuto": "Automations run in the background for the whole community."
 }

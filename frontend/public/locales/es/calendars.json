@@ -1,13 +1,9 @@
 {
-  "title": "Calendario",
-  "event": "Evento",
-  "events": "Calendario",
   "createEvent": "Crear evento",
   "deleteEvent": "Eliminar evento",
   "eventDeleted": "Evento eliminado",
   "eventTitle": "Título",
   "titlePlaceholder": "Título del evento",
-  "description": "Descripción",
   "descriptionPlaceholder": "Agregar una descripción...",
   "location": "Ubicación",
   "locationPlaceholder": "Agregar una ubicación o enlace...",
@@ -15,8 +11,6 @@
   "endDate": "Fin",
   "startTime": "Hora de inicio",
   "endTime": "Hora de fin",
-  "allDay": "Todo el día",
-  "color": "Color",
   "attendees": "Asistentes",
   "repeat": "Repetición",
   "addAttendee": "Agregar asistente",
@@ -27,29 +21,18 @@
   "rsvpDeclined": "Rechazado",
   "rsvpTentative": "Tentativo",
   "rsvpUpdated": "RSVP actualizado",
-  "recurrence": "Recurrencia",
-  "daily": "Diario",
-  "weekly": "Semanal",
-  "monthly": "Mensual",
-  "yearly": "Anual",
-  "permissions": "Permisos",
-  "settings": "Configuración",
-  "details": "Detalles",
-  "access": "Acceso",
-  "advanced": "Avanzado",
-  "dangerZone": "Zona de peligro",
-  "detailsUpdated": "Detalles actualizados",
+  "rsvpOpen": "Cualquiera que pueda verlo puede responder",
+  "rsvpOpenHint": "Activado, responder añade a la persona a los asistentes. Desactivado, solo pueden responder los asistentes que añadas.",
   "filters": {
-    "heading": "Filtros",
     "dates": "Fechas",
     "searchLabel": "Nombre o descripción",
-    "searchCalendars": "Buscar calendarios..."
+    "searchCalendars": "Buscar calendarios...",
+    "tasks": "Tareas"
   },
   "loading": "Cargando...",
   "loadError": "Error al cargar eventos",
   "loadingEvent": "Cargando evento...",
   "creating": "Creando...",
-  "saving": "Guardando...",
   "notFound": "Evento no encontrado",
   "notFoundDescription": "Este evento puede haber sido eliminado o no tienes acceso.",
   "noAccess": "Sin acceso",
@@ -60,13 +43,7 @@
   "selectInitiative": "Seleccionar iniciativa",
   "deleteEventConfirm": "El evento se enviará a la papelera. Puedes restaurarlo desde Configuración → Papelera antes de que finalice el período de retención.",
   "dangerZoneDescription": "Acciones destructivas. Los eventos eliminados van a la papelera y pueden restaurarse antes de que finalice el período de retención.",
-  "adding": "Agregando...",
-  "createFirst": "Crea tu primer evento",
-  "previous": "Anterior",
-  "next": "Siguiente",
-  "tags": "Etiquetas",
   "properties": "Propiedades",
-  "today": "Hoy",
   "import": {
     "title": "Importar eventos del calendario",
     "importIcs": "Importar .ics",
@@ -85,6 +62,12 @@
     "eventsFailed_other": "{{count}} eventos fallidos",
     "importSuccess": "¡Importación completa!",
     "importError": "Error en la importación",
+    "problems": {
+      "no_start": "Se omitió «{{title}}»: no tiene fecha de inicio",
+      "unreadable": "No se pudo leer «{{title}}»",
+      "not_saved": "No se pudo guardar «{{title}}»",
+      "untitled": "Sin título"
+    },
     "selectCalendar": "Seleccionar calendario"
   },
   "calendar": "Calendario",
@@ -102,15 +85,22 @@
     "projectTasks": "Tareas de proyectos",
     "calendarSettings": "Configuración de {{name}}"
   },
-  "guildScope": {
-    "title": "Calendario de la comunidad",
+  "picker": {
+    "all": "Todos los calendarios",
+    "none": "Ningún calendario",
+    "some_one": "{{count}} calendario",
+    "some_other": "{{count}} calendarios",
+    "label": "Elige qué calendarios mostrar"
+  },
+  "communityScope": {
     "empty": "Aún no hay calendarios.",
     "emptyHint": "Crea uno para los días festivos, para una reunión periódica o solo para ti."
   },
   "scope": {
     "title": {
       "edit": "Cambiar un evento periódico",
-      "delete": "Eliminar un evento periódico"
+      "delete": "Eliminar un evento periódico",
+      "duplicate": "Duplicar un evento periódico"
     },
     "description": "Este evento se repite. ¿A qué eventos se aplica?",
     "this": "Solo este evento",
@@ -118,7 +108,8 @@
     "all": "Todos los eventos de la serie",
     "confirm": {
       "edit": "Guardar",
-      "delete": "Eliminar"
+      "delete": "Eliminar",
+      "duplicate": "Duplicar"
     }
   },
   "occurrence": {

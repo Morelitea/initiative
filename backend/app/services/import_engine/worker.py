@@ -45,6 +45,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import ImportEngineMessages
 from app.db import cohorts
+from app.db.advisory_locks import LockNamespace
 from app.models.platform.notification import NotificationType
 from app.models.platform.user import UserStatus
 from app.models.tenant.import_job import ImportJob, ImportJobStatus
@@ -79,9 +80,6 @@ def _open_user_session(guild_id: int) -> AsyncSession:
 
 _FETCH = "fetch"
 _APPLY = "apply"
-
-#: Advisory-lock namespace for claiming a community's next import.
-_CLAIM_LOCK_NS = 0x494D51  # "IMQ"
 
 
 def _slots(kind: str) -> int:
@@ -183,7 +181,7 @@ async def _run(
 jobs: data_jobs.Dispatcher[ImportJob] = data_jobs.Dispatcher(
     name="import",
     model=ImportJob,
-    lock_namespace=_CLAIM_LOCK_NS,
+    lock_namespace=LockNamespace.IMPORT_CLAIM,
     queued=ImportJobStatus.queued,
     active=(ImportJobStatus.fetching, ImportJobStatus.running),
     kinds=(_FETCH, _APPLY),
@@ -324,7 +322,7 @@ def _outcome(job: ImportJob, guild_id: int) -> JobOutcome:
         if job.status == ImportJobStatus.done
         else NotificationType.import_failed,
         {
-            "guild_id": guild_id,
+            "community_id": guild_id,
             "import_job_id": job.id,
             "source": job.source,
         },

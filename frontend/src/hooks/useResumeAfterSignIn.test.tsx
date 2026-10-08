@@ -9,14 +9,14 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { buildGuild, buildUser } from "@/__tests__/factories";
-import type { GuildEntry } from "@/hooks/useGuilds";
+import { buildCommunity, buildUser } from "@/__tests__/factories";
+import type { CommunityEntry } from "@/hooks/useCommunities";
 
 import { useResumeAfterSignIn } from "./useResumeAfterSignIn";
 
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
-  refreshGuilds: vi.fn(),
+  refreshCommunities: vi.fn(),
   user: null as unknown,
 }));
 
@@ -30,20 +30,20 @@ vi.mock("@/hooks/useAuth", async (importOriginal) => ({
   useAuth: () => ({ user: mocks.user }),
 }));
 
-vi.mock("@/hooks/useGuilds", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/hooks/useGuilds")>()),
-  useGuilds: () => ({ refreshGuilds: mocks.refreshGuilds }),
+vi.mock("@/hooks/useCommunities", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks/useCommunities")>()),
+  useCommunities: () => ({ refreshCommunities: mocks.refreshCommunities }),
 }));
 
-const guildEntry = (id: number): GuildEntry =>
-  ({ ...buildGuild({ id }), accessType: "member" }) as GuildEntry;
+const communityEntry = (id: number): CommunityEntry =>
+  ({ ...buildCommunity({ id }), accessType: "member" }) as CommunityEntry;
 
 /** Where the hook sent them. */
 const landedOn = (): unknown => mocks.navigate.mock.calls.at(-1)?.[0];
 
 beforeEach(() => {
   mocks.navigate.mockReset();
-  mocks.refreshGuilds.mockReset().mockResolvedValue([guildEntry(5)]);
+  mocks.refreshCommunities.mockReset().mockResolvedValue([communityEntry(5)]);
   mocks.user = buildUser();
 });
 
@@ -54,7 +54,7 @@ describe("resuming after sign-in", () => {
     await act(() => result.current("/profile/security?tab=passkeys"));
 
     expect(landedOn()).toEqual({ to: "/profile/security?tab=passkeys", replace: true });
-    expect(mocks.refreshGuilds).not.toHaveBeenCalled();
+    expect(mocks.refreshCommunities).not.toHaveBeenCalled();
   });
 
   it("starts at home when there was no page to return to", async () => {
@@ -79,7 +79,7 @@ describe("resuming after sign-in", () => {
 
     await act(() => result.current("/c/5/projects/47"));
 
-    expect(mocks.refreshGuilds).toHaveBeenCalledTimes(1);
+    expect(mocks.refreshCommunities).toHaveBeenCalledTimes(1);
     expect(landedOn()).toEqual({ to: "/c/5/projects/47", replace: true });
   });
 
@@ -105,7 +105,7 @@ describe("resuming after sign-in", () => {
       finished = true;
     });
     await Promise.resolve();
-    expect(mocks.refreshGuilds).not.toHaveBeenCalled();
+    expect(mocks.refreshCommunities).not.toHaveBeenCalled();
     expect(finished).toBe(false);
 
     mocks.user = buildUser();
@@ -113,6 +113,6 @@ describe("resuming after sign-in", () => {
     await act(() => resuming);
 
     await waitFor(() => expect(landedOn()).toEqual({ to: "/c/5", replace: true }));
-    expect(mocks.refreshGuilds).toHaveBeenCalledTimes(1);
+    expect(mocks.refreshCommunities).toHaveBeenCalledTimes(1);
   });
 });

@@ -10,18 +10,22 @@
  * so preset, stored preference, and query params are all the same object.
  */
 
-import type {
-  TaskFilterSpec as ApiTaskFilterSpec,
-  FilterCondition,
-  FilterGroup,
-  ListTasksApiV1CGuildIdTasksGetParams,
-  TaskStatusCategory,
+import type { SortingState } from "@tanstack/react-table";
+
+import {
+  type TaskFilterSpec as ApiTaskFilterSpec,
+  type FilterCondition,
+  type FilterGroup,
+  type ListTasksParams,
+  ProjectReadDefaultViewMode,
+  type SortField,
+  type TaskStatusCategory,
 } from "@/api/generated/initiativeAPI.schemas";
 import type { DueFilterOption } from "@/components/projects/projectTasksConfig";
 import type { PropertyFilterCondition } from "@/components/properties/PropertyFilter";
 
-export type TaskViewMode = "table" | "kanban" | "calendar";
-export const TASK_VIEW_MODES = ["table", "kanban", "calendar"] as const;
+export type TaskViewMode = NonNullable<ProjectReadDefaultViewMode>;
+export const TASK_VIEW_MODES = Object.values(ProjectReadDefaultViewMode);
 
 /** The due-window tokens a preset can hold. `null` is "any due date". */
 export type DueToken = Exclude<DueFilterOption, "all">;
@@ -259,10 +263,48 @@ export function buildTaskConditions(
 export function buildTaskListParams(
   spec: TaskFilterSpec,
   options: { projectId: number }
-): ListTasksApiV1CGuildIdTasksGetParams {
+): ListTasksParams {
   return {
     conditions: buildTaskConditions(spec, options),
     page_size: 0,
     ...(spec.include_archived && { include_archived: true }),
   };
+}
+
+/** Task table columns the task list can order by, and the sort field each is. */
+const SORT_FIELD_BY_COLUMN: Record<string, string> = {
+  title: "title",
+  "due date": "due_date",
+  "start date": "start_date",
+  "date group": "date_group",
+  priority: "priority",
+  status: "status_position",
+  tags: "tag_name",
+};
+
+const COLUMN_BY_SORT_FIELD: Record<string, string> = Object.fromEntries(
+  Object.entries(SORT_FIELD_BY_COLUMN).map(([columnId, field]) => [field, columnId])
+);
+
+/** A task table's sort as the endpoint's `sorting`. Columns the list cannot
+ *  order by are left out, and ties keep the project's own order, as they do
+ *  in the table. */
+export function taskSortFields(sorting: SortingState): SortField[] {
+  const fields = sorting.flatMap((column): SortField[] => {
+    const field = SORT_FIELD_BY_COLUMN[column.id];
+    return field ? [{ field, dir: column.desc ? "desc" : "asc" }] : [];
+  });
+  // A date group on its own orders nothing within a group.
+  if (fields.length === 1 && fields[0].field === "date_group") {
+    fields.push({ field: "due_date", dir: fields[0].dir });
+  }
+  return fields.length > 0 ? [...fields, { field: "position", dir: "asc" }] : fields;
+}
+
+/** The endpoint's `sorting` as the table's, to seed its headers. */
+export function taskTableSorting(fields: SortField[]): SortingState {
+  return fields.flatMap((entry) => {
+    const id = COLUMN_BY_SORT_FIELD[entry.field];
+    return id ? [{ id, desc: entry.dir === "desc" }] : [];
+  });
 }

@@ -47,7 +47,7 @@ async def list_contact_sections(
     session: UserSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     search: SearchQuery = None,
-    guild_ids: Annotated[Optional[List[int]], Query()] = None,
+    guild_ids: Annotated[Optional[List[int]], Query(alias="community_ids")] = None,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=contacts_service.DEFAULT_PAGE_SIZE, ge=1, le=100),
 ) -> ContactSectionsResponse:

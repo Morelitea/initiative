@@ -158,7 +158,7 @@ def test_a_rendered_body_converts_like_the_page_it_was_rendered_from():
         page=lambda title, key: ce.confluence_mapping.PageTarget(slug=title.lower()),
         user=lambda account: space.users.get(account),
         image=lambda name: f"/uploads/1/{name}",
-        document=lambda name: f"entry:assets/{name}",
+        file=lambda name: f"entry:assets/{name}",
         site_url=space.site_url,
     )
     blocks = result.content["root"]["children"]
@@ -209,7 +209,7 @@ async def test_the_export_maps_to_a_wiki_with_its_files():
         app_version="0.0.0-test",
         asset_budget=AssetBudget(bytes_left=10_000_000, files_left=100),
         store=_discard,
-        documents=True,
+        files_allowed=True,
     )
     ((key, wiki),) = fetched.envelopes
     assert key == "DOCS" and wiki["name"] == "Team Docs"
@@ -230,7 +230,7 @@ async def test_without_a_budget_no_file_is_read():
         guild_id=1,
         app_version="0.0.0-test",
         asset_budget=None,
-        documents=True,
+        files_allowed=True,
     )
     assert fetched.images == [] and fetched.files == {}
     assert fetched.report.attachments == 2
@@ -271,7 +271,7 @@ def _real_fetched():
         app_version="0.0.0-test",
         asset_budget=bundle_budget(),
         store=_discard,
-        documents=True,
+        files_allowed=True,
     )
 
 

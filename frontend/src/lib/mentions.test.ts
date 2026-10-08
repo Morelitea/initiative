@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { DocumentType, SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
+import { FileType, SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
 import {
   activeMention,
   entityMentionSyntax,
@@ -10,6 +10,7 @@ import {
   supportsEntityMentions,
   typeForTrigger,
   typeTrigger,
+  userMentionSyntax,
 } from "@/lib/mentions";
 
 describe("what can be mentioned", () => {
@@ -27,7 +28,9 @@ describe("what can be mentioned", () => {
   });
 
   it("still reads the shorthand already sitting in stored comments", () => {
-    expect(typeForTrigger("doc")).toBe(SearchEntityType.document);
+    expect(typeForTrigger("doc")).toBe(SearchEntityType.file);
+    // `#document[..](N)`: the kind's spelling before files were called files.
+    expect(typeForTrigger("document")).toBe(SearchEntityType.file);
   });
 
   // A name is what a mention points at, so it does not also spell one. The
@@ -82,18 +85,25 @@ describe("what gets written into the comment", () => {
       "#counter-group[Q1](7)"
     );
   });
+
+  it("leaves out of a label the characters the syntax is built from", () => {
+    expect(entityMentionSyntax(SearchEntityType.project, "Q[1] (draft)", 9)).toBe(
+      "#project[Q1 draft](9)"
+    );
+    expect(userMentionSyntax("Ada (she/her)", 4)).toBe("@[Ada she/her](4)");
+  });
 });
 
 describe("where # is offered", () => {
   it("is a standard document and nothing else", () => {
-    expect(supportsEntityMentions(DocumentType.native)).toBe(true);
-    for (const type of Object.values(DocumentType)) {
-      if (type === DocumentType.native) continue;
+    expect(supportsEntityMentions(FileType.native)).toBe(true);
+    for (const type of Object.values(FileType)) {
+      if (type === FileType.native) continue;
       expect(supportsEntityMentions(type)).toBe(false);
     }
   });
 
-  it("is off while the document type is still unknown", () => {
+  it("is off while the file type is still unknown", () => {
     expect(supportsEntityMentions(null)).toBe(false);
     expect(supportsEntityMentions(undefined)).toBe(false);
   });

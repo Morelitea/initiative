@@ -11,7 +11,7 @@ Proves the security properties of the refactor end-to-end:
 
 import pytest
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.services import ai_settings as ai_settings_service
 
 
@@ -82,7 +82,7 @@ async def test_member_sees_platform_connection_without_key(client, acting_user):
         },
     )
 
-    member = await acting_user(guild_role=GuildRole.member, initiative=True)
+    member = await acting_user(guild_role=CommunityRole.member, initiative=True)
     r = await client.get(member.g("/settings/ai/me"), headers=member.headers)
     assert r.status_code == 200, r.text
     view = r.json()
@@ -101,7 +101,7 @@ async def test_member_cannot_set_a_destination(client, acting_user):
     key at a destination they chose."""
     owner = await acting_user()
     await _set_mode(client, owner, "platform")
-    member = await acting_user(guild_role=GuildRole.member, initiative=True)
+    member = await acting_user(guild_role=CommunityRole.member, initiative=True)
 
     # There is no member connection-create route.
     r = await client.post(
@@ -130,8 +130,8 @@ async def test_member_attach_key_is_own_row(client, acting_user):
     )
     conn_id = r.json()["id"]
 
-    m1 = await acting_user(guild_role=GuildRole.member, initiative=True)
-    m2 = await acting_user(guild_role=GuildRole.member, guild=m1.guild)
+    m1 = await acting_user(guild_role=CommunityRole.member, initiative=True)
+    m2 = await acting_user(guild_role=CommunityRole.member, guild=m1.guild)
 
     # m1 attaches their own key.
     r = await client.put(
@@ -160,9 +160,9 @@ async def test_member_attach_key_is_own_row(client, acting_user):
 
 async def test_guild_admin_cannot_save_private_base_url(client, acting_user):
     owner = await acting_user()
-    await _set_mode(client, owner, "guild")
+    await _set_mode(client, owner, "community")
 
-    admin = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
 
     # A public custom endpoint is fine.
     r = await client.post(
@@ -192,8 +192,8 @@ async def test_a_member_runs_on_the_community_s_shared_key(
     """A member reads that the seat's connection has a key, and a request to
     the provider carries it; clearing it is seen the same way."""
     owner = await acting_user()
-    await _set_mode(client, owner, "guild")
-    seat = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
+    await _set_mode(client, owner, "community")
+    seat = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
     r = await client.post(
         seat.g("/settings/ai/connections"),
         headers=seat.headers,
@@ -210,7 +210,7 @@ async def test_a_member_runs_on_the_community_s_shared_key(
     conn_id = r.json()["id"]
 
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=seat.guild,
         initiative=seat.initiative,
         initiative_role="member",
@@ -266,7 +266,7 @@ async def test_connection_that_disallows_member_keys(client, acting_user):
     assert conn["allow_member_keys"] is False
     conn_id = conn["id"]
 
-    member = await acting_user(guild_role=GuildRole.member, initiative=True)
+    member = await acting_user(guild_role=CommunityRole.member, initiative=True)
     view = (
         await client.get(member.g("/settings/ai/me"), headers=member.headers)
     ).json()
@@ -324,14 +324,14 @@ async def test_my_ai_aggregate_lists_connections_across_guilds(client, acting_us
     )
     conn_id = r.json()["id"]
 
-    member = await acting_user(guild_role=GuildRole.member, initiative=True)
+    member = await acting_user(guild_role=CommunityRole.member, initiative=True)
     r = await client.get("/api/v1/me/ai", headers=member.headers)
     assert r.status_code == 200, r.text
     rows = r.json()
     assert len(rows) == 1
     row = rows[0]
-    assert row["guild_id"] == member.guild.id
-    assert row["guild_name"] == member.guild.name
+    assert row["community_id"] == member.guild.id
+    assert row["community_name"] == member.guild.name
     assert row["scope"] == "platform"
     assert row["connection_id"] == conn_id
     assert row["label"] == "Shared"
@@ -369,7 +369,7 @@ async def test_deleting_platform_connection_purges_member_keys(
     )
     conn_id = r.json()["id"]
 
-    member = await acting_user(guild_role=GuildRole.member, initiative=True)
+    member = await acting_user(guild_role=CommunityRole.member, initiative=True)
     r = await client.put(
         member.g("/settings/ai/me/key"),
         headers=member.headers,
@@ -387,8 +387,8 @@ async def test_deleting_guild_connection_purges_member_keys(
     client, acting_user, session
 ):
     owner = await acting_user()
-    await _set_mode(client, owner, "guild")
-    admin = await acting_user(guild_role=GuildRole.superadmin, initiative=True)
+    await _set_mode(client, owner, "community")
+    admin = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
     r = await client.post(
         admin.g("/settings/ai/connections"),
         headers=admin.headers,
@@ -398,7 +398,7 @@ async def test_deleting_guild_connection_purges_member_keys(
     r = await client.put(
         admin.g("/settings/ai/me/key"),
         headers=admin.headers,
-        json={"scope": "guild", "connection_id": conn_id, "api_key": "sk-admin"},
+        json={"scope": "community", "connection_id": conn_id, "api_key": "sk-admin"},
     )
     assert r.status_code == 200, r.text
     assert len(await _member_key_rows(session, admin.guild.id, conn_id)) == 1
@@ -413,7 +413,7 @@ async def test_deleting_guild_connection_purges_member_keys(
 async def test_disabled_mode_hides_ai(client, acting_user):
     owner = await acting_user()
     await _set_mode(client, owner, "disabled")
-    member = await acting_user(guild_role=GuildRole.member, initiative=True)
+    member = await acting_user(guild_role=CommunityRole.member, initiative=True)
 
     r = await client.get(member.g("/settings/ai/me"), headers=member.headers)
     assert r.status_code == 200
@@ -430,8 +430,8 @@ async def test_connecting_a_provider_is_the_seat_s(client, acting_user):
     """Which provider a community's work is sent to says what leaves it, so it
     answers to the seat rather than to running the community."""
     owner = await acting_user()
-    await _set_mode(client, owner, "guild")
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _set_mode(client, owner, "community")
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
 
     listed = await client.get(
         admin.g("/settings/ai/connections"), headers=admin.headers
@@ -449,8 +449,8 @@ async def test_connecting_a_provider_is_the_seat_s(client, acting_user):
 async def test_an_ordinary_admin_keeps_their_own_ai(client, acting_user):
     """The member surface is untouched: their own key, their own choice."""
     owner = await acting_user()
-    await _set_mode(client, owner, "guild")
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _set_mode(client, owner, "community")
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
 
     mine = await client.get(admin.g("/settings/ai/me"), headers=admin.headers)
     assert mine.status_code == 200, mine.text

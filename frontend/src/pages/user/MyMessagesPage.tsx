@@ -52,10 +52,11 @@ import {
 } from "@/hooks/useMyMessages";
 import { useUserProfile } from "@/hooks/useUsers";
 import { groupName, isGroup, roster } from "@/lib/conversationName";
-import { formatDateTime } from "@/lib/formatDate";
+import { formatDateTime, formatDayHeading, localDayKey } from "@/lib/formatDate";
 import { hour12Option } from "@/lib/timeFormat";
 import { getUserHandle } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
+import type { TranslateFn } from "@/types/i18n";
 
 /**
  * My Messages — the conversations this account has open, read on this device.
@@ -223,7 +224,7 @@ export function MyMessagesPage() {
   // the page says where they are rather than looking broken.
   if (!dmEnabled) {
     return (
-      <div className="p-6">
+      <div>
         <StatusMessage
           icon={<ShieldCheck className="size-6" aria-hidden />}
           title={t("platformDisabled")}
@@ -239,7 +240,7 @@ export function MyMessagesPage() {
   // is more use than the generic failure it would otherwise reach.
   if (!ratchetSupported()) {
     return (
-      <div className="p-6">
+      <div>
         <StatusMessage
           icon={<ShieldCheck className="size-6" aria-hidden />}
           title={t("unsupportedBrowser")}
@@ -250,7 +251,7 @@ export function MyMessagesPage() {
 
   if (device.isError) {
     return (
-      <div className="p-6">
+      <div>
         <StatusMessage
           icon={<ShieldCheck className="size-6" aria-hidden />}
           title={t("deviceFailed")}
@@ -267,9 +268,9 @@ export function MyMessagesPage() {
   // use the thing it gates.
   if (settingsLoaded && !canMessage) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-6">
         <header className="space-y-1">
-          <h1 className="font-semibold text-2xl">{t("title")}</h1>
+          <h1 className="font-semibold text-3xl tracking-tight">{t("title")}</h1>
         </header>
         <AgeUnansweredPanel id="messages-age" />
       </div>
@@ -282,7 +283,7 @@ export function MyMessagesPage() {
     // scrolls.
     <div className="flex h-full min-h-0 flex-col gap-4">
       <header className="space-y-1">
-        <h1 className="font-semibold text-2xl">{t("title")}</h1>
+        <h1 className="font-semibold text-3xl tracking-tight">{t("title")}</h1>
         <p className="flex items-center gap-1.5 text-muted-foreground text-sm">
           <ShieldCheck className="size-3.5 shrink-0" aria-hidden />
           {t("encryptedNotice")}
@@ -368,34 +369,6 @@ export function MyMessagesPage() {
  * the second wearing the first one's timestamp.
  */
 const RUN_GAP_MS = 5 * 60 * 1000;
-
-/** The local calendar day a message belongs to, as something comparable. */
-const dayOf = (at: string): string => {
-  const date = new Date(at);
-  return Number.isNaN(date.getTime()) ? "" : date.toDateString();
-};
-
-/**
- * What to head a day with.
- *
- * The two days somebody is most likely to be reading are named rather than
- * dated: "Wed, Jul 22" is a fact to work out, and "Today" is one to recognise.
- */
-const dayLabel = (at: string, t: (key: "days.today" | "days.yesterday") => string): string => {
-  const date = new Date(at);
-  if (Number.isNaN(date.getTime())) return "";
-  const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(today.getDate() - 1);
-  if (dayOf(at) === today.toDateString()) return t("days.today");
-  if (dayOf(at) === yesterday.toDateString()) return t("days.yesterday");
-  return new Intl.DateTimeFormat(undefined, {
-    weekday: "short",
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  }).format(date);
-};
 
 /** The clock time a message was said at, in the reader's own convention. */
 const clockTime = (at: string): string => {
@@ -773,7 +746,8 @@ function Thread({
                 : null;
               const reactions = Object.entries(message.reactions ?? {});
               // A new day, or the first thing this device holds.
-              const opensDay = index === 0 || dayOf(messages[index - 1].at) !== dayOf(message.at);
+              const opensDay =
+                index === 0 || localDayKey(messages[index - 1].at) !== localDayKey(message.at);
               return (
                 <Fragment key={message.id}>
                   {changesBetween(
@@ -784,7 +758,7 @@ function Thread({
                     <div className="flex items-center gap-3 py-2">
                       <span className="h-px flex-1 bg-border" />
                       <span className="shrink-0 font-medium text-muted-foreground text-xs">
-                        {dayLabel(message.at, t)}
+                        {formatDayHeading(message.at, t as TranslateFn)}
                       </span>
                       <span className="h-px flex-1 bg-border" />
                     </div>
@@ -820,7 +794,7 @@ function Thread({
                       <Speaking who={speakerOf(message)} hidden={!startsRun} />
                       {startsRun ? (
                         <span
-                          className="absolute inset-x-0 top-full mt-1.5 truncate text-center text-[10px] text-muted-foreground tabular-nums"
+                          className="absolute inset-x-0 top-full mt-1.5 truncate text-center text-3xs text-muted-foreground tabular-nums"
                           title={formatDateTime(message.at)}
                         >
                           {clockTime(message.at)}
@@ -1218,7 +1192,7 @@ function InvitationPanel({ conversationId, name }: { conversationId: string; nam
 
   return (
     <div className="mx-auto max-w-md space-y-4 py-10 text-center">
-      <h2 className="font-medium text-lg">{t("messages:invitation.heading")}</h2>
+      <h2 className="font-semibold text-xl tracking-tight">{t("messages:invitation.heading")}</h2>
       <p className="text-muted-foreground text-sm">{t("messages:invitation.who")}</p>
       <p className="break-words font-medium text-sm">{name}</p>
       <div className="flex justify-center gap-2">

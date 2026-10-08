@@ -4,7 +4,7 @@ import { HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 
 import { buildPropertyDefinition, buildPropertyOption } from "@/__tests__/factories/properties";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import { type PropertyDefinitionRead, PropertyType } from "@/api/generated/initiativeAPI.schemas";
@@ -12,7 +12,7 @@ import { type PropertyDefinitionRead, PropertyType } from "@/api/generated/initi
 import { opsForType, PropertyFilter, type PropertyFilterCondition } from "./PropertyFilter";
 
 const mockDefinitions = (defs: PropertyDefinitionRead[]) => {
-  server.use(guildHttp.get("/property-definitions/", () => HttpResponse.json(defs)));
+  server.use(communityHttp.get("/property-definitions/", () => HttpResponse.json(defs)));
 };
 
 describe("opsForType", () => {

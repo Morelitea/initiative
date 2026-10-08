@@ -1,13 +1,8 @@
 {
-  "title": "Galerías",
-  "gallery": "Galería",
-  "galleries": "Galerías",
   "createGallery": "Nueva galería",
   "createGalleryDescription": "Una colección de imágenes: maquetas, capturas, diseños exportados. Ponle nombre ahora; las imágenes se añaden en su página, cuarenta de golpe si quieres.",
   "creating": "Creando...",
-  "name": "Nombre",
   "namePlaceholder": "Recursos de la tienda, Pantalla principal ronda 4...",
-  "description": "Descripción",
   "descriptionPlaceholder": "De qué son estas imágenes",
   "initiative": "Iniciativa",
   "selectInitiative": "Selecciona una iniciativa",
@@ -24,8 +19,6 @@
   "noAccessDescription": "No tienes permiso para ver esta galería.",
   "backToGalleries": "Volver a galerías",
   "addPictures": "Añadir imágenes",
-  "pictureCount_one": "{{count}} imagen",
-  "pictureCount_other": "{{count}} imágenes",
   "noPictures": "Todavía no hay nada",
   "noPicturesDescription": "Suelta imágenes en cualquier parte de esta página o añádelas con el botón. PNG, JPEG, WebP y GIF, hasta 25 MB cada una.",
   "noPicturesReadOnly": "Nadie ha añadido una imagen a esta galería todavía.",
@@ -33,7 +26,6 @@
   "views": {
     "label": "Vista",
     "masonry": "Mosaico",
-    "grid": "Cuadrícula",
     "timeline": "Cronología"
   },
   "groups": {
@@ -42,8 +34,6 @@
     "count_other": "{{count}} imágenes"
   },
   "card": {
-    "pictures_one": "{{count}} imagen",
-    "pictures_other": "{{count}} imágenes",
     "comments_one": "{{count}} comentario",
     "comments_other": "{{count}} comentarios",
     "updated": "Actualizada {{date}}"
@@ -66,7 +56,6 @@
     "refusedSize": "más de 25 MB"
   },
   "filters": {
-    "heading": "Filtros",
     "searchLabel": "Nombre o descripción",
     "searchGalleries": "Buscar galerías...",
     "noMatchingGalleries": "Ninguna galería coincide con tus filtros.",
@@ -77,11 +66,7 @@
     "oldestFirst": "Más antiguas primero",
     "noMatchingPictures": "Ninguna imagen coincide con tus filtros."
   },
-  "lightbox": {
-    "details": "Detalles"
-  },
   "sheet": {
-    "title": "Imagen",
     "description": "Cómo se llama esta imagen, quién la añadió y su historial.",
     "titleLabel": "Título",
     "titlePlaceholder": "¿Qué es esto?",
@@ -124,24 +109,5 @@
     "deleteTitle_one": "¿Quitar {{count}} imagen?",
     "deleteTitle_other": "¿Quitar {{count}} imágenes?",
     "deleteDescription": "Van a la papelera con todas sus versiones y pueden restaurarse antes de que termine el periodo de retención."
-  },
-  "bulkTags": {
-    "title": "Editar etiquetas",
-    "descriptionAdd_one": "Agregar etiquetas a {{count}} imagen seleccionada.",
-    "descriptionAdd_other": "Agregar etiquetas a {{count}} imágenes seleccionadas.",
-    "descriptionRemove_one": "Eliminar etiquetas de {{count}} imagen seleccionada.",
-    "descriptionRemove_other": "Eliminar etiquetas de {{count}} imágenes seleccionadas.",
-    "tabAdd": "Agregar",
-    "tabRemove": "Eliminar",
-    "addPlaceholder": "Seleccionar etiquetas para agregar...",
-    "removePlaceholder": "Seleccionar etiquetas para eliminar...",
-    "noTags": "No hay etiquetas en las imágenes seleccionadas.",
-    "applying": "Aplicando…",
-    "apply": "Aplicar",
-    "tagsAdded_one": "Etiquetas agregadas a {{count}} imagen",
-    "tagsAdded_other": "Etiquetas agregadas a {{count}} imágenes",
-    "tagsRemoved_one": "Etiquetas eliminadas de {{count}} imagen",
-    "tagsRemoved_other": "Etiquetas eliminadas de {{count}} imágenes",
-    "updateError": "No se pudieron actualizar las etiquetas en este momento."
   }
 }

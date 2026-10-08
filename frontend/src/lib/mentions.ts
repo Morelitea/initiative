@@ -11,7 +11,8 @@
  * written inside a code fence stays literal.
  */
 
-import { DocumentType, SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
+import { FileType, SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
+import { EARLIER_KINDS } from "@/lib/smartChips";
 
 /** People. A separate trigger because they are read from the roster, not the
  *  index — identity is shared across communities, content is not. */
@@ -52,7 +53,12 @@ const TRIGGER_TYPES: [string, SearchEntityType][] = [
   ...MENTIONABLE_TYPES.map((type): [string, SearchEntityType] => [typeTrigger(type), type]),
   // Written by every composer before the type words were derived, and still
   // sitting in stored comments, so it is read as well as the derived spelling.
-  ["doc", SearchEntityType.document] as [string, SearchEntityType],
+  ["doc", SearchEntityType.file] as [string, SearchEntityType],
+  // A kind's earlier spelling, still sitting in stored text.
+  ...Object.entries(EARLIER_KINDS).map(([kind, type]): [string, SearchEntityType] => [
+    kind.replaceAll("_", "-"),
+    type,
+  ]),
 ].sort((a, b) => b[0].length - a[0].length);
 
 /** The type a trigger word names, or `undefined` if it names none. */
@@ -62,13 +68,17 @@ export const typeForTrigger = (word: string): SearchEntityType | undefined =>
 /** Every trigger word, longest first — what a parser matches against. */
 export const TRIGGER_WORDS: string[] = TRIGGER_TYPES.map(([trigger]) => trigger);
 
+/** A label is written into the text, so the characters the syntax is built
+ *  from cannot appear inside it. */
+const mentionLabel = (label: string): string => label.replace(/[[\]()]/g, "");
+
 /** How a chosen suggestion is written into a comment. */
 export const entityMentionSyntax = (type: SearchEntityType, label: string, id: number): string =>
-  `${ENTITY_TRIGGER}${typeTrigger(type)}[${label}](${id})`;
+  `${ENTITY_TRIGGER}${typeTrigger(type)}[${mentionLabel(label)}](${id})`;
 
 /** How a chosen person is written into a comment. */
 export const userMentionSyntax = (label: string, id: number): string =>
-  `${USER_TRIGGER}[${label}](${id})`;
+  `${USER_TRIGGER}[${mentionLabel(label)}](${id})`;
 
 /** Opens the picker over the tools, and can make one that is not there. */
 export const LINK_TRIGGER_OPEN = "[[";
@@ -158,5 +168,5 @@ export const activeMention = (text: string): ActiveMention | null => {
  * has no body of its own to write in — none of them has a line of text with a
  * caret in it for a trigger to be typed into.
  */
-export const supportsEntityMentions = (type: DocumentType | null | undefined): boolean =>
-  type === DocumentType.native;
+export const supportsEntityMentions = (type: FileType | null | undefined): boolean =>
+  type === FileType.native;

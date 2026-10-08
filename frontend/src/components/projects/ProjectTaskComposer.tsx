@@ -55,7 +55,7 @@ export const ProjectTaskComposer = ({
     >
       <DialogHeader>
         <DialogTitle>{t("taskComposer.title")}</DialogTitle>
-        <DialogDescription>{t("taskComposer.description")}</DialogDescription>
+        <DialogDescription className="sr-only">{t("taskComposer.description")}</DialogDescription>
       </DialogHeader>
       <div>
         {isArchived ? (

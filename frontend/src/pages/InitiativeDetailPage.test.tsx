@@ -8,8 +8,8 @@ import { screen } from "@testing-library/react";
 import { HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 
-import { buildGuild, buildInitiative } from "@/__tests__/factories";
-import { guildHttp } from "@/__tests__/helpers/guildHttp";
+import { buildCommunity, buildInitiative } from "@/__tests__/factories";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
@@ -24,7 +24,7 @@ const page = () =>
 /** Every tool list answers the same envelope; the tabs only need it to be empty. */
 const VIEWABLE = [
   Tool.project,
-  Tool.document,
+  Tool.file,
   Tool.queue,
   Tool.dashboard,
   Tool.calendar,
@@ -33,7 +33,7 @@ const VIEWABLE = [
 
 function stubEverything(hidden: Tool[] = []) {
   server.use(
-    guildHttp.get("/initiatives/:id", ({ params }) =>
+    communityHttp.get("/initiatives/:id", ({ params }) =>
       HttpResponse.json(
         buildInitiative({
           id: Number(params.id),
@@ -53,20 +53,23 @@ function stubEverything(hidden: Tool[] = []) {
         })
       )
     ),
-    guildHttp.get("/projects/", page),
-    guildHttp.get("/documents/", page),
-    guildHttp.get("/queues/", page),
-    guildHttp.get("/counter-groups/", page),
-    guildHttp.get("/calendars/", page),
-    guildHttp.get("/dashboards/", page)
+    communityHttp.get("/projects/", page),
+    communityHttp.get("/files/", page),
+    communityHttp.get("/queues/", page),
+    communityHttp.get("/counter-groups/", page),
+    communityHttp.get("/calendars/", page),
+    communityHttp.get("/dashboards/", page)
   );
 }
 
 const renderAt = (tool?: Tool) =>
   renderPage(() => <InitiativeDetailPage tool={tool} />, {
-    guilds: { activeGuildId: 1, activeGuild: buildGuild({ id: 1, role: "admin" }) },
-    initialRoute: "/c/$guildId/i/$initiativeId",
-    routeParams: { guildId: "1", initiativeId: String(INITIATIVE_ID) },
+    communities: {
+      activeCommunityId: 1,
+      activeCommunity: buildCommunity({ id: 1, role: "admin" }),
+    },
+    initialRoute: "/c/$communityId/i/$initiativeId",
+    routeParams: { communityId: "1", initiativeId: String(INITIATIVE_ID) },
   });
 
 /** Radix marks the selected trigger with aria-selected. */
@@ -111,7 +114,7 @@ describe("InitiativeDetailPage", () => {
 
   it("links each tab at its own URL rather than swapping state", async () => {
     stubEverything();
-    renderAt(Tool.document);
+    renderAt(Tool.file);
 
     const projectsTab = await screen.findByRole("tab", { name: "Projects" });
     expect(projectsTab).toHaveAttribute("href", `/c/1/i/${INITIATIVE_ID}/projects`);

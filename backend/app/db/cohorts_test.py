@@ -5,8 +5,6 @@ request and a system pool on the worker's database, and with a route outside a
 connection's cohort refused rather than counted.
 """
 
-import asyncio
-
 import pytest
 from sqlalchemy import text
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -50,8 +48,8 @@ def test_a_database_template_must_name_the_cohort_and_nothing_else(template):
 
 
 def test_the_path_addresses_a_community_only_by_number():
-    assert cohorts.addressed_guild_id({"guild_id": "12"}) == 12
-    assert cohorts.addressed_guild_id({"guild_id": "a-reference"}) is None
+    assert cohorts.addressed_guild_id({"community_id": "12"}) == 12
+    assert cohorts.addressed_guild_id({"community_id": "a-reference"}) is None
     assert cohorts.addressed_guild_id({}) is None
 
 
@@ -71,7 +69,7 @@ async def _bind_for(path_params: dict[str, str]):
 
 
 async def test_a_request_draws_from_the_cohort_its_path_addresses():
-    bind, marked = await _bind_for({"guild_id": "5"})
+    bind, marked = await _bind_for({"community_id": "5"})
     assert bind is cohorts.request_sessionmaker(5).kw["bind"]
     assert bind is not cohorts.request_sessionmaker(4).kw["bind"]
     assert marked
@@ -199,33 +197,3 @@ async def test_reads_that_may_trail_use_the_replica_when_there_is_one(
     finally:
         for engine in engines:
             await engine.dispose()
-
-
-async def test_a_step_runs_once_its_transaction_commits():
-    ran: list[str] = []
-
-    def step(name: str) -> cohorts.Step:
-        async def record() -> None:
-            await asyncio.sleep(0.01)
-            ran.append(name)
-
-        return record
-
-    async with cohorts.system_session(None) as session:
-        await session.exec(text("SELECT 1"))
-        cohorts.after_commit(session, step("rolled back"))
-        await session.rollback()
-
-        await session.exec(text("SELECT 1"))
-        savepoint = await session.begin_nested()
-        cohorts.after_commit(session, step("savepoint rolled back"))
-        await savepoint.rollback()
-        savepoint = await session.begin_nested()
-        cohorts.after_commit(session, step("savepoint released"))
-        await savepoint.commit()
-        await cohorts.settle(session)
-        assert ran == []
-
-        await session.commit()
-        await cohorts.settle(session)
-    assert ran == ["savepoint released"]

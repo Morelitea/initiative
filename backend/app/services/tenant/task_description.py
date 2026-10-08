@@ -65,9 +65,9 @@ async def description_saved(
     names.
 
     ``previous`` is the description as it stood before this save — ``None`` for
-    a task that is new. ``author`` is ``None`` for an installed app, whose
+    a task that is new. ``author`` is ``None`` for an installed plug-in, whose
     save records references and tells nobody: a mention names a person by
-    their row id, which an app does not hold. Rides the caller's transaction;
+    their row id, which a plug-in does not hold. Rides the caller's transaction;
     the caller commits.
     """
     await record_references(
@@ -76,7 +76,7 @@ async def description_saved(
     if author is None:
         return
 
-    name = notifications_service.actor_name(author)
+    name = await notifications_service.actor_name(session, author)
     await notifications_service.notify(
         session,
         NotificationType.mention,

@@ -1,24 +1,33 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import List, Literal, Optional
+from typing import TYPE_CHECKING, Any, List, Literal, Optional
 
 from pydantic import ConfigDict, Field
+from sqlalchemy import inspect as sa_inspect
 
-from app.core.identity_boundary import GuildId, PersonId
-from app.schemas.base import RichTextStr, SanitizedBaseModel, TitleStr
+from app.core.identity_boundary import PersonId
+from app.schemas.base import (
+    RichMentionStr,
+    RichTextStr,
+    SanitizedBaseModel,
+    TitleStr,
+    reject_null,
+)
 from app.schemas.query import PageMeta
-from app.schemas.tenant.archive import ToolCan, ToolState
+from app.schemas.tenant.archive import ToolCan
 
 from app.schemas.tenant.resource_grant import ResourceGrantSchema, initiative_readable
 from app.schemas.tenant.initiative import InitiativeSummary
-from app.schemas.tenant.ownership import OwnerAppSummary
-from app.schemas.tenant.document import ProjectDocumentSummary
-from app.schemas.tenant.property import PropertiesOnCreate, PropertySummary
-from app.schemas.tenant.tag import TagSummary
+from app.schemas.tenant.ownership import OwnerPluginSummary, owner_profile
+from app.schemas.tenant.property import PropertiesOnCreate
+from app.schemas.tenant.tool import ToolSummaryBase
 from app.schemas.tenant.task_status import TaskStatusRead
 from app.schemas.platform.user import UserPublic
 from app.schemas.tenant.comment import CommentAuthor
+
+if TYPE_CHECKING:  # pragma: no cover
+    from app.db.guild_standing import ActorContext
 
 
 # The task views a project can open on. Kept as a Literal rather than a
@@ -32,7 +41,7 @@ PROJECT_ICON_MAX_LENGTH = 8
 
 class ProjectBase(SanitizedBaseModel):
     name: str
-    description: Optional[RichTextStr] = None
+    description: Optional[RichMentionStr] = None
     # The emoji shown beside the project's name, bounded to match the column.
     icon: Optional[str] = Field(default=None, max_length=PROJECT_ICON_MAX_LENGTH)
     # Optional whole-day schedule; either end may be set on its own.
@@ -51,7 +60,7 @@ class ProjectCreate(ProjectBase, PropertiesOnCreate):
 
 class ProjectUpdate(SanitizedBaseModel):
     name: Optional[TitleStr] = None
-    description: Optional[RichTextStr] = None
+    description: Optional[RichMentionStr] = None
     icon: Optional[str] = Field(default=None, max_length=PROJECT_ICON_MAX_LENGTH)
     is_template: Optional[bool] = None
     pinned: Optional[bool] = None
@@ -62,6 +71,8 @@ class ProjectUpdate(SanitizedBaseModel):
     # Send ``null`` to clear a date; omit the field to leave it untouched.
     start_date: Optional[date] = None
     end_date: Optional[date] = None
+
+    _required = reject_null("name", "is_template")
 
 
 class ProjectTaskSummary(SanitizedBaseModel):
@@ -77,60 +88,71 @@ class ProjectCan(ToolCan):
     configure: bool = False
 
 
-class ProjectRead(ProjectBase, ToolState):
-    model_config = ConfigDict(
-        from_attributes=True, json_schema_serialization_defaults_required=True
-    )
+class ProjectRead(ProjectBase, ToolSummaryBase):
+    # ``validate_by_name`` so ``derived_fields`` can set ``owner``,
+    # ``owner_plugin`` and ``task_statuses`` by name; their aliases keep
+    # ``from_attributes`` from reading an ORM relationship.
+    model_config = ConfigDict(validate_by_name=True)
 
-    id: int
     # Who owns the project: the person holding its owner-level grant, or None
-    # when nobody does or an app does (``owner_app``). ``owner`` carries the
-    # same fact with the user attached;
-    # its ``validation_alias`` (an attribute the ORM row never has) keeps
-    # ``model_validate(project)`` from reaching for a relationship that may not
-    # be loaded — it is set explicitly in ``_build_project_payload``.
+    # when nobody does or a plug-in does (``owner_plugin``). ``owner`` carries the
+    # same fact with the user attached.
     owner_id: Optional[PersonId] = None
-    initiative_id: int
-    #: The community this project lives in — the one fact a cross-guild list
-    #: needs to address the row, and what every other tool summary carries.
-    #: Left out of the slim picker projection, which never leaves one guild.
-    guild_id: Optional[GuildId] = None
-    created_at: datetime
-    updated_at: datetime
     is_template: bool
     pinned_at: Optional[datetime] = None
-    default_view_mode: Optional[str] = None
+    default_view_mode: Optional[ProjectViewMode] = None
     owner: Optional[UserPublic] = Field(default=None, validation_alias="owner_source")
-    #: The installed app holding the owner grant, or None when a person owns
+    #: The installed plug-in holding the owner grant, or None when a person owns
     #: the project or nobody does. At most one of ``owner_id`` and this is set.
-    owner_app: Optional[OwnerAppSummary] = Field(
-        default=None, validation_alias="owner_app_source"
+    owner_plugin: Optional[OwnerPluginSummary] = Field(
+        default=None, validation_alias="owner_plugin_source"
     )
     initiative: Optional[InitiativeSummary] = None
     can: ProjectCan = Field(default_factory=ProjectCan)
-    sort_order: Optional[float] = None
     is_favorited: bool = False
     last_viewed_at: Optional[datetime] = None
-    documents: List[ProjectDocumentSummary] = Field(default_factory=list)
     task_summary: ProjectTaskSummary = Field(default_factory=ProjectTaskSummary)
-    # The project's task statuses (ordered by position). Populated on the
-    # single-project detail read and mutation responses so a caller has the
-    # status ids it needs to place or move a task; left empty in list
-    # projections, which stay lean. The ``validation_alias`` (an attribute the
-    # ORM row never has) stops ``model_validate(project)`` from auto-pulling the
-    # relationship — which would lazy-load and fail on the paths that don't
-    # eager-load it; the value is set explicitly in ``_build_project_payload``.
+    # The project's task statuses (ordered by position), on a read that loaded
+    # them — the detail read and a write's answer — so a caller has the status
+    # ids it needs to place or move a task. Empty on a list.
     task_statuses: List[TaskStatusRead] = Field(
         default_factory=list, validation_alias="task_statuses_source"
     )
-    # When false this entity's comment thread is off — the UI renders none
-    # and the API refuses to read or post one. Tasks are unaffected; their
-    # thread belongs to the task, not to the tool.
-    comments_enabled: bool = True
-    tags: List[TagSummary] = Field(default_factory=list)
-    properties: List[PropertySummary] = Field(default_factory=list)
-    # The full sharing state — every resource_grants row for this resource.
-    grants: List[ResourceGrantSchema] = Field(default_factory=list)
+
+    @classmethod
+    def derived_fields(
+        cls, row: Any, *, context: ActorContext, user_id: Optional[int]
+    ) -> dict[str, Any]:
+        from app.services.tenant.ownership import owner_plugin_of, owner_user_id_of
+
+        return {
+            "can": project_can(row, user_id, context=context),
+            "owner_id": owner_user_id_of(row),
+            "owner": owner_profile(row),
+            "owner_plugin": owner_plugin_of(row),
+            "task_statuses": _task_statuses(row),
+        }
+
+
+def project_can(
+    project: Any, user_id: Optional[int], *, context: ActorContext
+) -> ProjectCan:
+    """What the reader may do to the project, configuring it included."""
+    from app.services.permissions import Action, allows, client_access
+
+    return ProjectCan(
+        **client_access(project, user_id, context=context),
+        configure=allows(project, Action.configure),
+    )
+
+
+def _task_statuses(project: Any) -> List[TaskStatusRead]:
+    """The project's task statuses by position, or none when the read did not
+    load them — a list never does, and reaching for them would lazy-load."""
+    if "task_statuses" in sa_inspect(project).unloaded:
+        return []
+    statuses = sorted(project.task_statuses, key=lambda s: (s.position, s.id or 0))
+    return [TaskStatusRead.model_validate(status) for status in statuses]
 
 
 class ProjectListResponse(PageMeta):
@@ -139,13 +161,6 @@ class ProjectListResponse(PageMeta):
 
 class ProjectReorderRequest(SanitizedBaseModel):
     project_ids: List[int] = Field(default_factory=list)
-
-
-class ProjectFavoriteStatus(SanitizedBaseModel):
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
-    project_id: int
-    is_favorited: bool
 
 
 class ProjectActivityEntry(SanitizedBaseModel):
@@ -157,8 +172,5 @@ class ProjectActivityEntry(SanitizedBaseModel):
     task_title: str
 
 
-class ProjectActivityResponse(SanitizedBaseModel):
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
+class ProjectActivityResponse(PageMeta):
     items: List[ProjectActivityEntry]
-    next_page: Optional[int] = None

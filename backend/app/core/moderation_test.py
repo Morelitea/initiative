@@ -79,7 +79,11 @@ def test_every_platform_target_names_a_public_relation():
     """
     from app.core.moderation import PLATFORM_TARGET_RELATION
 
-    assert set(PLATFORM_TARGET_RELATION.values()) <= {"user_profiles", "guilds"}
+    assert set(PLATFORM_TARGET_RELATION.values()) <= {
+        "user_profiles",
+        "guilds",
+        "marketplace_listings",
+    }
     assert "users" not in set(PLATFORM_TARGET_RELATION.values())
 
 
@@ -102,6 +106,15 @@ def test_every_platform_relation_resolves_to_a_table():
     assert "is_community" in listing.c
 
 
+def test_a_marketplace_listing_is_the_platforms():
+    """The catalog is the server's, so a listing is reported to its operators,
+    whichever community the reporter was standing in."""
+    assert venue_for(PlatformReportTarget.marketplace_listing) is ReportVenue.platform
+    assert (
+        parse_target("marketplace_listing") is PlatformReportTarget.marketplace_listing
+    )
+
+
 def test_private_conversations_are_not_reportable():
     """Direct messages are not moderated, so nothing can name one.
 
@@ -119,7 +132,7 @@ def test_every_target_carries_an_id_a_report_can_hold():
     from app.core.moderation import PLATFORM_TARGET_RELATION
 
     assert all(
-        relation in {"user_profiles", "guilds"}
+        relation in {"user_profiles", "guilds", "marketplace_listings"}
         for relation in PLATFORM_TARGET_RELATION.values()
     )
 

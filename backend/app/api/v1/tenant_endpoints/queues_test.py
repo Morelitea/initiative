@@ -2,20 +2,23 @@
 Integration tests for queue endpoints — CRUD, items, turns, permissions.
 """
 
+from datetime import datetime, timezone
+
 from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import CommunityRole
 from app.models.tenant.initiative import InitiativeRoleModel
-from app.core.messages import SharingMessages
+from app.core.messages import RelationshipMessages, SharingMessages
 from app.core.tools import Tool
 from app.testing import (
     Actor,
-    create_document,
+    create_file,
     create_initiative,
     create_project,
     create_queue,
+    create_queue_item,
     create_task,
     grant_role_permission,
 )
@@ -65,7 +68,7 @@ async def _add_item_via_api(
 
 async def test_create_queue(client: AsyncClient, acting_user):
     """PM can create a queue."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
 
     response = await client.post(
         a.g("/queues/"),
@@ -86,12 +89,19 @@ async def test_create_queue(client: AsyncClient, acting_user):
     assert data["is_active"] is False
     assert data["current_round"] == 1
 
+    blank = await client.post(
+        a.g("/queues/"),
+        headers=a.headers,
+        json={"name": "  ", "initiative_id": a.initiative.id},
+    )
+    assert blank.status_code == 422, blank.text
+
 
 async def test_create_queue_non_pm_forbidden(client: AsyncClient, acting_user):
     """Non-PM member cannot create a queue (unless role allows it)."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=admin.guild,
         initiative=admin.initiative,
         initiative_role="member",
@@ -111,7 +121,7 @@ async def test_create_queue_non_pm_forbidden(client: AsyncClient, acting_user):
 
 async def test_list_queues(client: AsyncClient, acting_user, session):
     """Admin can list queues, narrowed to the running or the stopped ones."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _create_queue_via_api(client, a, "Listed Queue")
     await create_queue(session, a.initiative, a.user, name="Running", is_active=True)
 
@@ -130,9 +140,40 @@ async def test_list_queues(client: AsyncClient, acting_user, session):
         assert [q["name"] for q in narrowed.json()["items"]] == expected
 
 
+async def test_list_queues_previews_whose_turn_it_is(
+    client: AsyncClient, acting_user, session
+):
+    """Asked for previews, the list says whose turn it is on each queue and
+    who follows, the way the queue advances: a held item comes up once its
+    round is due, and is passed over until then."""
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
+    queue = await create_queue(session, a.initiative, a.user, is_active=True)
+    items = {
+        label: await create_queue_item(session, queue, label=label, position=position)
+        for label, position in (("A", 4), ("B", 3), ("C", 2), ("D", 1))
+    }
+    await create_queue_item(session, queue, label="Due", position=0.5, held_at_round=1)
+    await create_queue_item(session, queue, label="Held", position=0, held_at_round=2)
+    queue.current_item_id = items["C"].id
+    queue.current_round = 2
+    session.add(queue)
+    await session.commit()
+
+    plain = await client.get(a.g("/queues/"), headers=a.headers)
+    previewed = await client.get(
+        a.g("/queues/"), headers=a.headers, params={"include_preview": True}
+    )
+
+    assert plain.json()["items"][0]["preview"] is None
+    assert [
+        (turn["label"], turn["current"])
+        for turn in previewed.json()["items"][0]["preview"]
+    ] == [("C", True), ("D", False), ("Due", False)]
+
+
 async def test_get_queue(client: AsyncClient, acting_user):
     """Owner can fetch queue details."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     queue_data = await _create_queue_via_api(client, a)
 
     response = await client.get(a.g(f"/queues/{queue_data['id']}"), headers=a.headers)
@@ -145,13 +186,13 @@ async def test_get_queue(client: AsyncClient, acting_user):
 
 async def test_update_queue(client: AsyncClient, acting_user):
     """Owner can update queue name/description."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     queue_data = await _create_queue_via_api(client, a)
 
     response = await client.patch(
         a.g(f"/queues/{queue_data['id']}"),
         headers=a.headers,
-        json={"name": "Updated Name", "description": "Updated desc"},
+        json={"name": "  Updated Name  ", "description": "Updated desc"},
     )
 
     assert response.status_code == 200
@@ -159,10 +200,16 @@ async def test_update_queue(client: AsyncClient, acting_user):
     assert data["name"] == "Updated Name"
     assert data["description"] == "Updated desc"
 
+    for name in (None, "  "):
+        refused = await client.patch(
+            a.g(f"/queues/{queue_data['id']}"), headers=a.headers, json={"name": name}
+        )
+        assert refused.status_code == 422, name
+
 
 async def test_delete_queue(client: AsyncClient, acting_user):
     """Owner can delete a queue."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     queue_data = await _create_queue_via_api(client, a)
 
     response = await client.delete(
@@ -182,7 +229,7 @@ async def test_delete_queue(client: AsyncClient, acting_user):
 
 async def test_add_queue_item(client: AsyncClient, acting_user):
     """Owner can add an item to a queue."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     queue_data = await _create_queue_via_api(client, a)
 
     response = await client.post(
@@ -198,7 +245,7 @@ async def test_add_queue_item(client: AsyncClient, acting_user):
     assert data["color"] == "#FF0000"
 
     # A queue item names only someone who can open the queue.
-    outsider = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    outsider = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
     refused = await client.post(
         a.g(f"/queues/{queue_data['id']}/items"),
         headers=a.headers,
@@ -208,14 +255,42 @@ async def test_add_queue_item(client: AsyncClient, acting_user):
     assert refused.json()["detail"] == "PERSON_CANNOT_READ"
 
 
+async def test_an_item_attaches_only_what_a_picker_could(
+    client: AsyncClient, acting_user, session: AsyncSession
+):
+    """A new item's tasks answer to what the relationships surface asks of a
+    link: both ends in one initiative, neither archived."""
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
+    queue_data = await _create_queue_via_api(client, a)
+    elsewhere = await create_initiative(session, a.guild, a.user)
+    foreign_task = await create_task(
+        session, await create_project(session, elsewhere, a.user)
+    )
+    archived_task = await create_task(
+        session, a.project, archived_at=datetime.now(timezone.utc)
+    )
+
+    for attach, detail in (
+        ({"task_ids": [foreign_task.id]}, RelationshipMessages.CROSS_INITIATIVE),
+        ({"task_ids": [archived_task.id]}, RelationshipMessages.ENDPOINT_ARCHIVED),
+    ):
+        refused = await client.post(
+            a.g(f"/queues/{queue_data['id']}/items"),
+            headers=a.headers,
+            json={"label": "Elara", **attach},
+        )
+        assert refused.status_code == 400, refused.text
+        assert refused.json()["detail"] == detail
+
+
 async def test_update_queue_item(client: AsyncClient, acting_user):
     """Owner can update an item."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     queue_data = await _create_queue_via_api(client, a)
     item_data = await _add_item_via_api(client, a, queue_data["id"], "Original")
 
     response = await client.patch(
-        a.g(f"/queues/{queue_data['id']}/items/{item_data['id']}"),
+        a.g(f"/queue-items/{item_data['id']}"),
         headers=a.headers,
         json={"label": "Renamed", "position": 5},
     )
@@ -225,26 +300,60 @@ async def test_update_queue_item(client: AsyncClient, acting_user):
     assert data["label"] == "Renamed"
     assert data["position"] == 5
 
+    # A required field is omitted to keep it, never nulled or blanked.
+    for body in (
+        {"label": None},
+        {"label": "  "},
+        {"position": None},
+        {"is_visible": None},
+    ):
+        response = await client.patch(
+            a.g(f"/queue-items/{item_data['id']}"), headers=a.headers, json=body
+        )
+        assert response.status_code == 422, body
+
+    # Notes clear with a null.
+    noted = await client.patch(
+        a.g(f"/queue-items/{item_data['id']}"),
+        headers=a.headers,
+        json={"notes": "Concentrating"},
+    )
+    assert noted.json()["notes"] == "Concentrating"
+    cleared = await client.patch(
+        a.g(f"/queue-items/{item_data['id']}"), headers=a.headers, json={"notes": None}
+    )
+    assert cleared.json()["notes"] is None
+
 
 async def test_delete_queue_item(client: AsyncClient, acting_user):
     """Owner can delete an item."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     queue_data = await _create_queue_via_api(client, a)
     item_data = await _add_item_via_api(client, a, queue_data["id"], "To Delete")
 
     response = await client.delete(
-        a.g(f"/queues/{queue_data['id']}/items/{item_data['id']}"),
+        a.g(f"/queue-items/{item_data['id']}"),
         headers=a.headers,
     )
     assert response.status_code == 204
 
+    # A trashed item stays out of the queue's items, even when trashed rows
+    # are asked for.
+    read = await client.get(
+        a.g(f"/queues/{queue_data['id']}"),
+        headers=a.headers,
+        params={"include_deleted": "true"},
+    )
+    assert read.status_code == 200, read.text
+    assert read.json()["items"] == []
+
 
 async def test_fractional_positions(client: AsyncClient, acting_user):
     """Items with the same integer initiative can be split by a fractional position."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     queue_data = await _create_queue_via_api(client, a)
     item_a = await _add_item_via_api(client, a, queue_data["id"], "A", position=10)
-    await _add_item_via_api(client, a, queue_data["id"], "B", position=10)
+    item_b = await _add_item_via_api(client, a, queue_data["id"], "B", position=10)
 
     # Drop C between A and B without renumbering either.
     response = await client.post(
@@ -254,10 +363,11 @@ async def test_fractional_positions(client: AsyncClient, acting_user):
     )
     assert response.status_code == 201
     assert response.json()["position"] == 10.5
+    item_c = response.json()
 
     # Persisted precision survives a round-trip.
     update = await client.patch(
-        a.g(f"/queues/{queue_data['id']}/items/{item_a['id']}"),
+        a.g(f"/queue-items/{item_a['id']}"),
         headers=a.headers,
         json={"position": 10.25},
     )
@@ -270,19 +380,19 @@ async def test_fractional_positions(client: AsyncClient, acting_user):
         a.g(f"/queues/{queue_data['id']}/start"), headers=a.headers
     )
     assert start.status_code == 200
-    assert start.json()["current_item"]["label"] == "C"
+    assert start.json()["current_item_id"] == item_c["id"]
 
     second = await client.post(
         a.g(f"/queues/{queue_data['id']}/next"), headers=a.headers
     )
     assert second.status_code == 200
-    assert second.json()["current_item"]["label"] == "A"
+    assert second.json()["current_item_id"] == item_a["id"]
 
     third = await client.post(
         a.g(f"/queues/{queue_data['id']}/next"), headers=a.headers
     )
     assert third.status_code == 200
-    assert third.json()["current_item"]["label"] == "B"
+    assert third.json()["current_item_id"] == item_b["id"]
 
 
 # ---------------------------------------------------------------------------
@@ -292,7 +402,7 @@ async def test_fractional_positions(client: AsyncClient, acting_user):
 
 async def test_start_and_stop_queue(client: AsyncClient, acting_user):
     """Start activates the queue, stop deactivates it."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     queue_data = await _create_queue_via_api(client, a)
     await _add_item_via_api(client, a, queue_data["id"], "P1", position=10)
 
@@ -303,7 +413,7 @@ async def test_start_and_stop_queue(client: AsyncClient, acting_user):
     assert response.status_code == 200
     data = response.json()
     assert data["is_active"] is True
-    assert data["current_item"] is not None
+    assert data["current_item_id"] is not None
 
     # Stop
     response = await client.post(
@@ -316,7 +426,7 @@ async def test_start_and_stop_queue(client: AsyncClient, acting_user):
 
 async def test_advance_turn(client: AsyncClient, acting_user):
     """Advancing cycles through visible items."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     queue_data = await _create_queue_via_api(client, a)
     await _add_item_via_api(client, a, queue_data["id"], "A", position=10)
     await _add_item_via_api(client, a, queue_data["id"], "B", position=20)
@@ -333,7 +443,7 @@ async def test_advance_turn(client: AsyncClient, acting_user):
 
 async def test_reset_queue(client: AsyncClient, acting_user):
     """Reset resets round to 1 and sets current to first visible item."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     queue_data = await _create_queue_via_api(client, a)
     await _add_item_via_api(client, a, queue_data["id"], "P1", position=5)
 
@@ -345,7 +455,7 @@ async def test_reset_queue(client: AsyncClient, acting_user):
     assert response.status_code == 200
     data = response.json()
     assert data["current_round"] == 1
-    assert data["current_item"] is not None
+    assert data["current_item_id"] is not None
 
 
 # ---------------------------------------------------------------------------
@@ -375,7 +485,7 @@ async def test_hold_current_records_round_and_advances(
     client: AsyncClient, acting_user
 ):
     """Hold the current item: held_at_round is set, current advances past it."""
-    actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    actor = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     queue_data, a, b, _c = await _running_queue_with_abc(client, actor)
 
     response = await client.post(
@@ -383,15 +493,15 @@ async def test_hold_current_records_round_and_advances(
     )
     assert response.status_code == 200
     payload = response.json()
-    assert payload["current_item"]["id"] == b["id"]
+    assert payload["current_item_id"] == b["id"]
     assert payload["current_round"] == 1
     by_id = _items_by_id(payload)
     assert by_id[a["id"]]["held_at_round"] == 1
 
 
 async def test_hold_only_item_clears_current(client: AsyncClient, acting_user):
-    """Holding the last rotation-eligible item leaves current_item = None."""
-    actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    """Holding the last rotation-eligible item leaves current_item_id = None."""
+    actor = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     queue_data = await _create_queue_via_api(client, actor)
     a = await _add_item_via_api(client, actor, queue_data["id"], "Solo", position=10)
     await client.post(
@@ -403,13 +513,13 @@ async def test_hold_only_item_clears_current(client: AsyncClient, acting_user):
     )
     assert response.status_code == 200
     payload = response.json()
-    assert payload["current_item"] is None
+    assert payload["current_item_id"] is None
     assert _items_by_id(payload)[a["id"]]["held_at_round"] == 1
 
 
 async def test_advance_auto_releases_at_natural_slot(client: AsyncClient, acting_user):
     """Held A returns to current when round 2 reaches A's position-desc slot."""
-    actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    actor = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     queue_data, a, b, c = await _running_queue_with_abc(client, actor)
 
     # Hold A; current is now B in round 1.
@@ -422,7 +532,7 @@ async def test_advance_auto_releases_at_natural_slot(client: AsyncClient, acting
             actor.g(f"/queues/{queue_data['id']}/next"), headers=actor.headers
         )
     ).json()
-    assert after_bc["current_item"]["id"] == c["id"]
+    assert after_bc["current_item_id"] == c["id"]
     assert after_bc["current_round"] == 1
     # C -> wraps to round 2; A is the next visible position-desc slot and is
     # auto-released because held_at_round (1) < new round (2).
@@ -431,7 +541,7 @@ async def test_advance_auto_releases_at_natural_slot(client: AsyncClient, acting
             actor.g(f"/queues/{queue_data['id']}/next"), headers=actor.headers
         )
     ).json()
-    assert after_wrap["current_item"]["id"] == a["id"]
+    assert after_wrap["current_item_id"] == a["id"]
     assert after_wrap["current_round"] == 2
     assert _items_by_id(after_wrap)[a["id"]]["held_at_round"] is None
     # B and C are untouched.
@@ -444,7 +554,7 @@ async def test_release_clears_hold_without_rewinding(client: AsyncClient, acting
     The released item rejoins the rotation; whoever was currently up stays up
     so the rotation doesn't double-act items that already took their turn.
     """
-    actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    actor = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     queue_data, a, b, _c = await _running_queue_with_abc(client, actor)
 
     # Hold A; current is B.
@@ -457,7 +567,7 @@ async def test_release_clears_hold_without_rewinding(client: AsyncClient, acting
     )
     assert response.status_code == 200
     payload = response.json()
-    assert payload["current_item"]["id"] == b["id"]  # unchanged
+    assert payload["current_item_id"] == b["id"]  # unchanged
     assert payload["current_round"] == 1
     assert _items_by_id(payload)[a["id"]]["held_at_round"] is None
 
@@ -466,7 +576,7 @@ async def test_release_with_reposition_lifts_target_above_current(
     client: AsyncClient, acting_user
 ):
     """Reposition places the released item above current and makes them act now."""
-    actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    actor = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     queue_data, a, b, c = await _running_queue_with_abc(client, actor)
 
     # Hold A (pos 30) on its turn → current becomes B (pos 20). After hold,
@@ -484,7 +594,7 @@ async def test_release_with_reposition_lifts_target_above_current(
     )
     assert response.status_code == 200
     payload = response.json()
-    assert payload["current_item"]["id"] == a["id"]  # A is now current
+    assert payload["current_item_id"] == a["id"]  # A is now current
     by_id = _items_by_id(payload)
     assert by_id[a["id"]]["held_at_round"] is None
     # A's new position is strictly above B's (and B is still above C).
@@ -500,14 +610,14 @@ async def test_release_with_reposition_lifts_target_above_current(
             actor.g(f"/queues/{queue_data['id']}/next"), headers=actor.headers
         )
     ).json()
-    assert after_next["current_item"]["id"] == b["id"]
+    assert after_next["current_item_id"] == b["id"]
 
 
 async def test_release_with_reposition_between_current_and_higher(
     client: AsyncClient, acting_user
 ):
     """When other active items sit above current, target lands between them."""
-    actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    actor = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     queue_data = await _create_queue_via_api(client, actor)
     a = await _add_item_via_api(client, actor, queue_data["id"], "A", position=30)
     b = await _add_item_via_api(client, actor, queue_data["id"], "B", position=20)
@@ -535,7 +645,7 @@ async def test_release_with_reposition_between_current_and_higher(
     by_id = _items_by_id(payload)
     assert by_id[b["id"]]["position"] == 20  # midpoint of 30 (A) and 10 (C)
     # B is now current — they're acting now, between A and C.
-    assert payload["current_item"]["id"] == b["id"]
+    assert payload["current_item_id"] == b["id"]
     # Sanity: A is still strictly above B, B above C.
     assert (
         by_id[a["id"]]["position"]
@@ -548,7 +658,7 @@ async def test_release_without_body_preserves_position(
     client: AsyncClient, acting_user
 ):
     """Calling release with an empty body keeps the original behavior (no reposition)."""
-    actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    actor = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     queue_data, a, _b, _c = await _running_queue_with_abc(client, actor)
 
     original_position = a["position"]
@@ -567,7 +677,7 @@ async def test_release_without_body_preserves_position(
 
 async def test_release_while_stopped(client: AsyncClient, acting_user):
     """Release works when the queue is stopped; is_active is preserved."""
-    actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    actor = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     queue_data, a, b, _c = await _running_queue_with_abc(client, actor)
 
     await client.post(
@@ -585,13 +695,13 @@ async def test_release_while_stopped(client: AsyncClient, acting_user):
     assert payload["is_active"] is False
     # Current pointer is whatever it was when we stopped — release doesn't
     # rewind it.
-    assert payload["current_item"]["id"] == b["id"]
+    assert payload["current_item_id"] == b["id"]
     assert _items_by_id(payload)[a["id"]]["held_at_round"] is None
 
 
 async def test_set_active_clears_held(client: AsyncClient, acting_user):
     """set-active on a held item also clears its held_at_round."""
-    actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    actor = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     queue_data, a, _b, _c = await _running_queue_with_abc(client, actor)
 
     await client.post(
@@ -603,13 +713,13 @@ async def test_set_active_clears_held(client: AsyncClient, acting_user):
     )
     assert response.status_code == 200
     payload = response.json()
-    assert payload["current_item"]["id"] == a["id"]
+    assert payload["current_item_id"] == a["id"]
     assert _items_by_id(payload)[a["id"]]["held_at_round"] is None
 
 
 async def test_previous_skips_held_no_auto_release(client: AsyncClient, acting_user):
     """Previous never lands on a held item, and never clears its hold."""
-    actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    actor = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     queue_data, a, _b, c = await _running_queue_with_abc(client, actor)
 
     # Hold A (round 1, current was A); current becomes B.
@@ -623,14 +733,14 @@ async def test_previous_skips_held_no_auto_release(client: AsyncClient, acting_u
     )
     assert response.status_code == 200
     payload = response.json()
-    assert payload["current_item"]["id"] == c["id"]
+    assert payload["current_item_id"] == c["id"]
     # A is still held.
     assert _items_by_id(payload)[a["id"]]["held_at_round"] == 1
 
 
 async def test_reset_preserves_held(client: AsyncClient, acting_user):
     """Reset jumps to the highest un-held item; held items stay held."""
-    actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    actor = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     queue_data, a, b, _c = await _running_queue_with_abc(client, actor)
 
     await client.post(
@@ -642,13 +752,13 @@ async def test_reset_preserves_held(client: AsyncClient, acting_user):
     assert response.status_code == 200
     payload = response.json()
     assert payload["current_round"] == 1
-    assert payload["current_item"]["id"] == b["id"]
+    assert payload["current_item_id"] == b["id"]
     assert _items_by_id(payload)[a["id"]]["held_at_round"] == 1
 
 
 async def test_hold_no_current_item(client: AsyncClient, acting_user):
     """Hold with no current item returns 400 NO_CURRENT_ITEM."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     queue_data = await _create_queue_via_api(client, a)
     await _add_item_via_api(client, a, queue_data["id"], "Solo", position=10)
     # Don't start: current_item_id stays None.
@@ -662,7 +772,7 @@ async def test_hold_no_current_item(client: AsyncClient, acting_user):
 
 async def test_release_unheld_item_returns_400(client: AsyncClient, acting_user):
     """Calling release on an item that isn't held returns ITEM_NOT_HELD."""
-    actor = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    actor = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     queue_data, a, _b, _c = await _running_queue_with_abc(client, actor)
 
     response = await client.post(
@@ -675,9 +785,9 @@ async def test_release_unheld_item_returns_400(client: AsyncClient, acting_user)
 
 async def test_hold_requires_write_access(client: AsyncClient, acting_user):
     """Members without write permission can't hold."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=admin.guild,
         initiative=admin.initiative,
         initiative_role="member",
@@ -702,9 +812,9 @@ async def test_sharing_does_not_reach_past_the_role_gate(
     endpoint behind it says so rather than accepting a grant that would do
     nothing — which is what a caller not going through the picker needs to
     hear."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     b = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=a.guild,
         initiative=a.initiative,
         initiative_role="member",
@@ -730,9 +840,9 @@ async def test_member_with_read_can_view_queue(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Member with read permission can view but not modify."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=admin.guild,
         initiative=admin.initiative,
         initiative_role="member",
@@ -763,9 +873,9 @@ async def test_member_with_read_can_view_queue(
 
 async def test_member_without_permission_cannot_view(client: AsyncClient, acting_user):
     """Member with no permission cannot access the queue."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=admin.guild,
         initiative=admin.initiative,
         initiative_role="member",
@@ -787,7 +897,7 @@ async def test_member_without_permission_cannot_view(client: AsyncClient, acting
 
 
 # ---------------------------------------------------------------------------
-# Item associations (tags, documents, tasks)
+# Item associations (tags, tasks)
 # ---------------------------------------------------------------------------
 
 
@@ -797,7 +907,7 @@ async def test_set_queue_item_tags(
     """Owner can set tags on a queue item."""
     from app.testing import create_tag
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     queue_data = await _create_queue_via_api(client, a)
     item_data = await _add_item_via_api(client, a, queue_data["id"], "Tagged")
 
@@ -805,7 +915,7 @@ async def test_set_queue_item_tags(
     tag = await create_tag(session, a.guild, name="Priority")
 
     response = await client.patch(
-        a.g(f"/queues/{queue_data['id']}/items/{item_data['id']}"),
+        a.g(f"/queue-items/{item_data['id']}"),
         headers=a.headers,
         json={"tag_ids": [tag.id]},
     )
@@ -820,9 +930,9 @@ async def test_create_queue_with_grants(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Create a queue with inline role and user grants."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=admin.guild,
         initiative=admin.initiative,
         initiative_role="member",
@@ -870,9 +980,9 @@ async def test_queue_counts_by_initiative(
 ):
     """Grouped counts mirror the list: DAC-visible queues in queues-enabled
     initiatives only, with no entry for unjoined initiatives."""
-    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     member = await acting_user(
-        guild_role=GuildRole.member,
+        guild_role=CommunityRole.member,
         guild=admin.guild,
         initiative=admin.initiative,
         initiative_role="member",
@@ -911,10 +1021,10 @@ async def test_queue_counts_by_initiative(
 async def test_a_queue_item_resolves_by_its_own_id(client, session, acting_user):
     """An envelope names ``(queue_items, id)`` and no parent queue, so the id
     has to be the whole address."""
-    from app.models.platform.guild import GuildRole
+    from app.models.platform.guild import CommunityRole
     from app.testing import create_queue, create_queue_item
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     queue = await create_queue(session, a.initiative, a.user)
     item = await create_queue_item(session, queue)
     await session.commit()
@@ -930,50 +1040,21 @@ async def test_a_queue_item_resolves_by_its_own_id(client, session, acting_user)
 # ---------------------------------------------------------------------------
 
 
-async def test_a_queue_read_as_a_whole_carries_what_its_items_hold(
-    client: AsyncClient, acting_user, session
-):
-    """Reading one item showed its attachments and reading the queue did not,
-    because the whole-queue serializer had no session to fetch them with — so a
-    reader opening a queue saw every item as holding nothing."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
-    queue_data = await _create_queue_via_api(client, a)
-    item = await _add_item_via_api(client, a, queue_data["id"], "Elara")
-    doc = await create_document(session, a.initiative, a.user)
-
-    linked = await client.post(
-        a.g("/relationships/"),
-        headers=a.headers,
-        json={
-            "source": {"type": "queue_item", "id": item["id"]},
-            "relationship_type": "attached",
-            "target": {"type": "document", "id": doc.id},
-        },
-    )
-    assert linked.status_code == 201, linked.text
-
-    read = await client.get(a.g(f"/queues/{queue_data['id']}"), headers=a.headers)
-    assert read.status_code == 200
-    (row,) = read.json()["items"]
-    assert [d["document_id"] for d in row["documents"]] == [doc.id]
-
-
 async def test_an_items_attachment_count_covers_every_kind(
     client: AsyncClient, acting_user, session
 ):
-    """A row saying "3 attachments" means three things. An item may be pinned to
-    any of the fourteen kinds, so the count cannot be the two lists added up."""
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    """A row saying "3 attachments" means three things: an item may be pinned
+    to any kind a link can name, and reading the queue as a whole counts them."""
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     queue_data = await _create_queue_via_api(client, a)
     item = await _add_item_via_api(client, a, queue_data["id"], "Elara")
 
-    doc = await create_document(session, a.initiative, a.user)
+    doc = await create_file(session, a.initiative, a.user)
     task = await create_task(session, a.project)
-    # Neither of the two kinds the item serialises a list for.
     other_project = await create_project(session, a.initiative, a.user)
 
     for kind, entity_id in (
-        ("document", doc.id),
+        ("file", doc.id),
         ("task", task.id),
         ("project", other_project.id),
     ):
@@ -991,9 +1072,6 @@ async def test_an_items_attachment_count_covers_every_kind(
     read = await client.get(a.g(f"/queues/{queue_data['id']}"), headers=a.headers)
     (row,) = read.json()["items"]
     assert row["attachment_count"] == 3
-    # The typed lists still only know about their own two kinds, which is why
-    # the count is asked for separately.
-    assert len(row["documents"]) + len(row["tasks"]) == 2
 
 
 async def test_a_copy_starts_its_rotation_over_with_its_items(
@@ -1012,12 +1090,12 @@ async def test_a_copy_starts_its_rotation_over_with_its_items(
         enable_all_tools,
     )
 
-    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await enable_all_tools(session, a.initiative)
     member = await acting_user(
-        guild_role=GuildRole.member, guild=a.guild, initiative=a.initiative
+        guild_role=CommunityRole.member, guild=a.guild, initiative=a.initiative
     )
-    outsider = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+    outsider = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
     queue = await create_queue(
         session, a.initiative, a.user, is_active=True, current_round=3
     )
@@ -1034,12 +1112,12 @@ async def test_a_copy_starts_its_rotation_over_with_its_items(
         session, queue, label="Theirs", position=1, user_id=outsider.user.id
     )
     await assign_tag(session, mine, await create_tag(session, a.guild), commit=True)
-    document = await create_document(session, a.initiative, a.user)
+    file = await create_file(session, a.initiative, a.user)
     await create_relationship(
         session,
         a.guild,
         source=(SearchEntityType.queue_item, mine.id),
-        target=(SearchEntityType.document, document.id),
+        target=(SearchEntityType.file, file.id),
         relationship_type=RelationshipType.attached,
     )
 
@@ -1057,5 +1135,45 @@ async def test_a_copy_starts_its_rotation_over_with_its_items(
         None,
     )
     assert len(first["tags"]) == 1
-    assert [d["document_id"] for d in first["documents"]] == [document.id]
+    assert first["attachment_count"] == 1
     assert (second["label"], second["user_id"]) == ("Theirs", None)
+
+
+async def test_a_copied_item_keeps_its_place_and_who_can_read_but_not_its_hold(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    from app.models.tenant.resource_grant import ResourceAccessLevel
+    from app.testing import create_queue_item, create_resource_grant
+
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
+    b = await acting_user(
+        guild_role=CommunityRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    outsider = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
+    queue = await create_queue(session, a.initiative, a.user)
+    await create_resource_grant(
+        session, queue, level=ResourceAccessLevel.read, user=b.user
+    )
+    goblin, stranger = [
+        await create_queue_item(
+            session, queue, label=label, position=12, user_id=user.id, held_at_round=2
+        )
+        for label, user in (("Goblin", b.user), ("Stranger", outsider.user))
+    ]
+
+    copies = [
+        await client.post(a.g(f"/queue-items/{item.id}/duplicate"), headers=a.headers)
+        for item in (goblin, stranger)
+    ]
+
+    assert [copy.status_code for copy in copies] == [201, 201], copies[0].text
+    assert [
+        (c["label"], c["position"], c["user_id"], c["held_at_round"])
+        for c in (copy.json() for copy in copies)
+    ] == [
+        ("Goblin (Copy)", 12, b.user.id, None),
+        ("Stranger (Copy)", 12, None, None),
+    ]
