@@ -113,7 +113,7 @@ describe("compileTemplate", () => {
     ]);
   });
 
-  it("refuses markup that could run, submit, frame or escape", () => {
+  it("allows only the elements and attributes on its lists", () => {
     expect(errorsOf(`<part name="title" /><script></script>`)).toEqual([
       "<script> is not an element templates may use (line 1, column 22)",
     ]);

@@ -64,7 +64,7 @@ describe("renderTemplate", () => {
        <a href="https://example.com">Outside</a>
        <a :href="'/c/8/i/1'">Another community</a>
        <img data-testid="ours" src="/uploads/7/a.png" alt="ours" />
-       <img src="https://tracker.example/pixel.png" alt="theirs" />
+       <img src="https://example.com/a.png" alt="theirs" />
        <div data-testid="styled" :style="{ '--gap': 4, '--ok': '#fff', '--bad': 'url(https://x)', 'color': 'red' }"></div>`,
       buildTask()
     );
