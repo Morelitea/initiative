@@ -88,6 +88,23 @@ describe("TicketPage", () => {
     expect(reply).toHaveBeenCalledWith({ body: "This one.", files: [photo] });
   });
 
+  it("starts another ticket's page without the last one's draft", async () => {
+    state.ticket = ticket();
+    const user = userEvent.setup();
+    const { router } = open();
+    const photo = new File(["png"], "screen.png", { type: "image/png" });
+    await user.upload(await screen.findByTestId("evidence-input"), photo);
+    await user.type(screen.getByRole("textbox"), "Half an answer");
+    expect(screen.getByText("screen.png")).toBeInTheDocument();
+
+    state.ticket = ticket({ task_id: 8, subject: "Another one" });
+    await router.navigate({ to: "/my-tickets/$taskId", params: { taskId: "8" } });
+
+    expect(await screen.findByRole("heading", { name: "Another one" })).toBeInTheDocument();
+    expect(screen.queryByText("screen.png")).toBeNull();
+    expect(screen.getByRole("textbox")).toHaveValue("");
+  });
+
   it("shows what the reader sent beside what they said", async () => {
     state.ticket = ticket({
       messages: [

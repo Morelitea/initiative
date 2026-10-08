@@ -66,9 +66,14 @@ const replyNote = (
 };
 
 export const TicketPage = () => {
-  const { t } = useTranslation(["intake", "common"]);
   const { taskId: raw } = useParams({ strict: false }) as { taskId: string };
-  const taskId = Number(raw);
+  // One ticket's draft is never another's: opening a different ticket on the
+  // same route starts its page afresh.
+  return <TicketView key={raw} taskId={Number(raw)} />;
+};
+
+const TicketView = ({ taskId }: { taskId: number }) => {
+  const { t } = useTranslation(["intake", "common"]);
   const ticketQuery = useFiledTicket(taskId, { enabled: Number.isFinite(taskId) });
   const [reply, setReply] = useState("");
   const [files, setFiles] = useState<File[]>([]);

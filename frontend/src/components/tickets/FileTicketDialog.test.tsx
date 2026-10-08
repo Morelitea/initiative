@@ -20,7 +20,7 @@ const contacts = vi.hoisted(() => ({ moderation: null as string | null }));
 const POLICY = vi.hoisted(() => ({
   max_files: 2,
   max_bytes: 1024,
-  types: ["image/png", "application/pdf"],
+  types: ["image/png", "application/pdf", "text/plain"],
 }));
 
 vi.mock("@/hooks/useTickets", async () => {
@@ -232,6 +232,17 @@ describe("FileTicketDialog", () => {
       expect(screen.getByRole("alert")).toHaveTextContent("big.png is larger than 1 KB.");
       await user.upload(screen.getByTestId("evidence-input"), odd);
       expect(screen.getByRole("alert")).toHaveTextContent("a.zip isn't a kind of file this takes.");
+    });
+
+    it("leaves a file the browser cannot name, and any text, to the server", async () => {
+      report();
+      const user = userEvent.setup({ applyAccept: false });
+      const notes = new File(["# notes"], "notes.md", { type: "text/markdown" });
+      const unnamed = new File(["?"], "scan", { type: "" });
+      await user.upload(screen.getByTestId("evidence-input"), [notes, unnamed]);
+      expect(screen.queryByRole("alert")).toBeNull();
+      expect(screen.getByText("notes.md")).toBeInTheDocument();
+      expect(screen.getByText("scan")).toBeInTheDocument();
     });
 
     it("stops at as many files as the stream takes", async () => {

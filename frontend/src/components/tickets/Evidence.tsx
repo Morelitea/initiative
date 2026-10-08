@@ -23,6 +23,20 @@ const SHOWN_IN_PLACE = new Set(["image/png", "image/jpeg", "image/gif", "image/w
 
 export const isPicture = (contentType: string) => SHOWN_IN_PLACE.has(contentType);
 
+/**
+ * Whether the stream may take ``file``, as far as the browser can tell. An
+ * unnamed type is left to the server, which reads the bytes; any text is
+ * taken as text, as the server takes it.
+ */
+const mayTake = (file: File, types: string[]) =>
+  !file.type ||
+  types.includes(file.type) ||
+  (file.type.startsWith("text/") && types.includes("text/plain"));
+
+/** What the file chooser offers: the stream's types, and any text where it takes text. */
+const acceptFor = (types: string[]) =>
+  (types.includes("text/plain") ? [...types, "text/*"] : types).join(",");
+
 /** One chosen file, told apart from the rest without its place in the list. */
 const fileKey = (file: File) => `${file.name}:${file.size}:${file.lastModified}`;
 
@@ -59,7 +73,7 @@ export const EvidencePicker = ({ policy, files, onChange, disabled }: EvidencePi
     for (const file of Array.from(chosen)) {
       if (next.some((held) => fileKey(held) === fileKey(file))) {
         // Chosen twice: it is sent once.
-      } else if (!policy.types.includes(file.type)) {
+      } else if (!mayTake(file, policy.types)) {
         said = t("evidence.notAllowed", { name: file.name });
       } else if (file.size > policy.max_bytes) {
         said = t("evidence.tooLarge", { name: file.name, size });
@@ -83,7 +97,7 @@ export const EvidencePicker = ({ policy, files, onChange, disabled }: EvidencePi
           type="file"
           multiple
           className="sr-only"
-          accept={policy.types.join(",")}
+          accept={acceptFor(policy.types)}
           onChange={(event) => add(event.target.files)}
           disabled={disabled}
           aria-describedby={hintId}
