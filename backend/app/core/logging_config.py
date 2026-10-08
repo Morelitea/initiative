@@ -62,11 +62,8 @@ class LiveStreamHandler(logging.StreamHandler):
 
 
 class MaskUrlToken(logging.Filter):
-    """Masks the value of a ``token`` query parameter in a record's arguments.
-
-    A media URL and a subscription feed carry their credential there, and the
-    access log would otherwise write it out with the path.
-    """
+    """Masks the value of a ``token`` query parameter in a record's arguments:
+    a media URL and a subscription feed carry their credential there."""
 
     def filter(self, record: logging.LogRecord) -> bool:
         if isinstance(record.args, tuple):

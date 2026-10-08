@@ -47,9 +47,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    # Keys limited to one resource go with the columns that limit them. The
-    # table forces row security and has no policy, so the migration lifts it
-    # for the delete.
+    # Keys limited to one resource go with the columns that limit them.
     op.execute("ALTER TABLE public.user_api_keys NO FORCE ROW LEVEL SECURITY")
     try:
         op.execute("DELETE FROM public.user_api_keys WHERE resource_type IS NOT NULL")
