@@ -1,10 +1,10 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { endOfDay, endOfMonth, format, startOfDay, startOfMonth } from "date-fns";
-import { HttpResponse } from "msw";
+import { HttpResponse, http } from "msw";
 import { describe, expect, it, vi } from "vitest";
 
-import { buildCommunity, buildTask, writerCan } from "@/__tests__/factories";
+import { buildCommunity, buildTask, communityCan, writerCan } from "@/__tests__/factories";
 import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { createTestQueryClient, renderPage } from "@/__tests__/helpers/render";
@@ -75,6 +75,19 @@ const parseConditions = (params: URLSearchParams) =>
   JSON.parse(params.get("conditions") ?? "[]") as (FilterCondition | FilterGroup)[];
 
 const isGroup = (c: FilterCondition | FilterGroup): c is FilterGroup => "conditions" in c;
+
+/**
+ * Open Subscribe from the toolbar's "More actions" menu and return the
+ * calendars its dialog offers a link for, by name.
+ */
+const subscribeFromMenu = async (user: ReturnType<typeof userEvent.setup>) => {
+  server.use(http.get("/api/v1/me/api-keys", () => HttpResponse.json({ keys: [] })));
+  await user.click(await screen.findByRole("button", { name: /more actions/i }));
+  await user.click(await screen.findByRole("menuitem", { name: "Subscribe" }));
+  const dialog = await screen.findByRole("dialog");
+  await within(dialog).findAllByRole("button", { name: "Get link" });
+  return dialog;
+};
 
 /** Export sits in the toolbar's "More actions" menu. */
 const exportFromMenu = async (user: ReturnType<typeof userEvent.setup>) => {
@@ -264,6 +277,36 @@ describe("CalendarsView calendar-entries query", () => {
   });
 });
 
+describe("CalendarsView subscribing on an initiative's tab", () => {
+  it("offers a link for each of the initiative's calendars", async () => {
+    const calendar = (id: number, name: string) => ({
+      id,
+      name,
+      description: null,
+      color: "#6366f1",
+      initiative_id: INITIATIVE_ID,
+      community_id: 1,
+      created_by: 1,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      can: writerCan(),
+      comments_enabled: true,
+      archived_at: null,
+      tags: [],
+      grants: [],
+    });
+    stubEntries({}, [calendar(7, "Rehearsals"), calendar(8, "Matches")]);
+    const user = userEvent.setup();
+
+    renderCalendars();
+    const dialog = await subscribeFromMenu(user);
+
+    expect(within(dialog).getByText("Rehearsals")).toBeInTheDocument();
+    expect(within(dialog).getByText("Matches")).toBeInTheDocument();
+    expect(within(dialog).getAllByRole("button", { name: "Get link" })).toHaveLength(2);
+  });
+});
+
 describe("CalendarsView on a community calendar", () => {
   /** The calendar the plug-in mounts: community-level, so it belongs to no initiative. */
   const communityCalendar = {
@@ -327,6 +370,13 @@ describe("CalendarsView on a community calendar", () => {
     // The panel, the task-calendar rows and the filter bar are all initiative-
     // shaped, so the surface never lists the community's calendars.
     expect(calendarList).toEqual([]);
+
+    // Subscribing offers this calendar alone.
+    const dialog = await subscribeFromMenu(userEvent.setup());
+    expect(
+      within(dialog).getByRole("heading", { name: "Subscribe to Community calendar" })
+    ).toBeInTheDocument();
+    expect(within(dialog).getAllByRole("button", { name: "Get link" })).toHaveLength(1);
   });
 });
 
@@ -374,13 +424,12 @@ describe("CalendarsView on the calendar plug-in's own surface", () => {
     return { entries, calendarList };
   }
 
-  function renderCommunityScope() {
+  // The community's own calendars are its admins' to add.
+  function renderCommunityScope(community = buildCommunity({ id: 1, role: "admin" })) {
     const queryClient = createTestQueryClient();
     queryClient.setQueryData(VIEW_PREFERENCES_QUERY_KEY, {
       items: { [CALENDAR_VIEW_MODE_KEY]: "list" },
     });
-    // The community's own calendars are its admins' to add.
-    const community = buildCommunity({ id: 1, role: "admin" });
     return renderPage(() => <CalendarsView communityScope />, {
       queryClient,
       communities: { activeCommunityId: 1, activeCommunity: community, communities: [community] },
@@ -423,6 +472,29 @@ describe("CalendarsView on the calendar plug-in's own surface", () => {
     tags: [],
     can: writerCan(),
   };
+
+  it("offers a link for each of the community's own calendars", async () => {
+    stubCommunityScope([communityCalendar(42, "Holidays"), communityCalendar(43, "Game nights")]);
+
+    renderCommunityScope();
+    const dialog = await subscribeFromMenu(userEvent.setup());
+
+    expect(within(dialog).getByText("Holidays")).toBeInTheDocument();
+    expect(within(dialog).getByText("Game nights")).toBeInTheDocument();
+  });
+
+  it("offers no Subscribe where the community does not take this member's keys", async () => {
+    stubCommunityScope([communityCalendar(42, "Holidays")]);
+    const user = userEvent.setup();
+
+    renderCommunityScope(
+      buildCommunity({ id: 1, role: "admin", can: communityCan("admin", { use_api: false }) })
+    );
+    await user.click(await screen.findByRole("button", { name: /more actions/i }));
+
+    expect(await screen.findByRole("menu")).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Subscribe" })).toBeNull();
+  });
 
   it("lets a reader hide one of them, and keeps it hidden the next time", async () => {
     stubCommunityScope(
