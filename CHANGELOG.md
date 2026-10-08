@@ -11,10 +11,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Task tables sort by status and by tag.** Status sorts in the order of the project's board, and tags by each task's first tag alphabetically, with untagged tasks last.
 
-### Changed
-
-- **A plug-in is asked about using another plug-in only once your community has that one.** Adding automations no longer asks whether it may use GitHub when GitHub isn't there. Adding GitHub asks instead, listing each plug-in that wants to use it, all ticked to start. Removing GitHub takes that permission back, so adding it again asks again.
-
 ### Fixed
 
 - **Direct messages arrive again.** The first message to a new device never opened on the other end, so messages stopped arriving and a new device never got its history. Messages left waiting open once the receiving device is updated. Your own devices may ask to be verified once more, and conversations may say a key changed.
