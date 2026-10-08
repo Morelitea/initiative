@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Direct messages arrive again.** The first message to a new device never opened on the other end, so messages stopped arriving and a new device never got its history. Messages left waiting open once the receiving device is updated. Your own devices may ask to be verified once more, and conversations may say a key changed.
 - **A new device gets its whole history**, however long, and even while your newest conversation is an invitation you haven't answered. The notice asking you to verify it goes away once you have.
 - **A device keeps receiving messages** when some sent to it can never be opened, such as ones from a device that has since signed out. Those are cleared instead of holding up everything behind them.
+- **The notification list scrolls again.** With more unread than fit, everything past the first few was cut off with no way to reach it.
 
 ## [0.75.2] - 2026-10-07
 

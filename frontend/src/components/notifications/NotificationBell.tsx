@@ -9,7 +9,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { RelativeTime } from "@/components/ui/relative-time";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from "@/hooks/useAuth";
 import { useNotificationStreamConnected } from "@/hooks/useNotificationStream";
 import {
@@ -122,7 +121,10 @@ export const NotificationBell = () => {
       );
     }
     return (
-      <ScrollArea className="max-h-80 min-h-0">
+      // The list is the one part that scrolls, so the bound and the overflow
+      // belong on it. A max-height alone on a wrapper only clips: the element
+      // that overflows has to be the one carrying the limit.
+      <div className="max-h-80 min-h-0 overflow-y-auto">
         <ul className="divide-y">
           {notifications.map((notification) => (
             <li key={notification.id}>
@@ -149,7 +151,7 @@ export const NotificationBell = () => {
             </li>
           ))}
         </ul>
-      </ScrollArea>
+      </div>
     );
   };
 
