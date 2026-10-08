@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# Whether this tree's API still takes what the last release's did. The two
+# OpenAPI specs are compared by oasdiff: this tree's exported from the backend,
+# the release's the openapi.json its GitHub release carries. A breaking change
+# fails unless backend/api-breaking-changes.md lists it.
+#
+# Usage:
+#   scripts/ci/api-compat           # against the latest release
+#   scripts/ci/api-compat v0.75.3   # against a named one (0.75.3 or later)
+#
+# Needs backend/.venv (cd backend && uv sync), docker and gh.
+
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+cd "$ROOT"
+
+OASDIFF=docker.io/tufin/oasdiff:v1.32.1@sha256:3b14fe0112e5d1bf862f91ab234a4bcd161a3f399e98f8b0b665ce70857694ac
+ACCEPTED=backend/api-breaking-changes.md
+
+release="${1:-$(gh release view --json tagName -q .tagName)}"
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+
+gh release download "$release" --pattern openapi.json --dir "$work/release"
+(cd backend && uv run --no-sync python scripts/export_openapi.py "$work/current.json")
+cp "$ACCEPTED" "$work/accepted.md"
+
+# Path parameters are matched by name: the spec drops a route's converter,
+# so /exports/{job_id:int} and /exports/{tool} would otherwise read as one
+# endpoint declared twice. A renamed path parameter then reads as a route
+# removed and another added, though a client's URLs are unchanged.
+if docker run --rm -v "$work:/specs:ro" "$OASDIFF" breaking --fail-on ERR --include-path-params \
+  --err-ignore /specs/accepted.md /specs/release/openapi.json /specs/current.json; then
+  echo "The API takes everything $release's did, or lists the break in $ACCEPTED."
+else
+  echo
+  echo "These break what $release's API took (errors above; warnings do not fail)."
+  echo "Keep the old shape, or, to make the break on purpose, add each error's"
+  echo "method, path and message to $ACCEPTED under the release it ships in."
+  exit 1
+fi

@@ -480,17 +480,23 @@ jobs:
           # Remove leading whitespace from heredoc
           sed -i 's/^          //' release_body.md
 
-      # What an installed plug-in may call, exported from the image this release
-      # published. The image carries no scripts/, so the checkout's are mounted.
-      - name: Export the plug-in API spec
+      # What an installed plug-in may call, and the whole API: what API clients
+      # check themselves against, and what the next release's compatibility check
+      # compares with (scripts/ci/api-compat). Exported from the image this release
+      # published; the image carries no scripts/, so the checkout's are mounted.
+      - name: Export the API specs
         if: startsWith(github.ref, 'refs/tags/')
         env:
           VERSION: ${{ needs.decide.outputs.version }}
         run: |
           mkdir -p artifacts
-          docker run --rm --entrypoint python \
-            -v "$PWD/backend/scripts:/app/scripts:ro" -v "$PWD/artifacts:/out" \
-            "$IMAGE_NAME:$VERSION" scripts/export_openapi.py --plugin /out/initiative-plugin-api.json
+          export_spec() {
+            docker run --rm --entrypoint python \
+              -v "$PWD/backend/scripts:/app/scripts:ro" -v "$PWD/artifacts:/out" \
+              "$IMAGE_NAME:$VERSION" scripts/export_openapi.py "$@"
+          }
+          export_spec /out/openapi.json
+          export_spec --plugin /out/initiative-plugin-api.json
 
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
@@ -502,6 +508,7 @@ jobs:
             artifacts/*.dmg
             artifacts/*.deb
             artifacts/latest*.yml
+            artifacts/openapi.json
             artifacts/initiative-plugin-api.json
           body_path: release_body.md
           draft: false

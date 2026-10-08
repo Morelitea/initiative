@@ -582,6 +582,14 @@ jobs:
       - name: Check env-contract.json and the generated API client
         run: scripts/ci/check codegen
 
+      - name: The API takes what the last release's did
+        # Breaking changes made on purpose are listed in
+        # backend/api-breaking-changes.md.
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/ci/api-compat
+
   dev-image:
     name: Dev Image
     needs:
