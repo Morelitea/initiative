@@ -10,6 +10,8 @@ import {
   type TaskFilterSpec,
   taskFilterCount,
   taskFiltersEqual,
+  taskSortFields,
+  taskTableSorting,
 } from "@/lib/filters/taskFilters";
 
 const spec = (overrides: Partial<TaskFilterSpec> = {}): TaskFilterSpec => ({
@@ -221,5 +223,36 @@ describe("taskFiltersEqual / taskFilterCount", () => {
   it("compares by value, so a tweaked preset is not equal to itself", () => {
     expect(taskFiltersEqual(spec({ tag_ids: [1] }), spec({ tag_ids: [1] }))).toBe(true);
     expect(taskFiltersEqual(spec({ tag_ids: [1] }), spec({ tag_ids: [1, 2] }))).toBe(false);
+  });
+});
+
+describe("taskSortFields / taskTableSorting", () => {
+  it("names each column the list can order by, in the table's order", () => {
+    expect(
+      taskSortFields([
+        { id: "priority", desc: true },
+        { id: "due date", desc: false },
+      ])
+    ).toEqual([
+      { field: "priority", dir: "desc" },
+      { field: "due_date", dir: "asc" },
+    ]);
+  });
+
+  it("leaves out a column the list cannot order by", () => {
+    expect(taskSortFields([{ id: "status", desc: false }])).toEqual([]);
+  });
+
+  it("orders a date group by due date within it", () => {
+    expect(taskSortFields([{ id: "date group", desc: true }])).toEqual([
+      { field: "date_group", dir: "desc" },
+      { field: "due_date", dir: "desc" },
+    ]);
+  });
+
+  it("reads a sort back as the table's", () => {
+    expect(taskTableSorting([{ field: "start_date", dir: "desc" }, { field: "id" }])).toEqual([
+      { id: "start date", desc: true },
+    ]);
   });
 });

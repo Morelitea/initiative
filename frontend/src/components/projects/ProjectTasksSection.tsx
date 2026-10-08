@@ -49,7 +49,10 @@ import { ProjectFilterPresetDialog } from "@/components/projects/ProjectFilterPr
 import { ProjectTaskComposer } from "@/components/projects/ProjectTaskComposer";
 import { ProjectTasksFilters } from "@/components/projects/ProjectTasksFilters";
 import { ProjectTasksKanbanView } from "@/components/projects/ProjectTasksKanbanView";
-import { ProjectTasksTableView } from "@/components/projects/ProjectTasksTableView";
+import {
+  ProjectTasksTableView,
+  useProjectTaskTableState,
+} from "@/components/projects/ProjectTasksTableView";
 import { priorityVariant } from "@/components/projects/projectTasksConfig";
 import {
   computeMidpoint,
@@ -110,12 +113,14 @@ import {
   type TaskViewMode,
   taskFilterCount,
   taskFiltersEqual,
+  taskSortFields,
 } from "@/lib/filters/taskFilters";
 import { toast } from "@/lib/mascotToast";
 import { getProjectColor } from "@/lib/projectColor";
 import { rulePayload } from "@/lib/recurrence";
 import { getItem, setItem } from "@/lib/storage";
 import { taskReadToListRow } from "@/lib/taskUtils";
+import { browserTimezone } from "@/lib/timezones";
 
 type ViewMode = TaskViewMode;
 
@@ -474,6 +479,15 @@ export const ProjectTasksSection = ({
 
   const [activeTaskId, setActiveTaskId] = useState<number | null>(null);
   const [selectedTasks, setSelectedTasks] = useState<TaskListRead[]>([]);
+
+  // An export lists the tasks in the order the reader sees them: the table's
+  // own sort while it is showing, and the project's order in every other view.
+  const tableState = useProjectTaskTableState(projectId);
+  const tableSorting = tableState[0].sorting;
+  const exportSorting = useMemo(() => {
+    const sorting = viewMode === "table" ? taskSortFields(tableSorting) : [];
+    return sorting.length > 0 ? { sorting, tz: browserTimezone() } : {};
+  }, [viewMode, tableSorting]);
   const [isBulkEditDialogOpen, setIsBulkEditDialogOpen] = useState(false);
   const [isBulkEditTagsDialogOpen, setIsBulkEditTagsDialogOpen] = useState(false);
   const [isArchiveDialogOpen, setIsArchiveDialogOpen] = useState(false);
@@ -1116,6 +1130,7 @@ export const ProjectTasksSection = ({
                 params={{
                   conditions: buildTaskConditions(appliedSpec, { projectId }),
                   include_archived: appliedSpec.include_archived,
+                  ...exportSorting,
                 }}
                 resumePending
               />
@@ -1256,6 +1271,7 @@ export const ProjectTasksSection = ({
                       // Selection came from the visible list, which may include
                       // archived rows when the toggle is on.
                       include_archived: appliedSpec.include_archived,
+                      ...exportSorting,
                     }
               }
               onEdit={() => setIsBulkEditDialogOpen(true)}
@@ -1285,6 +1301,7 @@ export const ProjectTasksSection = ({
             taskHref={taskHref}
             onTaskSelectionChange={setSelectedTasks}
             onExitSelection={() => setSelectedTasks([])}
+            tableState={tableState}
           />
           {canEditTaskDetails && (
             <div className="flex justify-end">

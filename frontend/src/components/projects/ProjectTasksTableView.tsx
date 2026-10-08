@@ -71,7 +71,18 @@ type ProjectTasksListViewProps = {
   taskHref: (taskId: number) => string;
   onTaskSelectionChange?: (selectedTasks: TaskListRead[]) => void;
   onExitSelection?: () => void;
+  /** How the reader left the table: from {@link useProjectTaskTableState},
+   *  held by the section so its export follows the same sort. */
+  tableState: ReturnType<typeof useProjectTaskTableState>;
 };
+
+const projectTaskTableKey = (projectId: number) => `initiative-project-${projectId}-task-table`;
+
+/** Which column one project's task table is grouped and sorted by, as the
+ *  reader left it. Kept beside the column-visibility map below so the whole
+ *  "how this list is shown" answer survives a reload together. */
+export const useProjectTaskTableState = (projectId: number) =>
+  usePersistedTableState(projectTaskTableKey(projectId));
 
 type SortableRowContextValue = {
   attributes?: DraggableAttributes;
@@ -190,6 +201,7 @@ const ProjectTasksTableViewComponent = ({
   taskHref,
   onTaskSelectionChange,
   onExitSelection,
+  tableState: [tableState, { setGrouping, setSorting }],
 }: ProjectTasksListViewProps) => {
   const { t } = useTranslation(["projects", "comments", "tasks"]);
   const statusDisabled = !canEditTaskDetails || taskActionsDisabled;
@@ -408,11 +420,7 @@ const ProjectTasksTableViewComponent = ({
 
   const sortableItems = useMemo(() => tasks.map((task) => task.id.toString()), [tasks]);
 
-  // How the reader left the table last time: which column it's grouped and
-  // sorted by, kept beside the column-visibility map above so the whole "how
-  // this list is shown" answer survives a reload together.
-  const tableStorageKey = `initiative-project-${projectId}-task-table`;
-  const [tableState, { setGrouping, setSorting }] = usePersistedTableState(tableStorageKey);
+  const tableStorageKey = projectTaskTableKey(projectId);
   const { grouping, sorting } = tableState;
   // Grouping and sorting each disable drag-to-reorder: a manual order can only
   // be expressed by the table's own row order.
@@ -531,7 +539,8 @@ export const ProjectTasksTableView = memo(
       prevProps.canReorderTasks === nextProps.canReorderTasks &&
       prevProps.canEditTaskDetails === nextProps.canEditTaskDetails &&
       prevProps.taskActionsDisabled === nextProps.taskActionsDisabled &&
-      prevProps.initiativeId === nextProps.initiativeId
+      prevProps.initiativeId === nextProps.initiativeId &&
+      prevProps.tableState[0] === nextProps.tableState[0]
       // Note: Intentionally ignoring callback prop changes as they're functionally the same
     );
   }

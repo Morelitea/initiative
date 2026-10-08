@@ -26,8 +26,10 @@ import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import { ProjectTasksSection } from "@/components/projects/ProjectTasksSection";
 import { toast } from "@/lib/mascotToast";
+import { setItem } from "@/lib/storage";
 import { fireTaskCompletionFeedback } from "@/lib/taskCompletionFeedback";
 
+vi.mock("@/lib/csv", () => ({ downloadBlob: vi.fn() }));
 vi.mock("@/lib/taskCompletionFeedback", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/taskCompletionFeedback")>()),
   fireTaskCompletionFeedback: vi.fn(),
@@ -405,6 +407,44 @@ describe("ProjectTasksSection presets", () => {
     await waitFor(() =>
       expect((router.state.location.search as { preset?: string }).preset).toBeUndefined()
     );
+  });
+});
+
+describe("ProjectTasksSection export", () => {
+  /** The `sorting` of the export request a PDF export sends. */
+  const exportSorting = async (view: string) => {
+    let sorting: string | null = "unsent";
+    server.use(
+      communityHttp.get("/exports/tasks", ({ request }) => {
+        sorting = new URL(request.url).searchParams.get("sorting");
+        return new HttpResponse(new Uint8Array([0x25]), {
+          headers: { "Content-Type": "application/pdf" },
+        });
+      })
+    );
+    section({ routerSearch: { view } });
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: /^export$/i }));
+    await user.click(await screen.findByRole("menuitem", { name: /pdf document/i }));
+    await waitFor(() => expect(sorting).not.toBe("unsent"));
+    return sorting;
+  };
+
+  beforeEach(() => {
+    setItem(
+      "initiative-project-1-task-table",
+      JSON.stringify({ grouping: [], sorting: [{ id: "due date", desc: true }] })
+    );
+  });
+
+  it("lists the tasks in the order the reader sorted the table", async () => {
+    expect(JSON.parse((await exportSorting("table")) ?? "null")).toEqual([
+      { field: "due_date", dir: "desc" },
+    ]);
+  });
+
+  it("keeps the project's order from a view the table's sort does not reach", async () => {
+    expect(await exportSorting("kanban")).toBeNull();
   });
 });
 
