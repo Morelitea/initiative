@@ -5,7 +5,7 @@ import { renderPage } from "@/__tests__/helpers/render";
 import type { TaskListRead } from "@/api/generated/initiativeAPI.schemas";
 
 import { compileTemplate } from "./compile";
-import { renderTemplate } from "./render";
+import { MAX_RENDERED_NODES, renderTemplate } from "./render";
 import { defineSection } from "./sections";
 
 const section = defineSection<{ task: TaskListRead }>()({
@@ -65,6 +65,10 @@ describe("renderTemplate", () => {
        <a :href="'/c/8/i/1'">Another community</a>
        <img data-testid="ours" src="/uploads/7/a.png" alt="ours" />
        <img src="https://example.com/a.png" alt="theirs" />
+       <img src="/uploads/7/../8/a.png" alt="dotted" />
+       <img src="/uploads/7/%2e%2e/8/a.png" alt="encoded" />
+       <a href="/c/7/../8/i/1">Climbs out</a>
+       <span data-testid="hidden" :aria-hidden="true">x</span>
        <div data-testid="styled" :style="{ '--gap': 4, '--ok': '#fff', '--bad': 'url(https://x)', 'color': 'red' }"></div>`,
       buildTask()
     );
@@ -83,5 +87,18 @@ describe("renderTemplate", () => {
     expect(styled.style.getPropertyValue("--ok")).toBe("#fff");
     expect(styled.style.getPropertyValue("--bad")).toBe("");
     expect(styled.style.color).toBe("");
+    expect(screen.queryByAltText("dotted")).not.toBeInTheDocument();
+    expect(screen.queryByAltText("encoded")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Climbs out" })).not.toBeInTheDocument();
+    expect(screen.getByTestId("hidden")).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("stops drawing at its budget, however long the list", async () => {
+    draw(
+      `<part name="title" /><ul><li for="word in task.title.split(' ')">{{ word }}</li></ul>`,
+      buildTask({ title: "x ".repeat(MAX_RENDERED_NODES) })
+    );
+    await screen.findByRole("list");
+    expect(screen.getAllByRole("listitem").length).toBeLessThan(MAX_RENDERED_NODES);
   });
 });

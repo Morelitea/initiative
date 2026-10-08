@@ -94,6 +94,8 @@ const BOUND_ONLY = new Set(["style"]);
 const RESERVED_DATA = new Set(["data-section", "data-part", "data-node"]);
 
 const DIRECTIVES = new Set(["if", "else-if", "else", "for"]);
+/** `for` inside `for`, at most this deep: each level repeats everything inside it. */
+export const MAX_LOOP_DEPTH = 2;
 const FOR_PATTERN = /^\s*([a-z_][A-Za-z0-9_]*)\s+in\s+([\s\S]+)$/;
 
 export interface CompileOptions {
@@ -196,11 +198,20 @@ export function compileTemplate(source: string, options: CompileOptions): Compil
   const directive = (element: TemplateElement, name: string): TemplateAttribute | undefined =>
     element.attributes.find((attribute) => attribute.name === name);
 
+  /**
+   * Where an element sits: inside an `if` or `for` (so it may not be there), and
+   * how many `for`s deep.
+   */
+  interface Placement {
+    conditional: boolean;
+    loops: number;
+  }
+
   /** One element, without its `if` or `for`, which `children` has already taken. */
   const compileElement = (
     element: TemplateElement,
     scope: ExpressionScope,
-    conditional: boolean
+    placement: Placement
   ): CompiledNode | null => {
     if (element.name === "part") {
       const nameAttribute = directive(element, "name");
@@ -215,7 +226,7 @@ export function compileTemplate(source: string, options: CompileOptions): Compil
         return null;
       }
       if (element.children.length > 0) report("<part> holds nothing: close it with />", element);
-      if (definition.required && conditional) {
+      if (definition.required && placement.conditional) {
         report(`${name} is required, so it cannot sit inside if or for`, element);
       }
       partCounts.set(name, (partCounts.get(name) ?? 0) + 1);
@@ -236,7 +247,7 @@ export function compileTemplate(source: string, options: CompileOptions): Compil
       tag: element.name,
       attrs,
       bind,
-      kids: children(element.children, scope, conditional),
+      kids: children(element.children, scope, placement),
     };
   };
 
@@ -244,12 +255,15 @@ export function compileTemplate(source: string, options: CompileOptions): Compil
   const children = (
     list: TemplateNode[],
     scope: ExpressionScope,
-    conditional: boolean
+    placement: Placement
   ): CompiledNode[] => {
     const compiled: CompiledNode[] = [];
     let chain: Extract<CompiledNode, { t: "if" }> | null = null;
+    const branch = { ...placement, conditional: true };
     for (const node of list) {
       if (node.kind === "text") {
+        // A space between an if and its else belongs to neither branch.
+        if (chain && node.parts.length === 1 && node.parts[0] === " ") continue;
         chain = null;
         compiled.push({
           t: "text",
@@ -282,9 +296,13 @@ export function compileTemplate(source: string, options: CompileOptions): Compil
         }
         const [, item, listSource] = match as unknown as [string, string, string];
         const list = expression(listSource.trim(), scope, forAttribute);
+        if (placement.loops + 1 > MAX_LOOP_DEPTH) {
+          report(`for nests at most ${MAX_LOOP_DEPTH} deep`, forAttribute);
+          continue;
+        }
         const inner = new Map(scope);
         inner.set(item, itemShape(list.shape));
-        const body = compileElement(node, inner, true);
+        const body = compileElement(node, inner, { conditional: true, loops: placement.loops + 1 });
         if (body) compiled.push({ t: "for", item, list: list.index, node: body });
         continue;
       }
@@ -295,7 +313,7 @@ export function compileTemplate(source: string, options: CompileOptions): Compil
           continue;
         }
         const when = elseIf ? expression(elseIf.value ?? "", scope, elseIf).index : null;
-        const body = compileElement(node, scope, true);
+        const body = compileElement(node, scope, branch);
         if (body) chain.branches.push({ when, node: body });
         if (elseAttribute) chain = null;
         continue;
@@ -303,7 +321,7 @@ export function compileTemplate(source: string, options: CompileOptions): Compil
 
       if (ifAttribute) {
         const when = expression(ifAttribute.value ?? "", scope, ifAttribute).index;
-        const body = compileElement(node, scope, true);
+        const body = compileElement(node, scope, branch);
         chain = { t: "if", branches: [] };
         if (body) chain.branches.push({ when, node: body });
         compiled.push(chain);
@@ -311,13 +329,13 @@ export function compileTemplate(source: string, options: CompileOptions): Compil
       }
 
       chain = null;
-      const body = compileElement(node, scope, conditional);
+      const body = compileElement(node, scope, placement);
       if (body) compiled.push(body);
     }
     return compiled;
   };
 
-  const root = children(nodes, rootScope, false);
+  const root = children(nodes, rootScope, { conditional: false, loops: 0 });
 
   for (const [name, definition] of Object.entries(options.section.parts)) {
     const count = partCounts.get(name) ?? 0;

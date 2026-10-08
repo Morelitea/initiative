@@ -7,15 +7,21 @@
  * Values that reach the page are held to what they may be when they arrive,
  * because a bound value is data the compiler never saw:
  *
- * - an `href` must lead somewhere inside the community, and becomes a router
- *   link;
- * - a `src` must be one of the community's uploads;
+ * - an `href` must lead somewhere inside the community, read as the browser
+ *   will read it, and becomes a router link;
+ * - a `src` must be one of the community's uploads, read the same way, and is
+ *   addressed as every upload is (`resolveUploadUrl`);
  * - a `:style` sets custom properties only, each a number, a length, a colour
  *   or a keyword, so nothing from a row is ever read as CSS.
+ *
+ * One render draws at most MAX_RENDERED_NODES elements and text runs, however
+ * long the lists it walks.
  */
 
 import { Link } from "@tanstack/react-router";
 import { type ComponentType, createElement, Fragment, type ReactNode } from "react";
+
+import { resolveUploadUrl } from "@/lib/uploadUrl";
 
 import type { CompiledNode, CompiledTemplate } from "./compile";
 import { evaluate } from "./runtime";
@@ -37,11 +43,36 @@ const STYLE_VALUE = /^(-?\d+(\.\d+)?(px|rem|em|%|ch)?|#[0-9a-f]{3,8}|[a-z][a-z-]
 
 const REACT_NAMES: Record<string, string> = { class: "className", datetime: "dateTime" };
 
+export const MAX_RENDERED_NODES = 2000;
+
+/** Any address resolves against this, so only a path on our own origin comes back out. */
+const ORIGIN = "https://community.invalid";
+
+/**
+ * `value` as the path the browser would request, when that path is under
+ * `prefix`; null otherwise. Dot segments, encoded or not, are resolved first.
+ */
+const within = (value: unknown, prefix: string): string | null => {
+  if (typeof value !== "string") return null;
+  let url: URL;
+  try {
+    url = new URL(value, `${ORIGIN}/`);
+  } catch {
+    return null;
+  }
+  if (url.origin !== ORIGIN || !url.pathname.startsWith(prefix)) return null;
+  return url.pathname + url.search + url.hash;
+};
+
 const text = (value: unknown): string => {
   if (typeof value === "string") return value;
   if (typeof value === "number" || typeof value === "bigint") return String(value);
   return "";
 };
+
+/** An attribute's value; true and false stay words, as ARIA states need them. */
+const attribute = (value: unknown): string =>
+  typeof value === "boolean" ? String(value) : text(value);
 
 const classes = (value: unknown): string => {
   if (typeof value === "string") return value;
@@ -87,15 +118,29 @@ export function renderTemplate(template: CompiledTemplate, input: RenderInput): 
       } else if (name === "style") {
         out.style = style(bound);
       } else {
-        out[REACT_NAMES[name] ?? name] = text(bound);
+        out[REACT_NAMES[name] ?? name] = attribute(bound);
       }
     }
-    if ("href" in out && !String(out.href).startsWith(linkPrefix)) delete out.href;
-    if ("src" in out && !String(out.src).startsWith(uploadPrefix)) delete out.src;
+    if ("href" in out) {
+      const href = within(out.href, linkPrefix);
+      if (href) out.href = href;
+      else delete out.href;
+    }
+    if ("src" in out) {
+      const src = resolveUploadUrl(within(out.src, uploadPrefix));
+      if (src) out.src = src;
+      else delete out.src;
+    }
     return out;
   };
 
+  let drawn = 0;
+
   const draw = (node: CompiledNode, scope: Scope, key: string | number): ReactNode => {
+    if (node.t === "text" || node.t === "el" || node.t === "part") {
+      drawn++;
+      if (drawn > MAX_RENDERED_NODES) return null;
+    }
     switch (node.t) {
       case "text":
         return node.parts.map((part) =>

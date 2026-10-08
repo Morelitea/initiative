@@ -103,12 +103,43 @@ export function parseTemplate(source: string): TemplateNode[] {
           body[1] === "x" || body[1] === "X"
             ? Number.parseInt(body.slice(2), 16)
             : Number.parseInt(body.slice(1), 10);
+        if (!(code > 0 && code <= 0x10ffff)) fail(`${entity} is not a character`, offset);
         return String.fromCodePoint(code);
       }
       const known = ENTITIES[body.toLowerCase()];
       if (known === undefined) fail(`Unknown entity ${entity}`, offset);
       return known as string;
     });
+
+  /**
+   * Where the `}}` that closes the expression opened at `start` begins: the
+   * first one outside a string and outside any braces the expression opens, so
+   * `{{ '}}' }}` and `{{ {'a': {'b': 1}} }}` are read whole.
+   */
+  const closingBraces = (start: number): number => {
+    let depth = 0;
+    let quote = "";
+    for (let i = start; i < source.length; i++) {
+      const char = source[i] as string;
+      if (quote) {
+        if (char === "\\" && quote.length === 1) i++;
+        else if (source.startsWith(quote, i)) {
+          i += quote.length - 1;
+          quote = "";
+        }
+        continue;
+      }
+      if (char === "'" || char === '"') {
+        quote = source.startsWith(char.repeat(3), i) ? char.repeat(3) : char;
+        i += quote.length - 1;
+      } else if (char === "{") depth++;
+      else if (char === "}") {
+        if (depth > 0) depth--;
+        else if (source[i + 1] === "}") return i;
+      }
+    }
+    return -1;
+  };
 
   const readText = (): TemplateText | null => {
     const start = index;
@@ -123,7 +154,7 @@ export function parseTemplate(source: string): TemplateNode[] {
       if (source.startsWith("{{", index)) {
         flush();
         const open = index;
-        const close = source.indexOf("}}", index + 2);
+        const close = closingBraces(index + 2);
         if (close === -1) fail("Unclosed {{", open);
         const expression = source.slice(index + 2, close).trim();
         if (!expression) fail("Empty {{ }}", open);
@@ -137,11 +168,16 @@ export function parseTemplate(source: string): TemplateNode[] {
       index++;
     }
     flush();
-    // Whitespace between elements is layout of the file, not of the page.
-    const meaningful = parts.some((part) => typeof part !== "string" || part.trim() !== "");
-    if (!meaningful) return null;
+    // Whitespace that breaks a line is the file's layout, so it goes. Whitespace
+    // within a line is the page's, so it stays as one space: the one between
+    // `<span>Due</span> <strong>today</strong>`. A no-break space is text.
+    const meaningful = parts.some((part) => typeof part !== "string" || /[^ \t\r\n]/.test(part));
+    if (!meaningful) {
+      const raw = source.slice(start, index);
+      return raw.includes("\n") ? null : { kind: "text", parts: [" "], ...positionAt(start) };
+    }
     const collapsed = parts.map((part) =>
-      typeof part === "string" ? part.replace(/\s+/g, " ") : part
+      typeof part === "string" ? part.replace(/[ \t\r\n]+/g, " ") : part
     );
     return { kind: "text", parts: collapsed, ...positionAt(start) };
   };

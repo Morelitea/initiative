@@ -6,7 +6,7 @@ import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import { defineConfig, loadEnv } from "vite";
 
 import { buildNotices } from "./scripts/third-party-notices.mjs";
-import { templates } from "./scripts/vite-plugin-templates.ts";
+import { templates } from "./scripts/vite-plugin-templates.mjs";
 
 // Load VITE_* vars from .env files (checks backend/.env and frontend/)
 const env = {

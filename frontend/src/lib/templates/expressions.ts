@@ -16,7 +16,7 @@
 
 import { parse } from "@bufbuild/cel";
 
-import { fieldShape, itemShape, type Shape } from "./shapes.ts";
+import { fieldShape, itemShape, resolveShape, type Shape } from "./shapes.ts";
 
 export const MAX_EXPRESSION_LENGTH = 400;
 export const MAX_EXPRESSION_NODES = 200;
@@ -111,6 +111,7 @@ export interface ExpressionCheck {
 
 // The parser's tree, read structurally: only the fields this walk uses.
 interface CelNode {
+  id: bigint;
   exprKind: {
     case?: string;
     value?: unknown;
@@ -154,8 +155,13 @@ export function checkExpression(source: string, scope: ExpressionScope): Express
     };
   }
   let root: CelNode;
+  // Which macro each comprehension came from, by its node id: filter keeps the
+  // list's items, map makes new ones, and all/exists answer yes or no.
+  let macros: Record<string, CelNode>;
   try {
-    root = parse(source).expr as unknown as CelNode;
+    const parsed = parse(source);
+    root = parsed.expr as unknown as CelNode;
+    macros = (parsed.sourceInfo?.macroCalls ?? {}) as unknown as Record<string, CelNode>;
   } catch (error) {
     return {
       problems: [`Does not parse: ${error instanceof Error ? error.message : String(error)}`],
@@ -196,7 +202,12 @@ export function checkExpression(source: string, scope: ExpressionScope): Express
           problems.push(`${call.function}() is not a function templates may use`);
         }
         walk(call.target, names, depth);
-        for (const argument of call.args) walk(argument, names, depth);
+        const args = call.args.map((argument) => walk(argument, names, depth));
+        if (call.function === "_[_]") {
+          const indexed = resolveShape(args[0] ?? "any");
+          if (typeof indexed === "object" && "list" in indexed) return indexed.list;
+          if (typeof indexed === "object" && "map" in indexed) return indexed.map;
+        }
         return "any";
       }
       case "comprehensionExpr": {
@@ -213,7 +224,19 @@ export function checkExpression(source: string, scope: ExpressionScope): Express
         walk(comprehension.loopCondition, inner, depth + 1);
         walk(comprehension.loopStep, inner, depth + 1);
         walk(comprehension.result, inner, depth + 1);
-        return "any";
+        const macro = macros[String(node.id)]?.exprKind.value as CelCall | undefined;
+        switch (macro?.function) {
+          case "filter":
+            return range;
+          case "map":
+            return { list: "any" };
+          case "all":
+          case "exists":
+          case "exists_one":
+            return "boolean";
+          default:
+            return "any";
+        }
       }
       case "listExpr": {
         for (const element of (value as { elements: CelNode[] }).elements) {

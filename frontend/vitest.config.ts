@@ -1,7 +1,7 @@
 import path from "path";
 import { defineConfig } from "vitest/config";
 
-import { templates } from "./scripts/vite-plugin-templates.ts";
+import { templates } from "./scripts/vite-plugin-templates.mjs";
 
 // The app formats dates and numbers in the runtime's own locale, and the
 // tests expect English. Each test worker is a child process, which takes its

@@ -38,6 +38,26 @@ describe("parseTemplate", () => {
       /<\/span> closes <div>.*line 2, column 1/
     );
     expect(() => parseTemplate("<p>{{ task.title</p>")).toThrow(/Unclosed \{\{/);
+    expect(() => parseTemplate("<p>&#1114112;</p>")).toThrow(/is not a character.*line 1/);
+  });
+
+  it("reads an expression to its own closing braces, past strings and maps", () => {
+    const [p] = parseTemplate(`<p>{{ '}}' }} {{ {'a': {'b': 1}}.a.b }}</p>`);
+    expect(p?.kind === "element" && p.children[0]).toMatchObject({
+      parts: [{ expression: "'}}'" }, " ", { expression: "{'a': {'b': 1}}.a.b" }],
+    });
+  });
+
+  it("keeps a space within a line and drops whitespace that breaks one", () => {
+    const [p] = parseTemplate("<p>\n  <span>Due</span> <strong>today</strong>&nbsp;\n</p>");
+    expect(p?.kind === "element" && p.children.map((child) => child.kind)).toEqual([
+      "element",
+      "text",
+      "element",
+      "text",
+    ]);
+    expect(p?.kind === "element" && p.children[1]).toMatchObject({ parts: [" "] });
+    expect(p?.kind === "element" && p.children[3]).toMatchObject({ parts: ["\u00a0 "] });
   });
 });
 
@@ -59,6 +79,13 @@ describe("checkExpression", () => {
     expect(checkExpression("{ color: 1 }", scope).problems).toEqual([
       "Nothing is called color here",
     ]);
+    // What a list holds survives indexing and filtering, so its fields are still checked.
+    expect(checkExpression("task.assignees[0].nope", scope).problems).toEqual([
+      "There is no field nope here",
+    ]);
+    expect(
+      checkExpression("task.assignees.filter(a, true).exists(b, b.nope)", scope).problems
+    ).toEqual(["There is no field nope here"]);
   });
 
   it("holds comprehension nesting, node count and length to their limits", () => {
@@ -159,6 +186,14 @@ describe("compileTemplate", () => {
     ).toMatch(/for and if on one element are ambiguous/);
     expect(errorsOf(`<part name="title" /><li for="task.assignees"></li>`)[0]).toMatch(
       /for reads "item in list"/
+    );
+    expect(
+      errorsOf(`<part name="title" />
+        <ul for="a in task.assignees"><li for="b in task.assignees"><span for="c in task.assignees"></span></li></ul>`)[0]
+    ).toMatch(/for nests at most 2 deep/);
+    // A space between an if and its else, on one line, belongs to neither branch.
+    expect(errorsOf(`<part name="title" /><strong if="true">a</strong> <em else>b</em>`)).toEqual(
+      []
     );
   });
 });
