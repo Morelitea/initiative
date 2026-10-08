@@ -20,7 +20,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { communityPath } from "@/lib/communityUrl";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { summarizeStored } from "@/lib/recurrence";
-import { dateSortingFn, prioritySortingFn } from "@/lib/sorting";
+import { dateSortingFn, firstTagName, prioritySortingFn, textSortingFn } from "@/lib/sorting";
 import type { AppColumnDef } from "@/lib/table";
 import { getTaskDateStatus, getTaskDateStatusLabel } from "@/lib/taskDateStatus";
 import { entityRefRoute, initiativeRoute, taskRoute, toolDetailRoute } from "@/lib/tools";
@@ -118,7 +118,10 @@ export function sharedTaskColumns<T extends TaskListRead>({
     },
     tags: {
       id: "tags",
-      header: () => <span className="font-medium">{t("tasks:columns.tags")}</span>,
+      accessorFn: (task) => firstTagName(task.tags),
+      header: ({ column }) => <SortHeader column={column} label={t("tasks:columns.tags")} />,
+      sortFn: textSortingFn,
+      sortUndefined: "last",
       cell: ({ row }) =>
         row.original.tags.length === 0 ? (
           <span className="text-muted-foreground text-sm">&mdash;</span>
@@ -328,7 +331,9 @@ export function globalTaskColumns({
     ...propertyColumns,
     {
       id: "status",
-      header: () => <span className="font-medium">{t("columns.status")}</span>,
+      // Board order: a status's position in its project.
+      accessorFn: (task) => task.task_status?.position,
+      header: ({ column }) => <SortHeader column={column} label={t("columns.status")} />,
       cell: ({ row }) => {
         const task = row.original;
         return (

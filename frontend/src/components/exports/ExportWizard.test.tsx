@@ -4,6 +4,7 @@ import { endOfMonth, startOfDay, startOfMonth } from "date-fns";
 import { HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { buildDefaultTaskStatuses } from "@/__tests__/factories";
 import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
@@ -534,6 +535,53 @@ describe("ExportWizard", () => {
       },
     });
     await waitFor(() => expect(downloadBlob).toHaveBeenCalledTimes(1));
+  });
+
+  it("starts a project's export from the exporting person's own view of it", async () => {
+    let sent: URLSearchParams | null = null;
+    server.use(
+      communityHttp.get("/exports/project", ({ request }) => {
+        sent = new URL(request.url).searchParams;
+        return new HttpResponse("a,b", { headers: { "Content-Type": "text/csv" } });
+      })
+    );
+    const user = userEvent.setup();
+    const tasks = {
+      ...EMPTY_TASK_FILTERS,
+      status_categories: ["done" as const],
+      include_archived: true,
+    };
+    const taskSorting = [{ field: "status_position", dir: "asc" as const }];
+
+    renderWithProviders(
+      <ExportWizard
+        scope={{
+          kind: "entities",
+          tool: Tool.project,
+          ids: [3],
+          formats: TOOL_EXPORT_FORMATS[Tool.project] ?? [],
+          filenameStem: "projects",
+          content: { tasks, taskSorting, taskStatuses: buildDefaultTaskStatuses(3) },
+        }}
+        open
+        onOpenChange={() => {}}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "CSV" }));
+    expect(screen.getByRole("switch", { name: "Show archived" })).toBeChecked();
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    expect(screen.getByText("Tasks (1 status, with archived)")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /start export/i }));
+
+    await waitFor(() => expect(sent).not.toBeNull());
+    expect(JSON.parse(sent!.get("filters")!)).toEqual({
+      tasks: {
+        conditions: JSON.stringify(taskSpecConditions(tasks)),
+        sorting: JSON.stringify(taskSorting),
+        include_archived: true,
+      },
+    });
   });
 
   it("goes from format to confirm for a tool whose content has no filter", async () => {

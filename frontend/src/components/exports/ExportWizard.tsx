@@ -3,7 +3,7 @@ import { type ReactNode, useEffect, useId, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useEstimateAggregateExport } from "@/api/generated/exports/exports";
-import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { type SortField, type TaskStatusRead, Tool } from "@/api/generated/initiativeAPI.schemas";
 import type { ExportExtraAction, ExportFormatOption } from "@/components/exports/ExportButton";
 import {
   AGGREGATE_EXPORT_TOOLS,
@@ -58,7 +58,18 @@ export type ExportWizardScope =
       /** Inline-download filename stem: `{stem}.{format}`. */
       filenameStem: string;
       extraActions?: ExportExtraAction[];
+      /** What its content starts narrowed to: the exporting person's own
+       *  view of it, where there is one. */
+      content?: ExportContentSeed;
     };
+
+/** One person's view of a project's tasks, for an export of that project to
+ *  start from: its filters, its order, and the statuses the filters name. */
+export interface ExportContentSeed {
+  tasks: TaskFilterSpec;
+  taskSorting: SortField[];
+  taskStatuses: TaskStatusRead[];
+}
 
 export interface ExportWizardProps {
   scope: ExportWizardScope;
@@ -118,6 +129,8 @@ const compact = (filters: object): Record<string, unknown> =>
 interface ContentFilters {
   events: LocalDateRange;
   tasks: TaskFilterSpec;
+  /** The order a project's tasks are listed in; empty for its own. */
+  taskSorting: SortField[];
 }
 
 /** Nothing narrowed. A backup carries every task, archived ones too, and a
@@ -126,6 +139,7 @@ interface ContentFilters {
 const emptyContent = (backup: boolean): ContentFilters => ({
   events: {},
   tasks: { ...EMPTY_TASK_FILTERS, include_archived: backup },
+  taskSorting: [],
 });
 
 /** The same filters for another output: the archived switch moves to where
@@ -135,13 +149,20 @@ const forOutput = (content: ContentFilters, backup: boolean): ContentFilters => 
   tasks: { ...content.tasks, include_archived: backup },
 });
 
-/** A project's `tasks`: the conditions the task list sends and its archived
- *  switch, or nothing while they are where the output starts. */
-const taskExportParams = (spec: TaskFilterSpec, backup: boolean): Record<string, unknown> => {
+/** A project's `tasks`: the conditions and sort the task list sends and its
+ *  archived switch, or nothing while they are where the output starts. */
+const taskExportParams = (
+  spec: TaskFilterSpec,
+  sorting: SortField[],
+  backup: boolean
+): Record<string, unknown> => {
   const conditions = taskSpecConditions(spec);
-  if (conditions.length === 0 && spec.include_archived === backup) return {};
+  if (conditions.length === 0 && sorting.length === 0 && spec.include_archived === backup) {
+    return {};
+  }
   return {
     ...(conditions.length > 0 ? { conditions: JSON.stringify(conditions) } : {}),
+    ...(sorting.length > 0 ? { sorting: JSON.stringify(sorting) } : {}),
     include_archived: spec.include_archived,
   };
 };
@@ -151,6 +172,8 @@ interface ContentFieldProps {
   onChange: (next: ContentFilters) => void;
   /** The initiative being exported, where there is one. */
   initiativeId?: number;
+  /** The one project's statuses, when a single project is exported. */
+  taskStatuses?: TaskStatusRead[];
 }
 
 /** A calendar's events, by the dates they start in. */
@@ -172,7 +195,7 @@ function EventDatesField({ value, onChange }: ContentFieldProps) {
 
 /** A project's tasks, by the task list's own filters. With no one project to
  *  read statuses from, statuses are picked by category. */
-function TaskFiltersField({ value, onChange, initiativeId }: ContentFieldProps) {
+function TaskFiltersField({ value, onChange, initiativeId, taskStatuses = [] }: ContentFieldProps) {
   const { t } = useTranslation("exports");
   return (
     <div className="space-y-2">
@@ -181,7 +204,7 @@ function TaskFiltersField({ value, onChange, initiativeId }: ContentFieldProps) 
         memberScope={
           initiativeId == null ? { type: "community" } : { type: "initiative", initiativeId }
         }
-        taskStatuses={[]}
+        taskStatuses={taskStatuses}
         initiativeId={initiativeId}
         value={value.tasks}
         onChange={(tasks) => onChange({ ...value, tasks })}
@@ -208,7 +231,9 @@ const CONTENT_FILTERS: Partial<Record<Tool, ContentFilter>> = {
     Field: EventDatesField,
   },
   [Tool.project]: {
-    params: ({ tasks }, backup) => ({ tasks: taskExportParams(tasks, backup) }),
+    params: ({ tasks, taskSorting }, backup) => ({
+      tasks: taskExportParams(tasks, taskSorting, backup),
+    }),
     prompt: "wizard.content.tasksPrompt",
     note: "wizard.content.allTasksNote",
     Field: TaskFiltersField,
@@ -903,7 +928,7 @@ function EntitiesExportWizard({
 }: ExportWizardProps & { scope: EntitiesScope }) {
   const { t } = useTranslation("exports");
   const describeFilters = useDescribeFilters();
-  const { tool, ids, formats, filenameStem, extraActions = [] } = scope;
+  const { tool, ids, formats, filenameStem, extraActions = [], content: seed } = scope;
   const contentFilter = CONTENT_FILTERS[tool];
 
   // A tool with one format and nothing client-side has no choice to offer,
@@ -911,14 +936,23 @@ function EntitiesExportWizard({
   const only = formats.length === 1 && extraActions.length === 0 ? formats[0] : null;
   const [option, setOption] = useState<ExportFormatOption | null>(only);
   const backup = option?.format === "json";
-  const [content, setContent] = useState(() => emptyContent(only?.format === "json"));
+  // The exporting person's own view, where there is one, exactly as it
+  // shows: it is what they asked to export, whichever format carries it.
+  const startContent = (forBackup: boolean): ContentFilters =>
+    seed ? { ...emptyContent(forBackup), ...seed } : emptyContent(forBackup);
+  const [content, setContent] = useState(() => startContent(only?.format === "json"));
 
   const { step, go, commit, back, canGoBack, exportJob } = useExportWizardFlow<
     "format" | "content" | "confirm"
   >(open, only ? (contentFilter ? "content" : "confirm") : "format", () => {
     setOption(only);
-    setContent(emptyContent(only?.format === "json"));
   });
+  // The view loads after the wizard mounts, and can change while it is
+  // closed, so each opening starts from it as it is then.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs on opening only; the seed is read at that moment
+  useEffect(() => {
+    if (open && !exportJob.busy) setContent(startContent(only?.format === "json"));
+  }, [open]);
 
   // Only the content filter travels for named entities: the ids already say
   // which things.
@@ -952,7 +986,7 @@ function EntitiesExportWizard({
       variant="outline"
       className="w-full justify-start"
       onClick={() => {
-        if ((format.format === "json") !== backup) {
+        if (!seed && (format.format === "json") !== backup) {
           setContent((prev) => forOutput(prev, format.format === "json"));
         }
         setOption(format);
@@ -1020,7 +1054,11 @@ function EntitiesExportWizard({
 
       {step === "content" && contentFilter && (
         <div className="space-y-4">
-          <contentFilter.Field value={content} onChange={setContent} />
+          <contentFilter.Field
+            value={content}
+            onChange={setContent}
+            taskStatuses={seed?.taskStatuses}
+          />
           <p className="text-muted-foreground text-xs">{t(contentFilter.note as never)}</p>
           <Button className="w-full" onClick={() => go("confirm")}>
             {t("wizard.next")}

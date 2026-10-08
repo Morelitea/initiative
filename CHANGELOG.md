@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Task tables sort by status and by tag.** Status sorts in the order of the project's board, and tags by each task's first tag alphabetically, with untagged tasks last.
+
 ### Fixed
 
 - **Direct messages arrive again.** The first message to a new device never opened on the other end, so messages stopped arriving and a new device never got its history. Messages left waiting open once the receiving device is updated. Your own devices may ask to be verified once more, and conversations may say a key changed.
@@ -15,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The notification list scrolls again.** With more unread than fit, everything past the first few was cut off with no way to reach it.
 - **The prompt to turn on push notifications sits below the notch on iPhone** instead of under it, where its text was hidden.
 - **The name you go by in a community is used everywhere in it.** Notifications and their emails, post bylines, who read a post or voted in a poll, who uploaded a picture, the moderation roster, and your cursor in a shared file all used your handle. Exports now say who exported them by that name too, and a project report lists its assignees by name. Notifications you already have keep the handle they were sent with.
+- **Exporting a project's tasks keeps your view of it.** From the table, the export lists tasks in the order you sorted them, as it already kept your filters, and a selection exports in that order too. Exporting a project from its settings now starts from the same filters and order, which you can still change before exporting.
 
 ## [0.75.2] - 2026-10-07
 

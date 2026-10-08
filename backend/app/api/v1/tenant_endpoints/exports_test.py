@@ -3135,19 +3135,28 @@ async def test_backup_filters_narrow_each_tool_and_are_not_kept(
     [kept] = json.loads(_assert_export(own, "json"))["tasks"]
     assert (kept["title"], kept["links"]) == ("Open", [])
     monkeypatch.setattr(export_limits, "EXPORT_INLINE_MAX_ROWS", 200)
-    # A report shows what its filter asks for, archived tasks included.
-    _assert_export(
+    # A report shows what its filter asks for, archived tasks included, in
+    # the order its sort asks for.
+    report = _assert_export(
         await _export(
             client,
             a,
             "project",
             ids=[a.project.id],
             format="csv",
-            filters=json.dumps({"tasks": {"include_archived": True}}),
+            filters=json.dumps(
+                {
+                    "tasks": {
+                        "include_archived": True,
+                        "sorting": json.dumps([{"field": "title", "dir": "desc"}]),
+                    }
+                }
+            ),
         ),
         "csv",
         present=("Open", "Shipped", "Put away"),
     )
+    assert report.index("Shipped") < report.index("Put away") < report.index("Open")
 
 
 async def test_empty_initiative_backup_is_manifest_only_zip(
