@@ -18,9 +18,11 @@ Six properties, and each one is a deliberate choice:
   installs nowhere new — deactivating a plug-in stops it exactly like any other.
 * **It is granted what it asks for, within the ceiling.** The manifest's
   requested scopes, capped by the registration's ``scope_ceiling``: the
-  operator's registration is the consent a seat would otherwise give. An
-  install already there that holds no grant is given the same on the next
-  sweep; one the seat has granted something is left as the seat set it.
+  operator's registration is the consent a seat would otherwise give. Using
+  another plug-in is granted only once the community has it, and a required
+  plug-in arriving lets every install that asks use it. An install already
+  there that holds no grant is given the same on the next sweep; one the seat
+  has granted something is left as the seat set it.
 * **It is placed in every initiative.** Each one that exists when it is
   installed, and each one created afterwards (``follows_new_initiatives``). The
   seat may still remove it from any single initiative, and that stays removed:
@@ -39,6 +41,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from collections.abc import Collection
 from typing import Optional
 
 from sqlmodel import select
@@ -76,15 +79,20 @@ class BackfillResult:
 
 
 def mandatory_grant(
-    definition: dict, registration: registration_lookup.RegistrationSnapshot
+    definition: dict,
+    registration: registration_lookup.RegistrationSnapshot,
+    installed: Collection[str],
 ) -> list[str]:
     """The scopes a mandatory install is granted: what its manifest requests
-    and its registration's ceiling allows, sorted.
+    and its registration's ceiling allows, sorted, using only the ``installed``
+    plug-ins.
 
     Written on the system engine, which the install's grant guard admits.
     """
     return sorted(
-        guild_plugins_service.grantable_scopes(definition, registration.scope_ceiling)
+        guild_plugins_service.grantable_scopes(
+            definition, registration.scope_ceiling, installed
+        )
     )
 
 
@@ -151,6 +159,7 @@ async def install_mandatory_plugins(
         return []
 
     installed: list[str] = []
+    present = set(await guild_plugins_service.installed_plugin_ids(session))
     for registration in registrations:
         if registration.listing_uid is None:
             # A registration from before the listing was stated names none,
@@ -178,7 +187,9 @@ async def install_mandatory_plugins(
             # One that holds no grant yet gets what a new install would. A
             # grant the seat already set is theirs and is left as it is.
             if not existing.granted_scopes:
-                granted = mandatory_grant(existing.definition or {}, registration)
+                granted = mandatory_grant(
+                    existing.definition or {}, registration, present
+                )
                 if granted:
                     existing.granted_scopes = granted
                     session.add(existing)
@@ -215,8 +226,11 @@ async def install_mandatory_plugins(
             name=(definition.get("default_name") or listing.name).strip(),
             actor_user_id=created_by,
             via="mandatory",
-            granted_scopes=mandatory_grant(definition, registration),
+            granted_scopes=mandatory_grant(definition, registration, present),
+            # The registration stands in for the seat here too.
+            allowed_callers=None,
         )
+        present.add(registration.public_id)
         # Placed in every initiative there is, and in each one created later.
         plugin.follows_new_initiatives = True
         session.add(plugin)

@@ -4,7 +4,8 @@
  * What matters is what reaches the server: every scope the server allows is
  * granted unless the seat unticks it, a scope it does not allow can never be
  * sent, placement is asked of a plug-in with a page inside initiatives or access
- * to reach there, and moderators open a page unless the seat says otherwise.
+ * to reach there, moderators open a page unless the seat says otherwise, and the
+ * plug-ins here that ask to use it may unless the seat unticks them.
  */
 
 import { screen, waitFor } from "@testing-library/react";
@@ -77,6 +78,7 @@ describe("InstallPluginDialog", () => {
       granted_scopes: ["projects:read", "members:read"],
       placements: "all",
       role_kinds: ["moderator"],
+      callers: [],
     });
   });
 
@@ -136,6 +138,22 @@ describe("InstallPluginDialog", () => {
 
     expect(await screen.findByLabelText("Use GitHub in this community")).toBeChecked();
     expect((await install()).granted_scopes).toEqual(["projects:read", "plugins:acme.github"]);
+  });
+
+  it("asks whether the plug-ins already here may use it, each ticked", async () => {
+    open({
+      callers: [
+        { id: 7, name: "Automations" },
+        { id: 9, name: "Reports" },
+      ],
+    });
+
+    expect(await screen.findByText("Plug-ins that can use it")).toBeInTheDocument();
+    expect(screen.getByLabelText("Automations")).toBeChecked();
+    screen.getByLabelText("Reports").click();
+    await waitFor(() => expect(screen.getByLabelText("Reports")).not.toBeChecked());
+
+    expect((await install()).callers).toEqual([7]);
   });
 
   it("leaves acting as a moderator or an admin for the seat to tick", async () => {

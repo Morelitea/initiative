@@ -2742,6 +2742,8 @@ export interface CommunityPluginInstall {
   name?: string | null;
   /** @maxItems 64 */
   granted_scopes?: string[];
+  /** @maxItems 64 */
+  callers?: number[];
   placements?: "all" | number[];
   /** @maxItems 10 */
   role_kinds?: string[];
@@ -5696,6 +5698,14 @@ export interface MarketplaceInstallResult {
   result: EnvelopeImportResult;
 }
 
+/**
+ * An install that asks to use the plug-in a listing would install.
+ */
+export interface MarketplaceListingCaller {
+  id: number;
+  name: string;
+}
+
 export type MarketplaceListingDetailDefinition = { [key: string]: unknown } | null;
 
 export type MarketplaceListingDetailExample = { [key: string]: unknown } | null;
@@ -5740,6 +5750,7 @@ export interface MarketplaceListingDetail {
   grantable_scopes: string[];
   plugin_names: MarketplaceListingDetailPluginNames;
   has_initiative_surfaces: boolean;
+  callers: MarketplaceListingCaller[];
 }
 
 /**

@@ -46,6 +46,7 @@ from app.schemas.platform.marketplace import (
     ListingStartFrom,
     MarketplaceInstallRequest,
     MarketplaceInstallResult,
+    MarketplaceListingCaller,
     MarketplaceListingDetail,
     MarketplaceListingPage,
     MarketplaceShareRequest,
@@ -159,12 +160,24 @@ async def _detail(session, listing: MarketplaceListing) -> MarketplaceListingDet
     # install and the registration's ceiling. Empty for anything not a plug-in.
     requested: list[str] = []
     grantable: list[str] = []
+    callers: list[MarketplaceListingCaller] = []
     if listing.kind == "plugin":
-        requested = guild_plugins_service.requested_scopes(definition)
+        installed = await guild_plugins_service.installed_plugin_ids(session)
+        requested = guild_plugins_service.offered_scopes(definition, installed)
         registration = await registration_lookup.registration_for_definition(definition)
         grantable = guild_plugins_service.grantable_scopes(
-            definition, registration.scope_ceiling if registration else ()
+            definition, registration.scope_ceiling if registration else (), installed
         )
+        public_id = registration_lookup.service_public_id(
+            definition, listing_public_id=listing.public_id
+        )
+        if public_id is not None:
+            callers = [
+                MarketplaceListingCaller(id=plugin.id, name=plugin.name)
+                for plugin in await guild_plugins_service.plugin_callers(
+                    session, public_id
+                )
+            ]
     return MarketplaceListingDetail(
         **summary.model_dump(),
         requested_scopes=requested,
@@ -174,6 +187,7 @@ async def _detail(session, listing: MarketplaceListing) -> MarketplaceListingDet
             listing.kind == "plugin"
             and guild_plugins_service.has_initiative_surfaces(definition)
         ),
+        callers=callers,
         long_description=listing.long_description,
         # A preview of what installing would produce. The install path re-reads
         # the catalog itself, so this is display data, not an input.
