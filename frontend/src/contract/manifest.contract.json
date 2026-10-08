@@ -21,8 +21,8 @@
   "enums": {
     "feature": [
       "dashboards",
-      "embeds",
       "endpoints",
+      "pages",
       "widgets"
     ],
     "protocol": [
@@ -142,7 +142,7 @@
       "community",
       "initiative"
     ],
-    "embedCapability": [
+    "pageCapability": [
       "camera",
       "clipboard-read",
       "clipboard-write",
@@ -204,8 +204,8 @@
     "endpoints": 64,
     "paramsPerEndpoint": 12,
     "returnsPerEndpoint": 24,
-    "embeds": 12,
-    "embedCapabilities": 8,
+    "pages": 12,
+    "pageCapabilities": 8,
     "bundledDashboards": 8,
     "dashboardWidgets": 50,
     "dashboardGridColumns": 12,
@@ -242,7 +242,7 @@
     "hosts": 8,
     "hostLength": 253,
     "steps": 3,
-    "pages": 10,
+    "maxPages": 10,
     "perPage": 100,
     "requestQuery": 24,
     "requestHeaders": 12,
@@ -1118,7 +1118,7 @@
         }
       }
     },
-    "embed": {
+    "page": {
       "type": "object",
       "required": [
         "id",
@@ -1146,20 +1146,20 @@
           "default": [
             "community"
           ],
-          "description": "Where the surface renders. Declaring both gives it a community-wide entry and an entry inside each initiative."
+          "description": "Where the page renders. Declaring both gives it a community-wide entry and an entry inside each initiative."
         },
         "admin_only": {
           "type": "boolean",
           "default": false,
-          "description": "Only the community's admins open this surface, whatever roles a placement allows \u2014 a settings page, say. Who else may open a surface is chosen in the community, per initiative and per role, not declared here."
+          "description": "Only the community's admins open this page, whatever roles a placement allows \u2014 a settings page, say. Who else may open a page is chosen in the community, per initiative and per role, not declared here."
         },
         "capabilities": {
           "type": "array",
-          "maxItems": "embedCapabilities",
+          "maxItems": "pageCapabilities",
           "items": {
-            "enum": "embedCapability"
+            "enum": "pageCapability"
           },
-          "description": "Browser features the frame is granted. A surface that names nothing is framed with all of them denied."
+          "description": "Browser features the frame is granted. A page that names nothing is framed with all of them denied."
         },
         "requires": {
           "ref": "requires"
@@ -1575,7 +1575,7 @@
     "maxPages": {
       "type": "integer",
       "minimum": 1,
-      "maximum": "pages"
+      "maximum": "maxPages"
     },
     "statusMatch": {
       "description": "An HTTP status: one code, or a range of a hundred ('4xx').",
@@ -1894,11 +1894,11 @@
           "ref": "widget"
         }
       },
-      "embeds": {
+      "pages": {
         "type": "array",
-        "maxItems": "embeds",
+        "maxItems": "pages",
         "items": {
-          "ref": "embed"
+          "ref": "page"
         }
       },
       "dashboards": {

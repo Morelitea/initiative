@@ -79,7 +79,7 @@ export const SettingsPluginServicesPage = () => {
               base_url: values.baseUrl,
               // Always sent, so emptying the field clears it and puts both
               // surfaces back on the base URL.
-              embed_origin: values.embedOrigin,
+              page_origin: values.pageOrigin,
               allowed_origins: origins,
               // Null leaves the stored key set alone; {} clears it.
               ...(values.jwks === null ? {} : { jwks: values.jwks }),
@@ -114,7 +114,7 @@ export const SettingsPluginServicesPage = () => {
       {
         public_id: values.publicId,
         base_url: values.baseUrl,
-        embed_origin: values.embedOrigin || null,
+        page_origin: values.pageOrigin || null,
         allowed_origins: origins,
         jwks: values.jwks,
         jwks_uri: values.jwksUri || null,
@@ -240,10 +240,10 @@ export const SettingsPluginServicesPage = () => {
                           {t("pluginServices.imageSummary", { image: registration.image_digest })}
                         </p>
                       )}
-                      {registration.embed_origin && (
+                      {registration.page_origin && (
                         <p className="truncate text-muted-foreground text-sm">
-                          {t("pluginServices.embedOriginSummary", {
-                            origin: registration.embed_origin,
+                          {t("pluginServices.pageOriginSummary", {
+                            origin: registration.page_origin,
                           })}
                         </p>
                       )}

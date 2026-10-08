@@ -17,7 +17,7 @@ import {
 import { useTranslation } from "react-i18next";
 
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { atLeast, useWidthClass } from "@/hooks/useWidthClass";
 import { getItem, setItem } from "@/lib/storage";
 import { cn } from "@/lib/utils";
 
@@ -472,7 +472,7 @@ export const DocumentOutlinePanel = ({
   maxDepth?: number;
 }) => {
   const { t } = useTranslation("editor");
-  const isMobile = useIsMobile();
+  const isMobile = !atLeast(useWidthClass(), "md");
 
   if (isMobile) {
     return (

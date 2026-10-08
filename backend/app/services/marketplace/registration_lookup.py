@@ -75,7 +75,7 @@ class RegistrationSnapshot:
     base_url: str
     #: Where a person's browser loads its surfaces, when the plug-in answers there
     #: rather than at ``base_url``. Read through :attr:`browser_base`.
-    embed_origin: Optional[str]
+    page_origin: Optional[str]
     #: Origins this plug-in's surfaces may be framed from and postMessage'd to.
     allowed_origins: tuple[str, ...]
     #: Public verification keys this plug-in signs with — its client assertions at
@@ -180,7 +180,7 @@ async def load_registrations(*, force: bool = False) -> dict[str, RegistrationSn
             public_id=row.public_id,
             listing_uid=row.listing_uid,
             base_url=row.base_url or "",
-            embed_origin=row.embed_origin,
+            page_origin=row.page_origin,
             allowed_origins=tuple(row.allowed_origins or []),
             keys=_parse_keys(row),
             mandatory=bool(row.mandatory),
@@ -238,8 +238,7 @@ def service_public_id(
     """The plug-in a pinned definition names, if it names one.
 
     Only a ``service`` plug-in has one — a tool instance mounts one of this build's
-    own tools and an embed opens a configured surface, and neither has a
-    container behind it. A container names itself in its ``service`` block; a
+    own tools and has no container behind it. A container names itself in its ``service`` block; a
     declarative plug-in has none, and is its listing's ``listing_public_id``.
     """
     if is_declarative(definition):
@@ -313,7 +312,7 @@ async def install_state(
 ) -> InstallState:
     """The registration-derived state of one install.
 
-    A plug-in with no service behind it — a tool instance, an embed — is always
+    A plug-in with no service behind it — a tool instance — is always
     available and never mandatory: there is no registration for it to depend on.
     """
     if not _has_registration(definition):

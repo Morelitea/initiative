@@ -255,7 +255,7 @@ class CommunityPluginRead(SanitizedBaseModel):
     #: rather than permission: it is the community's own answer to where an
     #: plug-in belongs, so it reads the same for everyone.
     placements: List[PluginPlacementRead] = []
-    #: Each embedded surface the pinned definition declares, with where the
+    #: Each page the pinned definition declares, with where the
     #: viewer may open it.
     surface_access: List[PluginSurfaceAccessRead] = []
     #: The scopes the community's seat granted this install: empty until the
@@ -313,7 +313,7 @@ class CommunityPluginMemberConsent(CommunityPluginConsentRead):
 
 
 class PluginSurfaceSummary(SanitizedBaseModel):
-    """One of a plug-in's embedded surfaces, by id and by its localized name."""
+    """One of a plug-in's pages, by id and by its localized name."""
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
@@ -435,7 +435,7 @@ class CommunityPluginConnectStart(SanitizedBaseModel):
 
 
 class CommunityPluginHandoff(SanitizedBaseModel):
-    """A short-lived credential for one of a plug-in's embedded surfaces.
+    """A short-lived credential for one of a plug-in's pages.
 
     The token reaches the iframe by ``postMessage`` and never a query string,
     and it is worth a minute. ``allowed_origins`` is what the SPA posts to and
@@ -446,7 +446,7 @@ class CommunityPluginHandoff(SanitizedBaseModel):
 
     handoff_token: str
     expires_in_seconds: int
-    embed_url: str
+    page_url: str
     allowed_origins: List[str] = []
     audience: str
     surface_id: str

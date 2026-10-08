@@ -6,8 +6,8 @@ key of its own, which the row holds wrapped for its community
 (``app.core.blob_crypto``). Its policies, the ``created_by`` trigger and the
 filer role's reach are rendered by the provisioning run.
 
-Revision ID: 20261008_0470
-Revises: 20261007_0469
+Revision ID: 20261008_0471
+Revises: 20261008_0470
 Create Date: 2026-10-08
 """
 
@@ -16,8 +16,8 @@ from alembic import op
 
 from app.db.guild_migrations import run_for_each_guild_schema
 
-revision = "20261008_0470"
-down_revision = "20261007_0469"
+revision = "20261008_0471"
+down_revision = "20261008_0470"
 branch_labels = None
 depends_on = None
 

@@ -17,12 +17,6 @@ adding another guild calendar gives it to the install too, because the plug-in i
 the container: it is the entry that reaches the content, so removing it takes
 the content with it rather than stranding rows nothing links to.
 
-An **embed** brings none. It opens a surface the operator configured, so there
-is no row to create, nothing to share, and nothing to trash on the way out —
-installing it adds an entry, and removing it takes the entry away. Who may open
-it is settled by the endpoint that mints its handoff rather than by grants,
-which is why such a plug-in reports itself as admin-only.
-
 A **service** plug-in brings connections rather than content: what it needs is
 configuration, which lives on the install row, in its secret values
 (:func:`store_secrets`) and in each member's own connection. It creates no artifacts here.
@@ -326,9 +320,8 @@ async def create_plugin_artifacts(
 ) -> None:
     """Create what the plug-in mounts, owned by its install.
 
-    Only a tool instance produces anything. An embed opens a surface that
-    already exists, and a **service** plug-in brings connections rather than
-    content — its install is the row plus the definition it pinned, and what it
+    Only a tool instance produces anything. A **service** plug-in brings
+    connections rather than content — its install is the row plus the definition it pinned, and what it
     offers is served from the container the operator registered.
     """
     definition = plugin.definition or {}
@@ -1140,25 +1133,25 @@ async def plugin_scope_names(
 
 
 def declared_surfaces(definition: Any) -> list[dict[str, Any]]:
-    """The embedded surfaces a pinned definition declares, well-formed ones only."""
+    """The pages a pinned definition declares, well-formed ones only."""
     if not isinstance(definition, dict):
         return []
-    embeds = definition.get("embeds")
-    if not isinstance(embeds, list):
+    pages = definition.get("pages")
+    if not isinstance(pages, list):
         return []
     return [
-        embed
-        for embed in embeds
-        if isinstance(embed, dict) and isinstance(embed.get("id"), str)
+        page
+        for page in pages
+        if isinstance(page, dict) and isinstance(page.get("id"), str)
     ]
 
 
 def initiative_surface_ids(definition: Any) -> set[str]:
     """The ids of the surfaces a pinned definition renders inside initiatives."""
     return {
-        embed["id"]
-        for embed in declared_surfaces(definition)
-        if surface_renders_in(embed, "initiative")
+        page["id"]
+        for page in declared_surfaces(definition)
+        if surface_renders_in(page, "initiative")
     }
 
 
@@ -1167,18 +1160,18 @@ def has_initiative_surfaces(definition: Any) -> bool:
     return bool(initiative_surface_ids(definition))
 
 
-def surface_renders_in(embed: dict[str, Any], scope: str) -> bool:
+def surface_renders_in(page: dict[str, Any], scope: str) -> bool:
     """Whether a surface asked to render in ``scope``.
 
     Definitions pinned before a surface could say where it belongs carry no
     ``scopes``, and every one of those is community-wide.
     """
-    scopes = embed.get("scopes")
+    scopes = page.get("scopes")
     return scope in scopes if isinstance(scopes, list) else scope == "community"
 
 
 def surface_access(
-    embed: dict[str, Any],
+    page: dict[str, Any],
     *,
     initiative_id: Optional[int],
     placement_role_ids: Optional[Collection[int]],
@@ -1186,7 +1179,7 @@ def surface_access(
     member_role_ids: Collection[int],
     age_allows: bool = True,
 ) -> SurfaceAccess:
-    """Whether a viewer may open ``embed`` where it is being opened.
+    """Whether a viewer may open ``page`` where it is being opened.
 
     ``initiative_id`` is where: ``None`` is the community level. For an
     initiative, ``placement_role_ids`` is that placement's roles, or ``None``
@@ -1208,7 +1201,7 @@ def surface_access(
     person, not their standing.
     """
     scope = "community" if initiative_id is None else "initiative"
-    if not surface_renders_in(embed, scope):
+    if not surface_renders_in(page, scope):
         return SurfaceAccess.not_here
     if initiative_id is not None and placement_role_ids is None:
         return SurfaceAccess.not_here
@@ -1216,7 +1209,7 @@ def surface_access(
         return SurfaceAccess.too_young
     if is_guild_admin:
         return SurfaceAccess.open
-    if initiative_id is None or is_admin_only(embed):
+    if initiative_id is None or is_admin_only(page):
         return SurfaceAccess.refused
     allowed = set(placement_role_ids or ())
     if allowed.intersection(member_role_ids):
@@ -1248,9 +1241,9 @@ def surface_openability(
     """
     ordered = sorted(placements, key=lambda row: row.initiative_id)
     answers: list[SurfaceOpenability] = []
-    for embed in declared_surfaces(definition):
+    for page in declared_surfaces(definition):
         guild_wide = surface_access(
-            embed,
+            page,
             initiative_id=None,
             placement_role_ids=None,
             is_guild_admin=is_guild_admin,
@@ -1261,7 +1254,7 @@ def surface_openability(
             row.initiative_id
             for row in ordered
             if surface_access(
-                embed,
+                page,
                 initiative_id=row.initiative_id,
                 placement_role_ids=list(row.role_ids or []),
                 is_guild_admin=is_guild_admin,
@@ -1272,7 +1265,7 @@ def surface_openability(
         )
         answers.append(
             SurfaceOpenability(
-                surface_id=embed["id"],
+                surface_id=page["id"],
                 openable_guild_wide=guild_wide is SurfaceAccess.open,
                 openable_initiatives=initiatives,
             )

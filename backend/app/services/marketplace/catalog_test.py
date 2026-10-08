@@ -294,8 +294,8 @@ class TestDefinitions:
                         "public_id": "tests.widget-co",
                         "default_url": "https://widget.test",
                     },
-                    "features": ["embeds"],
-                    "embeds": [
+                    "features": ["pages"],
+                    "pages": [
                         {"id": "main", "path": "/embed/main", "name": {"en": "Main"}}
                     ],
                 },
@@ -308,7 +308,7 @@ class TestDefinitions:
             "public_id": "tests.widget-co",
             "protocol": 1,
         }
-        assert version.definition["embeds"][0]["path"] == "/embed/main"
+        assert version.definition["pages"][0]["path"] == "/embed/main"
 
 
 class TestArtwork:

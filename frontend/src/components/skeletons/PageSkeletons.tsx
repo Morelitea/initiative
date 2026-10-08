@@ -181,7 +181,7 @@ export interface CardGridSkeletonProps {
 /** A grid of cards, each with a title, a couple of lines, and some tags. */
 export const CardGridSkeleton = ({
   count = 6,
-  className = "grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3",
+  className = "grid grid-cols-fill-60 gap-4",
   cardClassName,
 }: CardGridSkeletonProps) => (
   <div className={className}>
@@ -523,7 +523,7 @@ export const FileDetailSkeleton = ({ label }: LabelledSkeletonProps) => (
 export const TaskEditSkeleton = ({ label }: LabelledSkeletonProps) => (
   <SkeletonRegion label={label}>
     <DetailPageSkeleton actions={2} description={false}>
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+      <div className="grid gap-6 canvas-md:grid-cols-[minmax(0,1fr)_20rem]">
         <EditorSkeleton lines={8} />
         <FormSkeleton card={false} fields={5} action={false} />
       </div>

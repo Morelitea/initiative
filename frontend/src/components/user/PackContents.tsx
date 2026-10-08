@@ -80,7 +80,7 @@ export const PackContentsDialog = ({
                 <ul
                   className={
                     kind === "banner"
-                      ? "grid gap-2 sm:grid-cols-2"
+                      ? "grid grid-cols-pair gap-2"
                       : "flex flex-wrap gap-x-3 gap-y-3"
                   }
                 >

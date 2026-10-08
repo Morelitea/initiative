@@ -2,7 +2,7 @@
  * Which token reaches which frame.
  *
  * A handoff names one surface and is spent on first use, so the page re-mints
- * when a reloading embed asks again. That re-mint is asynchronous, and the tabs
+ * when a reloading page asks again. That re-mint is asynchronous, and the tabs
  * of one plug-in all share an origin — so if the reader switches surfaces while it
  * is in flight, the origin check cannot tell the arriving token from a correct
  * one. The delivery has to be dropped instead.
@@ -54,12 +54,12 @@ const detail = {
   enabled: true,
   available: true,
   definition: {
-    embeds: [
-      { id: "one", path: "/embed/one", name: { en: "One" } },
-      { id: "two", path: "/embed/two", name: { en: "Two" } },
+    pages: [
+      { id: "one", path: "/page/one", name: { en: "One" } },
+      { id: "two", path: "/page/two", name: { en: "Two" } },
       {
         id: "inside",
-        path: "/embed/inside",
+        path: "/page/inside",
         name: { en: "Inside" },
         scopes: ["initiative"],
         admin_only: true,
@@ -80,7 +80,7 @@ vi.mock("@/hooks/useActiveCommunityId", () => ({ useActiveCommunityId: () => 3 }
 const handoff = (surfaceId: string) => ({
   handoff_token: `token-for-${surfaceId}`,
   expires_in_seconds: 60,
-  embed_url: `https://plugin.example.com/embed/${surfaceId}`,
+  page_url: `https://plugin.example.com/page/${surfaceId}`,
   allowed_origins: ["https://plugin.example.com"],
   audience: "initiative-plugin:acme.demo",
   surface_id: surfaceId,
@@ -130,7 +130,7 @@ const ready = () =>
  *
  * `ready` is a one-shot with no retry: the page only listens once it holds a
  * token for the mounted frame, and an announcement that lands before then is
- * gone for good. A real embed cannot arrive early — it loads from the src the
+ * gone for good. A real page cannot arrive early — it loads from the src the
  * token produced — but a test dispatching by hand can, since the mounted frame
  * and the listener that serves it settle in that order and a loaded machine can
  * leave a gap between them. Delivery is synchronous inside the listener, so the
@@ -156,7 +156,7 @@ describe("CommunityPluginPage", () => {
   });
 
   it("sends the reader's appearance with the token", async () => {
-    // The embed opens already wearing this page's theme: the resolved mode and
+    // The page opens already wearing this page's theme: the resolved mode and
     // the effective palette ride the handoff, since an iframe on another
     // origin cannot read this document's custom properties.
     mint.mockImplementation((surfaceId: string) => Promise.resolve(handoff(surfaceId)));
@@ -177,7 +177,7 @@ describe("CommunityPluginPage", () => {
   });
 
   it("says with the token whether the host may sell here", async () => {
-    // An embedded plug-in hides its own purchase copy where the host may not sell.
+    // A plug-in's page hides its own purchase copy where the host may not sell.
     mint.mockImplementation((surfaceId: string) => Promise.resolve(handoff(surfaceId)));
     const { CommunityPluginPage } = await import("./CommunityPluginPage");
     const handoffSent = () =>
@@ -239,7 +239,7 @@ describe("CommunityPluginPage", () => {
     await screen.findByTitle("Automations");
     await announceReady(); // spends the first token
 
-    ready(); // the embed reloaded: starts the re-mint that will go stale
+    ready(); // the page reloaded: starts the re-mint that will go stale
     (await screen.findByText("Two")).click();
     await waitFor(() => expect(mint).toHaveBeenCalledWith("two", expect.anything()));
 

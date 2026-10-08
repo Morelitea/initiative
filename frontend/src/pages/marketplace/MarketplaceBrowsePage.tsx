@@ -122,7 +122,7 @@ export function MarketplaceBrowsePage() {
           description={t("unavailable.description")}
         />
       ) : listingsQuery.isLoading ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-fill-72 gap-4">
           {SKELETON_KEYS.map((key) => (
             <Skeleton key={key} className="h-32 w-full rounded-xl" />
           ))}
@@ -132,7 +132,7 @@ export function MarketplaceBrowsePage() {
           {installedQuery?.isError && (
             <p className="text-muted-foreground text-sm">{t("installedUnknown")}</p>
           )}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-fill-72 gap-4">
             {listings.map((listing) => (
               <MarketplaceCard
                 key={listing.public_id}

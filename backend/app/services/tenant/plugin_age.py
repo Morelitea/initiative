@@ -4,7 +4,7 @@ A plug-in may declare ``minimum_age`` by ISO 3166-1 country, with ``default``
 for every country it does not list — the age of digital consent differs by
 country (13 under COPPA in the US, up to 16 under the GDPR). This module is the
 one place that answers it for one person, and every path a person uses a
-plug-in through asks it: the embed handoff and the sidebar that offers it
+plug-in through asks it: the page handoff and the sidebar that offers it
 (through ``guild_plugins.surface_access``), a widget's data, and connecting an
 account or consenting to be acted for.
 

@@ -108,7 +108,7 @@ export const SettingsEmailPage = () => {
       </CardHeader>
       <CardContent>
         <form className="space-y-6" onSubmit={handleSubmit}>
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid grid-cols-pair gap-4">
             <div className="space-y-2">
               <Label htmlFor="smtp-host">{t("email.hostLabel")}</Label>
               <Input
@@ -131,7 +131,7 @@ export const SettingsEmailPage = () => {
               />
             </div>
           </div>
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid grid-cols-pair gap-4">
             <div className="flex items-center justify-between rounded-md border px-4 py-3">
               <div>
                 <p className="font-medium">{t("email.secureLabel")}</p>
@@ -153,7 +153,7 @@ export const SettingsEmailPage = () => {
               />
             </div>
           </div>
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid grid-cols-pair gap-4">
             <div className="space-y-2">
               <Label htmlFor="smtp-username">{t("email.usernameLabel")}</Label>
               <Input
@@ -183,7 +183,7 @@ export const SettingsEmailPage = () => {
               placeholder={t("email.fromAddressPlaceholder")}
             />
           </div>
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid grid-cols-pair gap-4">
             <div className="space-y-2">
               <Label htmlFor="smtp-test-recipient">{t("email.testRecipientLabel")}</Label>
               <Input

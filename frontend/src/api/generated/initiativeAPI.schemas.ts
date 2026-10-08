@@ -2648,7 +2648,7 @@ export interface PluginSurfaceAccessRead {
 export type PluginSurfaceSummaryName = { [key: string]: string };
 
 /**
- * One of a plug-in's embedded surfaces, by id and by its localized name.
+ * One of a plug-in's pages, by id and by its localized name.
  */
 export interface PluginSurfaceSummary {
   id: string;
@@ -2737,7 +2737,7 @@ export interface CommunityPluginDetail {
 }
 
 /**
- * A short-lived credential for one of a plug-in's embedded surfaces.
+ * A short-lived credential for one of a plug-in's pages.
  *
  * The token reaches the iframe by ``postMessage`` and never a query string,
  * and it is worth a minute. ``allowed_origins`` is what the SPA posts to and
@@ -2746,7 +2746,7 @@ export interface CommunityPluginDetail {
 export interface CommunityPluginHandoff {
   handoff_token: string;
   expires_in_seconds: number;
-  embed_url: string;
+  page_url: string;
   allowed_origins: string[];
   audience: string;
   surface_id: string;
@@ -7189,7 +7189,7 @@ export type PluginServiceRegistrationCreateVendorValues = { [key: string]: strin
 /**
  * Set up a plug-in service's deployment facts before its listing arrives.
  *
- * ``public_id`` names the plug-in. ``embed_origin`` is optional, and unset is the
+ * ``public_id`` names the plug-in. ``page_origin`` is optional, and unset is the
  * ordinary case: a plug-in reachable at one address needs only ``base_url``.
  * Give one when the address a browser must use is not the address this
  * deployment calls.
@@ -7202,7 +7202,7 @@ export interface PluginServiceRegistrationCreate {
   public_id: string;
   /** @maxLength 1000 */
   base_url: string;
-  embed_origin?: string | null;
+  page_origin?: string | null;
   allowed_origins?: string[] | null;
   jwks?: PluginServiceRegistrationCreateJwks;
   jwks_uri?: string | null;
@@ -7241,7 +7241,7 @@ export interface PluginServiceRegistrationRead {
   publisher_name: string;
   publisher_enabled: boolean;
   base_url: string | null;
-  embed_origin: string | null;
+  page_origin: string | null;
   allowed_origins: string[];
   jwks: PluginServiceRegistrationReadJwks;
   jwks_uri: string | null;
@@ -7272,7 +7272,7 @@ export type PluginServiceRegistrationUpdateVendorValues = { [key: string]: strin
 /**
  * Partial edit.
  *
- * An empty ``embed_origin`` clears it, putting both surfaces back on
+ * An empty ``page_origin`` clears it, putting both surfaces back on
  * ``base_url``. An empty ``jwks_uri`` clears it, and an empty ``jwks``
  * object clears the pasted set. In ``vendor_values`` a key sent empty or
  * null clears that value, and a key left out keeps it, so a secret is kept
@@ -7280,7 +7280,7 @@ export type PluginServiceRegistrationUpdateVendorValues = { [key: string]: strin
  */
 export interface PluginServiceRegistrationUpdate {
   base_url?: string | null;
-  embed_origin?: string | null;
+  page_origin?: string | null;
   allowed_origins?: string[] | null;
   jwks?: PluginServiceRegistrationUpdateJwks;
   jwks_uri?: string | null;

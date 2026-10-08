@@ -187,7 +187,7 @@ def test_surface_access_is_computed_for_the_viewer():
     ``admin_only`` surface."""
     definition = {
         **DEFINITION,
-        "embeds": [
+        "pages": [
             {"id": "board", "path": "/b", "scopes": ["community", "initiative"]},
             {
                 "id": "settings",

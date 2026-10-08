@@ -77,7 +77,7 @@ export const GalleryCard = ({ gallery, className }: GalleryCardProps) => {
           </div>
         ) : (
           <div className="flex h-full items-center justify-center">
-            <Images className="h-10 w-10 text-muted-foreground md:h-16 md:w-16" />
+            <Images className="h-10 w-10 text-muted-foreground sm:h-16 sm:w-16" />
           </div>
         )}
         <div className="absolute right-2 bottom-2 flex flex-col items-end gap-1 text-xs">

@@ -196,14 +196,14 @@ class PluginServiceRegistration(SQLModel, table=True):
     base_url: Optional[str] = Field(
         default=None, sa_column=Column(String(1000), nullable=True)
     )
-    # Base of the service's browser surface: the iframe an embed opens and the
+    # Base of the service's browser surface: the iframe a page opens in and the
     # page a member is sent to for an interactive connection. Unset means the
     # plug-in answers both surfaces at one address, which is the ordinary case and
     # what every registration written before this column existed says.
-    embed_origin: Optional[str] = Field(
+    page_origin: Optional[str] = Field(
         default=None, sa_column=Column(String(1000), nullable=True)
     )
-    # Origins this plug-in's embedded surfaces may be framed from and postMessage'd
+    # Origins this plug-in's pages may be framed from and postMessage'd
     # to. Defaults to the browser base's own origin.
     allowed_origins: List[str] = Field(
         default_factory=list,
@@ -318,13 +318,13 @@ class BrowserAddressed(Protocol):
     """
 
     base_url: str
-    embed_origin: Optional[str]
+    page_origin: Optional[str]
 
 
 def browser_base(registration: BrowserAddressed) -> str:
     """The base a person's browser resolves for this plug-in's surfaces.
 
-    ``embed_origin`` when the deployment gave one, ``base_url`` otherwise — an
+    ``page_origin`` when the deployment gave one, ``base_url`` otherwise — an
     plug-in reachable at a single address needs no second field to say so.
     """
-    return registration.embed_origin or registration.base_url
+    return registration.page_origin or registration.base_url

@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Layouts fit foldable phones and tablets.** On an unfolded foldable or a tablet held upright, forms go two fields to a row and cards fill as many columns as fit, rather than waiting for a laptop-sized screen. The sidebar now stays open beside the page from the width of a tablet held sideways, where before it waited for 1024 pixels.
+- **Plug-ins are built with SDK 5.0.** Initiative serves plug-in API 5.0, where a plug-in's own screens are declared as `pages` rather than `embeds`. Publishing or updating a plug-in here needs a release built with SDK 5.0. Plug-ins already installed keep working.
 - **API: filing a ticket and answering one take `multipart/form-data`.** `POST /api/v1/me/tickets` takes the ticket as JSON in a `payload` field, and `POST /api/v1/me/tickets/{task_id}/replies` takes the answer in a `body` field, each beside any `files`.
 
 ## [0.75.3] - 2026-10-08

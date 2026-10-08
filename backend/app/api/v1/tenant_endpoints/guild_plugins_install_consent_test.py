@@ -31,10 +31,10 @@ CEILING = ["comments:read", "projects:read", "tags:read"]
 def _definition(*, inside: bool = True) -> dict:
     """A service plug-in asking for three scopes, one of them above the ceiling,
     with a surface inside initiatives when ``inside``."""
-    embeds = [
+    pages = [
         {
             "id": "board",
-            "path": "/embed/board",
+            "path": "/page/board",
             "scopes": ["initiative"] if inside else ["guild"],
             "admin_only": False,
             "name": {"en": "Board"},
@@ -47,8 +47,8 @@ def _definition(*, inside: bool = True) -> dict:
             "protocol": 1,
             "scopes": ["comments:read", "projects:read", "projects:write"],
         },
-        "features": ["embeds"],
-        "embeds": embeds,
+        "features": ["pages"],
+        "pages": pages,
         "default_name": "ConsentCo",
     }
 
@@ -338,11 +338,11 @@ def _wider(*, surfaces: bool = False) -> dict:
         "tags:read",
     ]
     if surfaces:
-        definition["embeds"] = [
-            *definition["embeds"],
+        definition["pages"] = [
+            *definition["pages"],
             {
                 "id": "planner",
-                "path": "/embed/planner",
+                "path": "/page/planner",
                 "scopes": ["initiative"],
                 "admin_only": False,
                 "name": {"en": "Planner"},

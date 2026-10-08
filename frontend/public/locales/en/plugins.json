@@ -161,7 +161,7 @@
     "adminTitle": "Community settings",
     "adminDescription": "What the community owns for this plug-in. Only the superadmin sees this."
   },
-  "embed": {
+  "page": {
     "connecting": "Connecting…",
     "handoffFailed": "Could not open this plug-in. Try again in a moment.",
     "failed": "This plug-in could not be opened",

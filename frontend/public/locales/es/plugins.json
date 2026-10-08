@@ -161,7 +161,7 @@
     "adminTitle": "Ajustes de la comunidad",
     "adminDescription": "Lo que la comunidad controla en este complemento. Solo lo ve el superadministrador."
   },
-  "embed": {
+  "page": {
     "connecting": "Conectando…",
     "handoffFailed": "No se pudo abrir este complemento. Inténtalo de nuevo en un momento.",
     "failed": "No se pudo abrir este complemento",

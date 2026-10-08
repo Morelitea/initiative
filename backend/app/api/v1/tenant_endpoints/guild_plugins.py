@@ -18,7 +18,7 @@ perform another member's connection nor read its values.
 
 What a member may *do* inside a plug-in is not decided here. The content a plug-in
 creates carries its own grants, and the tool that owns it enforces them exactly
-as it does for initiative content. A plug-in's *embedded* surfaces are the
+as it does for initiative content. A plug-in's *pages* are the
 exception, because they have no local content to carry grants: the handoff mint
 is where who-may-open-this is settled, against where the seat placed the plug-in
 and which roles it allowed there.
@@ -1002,7 +1002,7 @@ async def put_community_plugin_scopes(
 
 
 # ---------------------------------------------------------------------------
-# Embedded surfaces
+# Pages
 # ---------------------------------------------------------------------------
 
 
@@ -1015,7 +1015,7 @@ async def create_community_plugin_handoff(
     guild_context: GuildContextDep,
     viewer: AgeViewerDep,
 ) -> CommunityPluginHandoff:
-    """Mint the short-lived credential for one of this plug-in's embedded surfaces.
+    """Mint the short-lived credential for one of this plug-in's pages.
 
     Whether the surface may be opened is decided here, under the caller's real
     session, so the plug-in never makes that call and never sees a request from
@@ -1026,7 +1026,7 @@ async def create_community_plugin_handoff(
     and expires in a minute.
     """
     plugin = await _load(session, plugin_id)
-    handoff = await handoff_service.mint_embed_handoff(
+    handoff = await handoff_service.mint_page_handoff(
         session,
         plugin,
         surface_id=surface_id,
@@ -1073,7 +1073,7 @@ async def create_initiative_plugin_handoff(
     """
     initiative = await _load_initiative(session, initiative_id, current_user.id)
     plugin = await _load(session, plugin_id)
-    handoff = await handoff_service.mint_embed_handoff(
+    handoff = await handoff_service.mint_page_handoff(
         session,
         plugin,
         surface_id=surface_id,
@@ -1085,7 +1085,7 @@ async def create_initiative_plugin_handoff(
     return _handoff_response(handoff)
 
 
-def _handoff_response(handoff: handoff_service.EmbedHandoff) -> CommunityPluginHandoff:
+def _handoff_response(handoff: handoff_service.PageHandoff) -> CommunityPluginHandoff:
     """The same answer either route gives.
 
     The initiative is not in it: it is a claim in the token, and the browser
@@ -1094,7 +1094,7 @@ def _handoff_response(handoff: handoff_service.EmbedHandoff) -> CommunityPluginH
     return CommunityPluginHandoff(
         handoff_token=handoff.token,
         expires_in_seconds=handoff.expires_in_seconds,
-        embed_url=handoff.embed_url,
+        page_url=handoff.page_url,
         allowed_origins=list(handoff.allowed_origins),
         audience=handoff.audience,
         surface_id=handoff.surface_id,

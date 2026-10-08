@@ -158,7 +158,7 @@ const Marquee = () => {
   const { t } = useTranslation("landing");
   const [paused, setPaused] = useState(false);
   return (
-    <div className="relative mx-auto max-w-6xl px-4 pb-14 md:px-8 md:pb-18">
+    <div className="relative mx-auto max-w-6xl px-4 pb-14 sm:px-8 sm:pb-18">
       <div className="mb-3 flex items-center justify-between gap-3">
         <h2 className="font-semibold text-slate-300 text-sm">{t("communities.alsoGoodFor")}</h2>
         <button
@@ -188,7 +188,7 @@ const Marquee = () => {
           {[0, 1].map((copy) => (
             <ul
               key={copy}
-              className={`flex shrink-0 gap-2.5 pr-2.5 motion-reduce:flex-wrap motion-reduce:pr-0 md:gap-3.5 md:pr-3.5 ${copy === 1 ? "motion-reduce:hidden" : ""}`}
+              className={`flex shrink-0 gap-2.5 pr-2.5 motion-reduce:flex-wrap motion-reduce:pr-0 sm:gap-3.5 sm:pr-3.5 ${copy === 1 ? "motion-reduce:hidden" : ""}`}
               aria-hidden={copy === 1 ? "true" : undefined}
             >
               {MARQUEE.map(([key, art]) => (
@@ -202,7 +202,7 @@ const Marquee = () => {
                     className="absolute inset-0 h-full w-full object-cover"
                   />
                   <span className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/65 to-transparent" />
-                  <span className="relative font-extrabold text-white leading-tight md:text-lg">
+                  <span className="relative font-extrabold text-white leading-tight sm:text-lg">
                     {t(`communities.marquee.${key}`)}
                   </span>
                 </li>
@@ -229,38 +229,38 @@ const Hero = () => {
   return (
     <DarkBand stars aria-labelledby="landing-hero-title">
       <FloatingShape
-        className="top-[12%] left-[3%] hidden lg:block"
+        className="top-[12%] left-[3%] hidden md:block"
         parallaxOffset={-scrollY * 0.12}
         shape="hexagon"
         size={78}
         isDark
       />
       <FloatingShape
-        className="top-[5%] left-[45%] hidden lg:block"
+        className="top-[5%] left-[45%] hidden md:block"
         parallaxOffset={-scrollY * 0.05}
         shape="ring"
         size={64}
         isDark
       />
       <FloatingShape
-        className="top-[78%] left-[2%] hidden lg:block"
+        className="top-[78%] left-[2%] hidden md:block"
         parallaxOffset={-scrollY * 0.05}
         shape="diamond"
         size={40}
         isDark
       />
       <FloatingShape
-        className="top-[82%] right-[4%] hidden lg:block"
+        className="top-[82%] right-[4%] hidden md:block"
         parallaxOffset={-scrollY * 0.2}
         shape="ring"
         size={96}
         isDark
       />
-      <div className="relative mx-auto grid max-w-6xl items-center gap-12 px-4 pt-10 pb-10 md:px-8 md:pt-20 lg:grid-cols-[11fr_10fr] lg:gap-14">
+      <div className="relative mx-auto grid max-w-6xl items-center gap-12 px-4 pt-10 pb-10 sm:px-8 sm:pt-20 md:grid-cols-[11fr_10fr] md:gap-14">
         <div>
           <h1
             id="landing-hero-title"
-            className="font-extrabold text-[2.75rem] leading-[1.02] tracking-tight md:text-6xl"
+            className="font-extrabold text-[2.75rem] leading-[1.02] tracking-tight sm:text-6xl"
             aria-label={t("hero.titleAria")}
           >
             <span className="block">{t("hero.titleLine1")}</span>
@@ -273,9 +273,9 @@ const Hero = () => {
               />
             </span>
           </h1>
-          <p className="mt-5 text-lg text-slate-300 md:text-xl">{t("hero.subtitle")}</p>
+          <p className="mt-5 text-lg text-slate-300 sm:text-xl">{t("hero.subtitle")}</p>
           {sellsPlans ? (
-            <div className="mt-7 flex items-start gap-4 rounded-2xl border border-amber-400/35 bg-amber-400/10 p-4 md:p-5">
+            <div className="mt-7 flex items-start gap-4 rounded-2xl border border-amber-400/35 bg-amber-400/10 p-4 sm:p-5">
               <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-400 text-amber-950">
                 <Gift className="h-5 w-5" aria-hidden="true" />
               </span>
@@ -342,20 +342,20 @@ const Tools = () => {
   const { t: tNav } = useTranslation("nav");
   return (
     <section
-      className="mx-auto max-w-6xl px-4 py-14 md:px-8 md:py-22"
+      className="mx-auto max-w-6xl px-4 py-14 sm:px-8 sm:py-22"
       aria-labelledby="landing-tools-title"
     >
-      <div className="mb-7 md:mx-auto md:mb-12 md:max-w-2xl md:text-center">
-        <h2 id="landing-tools-title" className="font-extrabold text-3xl tracking-tight md:text-5xl">
+      <div className="mb-7 sm:mx-auto sm:mb-12 sm:max-w-2xl sm:text-center">
+        <h2 id="landing-tools-title" className="font-extrabold text-3xl tracking-tight sm:text-5xl">
           {t("tools.title")}
         </h2>
         <p className="mt-3 text-lg text-muted-foreground">{t("tools.description")}</p>
       </div>
-      <ul className="grid grid-cols-3 gap-1.5 md:gap-3">
+      <ul className="grid grid-cols-3 gap-1.5 sm:gap-3">
         {TOOLS.map((tool) => (
           <li
             key={tool}
-            className="flex flex-col gap-1.5 rounded-xl border bg-card p-1.5 md:gap-2.5 md:rounded-2xl md:p-3.5"
+            className="flex flex-col gap-1.5 sm:gap-2.5 sm:rounded-2xl rounded-xl border bg-card sm:p-3.5 p-1.5"
             data-tool={tool}
           >
             <ToolSketch tool={tool} active />
@@ -363,7 +363,7 @@ const Tools = () => {
               <span className="hidden md:block">
                 <ToolIconTile tool={tool} active />
               </span>
-              <h3 className="font-semibold text-[13px] md:font-bold md:text-lg">
+              <h3 className="font-semibold text-[13px] sm:font-bold sm:text-lg">
                 {tNav(toolNavLabelKey(tool))}
               </h3>
             </div>
@@ -373,7 +373,7 @@ const Tools = () => {
           </li>
         ))}
       </ul>
-      <p className="mt-5 text-muted-foreground md:text-center">{t("tools.note")}</p>
+      <p className="mt-5 text-muted-foreground sm:text-center">{t("tools.note")}</p>
     </section>
   );
 };
@@ -382,11 +382,11 @@ const Safe = () => {
   const { t } = useTranslation("landing");
   return (
     <section className="bg-amber-50 dark:bg-amber-950/25" aria-labelledby="landing-safe-title">
-      <div className="mx-auto grid max-w-6xl items-center gap-4 px-4 py-10 md:grid-cols-[1fr_26rem] md:gap-10 md:px-8 md:py-14">
+      <div className="mx-auto grid max-w-6xl md:grid-cols-[1fr_26rem] items-center md:gap-10 gap-4 sm:px-8 px-4 sm:py-14 py-10">
         <div>
           <h2
             id="landing-safe-title"
-            className="font-extrabold text-3xl tracking-tight md:text-4xl"
+            className="font-extrabold text-3xl tracking-tight sm:text-4xl"
           >
             {t("safe.title")}
           </h2>
@@ -416,14 +416,14 @@ const Closer = () => {
   const { registrationOpen } = useFrontDoor();
   return (
     <DarkBand stars aria-labelledby="landing-closer-title">
-      <div className="relative mx-auto max-w-6xl px-4 py-14 md:px-8 md:py-22 md:text-center">
+      <div className="relative mx-auto max-w-6xl px-4 py-14 sm:px-8 sm:py-22 sm:text-center">
         <h2
           id="landing-closer-title"
-          className="font-extrabold text-3xl tracking-tight md:text-5xl"
+          className="font-extrabold text-3xl tracking-tight sm:text-5xl"
         >
           {t("closer.title")}
         </h2>
-        <p className="mt-3 text-lg text-slate-300 md:mx-auto md:max-w-xl">{t("closer.body")}</p>
+        <p className="mt-3 text-lg text-slate-300 sm:mx-auto sm:max-w-xl">{t("closer.body")}</p>
         <div className="mt-7 flex flex-col gap-3 sm:flex-row md:justify-center">
           {registrationOpen ? (
             <Button

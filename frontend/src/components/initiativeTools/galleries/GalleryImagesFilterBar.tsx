@@ -51,7 +51,7 @@ export const GalleryImagesFilterBar = ({
       activeCount={activeCount}
     >
       <div className="flex flex-wrap items-end gap-4">
-        <div className="w-full space-y-2 lg:flex-1">
+        <div className="w-full space-y-2 md:flex-1">
           <Label
             htmlFor="gallery-image-search"
             className="block font-medium text-muted-foreground text-xs"

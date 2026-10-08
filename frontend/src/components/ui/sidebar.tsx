@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { atLeast, useWidthClass } from "@/hooks/useWidthClass";
 import { getItem, setItem } from "@/lib/storage";
 import { cn } from "@/lib/utils";
 
@@ -118,7 +118,7 @@ const SidebarProvider = React.forwardRef<
     },
     ref
   ) => {
-    const isMobile = useIsMobile();
+    const isMobile = !atLeast(useWidthClass(), "md");
     const [openMobile, setOpenMobile] = React.useState(false);
 
     // Extract sidebar-width-mobile from style prop or use default

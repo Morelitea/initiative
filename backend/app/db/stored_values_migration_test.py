@@ -1,6 +1,7 @@
 """Migrations 20261003_0445 and 20261003_0448 rename the stored guild values to
 community and back, 20261005_0457 respells the stored plug-in values, and
-20261006_0460 names a notice's document as its entity and back. Loaded
+20261006_0460 names a notice's document as its entity and back, and
+20261008_0470 calls a plug-in's pages pages and back. Loaded
 by path and run on rows an older release would have written, the way
 ``upload_initiative_backfill_test`` runs its revision."""
 
@@ -545,3 +546,67 @@ async def test_document_notices_name_their_entity_and_back(session) -> None:
     await session.run_sync(run(migration._backward))
     await session.commit()
     assert await _notice_payloads(session) == old
+
+
+_EMBEDS_DEFINITION = {
+    "plugin_kind": "service",
+    "features": ["embeds", "endpoints"],
+    "embeds": [{"id": "board", "path": "/board"}],
+}
+_PAGES_DEFINITION = {
+    "plugin_kind": "service",
+    "features": ["endpoints", "pages"],
+    "pages": [{"id": "board", "path": "/board"}],
+}
+
+
+async def test_plugin_pages_are_pages_and_back(session) -> None:
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+    schema = f"guild_{guild.id}"
+    await create_guild_plugin(session, guild, user, definition=_EMBEDS_DEFINITION)
+    listing = await create_marketplace_listing(session)
+    await session.commit()
+    migration = _load("20261008_0470_a_plugin_page_is_a_page.py")
+    install_table = f'"{schema}".guild_plugins'
+    versions = "public.marketplace_listing_versions"
+
+    def seed(sync_session) -> None:
+        bind = sync_session.connection()
+        for table in (install_table, versions):
+            migration._with_rows_writable(
+                bind,
+                table,
+                lambda table=table: bind.execute(
+                    text(f"UPDATE {table} SET definition = CAST(:d AS jsonb)"),
+                    {"d": json.dumps(_EMBEDS_DEFINITION)},
+                ),
+            )
+
+    async def stored() -> tuple[dict, dict]:
+        install = await _scalar(
+            session, text(f"SELECT definition FROM {install_table}")
+        )
+        version = await _scalar(
+            session,
+            text(f"SELECT definition FROM {versions} WHERE listing_id = :id"),
+            {"id": listing.id},
+        )
+        return install, version
+
+    async def respell(old: str, new: str) -> None:
+        await session.run_sync(
+            lambda sync_session: migration._definitions(
+                sync_session.connection(), old, new
+            )
+        )
+        await session.commit()
+
+    await session.run_sync(seed)
+    await session.commit()
+
+    await respell("embeds", "pages")
+    assert await stored() == (_PAGES_DEFINITION, _PAGES_DEFINITION)
+
+    await respell("pages", "embeds")
+    assert await stored() == (_EMBEDS_DEFINITION, _EMBEDS_DEFINITION)

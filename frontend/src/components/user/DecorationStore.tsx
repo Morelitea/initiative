@@ -188,7 +188,7 @@ export const DecorationStore = ({ user }: { user: UserRead }) => {
 
   return (
     <>
-      <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <ul className="grid grid-cols-fill-64 gap-4">
         {packs.map((entry) => (
           <PackCard
             key={entry.uid}

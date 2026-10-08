@@ -30,7 +30,7 @@ import { useInitiativeRoles } from "@/hooks/useInitiativeRoles";
 import { useCommunityInitiatives } from "@/hooks/useInitiatives";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { toast } from "@/lib/mascotToast";
-import { declaredEmbeds } from "@/lib/pluginSurfaces";
+import { declaredPages } from "@/lib/pluginSurfaces";
 
 export interface PluginPlacementPanelProps {
   plugin: CommunityPluginDetail;
@@ -68,7 +68,7 @@ export function PluginPlacementPanel({ plugin }: PluginPlacementPanelProps) {
 
   const roster = initiatives.data ?? [];
   // Roles decide who opens the plug-in's page, so only a plug-in with one has them.
-  const hasPage = declaredEmbeds(plugin.definition, "initiative").length > 0;
+  const hasPage = declaredPages(plugin.definition, "initiative").length > 0;
   // The roles each stored placement allows, by initiative.
   const placedRoles = new Map(
     (plugin.placements ?? []).map((one) => [one.initiative_id, one.role_ids] as const)

@@ -1977,7 +1977,7 @@ export const usePutCommunityPluginScopes = <
   return useMutation(getPutCommunityPluginScopesMutationOptions(options), queryClient);
 };
 /**
- * Mint the short-lived credential for one of this plug-in's embedded surfaces.
+ * Mint the short-lived credential for one of this plug-in's pages.
  *
  * Whether the surface may be opened is decided here, under the caller's real
  * session, so the plug-in never makes that call and never sees a request from

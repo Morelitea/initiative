@@ -405,7 +405,7 @@
   "PLUGIN_SERVICE_INVALID_BASE_URL": "Diese Adresse ist ungültig. Gib die Basis-URL des Plug-ins an, ohne Abfrageparameter.",
   "PLUGIN_SERVICE_INVALID_ORIGIN": "Eine erlaubte Herkunft ist ungültig. Verwende schema://host mit optionalem Port und ohne Pfad.",
   "PLUGIN_SERVICE_INVALID_JWKS": "Mit diesem Schlüsselsatz kann diese Installation keine Signatur prüfen.",
-  "PLUGIN_SERVICE_INVALID_EMBED_ORIGIN": "Diese Browser-Adresse ist ungültig. Gib eine http- oder https-Adresse ohne Query-String an.",
+  "PLUGIN_SERVICE_INVALID_PAGE_ORIGIN": "Diese Browser-Adresse ist ungültig. Gib eine http- oder https-Adresse ohne Query-String an.",
   "PLUGIN_SERVICE_INVALID_JWKS_URI": "Die Schlüsselsatz-Adresse muss https sein und auf der eigenen Adresse des Plug-ins liegen.",
   "PLUGIN_SERVICE_CONNECT_NEEDS_BASE_URL": "Speichere zuerst die Basis-URL des Plug-ins. „Verbinden“ liest die Schlüssel von dort.",
   "PLUGIN_SERVICE_KEYS_UNREADABLE": "Das Plug-in hat nicht mit seinem Schlüsselsatz geantwortet. Prüfe, ob es läuft und ob seine Basis-URL stimmt.",

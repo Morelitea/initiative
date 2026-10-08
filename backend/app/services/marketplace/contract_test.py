@@ -38,13 +38,13 @@ from app.services.marketplace.service_plugins import (
     PLUGIN_PROTOCOL_VERSIONS,
     CONNECTION_SCOPES,
     DIRECTIONS,
-    EMBED_CAPABILITIES,
+    PAGE_CAPABILITIES,
     FEATURES,
     FIELD_TYPES,
     MAX_CONNECTIONS,
     MAX_ENDPOINTS,
     MAX_RETURNS_PER_ENDPOINT,
-    MAX_EMBEDS,
+    MAX_PAGES,
     MAX_WIDGETS,
     PARAM_TYPES,
     RETURN_TYPES,
@@ -149,11 +149,11 @@ def test_vocabularies_come_from_the_validator():
     scope_items = props["service"]["properties"]["scopes"]["items"]["anyOf"]
     assert set(scope_items[0]["enum"]) == set(ALL_SCOPES)
     assert scope_items[1] == {"$ref": "#/$defs/pluginScope"}
-    assert defs["embed"]["properties"]["admin_only"]["type"] == "boolean"
+    assert defs["page"]["properties"]["admin_only"]["type"] == "boolean"
     assert defs["endpoint"]["properties"]["admin_only"]["type"] == "boolean"
-    assert set(defs["embed"]["properties"]["scopes"]["items"]["enum"]) == SURFACE_SCOPES
-    assert set(defs["embed"]["properties"]["capabilities"]["items"]["enum"]) == (
-        EMBED_CAPABILITIES
+    assert set(defs["page"]["properties"]["scopes"]["items"]["enum"]) == SURFACE_SCOPES
+    assert set(defs["page"]["properties"]["capabilities"]["items"]["enum"]) == (
+        PAGE_CAPABILITIES
     )
 
 
@@ -168,7 +168,7 @@ def test_caps_come_from_the_validator():
         == MAX_RETURNS_PER_ENDPOINT
     )
     assert props["widgets"]["maxItems"] == MAX_WIDGETS
-    assert props["embeds"]["maxItems"] == MAX_EMBEDS
+    assert props["pages"]["maxItems"] == MAX_PAGES
 
 
 def test_a_secret_is_not_a_query_parameter():
@@ -276,7 +276,7 @@ ACCEPTED = [
     ),
     pytest.param(
         _manifest(
-            features=["embeds"],
+            features=["pages"],
             vendor={
                 "fields": [
                     {"key": "client_id", "type": "string", "label": {"en": "Id"}}
@@ -296,10 +296,10 @@ ACCEPTED = [
                     },
                 }
             ],
-            embeds=[
+            pages=[
                 {
                     "id": "board",
-                    "path": "/embed/board",
+                    "path": "/page/board",
                     "name": {"en": "Board"},
                     "scopes": ["community", "initiative"],
                     "admin_only": True,
@@ -308,7 +308,7 @@ ACCEPTED = [
                 }
             ],
         ),
-        id="interactive-connection-and-embed",
+        id="interactive-connection-and-page",
     ),
     pytest.param(
         _manifest(
@@ -354,8 +354,8 @@ ACCEPTED = [
     ),
     pytest.param(
         _manifest(
-            features=["embeds"],
-            embeds=[
+            features=["pages"],
+            pages=[
                 {"id": "e", "path": "/e", "name": {"en": "N" * (MAX_TEXT_LENGTH + 50)}}
             ],
         ),
@@ -535,10 +535,8 @@ REFUSED_BY_BOTH = [
     ),
     pytest.param(
         _manifest(
-            features=["embeds"],
-            embeds=[
-                {"id": "e", "path": "/e", "name": {"en": "E"}, "admin_only": "yes"}
-            ],
+            features=["pages"],
+            pages=[{"id": "e", "path": "/e", "name": {"en": "E"}, "admin_only": "yes"}],
         ),
         id="admin-only-not-a-boolean",
     ),
@@ -573,8 +571,8 @@ REFUSED_BY_BOTH = [
     ),
     pytest.param(
         _manifest(
-            features=["embeds"],
-            embeds=[
+            features=["pages"],
+            pages=[
                 {
                     "id": "e",
                     "path": "/e",
@@ -637,8 +635,8 @@ def test_a_localized_entry_the_platform_ignores_is_not_an_error(name, why, valid
     document installs — and a schema that rejected it would be telling an author
     their working manifest is broken."""
     manifest = _manifest(
-        features=["embeds"],
-        embeds=[{"id": "e", "path": "/e", "name": name}],
+        features=["pages"],
+        pages=[{"id": "e", "path": "/e", "name": name}],
     )
     platform_accepts(manifest)
     assert list(validator.iter_errors(manifest)) == [], why
@@ -647,8 +645,8 @@ def test_a_localized_entry_the_platform_ignores_is_not_an_error(name, why, valid
 def test_a_localized_object_with_nothing_usable_is_refused(validator):
     """The one thing that does fail, and the only rule left on the type."""
     manifest = _manifest(
-        features=["embeds"],
-        embeds=[{"id": "e", "path": "/e", "name": {}}],
+        features=["pages"],
+        pages=[{"id": "e", "path": "/e", "name": {}}],
     )
     assert list(validator.iter_errors(manifest)) != []
     with pytest.raises(ValueError):
@@ -667,8 +665,8 @@ def test_a_localized_object_with_nothing_usable_is_refused(validator):
         ),
         (
             _manifest(
-                features=["embeds"],
-                embeds=[
+                features=["pages"],
+                pages=[
                     {
                         "id": "e",
                         "path": "/e",
@@ -867,28 +865,28 @@ def test_admin_only_defaults_to_false_and_is_always_stored():
         normalize_service_plugin_definition,
     )
 
-    def embed(**extra):
+    def page(**extra):
         body = _manifest(
-            features=["embeds"],
-            embeds=[{"id": "e", "path": "/e", "name": {"en": "E"}, **extra}],
+            features=["pages"],
+            pages=[{"id": "e", "path": "/e", "name": {"en": "E"}, **extra}],
         )
-        return normalize_service_plugin_definition(body)["embeds"][0]
+        return normalize_service_plugin_definition(body)["pages"][0]
 
-    assert embed()["admin_only"] is False
-    assert embed(admin_only=True)["admin_only"] is True
-    assert "visibility" not in embed()
+    assert page()["admin_only"] is False
+    assert page(admin_only=True)["admin_only"] is True
+    assert "visibility" not in page()
 
 
-@pytest.mark.parametrize("where", ["embed", "endpoint"])
+@pytest.mark.parametrize("where", ["page", "endpoint"])
 def test_the_retired_audience_term_is_refused_by_name(where):
     """Every other unknown term is dropped and reported; this one narrowed who
     reached something, so it is refused and the author is told why."""
     from app.services.marketplace.manifest_values import ListingDefinitionError
 
-    if where == "embed":
+    if where == "page":
         body = _manifest(
-            features=["embeds"],
-            embeds=[
+            features=["pages"],
+            pages=[
                 {"id": "e", "path": "/e", "name": {"en": "E"}, "visibility": "member"}
             ],
         )

@@ -1322,7 +1322,7 @@ class PluginServiceMessages:
     INVALID_BASE_URL = "PLUGIN_SERVICE_INVALID_BASE_URL"
     #: The browser-facing base, when a plug-in answers there rather than at the
     #: address Initiative's own server calls.
-    INVALID_EMBED_ORIGIN = "PLUGIN_SERVICE_INVALID_EMBED_ORIGIN"
+    INVALID_PAGE_ORIGIN = "PLUGIN_SERVICE_INVALID_PAGE_ORIGIN"
     INVALID_ORIGIN = "PLUGIN_SERVICE_INVALID_ORIGIN"
     #: The key set is not a JWKS this build can verify against, or an entry in
     #: it carries no ``kid`` for a JWT to name.

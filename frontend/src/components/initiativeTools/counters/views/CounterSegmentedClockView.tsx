@@ -58,7 +58,7 @@ export const CounterSegmentedClockView = ({
     size === "2xl"
       ? "h-64 w-64 sm:h-72 sm:w-72"
       : size === "lg"
-        ? "h-16 w-16 sm:h-20 sm:w-20 lg:h-24 lg:w-24"
+        ? "h-16 w-16 sm:h-20 sm:w-20 md:h-24 md:w-24"
         : "h-20 w-20";
   const inputSize = size === "2xl" ? "2xl" : size === "lg" ? "lg" : "md";
   const strokeWidth = size === "2xl" ? 4 : 6;
