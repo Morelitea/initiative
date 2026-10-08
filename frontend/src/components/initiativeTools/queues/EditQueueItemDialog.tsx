@@ -141,7 +141,7 @@ export const EditQueueItemDialog = ({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="w-full rounded-2xl border bg-card shadow-2xl sm:max-w-lg">
+        <DialogContent className="w-full rounded-2xl border bg-card shadow-2xl medium:max-w-lg">
           <DialogHeader>
             <DialogTitle>{t("editItem")}</DialogTitle>
             <DialogDescription>{item.label}</DialogDescription>
@@ -157,8 +157,8 @@ export const EditQueueItemDialog = ({
           />
 
           {!readOnly && (
-            <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-between">
-              <div className="flex flex-col gap-2 sm:flex-row">
+            <DialogFooter className="flex-col gap-2 medium:flex-row medium:justify-between">
+              <div className="flex flex-col gap-2 medium:flex-row">
                 <Button
                   type="button"
                   variant="destructive"

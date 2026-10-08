@@ -232,7 +232,7 @@ function CommunityConnection({
             </p>
           )}
           {recorded.length > 0 && (
-            <dl className="grid gap-x-3 gap-y-1 text-sm sm:grid-cols-[max-content_1fr]">
+            <dl className="grid gap-x-3 gap-y-1 text-sm medium:grid-cols-[max-content_1fr]">
               {recorded.map((field) => (
                 <Fragment key={field.key}>
                   <dt className="text-muted-foreground">
@@ -244,7 +244,7 @@ function CommunityConnection({
             </dl>
           )}
           {typed.length > 0 && (
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid grid-cols-pair gap-3">
               {typed.map((field) => (
                 <ConnectionFieldInput
                   key={field.key}

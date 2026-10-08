@@ -73,7 +73,7 @@ export const PollVotersDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="medium:max-w-md">
         <DialogHeader>
           <DialogTitle>{t("poll.whoVoted")}</DialogTitle>
           <DialogDescription>{t("poll.whoVotedHint")}</DialogDescription>

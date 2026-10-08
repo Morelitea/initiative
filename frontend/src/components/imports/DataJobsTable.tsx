@@ -144,7 +144,7 @@ export function DataJobsTable() {
           <TableRow>
             <TableHead>{t("exports:table.columns.export")}</TableHead>
             <TableHead>{t("exports:table.columns.status")}</TableHead>
-            <TableHead className="hidden sm:table-cell">
+            <TableHead className="hidden medium:table-cell">
               {t("exports:table.columns.created")}
             </TableHead>
             <TableHead className="text-right">
@@ -175,7 +175,7 @@ export function DataJobsTable() {
                       : t(`imports:table.status.${status}` as never, { defaultValue: status })}
                   </Badge>
                 </TableCell>
-                <TableCell className="hidden text-muted-foreground text-sm sm:table-cell">
+                <TableCell className="hidden text-muted-foreground text-sm medium:table-cell">
                   <RelativeTime date={row.job.created_at} />
                 </TableCell>
                 <TableCell className="text-right">
@@ -195,7 +195,7 @@ export function DataJobsTable() {
                       }
                     >
                       <Download className="h-4 w-4" />
-                      <span className="hidden sm:inline">{t("exports:table.download")}</span>
+                      <span className="hidden medium:inline">{t("exports:table.download")}</span>
                     </Button>
                   )}
                   {row.direction === "import" && ACTIVE.has(row.job.status) && (
@@ -207,7 +207,7 @@ export function DataJobsTable() {
                       onClick={() => void handleCancel(row.job as ImportJobRead)}
                     >
                       <X className="h-4 w-4" />
-                      <span className="hidden sm:inline">{t("imports:table.cancel")}</span>
+                      <span className="hidden medium:inline">{t("imports:table.cancel")}</span>
                     </Button>
                   )}
                   {row.direction === "import" &&
@@ -219,7 +219,9 @@ export function DataJobsTable() {
                         onClick={() => setReportJob(row.job as ImportJobRead)}
                       >
                         <FileText className="h-4 w-4" />
-                        <span className="hidden sm:inline">{t("imports:table.viewReport")}</span>
+                        <span className="hidden medium:inline">
+                          {t("imports:table.viewReport")}
+                        </span>
                       </Button>
                     )}
                 </TableCell>
@@ -229,7 +231,7 @@ export function DataJobsTable() {
         </TableBody>
       </Table>
       <Dialog open={reportJob != null} onOpenChange={(open) => !open && setReportJob(null)}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="medium:max-w-lg">
           <DialogHeader>
             <DialogTitle>{t("imports:table.reportTitle")}</DialogTitle>
           </DialogHeader>

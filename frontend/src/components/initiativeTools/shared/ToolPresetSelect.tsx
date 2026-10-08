@@ -49,7 +49,7 @@ export const ToolPresetSelect = ({
       value={activeSlug ?? CUSTOM}
       onValueChange={(value) => value !== CUSTOM && onSelect(value)}
     >
-      <SelectTrigger id="preset-select" aria-label={label} className="h-9 w-full sm:w-56">
+      <SelectTrigger id="preset-select" aria-label={label} className="h-9 w-full medium:w-56">
         {/* The trigger carries the "modified" marker, not the list: the list is
             what a preset IS, and every entry there is unmodified by definition. */}
         <SelectValue placeholder={customLabel}>

@@ -42,7 +42,7 @@ import { PresenceMenuItems } from "@/components/user/PresenceMenuItems";
 import { ProfileAvatar } from "@/components/user/ProfileAvatar";
 import { isStatusEmpty, StatusBubble, StatusEditor } from "@/components/user/ProfileStatus";
 import { VersionDialog } from "@/components/VersionDialog";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { atLeast, useWidthClass } from "@/hooks/useWidthClass";
 import { docsUrl } from "@/lib/links";
 import { presenceLabelKey } from "@/lib/presence";
 import { decorationSrc, resolveDecoration } from "@/lib/profileDecorations";
@@ -78,7 +78,7 @@ export const SidebarUserFooter = ({
   // A phone has neither — the sidebar is already a sheet against the edge — so
   // there the choices behind one are drilled into: the menu becomes that list,
   // and a back row climbs out again.
-  const isMobile = useIsMobile();
+  const isMobile = !atLeast(useWidthClass(), "expanded");
   const [drill, setDrill] = useState<"presence" | "theme" | null>(null);
   const displayName = getUserDisplayName(user);
   const handle = getUrlHandle(user);

@@ -63,7 +63,7 @@ export const AddWikiFileDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[80vh] flex-col gap-0 p-0 sm:max-w-lg">
+      <DialogContent className="flex max-h-[80vh] flex-col gap-0 p-0 medium:max-w-lg">
         <DialogHeader className="border-b px-5 py-4">
           <DialogTitle>{t("files.addFile")}</DialogTitle>
           <DialogDescription>{t("files.pick")}</DialogDescription>

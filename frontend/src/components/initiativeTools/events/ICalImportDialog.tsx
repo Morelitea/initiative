@@ -105,7 +105,7 @@ export const ICalImportDialog = ({
     <WizardDialog
       open={open}
       onOpenChange={onOpenChange}
-      className="sm:max-w-lg"
+      className="medium:max-w-lg"
       title={t("calendars:import.title")}
       description={t("calendars:import.uploadDescription")}
     >

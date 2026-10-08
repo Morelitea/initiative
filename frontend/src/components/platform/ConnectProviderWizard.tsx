@@ -209,7 +209,7 @@ export const ConnectProviderWizard = ({
     <WizardDialog
       open={open}
       onOpenChange={(next) => (next ? onOpenChange(true) : closeWizard())}
-      className="max-h-[85vh] overflow-y-auto sm:max-w-lg"
+      className="max-h-[85vh] overflow-y-auto medium:max-w-lg"
       title={t("authProviders.wizard.title")}
       description={stepDescription[step]}
       progress={{ current: STEP_ORDER.indexOf(step) + 1, total: STEP_ORDER.length }}

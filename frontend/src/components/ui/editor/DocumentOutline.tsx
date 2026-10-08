@@ -17,7 +17,7 @@ import {
 import { useTranslation } from "react-i18next";
 
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { atLeast, useWidthClass } from "@/hooks/useWidthClass";
 import { getItem, setItem } from "@/lib/storage";
 import { cn } from "@/lib/utils";
 
@@ -472,14 +472,14 @@ export const DocumentOutlinePanel = ({
   maxDepth?: number;
 }) => {
   const { t } = useTranslation("editor");
-  const isMobile = useIsMobile();
+  const isMobile = !atLeast(useWidthClass(), "expanded");
 
   if (isMobile) {
     return (
       <Sheet open={isOpen} onOpenChange={onOpenChange}>
         <SheetContent
           side="left"
-          className="flex w-full flex-col overflow-hidden p-0 sm:max-w-none"
+          className="flex w-full flex-col overflow-hidden p-0 medium:max-w-none"
         >
           <SheetHeader
             className="border-b px-4"

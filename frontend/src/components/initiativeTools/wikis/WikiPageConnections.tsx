@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import type { EndpointRef } from "@/api/generated/initiativeAPI.schemas";
 import { RelationsSection } from "@/components/entities/RelationsSection";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { useIsCompactViewport } from "@/hooks/useMediaQuery";
+import { useWidthClass } from "@/hooks/useWidthClass";
 import { cn } from "@/lib/utils";
 
 interface WikiPageConnectionsProps {
@@ -47,12 +47,15 @@ export const WikiConnectionsSheet = ({
   onOpenChange: (open: boolean) => void;
 }) => {
   const { t } = useTranslation("wikis");
-  const compact = useIsCompactViewport();
+  const compact = useWidthClass() === "compact";
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side={compact ? "bottom" : "right"}
-        className={cn("flex flex-col gap-0 p-0", compact ? "max-h-[85svh]" : "w-full sm:max-w-sm")}
+        className={cn(
+          "flex flex-col gap-0 p-0",
+          compact ? "max-h-[85svh]" : "w-full medium:max-w-sm"
+        )}
       >
         <SheetHeader className="sr-only">
           <SheetTitle className="sr-only">{t("links.title")}</SheetTitle>

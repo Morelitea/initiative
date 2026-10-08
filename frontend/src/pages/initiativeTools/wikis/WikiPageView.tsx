@@ -27,9 +27,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCollaboration } from "@/hooks/useCollaboration";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useReadOnOpen } from "@/hooks/useNotifications";
 import { useRecordRecentView } from "@/hooks/useRecents";
+import { atLeast, useRegionWidthClass } from "@/hooks/useWidthClass";
 import { useAddWikiPage, useUpdateWikiPage, useWiki, useWikiPage } from "@/hooks/useWikis";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { toast } from "@/lib/mascotToast";
@@ -305,9 +305,10 @@ export const WikiPageView = () => {
   // because a page being edited is then a thing you can link to or reload into.
   // Reading is where everyone starts, writers included.
 
-  // Whether there is gutter to put the rail in. Keyed to the same 1280px the
-  // `xl:` classes use, so the measurement and the layout cannot disagree.
-  const railFitsBeside = useMediaQuery("(min-width: 1280px)");
+  // Whether there is gutter to put the rail in: the row the words and the
+  // rail share, which opening the rail does not resize.
+  const [row, setRow] = useState<HTMLDivElement | null>(null);
+  const railFitsBeside = atLeast(useRegionWidthClass(row), "expanded");
   // Whether the connections rail is showing. A per-visit choice: it is
   // reading furniture, not a setting.
   const [showConnections, setShowConnections] = useState(true);
@@ -408,7 +409,7 @@ export const WikiPageView = () => {
           }
         />
 
-        <div className="flex min-h-0 flex-1">
+        <div ref={setRow} className="flex min-h-0 flex-1">
           <div className="min-w-0 flex-1 overflow-y-auto">
             {/* The measure. The surface is the window; the words are not, so
                 the column is centred in whatever space is left and capped at a
@@ -417,7 +418,7 @@ export const WikiPageView = () => {
                 takes gutter, and the column does not shift at all. */}
             <div
               className={cn(
-                "mx-auto w-full px-6 py-8 lg:px-10",
+                "mx-auto w-full px-6 py-8 expanded:px-10",
                 isComfortable ? "max-w-3xl" : "max-w-6xl"
               )}
             >
@@ -498,7 +499,7 @@ export const WikiPageView = () => {
       />
 
       <Sheet open={propertiesOpen && offersProperties} onOpenChange={setPropertiesOpen}>
-        <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-md">
+        <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 medium:max-w-md">
           <SheetHeader className="border-b px-5 py-4">
             <SheetTitle>{t("properties:title")}</SheetTitle>
           </SheetHeader>
@@ -520,7 +521,7 @@ export const WikiPageView = () => {
       {/* Hidden until asked for: browsing a wiki is reading it, and the
           conversation about it is a different activity. */}
       <Sheet open={commentsOpen} onOpenChange={setCommentsOpen}>
-        <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-lg">
+        <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 medium:max-w-lg">
           <SheetHeader className="border-b px-5 py-4">
             <SheetTitle className="sr-only">{t("comments")}</SheetTitle>
           </SheetHeader>

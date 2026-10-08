@@ -244,7 +244,7 @@ export const CommunityClaimRulesSection = ({ communityId }: { communityId: numbe
         open={dialogOpen}
         onOpenChange={(open) => (open ? setDialogOpen(true) : closeDialog())}
       >
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="medium:max-w-lg">
           <DialogHeader>
             <DialogTitle>{t("communityAuth.rules.add")}</DialogTitle>
             <DialogDescription>{t("communityAuth.rules.dialogDescription")}</DialogDescription>

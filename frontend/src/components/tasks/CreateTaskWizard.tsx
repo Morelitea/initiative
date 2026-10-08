@@ -165,7 +165,7 @@ export const CreateTaskWizard = () => {
   const hasMoreProjects = projectsQuery.data?.has_next ?? false;
 
   return (
-    <WizardDialog open={open} onOpenChange={setOpen} className="sm:max-w-md" {...steps.dialog}>
+    <WizardDialog open={open} onOpenChange={setOpen} className="medium:max-w-md" {...steps.dialog}>
       {steps.body}
 
       {steps.step === "select-project" && community && initiative && (

@@ -112,7 +112,7 @@ const CommunityDrawing = () => {
         </span>
         <div className="min-w-0">
           <p className="font-extrabold">{t("hangout.community.name")}</p>
-          <p className="hidden text-muted-foreground text-xs sm:block">
+          <p className="hidden text-muted-foreground text-xs medium:block">
             {t("hangout.community.tagline")}
           </p>
         </div>
@@ -121,8 +121,8 @@ const CommunityDrawing = () => {
           {t("hangout.community.online")}
         </span>
       </div>
-      <div className="grid bg-muted/40 md:grid-cols-[12rem_minmax(0,1fr)_minmax(0,18rem)]">
-        <div className="hidden flex-col gap-2 p-4 md:flex">
+      <div className="grid bg-muted/40 expanded:grid-cols-[12rem_minmax(0,1fr)_minmax(0,18rem)]">
+        <div className="hidden flex-col gap-2 p-4 expanded:flex">
           <p className="font-bold text-muted-foreground text-xs uppercase">{t("hangout.online")}</p>
           <ul className="flex flex-col gap-2">
             <Person who="MA" name={p("maya")} status={p("mayaStatus")} presence="online" />
@@ -138,7 +138,7 @@ const CommunityDrawing = () => {
             <Person who="HA" name={p("hana")} presence="idle" />
           </ul>
         </div>
-        <div className="flex flex-col gap-3 p-4 md:border-l">
+        <div className="flex flex-col gap-3 p-4 expanded:border-l">
           <div className="rounded-2xl border bg-card p-4">
             <div className="flex items-center gap-2 text-muted-foreground text-xs">
               <Avatar who="MA" />
@@ -166,14 +166,14 @@ const CommunityDrawing = () => {
               <span className="ml-auto">{t("hangout.post.read")}</span>
             </div>
           </div>
-          <div className="hidden items-start gap-2.5 text-sm md:flex">
+          <div className="hidden items-start gap-2.5 text-sm expanded:flex">
             <Avatar who="DV" />
             <p className="rounded-xl border bg-card px-3 py-2">
               <b>{p("dev")}</b> {t("hangout.reply")}
             </p>
           </div>
         </div>
-        <div className="flex flex-col gap-3 border-t p-4 md:border-t-0 md:border-l">
+        <div className="flex flex-col gap-3 border-t p-4 expanded:border-t-0 expanded:border-l">
           <div className="overflow-hidden rounded-2xl border bg-card">
             <div className="flex gap-3 p-3.5">
               <span className="flex h-14 w-13 shrink-0 flex-col items-center justify-center rounded-xl bg-[#0b1224] text-white leading-none">
@@ -256,8 +256,8 @@ type DeckKey = (typeof DECK)[number]["key"];
 const SLOT = {
   front: "z-30 translate-x-0 rotate-0",
   right:
-    "z-20 translate-x-[42px] translate-y-6 rotate-[5deg] scale-[.92] opacity-90 md:translate-x-[120px] md:rotate-[6deg]",
-  left: "z-10 -translate-x-[42px] translate-y-6 -rotate-[5deg] scale-[.92] opacity-90 md:-translate-x-[120px] md:-rotate-[6deg]",
+    "z-20 translate-x-[42px] translate-y-6 rotate-[5deg] scale-[.92] opacity-90 expanded:translate-x-[120px] expanded:rotate-[6deg]",
+  left: "z-10 -translate-x-[42px] translate-y-6 -rotate-[5deg] scale-[.92] opacity-90 expanded:-translate-x-[120px] expanded:-rotate-[6deg]",
 } as const;
 
 const slotOf = (key: DeckKey, front: DeckKey) => {
@@ -273,9 +273,9 @@ const Directory = () => {
   const d = (key: string) => t(`directory.${key}` as never) as string;
 
   return (
-    <div className="mt-16 grid items-center gap-2 border-white/10 border-t pt-12 md:mt-20 md:grid-cols-[5fr_6fr] md:gap-14 md:pt-14">
+    <div className="medium:mt-20 mt-16 grid expanded:grid-cols-[5fr_6fr] items-center expanded:gap-14 gap-2 border-white/10 border-t medium:pt-14 pt-12">
       <div>
-        <h2 className="font-extrabold text-3xl tracking-tight md:text-4xl">
+        <h2 className="font-extrabold text-3xl tracking-tight medium:text-4xl">
           {t("directory.title")}
         </h2>
         <p className="mt-3 text-slate-300">{t("directory.description")}</p>
@@ -313,13 +313,16 @@ const Directory = () => {
         </div>
         <p className="mt-3 text-slate-400 text-sm">{t("directory.age")}</p>
       </div>
-      <ul className="relative -mx-4 h-96 md:mx-0 md:h-105" aria-label={t("directory.deckAria")}>
+      <ul
+        className="relative -mx-4 h-96 expanded:mx-0 expanded:h-105"
+        aria-label={t("directory.deckAria")}
+      >
         {DECK.map((card) => (
           <li
             key={card.key}
             aria-hidden={front === card.key ? undefined : "true"}
             className={cn(
-              "absolute top-6 left-1/2 -ml-[135px] flex w-[270px] flex-col overflow-hidden rounded-2xl border bg-card text-card-foreground shadow-2xl transition-[transform,opacity] duration-500 motion-reduce:transition-none md:-ml-[165px] md:w-[330px]",
+              "absolute top-6 left-1/2 -ml-[135px] expanded:-ml-[165px] flex expanded:w-[330px] w-[270px] flex-col overflow-hidden rounded-2xl border bg-card text-card-foreground shadow-2xl transition-[transform,opacity] duration-500 motion-reduce:transition-none",
               SLOT[slotOf(card.key, front)]
             )}
           >
@@ -379,11 +382,11 @@ export const HangOut = () => {
 
   return (
     <DarkBand stars aria-labelledby="landing-hangout-title">
-      <div className="relative mx-auto max-w-6xl px-4 py-14 md:px-8 md:py-22">
+      <div className="relative mx-auto max-w-6xl px-4 py-14 medium:px-8 medium:py-22">
         <div className="mb-8 max-w-3xl">
           <h2
             id="landing-hangout-title"
-            className="font-extrabold text-3xl tracking-tight md:text-5xl"
+            className="font-extrabold text-3xl tracking-tight medium:text-5xl"
           >
             {t("hangout.titleStart")}{" "}
             <span className="text-amber-400">{t("hangout.titleHighlight")}</span>
@@ -392,7 +395,7 @@ export const HangOut = () => {
           <p className="mt-4 text-lg text-slate-300">{t("hangout.description")}</p>
         </div>
         <CommunityDrawing />
-        <ul className="mt-12 hidden gap-7 md:grid md:grid-cols-3">
+        <ul className="mt-12 hidden gap-7 expanded:grid expanded:grid-cols-3">
           {POINTS.map(({ icon: Icon, title, body }) => (
             <li key={title} className="flex flex-col gap-2">
               <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-400/15 text-amber-400 ring-1 ring-amber-400/40">

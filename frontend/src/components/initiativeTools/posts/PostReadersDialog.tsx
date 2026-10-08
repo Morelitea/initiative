@@ -63,7 +63,7 @@ export const PostReadersDialog = ({ open, onOpenChange, postId }: PostReadersDia
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="medium:max-w-md">
         <DialogHeader>
           <DialogTitle>{t("read.whoRead")}</DialogTitle>
           <DialogDescription>{t("read.whoReadHint")}</DialogDescription>

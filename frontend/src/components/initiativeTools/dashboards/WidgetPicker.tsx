@@ -143,7 +143,7 @@ export function WidgetPicker({ catalog, widgetCount, onAdd }: WidgetPickerProps)
             {t("canvas.addWidget")}
           </Button>
         </DialogTrigger>
-        <DialogContent className="flex h-[min(44rem,90vh)] w-[min(72rem,95vw)] max-w-none flex-col gap-4 sm:max-w-none">
+        <DialogContent className="flex h-[min(44rem,90vh)] w-[min(72rem,95vw)] max-w-none flex-col gap-4 medium:max-w-none">
           <DialogHeader>
             <DialogTitle>{t("picker.title")}</DialogTitle>
             <DialogDescription>{t("picker.description")}</DialogDescription>
@@ -164,9 +164,9 @@ export function WidgetPicker({ catalog, widgetCount, onAdd }: WidgetPickerProps)
           </div>
 
           {selected ? (
-            <div className="grid min-h-0 flex-1 gap-4 md:grid-cols-[15rem_minmax(0,1fr)]">
+            <div className="grid min-h-0 flex-1 gap-4 medium:grid-cols-[15rem_minmax(0,1fr)]">
               <ul
-                className="max-h-40 min-h-0 space-y-1 overflow-y-auto pr-1 md:max-h-none"
+                className="max-h-40 min-h-0 space-y-1 overflow-y-auto pr-1 medium:max-h-none"
                 aria-label={t("picker.listLabel")}
               >
                 {filtered.map((item) => (

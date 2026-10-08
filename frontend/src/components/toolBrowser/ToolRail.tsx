@@ -105,7 +105,7 @@ export const ToolRail = ({ tools, selected, to, label, align = "left" }: ToolRai
           aria-hidden="true"
           className={cn("absolute inset-x-0 bottom-0 rounded-t-2xl", TRAY_EDGE, TOOL_TRAY_SURFACE)}
         />
-        <nav aria-label={label} className="relative overflow-x-auto px-2 pb-2 sm:px-3">
+        <nav aria-label={label} className="relative overflow-x-auto px-2 pb-2 medium:px-3">
           {/* `w-max min-w-full` rather than `min-w-max`: the list is at least as
               wide as the rail, so centring has room to act, and grows past it
               when there are more circles than fit, so it still scrolls. */}

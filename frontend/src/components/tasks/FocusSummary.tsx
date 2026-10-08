@@ -86,7 +86,7 @@ const FocusRow = ({
         {context ? <p className="truncate text-muted-foreground text-xs">{context}</p> : null}
       </div>
       {!done && task.due_date ? (
-        <div className="hidden shrink-0 text-xs sm:block">
+        <div className="hidden shrink-0 text-xs medium:block">
           <DateCell date={task.due_date} isPastVariant="destructive" />
         </div>
       ) : null}
@@ -125,7 +125,7 @@ const FocusSettings = ({ focus }: { focus: FocusSummaryData }) => {
           <Settings2 className="h-4 w-4" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-72 space-y-4 sm:w-80">
+      <PopoverContent align="end" className="w-72 space-y-4 medium:w-80">
         <div className="space-y-1">
           <Label className="text-xs">{t("focus.horizonsLabel")}</Label>
           <p className="text-muted-foreground text-xs">{t("focus.horizonsHint")}</p>

@@ -67,10 +67,10 @@ type Person = {
  */
 const ROW_MENU = cn(
   "h-7 w-7 shrink-0 p-0",
-  "motion-reduce:transition-none sm:w-0 sm:overflow-hidden sm:opacity-0 sm:transition-all",
-  "sm:group-hover/row:w-7 sm:group-hover/row:opacity-100",
-  "sm:group-focus-within/row:w-7 sm:group-focus-within/row:opacity-100",
-  "sm:data-[state=open]:w-7 sm:data-[state=open]:opacity-100"
+  "motion-reduce:transition-none medium:w-0 medium:overflow-hidden medium:opacity-0 medium:transition-all",
+  "medium:group-hover/row:w-7 medium:group-hover/row:opacity-100",
+  "medium:group-focus-within/row:w-7 medium:group-focus-within/row:opacity-100",
+  "medium:data-[state=open]:w-7 medium:data-[state=open]:opacity-100"
 );
 
 /** Which sections the reader has folded away. Remembered across visits. */

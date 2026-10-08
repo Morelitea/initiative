@@ -34,7 +34,7 @@ export function EntitiesExportButton({
         onClick={() => setOpen(true)}
       >
         <FileDown className="h-4 w-4" />
-        <span className="hidden sm:inline">{label}</span>
+        <span className="hidden medium:inline">{label}</span>
       </Button>
       <ExportWizard scope={{ kind: "entities", ...entities }} open={open} onOpenChange={setOpen} />
     </>
@@ -83,7 +83,7 @@ function BulkExportUnavailable({ title }: { title: string }) {
   return (
     <Button variant="outline" size="sm" disabled title={title} aria-label={title}>
       <FileDown className="h-4 w-4" />
-      <span className="hidden sm:inline">{t("export.button")}</span>
+      <span className="hidden medium:inline">{t("export.button")}</span>
     </Button>
   );
 }

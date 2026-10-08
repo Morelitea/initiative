@@ -17,6 +17,53 @@
   --text-3xs--line-height: 0.875rem;
 }
 
+/* The width classes, Material's window size classes: compact (phones, a
+   foldable's cover screen) below medium; medium for an unfolded foldable or a
+   portrait tablet; expanded for a landscape tablet, where the sidebar docks;
+   large for a laptop; extra-large for a desktop. These five are the only
+   widths in the app — Tailwind's own breakpoints are cleared, and the
+   no-other-widths Biome rule refuses any other.
+
+     medium:   expanded:   …   the screen: the sidebar, navigation, header,
+                               page padding and type size.
+     @medium:  @expanded:  …   the nearest @container (the page area, or the
+                               body anywhere else): where one piece swaps for
+                               another, as a side panel for a row of chips.
+
+   Grids, forms and rows take no width class: grid-cols-fill-* and
+   grid-cols-pair fill as many columns as fit, and flex-wrap wraps.
+
+   The breakpoints are static so they reach :root for useWidthClass, which
+   reads them rather than holding a copy. The container sizes repeat them
+   (a query cannot read a variable); useWidthClass.test.ts holds the two together. */
+@theme {
+  --breakpoint-*: initial;
+  --container-medium: 37.5rem;
+  --container-expanded: 52.5rem;
+  --container-large: 75rem;
+  --container-extra-large: 100rem;
+}
+
+@theme static {
+  --breakpoint-medium: 37.5rem;
+  --breakpoint-expanded: 52.5rem;
+  --breakpoint-large: 75rem;
+  --breakpoint-extra-large: 100rem;
+}
+
+/* Tiles, as many columns as fit at the given minimum width (a spacing step:
+   grid-cols-fill-60 is 15rem). A tile never overflows a region narrower than
+   its minimum. */
+@utility grid-cols-fill-* {
+  grid-template-columns: repeat(auto-fill, minmax(min(--spacing(--value(integer)), 100%), 1fr));
+}
+
+/* Form fields in pairs: two columns once both fit at 16rem, never more than
+   two, so fields paired side by side stay paired on a wide screen. */
+@utility grid-cols-pair {
+  grid-template-columns: repeat(auto-fit, minmax(max(min(16rem, 100%), 40%), 1fr));
+}
+
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -163,6 +210,9 @@
     font-family:
       "Outfit Variable", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     min-height: 100%;
+    /* The region an @medium: measures when nothing nearer is one, so it
+       always has something to measure: a dialog, a sign-in page. */
+    container-type: inline-size;
     @apply bg-background text-foreground;
   }
   /* Non-native platforms (web): apply safe area insets via CSS */

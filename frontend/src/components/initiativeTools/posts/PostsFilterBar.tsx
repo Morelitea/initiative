@@ -57,7 +57,7 @@ export const PostsFilterBar = ({
         onChange={onChange}
         initiativeId={initiativeId}
       >
-        <div className="w-full space-y-2 sm:w-48">
+        <div className="w-full space-y-2 medium:w-48">
           <Label
             htmlFor="post-read-filter"
             className="block font-medium text-muted-foreground text-xs"

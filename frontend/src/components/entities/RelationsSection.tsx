@@ -385,7 +385,9 @@ export const RelationsSection = ({
               <Skeleton
                 key={n}
                 className={
-                  layout === "rows" ? "h-12 rounded-lg" : "aspect-4/3 rounded-2xl sm:aspect-square"
+                  layout === "rows"
+                    ? "h-12 rounded-lg"
+                    : "aspect-4/3 rounded-2xl medium:aspect-square"
                 }
               />
             ))}
@@ -422,7 +424,10 @@ export const RelationsSection = ({
                 const group = groupOf(edge, shown);
                 if (!group) return null;
                 return (
-                  <CarouselItem key={edge.id} className="basis-40 pl-4 sm:basis-44 lg:basis-48">
+                  <CarouselItem
+                    key={edge.id}
+                    className="basis-40 pl-4 medium:basis-44 expanded:basis-48"
+                  >
                     <EntityCard
                       end={edge.other}
                       badge={t(`groups.${group.key}.title` as const)}

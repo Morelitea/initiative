@@ -192,7 +192,7 @@ export const CommentThread = ({
                     onClick={() => setIsReplying(!isReplying)}
                   >
                     <Reply className="h-3.5 w-3.5" aria-hidden="true" />
-                    <span className="sr-only sm:not-sr-only sm:ml-1">{t("reply")}</span>
+                    <span className="sr-only medium:not-sr-only medium:ml-1">{t("reply")}</span>
                   </Button>
                   {canEdit && (
                     <Button
@@ -203,7 +203,9 @@ export const CommentThread = ({
                       onClick={() => setIsEditing(true)}
                     >
                       <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
-                      <span className="sr-only sm:not-sr-only sm:ml-1">{t("common:edit")}</span>
+                      <span className="sr-only medium:not-sr-only medium:ml-1">
+                        {t("common:edit")}
+                      </span>
                     </Button>
                   )}
                   {canDelete && (

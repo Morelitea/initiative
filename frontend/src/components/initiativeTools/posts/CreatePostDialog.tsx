@@ -111,7 +111,7 @@ export const CreatePostDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className="medium:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{t("createPost")}</DialogTitle>
           <DialogDescription>{t("noPostsDescription")}</DialogDescription>

@@ -62,7 +62,7 @@ export const GlobalTaskFilters = ({
           priorityFilters={priorityFilters}
           onPriorityChange={setPriorityFilters}
         />
-        <div className="w-full sm:w-60 lg:flex-1">
+        <div className="w-full medium:w-60 expanded:flex-1">
           <Label
             htmlFor="task-community-filter"
             className="mb-2 block font-medium text-muted-foreground text-xs"

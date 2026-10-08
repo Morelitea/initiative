@@ -42,7 +42,7 @@ describe("DialogContent", () => {
   it("keeps the viewport cap when a caller sets its own width", () => {
     render(
       <Dialog open>
-        <DialogContent className="sm:max-w-2xl">
+        <DialogContent className="medium:max-w-2xl">
           <DialogTitle>Anything</DialogTitle>
         </DialogContent>
       </Dialog>
@@ -51,7 +51,7 @@ describe("DialogContent", () => {
     const content = screen.getByRole("dialog");
     // Both survive: the base governs below `sm`, the caller's above it.
     expect(content.className).toContain("max-w-[calc(100%-2rem)]");
-    expect(content.className).toContain("sm:max-w-2xl");
+    expect(content.className).toContain("medium:max-w-2xl");
   });
 
   // The class-merge rule the case above relies on, enforced across the app: an
@@ -99,6 +99,6 @@ describe("DialogContent", () => {
     };
     walk(SRC);
 
-    expect(offenders, `put these behind sm: — ${offenders.join(", ")}`).toEqual([]);
+    expect(offenders, `put these behind medium: — ${offenders.join(", ")}`).toEqual([]);
   });
 });

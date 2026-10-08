@@ -135,7 +135,10 @@ export const GalleryImageSheet = ({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="flex w-full flex-col gap-0 overflow-y-auto sm:max-w-md">
+      <SheetContent
+        side="right"
+        className="flex w-full flex-col gap-0 overflow-y-auto medium:max-w-md"
+      >
         <SheetHeader className="text-left">
           <div className="flex items-start justify-between gap-2">
             <SheetTitle className="sr-only">{label || t("common:lightbox.title")}</SheetTitle>

@@ -103,7 +103,7 @@ export const AnnouncementDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[85vh] flex-col gap-0 sm:max-w-2xl">
+      <DialogContent className="flex max-h-[85vh] flex-col gap-0 medium:max-w-2xl">
         <DialogHeader className="shrink-0 space-y-2">
           <div className="flex items-center gap-2">
             <Badge variant="secondary" className="gap-1.5">
@@ -138,9 +138,9 @@ export const AnnouncementDialog = ({
         </div>
 
         {pages.length > 1 || footer ? (
-          <DialogFooter className="shrink-0 border-t pt-4 sm:items-center">
+          <DialogFooter className="shrink-0 border-t pt-4 medium:items-center">
             {pages.length > 1 ? (
-              <div className="flex items-center gap-2 sm:mr-auto">
+              <div className="flex items-center gap-2 medium:mr-auto">
                 <Button
                   variant="ghost"
                   size="sm"

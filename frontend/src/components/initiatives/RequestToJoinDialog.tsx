@@ -93,7 +93,7 @@ export const RequestToJoinDialog = ({
             />
             <p className="text-muted-foreground text-xs">{t("joinRequests.messageHint")}</p>
           </div>
-          <DialogFooter className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+          <DialogFooter className="flex flex-col gap-2 medium:flex-row medium:justify-end">
             <Button type="submit" disabled={requestToJoin.isPending || !initiative}>
               {requestToJoin.isPending ? (
                 <>

@@ -118,7 +118,7 @@ export const SettingsPushPage = () => {
           />
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-pair gap-4">
           {TEXT_FIELDS.map((field) => (
             <div key={field} className="space-y-2">
               <Label htmlFor={`push-${field}`}>{t(`push.fields.${field}.label`)}</Label>

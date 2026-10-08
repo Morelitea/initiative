@@ -147,7 +147,7 @@ export const WizardFrame = ({
  * caller's own classes still decide the size above it.
  */
 const FULL_SCREEN_BELOW_SM =
-  "max-sm:inset-0 max-sm:h-dvh max-sm:max-h-none max-sm:max-w-none max-sm:translate-x-0 max-sm:translate-y-0 max-sm:content-start max-sm:overflow-y-auto max-sm:rounded-none max-sm:border-0 max-sm:pb-[max(1.5rem,env(safe-area-inset-bottom))]";
+  "max-medium:inset-0 max-medium:h-dvh max-medium:max-h-none max-medium:max-w-none max-medium:translate-x-0 max-medium:translate-y-0 max-medium:content-start max-medium:overflow-y-auto max-medium:rounded-none max-medium:border-0 max-medium:pb-[max(1.5rem,env(safe-area-inset-bottom))]";
 
 export interface WizardDialogProps extends Omit<WizardFrameProps, "inDialog"> {
   open: boolean;

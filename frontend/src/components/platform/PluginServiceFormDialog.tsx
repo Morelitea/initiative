@@ -242,7 +242,7 @@ export const PluginServiceFormDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="medium:max-w-lg">
         <DialogHeader>
           <DialogTitle>
             {editing ? t("pluginServices.editTitle") : t("pluginServices.createTitle")}

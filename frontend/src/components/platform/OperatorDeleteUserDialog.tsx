@@ -211,7 +211,7 @@ export function OperatorDeleteUserDialog({
       <WizardDialog
         open={open}
         onOpenChange={onOpenChange}
-        className="max-h-[90vh] overflow-y-auto sm:max-w-2xl"
+        className="max-h-[90vh] overflow-y-auto medium:max-w-2xl"
         title={t("operatorDeleteUser.subtitle", { email: displayName })}
         description={description[step]}
         // Resolving blockers only happens to somebody who has them, so it is

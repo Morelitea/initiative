@@ -311,16 +311,16 @@ function AppLayout() {
               }
             >
               <AppSidebar />
-              <div className="flex min-h-0 min-w-0 flex-1 flex-col md:pl-0">
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col expanded:pl-0">
                 <div
-                  className="sticky top-0 z-50 flex flex-col bg-card/70 backdrop-blur supports-backdrop-filter:bg-card/60 lg:border-b"
+                  className="sticky top-0 z-50 flex flex-col bg-card/70 backdrop-blur supports-backdrop-filter:bg-card/60 expanded:border-b"
                   style={{ paddingTop: "var(--safe-area-inset-top)" }}
                 >
                   {/* Mobile hamburger lives in BottomNav and search now lives in
                     the sidebar, so this desktop-only row is just recents — and
                     with nothing recent it takes up no room at all. */}
                   {(recentQuery.isLoading || (recentItems?.length ?? 0) > 0) && (
-                    <div className="hidden h-12 lg:flex">
+                    <div className="hidden h-12 expanded:flex">
                       <div className="min-w-0 flex-1">
                         <RecentTabsBar
                           items={recentItems}
@@ -422,8 +422,12 @@ function AppLayout() {
                       keeps the bottom bar off the end of it. */}
                     <div
                       className={cn(
-                        "grid min-h-full grid-cols-[minmax(0,1fr)] grid-rows-[1fr]",
-                        fullBleed ? "pb-16 md:pb-0" : "container mx-auto p-4 pb-24 md:p-8 md:pb-24"
+                        // The page area: what a page's @medium: and its
+                        // siblings measure, sidebar or not.
+                        "@container grid min-h-full grid-cols-[minmax(0,1fr)] grid-rows-[1fr]",
+                        fullBleed
+                          ? "pb-16 expanded:pb-0"
+                          : "container mx-auto p-4 pb-24 expanded:p-8 expanded:pb-24"
                       )}
                     >
                       <Suspense fallback={<PageLoader />}>
@@ -526,7 +530,7 @@ function NoCommunitySettingsShell({ logout }: { logout: () => void }) {
           </Button>
         </div>
       </div>
-      <main className="container mx-auto min-w-0 p-4 pb-20 md:p-8 md:pb-20">
+      <main className="container mx-auto min-w-0 p-4 pb-20 expanded:p-8 expanded:pb-20">
         <Suspense fallback={<PageLoader />}>
           <Outlet />
         </Suspense>

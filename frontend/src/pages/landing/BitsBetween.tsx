@@ -24,16 +24,16 @@ import { useTranslation } from "react-i18next";
 const IMPORT_SOURCES = ["Todoist", "TickTick", "Vikunja", "Jira", "Confluence"];
 
 const Card = ({ title, body, children }: { title: string; body: string; children: ReactNode }) => (
-  <li className="flex w-71 shrink-0 snap-start flex-col overflow-hidden rounded-2xl border bg-card md:w-auto">
+  <li className="flex w-71 shrink-0 snap-start flex-col overflow-hidden rounded-2xl border bg-card expanded:w-auto">
     <div
-      className="flex h-42 flex-col justify-center gap-2 bg-muted p-4 text-sm md:h-46"
+      className="flex h-42 flex-col justify-center gap-2 bg-muted p-4 text-sm expanded:h-46"
       aria-hidden="true"
     >
       {children}
     </div>
-    <div className="p-4 md:p-5">
-      <h3 className="font-bold text-lg leading-tight md:text-xl">{title}</h3>
-      <p className="mt-1.5 text-muted-foreground text-sm md:text-[15px]">{body}</p>
+    <div className="p-4 medium:p-5">
+      <h3 className="font-bold text-lg leading-tight medium:text-xl">{title}</h3>
+      <p className="mt-1.5 text-muted-foreground text-sm medium:text-[15px]">{body}</p>
     </div>
   </li>
 );
@@ -75,11 +75,11 @@ export const BitsBetween = () => {
 
   return (
     <section className="bg-muted/40" aria-labelledby="landing-between-title">
-      <div className="mx-auto max-w-6xl px-4 py-14 md:px-8 md:py-22">
-        <div className="mb-7 max-w-2xl md:mb-10">
+      <div className="mx-auto max-w-6xl px-4 py-14 medium:px-8 medium:py-22">
+        <div className="mb-7 max-w-2xl medium:mb-10">
           <h2
             id="landing-between-title"
-            className="font-extrabold text-3xl tracking-tight md:text-5xl"
+            className="font-extrabold text-3xl tracking-tight medium:text-5xl"
           >
             {t("between.title")}
           </h2>
@@ -91,9 +91,9 @@ export const BitsBetween = () => {
           // biome-ignore lint/a11y/noNoninteractiveTabindex: a scrolling region has to be reachable by keyboard
           tabIndex={0}
           aria-label={t("between.cardsAria")}
-          className="-mx-4 snap-x snap-mandatory overflow-x-auto px-4 pb-1.5 focus-visible:outline-2 focus-visible:outline-ring md:mx-0 md:overflow-visible md:px-0"
+          className="-mx-4 snap-x snap-mandatory overflow-x-auto px-4 pb-1.5 focus-visible:outline-2 focus-visible:outline-ring expanded:mx-0 expanded:overflow-visible expanded:px-0"
         >
-          <ul className="flex w-max gap-2.5 md:grid md:w-auto md:grid-cols-3 md:gap-4">
+          <ul className="flex w-max gap-2.5 expanded:grid expanded:w-auto expanded:grid-cols-3 expanded:gap-4">
             <Card title={t("between.comments.title")} body={t("between.comments.body")}>
               <div className="flex items-start gap-2.5 rounded-xl border bg-card p-3">
                 <span className="flex h-6.5 w-6.5 shrink-0 items-center justify-center rounded-full bg-teal-700 font-bold text-3xs text-white">
@@ -239,7 +239,7 @@ export const BitsBetween = () => {
             </Card>
           </ul>
         </section>
-        <p className="mt-6 hidden flex-wrap items-center gap-2.5 rounded-2xl bg-[#0b1224] px-6 py-5 text-slate-200 md:flex">
+        <p className="mt-6 hidden flex-wrap items-center gap-2.5 rounded-2xl bg-[#0b1224] px-6 py-5 text-slate-200 expanded:flex">
           <b className="mr-1.5 text-white">{t("between.imports")}</b>
           {IMPORT_SOURCES.map((source) => (
             <span

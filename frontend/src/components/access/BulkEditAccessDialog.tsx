@@ -631,7 +631,7 @@ export function BulkEditAccessDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="medium:max-w-md">
         <DialogHeader>
           <DialogTitle>{t("bulkAccess.title")}</DialogTitle>
           <DialogDescription>{dialogDescription}</DialogDescription>

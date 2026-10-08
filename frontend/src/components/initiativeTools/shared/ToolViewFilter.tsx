@@ -89,10 +89,10 @@ export const ToolViewFilter = ({
             // overflow controls. `shrink-0` because a squeezed toggle clips
             // its own label and count rather than eliding them.
             aria-label={t(`toolViewFilter.${view}` as const)}
-            className="h-9 shrink-0 gap-1.5 px-2.5 sm:gap-2 sm:px-3"
+            className="h-9 shrink-0 gap-1.5 px-2.5 medium:gap-2 medium:px-3"
           >
             <Icon className="h-4 w-4" />
-            <span className="hidden sm:inline">{t(`toolViewFilter.${view}` as const)}</span>
+            <span className="hidden medium:inline">{t(`toolViewFilter.${view}` as const)}</span>
             {typeof count === "number" ? (
               <span className="text-muted-foreground text-xs tabular-nums">{count}</span>
             ) : null}

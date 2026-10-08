@@ -95,7 +95,7 @@ export const CaptchaSection = () => {
               }
             }}
           >
-            <SelectTrigger id="captcha-provider" className="w-full md:w-72">
+            <SelectTrigger id="captcha-provider" className="w-full medium:w-72">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -108,7 +108,7 @@ export const CaptchaSection = () => {
             </SelectContent>
           </Select>
         </div>
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-pair gap-4">
           <div className="space-y-2">
             <Label htmlFor="captcha-site-key">{t("captcha.siteKeyLabel")}</Label>
             <Input

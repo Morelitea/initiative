@@ -160,7 +160,7 @@ export const SettingsStoragePage = () => {
                 }
               }}
             >
-              <SelectTrigger id="storage-backend" className="w-full md:w-72">
+              <SelectTrigger id="storage-backend" className="w-full medium:w-72">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -178,7 +178,7 @@ export const SettingsStoragePage = () => {
                 <AlertDescription>{t("storage.cutoverHelp")}</AlertDescription>
               </Alert>
 
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid grid-cols-pair gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="s3-bucket">{t("storage.bucketLabel")}</Label>
                   <Input
@@ -210,7 +210,7 @@ export const SettingsStoragePage = () => {
                 <p className="text-muted-foreground text-xs">{t("storage.endpointHelp")}</p>
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid grid-cols-pair gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="s3-access-key">{t("storage.accessKeyLabel")}</Label>
                   <Input
@@ -233,7 +233,7 @@ export const SettingsStoragePage = () => {
                 </div>
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid grid-cols-pair gap-4">
                 <div className="flex items-center justify-between rounded-md border px-4 py-3">
                   <div>
                     <p className="font-medium">{t("storage.pathStyleLabel")}</p>

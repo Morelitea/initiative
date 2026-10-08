@@ -59,7 +59,7 @@ export const FileFeaturedImage = ({
           className="max-h-[60vh] w-full object-contain"
         />
         {canEdit ? (
-          <div className="absolute top-2 right-2 flex gap-2 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
+          <div className="absolute top-2 right-2 flex gap-2 transition-opacity expanded:opacity-0 expanded:group-hover:opacity-100 expanded:group-focus-within:opacity-100">
             {upload(t("featuredImage.replace"), "secondary")}
             <Button
               type="button"

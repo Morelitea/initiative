@@ -519,7 +519,7 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
     <WizardDialog
       open={open}
       onOpenChange={onOpenChange}
-      className="max-h-[85vh] overflow-y-auto sm:max-w-lg"
+      className="max-h-[85vh] overflow-y-auto medium:max-w-lg"
       title={t("wizard.title")}
       description={stepDescription}
       progress={current === null ? undefined : { current, total }}
@@ -541,7 +541,7 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
       backLabel={t("wizard.back")}
     >
       {step === "source" && (
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-pair gap-3">
           {SOURCES.map((option) => (
             <button
               key={option}

@@ -39,7 +39,7 @@ export const DeviceVerificationDialog = () => {
         else actions.dismiss();
       }}
     >
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="medium:max-w-md">
         <DialogHeader>
           <DialogTitle>{t("verification.title", { device })}</DialogTitle>
           <DialogDescription>

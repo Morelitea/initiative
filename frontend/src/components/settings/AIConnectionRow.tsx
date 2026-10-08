@@ -26,7 +26,7 @@ export const AIConnectionRow = ({
   const { t } = useTranslation("settings");
 
   return (
-    <li className="flex flex-col gap-3 rounded-md border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+    <li className="flex flex-wrap gap-3 rounded-md border px-4 py-3 items-center justify-between">
       <div className="min-w-0 space-y-1">
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-medium">{connection.label}</span>

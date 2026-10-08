@@ -149,7 +149,7 @@ export function CommunitiesPage() {
           page carries the search rather than making someone open a drawer to
           reach it. The shelves stay in the sidebar: they are a list of twelve,
           and the search is the one that answers "is my thing here at all". */}
-      <CommunitySearchField className="lg:hidden" />
+      <CommunitySearchField className="expanded:hidden" />
 
       <DirectoryNearControl near={near} />
 
@@ -162,7 +162,7 @@ export function CommunitiesPage() {
           description={t("communities:community.unavailableDescription")}
         />
       ) : configLoading || directory.isLoading ? (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-fill-72 gap-4">
           {SKELETON_KEYS.map((key) => (
             <Skeleton key={key} className="h-52 w-full rounded-xl" />
           ))}
@@ -172,7 +172,7 @@ export function CommunitiesPage() {
           <p className="text-muted-foreground text-sm">
             {t("communities:community.resultCount", { count: total })}
           </p>
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-fill-72 gap-4">
             {communities.map((community) => (
               <CommunityCard key={community.id} community={community} />
             ))}

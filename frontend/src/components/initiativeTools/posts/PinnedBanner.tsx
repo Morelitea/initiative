@@ -81,7 +81,7 @@ export const PinnedBanner = ({ post, canPin = false, className }: PinnedBannerPr
       )}
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="medium:max-w-md">
           <DialogHeader>
             <DialogTitle>{t("pin.expiresLabel")}</DialogTitle>
             <DialogDescription>{t("pin.expiresHelp")}</DialogDescription>

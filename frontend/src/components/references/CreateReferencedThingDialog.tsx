@@ -73,7 +73,7 @@ export function CreateReferencedThingDialog({
 
   return (
     <Dialog open onOpenChange={(next) => !next && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="medium:max-w-md">
         <DialogHeader>
           <DialogTitle>{t("createNamed", { name })}</DialogTitle>
           <DialogDescription>{t("createKindPrompt")}</DialogDescription>

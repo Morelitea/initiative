@@ -191,7 +191,7 @@ export const CreateFileDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-full rounded-2xl border bg-card shadow-2xl sm:max-w-lg">
+      <DialogContent className="w-full rounded-2xl border bg-card shadow-2xl medium:max-w-lg">
         <DialogHeader>
           <DialogTitle>{t("create.title")}</DialogTitle>
           <DialogDescription>
@@ -294,7 +294,7 @@ export const CreateFileDialog = ({
                 aria-label={t("create.templateLabel")}
               />
             </div>
-            <div className="flex flex-col gap-2 rounded-lg border bg-muted/40 p-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap gap-2 rounded-lg border bg-muted/40 p-3 items-center justify-between">
               <div>
                 <p className="font-medium text-sm">{t("create.saveAsTemplate")}</p>
                 <p className="text-muted-foreground text-xs">{t("create.templateDescription")}</p>

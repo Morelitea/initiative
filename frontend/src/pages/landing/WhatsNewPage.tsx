@@ -62,10 +62,10 @@ const useReleaseDate = () => {
 
 const Header = ({ title, description }: { title: string; description?: string }) => (
   <DarkBand stars aria-labelledby="landing-whatsnew-title">
-    <div className="relative mx-auto max-w-3xl px-4 pt-10 pb-14 md:px-8 md:pt-18 md:pb-18">
+    <div className="relative mx-auto max-w-3xl px-4 pt-10 pb-14 medium:px-8 medium:pt-18 medium:pb-18">
       <h1
         id="landing-whatsnew-title"
-        className="font-extrabold text-[2.6rem] leading-tight tracking-tight md:text-6xl"
+        className="font-extrabold text-[2.6rem] leading-tight tracking-tight medium:text-6xl"
       >
         {title}
       </h1>
@@ -81,7 +81,7 @@ const PostCard = ({ entry }: { entry: ChangelogEntry }) => {
   return (
     <li>
       <article
-        className="rounded-2xl border bg-card p-5 md:p-6"
+        className="rounded-2xl border bg-card p-5 medium:p-6"
         aria-labelledby={`post-${entry.version}`}
       >
         <p className="text-muted-foreground text-sm">
@@ -127,7 +127,7 @@ export const WhatsNewPage = () => {
   return (
     <LandingShell current="whats-new">
       <Header title={t("whatsNew.title")} description={t("whatsNew.description")} />
-      <div className="mx-auto max-w-3xl px-4 py-10 md:px-8 md:py-14">
+      <div className="mx-auto max-w-3xl px-4 py-10 medium:px-8 medium:py-14">
         {isLoading ? (
           <p className="flex items-center justify-center gap-2 text-muted-foreground" role="status">
             <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
@@ -182,7 +182,7 @@ export const WhatsNewPostPage = () => {
   return (
     <LandingShell current="whats-new">
       <Header title={title} description={entry ? formatDate(entry.date) : undefined} />
-      <div className="mx-auto max-w-3xl px-4 py-10 md:px-8 md:py-14">
+      <div className="mx-auto max-w-3xl px-4 py-10 medium:px-8 medium:py-14">
         <Link
           to="/whats-new"
           className="mb-6 inline-flex items-center gap-1.5 font-semibold text-primary hover:underline"

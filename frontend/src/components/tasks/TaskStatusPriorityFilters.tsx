@@ -22,7 +22,7 @@ export const TaskStatusPriorityFilters = ({
   const { t } = useTranslation("tasks");
   return (
     <>
-      <div className="w-full sm:w-48 lg:flex-1">
+      <div className="w-full medium:w-48 expanded:flex-1">
         <Label className="mb-2 block font-medium text-muted-foreground text-xs">
           {t("filters.filterByStatusCategory")}
         </Label>
@@ -37,7 +37,7 @@ export const TaskStatusPriorityFilters = ({
           emptyMessage={t("filters.noStatusCategories")}
         />
       </div>
-      <div className="w-full sm:w-48 lg:flex-1">
+      <div className="w-full medium:w-48 expanded:flex-1">
         <Label className="mb-2 block font-medium text-muted-foreground text-xs">
           {t("filters.filterByPriority")}
         </Label>

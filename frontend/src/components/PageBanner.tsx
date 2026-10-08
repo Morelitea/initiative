@@ -224,7 +224,7 @@ export function PageBanner({
         // back exactly what it added, so nothing below the banner moves.
         ...(extend ? { gridTemplateRows: `auto ${extend}px`, marginBottom: -extend } : null),
       }}
-      className="relative -mx-4 -mt-4 grid overflow-hidden md:-mx-8 md:-mt-8"
+      className="relative -mx-4 -mt-4 grid overflow-hidden expanded:-mx-8 expanded:-mt-8"
     >
       {/* The ground: the fill, the artwork, and the fade over both. `gridRow`
           is set outright rather than by `row-start`/`row-span` classes, whose
@@ -269,8 +269,8 @@ export function PageBanner({
           // opens out once there is height to spend. `lg` keeps it roughly the
           // proportion the artwork is cut to.
           imageUrl
-            ? "min-h-[44vw] sm:min-h-[38vw] md:min-h-[28vw] lg:min-h-[20vw]"
-            : "min-h-24 sm:min-h-32 lg:min-h-36"
+            ? "min-h-[44vw] medium:min-h-[38vw] expanded:min-h-[28vw] large:min-h-[20vw]"
+            : "min-h-24 medium:min-h-32 large:min-h-36"
         )}
       >
         {/* The corner, not the copy: these say how big the community is, which is
@@ -281,7 +281,7 @@ export function PageBanner({
         {badges ? (
           <div
             style={box.inset.right ? { paddingRight: box.inset.right } : undefined}
-            className="flex flex-wrap items-center justify-end gap-2 px-4 pt-4 md:px-8 md:pt-6"
+            className="flex flex-wrap items-center justify-end gap-2 px-4 pt-4 expanded:px-8 expanded:pt-6"
           >
             {badges}
           </div>
@@ -299,15 +299,17 @@ export function PageBanner({
             // The copy takes the height the corner left it and sits in the
             // middle of that, so a banner with badges reads the same as one
             // without — just with the words starting under them.
-            "flex flex-1 flex-col justify-center gap-1 px-4 sm:gap-2 md:px-8",
+            "flex flex-1 flex-col justify-center gap-1 px-4 medium:gap-2 expanded:px-8",
             align === "left" ? "items-start text-left" : "items-center text-center",
-            imageUrl ? "py-6 sm:py-10" : "py-5 sm:py-6"
+            imageUrl ? "py-6 medium:py-10" : "py-5 medium:py-6"
           )}
         >
           <h1
             className={cn(
               "text-balance font-black tracking-tight",
-              imageUrl ? "text-3xl sm:text-5xl lg:text-6xl" : "text-xl sm:text-3xl lg:text-4xl",
+              imageUrl
+                ? "text-3xl medium:text-5xl large:text-6xl"
+                : "text-xl medium:text-3xl large:text-4xl",
               halo &&
                 "text-neutral-900 [text-shadow:0_0_10px_rgba(255,255,255,0.95),0_0_28px_rgba(255,255,255,0.8)]"
             )}
@@ -332,7 +334,7 @@ export function PageBanner({
             <p
               className={cn(
                 "max-w-2xl text-balance font-medium",
-                imageUrl ? "text-sm sm:text-lg lg:text-xl" : "text-xs sm:text-base",
+                imageUrl ? "text-sm medium:text-lg large:text-xl" : "text-xs medium:text-base",
                 halo &&
                   "text-neutral-800 [text-shadow:0_0_8px_rgba(255,255,255,0.95),0_0_20px_rgba(255,255,255,0.8)]"
               )}

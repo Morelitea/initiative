@@ -52,7 +52,7 @@ const initiativeKey = (communityId: number | null, initiativeId: number) =>
   `${communityId}:${initiativeId}`;
 
 const NameCell = ({ row }: { row: ToolRow }) => (
-  <div className="flex min-w-[220px] items-center gap-2 sm:min-w-0">
+  <div className="flex min-w-[220px] items-center gap-2 medium:min-w-0">
     {row.glyph}
     <Link
       to={communityPath(row.communityId, row.href)}

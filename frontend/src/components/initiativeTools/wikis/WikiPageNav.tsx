@@ -77,7 +77,7 @@ export const WikiPageNav = ({
       ) : (
         // Held open, so the way on does not slide across the screen when there
         // is nothing behind you.
-        <span className="hidden flex-1 sm:block" />
+        <span className="hidden flex-1 medium:block" />
       )}
 
       {next ? (
@@ -94,7 +94,7 @@ export const WikiPageNav = ({
           <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
         </Link>
       ) : (
-        <span className="hidden flex-1 sm:block" />
+        <span className="hidden flex-1 medium:block" />
       )}
     </nav>
   );

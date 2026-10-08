@@ -87,7 +87,7 @@ export function ExportButton({
       onClick={menuMode ? undefined : () => void handleExport(formats[0])}
     >
       {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
-      <span className="hidden sm:inline">{busy ? t("export.preparing") : idleLabel}</span>
+      <span className="hidden medium:inline">{busy ? t("export.preparing") : idleLabel}</span>
       {withChevron && !busy && <ChevronDown className="h-3 w-3 opacity-60" />}
     </Button>
   );

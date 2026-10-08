@@ -642,7 +642,7 @@ function AggregateExportWizard({
     <WizardDialog
       open={open}
       onOpenChange={onOpenChange}
-      className="max-h-[85vh] overflow-y-auto sm:max-w-lg"
+      className="max-h-[85vh] overflow-y-auto medium:max-w-lg"
       title={scope.kind === "community" ? t("wizard.titleCommunity") : t("wizard.titleInitiative")}
       description={stepDescription}
       progress={position === null ? undefined : { current: position, total: 3 }}
@@ -1011,7 +1011,7 @@ function EntitiesExportWizard({
     <WizardDialog
       open={open}
       onOpenChange={onOpenChange}
-      className="max-h-[85vh] overflow-y-auto sm:max-w-lg"
+      className="max-h-[85vh] overflow-y-auto medium:max-w-lg"
       title={t("wizard.titleEntities", { count: ids.length })}
       description={stepDescription}
       progress={position === null ? undefined : { current: position, total }}

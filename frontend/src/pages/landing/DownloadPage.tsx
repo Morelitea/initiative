@@ -169,7 +169,7 @@ const PlatformCard = ({
   children: ReactNode;
 }) => (
   <li
-    className="flex flex-col gap-3.5 rounded-2xl border bg-card p-5 md:p-6"
+    className="flex flex-col gap-3.5 rounded-2xl border bg-card p-5 medium:p-6"
     data-platform={platform}
   >
     <div className="flex items-center gap-3">
@@ -221,10 +221,10 @@ export const DownloadPage = () => {
   return (
     <LandingShell current="download">
       <DarkBand stars aria-labelledby="landing-download-title">
-        <div className="relative mx-auto max-w-6xl px-4 pt-10 pb-20 md:px-8 md:pt-18 md:pb-24">
+        <div className="relative mx-auto max-w-6xl px-4 pt-10 pb-20 medium:px-8 medium:pt-18 medium:pb-24">
           <h1
             id="landing-download-title"
-            className="font-extrabold text-[2.6rem] leading-tight tracking-tight md:text-6xl"
+            className="font-extrabold text-[2.6rem] leading-tight tracking-tight medium:text-6xl"
           >
             {t("download.title")}{" "}
             <span className="text-amber-400">{t("download.titleHighlight")}</span>
@@ -235,9 +235,9 @@ export const DownloadPage = () => {
         </div>
       </DarkBand>
 
-      <div className="mx-auto max-w-6xl px-4 md:px-8">
+      <div className="mx-auto max-w-6xl px-4 medium:px-8">
         <section
-          className="relative -mt-12 grid items-center gap-5 rounded-3xl border bg-card p-5 shadow-2xl md:grid-cols-[1fr_auto] md:gap-8 md:p-9"
+          className="relative -mt-12 grid items-center gap-5 rounded-3xl border bg-card p-5 shadow-2xl expanded:grid-cols-[1fr_auto] medium:gap-8 medium:p-9"
           aria-labelledby="landing-download-feature"
         >
           <div>
@@ -246,7 +246,7 @@ export const DownloadPage = () => {
             </p>
             <h2
               id="landing-download-feature"
-              className="mt-1 font-extrabold text-2xl tracking-tight md:text-3xl"
+              className="mt-1 font-extrabold text-2xl tracking-tight medium:text-3xl"
             >
               {t(`download.${platform}Title`)}
             </h2>
@@ -260,7 +260,7 @@ export const DownloadPage = () => {
               )}
             </p>
           </div>
-          <div className="flex flex-col gap-2.5 md:min-w-72">
+          <div className="flex flex-col gap-2.5 expanded:min-w-72">
             {platform === "android" ? (
               <>
                 <ApkButton minNativeVersion={minNativeVersion} className="h-14 text-base">
@@ -304,7 +304,7 @@ export const DownloadPage = () => {
         </section>
 
         <ul
-          className="mt-8 grid gap-3 md:mt-10 md:grid-cols-2 md:gap-4 lg:grid-cols-4"
+          className="mt-8 grid gap-3 medium:mt-10 expanded:grid-cols-2 medium:gap-4 large:grid-cols-4"
           aria-label={t("download.cardsAria")}
         >
           <PlatformCard
@@ -390,7 +390,7 @@ export const DownloadPage = () => {
         </ul>
 
         <ul
-          className="mt-8 mb-20 grid gap-3 md:mt-10 md:mb-24 md:grid-cols-3 md:gap-4"
+          className="mt-8 mb-20 grid gap-3 medium:mt-10 medium:mb-24 expanded:grid-cols-3 medium:gap-4"
           aria-label={t("download.factsAria")}
         >
           <Fact

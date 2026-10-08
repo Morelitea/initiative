@@ -78,7 +78,7 @@ export const PublishCommunityDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && !saving && onCancel()}>
-      <DialogContent className="bg-card sm:max-w-lg">
+      <DialogContent className="bg-card medium:max-w-lg">
         <DialogHeader>
           <DialogTitle>{t("communities:community.publish.title")}</DialogTitle>
           <DialogDescription>{t("communities:community.publish.description")}</DialogDescription>

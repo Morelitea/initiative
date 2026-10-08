@@ -362,7 +362,7 @@ export const MyCalendarPage = () => {
               priorityFilters={priorityFilters}
               onPriorityChange={setPriorityFilters}
             />
-            <div className="w-full sm:w-48 lg:flex-1">
+            <div className="w-full medium:w-48 expanded:flex-1">
               <Label className="mb-2 block font-medium text-muted-foreground text-xs">
                 {t("tasks:filters.filterByCommunity")}
               </Label>

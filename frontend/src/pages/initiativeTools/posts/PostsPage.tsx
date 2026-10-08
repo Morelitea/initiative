@@ -354,7 +354,7 @@ export const PostsView = ({ fixedInitiativeId, canCreate }: PostsViewProps) => {
                 stand it beside anything: it overlays the feed's edge — its own
                 negative margin is what gives the notices the full width — and
                 shows itself while the board is moving. */}
-            <div className="mx-auto flex w-full max-w-3xl sm:gap-2">
+            <div className="mx-auto flex w-full max-w-3xl medium:gap-2">
               <div ref={listRef} className="flex min-w-0 flex-1 flex-col">
                 <div style={{ height: paddingTop }} />
                 {virtualItems.map((item) => (

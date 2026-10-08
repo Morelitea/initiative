@@ -56,9 +56,9 @@ export const CounterSegmentedClockView = ({
   // "2xl" is the fullscreen focus dial — fills most of the focus viewport area.
   const wrapperSize =
     size === "2xl"
-      ? "h-64 w-64 sm:h-72 sm:w-72"
+      ? "h-64 w-64 medium:h-72 medium:w-72"
       : size === "lg"
-        ? "h-16 w-16 sm:h-20 sm:w-20 lg:h-24 lg:w-24"
+        ? "h-16 w-16 medium:h-20 medium:w-20 expanded:h-24 expanded:w-24"
         : "h-20 w-20";
   const inputSize = size === "2xl" ? "2xl" : size === "lg" ? "lg" : "md";
   const strokeWidth = size === "2xl" ? 4 : 6;

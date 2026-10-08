@@ -742,7 +742,7 @@ export const CalendarsView = ({
               ) : null}
             </div>
 
-            <div className="w-full sm:w-64">
+            <div className="w-full medium:w-64">
               <Label
                 htmlFor="calendar-date-range"
                 className="mb-2 block font-medium text-muted-foreground text-xs"

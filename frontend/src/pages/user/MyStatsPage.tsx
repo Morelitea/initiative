@@ -41,9 +41,9 @@ export function MyStatsPage() {
   return (
     <div className="space-y-6">
       {/* Header with Community filter */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-wrap gap-4 items-center justify-between">
         <h1 className="font-semibold text-3xl tracking-tight">{t("page.title")}</h1>
-        <div className="w-full sm:w-[200px]">
+        <div className="w-full medium:w-[200px]">
           <Select value={selectedCommunityId} onValueChange={handleCommunityChange}>
             <SelectTrigger>
               <SelectValue placeholder={t("page.communityFilterPlaceholder")} />
@@ -63,10 +63,7 @@ export function MyStatsPage() {
       {/* Loading state */}
       {isLoading && (
         <SkeletonRegion label={t("page.loading")} className="space-y-6">
-          <CardGridSkeleton
-            count={4}
-            className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4"
-          />
+          <CardGridSkeleton count={4} className="grid grid-cols-fill-48 gap-4" />
           <ContentCardSkeleton lines={3} />
         </SkeletonRegion>
       )}
@@ -82,7 +79,7 @@ export function MyStatsPage() {
       {stats && (
         <>
           {/* Top Metrics Row - 4 cards */}
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-fill-48 gap-4">
             <StatsMetricCard
               icon={Flame}
               title={t("metrics.currentStreak")}
@@ -129,7 +126,7 @@ export function MyStatsPage() {
               <CardTitle>{t("tasksCompleted.title")}</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex flex-col gap-6 sm:flex-row sm:gap-12">
+              <div className="flex flex-col gap-6 medium:flex-row medium:gap-12">
                 <div>
                   <div className="font-bold text-3xl">{stats.tasks_completed_total}</div>
                   <div className="mt-1 text-muted-foreground text-sm">
@@ -147,7 +144,7 @@ export function MyStatsPage() {
           </Card>
 
           {/* Charts Row */}
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <div className="grid grid-cols-pair gap-6">
             <VelocityChart data={stats.velocity_data} />
             <CommunityBreakdownChart data={stats.community_breakdown} />
           </div>

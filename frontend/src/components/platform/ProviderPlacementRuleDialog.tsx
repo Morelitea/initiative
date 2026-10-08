@@ -180,7 +180,7 @@ export const ProviderPlacementRuleDialog = ({
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="medium:max-w-lg">
         <DialogHeader>
           <DialogTitle>
             {editing ? t("providerPlacement.editTitle") : t("providerPlacement.addTitle")}
@@ -218,7 +218,7 @@ export const ProviderPlacementRuleDialog = ({
               <Switch id="placement-scoped" checked={scoped} onCheckedChange={setScoped} />
             </div>
             {scoped && (
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid grid-cols-pair gap-3">
                 <div className="space-y-2">
                   <Label htmlFor="placement-scope-claim">
                     {t("providerPlacement.directoryClaimLabel")}

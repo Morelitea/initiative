@@ -209,7 +209,7 @@ export const TaskForm = ({
   };
 
   const statusPriority = (
-    <div className="grid gap-4 md:grid-cols-2">
+    <div className="grid grid-cols-pair gap-4">
       <div className="space-y-2">
         <Label>{t("taskForm.statusLabel")}</Label>
         <Select
@@ -268,7 +268,7 @@ export const TaskForm = ({
 
   const dates = (
     <div className="space-y-2">
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-pair gap-4">
         <div className="space-y-2">
           <Label htmlFor="task-start-date">{t("taskForm.startDateLabel")}</Label>
           <DateTimePicker
@@ -301,7 +301,7 @@ export const TaskForm = ({
   );
 
   const assigneesTags = (
-    <div className="grid gap-4 md:grid-cols-2">
+    <div className="grid grid-cols-pair gap-4">
       <div className="space-y-2">
         <Label>{t("taskForm.assigneesLabel")}</Label>
         <MemberMultiSelect
@@ -392,7 +392,7 @@ export const TaskForm = ({
         autoFocus={autoFocusTitle}
         className={
           layout === "page"
-            ? "h-auto font-semibold text-3xl tracking-tight shadow-none focus-visible:ring-0 md:text-3xl"
+            ? "h-auto font-semibold text-3xl tracking-tight shadow-none focus-visible:ring-0 medium:text-3xl"
             : undefined
         }
       />

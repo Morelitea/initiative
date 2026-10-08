@@ -218,7 +218,7 @@ export const CounterRow = ({
           // row). A min-height floor + content-driven growth avoids overlap.
           // md+ cards are wide enough that the square height clears the floor,
           // so aspect-square is safe and restores the square look.
-          "relative flex min-h-45 flex-col overflow-hidden rounded-lg border border-black/10 px-3 pt-2 pb-3 shadow-sm md:aspect-square dark:border-white/10",
+          "relative flex min-h-45 flex-col overflow-hidden rounded-lg border border-black/10 px-3 pt-2 pb-3 shadow-sm medium:aspect-square dark:border-white/10",
           isDragging && "opacity-70"
         )}
       >
@@ -259,7 +259,7 @@ export const CounterRow = ({
       <div className="truncate text-center font-semibold text-base" style={{ color: fg }}>
         {counter.name}
       </div>
-      <div className="flex items-center gap-2 sm:gap-3">
+      <div className="flex items-center gap-2 medium:gap-3">
         {dragHandle}
         {minusButton}
         <div className="flex min-w-0 flex-1 justify-center">{viewElement}</div>

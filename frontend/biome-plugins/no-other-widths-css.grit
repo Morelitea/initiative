@@ -1,0 +1,12 @@
+// The width classes are the app's only widths (styles.css). A media or
+// container query on a width is refused: use the width class variants.
+language css
+
+CssAtRule() as $rule where {
+  $rule <: r"(?s)@(?:media|container)[^{]*width.*",
+  register_diagnostic(
+    span=$rule,
+    message="Only the width classes set a width: use medium:, expanded:, large: and extra-large: (or @medium: and the rest for a region) instead of a width query. See the width classes in styles.css.",
+    severity="error"
+  )
+}

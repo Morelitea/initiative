@@ -60,7 +60,7 @@ export const PackContentsDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className="medium:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{entry.name}</DialogTitle>
           <DialogDescription>{entry.description}</DialogDescription>
@@ -80,7 +80,7 @@ export const PackContentsDialog = ({
                 <ul
                   className={
                     kind === "banner"
-                      ? "grid gap-2 sm:grid-cols-2"
+                      ? "grid grid-cols-pair gap-2"
                       : "flex flex-wrap gap-x-3 gap-y-3"
                   }
                 >

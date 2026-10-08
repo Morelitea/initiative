@@ -57,7 +57,7 @@ export const FileCard = ({ file, className }: FileCardProps) => {
     >
       {/* Squarer thumbnails cost a phone most of a card each while showing, for
           the usual file, one centred icon. Shorter below `sm`. */}
-      <div className="relative aspect-4/3 overflow-hidden border-b bg-muted sm:aspect-square">
+      <div className="relative aspect-4/3 overflow-hidden border-b bg-muted medium:aspect-square">
         {file.featured_image_url ? (
           <LazyImage
             src={resolveUploadUrl(file.featured_image_url)}
@@ -69,7 +69,7 @@ export const FileCard = ({ file, className }: FileCardProps) => {
           <div className="flex h-full items-center justify-center">
             <FileIcon
               className={cn(
-                "h-10 w-10 md:h-20 md:w-20 lg:h-24 lg:w-24 xl:h-28 xl:w-28",
+                "h-10 w-10 medium:h-20 medium:w-20 expanded:h-24 expanded:w-24 large:h-28 large:w-28",
                 fileIconColor
               )}
             />

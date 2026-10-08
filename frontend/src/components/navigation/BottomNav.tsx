@@ -16,13 +16,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useSidebar } from "@/components/ui/sidebar";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/hooks/useAuth";
 import { useDirectMessagesEnabled } from "@/hooks/useDirectMessages";
 import { useGlobalCreateAccess } from "@/hooks/useInitiativeAccess";
 import { useMessagesWaiting } from "@/hooks/useMyMessages";
 import { useNotificationStreamConnected } from "@/hooks/useNotificationStream";
 import { useNotifications } from "@/hooks/useNotifications";
+import { atLeast, useWidthClass } from "@/hooks/useWidthClass";
 
 const pillClass =
   "pointer-events-auto flex items-center gap-1 rounded-full border bg-card/90 p-1 shadow-lg backdrop-blur supports-backdrop-filter:bg-card/70";
@@ -34,7 +34,7 @@ const pillClass =
  */
 export function BottomNav() {
   const { t } = useTranslation("nav");
-  const isMobile = useIsMobile();
+  const isMobile = !atLeast(useWidthClass(), "expanded");
   const navigate = useNavigate();
   const { setOpenMobile } = useSidebar();
   const { user } = useAuth();
@@ -81,7 +81,7 @@ export function BottomNav() {
       className="pointer-events-none fixed inset-x-0 bottom-0 z-40"
       style={{ paddingBottom: "var(--safe-area-inset-bottom)" }}
     >
-      <div className="flex w-full items-end justify-center gap-3 px-4 pb-4 sm:px-6 sm:pb-6 lg:justify-end">
+      <div className="flex w-full items-end justify-center gap-3 px-4 pb-4 medium:px-6 medium:pb-6 expanded:justify-end">
         {isMobile && (
           <nav className={pillClass} aria-label={t("bottomNav.label")}>
             <Button
@@ -153,23 +153,23 @@ export function BottomNav() {
           (action ? (
             <Button
               size="icon"
-              className="pointer-events-auto h-12 w-12 rounded-full shadow-lg shadow-primary/40 lg:w-auto lg:px-5"
+              className="pointer-events-auto h-12 w-12 rounded-full shadow-lg shadow-primary/40 expanded:w-auto expanded:px-5"
               onClick={() => action.run()}
               aria-label={action.label || t("bottomNav.add")}
             >
               <Plus className="h-5 w-5" />
-              <span className="hidden lg:inline">{action.label}</span>
+              <span className="hidden expanded:inline">{action.label}</span>
             </Button>
           ) : (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
                   size="icon"
-                  className="pointer-events-auto h-12 w-12 rounded-full shadow-lg shadow-primary/40 lg:w-auto lg:px-5"
+                  className="pointer-events-auto h-12 w-12 rounded-full shadow-lg shadow-primary/40 expanded:w-auto expanded:px-5"
                   aria-label={t("bottomNav.add")}
                 >
                   <Plus className="h-5 w-5" />
-                  <span className="hidden lg:inline">{t("bottomNav.add")}</span>
+                  <span className="hidden expanded:inline">{t("bottomNav.add")}</span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" side="top" className="mb-2">

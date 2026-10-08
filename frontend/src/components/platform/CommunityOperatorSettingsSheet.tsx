@@ -166,7 +166,7 @@ export const CommunityOperatorSettingsSheet = ({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
+      <SheetContent className="w-full overflow-y-auto medium:max-w-lg">
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             {community.name}

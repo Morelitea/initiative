@@ -5,6 +5,8 @@ import "@testing-library/jest-dom/vitest";
 import "fake-indexeddb/auto";
 
 import { webcrypto } from "node:crypto";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 
 import { cleanup, configure } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll, beforeEach, vi } from "vitest";
@@ -144,10 +146,24 @@ vi.mock("@capacitor/app", () => ({
 // jsdom shims – APIs not implemented in jsdom that components rely on
 // ---------------------------------------------------------------------------
 
+// The width classes' breakpoints, which useWidthClass reads from :root. jsdom
+// loads no stylesheet, so they are set here from the one styles.css declares.
+const stylesheet = readFileSync(path.join(import.meta.dirname, "../styles.css"), "utf8");
+for (const [, name, value] of stylesheet.matchAll(/--breakpoint-([a-z-]+):\s*([^;]+);/g)) {
+  document.documentElement.style.setProperty(`--breakpoint-${name}`, value);
+}
+
+const matchesWidth = (query: string): boolean => {
+  const width = /^\(width >= ([\d.]+)rem\)$/.exec(query);
+  return width ? window.innerWidth >= Number(width[1]) * 16 : false;
+};
+
 Object.defineProperty(window, "matchMedia", {
   writable: true,
   value: vi.fn().mockImplementation((query: string) => ({
-    matches: false,
+    // A width class's query is answered against the window, which jsdom makes
+    // 1024px wide: expanded, with the sidebar docked. Anything else is false.
+    matches: matchesWidth(query),
     media: query,
     onchange: null,
     addListener: vi.fn(),

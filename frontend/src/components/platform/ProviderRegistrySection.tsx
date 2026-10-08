@@ -295,7 +295,7 @@ export const ProviderRegistrySection = ({
         open={dialogOpen}
         onOpenChange={(open) => (open ? setDialogOpen(true) : closeDialog())}
       >
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="medium:max-w-lg">
           <DialogHeader>
             <DialogTitle>{t("authProviders.editTitle")}</DialogTitle>
             <DialogDescription>{dialogDescription}</DialogDescription>

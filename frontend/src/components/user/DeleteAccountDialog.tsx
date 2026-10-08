@@ -174,7 +174,7 @@ export function DeleteAccountDialog({
     <WizardDialog
       open={open}
       onOpenChange={onOpenChange}
-      className="max-h-[90vh] overflow-y-auto sm:max-w-2xl"
+      className="max-h-[90vh] overflow-y-auto medium:max-w-2xl"
       // When the dialog was opened with a specific action (the Danger Zone's
       // per-action buttons), reflect that in the title — the user already
       // chose, no point still calling it "Delete Account" while they're

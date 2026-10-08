@@ -62,8 +62,8 @@ export const PeopleStep = ({
         <div className="flex items-center gap-3 rounded-xl border-2 border-dashed p-3">
           <span
             className={cn(
-              // Left out on the narrowest phones, where the link needs the room.
-              "hidden size-14 shrink-0 place-items-center rounded-lg min-[400px]:grid",
+              // Left out on phones, where the link needs the room.
+              "hidden size-14 shrink-0 place-items-center rounded-lg medium:grid",
               PATH_TINTS.invite
             )}
           >

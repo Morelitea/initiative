@@ -171,7 +171,7 @@ export const CreateToolDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-full rounded-2xl border bg-card shadow-2xl sm:max-w-lg">
+      <DialogContent className="w-full rounded-2xl border bg-card shadow-2xl medium:max-w-lg">
         <DialogHeader>
           <DialogTitle>{t(text.create)}</DialogTitle>
           {text.createDescription ? (

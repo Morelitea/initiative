@@ -60,10 +60,10 @@ export function MonthView({
   }, [focusDate, weekStartsOn, entries]);
 
   return (
-    <div className="space-y-2 overflow-x-auto sm:overflow-visible">
-      <div className="min-w-[700px] sm:min-w-0">
+    <div className="space-y-2 overflow-x-auto medium:overflow-visible">
+      <div className="min-w-[700px] medium:min-w-0">
         {/* Weekday headers */}
-        <div className="grid grid-cols-7 text-center font-semibold text-2xs text-muted-foreground uppercase sm:text-xs">
+        <div className="grid grid-cols-7 text-center font-semibold text-2xs text-muted-foreground uppercase medium:text-xs">
           {weekdayLabels.map((day) => (
             <div key={day} className="py-2">
               {day}

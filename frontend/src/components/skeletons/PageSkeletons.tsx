@@ -126,23 +126,23 @@ export const PageHeaderSkeleton = ({
   tabs = 0,
   className,
 }: PageHeaderSkeletonProps) => (
-  <div className={cn("space-y-4 sm:space-y-6", className)}>
+  <div className={cn("space-y-4 medium:space-y-6", className)}>
     {title ? (
       <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0 flex-1 space-y-2 sm:space-y-4">
+        <div className="min-w-0 flex-1 space-y-2 medium:space-y-4">
           <div className="flex min-w-0 items-center gap-3">
             {dot ? <Skeleton className="h-4 w-4 shrink-0 rounded-full" /> : null}
-            <Skeleton className="h-7 w-full max-w-72 sm:h-9 sm:max-w-md" />
+            <Skeleton className="h-7 w-full max-w-72 medium:h-9 medium:max-w-md" />
           </div>
-          {description ? <Skeleton className="hidden h-4 w-full max-w-sm sm:block" /> : null}
+          {description ? <Skeleton className="hidden h-4 w-full max-w-sm medium:block" /> : null}
           {meta ? (
-            <div className="hidden items-center gap-4 sm:flex">
+            <div className="hidden items-center gap-4 medium:flex">
               <Skeleton className="h-4 w-20" />
               <Skeleton className="h-4 w-28" />
             </div>
           ) : null}
         </div>
-        {action ? <Skeleton className="h-9 w-9 shrink-0 sm:w-36" /> : null}
+        {action ? <Skeleton className="h-9 w-9 shrink-0 medium:w-36" /> : null}
       </div>
     ) : null}
     {tabs > 0 ? (
@@ -181,7 +181,7 @@ export interface CardGridSkeletonProps {
 /** A grid of cards, each with a title, a couple of lines, and some tags. */
 export const CardGridSkeleton = ({
   count = 6,
-  className = "grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3",
+  className = "grid grid-cols-fill-60 gap-4",
   cardClassName,
 }: CardGridSkeletonProps) => (
   <div className={className}>
@@ -468,7 +468,7 @@ export const CalendarGridSkeleton = ({ className }: { className?: string }) => (
         </div>
       ))}
       {keysFor(35).map((key, index) => (
-        <div key={key} className="min-h-16 space-y-1 bg-card p-2 sm:min-h-20">
+        <div key={key} className="min-h-16 space-y-1 bg-card p-2 medium:min-h-20">
           <Skeleton className="h-3 w-4" />
           {index % 3 === 0 ? <Skeleton className="h-4 w-full" /> : null}
         </div>
@@ -484,7 +484,7 @@ interface LabelledSkeletonProps {
 
 /** The initiative page: its header, the tool tabs, and the first tab's list. */
 export const InitiativePageSkeleton = ({ label }: LabelledSkeletonProps) => (
-  <SkeletonRegion label={label} className="space-y-4 sm:space-y-6">
+  <SkeletonRegion label={label} className="space-y-4 medium:space-y-6">
     <PageHeaderSkeleton dot description meta action tabs={TOOLS.length} />
     <ToolListSkeleton className="pt-2" />
   </SkeletonRegion>
@@ -523,7 +523,7 @@ export const FileDetailSkeleton = ({ label }: LabelledSkeletonProps) => (
 export const TaskEditSkeleton = ({ label }: LabelledSkeletonProps) => (
   <SkeletonRegion label={label}>
     <DetailPageSkeleton actions={2} description={false}>
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+      <div className="grid gap-6 @expanded:grid-cols-[minmax(0,1fr)_20rem]">
         <EditorSkeleton lines={8} />
         <FormSkeleton card={false} fields={5} action={false} />
       </div>
@@ -544,7 +544,7 @@ export const TagDetailSkeleton = ({ label }: LabelledSkeletonProps) => (
 export const ProfilePageSkeleton = ({ label }: LabelledSkeletonProps) => (
   <SkeletonRegion label={label} className="space-y-6">
     <div className="flex flex-wrap items-end gap-4">
-      <Skeleton className="size-24 shrink-0 rounded-full sm:size-28" />
+      <Skeleton className="size-24 shrink-0 rounded-full medium:size-28" />
       <Skeleton className="mb-1 h-8 w-56" />
       <Skeleton className="ms-auto mb-1 h-4 w-32" />
     </div>
@@ -574,27 +574,27 @@ export const SettingsPaneSkeleton = ({ label }: LabelledSkeletonProps) => (
 export const CommunityHomeSkeleton = ({ label }: LabelledSkeletonProps) => (
   <SkeletonRegion label={label} className="space-y-6">
     {/* Full-bleed like the banner it stands in for. */}
-    <div className="-mx-4 -mt-4 md:-mx-8 md:-mt-8">
-      <div className="flex h-56 flex-col items-center justify-center gap-3 bg-accent px-6 sm:h-64">
+    <div className="-mx-4 -mt-4 expanded:-mx-8 expanded:-mt-8">
+      <div className="flex h-56 flex-col items-center justify-center gap-3 bg-accent px-6 medium:h-64">
         <Skeleton className="h-10 w-full max-w-sm bg-background/40" />
         <Skeleton className="h-5 w-full max-w-md bg-background/40" />
       </div>
     </div>
     <div className="relative z-10 space-y-6">
       <div>
-        <div className="relative z-10 flex justify-center gap-3 px-3 sm:gap-4">
+        <div className="relative z-10 flex justify-center gap-3 px-3 medium:gap-4">
           {keysFor(TOOLS.length).map((key, index) => (
             <Skeleton
               key={key}
               className={cn(
                 "size-16 shrink-0 rounded-full bg-muted",
                 // A phone shows the first few; the rest sit off the edge.
-                index >= 4 && "max-sm:hidden"
+                index >= 4 && "max-medium:hidden"
               )}
             />
           ))}
         </div>
-        <div className="-mt-8 rounded-2xl bg-muted px-3 pt-11 pb-3 sm:px-4 sm:pb-4">
+        <div className="-mt-8 rounded-2xl bg-muted px-3 pt-11 pb-3 medium:px-4 medium:pb-4">
           <TableSkeleton rows={5} columns={5} pagination />
         </div>
       </div>

@@ -1,0 +1,21 @@
+// The width classes are the app's only widths (styles.css). Tailwind's own
+// breakpoints and container sizes as variants, an arbitrary width variant,
+// and a width media query written into a string are each refused.
+language js
+
+or {
+  JsStringLiteralExpression(),
+  JsxString(),
+  JsTemplateChunkElement()
+} as $text where {
+  or {
+    $text <: r"(?s).*(?:^|[\s\"'`{(,:!])(?:max-|@max-|@min-|@)?(?:3xs|2xs|xs|sm|md|lg|xl|[2-7]xl):.*",
+    $text <: r"(?s).*(?:^|[\s\"'`{(,:!])(?:max-|min-|@max-|@min-|@)\[[^\]]*\]:.*",
+    $text <: r"(?s).*(?:(?:min|max)-width\s*:\s*\d|width\s*[<>]=?\s*\d).*"
+  },
+  register_diagnostic(
+    span=$text,
+    message="Only the width classes set a width: medium:, expanded:, large: and extra-large: for the screen, @medium: and the rest for a region, and useWidthClass in code. Grids, forms and rows fill or wrap instead (grid-cols-fill-*, grid-cols-pair, flex-wrap). See the width classes in styles.css.",
+    severity="error"
+  )
+}

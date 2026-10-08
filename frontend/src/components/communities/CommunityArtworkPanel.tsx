@@ -246,7 +246,7 @@ export const CommunityArtworkPanel = ({ community }: { community: CommunityRead 
               ) : null}
             </div>
             <span
-              className="relative truncate px-4 font-black text-lg sm:text-2xl"
+              className="relative truncate px-4 font-black text-lg medium:text-2xl"
               style={{ color: draft.text_color, textShadow: readableTextShadow(draft.text_color) }}
             >
               {community.name}

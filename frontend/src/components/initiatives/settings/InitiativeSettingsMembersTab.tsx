@@ -358,7 +358,7 @@ export const InitiativeSettingsMembersTab = ({
           />
           {canManageMembers ? (
             <>
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+              <div className="flex flex-col gap-2 medium:flex-row medium:items-end">
                 <AsyncCombobox
                   items={availableUsers.map((candidate) => ({
                     value: String(candidate.id),

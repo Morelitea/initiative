@@ -34,7 +34,7 @@ const AlertDialogContent = React.forwardRef<
     <AlertDialogPrimitive.Content
       ref={ref}
       className={cn(
-        "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 grid max-h-[calc(100dvh-2rem)] w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 overflow-y-auto border bg-card p-6 shadow-lg duration-200 data-[state=closed]:animate-out data-[state=open]:animate-in sm:rounded-lg",
+        "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 grid max-h-[calc(100dvh-2rem)] w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 overflow-y-auto border bg-card p-6 shadow-lg duration-200 data-[state=closed]:animate-out data-[state=open]:animate-in medium:rounded-lg",
         className
       )}
       {...props}
@@ -44,13 +44,19 @@ const AlertDialogContent = React.forwardRef<
 AlertDialogContent.displayName = AlertDialogPrimitive.Content.displayName;
 
 const AlertDialogHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div className={cn("flex flex-col space-y-2 text-center sm:text-left", className)} {...props} />
+  <div
+    className={cn("flex flex-col space-y-2 text-center medium:text-left", className)}
+    {...props}
+  />
 );
 AlertDialogHeader.displayName = "AlertDialogHeader";
 
 const AlertDialogFooter = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
-    className={cn("flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2", className)}
+    className={cn(
+      "flex flex-col-reverse medium:flex-row medium:justify-end medium:space-x-2",
+      className
+    )}
     {...props}
   />
 );
@@ -94,7 +100,7 @@ const AlertDialogCancel = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <AlertDialogPrimitive.Cancel
     ref={ref}
-    className={cn(buttonVariants({ variant: "outline" }), "mt-2 sm:mt-0", className)}
+    className={cn(buttonVariants({ variant: "outline" }), "mt-2 medium:mt-0", className)}
     {...props}
   />
 ));

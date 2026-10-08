@@ -161,7 +161,7 @@ export const InitiativeSection = memo(
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="hidden h-6 w-0 shrink-0 overflow-hidden p-0 opacity-0 transition-all group-hover/initiative:w-6 group-hover/initiative:opacity-100 motion-reduce:transition-none lg:flex"
+                    className="hidden h-6 w-0 shrink-0 overflow-hidden p-0 opacity-0 transition-all group-hover/initiative:w-6 group-hover/initiative:opacity-100 motion-reduce:transition-none expanded:flex"
                     asChild
                   >
                     <Link to={gp(`${initiativeRoute(initiative.id)}/settings`)}>
@@ -182,7 +182,7 @@ export const InitiativeSection = memo(
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-6 w-6 shrink-0 lg:hidden"
+                    className="h-6 w-6 shrink-0 expanded:hidden"
                     aria-label={t("initiativeActions")}
                   >
                     <MoreVertical className="h-4 w-4" />
@@ -314,7 +314,7 @@ export const InitiativeSection = memo(
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="hidden h-6 w-0 shrink-0 overflow-hidden p-0 opacity-0 transition-all group-hover/project:w-6 group-hover/project:opacity-100 motion-reduce:transition-none lg:flex"
+                                className="hidden h-6 w-0 shrink-0 overflow-hidden p-0 opacity-0 transition-all group-hover/project:w-6 group-hover/project:opacity-100 motion-reduce:transition-none expanded:flex"
                                 asChild
                               >
                                 <Link
@@ -340,7 +340,7 @@ export const InitiativeSection = memo(
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-6 w-6 shrink-0 lg:hidden"
+                                className="h-6 w-6 shrink-0 expanded:hidden"
                                 aria-label={t("projectActions")}
                               >
                                 <MoreVertical className="h-4 w-4" />
