@@ -69,6 +69,7 @@ __all__ = [
     "tag_counts_for",
     "tag_summaries",
     "tagged_entity_ids",
+    "first_tag_name",
     "untagged_clause",
     "validate_guild_tag_ids",
 ]
@@ -321,6 +322,21 @@ def _new_edge(spec: TagLinkSpec, entity_id: int, tag_id: int) -> EntityRelations
         target_id=tag_id,
         provenance=Provenance.manual.value,
         created_at=datetime.now(timezone.utc),
+    )
+
+
+def first_tag_name(spec: TagLinkSpec, entity_id: ColumnElement[int]) -> Any:
+    """The name of the entity's first live tag, alphabetically and ignoring
+    case, or NULL for one with none: what a list orders by when sorted by tag."""
+    return (
+        select(func.min(func.lower(Tag.name)))
+        .select_from(EntityRelationship)
+        .join(Tag, Tag.id == EntityRelationship.target_id)
+        .where(
+            EntityRelationship.source_node == spec.node_of_column(entity_id),
+            *_live_tag_edge(spec),
+        )
+        .scalar_subquery()
     )
 
 

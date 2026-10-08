@@ -32,6 +32,7 @@ from app.core.messages import TaskMessages
 from app.core.relationships import RelationshipType
 from app.core.search import SearchEntityType
 from app.testing.factories import (
+    assign_tag,
     checklist_items,
     create_counter,
     create_counter_group,
@@ -43,6 +44,7 @@ from app.testing.factories import (
     create_relationship,
     create_task,
     create_task_status,
+    create_tag,
     create_user,
 )
 from app.testing import create_resource_grant, route_as
@@ -124,6 +126,43 @@ async def test_list_tasks_in_project(
         bare.id: (None, False),
     }
     assert not any("description" in row for row in rows.values())
+
+
+async def test_list_tasks_sorts_by_status_and_by_tag(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """A status sorts in its board order, and tags by the first tag's name,
+    ignoring case, with untagged tasks last either way."""
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
+    done = await create_task(
+        session, a.project, title="Done", status_category=TaskStatusCategory.done
+    )
+    backlog = await create_task(
+        session, a.project, title="Backlog", status_category=TaskStatusCategory.backlog
+    )
+    await create_task(session, a.project, title="Untagged")
+    for task, name in ((done, "beta"), (backlog, "Alpha")):
+        await assign_tag(session, task, await create_tag(session, a.guild, name=name))
+    await session.commit()
+
+    conditions = json.dumps(
+        [{"field": "project_id", "op": "eq", "value": a.project.id}]
+    )
+
+    async def titles(field: str, direction: str) -> list[str]:
+        sorting = json.dumps([{"field": field, "dir": direction}])
+        response = await client.get(
+            a.g(f"/tasks/?conditions={conditions}&sorting={sorting}"),
+            headers=a.headers,
+        )
+        assert response.status_code == 200, response.text
+        return [row["title"] for row in response.json()["items"]]
+
+    assert await titles("status_position", "asc") == ["Backlog", "Untagged", "Done"]
+    assert await titles("tag_name", "asc") == ["Backlog", "Done", "Untagged"]
+    assert await titles("tag_name", "desc") == ["Done", "Backlog", "Untagged"]
 
 
 async def test_list_tasks_hides_a_project_the_member_holds_no_grant_on(

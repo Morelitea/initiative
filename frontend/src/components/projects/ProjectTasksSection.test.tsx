@@ -440,6 +440,7 @@ describe("ProjectTasksSection export", () => {
   it("lists the tasks in the order the reader sorted the table", async () => {
     expect(JSON.parse((await exportSorting("table")) ?? "null")).toEqual([
       { field: "due_date", dir: "desc" },
+      { field: "position", dir: "asc" },
     ]);
   });
 

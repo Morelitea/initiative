@@ -6,7 +6,8 @@
  * here rather than in the tool's header. It opens the export wizard for this
  * one entity. Everything it needs is derived from the tool: the endpoint, the
  * selector param and the formats. A tool whose formats depend on the entity (a
- * file's type) passes them as `exportOptions` on its settings layout.
+ * file's type), or whose content the person narrows on its page (a project's
+ * tasks), passes that as `exportOptions` on its settings layout.
  */
 
 import { useTranslation } from "react-i18next";
@@ -48,6 +49,7 @@ export const ToolExportCard = () => {
           formats={formats}
           filenameStem={stem}
           extraActions={exportOptions?.extraActions}
+          content={exportOptions?.content}
           variant="default"
         />
       </CardContent>

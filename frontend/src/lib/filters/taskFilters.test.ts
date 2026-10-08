@@ -227,31 +227,35 @@ describe("taskFiltersEqual / taskFilterCount", () => {
 });
 
 describe("taskSortFields / taskTableSorting", () => {
-  it("names each column the list can order by, in the table's order", () => {
+  const POSITION = { field: "position", dir: "asc" };
+
+  it("names each column the list can order by, in the table's order, then the project's", () => {
     expect(
       taskSortFields([
-        { id: "priority", desc: true },
-        { id: "due date", desc: false },
+        { id: "status", desc: false },
+        { id: "tags", desc: true },
       ])
     ).toEqual([
-      { field: "priority", dir: "desc" },
-      { field: "due_date", dir: "asc" },
+      { field: "status_position", dir: "asc" },
+      { field: "tag_name", dir: "desc" },
+      POSITION,
     ]);
   });
 
   it("leaves out a column the list cannot order by", () => {
-    expect(taskSortFields([{ id: "status", desc: false }])).toEqual([]);
+    expect(taskSortFields([{ id: "comments", desc: false }])).toEqual([]);
   });
 
   it("orders a date group by due date within it", () => {
     expect(taskSortFields([{ id: "date group", desc: true }])).toEqual([
       { field: "date_group", dir: "desc" },
       { field: "due_date", dir: "desc" },
+      POSITION,
     ]);
   });
 
   it("reads a sort back as the table's", () => {
-    expect(taskTableSorting([{ field: "start_date", dir: "desc" }, { field: "id" }])).toEqual([
+    expect(taskTableSorting(taskSortFields([{ id: "start date", desc: true }]))).toEqual([
       { id: "start date", desc: true },
     ]);
   });

@@ -10,6 +10,7 @@ import {
   useSetProjectGrants,
   useUpdateProject,
 } from "@/hooks/useProjects";
+import { useProjectTaskExportView } from "@/hooks/useProjectTaskView";
 
 export const ProjectSettingsPage = () => {
   const { projectId } = useParams({ strict: false }) as { projectId?: string };
@@ -23,6 +24,8 @@ export const ProjectSettingsPage = () => {
   const remove = useDeleteProject();
 
   const project = projectQuery.data;
+  // An export from here lists the tasks this person's view of the project does.
+  const exportContent = useProjectTaskExportView(parsedId, project?.default_view_mode);
 
   return (
     <ToolSettingsLayout
@@ -35,6 +38,7 @@ export const ProjectSettingsPage = () => {
       setGrants={setGrants}
       remove={remove}
       detailsInline={project ? <ProjectDetailsFields project={project} /> : null}
+      exportOptions={{ content: exportContent }}
       // Two settings too large for a card. Each is served by its own route
       // beside the shared sections, so the value doubles as the URL segment.
       extraTabs={[

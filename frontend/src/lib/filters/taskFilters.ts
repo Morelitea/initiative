@@ -278,6 +278,8 @@ const SORT_FIELD_BY_COLUMN: Record<string, string> = {
   "start date": "start_date",
   "date group": "date_group",
   priority: "priority",
+  status: "status_position",
+  tags: "tag_name",
 };
 
 const COLUMN_BY_SORT_FIELD: Record<string, string> = Object.fromEntries(
@@ -285,7 +287,8 @@ const COLUMN_BY_SORT_FIELD: Record<string, string> = Object.fromEntries(
 );
 
 /** A task table's sort as the endpoint's `sorting`. Columns the list cannot
- *  order by are left out. */
+ *  order by are left out, and ties keep the project's own order, as they do
+ *  in the table. */
 export function taskSortFields(sorting: SortingState): SortField[] {
   const fields = sorting.flatMap((column): SortField[] => {
     const field = SORT_FIELD_BY_COLUMN[column.id];
@@ -295,7 +298,7 @@ export function taskSortFields(sorting: SortingState): SortField[] {
   if (fields.length === 1 && fields[0].field === "date_group") {
     fields.push({ field: "due_date", dir: fields[0].dir });
   }
-  return fields;
+  return fields.length > 0 ? [...fields, { field: "position", dir: "asc" }] : fields;
 }
 
 /** The endpoint's `sorting` as the table's, to seed its headers. */

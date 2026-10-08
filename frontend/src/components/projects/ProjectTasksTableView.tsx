@@ -40,7 +40,7 @@ import { DataTable, type DataTableRowWrapperProps } from "@/components/ui/data-t
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { TableRow } from "@/components/ui/table";
 import { usePersistedColumnVisibility } from "@/hooks/usePersistedColumnVisibility";
-import { usePersistedTableState } from "@/hooks/usePersistedTableState";
+import { projectTaskTableKey, type useProjectTaskTableState } from "@/hooks/useProjectTaskView";
 import { useProperties } from "@/hooks/useProperties";
 import { useUnreadTree } from "@/hooks/useUnreadTree";
 import { useCommunityPath } from "@/lib/communityUrl";
@@ -75,14 +75,6 @@ type ProjectTasksListViewProps = {
    *  held by the section so its export follows the same sort. */
   tableState: ReturnType<typeof useProjectTaskTableState>;
 };
-
-const projectTaskTableKey = (projectId: number) => `initiative-project-${projectId}-task-table`;
-
-/** Which column one project's task table is grouped and sorted by, as the
- *  reader left it. Kept beside the column-visibility map below so the whole
- *  "how this list is shown" answer survives a reload together. */
-export const useProjectTaskTableState = (projectId: number) =>
-  usePersistedTableState(projectTaskTableKey(projectId));
 
 type SortableRowContextValue = {
   attributes?: DraggableAttributes;
@@ -356,7 +348,14 @@ const ProjectTasksTableViewComponent = ({
       },
       {
         id: "status",
-        header: () => <span className="font-medium">{t("table.statusColumn")}</span>,
+        // Board order, read from the statuses this view holds so a column
+        // moved on the board sorts where it now stands.
+        accessorFn: (task) =>
+          taskStatuses.find((status) => status.id === task.task_status_id)?.position ??
+          task.task_status.position,
+        header: ({ column }) => <SortHeader column={column} label={t("table.statusColumn")} />,
+        sortFn: (rowA, rowB, columnId) =>
+          rowA.getValue<number>(columnId) - rowB.getValue<number>(columnId),
         cell: ({ row }) => {
           const task = row.original;
           const activeStatus =
