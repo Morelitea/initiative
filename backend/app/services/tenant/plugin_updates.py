@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from collections.abc import Collection
 from typing import Any, Iterable, Optional
 
 from sqlmodel import select
@@ -111,15 +112,22 @@ class UpgradeAsks:
 
 
 def upgrade_asks(
-    plugin: GuildPlugin, definition: dict, ceiling: Iterable[str]
+    plugin: GuildPlugin,
+    definition: dict,
+    ceiling: Iterable[str],
+    installed: Collection[str],
 ) -> UpgradeAsks:
-    """What moving ``plugin`` to ``definition`` would ask the seat for."""
+    """What moving ``plugin`` to ``definition`` would ask the seat for. Using a
+    plug-in the community does not have (``installed``) is not asked; installing
+    that plug-in asks it."""
     held = set(plugin.granted_scopes or ()) | set(
         guild_plugins_service.requested_scopes(plugin.definition)
     )
     added_scopes = tuple(
         scope
-        for scope in guild_plugins_service.grantable_scopes(definition, ceiling)
+        for scope in guild_plugins_service.grantable_scopes(
+            definition, ceiling, installed
+        )
         if scope not in held
     )
     current = guild_plugins_service.initiative_surface_ids(plugin.definition)
@@ -157,7 +165,12 @@ async def update_offer(
     pending = await _resolve_pending(session, plugin)
     if pending is None:
         return None
-    asks = upgrade_asks(plugin, pending.definition, await _ceiling(pending.definition))
+    asks = upgrade_asks(
+        plugin,
+        pending.definition,
+        await _ceiling(pending.definition),
+        await guild_plugins_service.installed_plugin_ids(session),
+    )
     return UpdateOffer(update=pending, asks=asks)
 
 

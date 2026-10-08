@@ -10,6 +10,7 @@ The connection blocks are read off the *pinned* definition rather than the
 catalog, so an install describes the form it was actually configured against.
 """
 
+from collections.abc import Collection
 from datetime import datetime
 from typing import (
     Annotated,
@@ -36,7 +37,7 @@ from app.services.tenant import plugin_config as plugin_config_service
 from app.services.tenant.plugin_age import AgeViewer
 from app.services.tenant.guild_plugins import (
     grantable_scopes,
-    requested_scopes,
+    offered_scopes,
     surface_openability,
 )
 
@@ -60,6 +61,9 @@ class CommunityPluginInstall(SanitizedBaseModel):
     #: one the registration's ceiling allows, as for ``PUT …/scopes``. Left
     #: out, nothing is granted.
     granted_scopes: List[str] = Field(default_factory=list, max_length=64)
+    #: The installs here the seat lets use this plug-in, from the listing's
+    #: ``callers``. One it leaves out may not.
+    callers: List[int] = Field(default_factory=list, max_length=64)
     #: Where the plug-in's initiative surfaces appear: ``"all"`` for every
     #: initiative that exists now, or a list of this guild's initiative ids.
     #: Left out, the plug-in is placed nowhere.
@@ -389,7 +393,8 @@ class CommunityPluginDetail(CommunityPluginRead):
     #: it costs a catalog lookup, and it is the page offering the Update button
     #: that needs the answer.
     update_version: Optional[str] = None
-    #: The scopes the pinned manifest asks for, in vocabulary order.
+    #: The scopes the pinned manifest asks for, in vocabulary order. Using a
+    #: plug-in the community does not have is left out until it does.
     requested_scopes: List[str] = []
     #: The requested scopes this deployment allows the seat to grant. A
     #: requested scope missing here is one the server would refuse.
@@ -653,6 +658,7 @@ def serialize_guild_plugin_detail(
     install_state: Optional[InstallState] = None,
     avatar_url: Optional[str] = None,
     update_offer: Any = None,
+    installed: Collection[str] = (),
     placements: Sequence[Any] = (),
     artifacts: Sequence[Dict[str, Any]] = (),
     consent_rows: Sequence[Any] = (),
@@ -664,7 +670,8 @@ def serialize_guild_plugin_detail(
 
     ``update_offer`` (an ``plugin_updates.UpdateOffer``) is resolved by the
     caller, which is the layer holding a session that can read the catalog,
-    and so is ``listing`` (the install's ``MarketplaceListing``, if any).
+    and so are ``listing`` (the install's ``MarketplaceListing``, if any) and
+    ``installed``, the public ids of the plug-ins the community has.
     """
     base = serialize_guild_plugin(
         plugin,
@@ -692,9 +699,11 @@ def serialize_guild_plugin_detail(
         consents=[serialize_consent(row) for row in consent_rows],
         update_version=update_offer.version if update_offer is not None else None,
         pending_update=serialize_upgrade_asks(plugin, update_offer),
-        requested_scopes=requested_scopes(plugin.definition),
+        requested_scopes=offered_scopes(plugin.definition, installed),
         grantable_scopes=grantable_scopes(
-            plugin.definition, (install_state or InstallState()).scope_ceiling
+            plugin.definition,
+            (install_state or InstallState()).scope_ceiling,
+            installed,
         ),
         plugin_names=dict(plugin_names or {}),
         listing=(

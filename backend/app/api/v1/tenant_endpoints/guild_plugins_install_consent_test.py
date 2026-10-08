@@ -223,9 +223,9 @@ class TestTheListingSaysWhatTheDialogAsks:
 
 
 class TestAPluginAskingToUseAnother:
-    """``plugins:<public_id>`` is asked for, named and granted like any scope."""
+    """``plugins:<public_id>`` is asked when that plug-in is installed, not before."""
 
-    async def test_the_dialog_names_the_plugin_and_the_seat_grants_it(
+    async def test_the_seat_is_asked_when_the_plugin_it_uses_arrives(
         self, client: AsyncClient, session: AsyncSession, acting_user
     ):
         target_uid = marketplace_uid("gitco")
@@ -253,7 +253,7 @@ class TestAPluginAskingToUseAnother:
             public_id="tests.callerco",
             base_url="https://callerco.example.test",
             listing_uid=caller_uid,
-            scope_ceiling=["plugins:tests.gitco"],
+            scope_ceiling=["plugins:tests.gitco", "tags:read"],
         )
         await create_marketplace_listing(
             session,
@@ -266,39 +266,65 @@ class TestAPluginAskingToUseAnother:
                 "service": {
                     "public_id": "tests.callerco",
                     "protocol": 1,
-                    "scopes": ["plugins:tests.gitco", "plugins:tests.nameless"],
+                    "scopes": [
+                        "plugins:tests.gitco",
+                        "plugins:tests.nameless",
+                        "tags:read",
+                    ],
                 },
                 "features": [],
             },
         )
         a = await acting_user(guild_role=CommunityRole.superadmin)
 
+        # Neither plug-in it uses is here, so neither is asked about.
         detail = await client.get(
             a.g(f"/marketplace/listings/by-uid/{caller_uid}"), headers=a.headers
         )
         assert detail.status_code == 200, detail.text
-        body = detail.json()
-        assert body["requested_scopes"] == [
-            "plugins:tests.gitco",
-            "plugins:tests.nameless",
-        ]
-        assert body["grantable_scopes"] == ["plugins:tests.gitco"]
-        assert body["plugin_names"] == {
-            "tests.gitco": "GitCo",
-            "tests.nameless": "tests.nameless",
-        }
-
-        installed = await client.post(
+        assert detail.json()["requested_scopes"] == ["tags:read"]
+        assert detail.json()["grantable_scopes"] == ["tags:read"]
+        refused = await client.post(
             a.g("/plugins/"),
             headers=a.headers,
             json={"listing_uid": caller_uid, "granted_scopes": ["plugins:tests.gitco"]},
         )
-        assert installed.status_code in (200, 201), installed.text
-        plugin_id = installed.json()["id"]
-        read = await client.get(a.g(f"/plugins/{plugin_id}"), headers=a.headers)
-        assert read.status_code == 200, read.text
-        assert read.json()["granted_scopes"] == ["plugins:tests.gitco"]
+        assert refused.status_code == 422
+        assert (
+            refused.json()["detail"] == GuildPluginMessages.SCOPE_TARGET_NOT_INSTALLED
+        )
+        installed = await client.post(
+            a.g("/plugins/"),
+            headers=a.headers,
+            json={"listing_uid": caller_uid, "granted_scopes": ["tags:read"]},
+        )
+        assert installed.status_code == 201, installed.text
+        caller_id = installed.json()["id"]
+
+        # Installing GitCo asks whether CallerCo may use it.
+        target = await client.get(
+            a.g(f"/marketplace/listings/by-uid/{target_uid}"), headers=a.headers
+        )
+        assert target.json()["callers"] == [{"id": caller_id, "name": "CallerCo"}]
+        target_install = await client.post(
+            a.g("/plugins/"),
+            headers=a.headers,
+            json={"listing_uid": target_uid, "callers": [caller_id]},
+        )
+        assert target_install.status_code == 201, target_install.text
+        read = await client.get(a.g(f"/plugins/{caller_id}"), headers=a.headers)
+        assert read.json()["granted_scopes"] == ["plugins:tests.gitco", "tags:read"]
+        assert read.json()["requested_scopes"] == ["tags:read", "plugins:tests.gitco"]
         assert read.json()["plugin_names"]["tests.gitco"] == "GitCo"
+
+        # Removing GitCo takes it back, so installing it again asks again.
+        removed = await client.delete(
+            a.g(f"/plugins/{target_install.json()['id']}"), headers=a.headers
+        )
+        assert removed.status_code == 204, removed.text
+        read = await client.get(a.g(f"/plugins/{caller_id}"), headers=a.headers)
+        assert read.json()["granted_scopes"] == ["tags:read"]
+        assert read.json()["requested_scopes"] == ["tags:read"]
 
 
 def _wider(*, surfaces: bool = False) -> dict:

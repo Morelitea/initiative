@@ -56,6 +56,7 @@ from app.api.deps import (
     CurrentUser,
 )
 from app.core.audit_events import AuditEventType
+from app.core.plugin_scopes import plugin_scope_target
 from app.core.messages import (
     GuildPluginMessages,
     InitiativeMessages,
@@ -223,8 +224,11 @@ async def _plugin_names(
     return await guild_plugins_service.plugin_scope_names(session, scopes)
 
 
-async def _require_grantable(granted: set[str], definition: dict) -> None:
-    """Refuse a grant the manifest does not request, or the ceiling does not allow.
+async def _require_grantable(
+    session: AsyncSession, granted: set[str], definition: dict
+) -> None:
+    """Refuse a grant the manifest does not request, the ceiling does not allow,
+    or that uses a plug-in the community does not have.
 
     The one check every write of a grant makes: setting the scopes, installing
     with them, and consenting to a version's new ones.
@@ -240,6 +244,15 @@ async def _require_grantable(granted: set[str], definition: dict) -> None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=GuildPluginMessages.SCOPE_ABOVE_CEILING,
+        )
+    installed = await guild_plugins_service.installed_plugin_ids(session)
+    if any(
+        (target := plugin_scope_target(scope)) is not None and target not in installed
+        for scope in granted
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=GuildPluginMessages.SCOPE_TARGET_NOT_INSTALLED,
         )
 
 
@@ -364,6 +377,7 @@ async def _detail(
             plugin.definition, listing_uid=plugin.listing_uid
         ),
         update_offer=offer,
+        installed=await guild_plugins_service.installed_plugin_ids(session),
         plugin_names=await _plugin_names(session, plugin, offer),
         context=context,
         placements=await _placements(session, plugin),
@@ -520,7 +534,7 @@ async def install_community_plugin(
     definition = dict(version.definition)
     _require_installable_kind(definition)
     granted = set(payload.granted_scopes)
-    await _require_grantable(granted, definition)
+    await _require_grantable(session, granted, definition)
 
     name = (payload.name or definition.get("default_name") or listing.name).strip()
     try:
@@ -534,6 +548,7 @@ async def install_community_plugin(
             name=name,
             actor_user_id=current_user.id,
             granted_scopes=sorted(granted),
+            allowed_callers=payload.callers,
         )
         if payload.placements:
             await guild_plugins_service.place_with_roles(
@@ -625,7 +640,10 @@ async def upgrade_community_plugin(
 
     registration = await registration_lookup.registration_for_definition(definition)
     asks = plugin_updates_service.upgrade_asks(
-        plugin, definition, registration.scope_ceiling if registration else ()
+        plugin,
+        definition,
+        registration.scope_ceiling if registration else (),
+        await guild_plugins_service.installed_plugin_ids(session),
     )
     if (payload is not None and payload.version != version.version) or (
         payload is None and asks.asks_more
@@ -646,7 +664,7 @@ async def upgrade_community_plugin(
             },
         )
     add_scopes = set(payload.add_scopes) if payload is not None else set()
-    await _require_grantable(add_scopes, definition)
+    await _require_grantable(session, add_scopes, definition)
 
     previous_version = plugin.listing_version
     previous_grant = sorted(plugin.granted_scopes or [])
@@ -970,29 +988,14 @@ async def put_community_plugin_scopes(
     plugin = await _load(session, plugin_id, for_update=True)
 
     granted = set(payload.granted)
-    await _require_grantable(granted, plugin.definition)
-
-    before = sorted(plugin.granted_scopes or [])
-    after = sorted(granted)
-    if before != after:
-        plugin.granted_scopes = after
-        plugin.updated_at = datetime.now(timezone.utc)
-        session.add(plugin)
-        await audit_service.record(
-            session,
-            event_type=AuditEventType.PLUGIN_UPDATED,
-            actor_user_id=current_user.id,
-            guild_id=guild_context.guild_id,
-            target_type="plugin",
-            target_id=plugin.id,
-            detail={
-                "area": "scopes",
-                "changed": ["granted_scopes"],
-                # Scope names are the platform's own vocabulary, so the values
-                # are recorded rather than only the fact that they moved.
-                "values": {"granted_scopes": {"from": before, "to": after}},
-            },
-        )
+    await _require_grantable(session, granted, plugin.definition)
+    await guild_plugins_service.set_granted_scopes(
+        session,
+        plugin,
+        granted,
+        actor_user_id=current_user.id,
+        guild_id=guild_context.guild_id,
+    )
     await session.commit()
     await session.refresh(plugin)
     return await _read(session, plugin, guild_context, viewer)

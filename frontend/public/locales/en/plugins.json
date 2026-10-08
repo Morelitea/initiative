@@ -54,6 +54,8 @@
     "whereDescription": "It shows its page, and reads and changes things, only in the initiatives you choose.",
     "whereDescriptionNoPage": "It reads and changes things only in the initiatives you choose.",
     "whoTitle": "Who can open it there",
+    "callersTitle": "Plug-ins that can use it",
+    "callersDescription": "These plug-ins in your community ask to use {{name}}. Each one you leave ticked can.",
     "roles": {
       "moderator": "Moderators",
       "project_manager": "Project managers",

@@ -80,8 +80,11 @@ Adding a plug-in asks up to three things, and every answer can be changed later 
 | **What it can reach** | The kinds of thing it may read, or read and change: projects, files, comments, tags, custom properties, and so on. Everything it asks for starts ticked; untick what you'd rather it didn't have. A line marked *This server doesn't allow it* is off-limits whatever you tick. Two lines start unticked: acting as a moderator, and acting as an admin (see below). |
 | **Where it works** | Every current initiative, or only the ones you pick. A plug-in reads and changes things only in the initiatives it works in, so the committee's private budget initiative stays out of reach unless you put it there. |
 | **Who can open it there** | Only for a plug-in with a page inside initiatives: which roles see that page. Community admins always can. |
+| **Plug-ins that can use it** | Only when plug-ins already here have asked to use this one. Each starts ticked. |
 
 A plug-in asking for nothing gets asked nothing. It just gets a name.
+
+Some plug-ins work through another one: automations that open GitHub issues, say. You're asked about that when the other one arrives, not before, so a community without GitHub is never asked whether automations may use it. Remove GitHub and that permission goes with it. Add it back and you're asked again.
 
 A plug-in allowed to change something, such as a task, can fill in that thing's [custom properties](initiatives.md#initiative-settings) as well. **Properties** on its own is for making new ones: it lets the plug-in read an initiative's property definitions, and with write, add to them.
 
