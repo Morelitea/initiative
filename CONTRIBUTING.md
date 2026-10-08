@@ -159,7 +159,7 @@ Commit the updated generated files alongside your schema changes. CI will fail i
 
 **Important:** Do not hand-edit files in `frontend/src/api/generated/` — they will be overwritten on the next generation run.
 
-**Breaking the API.** CI compares the API with the last release's and fails on a change that would break a client written against that release: a removed route or field, a newly required parameter, a narrower type. Run the same check with `scripts/ci/api-compat` (needs Docker). If the break is intended, add the method, path and message it printed to [`backend/api-breaking-changes.md`](backend/api-breaking-changes.md) under the release it ships in, and say why in the pull request. Each release publishes its spec as `openapi.json` on its GitHub release.
+**Breaking the API.** CI compares the API with the last release's and fails on a change that would break a client written against that release: a removed route or field, a newly required parameter, a narrower type. Run the same check with `scripts/ci/api-compat` (needs Docker and the GitHub CLI). If the break is intended, add the method, path and message it printed to [`backend/api-breaking-changes.md`](backend/api-breaking-changes.md) under the release it ships in, and say why in the pull request. Each release publishes its spec as `openapi.json` on its GitHub release.
 
 ## Submitting Changes
 

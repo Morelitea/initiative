@@ -53,7 +53,7 @@ history/
 - `docker-compose up --build` — start Postgres 17, backend, and the nginx SPA.
 - `cd backend && pytest` / `ruff check app` and `cd frontend && pnpm lint` — run tests and linters. Tests are co-located alongside source files in `app/` (not in a separate `tests/` directory).
 - `scripts/ci/check` — the fast checks CI runs (ruff, ruff format, ty, frozen migrations and one Alembic head, biome, tsc, and generated-types / `env-contract.json` drift), for what the branch changed against `origin/dev`. CI calls the same script for those steps, and the husky pre-push hook runs it (`git push --no-verify` skips it once). No tests and no database. `scripts/ci/check all` runs everything; `scripts/ci/check codegen` regenerates drifted files for you to review and commit.
-- `scripts/ci/api-compat` — whether the API still takes what the last release's did (oasdiff against the spec exported from that release's image; needs Docker). CI runs it on pull requests. A break made on purpose is listed in `backend/api-breaking-changes.md`, under the release it ships in.
+- `scripts/ci/api-compat` — whether the API still takes what the last release's did (oasdiff against the `openapi.json` that release's GitHub release carries; needs Docker and `gh`). CI runs it on pull requests. A break made on purpose is listed in `backend/api-breaking-changes.md`, under the release it ships in.
 
 ## Generated API Types (Orval)
 

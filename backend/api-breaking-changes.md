@@ -3,9 +3,8 @@
 `scripts/ci/api-compat` compares this tree's OpenAPI spec with the last
 release's and fails on a change that breaks a client written against that
 release, unless the change is listed here. Each entry is the method, path and
-message the check printed, under the release it ships in. An entry for a
-release that has shipped no longer matters, and can be deleted.
+message the check printed, under a `## After <release>` heading naming the
+release it breaks from. Once the next release ships, its entries no longer
+matter and can be deleted.
 
-## After 0.74.0
-
-- POST /api/v1/c/{guild_id}/documents/{document_id}/copy api path removed without deprecation
+Nothing is listed: the API takes everything 0.75.3's did.
