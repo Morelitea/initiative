@@ -100,6 +100,8 @@ _GLOBAL_SORT_ATTRGETTERS = {
     "start_date": attrgetter("start_date"),
     "created_at": attrgetter("created_at"),
     "updated_at": attrgetter("updated_at"),
+    "status_position": attrgetter("status_position"),
+    "tag_name": attrgetter("tag_name"),
 }
 
 # Native PG enum orders by definition order (low→urgent), not alphabetically;
@@ -111,15 +113,20 @@ _PRIORITY_SORT_ORDER = {p: i for i, p in enumerate(TaskPriority)}
 def _global_ordering_selectables(tz: str | None = None):
     """The columns the cross-guild ordering pass selects.
 
-    Every sort key the /me task views accept is a plain ``tasks`` column (plus
-    the SQL-computed ``date_group``), so the whole matching set can be ordered
-    from rows this narrow — no relationships, no annotations. Labelled with the
+    Every sort key the /me task views accept is a plain ``tasks`` column or an
+    expression the task dataset declares (``date_group``, ``status_position``,
+    ``tag_name``), so the whole matching set can be ordered from rows this
+    narrow — no relationships, no annotations. Labelled with the
     sort field names so :func:`_sort_global_task_keys` reads a row by the name
     the caller sorted on.
     """
     return (
         Task.id.label("id"),
         _date_group_expression(tz).label("date_group"),
+        *(
+            fields_registry.sort_expression("tasks", name, _sort_ctx(tz)).label(name)
+            for name in ("status_position", "tag_name")
+        ),
         Task.position.label("position"),
         Task.title.label("title"),
         Task.due_date.label("due_date"),

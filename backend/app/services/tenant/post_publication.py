@@ -78,7 +78,7 @@ async def announce_post(
     recipient_ids = sorted(
         await posts_service.audience_user_ids(session, post, exclude=author.id)
     )
-    author_name = notifications_service.actor_name(author)
+    author_name = await notifications_service.actor_name(session, author)
     await notifications_service.notify(
         session,
         NotificationType.post_published,

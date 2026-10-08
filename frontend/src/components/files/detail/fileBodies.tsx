@@ -17,9 +17,8 @@ import {
 } from "@/components/files/whiteboardSceneCache";
 import { CreateReferencedThingDialog } from "@/components/references/CreateReferencedThingDialog";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/hooks/useAuth";
 import type { UseCollaborationResult } from "@/hooks/useCollaboration";
-import { useCommunities } from "@/hooks/useCommunities";
+import { useCommunities, useSelfInCommunity } from "@/hooks/useCommunities";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { normalizeEditorState } from "@/lib/editorState";
 import { supportsEntityMentions } from "@/lib/mentions";
@@ -97,7 +96,7 @@ export interface FileTypeBody {
 /** The signed-in user as presence shows them. Memoized so awareness effects
  *  key on the identity rather than an object made every render. */
 const usePresenceUser = () => {
-  const { user } = useAuth();
+  const user = useSelfInCommunity();
   return useMemo(
     () => (user ? { id: user.id, name: getUserDisplayName(user, "Anonymous") } : null),
     [user]

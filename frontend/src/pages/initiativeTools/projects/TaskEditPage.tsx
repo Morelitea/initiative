@@ -838,6 +838,7 @@ export const TaskEditPage = () => {
               target={{ type: SearchEntityType.task, id: parsedTaskId }}
               canEdit={!isReadOnly}
               entityTitle={task.title}
+              defaultLayout="rows"
             />
           ) : null}
         </div>

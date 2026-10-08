@@ -14,7 +14,7 @@ import { DocumentOutlineTracker } from "@/components/ui/editor/DocumentOutline";
 import { COLLAB_EXCLUDED_PROPERTIES } from "@/components/ui/editor/nodes/image-node";
 import type { EditorVariant } from "@/components/ui/editor/variant";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { useAuth } from "@/hooks/useAuth";
+import { useSelfInCommunity } from "@/hooks/useCommunities";
 import { MentionedPeopleScope } from "@/hooks/useMentionedPeople";
 import { SmartChipScope } from "@/hooks/useSmartChips";
 import { getUserColorHsl } from "@/lib/userColor";
@@ -82,7 +82,7 @@ export function Editor({
   onWikilinkNavigate,
   onCreateReferencedThing,
 }: EditorProps) {
-  const { user } = useAuth();
+  const user = useSelfInCommunity();
   const userColor = useRef(user ? getUserColorHsl(user.id) : "hsl(0, 0%, 70%)");
   const userName = getUserDisplayName(user, "Anonymous");
   const cursorsContainerRef = useRef<HTMLDivElement>(null!);

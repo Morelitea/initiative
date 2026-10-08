@@ -1232,8 +1232,6 @@
       "noPlan": "Sin plan",
       "openLabel": "Abrir la facturación de {{name}}",
       "openError": "No se pudo abrir el portal de facturación.",
-      "operatorLabel": "Operaciones de facturación de {{name}}",
-      "operations": "Operaciones",
       "factor": {
         "title": "Confirma que eres tú",
         "description": "Al abrir la facturación de {{name}} recibes un permiso de facturación. Introduce un código de tu aplicación de autenticación o un código de recuperación.",

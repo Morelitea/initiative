@@ -697,8 +697,8 @@ def _asking(*scopes: str) -> dict:
 
 
 def test_a_version_asking_to_use_another_plugin_asks_for_more():
-    """A ``plugins:`` scope is a new thing the seat has not answered, like any
-    other scope a version adds."""
+    """A ``plugins:`` scope for a plug-in the community has is a new thing the
+    seat has not answered, like any other scope a version adds."""
     plugin = GuildPlugin(
         listing_uid="TESTCALLER0001",
         listing_version="1.0.0",
@@ -710,12 +710,14 @@ def test_a_version_asking_to_use_another_plugin_asks_for_more():
     )
     ceiling = ("files:read", "plugins:tests.github")
 
-    asks = plugin_updates.upgrade_asks(
-        plugin, _asking("files:read", "plugins:tests.github"), ceiling
-    )
+    wider = _asking("files:read", "plugins:tests.github")
+
+    asks = plugin_updates.upgrade_asks(plugin, wider, ceiling, {"tests.github"})
 
     assert asks.added_scopes == ("plugins:tests.github",)
     assert asks.asks_more
+    # Not while the community lacks it: installing that plug-in asks instead.
+    assert not plugin_updates.upgrade_asks(plugin, wider, ceiling, ()).asks_more
 
 
 def test_a_plugin_scope_above_the_ceiling_asks_for_nothing():
@@ -730,7 +732,10 @@ def test_a_plugin_scope_above_the_ceiling_asks_for_nothing():
     )
 
     asks = plugin_updates.upgrade_asks(
-        plugin, _asking("files:read", "plugins:tests.github"), ("files:read",)
+        plugin,
+        _asking("files:read", "plugins:tests.github"),
+        ("files:read",),
+        {"tests.github"},
     )
 
     assert not asks.asks_more

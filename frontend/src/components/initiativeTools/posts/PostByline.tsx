@@ -1,5 +1,5 @@
 import type { PostRead } from "@/api/generated/initiativeAPI.schemas";
-import { UserHandle } from "@/components/UserHandle";
+import { UserName } from "@/components/UserHandle";
 import { RelativeTime } from "@/components/ui/relative-time";
 import { ProfileAvatar } from "@/components/user/ProfileAvatar";
 import { cn } from "@/lib/utils";
@@ -29,7 +29,7 @@ export const PostByline = ({ post, inline = false }: { post: PostRead; inline?: 
       />
       {inline ? (
         <>
-          <UserHandle user={post.author} className="text-sm" nameClassName="min-w-0 truncate" />
+          <UserName user={post.author} className="text-sm" nameClassName="min-w-0 truncate" />
           <span aria-hidden className="text-muted-foreground text-xs">
             ·
           </span>
@@ -37,7 +37,7 @@ export const PostByline = ({ post, inline = false }: { post: PostRead; inline?: 
         </>
       ) : (
         <div className="min-w-0">
-          <UserHandle
+          <UserName
             user={post.author}
             className="font-medium text-sm"
             nameClassName="min-w-0 truncate"

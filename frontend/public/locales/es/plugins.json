@@ -54,6 +54,8 @@
     "whereDescription": "Muestra su página, y lee y cambia contenido, solo en las iniciativas que elijas.",
     "whereDescriptionNoPage": "Lee y cambia contenido solo en las iniciativas que elijas.",
     "whoTitle": "Quién puede abrirla allí",
+    "callersTitle": "Complementos que pueden usarla",
+    "callersDescription": "Estos complementos de tu comunidad piden usar {{name}}. Cada uno que dejes marcado podrá hacerlo.",
     "roles": {
       "moderator": "Moderadores",
       "project_manager": "Responsables de proyecto",

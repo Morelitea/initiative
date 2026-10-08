@@ -40,7 +40,7 @@ import { DataTable, type DataTableRowWrapperProps } from "@/components/ui/data-t
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { TableRow } from "@/components/ui/table";
 import { usePersistedColumnVisibility } from "@/hooks/usePersistedColumnVisibility";
-import { usePersistedTableState } from "@/hooks/usePersistedTableState";
+import { projectTaskTableKey, type useProjectTaskTableState } from "@/hooks/useProjectTaskView";
 import { useProperties } from "@/hooks/useProperties";
 import { useUnreadTree } from "@/hooks/useUnreadTree";
 import { useCommunityPath } from "@/lib/communityUrl";
@@ -71,6 +71,9 @@ type ProjectTasksListViewProps = {
   taskHref: (taskId: number) => string;
   onTaskSelectionChange?: (selectedTasks: TaskListRead[]) => void;
   onExitSelection?: () => void;
+  /** How the reader left the table: from {@link useProjectTaskTableState},
+   *  held by the section so its export follows the same sort. */
+  tableState: ReturnType<typeof useProjectTaskTableState>;
 };
 
 type SortableRowContextValue = {
@@ -190,6 +193,7 @@ const ProjectTasksTableViewComponent = ({
   taskHref,
   onTaskSelectionChange,
   onExitSelection,
+  tableState: [tableState, { setGrouping, setSorting }],
 }: ProjectTasksListViewProps) => {
   const { t } = useTranslation(["projects", "comments", "tasks"]);
   const statusDisabled = !canEditTaskDetails || taskActionsDisabled;
@@ -344,7 +348,14 @@ const ProjectTasksTableViewComponent = ({
       },
       {
         id: "status",
-        header: () => <span className="font-medium">{t("table.statusColumn")}</span>,
+        // Board order, read from the statuses this view holds so a column
+        // moved on the board sorts where it now stands.
+        accessorFn: (task) =>
+          taskStatuses.find((status) => status.id === task.task_status_id)?.position ??
+          task.task_status.position,
+        header: ({ column }) => <SortHeader column={column} label={t("table.statusColumn")} />,
+        sortFn: (rowA, rowB, columnId) =>
+          rowA.getValue<number>(columnId) - rowB.getValue<number>(columnId),
         cell: ({ row }) => {
           const task = row.original;
           const activeStatus =
@@ -408,11 +419,7 @@ const ProjectTasksTableViewComponent = ({
 
   const sortableItems = useMemo(() => tasks.map((task) => task.id.toString()), [tasks]);
 
-  // How the reader left the table last time: which column it's grouped and
-  // sorted by, kept beside the column-visibility map above so the whole "how
-  // this list is shown" answer survives a reload together.
-  const tableStorageKey = `initiative-project-${projectId}-task-table`;
-  const [tableState, { setGrouping, setSorting }] = usePersistedTableState(tableStorageKey);
+  const tableStorageKey = projectTaskTableKey(projectId);
   const { grouping, sorting } = tableState;
   // Grouping and sorting each disable drag-to-reorder: a manual order can only
   // be expressed by the table's own row order.
@@ -531,7 +538,8 @@ export const ProjectTasksTableView = memo(
       prevProps.canReorderTasks === nextProps.canReorderTasks &&
       prevProps.canEditTaskDetails === nextProps.canEditTaskDetails &&
       prevProps.taskActionsDisabled === nextProps.taskActionsDisabled &&
-      prevProps.initiativeId === nextProps.initiativeId
+      prevProps.initiativeId === nextProps.initiativeId &&
+      prevProps.tableState[0] === nextProps.tableState[0]
       // Note: Intentionally ignoring callback prop changes as they're functionally the same
     );
   }

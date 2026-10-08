@@ -1,5 +1,6 @@
 export { Desktop } from "./desktop.mjs";
 export { DesktopUpdater } from "./desktopUpdater.mjs";
+export { SplashScreen } from "./splashScreen.mjs";
 export { CapacitorUpdater } from "./updater.mjs";
 
 import { hostname, platform, release } from "node:os";

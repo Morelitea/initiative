@@ -18,6 +18,7 @@ import type {
   ToolCan,
 } from "@/api/generated/initiativeAPI.schemas";
 import type { ExportExtraAction, ExportFormatOption } from "@/components/exports/ExportButton";
+import type { ExportContentSeed } from "@/components/exports/ExportWizard";
 
 /**
  * The slice of a tool's read schema its settings need. Every tool — queues,
@@ -49,12 +50,16 @@ export interface ToolSettingsEntity {
 
 /**
  * What a tool's export card offers when the tool's registry formats are not
- * the whole answer — a file's formats follow its type, and a whiteboard
- * adds pictures only the browser can draw.
+ * the whole answer — a file's formats follow its type, a whiteboard adds
+ * pictures only the browser can draw, and a project starts from the
+ * exporting person's view of its tasks.
  */
 export interface ToolExportOptions {
   formats?: ExportFormatOption[];
   extraActions?: ExportExtraAction[];
+  /** The exporting person's own view of its content, which the export
+   *  starts from: a project's task filters and order. */
+  content?: ExportContentSeed;
 }
 
 /** Per-call callbacks so the sections — not each wrapper — own toasts and routing. */

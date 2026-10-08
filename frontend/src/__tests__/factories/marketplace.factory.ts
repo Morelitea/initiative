@@ -70,6 +70,7 @@ export function buildMarketplaceListingDetail(
     grantable_scopes: [],
     plugin_names: {},
     has_initiative_surfaces: false,
+    callers: [],
     ...overrides,
   };
 }

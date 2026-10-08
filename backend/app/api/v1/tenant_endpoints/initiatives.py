@@ -580,7 +580,7 @@ async def create_join_request(
         session, initiative_id=initiative_id
     )
     if manager_ids:
-        requester = notifications_service.actor_name(current_user)
+        requester = await notifications_service.actor_name(session, current_user)
         # Addressed to the people who can answer it, and straight to the queue
         # they answer it in. It carries no initiative content: who asked, what
         # they said, and where to answer.

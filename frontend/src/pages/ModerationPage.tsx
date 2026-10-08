@@ -34,6 +34,7 @@ import { getErrorMessage } from "@/lib/errorMessage";
 import { formatDateTime } from "@/lib/formatDate";
 import { toast } from "@/lib/mascotToast";
 import { searchHitPath } from "@/lib/searchResults";
+import { getUserDisplayName } from "@/lib/userDisplay";
 
 /** The outcomes, in the order a moderator usually reaches for them. */
 const OUTCOMES: ReportOutcome[] = [
@@ -330,9 +331,7 @@ const MembersArea = ({ initiativeId }: { initiativeId: number }) => {
             key={member.user.id}
             className="flex flex-wrap items-center justify-between gap-2 border-b py-2 last:border-b-0"
           >
-            <span className="min-w-0 truncate text-sm">
-              {member.user.display_name || member.user.username}
-            </span>
+            <span className="min-w-0 truncate text-sm">{getUserDisplayName(member.user)}</span>
             <div className="flex items-center gap-2">
               {member.override_share_restrictions && (
                 <Badge variant="secondary">{t("members.fullAccess")}</Badge>

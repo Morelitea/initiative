@@ -13,6 +13,9 @@
  *    every current initiative, or the ones picked here.
  * 3. **Who can open it there.** Built-in roles, moderators by default, applied
  *    to every initiative it is placed in.
+ * 4. **Which plug-ins can use it.** The ones already here that ask to, all
+ *    ticked to start. A plug-in is never asked about using one the community
+ *    does not have, so this is where that question comes up.
  *
  * The server installs, grants and places in one transaction, under the same
  * checks the plug-in's settings apply afterwards.
@@ -80,6 +83,10 @@ export function InstallPluginDialog({ listing, open, onOpenChange }: InstallPlug
   const [where, setWhere] = useState<"all" | "some">("all");
   const [picked, setPicked] = useState<number[]>([]);
   const [roles, setRoles] = useState<RoleKind[]>(["moderator"]);
+  const callers = listing.callers ?? [];
+  const [allowedCallers, setAllowedCallers] = useState<number[]>(() =>
+    callers.map((caller) => caller.id)
+  );
   const install = useInstallCommunityPlugin();
 
   const submit = () =>
@@ -90,6 +97,7 @@ export function InstallPluginDialog({ listing, open, onOpenChange }: InstallPlug
         granted_scopes: scopes,
         placements: !placeable ? [] : where === "all" ? "all" : picked,
         role_kinds: hasPage ? roles : [],
+        callers: allowedCallers,
       },
       {
         onSuccess: (plugin) => {
@@ -230,6 +238,40 @@ export function InstallPluginDialog({ listing, open, onOpenChange }: InstallPlug
                   />
                   <Label htmlFor={`install-plugin-role-${role}`} className="font-normal">
                     {t(`plugins:install.roles.${role}` as never)}
+                  </Label>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {callers.length > 0 && (
+          <section className="space-y-2" aria-labelledby="install-plugin-callers">
+            <div>
+              <h3 id="install-plugin-callers" className="font-medium text-sm">
+                {t("plugins:install.callersTitle")}
+              </h3>
+              <p className="text-muted-foreground text-xs">
+                {t("plugins:install.callersDescription", { name: listing.name })}
+              </p>
+            </div>
+            <div className="space-y-2">
+              {callers.map((caller) => (
+                <div key={caller.id} className="flex items-center gap-2">
+                  <Checkbox
+                    id={`install-plugin-caller-${caller.id}`}
+                    checked={allowedCallers.includes(caller.id)}
+                    disabled={install.isPending}
+                    onCheckedChange={(state) =>
+                      setAllowedCallers((current) =>
+                        state === true
+                          ? [...new Set([...current, caller.id])]
+                          : current.filter((one) => one !== caller.id)
+                      )
+                    }
+                  />
+                  <Label htmlFor={`install-plugin-caller-${caller.id}`} className="font-normal">
+                    {caller.name}
                   </Label>
                 </div>
               ))}

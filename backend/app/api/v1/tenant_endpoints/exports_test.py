@@ -31,6 +31,7 @@ from app.core.config import settings
 from app.core.relationships import RelationshipType
 from app.core.search import SearchEntityType
 from app.core.tools import Tool
+from app.core.user_display import handle_of
 from app.models.platform.guild import Guild, CommunityRole, CommunityStatus
 from app.models.platform.guild_image import GuildImage, GuildImageVariant
 from app.models.platform.notification import Notification, NotificationType
@@ -380,6 +381,20 @@ async def test_task_export_checklist_layout_lists_tasks_instead_of_tabling_them(
     )
 
 
+async def test_export_stamp_names_the_exporter_as_the_community_does(
+    client: AsyncClient, acting_user, session
+):
+    a = await _actor_with_tasks(acting_user, session)
+    a.membership.display_name = "Ada Lovelace"
+    session.add(a.membership)
+    await session.commit()
+    _assert_export(
+        await _export(client, a, "tasks", format="md"),
+        "md",
+        present=("; by: Ada Lovelace -->",),
+    )
+
+
 async def test_task_export_rejects_a_format_it_does_not_offer(
     client: AsyncClient, acting_user, session
 ):
@@ -573,15 +588,22 @@ async def test_inline_project_export_returns_envelope(
     client: AsyncClient, acting_user, session
 ):
     """The engine-delivered project backup: same envelope the import endpoint
-    consumes, same filename convention as the retired route."""
+    consumes, same filename convention as the retired route. An assignee is
+    named as the community names them, beside the handle an import matches."""
     a = await _actor_with_tasks(acting_user, session)
+    a.membership.display_name = "Ada Lovelace"
+    session.add(a.membership)
+    await create_task(session, a.project, title="Named", assignees=[a.user])
     resp = await _export(client, a, "project", ids=[a.project.id])
     envelope = json.loads(
         _assert_export(resp, "json", disposition=(".initiative-project.json",))
     )
     assert envelope["schema_version"] >= 1
     assert envelope["project"]["name"] == a.project.name
-    assert {t["title"] for t in envelope["tasks"]} == {"Task 0", "Task 1"}
+    tasks = {t["title"]: t for t in envelope["tasks"]}
+    assert set(tasks) == {"Task 0", "Task 1", "Named"}
+    assert tasks["Named"]["assignee_handles"] == [handle_of(a.user)]
+    assert tasks["Named"]["assignee_names"] == ["Ada Lovelace"]
 
 
 # What each report format carries beyond the task titles all of them render.
@@ -2569,8 +2591,6 @@ async def test_a_backup_lists_its_assignees_among_its_people(
     assignee is somebody it has to place — a task restored into a community
     where that handle means nobody would otherwise arrive unassigned, with
     nobody having been asked."""
-    from app.core.user_display import handle_of
-
     a = await acting_user(
         guild_role=CommunityRole.member, initiative=True, project=True
     )
@@ -3115,19 +3135,28 @@ async def test_backup_filters_narrow_each_tool_and_are_not_kept(
     [kept] = json.loads(_assert_export(own, "json"))["tasks"]
     assert (kept["title"], kept["links"]) == ("Open", [])
     monkeypatch.setattr(export_limits, "EXPORT_INLINE_MAX_ROWS", 200)
-    # A report shows what its filter asks for, archived tasks included.
-    _assert_export(
+    # A report shows what its filter asks for, archived tasks included, in
+    # the order its sort asks for.
+    report = _assert_export(
         await _export(
             client,
             a,
             "project",
             ids=[a.project.id],
             format="csv",
-            filters=json.dumps({"tasks": {"include_archived": True}}),
+            filters=json.dumps(
+                {
+                    "tasks": {
+                        "include_archived": True,
+                        "sorting": json.dumps([{"field": "title", "dir": "desc"}]),
+                    }
+                }
+            ),
         ),
         "csv",
         present=("Open", "Shipped", "Put away"),
     )
+    assert report.index("Shipped") < report.index("Put away") < report.index("Open")
 
 
 async def test_empty_initiative_backup_is_manifest_only_zip(

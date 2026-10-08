@@ -10,14 +10,21 @@ identifier that reads the same everywhere.
 
 from __future__ import annotations
 
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from app.core import usernames
+
+if TYPE_CHECKING:
+    from sqlmodel.ext.asyncio.session import AsyncSession
 
 
 class Nameable(Protocol):
     username: str
     discriminator: int
+
+
+class Person(Nameable, Protocol):
+    id: int | None
 
 
 def display_name(user: Nameable | None, fallback: str = "") -> str:
@@ -43,3 +50,19 @@ def handle_of(user: Nameable) -> str:
     text has no styling to carry that, so it joins them.
     """
     return usernames.format_handle(user.username, user.discriminator)
+
+
+async def name_here(session: AsyncSession, user: Person) -> str:
+    """What the community ``session`` is routed into calls ``user``.
+
+    For the code that holds an account — the signed-in ``User``, an export's
+    creator — rather than a person loaded from guild content: it reads them
+    back through ``guild_member_profiles`` on that session. A session routed
+    nowhere gets the handle.
+    """
+    from app.models.platform.user_profile_view import MemberProfile
+
+    if isinstance(user, MemberProfile):
+        return display_name(user)
+    member = await session.get(MemberProfile, user.id) if user.id else None
+    return display_name(member, fallback=handle_of(user))

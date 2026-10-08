@@ -393,6 +393,7 @@
   "COMMUNITY_PLUGIN_PLACEMENT_ROLE_INVALID": "Choose roles from this initiative.",
   "COMMUNITY_PLUGIN_SCOPE_NOT_REQUESTED": "This plug-in doesn't ask for that access.",
   "COMMUNITY_PLUGIN_SCOPE_ABOVE_CEILING": "This server doesn't allow this plug-in that access.",
+  "COMMUNITY_PLUGIN_SCOPE_TARGET_NOT_INSTALLED": "This plug-in asks to use another plug-in that isn't installed in this community.",
   "COMMUNITY_PLUGIN_UPGRADE_NEEDS_CONSENT": "This version asks for more access. Review what it asks for before updating.",
   "COMMUNITY_PLUGIN_UPGRADE_VERSION_MOVED": "A different version is now available. Review it and try again.",
   "COMMUNITY_PLUGIN_LISTING_NOT_A_PLUGIN": "That listing can't be installed as a plug-in.",

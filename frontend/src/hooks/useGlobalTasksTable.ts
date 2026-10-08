@@ -21,6 +21,7 @@ import { useCommunities } from "@/hooks/useCommunities";
 import { useUpdateTaskInCommunity } from "@/hooks/useTasks";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { taskSortFields, taskTableSorting } from "@/lib/filters/taskFilters";
 import { toast } from "@/lib/mascotToast";
 import { statusForCategory } from "@/lib/taskStatusDefaults";
 import { browserTimezone } from "@/lib/timezones";
@@ -81,22 +82,6 @@ const MY_TASKS_QUERY_PREFIX = getListMyTasksQueryKey();
 /** Task ids repeat across communities, so an in-flight row is addressed by both. */
 const taskKey = (task: Pick<TaskListRead, "id" | "community_id">) =>
   `${task.community_id ?? "none"}:${task.id}`;
-
-/** Map DataTable column IDs to backend sort field names */
-const SORT_FIELD_MAP: Record<string, string> = {
-  title: "title",
-  "due date": "due_date",
-  "start date": "start_date",
-  "date group": "date_group",
-  priority: "priority",
-};
-
-/** The same map read the other way, to seed the table's headers from the sort
- *  the preferences restored — otherwise the rows come back sorted but the
- *  header claims something else. */
-const SORT_COLUMN_MAP: Record<string, string> = Object.fromEntries(
-  Object.entries(SORT_FIELD_MAP).map(([columnId, field]) => [field, columnId])
-);
 
 export function useGlobalTasksTable() {
   const { t } = useTranslation(["tasks", "dates", "common"]);
@@ -185,35 +170,11 @@ export function useGlobalTasksTable() {
   // The table captures its seed at mount, which is why the caller holds the
   // table back until `preferencesLoaded` — mounting first would freeze the
   // headers on the default sort while the rows came back in the saved one.
-  const initialSorting = useMemo<SortingState>(
-    () =>
-      sorting
-        .map((entry) => {
-          const columnId = SORT_COLUMN_MAP[entry.field];
-          return columnId ? { id: columnId, desc: entry.dir === "desc" } : null;
-        })
-        .filter((entry): entry is SortingState[number] => entry !== null),
-    [sorting]
-  );
+  const initialSorting = useMemo(() => taskTableSorting(sorting), [sorting]);
 
   const handleSortingChange = useCallback(
     (tableSorting: SortingState) => {
-      if (tableSorting.length > 0) {
-        const fields: SortField[] = tableSorting
-          .map((col) => {
-            const field = SORT_FIELD_MAP[col.id];
-            if (!field) return null;
-            return { field, dir: col.desc ? "desc" : "asc" } as SortField;
-          })
-          .filter((f): f is SortField => f !== null);
-        // date_group needs due_date as secondary sort for meaningful ordering
-        if (fields.length === 1 && fields[0].field === "date_group") {
-          fields.push({ field: "due_date", dir: fields[0].dir ?? "asc" });
-        }
-        setSorting(fields);
-      } else {
-        setSorting([]);
-      }
+      setSorting(taskSortFields(tableSorting));
       setPage(1);
     },
     [setPage, setSorting]

@@ -15,11 +15,12 @@
         height: 100%;
         overflow: hidden;
       }
+      /* The app's own background in each theme, as the window's is. */
       body {
         display: flex;
         align-items: center;
         justify-content: center;
-        background: #f7f9fc;
+        background: #ffffff;
         color: #2563eb;
       }
       svg {
@@ -27,11 +28,21 @@
         height: auto;
       }
       @media (prefers-color-scheme: dark) {
-        body {
-          background: #0f172a;
+        :root:not(.light) body {
+          background: #020618;
         }
       }
+      :root.dark body {
+        background: #020618;
+      }
     </style>
+    <script>
+      // Laid over the window during an update, the splash takes the page's
+      // theme, which may not be the computer's.
+      if (location.hash === "#dark" || location.hash === "#light") {
+        document.documentElement.classList.add(location.hash.slice(1));
+      }
+    </script>
   </head>
   <body>
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 438 471" fill="currentColor" fill-rule="evenodd" aria-label="Initiative">

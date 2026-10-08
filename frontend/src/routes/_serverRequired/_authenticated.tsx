@@ -286,7 +286,6 @@ function AppLayout() {
           the rest are laid out against the document, and it is the document
           that grows to fit them. */}
       <div className="relative flex h-dvh flex-col overflow-clip bg-background">
-        <PushPermissionPrompt />
         <DeviceVerificationDialog />
         <div className="flex min-h-0 flex-1">
           {/* The live editor's headings, shared by the page that hosts the
@@ -336,6 +335,7 @@ function AppLayout() {
                   )}
                   <OfflineBanner />
                   <CommunityAccessBanner />
+                  <PushPermissionPrompt />
                 </div>
                 <div className="flex min-h-0 flex-1 justify-between">
                   {/*<div

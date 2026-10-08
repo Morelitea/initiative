@@ -54,6 +54,8 @@
     "whereDescription": "Il affiche sa page, et lit et modifie le contenu, uniquement dans les initiatives que vous choisissez.",
     "whereDescriptionNoPage": "Il lit et modifie le contenu uniquement dans les initiatives que vous choisissez.",
     "whoTitle": "Qui peut l'y ouvrir",
+    "callersTitle": "Plug-ins qui peuvent l'utiliser",
+    "callersDescription": "Ces plug-ins de votre communauté demandent à utiliser {{name}}. Chacun que vous laissez coché le pourra.",
     "roles": {
       "moderator": "Modérateurs",
       "project_manager": "Chefs de projet",

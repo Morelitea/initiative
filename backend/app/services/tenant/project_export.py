@@ -171,6 +171,7 @@ async def build_project_export(
                 task_tags.append(ProjectExportTag(name=tag.name, color=tag.color))
 
         assignee_handles = [handle_of(u) for u in (task.assignees or [])]
+        assignee_names = [display_name(u) for u in (task.assignees or [])]
 
         status_name = status_names.get(task.task_status_id) or _fallback_status_name(
             statuses_sorted
@@ -201,6 +202,7 @@ async def build_project_export(
                 status_name=status_name,
                 tags=task_tags,
                 assignee_handles=assignee_handles,
+                assignee_names=assignee_names,
                 checklist=checklist,
                 properties=properties,
                 created_at=task.created_at,

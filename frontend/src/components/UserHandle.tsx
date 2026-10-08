@@ -36,3 +36,18 @@ export const UserHandle = ({
     </span>
   );
 };
+
+/**
+ * What to call a person in a community: the name they go by there, and their
+ * handle where they set none. The handle stays on hover, so two people with the
+ * same name can still be told apart.
+ */
+export const UserName = (props: UserHandleProps) => {
+  const name = props.user?.display_name?.trim();
+  if (!name) return <UserHandle {...props} />;
+  return (
+    <span className={cn("inline-flex min-w-0", props.className)} title={getUserHandle(props.user)}>
+      <span className={props.nameClassName}>{name}</span>
+    </span>
+  );
+};
