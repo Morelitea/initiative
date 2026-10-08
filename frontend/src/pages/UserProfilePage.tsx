@@ -96,7 +96,7 @@ export const UserProfilePage = () => {
               decorations={profile.profile_decorations}
               presence={profile.presence}
               ring
-              className="size-24 medium:size-28"
+              className="size-24 sm:size-28"
             />
             {banner ? null : <h1 className="pb-1 font-semibold text-2xl">{name}</h1>}
             <ProfileJoined joinedAt={profile.joined_at} className="ms-auto pb-1" />
@@ -139,7 +139,7 @@ export const UserProfilePage = () => {
           {shelved.length > 0 ? (
             <div
               className={cn(
-                "px-3 pt-1 pb-3 medium:px-4 medium:pb-4",
+                "px-3 pt-1 pb-3 sm:px-4 sm:pb-4",
                 hasTrophies ? "rounded-b-2xl" : "rounded-2xl",
                 TOOL_TRAY_SURFACE
               )}

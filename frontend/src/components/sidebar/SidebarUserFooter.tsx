@@ -78,7 +78,7 @@ export const SidebarUserFooter = ({
   // A phone has neither — the sidebar is already a sheet against the edge — so
   // there the choices behind one are drilled into: the menu becomes that list,
   // and a back row climbs out again.
-  const isMobile = !atLeast(useWidthClass(), "expanded");
+  const isMobile = !atLeast(useWidthClass(), "md");
   const [drill, setDrill] = useState<"presence" | "theme" | null>(null);
   const displayName = getUserDisplayName(user);
   const handle = getUrlHandle(user);

@@ -289,9 +289,7 @@ export function globalTaskColumns({
             <div className="flex flex-wrap items-center gap-2">
               {communityName ? (
                 <>
-                  <span className="text-muted-foreground text-xs medium:text-sm">
-                    {communityName}
-                  </span>
+                  <span className="text-muted-foreground text-xs sm:text-sm">{communityName}</span>
                   <span className="text-muted-foreground text-sm" aria-hidden>
                     &gt;
                   </span>

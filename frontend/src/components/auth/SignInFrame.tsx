@@ -33,13 +33,13 @@ export const SignInFrame = ({
       <div
         className={cn(
           "flex min-h-screen flex-col items-center justify-center gap-3 bg-muted/60 px-4 py-12",
-          fillPhone && "max-medium:justify-start max-medium:p-0"
+          fillPhone && "max-sm:justify-start max-sm:p-0"
         )}
       >
         <div
           className={cn(
             "flex items-center gap-3 font-semibold text-3xl text-primary tracking-tight",
-            fillPhone && "max-medium:hidden"
+            fillPhone && "max-sm:hidden"
           )}
         >
           <LogoIcon className="h-12 w-12" aria-hidden="true" focusable="false" />

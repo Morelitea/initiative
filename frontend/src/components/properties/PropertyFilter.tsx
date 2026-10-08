@@ -229,9 +229,9 @@ export const PropertyFilter = ({
             return (
               <li
                 key={entry.property_id}
-                className="flex flex-wrap items-center gap-2 medium:flex-nowrap"
+                className="flex flex-wrap items-center gap-2 sm:flex-nowrap"
               >
-                <div className="min-w-0 flex-1 medium:w-40 medium:flex-none">
+                <div className="min-w-0 flex-1 sm:w-40 sm:flex-none">
                   <Select
                     value={String(entry.property_id)}
                     onValueChange={(next) => handlePropertyChange(index, Number(next))}
@@ -273,7 +273,7 @@ export const PropertyFilter = ({
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="medium:w-32">
+                <div className="sm:w-32">
                   <Select
                     value={entry.op}
                     onValueChange={(next) => handleOpChange(index, next)}

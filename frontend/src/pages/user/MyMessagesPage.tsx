@@ -438,7 +438,7 @@ type Speaker =
  * Smaller on a narrow screen, where the width it costs is width the message
  * does not get.
  */
-const SPEAKER_SIZE = "size-6 medium:size-8";
+const SPEAKER_SIZE = "size-6 sm:size-8";
 
 const Speaking = ({
   who,

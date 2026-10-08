@@ -519,7 +519,7 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
     <WizardDialog
       open={open}
       onOpenChange={onOpenChange}
-      className="max-h-[85vh] overflow-y-auto medium:max-w-lg"
+      className="max-h-[85vh] overflow-y-auto sm:max-w-lg"
       title={t("wizard.title")}
       description={stepDescription}
       progress={current === null ? undefined : { current, total }}

@@ -341,7 +341,7 @@ export const Lightbox = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         showCloseButton={false}
-        className="flex h-[100dvh] max-h-[100dvh] w-screen max-w-[100vw] flex-col gap-0 rounded-none border-0 bg-black/95 p-0 text-white shadow-none medium:max-w-[100vw]"
+        className="flex h-[100dvh] max-h-[100dvh] w-screen max-w-[100vw] flex-col gap-0 rounded-none border-0 bg-black/95 p-0 text-white shadow-none sm:max-w-[100vw]"
       >
         <DialogTitle className="sr-only">{current.alt || t("lightbox.title")}</DialogTitle>
         <DialogDescription className="sr-only">{t("lightbox.description")}</DialogDescription>
@@ -442,7 +442,7 @@ export const Lightbox = ({
               size="icon"
               aria-label={t("previous")}
               onClick={() => goTo(index - 1)}
-              className="absolute left-2 hidden size-10 rounded-full bg-black/40 text-white hover:bg-black/60 hover:text-white medium:inline-flex"
+              className="absolute left-2 hidden size-10 rounded-full bg-black/40 text-white hover:bg-black/60 hover:text-white sm:inline-flex"
             >
               <ChevronLeft className="size-6" />
             </Button>
@@ -453,7 +453,7 @@ export const Lightbox = ({
               size="icon"
               aria-label={t("next")}
               onClick={() => goTo(index + 1)}
-              className="absolute right-2 hidden size-10 rounded-full bg-black/40 text-white hover:bg-black/60 hover:text-white medium:inline-flex"
+              className="absolute right-2 hidden size-10 rounded-full bg-black/40 text-white hover:bg-black/60 hover:text-white sm:inline-flex"
             >
               <ChevronRight className="size-6" />
             </Button>

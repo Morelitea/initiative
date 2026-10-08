@@ -52,7 +52,7 @@ export const OccurrenceScopeDialog = ({
   const [scope, setScope] = useState<OccurrenceScope>("this");
   return (
     <Dialog open onOpenChange={(open) => !open && onChoose(null)}>
-      <DialogContent className="medium:max-w-md">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{t(`scope.title.${action}`)}</DialogTitle>
           <DialogDescription>{t("scope.description")}</DialogDescription>

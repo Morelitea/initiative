@@ -160,7 +160,7 @@ export const SettingsStoragePage = () => {
                 }
               }}
             >
-              <SelectTrigger id="storage-backend" className="w-full medium:w-72">
+              <SelectTrigger id="storage-backend" className="w-full sm:w-72">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

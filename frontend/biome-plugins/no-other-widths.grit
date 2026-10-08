@@ -1,6 +1,7 @@
-// The width classes are the app's only widths (styles.css). Tailwind's own
-// breakpoints and container sizes as variants, an arbitrary width variant,
-// and a width media query written into a string are each refused.
+// The widths are Tailwind's sm: … xl:, set in styles.css, and the canvas-sm: …
+// canvas-xl: variants beside them. Any other width is refused: 2xl:,
+// Tailwind's container sizes as variants (@xs:, @md: …), an arbitrary width
+// variant, and a width media or container query written into a string.
 language js
 
 or {
@@ -9,13 +10,14 @@ or {
   JsTemplateChunkElement()
 } as $text where {
   or {
-    $text <: r"(?s).*(?:^|[\s\"'`{(,:!])(?:max-|@max-|@min-|@)?(?:3xs|2xs|xs|sm|md|lg|xl|[2-7]xl):.*",
+    $text <: r"(?s).*(?:^|[\s\"'`{(,:!])(?:max-)?(?:xs|[2-7]xl):.*",
+    $text <: r"(?s).*(?:^|[\s\"'`{(,:!])@(?:max-|min-)?(?:3xs|2xs|xs|sm|md|lg|xl|[2-7]xl):.*",
     $text <: r"(?s).*(?:^|[\s\"'`{(,:!])(?:max-|min-|@max-|@min-|@)\[[^\]]*\]:.*",
-    $text <: r"(?s).*(?:(?:min|max)-width\s*:\s*\d|width\s*[<>]=?\s*\d).*"
+    $text <: r"(?s).*\(\s*(?:(?:min-|max-)?width\s*:\s*[\d.]|width\s*[<>]=?\s*[\d.]|[\d.]+\s*(?:px|r?em|vw|ch)?\s*[<>]=?\s*width).*"
   },
   register_diagnostic(
     span=$text,
-    message="Only the width classes set a width: medium:, expanded:, large: and extra-large: for the screen, @medium: and the rest for a region, and useWidthClass in code. Grids, forms and rows fill or wrap instead (grid-cols-fill-*, grid-cols-pair, flex-wrap). See the width classes in styles.css.",
+    message="Only sm:, md:, lg: and xl: set a width (canvas-sm: … for a region; useWidthClass and useRegionWidthClass in code). Grids, forms and rows fill or wrap instead (grid-cols-fill-*, grid-cols-pair, flex-wrap). See the widths in styles.css.",
     severity="error"
   )
 }

@@ -142,7 +142,7 @@ export function CommunityHomePage() {
           activeCommunity?.location ? (
             <CommunityLocationLine
               location={activeCommunity.location}
-              className="font-medium text-sm medium:text-base"
+              className="font-medium text-sm sm:text-base"
               style={{
                 color: banner.text_color,
                 textShadow: readableTextShadow(banner.text_color),
@@ -187,10 +187,7 @@ export function CommunityHomePage() {
                 align={banner.text_align}
               />
               <div
-                className={cn(
-                  "rounded-b-2xl px-3 pt-1 pb-3 medium:px-4 medium:pb-4",
-                  TOOL_TRAY_SURFACE
-                )}
+                className={cn("rounded-b-2xl px-3 pt-1 pb-3 sm:px-4 sm:pb-4", TOOL_TRAY_SURFACE)}
               >
                 {/* Which of the tool's views the tray is showing. Above
                     the table rather than in its toolbar, because it changes

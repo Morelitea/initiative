@@ -180,7 +180,7 @@ export const InitiativeDetailPage = ({ tool }: InitiativeDetailPageProps = {}) =
                 variant="ghost"
                 size="icon"
                 className={cn(
-                  "mt-1.5 h-6 w-6 shrink-0 rounded-full text-muted-foreground medium:hidden",
+                  "mt-1.5 h-6 w-6 shrink-0 rounded-full text-muted-foreground sm:hidden",
                   descriptionOpen && "bg-accent text-foreground"
                 )}
                 aria-expanded={descriptionOpen}
@@ -192,9 +192,7 @@ export const InitiativeDetailPage = ({ tool }: InitiativeDetailPageProps = {}) =
             ) : null}
           </div>
           {description ? (
-            <div className={cn("mt-2 medium:block", !descriptionOpen && "hidden")}>
-              {description}
-            </div>
+            <div className={cn("mt-2 sm:block", !descriptionOpen && "hidden")}>{description}</div>
           ) : null}
           {/* One quiet line: the reader's role here, then who else is. Words in
               a row rather than a pill and a count strip, shown at every width:
@@ -215,7 +213,7 @@ export const InitiativeDetailPage = ({ tool }: InitiativeDetailPageProps = {}) =
               variant="outline"
               // Icon-only on a phone: the gear is unambiguous next to a title,
               // and the label is the widest thing in the header row.
-              className="max-medium:h-9 max-medium:w-9 max-medium:p-0"
+              className="max-sm:h-9 max-sm:w-9 max-sm:p-0"
               asChild
             >
               <Link
@@ -223,7 +221,7 @@ export const InitiativeDetailPage = ({ tool }: InitiativeDetailPageProps = {}) =
                 aria-label={t("detail.initiativeSettings")}
               >
                 <Settings className="h-4 w-4" />
-                <span className="hidden medium:inline">{t("detail.initiativeSettings")}</span>
+                <span className="hidden sm:inline">{t("detail.initiativeSettings")}</span>
               </Link>
             </Button>
           ) : null}

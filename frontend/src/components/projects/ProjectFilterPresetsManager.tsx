@@ -73,7 +73,7 @@ export const ProjectFilterPresetsManager = ({
           <CardDescription>{t("projects:settings.defaultViewHint")}</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="w-full space-y-2 medium:w-64">
+          <div className="w-full space-y-2 sm:w-64">
             <Label htmlFor="default-view">{t("projects:settings.defaultView")}</Label>
             <Select
               value={project.default_view_mode ?? "table"}
@@ -218,7 +218,7 @@ const PresetRow = ({
         onBlur={commit}
         onKeyDown={(event) => event.key === "Enter" && event.currentTarget.blur()}
         maxLength={100}
-        className="w-full medium:w-56"
+        className="w-full sm:w-56"
       />
       <span className="min-w-0 flex-1 truncate text-muted-foreground text-sm">
         {count === 0

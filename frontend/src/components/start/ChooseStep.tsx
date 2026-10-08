@@ -34,17 +34,17 @@ export const ChooseStep = ({
           <Label
             key={path}
             htmlFor={`start-path-${path}`}
-            className="group flex cursor-pointer items-center gap-3 rounded-xl border-2 bg-card p-3 font-normal transition-colors hover:border-primary/40 has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring medium:gap-4"
+            className="group flex cursor-pointer items-center gap-3 rounded-xl border-2 bg-card p-3 font-normal transition-colors hover:border-primary/40 has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring sm:gap-4"
           >
             <span
               className={cn(
-                "grid size-16 shrink-0 place-items-center rounded-lg medium:size-20",
+                "grid size-16 shrink-0 place-items-center rounded-lg sm:size-20",
                 PATH_TINTS[path]
               )}
             >
               <PixelScene
                 scene={PATH_SCENES[path]}
-                className="w-11 group-has-[[data-state=checked]]:motion-safe:animate-[yonder-hop_0.4s_ease-out] medium:w-14"
+                className="w-11 group-has-[[data-state=checked]]:motion-safe:animate-[yonder-hop_0.4s_ease-out] sm:w-14"
               />
             </span>
             <span className="min-w-0 flex-1 space-y-1">

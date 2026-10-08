@@ -95,7 +95,7 @@ export const CaptchaSection = () => {
               }
             }}
           >
-            <SelectTrigger id="captcha-provider" className="w-full medium:w-72">
+            <SelectTrigger id="captcha-provider" className="w-full sm:w-72">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

@@ -198,7 +198,7 @@ export const TransferContentOwnershipDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="medium:max-w-lg">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>
             {isClaim ? t("transferOwnership.claimTitle") : t("transferOwnership.title")}

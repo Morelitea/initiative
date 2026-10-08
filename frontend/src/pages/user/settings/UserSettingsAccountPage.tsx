@@ -242,7 +242,7 @@ export const UserSettingsAccountPage = ({
           }
         >
           {passwordLoginEnabled && user.has_password ? (
-            <div className="space-y-2 medium:max-w-sm">
+            <div className="space-y-2 sm:max-w-sm">
               <Label htmlFor="current-password">{t("profile.currentPasswordLabel")}</Label>
               <Input
                 id="current-password"

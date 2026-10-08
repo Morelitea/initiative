@@ -81,12 +81,12 @@ export const ToolPageHeader = ({
         ...(box.header ? { marginTop: -box.header, paddingTop: box.header } : null),
         backgroundImage: `linear-gradient(to bottom, ${hexToRgba(color, 0.28)} 0%, ${hexToRgba(color, 0.12)} 55%, transparent 100%)`,
       }}
-      className="-mx-4 -mt-4 expanded:-mx-8 expanded:-mt-8"
+      className="-mx-4 -mt-4 md:-mx-8 md:-mt-8"
     >
       <div
         // Lines the copy back up with the page's own column below it.
         style={{ paddingLeft: box.inset.left, paddingRight: box.inset.right }}
-        className={cn("space-y-4 px-4 pt-4 expanded:px-8 expanded:pt-8", chest ? "pb-4" : "pb-6")}
+        className={cn("space-y-4 px-4 pt-4 md:px-8 md:pt-8", chest ? "pb-4" : "pb-6")}
       >
         {/* The breadcrumb and Settings, and nothing else: one row, always,
             the crumb wrapping inside its own share. */}
@@ -129,8 +129,8 @@ export const ToolPageHeader = ({
           }
           className={cn(
             "[--chest-gutter-right:var(--inset-r)] [--chest-gutter:var(--inset-l)]",
-            "expanded:pr-(--inset-r) expanded:pl-(--inset-l)",
-            "expanded:[--chest-gutter-right:0.75rem] expanded:[--chest-gutter:0.75rem]"
+            "md:pr-(--inset-r) md:pl-(--inset-l)",
+            "md:[--chest-gutter-right:0.75rem] md:[--chest-gutter:0.75rem]"
           )}
         >
           {chest}
@@ -176,7 +176,7 @@ const EditableTitle = ({
         value={draft}
         onChange={(event) => setDraft(event.target.value)}
         aria-label={t("toolHeader.rename")}
-        className={cn("h-auto min-w-0 flex-1 expanded:text-3xl", TITLE_CLASS)}
+        className={cn("h-auto min-w-0 flex-1 md:text-3xl", TITLE_CLASS)}
         disabled={saving}
         autoFocus
         onKeyDown={(event) => {

@@ -47,11 +47,11 @@ export const TagBrowseLayout = ({
   );
 
   return (
-    <div className="flex flex-col gap-4 @medium:flex-row">
+    <div className="flex flex-col gap-4 canvas-sm:flex-row">
       {/* On a phone, the tags themselves in a row that scrolls sideways: one
           tap picks or drops a tag, and several can be picked. A tag nothing here carries is
           left out, so the row is only as long as it is useful. */}
-      <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] @medium:hidden [&::-webkit-scrollbar]:hidden">
+      <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] canvas-sm:hidden [&::-webkit-scrollbar]:hidden">
         {chipTags.map((tag) => {
           const selected = selectedPaths.has(tag.name);
           return (
@@ -92,7 +92,7 @@ export const TagBrowseLayout = ({
           </button>
         ) : null}
       </div>
-      <div className="hidden w-64 shrink-0 rounded-md border border-muted bg-background/40 @medium:block">
+      <div className="hidden w-64 shrink-0 rounded-md border border-muted bg-background/40 canvas-sm:block">
         {tree}
       </div>
       <div className="min-w-0 flex-1">{children}</div>

@@ -189,17 +189,13 @@ export const CookieConsent = () => {
             <>
               {/* Refuse and accept are the same size and the same weight, side
                   by side, so neither is the path of least resistance. */}
-              <Button
-                variant="outline"
-                onClick={() => decide([])}
-                className="flex-1 medium:flex-none"
-              >
+              <Button variant="outline" onClick={() => decide([])} className="flex-1 sm:flex-none">
                 {t("legal:cookies.rejectAll")}
               </Button>
               <Button
                 variant="outline"
                 onClick={() => decide(offered)}
-                className="flex-1 medium:flex-none"
+                className="flex-1 sm:flex-none"
               >
                 {t("legal:cookies.acceptAll")}
               </Button>

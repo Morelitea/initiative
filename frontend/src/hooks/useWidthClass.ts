@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
-/** The width classes, narrowest first. Where each starts is styles.css's to say. */
-export const WIDTH_CLASSES = ["compact", "medium", "expanded", "large", "extra-large"] as const;
+/** Tailwind's breakpoints, narrowest first; "base" is below sm. styles.css says where each starts. */
+export const WIDTH_CLASSES = ["base", "sm", "md", "lg", "xl"] as const;
 export type WidthClass = (typeof WIDTH_CLASSES)[number];
 
 /** Whether `current` is `least` or wider. */
@@ -28,14 +28,14 @@ const breakpointPixels = (name: WidthClass): number => {
 };
 
 const classForWidth = (width: number): WidthClass => {
-  let current: WidthClass = "compact";
+  let current: WidthClass = "base";
   for (const name of WIDTH_CLASSES.slice(1)) {
     if (width >= breakpointPixels(name)) current = name;
   }
   return current;
 };
 
-/** The screen's width class: for the sidebar, navigation and other chrome. */
+/** The screen's breakpoint: for the sidebar, navigation and other chrome. */
 export const useWidthClass = (): WidthClass => {
   const queries = useMemo(
     () => WIDTH_CLASSES.slice(1).map((name) => window.matchMedia(`(width >= ${breakpoint(name)})`)),
@@ -59,13 +59,13 @@ export const useWidthClass = (): WidthClass => {
 };
 
 /**
- * The width class of an element's content box, which is what `@medium:` and
+ * The breakpoint of an element's content box, which is what `canvas-sm:` and
  * its siblings measure: for a page deciding whether a panel fits beside it.
  * Pass the element from a callback ref (`ref={setRegion}`), so a region that
- * mounts late is still measured. Compact until it is.
+ * mounts late is still measured. `base` until it is.
  */
 export const useRegionWidthClass = (region: HTMLElement | null): WidthClass => {
-  const [current, setCurrent] = useState<WidthClass>("compact");
+  const [current, setCurrent] = useState<WidthClass>("base");
   useEffect(() => {
     if (!region || typeof ResizeObserver === "undefined") return;
     // Reports the element's size as soon as it is observed, then on each change.

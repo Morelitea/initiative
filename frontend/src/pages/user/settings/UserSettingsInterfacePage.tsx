@@ -340,7 +340,7 @@ export const UserSettingsInterfacePage = ({ user, acceptUser }: UserSettingsInte
               }
             }}
             disabled={pending}
-            className="medium:w-24"
+            className="sm:w-24"
           />
         </SettingsRow>
       </SettingsSection>
@@ -355,7 +355,7 @@ export const UserSettingsInterfacePage = ({ user, acceptUser }: UserSettingsInte
             onValueChange={(next) => savePrefs({ locale: next })}
             disabled={pending}
           >
-            <SelectTrigger className="medium:w-52" aria-label={t("interface.language")}>
+            <SelectTrigger className="sm:w-52" aria-label={t("interface.language")}>
               <SelectValue>
                 {LANGUAGE_OPTIONS.find((l) => l.value === prefs.locale)?.label ?? "English"}
               </SelectValue>
@@ -371,7 +371,7 @@ export const UserSettingsInterfacePage = ({ user, acceptUser }: UserSettingsInte
         </SettingsRow>
 
         <SettingsRow label={t("profile.timezoneLabel")} description={t("profile.timezoneHelp")}>
-          <div className="w-full medium:w-52">
+          <div className="w-full sm:w-52">
             <SearchableCombobox
               items={TIMEZONE_OPTIONS.map((tz) => ({ value: tz, label: tz }))}
               value={prefs.timezone}
@@ -391,7 +391,7 @@ export const UserSettingsInterfacePage = ({ user, acceptUser }: UserSettingsInte
             onValueChange={(next) => savePrefs({ week_starts_on: Number(next) })}
             disabled={pending}
           >
-            <SelectTrigger className="medium:w-52" aria-label={t("interface.weekStartsOn")}>
+            <SelectTrigger className="sm:w-52" aria-label={t("interface.weekStartsOn")}>
               <SelectValue>
                 {t(
                   (WEEK_START_OPTIONS.find((option) => option.value === prefs.week_starts_on)
@@ -418,7 +418,7 @@ export const UserSettingsInterfacePage = ({ user, acceptUser }: UserSettingsInte
             onValueChange={(next) => savePrefs({ time_format: parseTimeFormat(next) })}
             disabled={pending}
           >
-            <SelectTrigger className="medium:w-52" aria-label={t("interface.timeFormat.label")}>
+            <SelectTrigger className="sm:w-52" aria-label={t("interface.timeFormat.label")}>
               <SelectValue>
                 {t(`interface.timeFormat.options.${prefs.time_format}` as never)}
               </SelectValue>
@@ -450,7 +450,7 @@ export const UserSettingsInterfacePage = ({ user, acceptUser }: UserSettingsInte
             disabled={pending}
           >
             <SelectTrigger
-              className="medium:w-52"
+              className="sm:w-52"
               aria-label={t("interface.taskCompletionVisualFeedback.label")}
             >
               <SelectValue>

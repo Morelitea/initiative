@@ -180,7 +180,7 @@ export const ProviderPlacementRuleDialog = ({
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="medium:max-w-lg">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>
             {editing ? t("providerPlacement.editTitle") : t("providerPlacement.addTitle")}

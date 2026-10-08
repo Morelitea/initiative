@@ -711,7 +711,7 @@ const StartSteps = ({
 
   return (
     <SignInFrame fillPhone>
-      <Card className="grid w-full max-w-lg gap-4 p-6 shadow-lg max-medium:min-h-dvh max-medium:max-w-none max-medium:content-start max-medium:rounded-none max-medium:border-0 max-medium:pt-[max(1.5rem,env(safe-area-inset-top))] max-medium:pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+      <Card className="grid w-full max-w-lg gap-4 p-6 shadow-lg max-sm:min-h-dvh max-sm:max-w-none max-sm:content-start max-sm:rounded-none max-sm:border-0 max-sm:pt-[max(1.5rem,env(safe-area-inset-top))] max-sm:pb-[max(1.5rem,env(safe-area-inset-bottom))]">
         <YonderSays key={step} pose={pose} line={line} />
         <WizardFrame
           title={title}

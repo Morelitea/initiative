@@ -224,7 +224,7 @@ export const ConnectSignInWizard = ({
     <WizardDialog
       open={open}
       onOpenChange={(next) => (next ? onOpenChange(true) : closeWizard())}
-      className="max-h-[85vh] overflow-y-auto medium:max-w-lg"
+      className="max-h-[85vh] overflow-y-auto sm:max-w-lg"
       title={stepTitle[step]}
       description={stepDescription[step]}
       progress={{ current: steps.indexOf(step) + 1, total: steps.length }}

@@ -115,7 +115,7 @@ export function MyToolsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 medium:flex-row medium:flex-wrap medium:items-end medium:justify-between">
+      <div className="flex flex-wrap items-end justify-between gap-4">
         <h1 className="font-semibold text-3xl tracking-tight">{t("title")}</h1>
 
         <div className="flex flex-wrap items-end gap-4">
@@ -123,7 +123,7 @@ export function MyToolsPage() {
               — with a single one, the filter can only say what the page
               already says. */}
           {communities.length > 1 ? (
-            <div className="w-full medium:w-56">
+            <div className="w-full sm:w-56">
               <Label
                 htmlFor="my-tools-communities"
                 className="mb-2 block font-medium text-muted-foreground text-xs"
@@ -186,12 +186,7 @@ export function MyToolsPage() {
         // underneath them.
         <div>
           <ToolRail tools={tools} selected={selected} to={ROUTE} label={t("toolRail")} />
-          <div
-            className={cn(
-              "rounded-b-2xl px-3 pt-1 pb-3 medium:px-4 medium:pb-4",
-              TOOL_TRAY_SURFACE
-            )}
-          >
+          <div className={cn("rounded-b-2xl px-3 pt-1 pb-3 sm:px-4 sm:pb-4", TOOL_TRAY_SURFACE)}>
             {/* A search that found nothing still renders the table: the box
                 that found nothing is in its toolbar, and taking it away would
                 leave no way to unsay the search. */}

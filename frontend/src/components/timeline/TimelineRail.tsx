@@ -209,13 +209,13 @@ export function TimelineRail<T extends TimelineStop>({
         // own width, so the notices get the whole screen and the rail costs
         // nothing when it is not being used. From `sm` up there is room for it
         // beside the feed, where it simply stays.
-        "-ml-11 medium:ml-0",
+        "-ml-11 sm:ml-0",
         // Hidden means untouchable: an invisible strip down the edge of a card
         // would swallow taps meant for the notice under it.
         state === "idle" && "pointer-events-none opacity-0",
         state === "peek" && "pointer-events-none opacity-100",
         "focus-within:pointer-events-auto focus-within:opacity-100",
-        "medium:pointer-events-auto medium:opacity-100",
+        "sm:pointer-events-auto sm:opacity-100",
         className
       )}
       aria-label={t("timeline.label")}
@@ -262,7 +262,7 @@ export function TimelineRail<T extends TimelineStop>({
         className={cn(
           "absolute inset-0 flex flex-col justify-between py-1 transition-opacity duration-200",
           open ? "opacity-100" : "opacity-0",
-          "medium:opacity-100"
+          "sm:opacity-100"
         )}
       >
         {stops.map((stop, index) => {
@@ -325,7 +325,7 @@ export function TimelineRail<T extends TimelineStop>({
           "absolute right-0 flex size-7 -translate-y-1/2 touch-none items-center justify-center rounded-full border bg-popover text-muted-foreground shadow-sm transition-opacity duration-200",
           state === "idle" ? "pointer-events-none" : "pointer-events-auto",
           open && "text-primary",
-          "medium:hidden"
+          "sm:hidden"
         )}
       >
         <ChevronsUpDown className="size-3.5" />

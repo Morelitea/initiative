@@ -39,20 +39,17 @@ const Header = ({ current }: { current?: Place }) => {
 
   return (
     <header className="sticky top-0 z-50 border-b bg-background/90 backdrop-blur-xl">
-      <div className="mx-auto flex h-15 max-w-6xl items-center justify-between gap-4 px-4 expanded:h-17 medium:px-8">
+      <div className="mx-auto flex h-15 max-w-6xl items-center justify-between gap-4 px-4 md:h-17 sm:px-8">
         <Link
           to="/welcome"
-          className="flex items-center gap-2.5 font-bold text-foreground text-xl tracking-tight medium:text-2xl"
+          className="flex items-center gap-2.5 font-bold text-foreground text-xl tracking-tight sm:text-2xl"
           aria-label={t("nav.home")}
         >
           <LogoIcon className="h-8 w-8" aria-hidden="true" />
           <span className="pride-wordmark">initiative</span>
         </Link>
         <div className="flex items-center gap-1.5">
-          <nav
-            className="mr-2 hidden items-center gap-0.5 expanded:flex"
-            aria-label={t("nav.mainAria")}
-          >
+          <nav className="mr-2 hidden items-center gap-0.5 md:flex" aria-label={t("nav.mainAria")}>
             {places.map((place) => (
               <Link
                 key={place.key}
@@ -72,7 +69,7 @@ const Header = ({ current }: { current?: Place }) => {
               </Link>
             ) : null}
           </nav>
-          <div className="hidden expanded:block">
+          <div className="hidden md:block">
             <ModeToggle />
           </div>
           <Button asChild>
@@ -87,7 +84,7 @@ const Header = ({ current }: { current?: Place }) => {
           <Button
             variant="outline"
             size="icon"
-            className="h-11 w-11 expanded:hidden"
+            className="h-11 w-11 md:hidden"
             aria-label={t("nav.menu")}
             aria-expanded={open}
             aria-controls={open ? "landing-menu" : undefined}
@@ -100,7 +97,7 @@ const Header = ({ current }: { current?: Place }) => {
       {open ? (
         <nav
           id="landing-menu"
-          className="border-t px-4 pt-2 pb-4 expanded:hidden"
+          className="border-t px-4 pt-2 pb-4 md:hidden"
           aria-label={t("nav.mainAria")}
         >
           {places.map((place) => (
@@ -163,9 +160,9 @@ const Footer = () => {
 
   return (
     <footer className="border-t">
-      <div className="mx-auto max-w-6xl px-4 pt-14 pb-10 medium:px-8">
-        <div className="grid grid-cols-2 gap-6 expanded:grid-cols-[2fr_1fr_1fr_1fr] medium:gap-8">
-          <div className="col-span-2 expanded:col-span-1">
+      <div className="mx-auto max-w-6xl px-4 pt-14 pb-10 sm:px-8">
+        <div className="grid grid-cols-2 gap-6 md:grid-cols-[2fr_1fr_1fr_1fr] sm:gap-8">
+          <div className="col-span-2 md:col-span-1">
             <div className="flex items-center gap-2.5 font-bold text-foreground text-xl">
               <LogoIcon className="h-7 w-7" aria-hidden="true" />
               <span className="pride-wordmark">initiative</span>

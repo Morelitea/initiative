@@ -210,7 +210,7 @@ export const CreateInitiativeWizard = ({
   // forward says where it goes: "Next" alone tells somebody nothing about how
   // much is left, and a first-timer is exactly the person who wants to know.
   const footer = (next: NextAction) => (
-    <DialogFooter className="flex-row items-center justify-between medium:justify-between">
+    <DialogFooter className="flex-row items-center justify-between sm:justify-between">
       {canGoBack ? (
         <WizardBackButton onClick={back} disabled={busy} label={t("createWizard.back")} />
       ) : (
@@ -230,7 +230,7 @@ export const CreateInitiativeWizard = ({
     <WizardDialog
       open={open}
       onOpenChange={onOpenChange}
-      className="max-h-screen overflow-y-auto bg-card medium:max-w-2xl"
+      className="max-h-screen overflow-y-auto bg-card sm:max-w-2xl"
       title={t("createWizard.title")}
       description={stepTitle}
       progress={{ current: STEP_ORDER.indexOf(step) + 1, total: STEP_ORDER.length }}

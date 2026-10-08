@@ -248,7 +248,7 @@ export const UserSettingsNotificationsPage = ({
 
   const renderGrid = (communityId?: number) => (
     <div className="space-y-1">
-      <div className="grid items-center gap-2 border-b pb-2 medium:gap-4" style={gridColumns}>
+      <div className="grid items-center gap-2 border-b pb-2 sm:gap-4" style={gridColumns}>
         <p className="font-medium text-muted-foreground text-sm">
           {t("notifications.categoryHeader")}
         </p>
@@ -257,10 +257,10 @@ export const UserSettingsNotificationsPage = ({
           return (
             <p
               key={channel}
-              className="flex w-10 justify-center font-medium text-muted-foreground text-sm medium:w-16"
+              className="flex w-10 justify-center font-medium text-muted-foreground text-sm sm:w-16"
             >
-              <Icon className="size-4 medium:hidden" aria-hidden />
-              <span className="sr-only medium:not-sr-only">
+              <Icon className="size-4 sm:hidden" aria-hidden />
+              <span className="sr-only sm:not-sr-only">
                 {t(`notifications.channels.${channel}`)}
               </span>
             </p>
@@ -278,7 +278,7 @@ export const UserSettingsNotificationsPage = ({
             </p>
             {rows.map((row) => (
               <div key={row.category} className="border-b last:border-b-0">
-                <div className="grid items-center gap-2 py-3 medium:gap-4" style={gridColumns}>
+                <div className="grid items-center gap-2 py-3 sm:gap-4" style={gridColumns}>
                   <div>
                     <p className="font-medium">{t(`notifications.categories.${row.category}`)}</p>
                     <p className="text-muted-foreground text-sm">
@@ -288,7 +288,7 @@ export const UserSettingsNotificationsPage = ({
                   {visibleChannels.map((channel) => {
                     const mutable = row.mutable_channels.includes(channel);
                     return (
-                      <div key={channel} className="flex w-10 justify-center medium:w-16">
+                      <div key={channel} className="flex w-10 justify-center sm:w-16">
                         <Switch
                           checked={mutable ? isOn(row, channel, communityId) : true}
                           disabled={!mutable || writePreferences.isPending}
@@ -463,7 +463,7 @@ export const UserSettingsNotificationsPage = ({
           description={t("notifications.quietHours.description")}
           below={
             preferences?.quiet_hours ? (
-              <div className="grid grid-cols-pair gap-4 medium:max-w-md">
+              <div className="grid grid-cols-pair gap-4 sm:max-w-md">
                 <div className="space-y-2">
                   <Label htmlFor="quiet-start">{t("notifications.quietHours.from")}</Label>
                   <Input

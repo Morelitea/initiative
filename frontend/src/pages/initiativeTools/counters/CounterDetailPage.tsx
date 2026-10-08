@@ -250,7 +250,7 @@ export function CounterDetailPage() {
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
-        <div className="flex w-full max-w-sm items-center justify-center medium:max-w-md">
+        <div className="flex w-full max-w-sm items-center justify-center sm:max-w-md">
           <CounterView
             counter={counter}
             disabled={!canWrite}
@@ -272,7 +272,7 @@ export function CounterDetailPage() {
           disabled={!canWrite || isAtMin(counter)}
           aria-label={t("decrement")}
           className={cn(
-            "h-24 touch-manipulation rounded-2xl text-current shadow-sm medium:h-28",
+            "h-24 touch-manipulation rounded-2xl text-current shadow-sm sm:h-28",
             stepButtonClass
           )}
           style={{ color: fg }}
@@ -286,7 +286,7 @@ export function CounterDetailPage() {
           disabled={!canWrite || isAtMax(counter)}
           aria-label={t("increment")}
           className={cn(
-            "h-24 touch-manipulation rounded-2xl text-current shadow-sm medium:h-28",
+            "h-24 touch-manipulation rounded-2xl text-current shadow-sm sm:h-28",
             stepButtonClass
           )}
           style={{ color: fg }}

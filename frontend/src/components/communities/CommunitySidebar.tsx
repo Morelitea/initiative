@@ -1045,7 +1045,7 @@ export const CommunitySidebar = ({ isHomeMode = false }: { isHomeMode?: boolean 
           {/* Desktop click-away. On mobile the panel covers the whole drawer. */}
           <button
             type="button"
-            className="fixed inset-0 z-30 hidden cursor-default expanded:block"
+            className="fixed inset-0 z-30 hidden cursor-default md:block"
             onClick={collapse}
             aria-label={t("communities:collapseCommunities")}
             tabIndex={-1}
@@ -1054,7 +1054,7 @@ export const CommunitySidebar = ({ isHomeMode = false }: { isHomeMode?: boolean 
             // Overlay the whole sidebar (rail + content column): stay anchored
             // at the rail's left edge and span the full sidebar width — on
             // mobile the drawer width, on desktop --sidebar-width.
-            className="absolute top-0 left-0 z-40 flex h-dvh w-[var(--sidebar-width-mobile,90vw)] flex-col border-r bg-sidebar shadow-lg expanded:w-[var(--sidebar-width,20rem)]"
+            className="absolute top-0 left-0 z-40 flex h-dvh w-[var(--sidebar-width-mobile,90vw)] flex-col border-r bg-sidebar shadow-lg md:w-[var(--sidebar-width,20rem)]"
             style={{
               transform: panelTransform,
               transition: drag ? "none" : `transform ${FLYOUT_TRANSITION_MS}ms ${FLYOUT_EASING}`,

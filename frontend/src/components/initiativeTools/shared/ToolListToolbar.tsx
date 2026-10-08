@@ -77,7 +77,7 @@ export const ToolListToolbar = <V extends string>({
 
   return (
     <div
-      className="sticky z-30 -mx-4 flex flex-wrap items-center gap-2 bg-background/90 px-4 py-2 backdrop-blur supports-backdrop-filter:bg-background/70 max-medium:border-b medium:static medium:mx-0 medium:bg-transparent medium:px-0 medium:backdrop-blur-none"
+      className="sticky z-30 -mx-4 flex flex-wrap items-center gap-2 bg-background/90 px-4 py-2 backdrop-blur supports-backdrop-filter:bg-background/70 max-sm:border-b sm:static sm:mx-0 sm:bg-transparent sm:px-0 sm:backdrop-blur-none"
       style={{ top: "var(--safe-area-inset-top)" }}
     >
       {/* Shrinkable and truncating, so a long title gives way to the controls
@@ -92,12 +92,12 @@ export const ToolListToolbar = <V extends string>({
           leave a narrow column with the labels still on; the scroll container
           is the backstop for that, keeping the overflow off the page. */}
       {leading ? (
-        <div className="-mx-1 min-w-0 overflow-x-auto px-1 [scrollbar-width:none] max-medium:grow max-medium:basis-0 [&::-webkit-scrollbar]:hidden">
+        <div className="-mx-1 min-w-0 overflow-x-auto px-1 [scrollbar-width:none] max-sm:grow max-sm:basis-0 [&::-webkit-scrollbar]:hidden">
           {leading}
         </div>
       ) : null}
       <div className="ml-auto flex shrink-0 items-center gap-2">
-        {actions ? <div className="hidden items-center gap-2 medium:flex">{actions}</div> : null}
+        {actions ? <div className="hidden items-center gap-2 sm:flex">{actions}</div> : null}
         {trailing}
         {filters ? (
           <ToolFilterButton
@@ -121,10 +121,10 @@ export const ToolListToolbar = <V extends string>({
                     key={option.value}
                     value={option.value}
                     aria-label={option.label}
-                    className="inline-flex items-center gap-2 px-2.5 medium:px-3"
+                    className="inline-flex items-center gap-2 px-2.5 sm:px-3"
                   >
                     <Icon className="h-4 w-4" />
-                    <span className="hidden medium:inline">{option.label}</span>
+                    <span className="hidden sm:inline">{option.label}</span>
                   </TabsTrigger>
                 );
               })}

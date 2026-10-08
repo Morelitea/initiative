@@ -42,7 +42,7 @@ export const GalleryMasonryView = ({
   isSelected,
 }: GalleryMasonryViewProps) => {
   const { t } = useTranslation("galleries");
-  const compact = useWidthClass() === "compact";
+  const compact = useWidthClass() === "base";
   const minColumnWidth = compact ? COLUMN_WIDTH_COMPACT : COLUMN_WIDTH;
 
   const entriesOf = (items: GalleryImageRead[]): MasonryEntry[] =>

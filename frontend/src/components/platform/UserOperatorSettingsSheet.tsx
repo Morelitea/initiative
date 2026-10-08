@@ -221,7 +221,7 @@ export const UserOperatorSettingsSheet = ({
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent className="w-full overflow-y-auto medium:max-w-lg">
+        <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
           <SheetHeader>
             <SheetTitle>{getUserHandle(user)}</SheetTitle>
             <SheetDescription>{t("platformUsers.sheet.description")}</SheetDescription>

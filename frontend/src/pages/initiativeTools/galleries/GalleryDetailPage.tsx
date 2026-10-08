@@ -335,7 +335,7 @@ export function GalleryDetailPage() {
               onClick={() => setGroupByTags(!groupByTags)}
             >
               <Tags className="h-4 w-4" />
-              <span className="hidden medium:inline">{t("groupByTag")}</span>
+              <span className="hidden sm:inline">{t("groupByTag")}</span>
             </Button>
           ) : null
         }

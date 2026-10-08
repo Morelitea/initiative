@@ -146,7 +146,7 @@ vi.mock("@capacitor/app", () => ({
 // jsdom shims – APIs not implemented in jsdom that components rely on
 // ---------------------------------------------------------------------------
 
-// The width classes' breakpoints, which useWidthClass reads from :root. jsdom
+// The breakpoints, which useWidthClass reads from :root. jsdom
 // loads no stylesheet, so they are set here from the one styles.css declares.
 const stylesheet = readFileSync(path.join(import.meta.dirname, "../styles.css"), "utf8");
 for (const [, name, value] of stylesheet.matchAll(/--breakpoint-([a-z-]+):\s*([^;]+);/g)) {
@@ -161,8 +161,8 @@ const matchesWidth = (query: string): boolean => {
 Object.defineProperty(window, "matchMedia", {
   writable: true,
   value: vi.fn().mockImplementation((query: string) => ({
-    // A width class's query is answered against the window, which jsdom makes
-    // 1024px wide: expanded, with the sidebar docked. Anything else is false.
+    // A breakpoint's query is answered against the window, which jsdom makes
+    // 1024px wide: md, with the sidebar docked. Anything else is false.
     matches: matchesWidth(query),
     media: query,
     onchange: null,

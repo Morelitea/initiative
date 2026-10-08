@@ -63,7 +63,7 @@ export const AgeConfirmationDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="medium:max-w-md">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>
             {showsExplanation ? t("auth:confirmAge.blockedTitle") : t("auth:confirmAge.title")}

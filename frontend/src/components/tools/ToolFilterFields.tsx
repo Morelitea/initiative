@@ -102,7 +102,7 @@ const SearchTagFields = ({
   return (
     <>
       <div className="flex flex-wrap items-end gap-4">
-        <div className="w-full space-y-2 expanded:flex-1">
+        <div className="w-full space-y-2 md:flex-1">
           <Label
             htmlFor={`${id}-search`}
             className="block font-medium text-muted-foreground text-xs"
@@ -117,7 +117,7 @@ const SearchTagFields = ({
             className="min-w-60"
           />
         </div>
-        <div className="w-full space-y-2 medium:w-64">
+        <div className="w-full space-y-2 sm:w-64">
           <Label htmlFor={`${id}-tags`} className="block font-medium text-muted-foreground text-xs">
             {t("tags:picker.filterLabel")}
           </Label>
@@ -165,7 +165,7 @@ const QueueFilterFields = ({
       onChange={onChange}
       initiativeId={initiativeId}
     >
-      <div className="w-full space-y-2 medium:w-48">
+      <div className="w-full space-y-2 sm:w-48">
         <Label htmlFor={`${id}-status`} className="block font-medium text-muted-foreground text-xs">
           {t("filters.status")}
         </Label>
@@ -216,7 +216,7 @@ const FileFilterFields = ({
       onChange={onChange}
       initiativeId={initiativeId}
     >
-      <div className="w-full space-y-2 medium:w-48">
+      <div className="w-full space-y-2 sm:w-48">
         <Label htmlFor={`${id}-type`} className="block font-medium text-muted-foreground text-xs">
           {t("filters.type")}
         </Label>

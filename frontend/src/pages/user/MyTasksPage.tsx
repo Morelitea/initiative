@@ -161,7 +161,7 @@ export const MyTasksPage = () => {
   return (
     <PullToRefresh onRefresh={handleRefresh}>
       <div className="space-y-6">
-        <div className="flex flex-col gap-4 medium:flex-row medium:flex-wrap medium:items-center medium:justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-4">
           <h1 className="font-semibold text-3xl tracking-tight">{t("myTasks.title")}</h1>
 
           <ToolListToolbar

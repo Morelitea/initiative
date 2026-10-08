@@ -64,7 +64,7 @@ export const InitiativeJoinRequestQueue = ({ initiativeId }: InitiativeJoinReque
     const isResolving = resolvingId === request.id;
 
     return (
-      <li key={request.id} className="flex flex-col gap-3 border-b p-4 last:border-b-0 medium:p-4">
+      <li key={request.id} className="flex flex-col gap-3 border-b p-4 last:border-b-0 sm:p-4">
         <div className="flex min-w-0 items-start gap-3">
           <Avatar className="h-8 w-8 shrink-0">
             {avatarSrc ? <AvatarImage src={avatarSrc} alt={displayName} /> : null}

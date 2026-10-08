@@ -110,7 +110,7 @@ export const ProjectTasksFilters = ({
     // does for every other filter bar.
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-end gap-4">
-        <div className="w-full space-y-2 medium:w-48">
+        <div className="w-full space-y-2 sm:w-48">
           <Label
             htmlFor="assignee-filter"
             className="block font-medium text-muted-foreground text-xs"
@@ -141,7 +141,7 @@ export const ProjectTasksFilters = ({
             emptyMessage={t("filters.noUsersAvailable")}
           />
         </div>
-        <div className="w-full space-y-2 medium:w-48">
+        <div className="w-full space-y-2 sm:w-48">
           <Label htmlFor="due-filter" className="block font-medium text-muted-foreground text-xs">
             {t("filters.dueFilter")}
           </Label>
@@ -162,7 +162,7 @@ export const ProjectTasksFilters = ({
             </SelectContent>
           </Select>
         </div>
-        <div className="w-full space-y-2 medium:w-48">
+        <div className="w-full space-y-2 sm:w-48">
           <Label
             htmlFor="status-filter"
             className="block font-medium text-muted-foreground text-xs"
@@ -202,7 +202,7 @@ export const ProjectTasksFilters = ({
           />
         </div>
 
-        <div className="w-full space-y-2 medium:w-48">
+        <div className="w-full space-y-2 sm:w-48">
           <Label htmlFor="tag-filter" className="block font-medium text-muted-foreground text-xs">
             {t("filters.filterByTag")}
           </Label>
@@ -214,7 +214,7 @@ export const ProjectTasksFilters = ({
             variant="filter"
           />
         </div>
-        <div className="w-full space-y-2 medium:w-60">
+        <div className="w-full space-y-2 sm:w-60">
           <Label
             htmlFor="show-archived"
             className="block font-medium text-muted-foreground text-xs"

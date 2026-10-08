@@ -149,7 +149,7 @@ export function CommunitiesPage() {
           page carries the search rather than making someone open a drawer to
           reach it. The shelves stay in the sidebar: they are a list of twelve,
           and the search is the one that answers "is my thing here at all". */}
-      <CommunitySearchField className="expanded:hidden" />
+      <CommunitySearchField className="md:hidden" />
 
       <DirectoryNearControl near={near} />
 

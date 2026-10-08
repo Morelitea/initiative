@@ -732,7 +732,7 @@ export function DataTable<TData extends RowData>({
             </div>
             <div className="ml-auto flex items-center justify-end gap-2">
               {/* Desktop: Show controls inline */}
-              <div className="hidden flex-wrap items-center justify-end gap-2 @medium:flex">
+              <div className="hidden flex-wrap items-center justify-end gap-2 canvas-sm:flex">
                 {enableClearSorting && (
                   <Button variant="ghost" onClick={() => table.resetSorting()}>
                     <span className="text-muted-foreground">{t("resetSorting")}</span>
@@ -801,7 +801,7 @@ export function DataTable<TData extends RowData>({
               {/* Mobile: Show overflow menu */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="icon" className="@medium:hidden">
+                  <Button variant="outline" size="icon" className="canvas-sm:hidden">
                     <MoreVertical className="h-4 w-4" />
                     <span className="sr-only">{t("tableOptions")}</span>
                   </Button>

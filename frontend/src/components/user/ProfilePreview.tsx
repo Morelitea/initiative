@@ -61,7 +61,7 @@ export const ProfilePreview = ({
       {/* Painted rather than placed: a background keeps artwork with nothing
           to read in it out of the reading order, and lets it crop at any width. */}
       <div
-        className="h-28 w-full bg-center bg-cover bg-muted medium:h-36"
+        className="h-28 w-full bg-center bg-cover bg-muted sm:h-36"
         style={
           banner
             ? { backgroundImage: `url(${decorationSrc(banner, decorations.grad_year)})` }
@@ -81,7 +81,7 @@ export const ProfilePreview = ({
                 hidePresence
                 editable
                 onChanged={onChanged}
-                className="size-24 medium:size-28"
+                className="size-24 sm:size-28"
               />
               <PresenceMenu presence={presence} onChanged={onChanged}>
                 <button
@@ -89,7 +89,7 @@ export const ProfilePreview = ({
                   className="absolute right-0 bottom-0 rounded-full ring-2 ring-card transition-transform hover:scale-110 focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2"
                   aria-label={t("presence.change", { state: t(presenceLabelKey(presence)) })}
                 >
-                  <PresenceDot presence={presence} className="size-6 medium:size-7" />
+                  <PresenceDot presence={presence} className="size-6 sm:size-7" />
                 </button>
               </PresenceMenu>
             </div>

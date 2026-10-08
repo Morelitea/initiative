@@ -117,7 +117,7 @@ export const ToolIndexTable = ({
         accessorKey: "name",
         header: ({ column }) => <SortHeader column={column} label={t("name")} />,
         cell: ({ row }) => (
-          <div className="flex min-w-[220px] items-center gap-2 medium:min-w-0">
+          <div className="flex min-w-[220px] items-center gap-2 sm:min-w-0">
             <Link
               to={gp(toolDetailRoute(tool, row.original.initiative_id, row.original.id))}
               className="font-medium text-primary hover:underline"
@@ -135,7 +135,7 @@ export const ToolIndexTable = ({
         accessorKey: "updated_at",
         header: ({ column }) => <SortHeader column={column} label={t("toolIndex.lastUpdated")} />,
         cell: ({ row }) => (
-          <div className="min-w-[100px] medium:min-w-0">
+          <div className="min-w-[100px] sm:min-w-0">
             <RelativeTime date={row.original.updated_at} className="text-muted-foreground" />
           </div>
         ),

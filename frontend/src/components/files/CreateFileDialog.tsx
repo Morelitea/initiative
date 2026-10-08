@@ -191,7 +191,7 @@ export const CreateFileDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-full rounded-2xl border bg-card shadow-2xl medium:max-w-lg">
+      <DialogContent className="w-full rounded-2xl border bg-card shadow-2xl sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{t("create.title")}</DialogTitle>
           <DialogDescription>

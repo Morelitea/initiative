@@ -222,7 +222,7 @@ export const AnnouncementEditorDialog = ({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="flex max-h-[90vh] flex-col gap-0 medium:max-w-3xl">
+        <DialogContent className="flex max-h-[90vh] flex-col gap-0 sm:max-w-3xl">
           <DialogHeader className="shrink-0">
             <DialogTitle>
               {announcement ? t("operator.editTitle") : t("operator.newTitle")}

@@ -208,7 +208,7 @@ export const EntityCard = ({
     <>
       {/* One fixed shape whatever the kind, so a grid of mixed things does not
           jump between rows. Shorter below `sm`, as a file card is. */}
-      <div className="relative aspect-4/3 overflow-hidden border-b bg-muted medium:aspect-square">
+      <div className="relative aspect-4/3 overflow-hidden border-b bg-muted sm:aspect-square">
         {mark}
         {badge ? (
           <span className="absolute bottom-1.5 left-1.5 rounded-full bg-background/85 px-2 py-0.5 font-medium text-2xs text-foreground shadow-sm">
@@ -291,7 +291,7 @@ export const EntityCard = ({
           className={cn(
             "absolute z-10 rounded-full",
             compact
-              ? "top-1/2 right-1 h-6 w-6 -translate-y-1/2 focus-visible:opacity-100 expanded:opacity-0 expanded:group-hover/row:opacity-100"
+              ? "top-1/2 right-1 h-6 w-6 -translate-y-1/2 focus-visible:opacity-100 md:opacity-0 md:group-hover/row:opacity-100"
               : "top-2 right-2 h-7 w-7 shadow-sm"
           )}
           onClick={onRemove}

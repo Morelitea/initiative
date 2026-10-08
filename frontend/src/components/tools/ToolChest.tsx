@@ -75,7 +75,7 @@ export const ToolChestSegment = ({
   label?: ReactNode;
   children: ReactNode;
 }) => (
-  <div className="flex shrink-0 flex-col justify-center gap-1 px-4 py-2.5 text-sm first:pl-0 expanded:flex-row expanded:items-center expanded:justify-start expanded:gap-2 expanded:py-2">
+  <div className="flex shrink-0 flex-col justify-center gap-1 px-4 py-2.5 text-sm first:pl-0 md:flex-row md:items-center md:justify-start md:gap-2 md:py-2">
     {label ? <span className="font-medium text-muted-foreground text-xs">{label}</span> : null}
     <div className="flex items-center gap-2 whitespace-nowrap">{children}</div>
   </div>
@@ -93,16 +93,16 @@ export const ToolChest = ({ tool, entity, template, children }: ToolChestProps) 
   const propertyCount = entity.properties?.length ?? 0;
 
   return (
-    <div className="border-y bg-background/60 expanded:rounded-lg expanded:border expanded:bg-card">
+    <div className="border-y bg-background/60 md:rounded-lg md:border md:bg-card">
       {/* The strip scrolls; the properties toggle stays out of it, at its end
           on a wide screen and on its own row under it on a narrow one. */}
-      <div className="flex flex-col expanded:flex-row">
+      <div className="flex flex-col md:flex-row">
         <ScrollArea type="auto" className="min-w-0 flex-1">
           <div
             className={cn(
               "flex items-stretch divide-x",
               "pl-[var(--chest-gutter,1rem)]",
-              hasProperties ? "pr-4 expanded:pr-0" : "pr-[var(--chest-gutter-right,1rem)]"
+              hasProperties ? "pr-4 md:pr-0" : "pr-[var(--chest-gutter-right,1rem)]"
             )}
           >
             <ToolChestSegment label={t("toolChest.status")}>
@@ -145,7 +145,7 @@ export const ToolChest = ({ tool, entity, template, children }: ToolChestProps) 
             className={cn(
               "flex shrink-0 items-center gap-2 border-t py-2.5 text-left text-sm hover:bg-accent/50",
               "pr-[var(--chest-gutter-right,1rem)] pl-[var(--chest-gutter,1rem)]",
-              "expanded:border-t-0 expanded:border-l expanded:py-2 expanded:pl-4"
+              "md:border-t-0 md:border-l md:py-2 md:pl-4"
             )}
           >
             <span className="font-medium text-muted-foreground text-xs">

@@ -105,7 +105,7 @@ export const CommunityAutoJoinPrompt = () => {
           <Button
             type="button"
             size="sm"
-            className="w-full medium:w-auto"
+            className="w-full sm:w-auto"
             disabled={!choice || updateInitiative.isPending}
             onClick={apply}
           >

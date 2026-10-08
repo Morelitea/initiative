@@ -75,7 +75,7 @@ export function PluginSettingsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="medium:max-w-2xl">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{plugin?.name ?? t("plugins:title")}</DialogTitle>
           <DialogDescription>{t("plugins:settings.description")}</DialogDescription>

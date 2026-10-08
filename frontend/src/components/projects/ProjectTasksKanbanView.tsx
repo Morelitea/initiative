@@ -121,8 +121,8 @@ export const ProjectTasksKanbanView = ({
   const taskStatusesLength = taskStatuses.length;
   // Basis rather than min-width: it is what the collapse animates.
   const columnBasis = cn(
-    "grow-0 basis-70 medium:grow",
-    taskStatusesLength > 4 ? "medium:basis-80" : "medium:basis-89"
+    "grow-0 basis-70 sm:grow",
+    taskStatusesLength > 4 ? "sm:basis-80" : "sm:basis-89"
   );
 
   return (

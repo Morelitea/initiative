@@ -25,10 +25,7 @@ export const FileSidePanel = ({ isOpen, onOpenChange, summaryContent }: FileSide
 
   return (
     <Sheet open={isOpen} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="right"
-        className="flex w-full flex-col overflow-hidden p-0 medium:max-w-md"
-      >
+      <SheetContent side="right" className="flex w-full flex-col overflow-hidden p-0 sm:max-w-md">
         <SheetHeader
           className="border-b px-4"
           style={{

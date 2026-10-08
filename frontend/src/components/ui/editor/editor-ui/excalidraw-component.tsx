@@ -220,7 +220,7 @@ export default function ExcalidrawComponent({ nodeKey, data, width }: Excalidraw
       )}
       {isOpen &&
         createPortal(
-          <div className="fixed inset-0 z-50 bg-background/80 p-2 medium:p-6">
+          <div className="fixed inset-0 z-50 bg-background/80 p-2 sm:p-6">
             <Suspense
               fallback={
                 <div className="flex h-full items-center justify-center">

@@ -64,7 +64,7 @@ export const AppSidebar = () => {
   const { user, logout, refreshUser } = useAuth();
   const { communityDirectoryEnabled, isLoading: configLoading } = useAppConfig();
   const { activeCommunity, activeCommunityId } = useCommunities();
-  const isMobile = !atLeast(useWidthClass(), "expanded");
+  const isMobile = !atLeast(useWidthClass(), "md");
   const location = useLocation();
   const { t } = useTranslation(["nav", "tags", "initiatives"]);
 

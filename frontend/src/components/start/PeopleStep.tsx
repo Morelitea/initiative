@@ -63,7 +63,7 @@ export const PeopleStep = ({
           <span
             className={cn(
               // Left out on phones, where the link needs the room.
-              "hidden size-14 shrink-0 place-items-center rounded-lg medium:grid",
+              "hidden size-14 shrink-0 place-items-center rounded-lg sm:grid",
               PATH_TINTS.invite
             )}
           >

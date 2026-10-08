@@ -479,7 +479,7 @@ export const SettingsCommunitySecurityPage = () => {
                           }
                           onValueChange={changeProvider}
                         >
-                          <SelectTrigger className="w-full medium:w-72">
+                          <SelectTrigger className="w-full sm:w-72">
                             <SelectValue
                               placeholder={t("communityAuth.policy.providerPlaceholder")}
                             />
@@ -573,7 +573,7 @@ export const SettingsCommunitySecurityPage = () => {
               <CardTitle>{t("communityAuth.shareUrl.title")}</CardTitle>
               <CardDescription>{t("communityAuth.shareUrl.description")}</CardDescription>
             </CardHeader>
-            <CardContent className="flex flex-col gap-2 medium:flex-row medium:items-center">
+            <CardContent className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <code className="min-w-0 flex-1 truncate rounded bg-muted px-2 py-1.5 text-sm">
                 {memberLoginUrl}
               </code>

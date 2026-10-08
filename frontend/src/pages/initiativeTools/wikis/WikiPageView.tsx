@@ -308,7 +308,7 @@ export const WikiPageView = () => {
   // Whether there is gutter to put the rail in: the row the words and the
   // rail share, which opening the rail does not resize.
   const [row, setRow] = useState<HTMLDivElement | null>(null);
-  const railFitsBeside = atLeast(useRegionWidthClass(row), "expanded");
+  const railFitsBeside = atLeast(useRegionWidthClass(row), "md");
   // Whether the connections rail is showing. A per-visit choice: it is
   // reading furniture, not a setting.
   const [showConnections, setShowConnections] = useState(true);
@@ -418,7 +418,7 @@ export const WikiPageView = () => {
                 takes gutter, and the column does not shift at all. */}
             <div
               className={cn(
-                "mx-auto w-full px-6 py-8 expanded:px-10",
+                "mx-auto w-full px-6 py-8 md:px-10",
                 isComfortable ? "max-w-3xl" : "max-w-6xl"
               )}
             >
@@ -499,7 +499,7 @@ export const WikiPageView = () => {
       />
 
       <Sheet open={propertiesOpen && offersProperties} onOpenChange={setPropertiesOpen}>
-        <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 medium:max-w-md">
+        <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-md">
           <SheetHeader className="border-b px-5 py-4">
             <SheetTitle>{t("properties:title")}</SheetTitle>
           </SheetHeader>
@@ -521,7 +521,7 @@ export const WikiPageView = () => {
       {/* Hidden until asked for: browsing a wiki is reading it, and the
           conversation about it is a different activity. */}
       <Sheet open={commentsOpen} onOpenChange={setCommentsOpen}>
-        <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 medium:max-w-lg">
+        <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-lg">
           <SheetHeader className="border-b px-5 py-4">
             <SheetTitle className="sr-only">{t("comments")}</SheetTitle>
           </SheetHeader>

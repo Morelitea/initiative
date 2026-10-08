@@ -47,15 +47,12 @@ export const WikiConnectionsSheet = ({
   onOpenChange: (open: boolean) => void;
 }) => {
   const { t } = useTranslation("wikis");
-  const compact = useWidthClass() === "compact";
+  const compact = useWidthClass() === "base";
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side={compact ? "bottom" : "right"}
-        className={cn(
-          "flex flex-col gap-0 p-0",
-          compact ? "max-h-[85svh]" : "w-full medium:max-w-sm"
-        )}
+        className={cn("flex flex-col gap-0 p-0", compact ? "max-h-[85svh]" : "w-full sm:max-w-sm")}
       >
         <SheetHeader className="sr-only">
           <SheetTitle className="sr-only">{t("links.title")}</SheetTitle>

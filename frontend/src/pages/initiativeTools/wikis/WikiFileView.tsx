@@ -68,7 +68,7 @@ export const WikiFileView = () => {
   const [showConnections, setShowConnections] = useState(true);
   const [railAsked, setRailAsked] = useState(false);
   const [row, setRow] = useState<HTMLDivElement | null>(null);
-  const railFitsBeside = atLeast(useRegionWidthClass(row), "expanded");
+  const railFitsBeside = atLeast(useRegionWidthClass(row), "md");
 
   // Arriving at a heading, the same way a page of the wiki's own does.
   const hash = useLocation({ select: (location) => location.hash });
@@ -142,7 +142,7 @@ export const WikiFileView = () => {
           <div className="min-w-0 flex-1 overflow-y-auto">
             <div
               className={cn(
-                "mx-auto w-full px-6 py-8 expanded:px-10",
+                "mx-auto w-full px-6 py-8 md:px-10",
                 isComfortable ? "max-w-3xl" : "max-w-6xl"
               )}
             >
@@ -187,7 +187,7 @@ export const WikiFileView = () => {
       />
 
       <Sheet open={commentsOpen} onOpenChange={setCommentsOpen}>
-        <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 medium:max-w-lg">
+        <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-lg">
           <SheetHeader className="border-b px-5 py-4">
             <SheetTitle className="sr-only">{t("comments")}</SheetTitle>
           </SheetHeader>

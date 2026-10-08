@@ -26,7 +26,7 @@ vi.mock("@/hooks/useMyMessages", async (importOriginal) => ({
 }));
 vi.mock("@/hooks/useWidthClass", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/hooks/useWidthClass")>()),
-  useWidthClass: () => (mocks.mobile() ? "compact" : "large"),
+  useWidthClass: () => (mocks.mobile() ? "base" : "lg"),
 }));
 vi.mock("@/hooks/useNotifications", () => ({ useNotifications: () => mocks.notifications() }));
 // Whether the create button is drawn at all is a permissions question with its

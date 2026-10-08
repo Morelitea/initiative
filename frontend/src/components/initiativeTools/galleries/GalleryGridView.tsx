@@ -57,7 +57,7 @@ export const GalleryGridView = ({
 }: GalleryGridViewProps) => {
   const { t } = useTranslation("galleries");
   const { ref, width } = useWidth();
-  const minTile = useWidthClass() === "compact" ? MIN_TILE_COMPACT : MIN_TILE;
+  const minTile = useWidthClass() === "base" ? MIN_TILE_COMPACT : MIN_TILE;
   const columns = Math.max(1, Math.floor((width + GAP) / (minTile + GAP)));
   const tile = width > 0 ? (width - GAP * (columns - 1)) / columns : minTile;
 

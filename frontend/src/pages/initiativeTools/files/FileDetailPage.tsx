@@ -599,7 +599,7 @@ export const FileDetailPage = () => {
               onBlur={() => setTitleHasFocus(false)}
               placeholder={t("detail.titlePlaceholder")}
               aria-label={t("detail.titlePlaceholder")}
-              className="field-sizing-content h-auto w-auto min-w-0 max-w-full font-semibold text-3xl tracking-tight expanded:text-3xl"
+              className="field-sizing-content h-auto w-auto min-w-0 max-w-full font-semibold text-3xl tracking-tight md:text-3xl"
               disabled={!canEditFile}
             />
             {titleIsDirty ? (
@@ -701,7 +701,7 @@ export const FileDetailPage = () => {
                       isOpen={outline.isOpen}
                       onOpenChange={outline.setIsOpen}
                       className={cn(
-                        "hidden w-64 shrink-0 expanded:flex",
+                        "hidden w-64 shrink-0 md:flex",
                         isFullscreen ? "min-h-0" : "max-h-[80vh]"
                       )}
                     />

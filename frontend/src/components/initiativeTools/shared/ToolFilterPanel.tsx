@@ -47,7 +47,7 @@ export const ToolFilterButton = ({
       onClick={() => onOpenChange(!open)}
     >
       <Filter className="h-4 w-4" />
-      <span className="hidden medium:inline">{t("toolbar.filters")}</span>
+      <span className="hidden sm:inline">{t("toolbar.filters")}</span>
       <FilterCountBadge count={activeCount} />
     </Button>
   );
@@ -90,13 +90,13 @@ export const ToolFilterPanel = ({
   children,
 }: ToolFilterPanelProps) => {
   const { t } = useTranslation("common");
-  const isCompact = useWidthClass() === "compact";
+  const isCompact = useWidthClass() === "base";
 
   const fields = (controls?: ReactNode) => (
     <div
       className={cn(
         "flex flex-col gap-3 rounded-md border border-muted bg-background/40 p-3",
-        "max-medium:border-0 max-medium:bg-transparent max-medium:p-0"
+        "max-sm:border-0 max-sm:bg-transparent max-sm:p-0"
       )}
     >
       {controls}
@@ -124,7 +124,7 @@ export const ToolFilterPanel = ({
             leading || actions ? (
               <div className="flex flex-wrap items-end gap-2 border-muted border-b pb-3">
                 {leading}
-                <div className="flex flex-wrap gap-2 medium:ml-auto">{actions}</div>
+                <div className="flex flex-wrap gap-2 sm:ml-auto">{actions}</div>
               </div>
             ) : null
           )}

@@ -17,38 +17,61 @@
   --text-3xs--line-height: 0.875rem;
 }
 
-/* The width classes, Material's window size classes: compact (phones, a
-   foldable's cover screen) below medium; medium for an unfolded foldable or a
-   portrait tablet; expanded for a landscape tablet, where the sidebar docks;
-   large for a laptop; extra-large for a desktop. These five are the only
-   widths in the app — Tailwind's own breakpoints are cleared, and the
-   no-other-widths Biome rule refuses any other.
+/* The widths. Tailwind's names, set to where devices fall, and published to
+   theme authors as the same four numbers:
 
-     medium:   expanded:   …   the screen: the sidebar, navigation, header,
-                               page padding and type size.
-     @medium:  @expanded:  …   the nearest @container (the page area, or the
-                               body anywhere else): where one piece swaps for
-                               another, as a side panel for a row of chips.
+     (none)  under 600   phones; a foldable's cover screen
+     sm:     600         an unfolded foldable; a portrait tablet
+     md:     840         a landscape tablet; the sidebar docks
+     lg:     1200        a laptop
+     xl:     1600        a big desktop
 
-   Grids, forms and rows take no width class: grid-cols-fill-* and
-   grid-cols-pair fill as many columns as fit, and flex-wrap wraps.
+   sm: … xl: measure the screen: the sidebar, navigation, header, page padding
+   and type size, and useWidthClass in code. canvas-sm: … canvas-xl: measure
+   the nearest @container (the page area, or the body anywhere else), for
+   where one piece swaps for another, as a side panel for a row of chips;
+   useRegionWidthClass in code. Grids, forms and rows take no width at all:
+   grid-cols-fill-* and grid-cols-pair fill as many columns as fit, and
+   flex-wrap wraps. The no-other-widths Biome rule refuses any other width.
 
    The breakpoints are static so they reach :root for useWidthClass, which
-   reads them rather than holding a copy. The container sizes repeat them
-   (a query cannot read a variable); useWidthClass.test.ts holds the two together. */
+   reads them rather than holding a copy. The canvas variants repeat them (a
+   query cannot read a variable); useWidthClass.test.ts holds the two
+   together. */
 @theme {
   --breakpoint-*: initial;
-  --container-medium: 37.5rem;
-  --container-expanded: 52.5rem;
-  --container-large: 75rem;
-  --container-extra-large: 100rem;
 }
 
 @theme static {
-  --breakpoint-medium: 37.5rem;
-  --breakpoint-expanded: 52.5rem;
-  --breakpoint-large: 75rem;
-  --breakpoint-extra-large: 100rem;
+  --breakpoint-sm: 37.5rem;
+  --breakpoint-md: 52.5rem;
+  --breakpoint-lg: 75rem;
+  --breakpoint-xl: 100rem;
+}
+
+@custom-variant canvas-sm {
+  /* biome-ignore lint/plugin: the canvas variants are where the widths are defined */
+  @container (width >= 37.5rem) {
+    @slot;
+  }
+}
+@custom-variant canvas-md {
+  /* biome-ignore lint/plugin: the canvas variants are where the widths are defined */
+  @container (width >= 52.5rem) {
+    @slot;
+  }
+}
+@custom-variant canvas-lg {
+  /* biome-ignore lint/plugin: the canvas variants are where the widths are defined */
+  @container (width >= 75rem) {
+    @slot;
+  }
+}
+@custom-variant canvas-xl {
+  /* biome-ignore lint/plugin: the canvas variants are where the widths are defined */
+  @container (width >= 100rem) {
+    @slot;
+  }
 }
 
 /* Tiles, as many columns as fit at the given minimum width (a spacing step:
@@ -210,7 +233,7 @@
     font-family:
       "Outfit Variable", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     min-height: 100%;
-    /* The region an @medium: measures when nothing nearer is one, so it
+    /* The region a canvas-sm: measures when nothing nearer is one, so it
        always has something to measure: a dialog, a sign-in page. */
     container-type: inline-size;
     @apply bg-background text-foreground;

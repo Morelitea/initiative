@@ -472,14 +472,14 @@ export const DocumentOutlinePanel = ({
   maxDepth?: number;
 }) => {
   const { t } = useTranslation("editor");
-  const isMobile = !atLeast(useWidthClass(), "expanded");
+  const isMobile = !atLeast(useWidthClass(), "md");
 
   if (isMobile) {
     return (
       <Sheet open={isOpen} onOpenChange={onOpenChange}>
         <SheetContent
           side="left"
-          className="flex w-full flex-col overflow-hidden p-0 medium:max-w-none"
+          className="flex w-full flex-col overflow-hidden p-0 sm:max-w-none"
         >
           <SheetHeader
             className="border-b px-4"

@@ -254,7 +254,7 @@ export const TagBrowser = ({
 
       {/* Rename + recolor dialog */}
       <Dialog open={renameTag !== null} onOpenChange={(open) => !open && closeRename()}>
-        <DialogContent className="medium:max-w-sm">
+        <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>{t("manage.editTagTitle")}</DialogTitle>
           </DialogHeader>

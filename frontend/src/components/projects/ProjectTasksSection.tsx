@@ -946,10 +946,10 @@ export const ProjectTasksSection = ({
                   key={value}
                   value={value}
                   aria-label={t(labelKey as never)}
-                  className="gap-2 px-2.5 medium:px-3"
+                  className="gap-2 px-2.5 sm:px-3"
                 >
                   <Icon className="h-4 w-4" />
-                  <span className="hidden medium:inline">{t(labelKey as never)}</span>
+                  <span className="hidden sm:inline">{t(labelKey as never)}</span>
                 </TabsTrigger>
               ))}
             </TabsList>

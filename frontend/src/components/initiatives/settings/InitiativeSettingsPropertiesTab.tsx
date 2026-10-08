@@ -124,7 +124,7 @@ const OptionListEditor = ({ options, onChange, disabled }: OptionListEditorProps
           // and steals focus. The inputs are fully controlled by props and
           // rows only change via add/remove, so the index key is correct.
           // biome-ignore lint/suspicious/noArrayIndexKey: controlled rows with no stable id; keying on the edited field steals focus
-          <li key={index} className="flex flex-wrap items-center gap-2 medium:flex-nowrap">
+          <li key={index} className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
             <Input
               value={option.label}
               onChange={(e) => handlePatch(index, { label: e.target.value })}
@@ -404,7 +404,7 @@ export const InitiativeSettingsPropertiesTab = ({ initiativeId }: { initiativeId
           if (!next) handleCloseDialog();
         }}
       >
-        <DialogContent className="medium:max-w-xl">
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>
               {isEditing

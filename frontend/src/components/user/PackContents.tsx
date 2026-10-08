@@ -60,7 +60,7 @@ export const PackContentsDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="medium:max-w-2xl">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{entry.name}</DialogTitle>
           <DialogDescription>{entry.description}</DialogDescription>

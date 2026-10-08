@@ -78,7 +78,7 @@ export const WikiChrome = ({
 
   return (
     <header
-      className="flex shrink-0 items-center gap-3 border-b bg-card/40 px-4 py-2.5 expanded:px-6"
+      className="flex shrink-0 items-center gap-3 border-b bg-card/40 px-4 py-2.5 md:px-6"
       // A hairline of the wiki's colour down the leading edge. Enough to
       // identify it; not enough to compete with what is written.
       style={accent ? { boxShadow: `inset 3px 0 0 0 ${accent}` } : undefined}
