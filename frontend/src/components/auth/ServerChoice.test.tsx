@@ -122,7 +122,7 @@ describe("ServerPicker", () => {
     async (_, platform, cleartext, message) => {
       const user = userEvent.setup();
       vi.spyOn(Capacitor, "getPlatform").mockReturnValue(platform as string);
-      mocks.appEnvironment.mockResolvedValueOnce({
+      mocks.appEnvironment.mockResolvedValue({
         cleartextPermitted: cleartext as boolean | undefined,
       });
       renderWithProviders(<ServerPicker />, {
