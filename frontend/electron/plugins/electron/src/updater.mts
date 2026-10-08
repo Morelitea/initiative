@@ -4,7 +4,8 @@ import { dirname, join, normalize, sep } from "node:path";
 
 import { unzipSync } from "fflate";
 
-import { app } from "./app.mjs";
+import { app, type BrowserWindow } from "./app.mjs";
+import { mainWindow } from "./desktop.mjs";
 
 type BundleStatus = "success" | "error" | "pending" | "downloading";
 
@@ -20,6 +21,8 @@ interface State {
   bundles: BundleInfo[];
   /** The bundle last switched to, until it confirms it started. */
   applied: string | null;
+  /** The bundle folder running before it, to go back to if it does not; null for the app's own. */
+  previous?: string | null;
   /** The app version these bundles were downloaded under. */
   native: string | null;
 }
@@ -27,8 +30,17 @@ interface State {
 interface BundlesService {
   getActiveBundlePath(): string | null;
   setActiveBundle(directory: string | null, options?: { bootWatchdog?: boolean }): Promise<void>;
-  notifyBootReady(): void;
 }
+
+/**
+ * How long a bundle's page has to confirm it started, counted from when its
+ * files have loaded: reading a newly unpacked bundle can be slow, and is not
+ * the bundle failing.
+ */
+const READY_AFTER_LOAD_MS = 15_000;
+
+/** A load the page itself superseded, which is not a failure. */
+const ERR_ABORTED = -3;
 
 /** The web code the app was installed with. */
 const BUILTIN: BundleInfo = {
@@ -43,8 +55,9 @@ const BUILTIN: BundleInfo = {
  * What `@capgo/capacitor-updater` does on a phone, for the calls the app makes:
  * a web bundle downloaded from the server, checked against the sha256 its
  * signed statement names, unpacked beside the app's other data and switched
- * to. The platform rolls back to the previous bundle when a new one does not
- * confirm it started.
+ * to. A bundle that does not confirm it started is rolled back to the one
+ * before it: here, rather than by the platform's own watchdog, which gives
+ * the page a fixed time from the switch however slowly its files load.
  */
 export class CapacitorUpdater {
   static __capacitorElectronPlugin = {
@@ -53,6 +66,8 @@ export class CapacitorUpdater {
   };
 
   private readonly bundles: BundlesService;
+  /** Stops watching the page a switch reloaded. */
+  private unwatch = () => {};
 
   constructor({ services }: { services: { bundles: BundlesService } }) {
     this.bundles = services.bundles;
@@ -60,7 +75,11 @@ export class CapacitorUpdater {
 
   /** Before the first window: a newly installed app starts on its own web code. */
   async load() {
-    const state = this.settle();
+    let state = this.read();
+    // Switched to, and the app closed before it confirmed it started.
+    if (state.applied !== null) {
+      state = await this.rollBack(state);
+    }
     const native = app.getVersion();
     if (state.native === native) return;
     if (state.native !== null) {
@@ -101,6 +120,7 @@ export class CapacitorUpdater {
         throw new Error("The bundle does not match its checksum.");
       }
       this.unpack(zip, this.dir(id));
+      this.dropFailed();
       return this.mark(id, "pending");
     } catch (error) {
       rmSync(this.dir(id), { recursive: true, force: true });
@@ -115,8 +135,9 @@ export class CapacitorUpdater {
     if (!bundle || (bundle.status !== "pending" && bundle.status !== "success")) {
       throw new Error(`Bundle ${id} is not ready.`);
     }
-    this.write({ ...state, applied: id });
-    await this.bundles.setActiveBundle(this.dir(id));
+    this.write({ ...state, applied: id, previous: this.bundles.getActiveBundlePath() });
+    this.watch(mainWindow());
+    await this.bundles.setActiveBundle(this.dir(id), { bootWatchdog: false });
   }
 
   async delete({ id }: { id: string }) {
@@ -133,8 +154,8 @@ export class CapacitorUpdater {
 
   /** The running bundle started. The ones it replaced are no longer needed. */
   async notifyAppReady() {
-    this.bundles.notifyBootReady();
-    const state = this.settle();
+    this.unwatch();
+    const state = this.read();
     if (state.applied !== null) {
       const applied = state.applied;
       for (const bundle of state.bundles) {
@@ -145,6 +166,7 @@ export class CapacitorUpdater {
       this.write({
         ...state,
         applied: null,
+        previous: null,
         bundles: state.bundles
           .filter((b) => b.id === applied || b.status === "downloading")
           .map((b) => (b.id === applied ? { ...b, status: "success" } : b)),
@@ -153,20 +175,79 @@ export class CapacitorUpdater {
     return { bundle: (await this.current()).bundle };
   }
 
-  /** A bundle switched to that is not the one running was rolled back. */
-  private settle(): State {
-    const state = this.read();
-    if (state.applied !== null && this.bundles.getActiveBundlePath() !== this.dir(state.applied)) {
-      const failed = state.applied;
-      const settled: State = {
-        ...state,
-        applied: null,
-        bundles: state.bundles.map((b) => (b.id === failed ? { ...b, status: "error" } : b)),
-      };
-      this.write(settled);
-      return settled;
+  /**
+   * Roll back when the reloaded page fails to load, its renderer goes, or it
+   * loads and does not confirm it started. Without a window, the next launch
+   * decides.
+   */
+  private watch(window: InstanceType<typeof BrowserWindow> | null) {
+    this.unwatch();
+    if (!window) {
+      return;
     }
-    return state;
+    const contents = window.webContents;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const failed = () => {
+      this.unwatch();
+      const state = this.read();
+      if (state.applied !== null) {
+        void this.rollBack(state);
+      }
+    };
+    const loaded = () => {
+      timer = setTimeout(failed, READY_AFTER_LOAD_MS);
+    };
+    const loadFailed = (
+      _event: unknown,
+      code: number,
+      _text: string,
+      _url: string,
+      mainFrame: boolean
+    ) => {
+      if (mainFrame && code !== ERR_ABORTED) {
+        failed();
+      }
+    };
+    contents.once("did-finish-load", loaded);
+    contents.on("did-fail-load", loadFailed);
+    contents.on("render-process-gone", failed);
+    this.unwatch = () => {
+      clearTimeout(timer);
+      contents.off("did-finish-load", loaded);
+      contents.off("did-fail-load", loadFailed);
+      contents.off("render-process-gone", failed);
+      this.unwatch = () => {};
+    };
+  }
+
+  /** Back to the bundle before the one that did not start, which is not offered again. */
+  private async rollBack(state: State): Promise<State> {
+    const failed = state.applied;
+    const settled: State = {
+      ...state,
+      applied: null,
+      previous: null,
+      bundles: state.bundles.map((b) => (b.id === failed ? { ...b, status: "error" } : b)),
+    };
+    // Recorded first: the page the switch reloads must not take itself for the bundle that failed.
+    this.write(settled);
+    if (failed !== null && this.bundles.getActiveBundlePath() === this.dir(failed)) {
+      const previous = state.previous ?? null;
+      const back = previous !== null && existsSync(join(previous, "index.html")) ? previous : null;
+      await this.bundles.setActiveBundle(back, { bootWatchdog: false });
+    }
+    return settled;
+  }
+
+  /** A failed bundle is never switched to again, so its replacement takes its place on disk. */
+  private dropFailed() {
+    const state = this.read();
+    for (const bundle of state.bundles) {
+      if (bundle.status === "error") {
+        rmSync(this.dir(bundle.id), { recursive: true, force: true });
+      }
+    }
+    this.write({ ...state, bundles: state.bundles.filter((b) => b.status !== "error") });
   }
 
   /** Every entry lands inside the bundle's own folder. */

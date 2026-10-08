@@ -187,7 +187,7 @@ const hasTray = () => process.platform === "win32" || process.platform === "linu
 const isMainWindow = (window: InstanceType<typeof BrowserWindow>) =>
   !window.webContents.getURL().startsWith("file:");
 
-const mainWindow = () => BrowserWindow.getAllWindows().find(isMainWindow) ?? null;
+export const mainWindow = () => BrowserWindow.getAllWindows().find(isMainWindow) ?? null;
 
 // --- Settings kept on this computer -------------------------------------------
 
