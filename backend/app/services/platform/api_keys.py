@@ -10,6 +10,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
+from app.core.tools import Tool
 from app.models.platform.api_key import UserApiKey
 from app.models.platform.user import User, UserStatus
 from app.services import audit as audit_service
@@ -46,9 +47,33 @@ async def create_api_key(
     expires_at: Optional[datetime] = None,
     read_only: bool = False,
     guild_id: Optional[int] = None,
+    resource_type: Optional[Tool] = None,
+    resource_id: Optional[int] = None,
 ) -> Tuple[str, UserApiKey]:
     if not user.id:
         raise ValueError("User must be persisted before creating API keys")
+
+    if resource_type is not None:
+        # A person holds one key per resource; a new one replaces it.
+        previous = (
+            await session.exec(
+                select(UserApiKey).where(
+                    UserApiKey.user_id == user.id,
+                    UserApiKey.guild_id == guild_id,
+                    UserApiKey.resource_type == resource_type,
+                    UserApiKey.resource_id == resource_id,
+                )
+            )
+        ).one_or_none()
+        if previous is not None:
+            await _record_key_event(
+                session,
+                AuditEventType.API_KEY_DELETED,
+                user_id=user.id,
+                api_key=previous,
+            )
+            await session.delete(previous)
+            await session.flush()
 
     secret = _generate_secret()
     api_key = UserApiKey(
@@ -59,6 +84,8 @@ async def create_api_key(
         expires_at=expires_at,
         read_only=read_only,
         guild_id=guild_id,
+        resource_type=resource_type,
+        resource_id=resource_id,
     )
     session.add(api_key)
     # Flushed first so the record can name the key it describes.
@@ -99,6 +126,7 @@ async def _record_key_event(
                 api_key.expires_at.isoformat() if api_key.expires_at else None
             ),
             "guild_bound": api_key.guild_id is not None,
+            "resource_type": api_key.resource_type,
         },
     )
 
@@ -167,6 +195,36 @@ async def authenticate_api_key(
             await system_session.commit()
 
     return user, api_key
+
+
+async def delete_resource_keys(*, user_id: int, guild_id: int) -> None:
+    """Delete the keys ``user_id`` holds for single resources of ``guild_id``.
+
+    Called when they leave it. ``user_api_keys`` is the system engine's, and
+    the caller's session is routed into the guild, so this commits on a session
+    of its own, as :func:`authenticate_api_key` reads on one.
+    """
+    from app.db.session import SystemSessionLocal
+
+    async with SystemSessionLocal() as system_session:
+        keys = (
+            await system_session.exec(
+                select(UserApiKey).where(
+                    UserApiKey.user_id == user_id,
+                    UserApiKey.guild_id == guild_id,
+                    UserApiKey.resource_type.is_not(None),
+                )
+            )
+        ).all()
+        for key in keys:
+            await _record_key_event(
+                system_session,
+                AuditEventType.API_KEY_DELETED,
+                user_id=user_id,
+                api_key=key,
+            )
+            await system_session.delete(key)
+        await system_session.commit()
 
 
 def _live(now: datetime) -> ColumnElement[bool]:

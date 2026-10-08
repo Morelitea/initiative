@@ -52,6 +52,7 @@ async def test_minting_and_dropping_a_key_are_both_recorded(
         "read_only": False,
         "expires_at": None,
         "guild_bound": False,
+        "resource_type": None,
     }
     # What the key is called is the account's business, not the log's.
     assert "name" not in created[0]["detail"]
@@ -93,6 +94,7 @@ async def test_a_key_bound_to_one_community_records_which(
         "read_only": True,
         "expires_at": None,
         "guild_bound": True,
+        "resource_type": None,
     }
 
 

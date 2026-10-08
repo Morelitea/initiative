@@ -12,9 +12,10 @@ events.
 """
 
 from datetime import datetime, timezone
+from hashlib import sha256
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, status
 
 from app.api import resource_access
 from app.api.actor_route import ActorRoute
@@ -22,10 +23,17 @@ from app.api.deps import (
     ActorContext,
     ActorSessionDep,
     ActorUserDep,
+    CommunityIdPath,
+    GuildAccessError,
     IncludeDeletedDep,
     RLSSessionDep,
+    SessionDep,
+    authenticate_feed,
+    establish_guild_access,
     plugin_scope,
+    raise_for_guild_access,
 )
+from app.core.rate_limit import limiter
 from app.core.messages import CalendarMessages, GuildMessages
 from app.core.tools import Tool
 from app.models.tenant.calendar import Calendar
@@ -37,11 +45,13 @@ from app.schemas.tenant.calendar import (
     CalendarUpdate,
 )
 from app.schemas.tenant.tool import serialize_tool
+from app.services.export.adapters.calendar_events import event_dicts
 from app.services.tenant import properties as properties_service
 from app.services.tenant import attachments as attachments_service
 from app.services.tenant import calendars as calendars_service
 from app.services.tenant import guild_plugins as guild_plugins_service
 from app.services.tenant import tags as tags_service
+from app.services.tenant.ical_service import ical_from_export_dicts
 
 router = APIRouter(route_class=ActorRoute)
 
@@ -69,6 +79,43 @@ async def read_calendar(
     return serialize_tool(
         CalendarRead, calendar, user_id=guild_context.user_id, context=guild_context
     )
+
+
+@router.get("/{calendar_id}/feed.ics", include_in_schema=False)
+@limiter.limit("30/minute")
+async def calendar_feed(
+    request: Request,
+    guild_id: CommunityIdPath,
+    calendar_id: int,
+    session: SessionDep,
+    if_none_match: Annotated[Optional[str], Header(alias="If-None-Match")] = None,
+) -> Response:
+    """The calendar as an iCalendar feed, for another app to subscribe to.
+
+    Signed in by a personal API key in ``?token=`` that names this calendar,
+    and answered as the calendar page's events export of it: the same reader,
+    the same events, and refused while its initiative keeps its content in.
+    Every fetch is authorized afresh.
+    """
+    user = await authenticate_feed(request, session, (Tool.calendar, calendar_id))
+    # SessionDep, routed here: the guild comes from the path and access is
+    # established for the person the link names, as a file download does.
+    try:
+        context = await establish_guild_access(session, user, guild_id)
+    except GuildAccessError as exc:
+        raise_for_guild_access(exc)
+    await resource_access.load_authorized(
+        session, Tool.calendar, calendar_id, user, context
+    )
+    dicts, _ = await event_dicts(session, user, {"calendar_ids": [calendar_id]})
+    body = ical_from_export_dicts(dicts)
+    headers = {
+        "ETag": f'"{sha256(body).hexdigest()}"',
+        "Cache-Control": "private, no-cache",
+    }
+    if if_none_match == headers["ETag"]:
+        return Response(status_code=status.HTTP_304_NOT_MODIFIED, headers=headers)
+    return Response(body, media_type="text/calendar; charset=utf-8", headers=headers)
 
 
 @router.post("/", response_model=CalendarRead, status_code=status.HTTP_201_CREATED)

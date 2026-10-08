@@ -50,6 +50,7 @@ from app.services.platform import billing as billing_service
 from app.services.platform import billing_ping
 
 from app.services.platform import account_stream, user_stream
+from app.services.platform import api_keys as api_keys_service
 from app.services.platform import contact_grants as contact_grants_service
 from app.services.platform.retention import COMMUNITY_DELETION, COMMUNITY_HOLD
 from app.db.request_context import Platform, SystemGuild, Unattributed
@@ -2598,6 +2599,9 @@ async def remove_user_from_guild(
     # Leaving ends what this guild's plug-ins may do as this person, the same way it
     # ends what they reach at a vendor.
     await consents_service.delete_member_consents(session, user_id=user_id)
+    # And their subscription links into it, so coming back does not bring an
+    # old one back.
+    await api_keys_service.delete_resource_keys(user_id=user_id, guild_id=guild_id)
 
     # Remove guild membership
     stmt = delete(GuildMembership).where(

@@ -1680,6 +1680,8 @@ async def create_my_api_key(
         expires_at=payload.expires_at,
         read_only=payload.read_only,
         guild_id=payload.community_id,
+        resource_type=payload.resource_type,
+        resource_id=payload.resource_id,
     )
     return ApiKeyCreateResponse(api_key=api_key, secret=secret)
 

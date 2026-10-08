@@ -23,7 +23,9 @@ from app.services.tenant import plugin_age
 from app.services.tenant.plugin_age import AgeViewer
 from app.services.auth import credentials
 from app.services.auth import guild_provider_connections as guild_connections
+from app.core.tools import Tool
 from app.core.identify import (
+    FEED_URL_CREDENTIALS,
     CredentialKind,
     Identified,
     bearer_plugin_token,
@@ -132,14 +134,19 @@ CREDENTIAL_API_KEY = CredentialKind.api_key.value
 CREDENTIAL_INSTALL = "install"
 
 
-def _admit(request: Request, authenticated: Authenticated) -> User:
+def _admit(
+    request: Request,
+    authenticated: Authenticated,
+    resource: tuple[Tool, int] | None = None,
+) -> User:
     """Hand the request the account a credential named, and say which
     credential it was.
 
-    ``read_only`` API keys may only issue safe (non-mutating) HTTP methods;
-    that is the one part of a key's scope that needs the request itself. The
-    guild a key is limited to was recorded where it was read, and the
-    guild-access gate applies it.
+    ``read_only`` API keys may only issue safe (non-mutating) HTTP methods,
+    and a key that names one tool resource is admitted only by the route that
+    serves that resource, which passes it as ``resource``; those are the parts
+    of a key's scope that need the request itself. The guild a key is limited
+    to was recorded where it was read, and the guild-access gate applies it.
     """
     api_key = authenticated.api_key
     if (
@@ -151,6 +158,16 @@ def _admit(request: Request, authenticated: Authenticated) -> User:
             status_code=status.HTTP_403_FORBIDDEN,
             detail=UserMessages.API_KEY_READ_ONLY,
         )
+    names = (
+        None
+        if api_key is None or api_key.resource_type is None
+        else (api_key.resource_type, api_key.resource_id)
+    )
+    if names != resource:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=UserMessages.API_KEY_RESOURCE_ONLY,
+        )
     request.state.credential = authenticated.kind.value
     # Which session this request is: what lets an endpoint act on the
     # account's other ones and leave the caller where they are.
@@ -160,7 +177,10 @@ def _admit(request: Request, authenticated: Authenticated) -> User:
 
 
 async def _authenticate(
-    request: Request, session: AsyncSession, identified: Identified | None
+    request: Request,
+    session: AsyncSession,
+    identified: Identified | None,
+    resource: tuple[Tool, int] | None = None,
 ) -> User:
     """The account the credential a request presented names, admitted."""
     # Nothing recorded until a credential is read, so a request that presents
@@ -179,7 +199,7 @@ async def _authenticate(
         authenticated = await credentials.authenticate(session, identified)
     except CredentialRefused as exc:
         raise exc.as_http() from exc
-    return _admit(request, authenticated)
+    return _admit(request, authenticated, resource)
 
 
 async def get_current_user(
@@ -2074,6 +2094,25 @@ async def get_upload_user(
 
 
 UploadUserDep = Annotated[User, Depends(get_upload_user)]
+
+
+async def authenticate_feed(
+    request: Request, session: AsyncSession, resource: tuple[Tool, int]
+) -> User:
+    """The person a subscription link names, for the feed of ``resource``.
+
+    Calendar apps fetch a feed by its URL alone, so its ``?token=`` carries a
+    personal API key, admitted only when the key names ``resource`` (see
+    :func:`_admit`). Held to the same account status and second-factor rules
+    as :func:`get_upload_user`; the route then establishes guild access as a
+    file download does, where the community's API-access rule applies.
+    """
+    identified = identify_url_token(request, FEED_URL_CREDENTIALS)
+    user = await _active_user(
+        request, await _authenticate(request, session, identified, resource)
+    )
+    await _require_platform_factor(request, session, user)
+    return user
 
 
 async def require_direct_messages_enabled(session: UserSessionDep) -> None:

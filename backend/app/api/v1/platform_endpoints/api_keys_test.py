@@ -492,3 +492,29 @@ async def test_password_change_deactivates_api_keys(
     # The key no longer authenticates.
     after = await client.get("/api/v1/me", headers=key_headers)
     assert after.status_code == 401
+
+
+async def test_a_key_names_one_resource_only_of_a_tool_with_a_feed(
+    client: AsyncClient, session: AsyncSession
+):
+    """In its community, and for a tool in ``FEED_TOOLS``; a resource without
+    a community, or of a tool with no feed, is refused before any key is
+    made."""
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+    await create_guild_membership(session, user=user, guild=guild)
+    headers = get_auth_headers(user)
+
+    for body in (
+        {"resource_type": "calendar", "resource_id": 1},
+        {"community_id": guild.id, "resource_type": "project", "resource_id": 1},
+        {"community_id": guild.id, "resource_type": "calendar"},
+    ):
+        refused = await client.post(
+            "/api/v1/me/api-keys", headers=headers, json={"name": "k", **body}
+        )
+        assert refused.status_code == 422, body
+    keys = (
+        await session.exec(select(UserApiKey).where(UserApiKey.user_id == user.id))
+    ).all()
+    assert keys == []

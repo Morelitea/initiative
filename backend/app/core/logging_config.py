@@ -10,13 +10,16 @@ which is what keeps each envelope to one line in one place.
 
 Applied when ``app.main`` is imported, which is how uvicorn loads the app, so
 the wiring is the served one and not something a launcher has to remember.
-Uvicorn's own loggers are left as it configured them.
+Uvicorn's own loggers are left as it configured them, but for one filter: its
+access log writes each request's path with the query string, so the value of a
+``token`` parameter is masked there (:class:`MaskUrlToken`).
 """
 
 from __future__ import annotations
 
 import logging
 import logging.config
+import re
 import sys
 from typing import Any
 
@@ -24,6 +27,10 @@ from app.core.config import settings
 
 #: The logger ``services/audit.py`` writes envelopes to.
 AUDIT_LOGGER_NAME = "audit"
+#: Uvicorn's request log, one line per request with its path and query.
+ACCESS_LOGGER_NAME = "uvicorn.access"
+
+_URL_TOKEN = re.compile(r"([?&]token=)[^&\s]+")
 
 
 class LiveStreamHandler(logging.StreamHandler):
@@ -52,6 +59,22 @@ class LiveStreamHandler(logging.StreamHandler):
         # Assigned by the base initialiser and by ``setStream``; the property
         # answers by name regardless.
         pass
+
+
+class MaskUrlToken(logging.Filter):
+    """Masks the value of a ``token`` query parameter in a record's arguments.
+
+    A media URL and a subscription feed carry their credential there, and the
+    access log would otherwise write it out with the path.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.args, tuple):
+            record.args = tuple(
+                _URL_TOKEN.sub(r"\1***", arg) if isinstance(arg, str) else arg
+                for arg in record.args
+            )
+        return True
 
 
 def logging_config() -> dict[str, Any]:
@@ -96,3 +119,8 @@ def configure_logging() -> None:
     than adding to them.
     """
     logging.config.dictConfig(logging_config())
+    # Added rather than configured: naming the logger in the config above would
+    # replace the handlers uvicorn gave it.
+    access = logging.getLogger(ACCESS_LOGGER_NAME)
+    if not any(isinstance(f, MaskUrlToken) for f in access.filters):
+        access.addFilter(MaskUrlToken())

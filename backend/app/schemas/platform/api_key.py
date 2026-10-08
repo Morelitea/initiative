@@ -1,8 +1,10 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import AliasChoices, ConfigDict, Field
+from pydantic import AliasChoices, ConfigDict, Field, model_validator
 
+from app.core.messages import UserMessages
+from app.core.tools import FEED_TOOLS, Tool
 from app.schemas.base import RawTextStr, SanitizedBaseModel
 
 
@@ -19,6 +21,8 @@ class ApiKeyMetadata(SanitizedBaseModel):
     community_id: Optional[int] = Field(
         default=None, validation_alias=AliasChoices("community_id", "guild_id")
     )
+    resource_type: Optional[Tool] = None
+    resource_id: Optional[int] = None
     created_at: datetime
     last_used_at: Optional[datetime] = None
     expires_at: Optional[datetime] = None
@@ -37,6 +41,23 @@ class ApiKeyCreateRequest(SanitizedBaseModel):
     # the key to a single guild. Recommended for machine credentials (MCP, CI).
     read_only: bool = False
     community_id: Optional[int] = None
+    # One tool resource the key reads, for a tool in ``FEED_TOOLS``: its feed
+    # and nothing else. Needs ``community_id``; such a key is read-only.
+    resource_type: Optional[Tool] = None
+    resource_id: Optional[int] = None
+
+    @model_validator(mode="after")
+    def _one_resource(self) -> "ApiKeyCreateRequest":
+        if self.resource_type is None and self.resource_id is None:
+            return self
+        if (
+            self.resource_type not in FEED_TOOLS
+            or self.resource_id is None
+            or self.community_id is None
+        ):
+            raise ValueError(UserMessages.API_KEY_RESOURCE_INVALID)
+        self.read_only = True
+        return self
 
 
 class ApiKeyCreateResponse(SanitizedBaseModel):

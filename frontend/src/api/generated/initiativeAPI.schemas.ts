@@ -512,6 +512,20 @@ export interface AnnouncementWrite {
   trigger_route?: string | null;
 }
 
+export type Tool = (typeof Tool)[keyof typeof Tool];
+
+export const Tool = {
+  project: "project",
+  file: "file",
+  queue: "queue",
+  counter_group: "counter_group",
+  calendar: "calendar",
+  dashboard: "dashboard",
+  post: "post",
+  gallery: "gallery",
+  wiki: "wiki",
+} as const;
+
 export interface ApiKeyCreateRequest {
   /**
    * @minLength 1
@@ -521,6 +535,8 @@ export interface ApiKeyCreateRequest {
   expires_at?: string | null;
   read_only?: boolean;
   community_id?: number | null;
+  resource_type?: Tool | null;
+  resource_id?: number | null;
 }
 
 export interface ApiKeyMetadata {
@@ -530,6 +546,8 @@ export interface ApiKeyMetadata {
   is_active: boolean;
   read_only: boolean;
   community_id: number | null;
+  resource_type: Tool | null;
+  resource_id: number | null;
   created_at: string;
   last_used_at: string | null;
   expires_at: string | null;
@@ -5098,20 +5116,6 @@ export interface ImportJobRead {
   created_at: string;
   updated_at: string;
 }
-
-export type Tool = (typeof Tool)[keyof typeof Tool];
-
-export const Tool = {
-  project: "project",
-  file: "file",
-  queue: "queue",
-  counter_group: "counter_group",
-  calendar: "calendar",
-  dashboard: "dashboard",
-  post: "post",
-  gallery: "gallery",
-  wiki: "wiki",
-} as const;
 
 /**
  * What the caller may do in an initiative (:func:`initiative_can`).

@@ -191,6 +191,8 @@
   "USER_API_KEY_NOT_FOUND": "API key not found",
   "USER_API_KEY_READ_ONLY": "This API key is read-only and can't make changes.",
   "USER_API_KEY_COMMUNITY_FORBIDDEN": "You can only scope a key to a community you belong to.",
+  "USER_API_KEY_RESOURCE_INVALID": "Only a calendar in the community the key is limited to can have a subscription link.",
+  "USER_API_KEY_RESOURCE_ONLY": "This key is a subscription link. It only works for the one calendar it was made for.",
   "USER_INVALID_WEEK_START": "Week start must be between 0 (Sunday) and 6 (Saturday)",
   "USER_INVALID_TIME_FORMAT": "Time format must be system, 12, or 24",
   "USER_INVALID_REMINDER_MINUTES": "Invalid reminder lead time",

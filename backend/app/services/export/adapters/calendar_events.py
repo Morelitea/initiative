@@ -64,10 +64,7 @@ class CalendarEventsAdapter:
         params: dict,
         format: str,
     ) -> RenderRequest:
-        events = await _query(session, user, params)
-        reach = await require_may_leave(session, await _reach(session, events))
-        files = await files_for_events(session, events)
-        dicts = [event_export_dict(event, files.get(event.id, [])) for event in events]
+        dicts, reach = await event_dicts(session, user, params)
         return RenderRequest(
             guild_id=guild_id,
             template_id=self.template_id,
@@ -75,6 +72,21 @@ class CalendarEventsAdapter:
             batch=(RenderItem(key="events", data={"layout": "ical", "events": dicts}),),
             initiative_ids=reach,
         )
+
+
+async def event_dicts(
+    session: AsyncSession, user: User, params: dict[str, Any]
+) -> tuple[list[dict], frozenset[int]]:
+    """The events ``params`` selects, as export dicts, and the initiatives they
+    sit in — refused when one of those keeps its content in. Shared with the
+    calendar's subscription feed, which is this export of one calendar, served
+    on every fetch."""
+    events = await _query(session, user, params)
+    reach = await require_may_leave(session, await _reach(session, events))
+    files = await files_for_events(session, events)
+    return [
+        event_export_dict(event, files.get(event.id, [])) for event in events
+    ], reach
 
 
 async def _reach(session: AsyncSession, events: list[CalendarEvent]) -> frozenset[int]:
