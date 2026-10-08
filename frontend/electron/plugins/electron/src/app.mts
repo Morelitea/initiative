@@ -1,3 +1,12 @@
 // Electron, through a module of the plugins' own, so a test can stand in for
 // it without Electron installed.
-export { app, BrowserWindow, Menu, Notification, nativeImage, Tray } from "electron";
+export {
+  app,
+  BrowserWindow,
+  Menu,
+  Notification,
+  nativeImage,
+  nativeTheme,
+  Tray,
+  WebContentsView,
+} from "electron";
