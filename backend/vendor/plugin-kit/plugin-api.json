@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Initiative plug-in API",
-    "version": "4.2.0",
+    "version": "5.0.0",
     "x-initiative-source": {
       "version": "0.74.0",
       "commit": "0492f28bb7e586091a62a58dcc1bc768d0544416"
