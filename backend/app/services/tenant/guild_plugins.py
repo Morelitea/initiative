@@ -48,7 +48,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.plugin_scopes import plugin_scope_target, ordered_scopes
+from app.core.plugin_scopes import ordered_scopes, plugin_scope, plugin_scope_target
 from app.core.audit_events import AuditEventType
 from app.models.platform.marketplace import MarketplaceListing
 from app.models.tenant.plugin_placement import PluginPlacement
@@ -94,16 +94,22 @@ __all__ = [
     "has_initiative_surfaces",
     "initiative_surface_ids",
     "install_plugin",
+    "install_public_id",
+    "installed_plugin_ids",
     "is_placed",
     "load_secrets",
     "lock_install",
+    "offered_scopes",
     "place_in_every_initiative",
     "place_with_roles",
     "placed_initiative_ids",
     "placement_role_ids",
     "placements_by_install",
+    "plugin_callers",
+    "set_granted_scopes",
     "set_placed_initiatives",
     "set_placement_roles",
+    "set_plugin_callers",
     "store_secrets",
     "surface_access",
     "surface_openability",
@@ -352,6 +358,7 @@ async def install_plugin(
     actor_user_id: Optional[int] = None,
     via: str = "install",
     granted_scopes: Sequence[str] = (),
+    allowed_callers: Optional[Collection[int]] = (),
 ) -> GuildPlugin:
     """Create the install row, and whatever the plug-in mounts alongside it.
 
@@ -368,6 +375,8 @@ async def install_plugin(
     ``granted_scopes`` is what the seat consented to in the install dialog,
     already checked against the manifest and the ceiling by the caller. It is
     written with the row, so the install never exists without its consent.
+    ``allowed_callers`` is the rest of that answer: the installs here let use
+    this plug-in (:func:`set_plugin_callers`; ``None`` lets every one).
     """
     plugin = GuildPlugin(
         listing_uid=listing_uid,
@@ -398,6 +407,16 @@ async def install_plugin(
             "granted_scopes": sorted(set(granted_scopes)),
         },
     )
+    public_id = await install_public_id(plugin)
+    if public_id is not None:
+        await set_plugin_callers(
+            session,
+            public_id,
+            allowed_callers,
+            exclude_id=plugin.id,
+            actor_user_id=actor_user_id,
+            guild_id=guild_id,
+        )
     return plugin
 
 
@@ -447,6 +466,17 @@ async def uninstall_plugin(
             artifact["id"],
             deleted_by_user_id=actor_user_id,
             retention_days=retention_days,
+        )
+    # Nothing here may use it any more, and a later install asks again.
+    public_id = await install_public_id(plugin)
+    if public_id is not None:
+        await set_plugin_callers(
+            session,
+            public_id,
+            (),
+            exclude_id=plugin.id,
+            actor_user_id=actor_user_id,
+            guild_id=guild_id,
         )
     install_id, listing_uid = plugin.id, plugin.listing_uid
     await session.delete(plugin)
@@ -929,11 +959,154 @@ def requested_scopes(definition: Any) -> list[str]:
     return ordered_scopes(scopes)
 
 
-def grantable_scopes(definition: Any, ceiling: Iterable[str]) -> list[str]:
-    """The requested scopes the deployment's ceiling allows, in the order
-    :func:`requested_scopes` gives them."""
+def offered_scopes(definition: Any, installed: Collection[str]) -> list[str]:
+    """The requested scopes a seat is asked about, in the order
+    :func:`requested_scopes` gives them.
+
+    A ``plugins:`` scope is one only while the plug-in it names is among
+    ``installed`` (:func:`installed_plugin_ids`): there is nothing to let a
+    plug-in use until the community has it. Installing that plug-in is when the
+    seat is asked (:func:`set_plugin_callers`).
+    """
+    return [
+        scope
+        for scope in requested_scopes(definition)
+        if (target := plugin_scope_target(scope)) is None or target in installed
+    ]
+
+
+def grantable_scopes(
+    definition: Any, ceiling: Iterable[str], installed: Collection[str]
+) -> list[str]:
+    """The offered scopes (:func:`offered_scopes`) the deployment's ceiling allows."""
     allowed = set(ceiling)
-    return [scope for scope in requested_scopes(definition) if scope in allowed]
+    return [
+        scope for scope in offered_scopes(definition, installed) if scope in allowed
+    ]
+
+
+async def install_public_id(plugin: GuildPlugin) -> Optional[str]:
+    """The public id of the plug-in ``plugin`` is an install of, read the way the
+    hub reads its target: the registration speaks for this install's listing,
+    and the install names that plug-in. ``None`` for one with no registration."""
+    from app.services.tenant.plugin_channels import owns_install
+
+    registration = await registration_lookup.registration_for_definition(
+        plugin.definition, listing_uid=plugin.listing_uid
+    )
+    if registration is None or not owns_install(plugin, registration):
+        return None
+    return registration.public_id
+
+
+async def installed_plugin_ids(session: AsyncSession) -> frozenset[str]:
+    """The public ids of the plug-ins installed in the routed guild."""
+    installs = (await session.exec(select(GuildPlugin))).all()
+    return frozenset(
+        {
+            public_id
+            for plugin in installs
+            if (public_id := await install_public_id(plugin))
+        }
+    )
+
+
+async def plugin_callers(
+    session: AsyncSession, public_id: str, *, exclude_id: Optional[int] = None
+) -> list[GuildPlugin]:
+    """The installs here that may be let use ``public_id``: their pinned version
+    requests ``plugins:<public_id>`` and their registration's ceiling allows it.
+    ``exclude_id`` is the install of ``public_id`` itself."""
+    scope = plugin_scope(public_id)
+    installs = (
+        await session.exec(select(GuildPlugin).order_by(col(GuildPlugin.id)))
+    ).all()
+    callers = []
+    for plugin in installs:
+        if plugin.id == exclude_id or scope not in requested_scopes(plugin.definition):
+            continue
+        state = await registration_lookup.install_state(
+            plugin.definition, listing_uid=plugin.listing_uid
+        )
+        if scope in state.scope_ceiling:
+            callers.append(plugin)
+    return callers
+
+
+async def set_granted_scopes(
+    session: AsyncSession,
+    plugin: GuildPlugin,
+    scopes: Iterable[str],
+    *,
+    actor_user_id: Optional[int],
+    guild_id: int,
+) -> None:
+    """Grant the install exactly ``scopes``, recording the change when there is
+    one. The caller has checked them and holds the row."""
+    before = sorted(plugin.granted_scopes or [])
+    after = sorted(set(scopes))
+    if before == after:
+        return
+    plugin.granted_scopes = after
+    plugin.updated_at = datetime.now(timezone.utc)
+    session.add(plugin)
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.PLUGIN_UPDATED,
+        actor_user_id=actor_user_id,
+        guild_id=guild_id,
+        target_type="plugin",
+        target_id=plugin.id,
+        detail={
+            "area": "scopes",
+            "changed": ["granted_scopes"],
+            # Scope names are the platform's own vocabulary, so the values are
+            # recorded rather than only the fact that they moved.
+            "values": {"granted_scopes": {"from": before, "to": after}},
+        },
+    )
+
+
+async def set_plugin_callers(
+    session: AsyncSession,
+    public_id: str,
+    allowed: Optional[Collection[int]],
+    *,
+    exclude_id: Optional[int] = None,
+    actor_user_id: Optional[int],
+    guild_id: int,
+) -> None:
+    """Let exactly the ``allowed`` installs use ``public_id`` (``None`` lets every
+    one that may be let, :func:`plugin_callers`), and take ``plugins:<public_id>``
+    from every other install that holds it.
+
+    Called when ``public_id`` is installed, with the seat's answer, and when it
+    is removed, with none, so a later install asks again.
+    """
+    scope = plugin_scope(public_id)
+    # Held, in one order, like a grant the seat sets on its own (:func:`lock_install`).
+    installs = (
+        await session.exec(
+            select(GuildPlugin)
+            .order_by(col(GuildPlugin.id))
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+    ).all()
+    callers = {
+        plugin.id
+        for plugin in await plugin_callers(session, public_id, exclude_id=exclude_id)
+        if allowed is None or plugin.id in allowed
+    }
+    for plugin in installs:
+        granted = set(plugin.granted_scopes or ())
+        if plugin.id in callers:
+            granted.add(scope)
+        else:
+            granted.discard(scope)
+        await set_granted_scopes(
+            session, plugin, granted, actor_user_id=actor_user_id, guild_id=guild_id
+        )
 
 
 async def plugin_scope_names(

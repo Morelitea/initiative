@@ -103,9 +103,10 @@ describe("MyTasksPage grouping", () => {
 describe("MyTasksPage status changes", () => {
   /**
    * One task per community so the per-row rules are observable: checking either
-   * must not take the other away.
+   * must not take the other away. The PATCH never answers, so each test reads
+   * the row while its save is in flight.
    */
-  function stubTwoTasksAndStatuses({ patchDelayMs = 0 } = {}) {
+  function stubTwoTasksAndStatuses() {
     const todo = buildProjectTaskStatus({
       id: 10,
       project_id: 5,
@@ -139,7 +140,6 @@ describe("MyTasksPage status changes", () => {
         task_status: todo,
       }),
     ];
-    let patched = 0;
     server.use(
       // Only the table's page carries these rows. The focus summary reads the
       // same endpoint with a page size of its own, and answering it too would
@@ -158,17 +158,10 @@ describe("MyTasksPage status changes", () => {
         HttpResponse.json([todo, done])
       ),
       http.patch("/api/v1/c/:communityId/tasks/:taskId", async () => {
-        patched += 1;
-        if (patchDelayMs > 0) await delay(patchDelayMs);
-        return HttpResponse.json({
-          ...items[0],
-          task_status_id: done.id,
-          task_status: done,
-          assignees: [],
-        });
+        await delay("infinite");
+        return new HttpResponse(null, { status: 204 });
       })
     );
-    return { patchCount: () => patched };
   }
 
   /** The table's Done checkboxes, in row order. */
@@ -182,7 +175,7 @@ describe("MyTasksPage status changes", () => {
 
   it("shows the row checked before the server answers", async () => {
     const user = userEvent.setup();
-    stubTwoTasksAndStatuses({ patchDelayMs: 1_000 });
+    stubTwoTasksAndStatuses();
     renderMyTasks();
 
     await waitFor(() => expect(screen.getByRole("table")).toBeInTheDocument());
@@ -199,7 +192,7 @@ describe("MyTasksPage status changes", () => {
 
   it("leaves every other row usable while one is saving", async () => {
     const user = userEvent.setup();
-    stubTwoTasksAndStatuses({ patchDelayMs: 1_000 });
+    stubTwoTasksAndStatuses();
     renderMyTasks();
 
     await waitFor(() => expect(screen.getByRole("table")).toBeInTheDocument());

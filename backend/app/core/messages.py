@@ -1256,6 +1256,9 @@ class GuildPluginMessages:
     SCOPE_NOT_REQUESTED = "COMMUNITY_PLUGIN_SCOPE_NOT_REQUESTED"
     #: A scope granted to an install beyond what this deployment allows the plug-in.
     SCOPE_ABOVE_CEILING = "COMMUNITY_PLUGIN_SCOPE_ABOVE_CEILING"
+    #: A scope to use another plug-in, granted while that plug-in is not installed
+    #: in the community.
+    SCOPE_TARGET_NOT_INSTALLED = "COMMUNITY_PLUGIN_SCOPE_TARGET_NOT_INSTALLED"
     #: The version an upgrade would apply asks for more than the install holds,
     #: and the request carried no consent to it. The response names what it
     #: asks for.

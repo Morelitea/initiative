@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.75.3] - 2026-10-08
+
 ### Added
 
 - **Subscribe to a calendar from Google Calendar, Apple Calendar or Outlook.** Choose **Subscribe** on an initiative's calendars or the community's, and get a link for each calendar you want. Each keeps that app up to date and stays a separate calendar there. The link shows the calendar as you see it, and only while you can see it. It stops working if you leave the community, if your API access there is turned off, or if the calendar's initiative keeps its content in. It shows under Settings › Security with your API keys, where you can remove it.

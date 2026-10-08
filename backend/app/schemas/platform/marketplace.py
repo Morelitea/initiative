@@ -115,7 +115,8 @@ class MarketplaceListingDetail(MarketplaceListingSummary):
     #: data, like the definition above.
     example: Optional[Dict[str, Any]] = None
     #: For a plug-in: the scopes its latest version asks a community to grant,
-    #: in vocabulary order. Empty for every other kind.
+    #: in vocabulary order. Using a plug-in the community does not have is left
+    #: out. Empty for every other kind.
     requested_scopes: List[str] = []
     #: The requested scopes this deployment's registration lets a community
     #: grant. What the install dialog offers ticked; the rest are shown
@@ -128,6 +129,16 @@ class MarketplaceListingDetail(MarketplaceListingSummary):
     #: Whether the plug-in offers a surface inside initiatives, and so has
     #: somewhere to be placed.
     has_initiative_surfaces: bool = False
+    #: For a plug-in: the installs here that ask to use it, which the install
+    #: dialog asks the seat about.
+    callers: List["MarketplaceListingCaller"] = []
+
+
+class MarketplaceListingCaller(SanitizedBaseModel):
+    """An install that asks to use the plug-in a listing would install."""
+
+    id: int
+    name: str
 
 
 class ListingStartFrom(str, Enum):
