@@ -6,6 +6,7 @@ import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import { defineConfig, loadEnv } from "vite";
 
 import { buildNotices } from "./scripts/third-party-notices.mjs";
+import { templates } from "./scripts/vite-plugin-templates.ts";
 
 // Load VITE_* vars from .env files (checks backend/.env and frontend/)
 const env = {
@@ -231,6 +232,7 @@ export default defineConfig({
     // Each route's component loads with the route, so the entry carries only
     // the route tree and what every page needs.
     tanstackRouter({ autoCodeSplitting: true, routeFileIgnorePattern: "\\.test\\.[jt]sx?$" }),
+    templates(),
     react(),
     tailwindcss(),
     emojibasePlugin(),

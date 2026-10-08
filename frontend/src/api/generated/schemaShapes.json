@@ -1,0 +1,5455 @@
+{
+  "AIConfigMode": { "enum": ["disabled", "platform", "community"] },
+  "AIConnectionCreate": {
+    "fields": {
+      "label": "string",
+      "provider": { "ref": "AIProvider" },
+      "base_url": "string",
+      "model": "string",
+      "api_key": "string",
+      "enabled": "boolean",
+      "is_default": "boolean",
+      "allow_member_keys": "boolean"
+    }
+  },
+  "AIConnectionResponse": {
+    "fields": {
+      "id": "number",
+      "scope": { "ref": "ConnectionScope" },
+      "label": "string",
+      "provider": { "ref": "AIProvider" },
+      "base_url": "string",
+      "model": "string",
+      "has_api_key": "boolean",
+      "enabled": "boolean",
+      "is_default": "boolean",
+      "allow_member_keys": "boolean"
+    }
+  },
+  "AIConnectionTestResponse": {
+    "fields": {
+      "success": "boolean",
+      "message": "string",
+      "available_models": { "list": "string" }
+    }
+  },
+  "AIConnectionUpdate": {
+    "fields": {
+      "label": "string",
+      "provider": { "ref": "AIProvider" },
+      "base_url": "string",
+      "model": "string",
+      "api_key": "string",
+      "enabled": "boolean",
+      "is_default": "boolean",
+      "allow_member_keys": "boolean"
+    }
+  },
+  "AIModelsResponse": { "fields": { "models": { "list": "string" }, "error": "string" } },
+  "AIProvider": { "enum": ["openai", "anthropic", "ollama", "custom"] },
+  "AccessGrantApprove": { "fields": { "duration_minutes": "number" } },
+  "AccessGrantCreate": {
+    "fields": {
+      "community_id": "number",
+      "access_level": { "ref": "AccessLevel" },
+      "settings_level": { "ref": "SettingsLevel" },
+      "requested_duration_minutes": "number",
+      "reason": "string"
+    }
+  },
+  "AccessGrantLimits": { "fields": { "max_duration_minutes": "number" } },
+  "AccessGrantListResponse": {
+    "fields": {
+      "total_count": "number",
+      "page": "number",
+      "page_size": "number",
+      "has_next": "boolean",
+      "has_prev": "boolean",
+      "items": { "list": { "ref": "AccessGrantRead" } }
+    }
+  },
+  "AccessGrantRead": {
+    "fields": {
+      "id": "number",
+      "user_id": "number",
+      "community_id": "number",
+      "purpose": "string",
+      "access_level": "string",
+      "status": { "ref": "AccessGrantStatus" },
+      "reason": "string",
+      "requested_duration_minutes": "number",
+      "requested_by_id": "number",
+      "approved_by_id": "number",
+      "revoked_by_id": "number",
+      "requested_at": "string",
+      "decided_at": "string",
+      "expires_at": "string",
+      "revoked_at": "string",
+      "user_email": "string",
+      "community_name": "string",
+      "community_status": { "ref": "CommunityStatus" },
+      "approved_by_email": "string",
+      "is_live": "boolean"
+    }
+  },
+  "AccessGrantStatus": { "enum": ["pending", "approved", "denied", "revoked", "expired"] },
+  "AccessLevel": { "enum": ["read", "read_write"] },
+  "AccountChangeRead": {
+    "fields": { "notice": "string", "sign_out": "boolean", "undo": "string", "subject": "string" }
+  },
+  "AccountChangeToken": { "fields": { "token": "string" } },
+  "AccountDeletionRequest": {
+    "fields": {
+      "action": { "enum": ["deactivate", "soft_delete"] },
+      "password": "string",
+      "confirmation_text": "string"
+    }
+  },
+  "AccountDeletionResponse": {
+    "fields": { "success": "boolean", "action": "string", "message": "string" }
+  },
+  "AccountTimeOutRead": {
+    "fields": { "contact_email": "string", "since": "string", "reason": "string" }
+  },
+  "AccountsWithoutFactor": { "fields": { "platform_roles": "number", "everyone": "number" } },
+  "AgeConfirmation": { "fields": { "birthdate": "string" } },
+  "AnnouncementAudienceAccounts": { "enum": ["everyone", "existing", "new"] },
+  "AnnouncementCategory": {
+    "enum": ["release", "feature", "breaking", "maintenance", "security", "info"]
+  },
+  "AnnouncementImageRead": {
+    "fields": {
+      "url": "string",
+      "sha256": "string",
+      "content_type": "string",
+      "byte_size": "number",
+      "width": "number",
+      "height": "number"
+    }
+  },
+  "AnnouncementListResponse": { "fields": { "items": { "list": { "ref": "AnnouncementRead" } } } },
+  "AnnouncementOperatorListResponse": {
+    "fields": { "items": { "list": { "ref": "AnnouncementOperatorRead" } } }
+  },
+  "AnnouncementOperatorRead": {
+    "fields": {
+      "key": "string",
+      "title": "string",
+      "category": { "ref": "AnnouncementCategory" },
+      "sections": { "list": { "ref": "AnnouncementSection" } },
+      "published_at": "string",
+      "is_builtin": "boolean",
+      "dismissed_at": "string",
+      "dismissals_required": "number",
+      "dismiss_count": "number",
+      "trigger_route": "string",
+      "id": "number",
+      "min_platform_role": { "ref": "UserRole" },
+      "community_admins_only": "boolean",
+      "audience_accounts": { "ref": "AnnouncementAudienceAccounts" },
+      "expires_at": "string",
+      "created_at": "string",
+      "updated_at": "string"
+    }
+  },
+  "AnnouncementRead": {
+    "fields": {
+      "key": "string",
+      "title": "string",
+      "category": { "ref": "AnnouncementCategory" },
+      "sections": { "list": { "ref": "AnnouncementSection" } },
+      "published_at": "string",
+      "is_builtin": "boolean",
+      "dismissed_at": "string",
+      "dismissals_required": "number",
+      "dismiss_count": "number",
+      "trigger_route": "string"
+    }
+  },
+  "AnnouncementSection": {
+    "fields": {
+      "heading": "string",
+      "starts_page": "boolean",
+      "body": "string",
+      "image_url": "string",
+      "image_alt": "string"
+    }
+  },
+  "AnnouncementUpdate": {
+    "fields": {
+      "title": "string",
+      "category": { "ref": "AnnouncementCategory" },
+      "sections": { "list": { "ref": "AnnouncementSection" } },
+      "min_platform_role": { "ref": "UserRole" },
+      "community_admins_only": "boolean",
+      "audience_accounts": { "ref": "AnnouncementAudienceAccounts" },
+      "published_at": "string",
+      "expires_at": "string",
+      "dismissals_required": "number",
+      "trigger_route": "string",
+      "clear_published_at": "boolean",
+      "clear_expires_at": "boolean",
+      "clear_trigger_route": "boolean"
+    }
+  },
+  "AnnouncementWrite": {
+    "fields": {
+      "title": "string",
+      "category": { "ref": "AnnouncementCategory" },
+      "sections": { "list": { "ref": "AnnouncementSection" } },
+      "min_platform_role": { "ref": "UserRole" },
+      "community_admins_only": "boolean",
+      "audience_accounts": { "ref": "AnnouncementAudienceAccounts" },
+      "published_at": "string",
+      "expires_at": "string",
+      "dismissals_required": "number",
+      "trigger_route": "string"
+    }
+  },
+  "ApiKeyCreateRequest": {
+    "fields": {
+      "name": "string",
+      "expires_at": "string",
+      "read_only": "boolean",
+      "community_id": "number"
+    }
+  },
+  "ApiKeyCreateResponse": {
+    "fields": { "api_key": { "ref": "ApiKeyMetadata" }, "secret": "string" }
+  },
+  "ApiKeyListResponse": { "fields": { "keys": { "list": { "ref": "ApiKeyMetadata" } } } },
+  "ApiKeyMetadata": {
+    "fields": {
+      "id": "number",
+      "name": "string",
+      "token_prefix": "string",
+      "is_active": "boolean",
+      "read_only": "boolean",
+      "community_id": "number",
+      "created_at": "string",
+      "last_used_at": "string",
+      "expires_at": "string"
+    }
+  },
+  "AppConfig": {
+    "fields": {
+      "captcha": { "ref": "CaptchaConfig" },
+      "billing": { "ref": "BillingConfig" },
+      "faro_collector_url": "string",
+      "count_page_views": "boolean",
+      "max_upload_bytes": "number",
+      "community_directory_enabled": "boolean",
+      "community_age_gate_enabled": "boolean",
+      "direct_messages_enabled": "boolean",
+      "cookie_consent_enabled": "boolean",
+      "light_accent_color": "string",
+      "dark_accent_color": "string",
+      "cookie_categories": { "list": "string" },
+      "login_methods": { "list": "string" },
+      "min_native_version": "string",
+      "min_desktop_version": "string"
+    }
+  },
+  "ArchivableType": {
+    "enum": [
+      "project",
+      "file",
+      "queue",
+      "counter_group",
+      "calendar",
+      "dashboard",
+      "post",
+      "gallery",
+      "wiki",
+      "task",
+      "initiative"
+    ]
+  },
+  "ArchiveDoneResponse": { "fields": { "archived_count": "number" } },
+  "ArchiveResponse": {
+    "fields": {
+      "entity_type": { "ref": "ArchivableType" },
+      "entity_id": "number",
+      "archived_at": "string"
+    }
+  },
+  "AtlassianConfluenceProbe": {
+    "fields": {
+      "available": "boolean",
+      "reason": "string",
+      "spaces": { "list": { "ref": "AtlassianConfluenceSpace" } }
+    }
+  },
+  "AtlassianConfluenceSpace": {
+    "fields": { "id": "string", "key": "string", "name": "string", "page_count": "number" }
+  },
+  "AtlassianConnectRequest": {
+    "fields": { "site_url": "string", "email": "string", "api_token": "string" }
+  },
+  "AtlassianConnectResponse": {
+    "fields": {
+      "site_url": "string",
+      "jira": { "ref": "AtlassianJiraProbe" },
+      "confluence": { "ref": "AtlassianConfluenceProbe" }
+    }
+  },
+  "AtlassianImportRequest": {
+    "fields": {
+      "site_url": "string",
+      "email": "string",
+      "api_token": "string",
+      "initiative_id": "number",
+      "project_keys": { "list": "string" },
+      "space_keys": { "list": "string" },
+      "include_comments": "boolean",
+      "include_attachments": "boolean"
+    }
+  },
+  "AtlassianJiraProbe": {
+    "fields": {
+      "available": "boolean",
+      "reason": "string",
+      "projects": { "list": { "ref": "AtlassianJiraProject" } }
+    }
+  },
+  "AtlassianJiraProject": {
+    "fields": { "id": "string", "key": "string", "name": "string", "issue_count": "number" }
+  },
+  "AttachmentUploadResponse": {
+    "fields": { "filename": "string", "url": "string", "content_type": "string", "size": "number" }
+  },
+  "AuthProviderCreate": {
+    "fields": {
+      "slug": "string",
+      "display_name": "string",
+      "kind": "string",
+      "enabled": "boolean",
+      "issuer": "string",
+      "client_id": "string",
+      "client_secret": "string",
+      "scopes": "string",
+      "role_claim_path": "string",
+      "allow_jit": "boolean",
+      "asserts_second_factor": "boolean",
+      "icon": "string",
+      "button_style": "string"
+    }
+  },
+  "AuthProviderDiscoverRequest": { "fields": { "issuer": "string" } },
+  "AuthProviderOwnerRead": {
+    "fields": {
+      "id": "number",
+      "slug": "string",
+      "display_name": "string",
+      "kind": "string",
+      "enabled": "boolean",
+      "issuer": "string",
+      "client_id": "string",
+      "scopes": "string",
+      "role_claim_path": "string",
+      "allow_jit": "boolean",
+      "asserts_second_factor": "boolean",
+      "icon": "string",
+      "button_style": "string",
+      "secret_set": "boolean",
+      "callback_url": "string"
+    }
+  },
+  "AuthProviderProbeResult": {
+    "fields": {
+      "ok": "boolean",
+      "error_code": "string",
+      "issuer": "string",
+      "authorization_endpoint": "string",
+      "token_endpoint": "string",
+      "jwks_uri": "string",
+      "userinfo_endpoint": "string",
+      "signing_algs": { "list": "string" },
+      "scopes_supported": { "list": "string" },
+      "claims_supported": { "list": "string" },
+      "callback_url_template": "string"
+    }
+  },
+  "AuthProviderUpdate": {
+    "fields": {
+      "display_name": "string",
+      "enabled": "boolean",
+      "issuer": "string",
+      "client_id": "string",
+      "client_secret": "string",
+      "scopes": "string",
+      "role_claim_path": "string",
+      "allow_jit": "boolean",
+      "asserts_second_factor": "boolean",
+      "icon": "string",
+      "button_style": "string"
+    }
+  },
+  "BackupEstimate": {
+    "fields": {
+      "tools": { "map": { "ref": "BackupToolEstimate" } },
+      "uploads_count": "number",
+      "uploads_bytes": "number",
+      "uploads_approximate": "boolean",
+      "estimated_rows": "number",
+      "max_rows": "number",
+      "max_upload_bytes": "number",
+      "max_download_bytes": "number",
+      "delivery_available": "boolean"
+    }
+  },
+  "BackupToolEstimate": { "fields": { "count": "number", "disabled": "boolean" } },
+  "BannerFade": { "enum": ["none", "weak", "strong"] },
+  "BannerTextAlign": { "enum": ["center", "left"] },
+  "BillingConfig": {
+    "fields": {
+      "url": "string",
+      "operator_handoff": "boolean",
+      "manages_plans": "boolean",
+      "insights": "boolean"
+    }
+  },
+  "BillingPortalHandoffResponse": {
+    "fields": { "handoff_token": "string", "expires_in_seconds": "number" }
+  },
+  "Body_import_envelope_archive": {
+    "fields": { "file": "string", "initiative_id": "number", "envelope_type": "string" }
+  },
+  "Body_import_spreadsheet_file": { "fields": { "file": "string" } },
+  "Body_login_access_token": {
+    "fields": {
+      "device_name": "string",
+      "grant_type": "string",
+      "username": "string",
+      "password": "string",
+      "scope": "string",
+      "client_id": "string",
+      "client_secret": "string"
+    }
+  },
+  "Body_notify_mentions": { "fields": { "mentioned_user_ids": { "list": "number" } } },
+  "Body_set_community_banner": { "fields": { "full": "string", "card": "string" } },
+  "Body_set_community_icon": { "fields": { "icon": "string" } },
+  "Body_share_to_marketplace": {
+    "fields": {
+      "kind": { "ref": "ListingKind" },
+      "entity_id": "number",
+      "name": "string",
+      "description": "string",
+      "example_entity_id": "number",
+      "long_description": "string",
+      "release_notes": "string",
+      "listing_uid": "string",
+      "images": { "list": "string" }
+    }
+  },
+  "Body_start_confluence_export_import": {
+    "fields": { "file": "string", "initiative_id": "number", "include_attachments": "boolean" }
+  },
+  "Body_upload_announcement_image": { "fields": { "file": "string" } },
+  "Body_upload_attachment": { "fields": { "file": "string" } },
+  "Body_upload_backup": { "fields": { "file": "string" } },
+  "Body_upload_file": {
+    "fields": { "name": "string", "initiative_id": "number", "file": "string" }
+  },
+  "Body_upload_file_version": { "fields": { "file": "string" } },
+  "Body_upload_gallery_image": {
+    "fields": { "file": "string", "title": "string", "caption": "string" }
+  },
+  "Body_upload_gallery_image_version": { "fields": { "file": "string" } },
+  "Body_upload_listing_picture": { "fields": { "file": "string" } },
+  "Body_upload_my_avatar": { "fields": { "file": "string" } },
+  "Body_upload_pasted_image": { "fields": { "file": "string" } },
+  "Body_upload_registry_bundle": { "fields": { "file": "string" } },
+  "BreakGlassCreate": {
+    "fields": {
+      "code": "string",
+      "recovery_code": "string",
+      "passkey": { "map": "any" },
+      "community_id": "number",
+      "requested_duration_minutes": "number",
+      "reason": "string"
+    }
+  },
+  "BreakGlassRequirements": {
+    "fields": {
+      "second_factor_required": "boolean",
+      "max_duration_minutes": "number",
+      "totp_enrolled": "boolean",
+      "passkey_enrolled": "boolean"
+    }
+  },
+  "CalendarCreate": {
+    "fields": {
+      "properties": { "list": { "ref": "PropertyValueInput" } },
+      "name": "string",
+      "description": "string",
+      "color": "string",
+      "initiative_id": "number",
+      "tag_ids": { "list": "number" },
+      "grants": { "list": { "ref": "ResourceGrantSchema" } }
+    }
+  },
+  "CalendarEntriesResponse": {
+    "fields": {
+      "events": { "list": { "ref": "CalendarEventSummary" } },
+      "tasks": { "list": { "ref": "TaskListRead" } },
+      "task_occurrences": { "list": { "ref": "TaskListRead" } }
+    }
+  },
+  "CalendarEventAttendeePreview": {
+    "fields": { "user_id": "number", "name": "string", "avatar_url": "string" }
+  },
+  "CalendarEventAttendeeRead": {
+    "fields": {
+      "user_id": "number",
+      "user": { "ref": "UserPublic" },
+      "rsvp_status": { "ref": "RSVPStatus" },
+      "created_at": "string"
+    }
+  },
+  "CalendarEventCreate": {
+    "fields": {
+      "properties": { "list": { "ref": "PropertyValueInput" } },
+      "title": "string",
+      "description": "string",
+      "location": "string",
+      "start_at": "string",
+      "end_at": "string",
+      "all_day": "boolean",
+      "rsvp_open": "boolean",
+      "recurrence": "string",
+      "calendar_id": "number",
+      "tz": "string",
+      "attendee_ids": { "list": "number" },
+      "tag_ids": { "list": "number" }
+    }
+  },
+  "CalendarEventRSVPUpdate": {
+    "fields": { "rsvp_status": { "ref": "RSVPStatus" }, "occurrence": "string" }
+  },
+  "CalendarEventRead": {
+    "fields": {
+      "title": "string",
+      "description": "string",
+      "location": "string",
+      "start_at": "string",
+      "end_at": "string",
+      "all_day": "boolean",
+      "rsvp_open": "boolean",
+      "recurrence": "string",
+      "id": "number",
+      "recurrence_shift": "number",
+      "original_start": "string",
+      "series_id": "number",
+      "calendar_id": "number",
+      "initiative_id": "number",
+      "community_id": "number",
+      "created_by": "number",
+      "properties": { "list": { "ref": "PropertySummary" } },
+      "tags": { "list": { "ref": "TagSummary" } },
+      "can": { "ref": "ContentCan" },
+      "created_at": "string",
+      "updated_at": "string",
+      "attendees": { "list": { "ref": "CalendarEventAttendeeRead" } },
+      "overridden_fields": { "list": "string" },
+      "skipped_starts": { "list": "string" },
+      "extra_starts": { "list": "string" }
+    }
+  },
+  "CalendarEventSummary": {
+    "fields": {
+      "title": "string",
+      "description": "string",
+      "location": "string",
+      "start_at": "string",
+      "end_at": "string",
+      "all_day": "boolean",
+      "rsvp_open": "boolean",
+      "recurrence": "string",
+      "id": "number",
+      "recurrence_shift": "number",
+      "original_start": "string",
+      "series_id": "number",
+      "calendar_id": "number",
+      "initiative_id": "number",
+      "community_id": "number",
+      "created_by": "number",
+      "properties": { "list": { "ref": "PropertySummary" } },
+      "tags": { "list": { "ref": "TagSummary" } },
+      "can": { "ref": "ContentCan" },
+      "created_at": "string",
+      "updated_at": "string",
+      "attendee_previews": { "list": { "ref": "CalendarEventAttendeePreview" } }
+    }
+  },
+  "CalendarEventUpdate": {
+    "fields": {
+      "properties": { "list": { "ref": "PropertyValueInput" } },
+      "title": "string",
+      "description": "string",
+      "location": "string",
+      "start_at": "string",
+      "end_at": "string",
+      "all_day": "boolean",
+      "rsvp_open": "boolean",
+      "recurrence": "string",
+      "tz": "string",
+      "calendar_id": "number",
+      "tag_ids": { "list": "number" },
+      "scope": { "enum": ["this", "following", "all"] },
+      "occurrence": "string"
+    }
+  },
+  "CalendarListResponse": {
+    "fields": {
+      "total_count": "number",
+      "page": "number",
+      "page_size": "number",
+      "has_next": "boolean",
+      "has_prev": "boolean",
+      "items": { "list": { "ref": "CalendarSummary" } }
+    }
+  },
+  "CalendarRead": {
+    "fields": {
+      "archived_at": "string",
+      "can": { "ref": "ToolCan" },
+      "id": "number",
+      "initiative_id": "number",
+      "community_id": "number",
+      "created_by": "number",
+      "created_at": "string",
+      "updated_at": "string",
+      "comments_enabled": "boolean",
+      "tags": { "list": { "ref": "TagSummary" } },
+      "properties": { "list": { "ref": "PropertySummary" } },
+      "grants": { "list": { "ref": "ResourceGrantSchema" } },
+      "name": "string",
+      "description": "string",
+      "color": "string"
+    }
+  },
+  "CalendarSummary": {
+    "fields": {
+      "archived_at": "string",
+      "can": { "ref": "ToolCan" },
+      "id": "number",
+      "initiative_id": "number",
+      "community_id": "number",
+      "created_by": "number",
+      "created_at": "string",
+      "updated_at": "string",
+      "comments_enabled": "boolean",
+      "tags": { "list": { "ref": "TagSummary" } },
+      "properties": { "list": { "ref": "PropertySummary" } },
+      "grants": { "list": { "ref": "ResourceGrantSchema" } },
+      "name": "string",
+      "description": "string",
+      "color": "string"
+    }
+  },
+  "CalendarUpdate": { "fields": { "name": "string", "description": "string", "color": "string" } },
+  "Capability": {
+    "enum": [
+      "users.read",
+      "content.moderate",
+      "users.age_unblock",
+      "users.manage",
+      "users.delete",
+      "communities.manage",
+      "billing.insights",
+      "announcements.manage",
+      "roles.assign",
+      "data.bypass",
+      "access.request",
+      "access.approve",
+      "config.manage",
+      "plugins.manage"
+    ]
+  },
+  "CaptchaConfig": { "fields": { "provider": "string", "site_key": "string" } },
+  "CaptchaProvider": { "enum": ["hcaptcha", "turnstile", "recaptcha"] },
+  "CaptchaSettingsResponse": {
+    "fields": {
+      "provider": { "ref": "CaptchaProvider" },
+      "site_key": "string",
+      "has_secret_key": "boolean",
+      "enforcing": "boolean"
+    }
+  },
+  "CaptchaSettingsUpdate": {
+    "fields": {
+      "provider": { "ref": "CaptchaProvider" },
+      "site_key": "string",
+      "secret_key": "string"
+    }
+  },
+  "CaseMessageRead": {
+    "fields": {
+      "id": "number",
+      "author": { "ref": "UserPublic" },
+      "from_requester": "boolean",
+      "content": "string",
+      "created_at": "string"
+    }
+  },
+  "CategoryGroup": { "enum": ["addressed_to_me", "activity", "community", "account"] },
+  "ChangelogEntry": { "fields": { "version": "string", "date": "string", "changes": "string" } },
+  "ChangelogResponse": { "fields": { "entries": { "list": { "ref": "ChangelogEntry" } } } },
+  "Channel": { "enum": ["in_app", "email", "push", "desktop"] },
+  "ChecklistItem": { "fields": { "id": "string", "text": "string", "done": "boolean" } },
+  "ChecklistItemInput": { "fields": { "id": "string", "text": "string", "done": "boolean" } },
+  "ChecklistItemToggle": { "fields": { "done": "boolean" } },
+  "ChecklistProgress": { "fields": { "completed": "number", "total": "number" } },
+  "ClientKind": { "enum": ["mobile", "desktop", "unknown"] },
+  "CollaborationHandover": { "fields": { "update": "string" } },
+  "CommentAudience": { "enum": ["members", "filer"] },
+  "CommentAuthor": {
+    "fields": {
+      "id": "number",
+      "username": "string",
+      "discriminator": "number",
+      "display_name": "string",
+      "avatar_url": "string",
+      "profile_decorations": { "ref": "ProfileDecorations-Output" },
+      "presence": { "ref": "Presence" }
+    }
+  },
+  "CommentCreate": {
+    "fields": {
+      "content": "string",
+      "task_id": "number",
+      "wiki_page_id": "number",
+      "project_id": "number",
+      "file_id": "number",
+      "queue_id": "number",
+      "counter_group_id": "number",
+      "calendar_id": "number",
+      "dashboard_id": "number",
+      "post_id": "number",
+      "gallery_id": "number",
+      "wiki_id": "number",
+      "parent_comment_id": "number",
+      "audience": { "ref": "CommentAudience" }
+    }
+  },
+  "CommentListResponse": {
+    "fields": { "comments": { "list": { "ref": "CommentRead" } }, "next_cursor": "string" }
+  },
+  "CommentRead": {
+    "fields": {
+      "content": "string",
+      "task_id": "number",
+      "wiki_page_id": "number",
+      "project_id": "number",
+      "file_id": "number",
+      "queue_id": "number",
+      "counter_group_id": "number",
+      "calendar_id": "number",
+      "dashboard_id": "number",
+      "post_id": "number",
+      "gallery_id": "number",
+      "wiki_id": "number",
+      "id": "number",
+      "created_by": "number",
+      "parent_comment_id": "number",
+      "created_at": "string",
+      "updated_at": "string",
+      "author": { "ref": "CommentAuthor" },
+      "imported_author_name": "string",
+      "reactions": { "list": { "ref": "ReactionGroup" } },
+      "can_remove": "boolean",
+      "audience": { "ref": "CommentAudience" },
+      "system_kind": "string"
+    }
+  },
+  "CommentUpdate": { "fields": { "content": "string" } },
+  "CommunityAuthOption": { "enum": ["providers", "restrictions"] },
+  "CommunityAuthPolicyRead": {
+    "fields": {
+      "policy": { "enum": ["open", "required"] },
+      "provider_id": "number",
+      "provider_slug": "string",
+      "provider_display_name": "string",
+      "require_methods": { "list": { "enum": ["sso", "totp", "passkey"] } },
+      "factor_required_by_platform": "boolean"
+    }
+  },
+  "CommunityAuthPolicyUpdate": {
+    "fields": {
+      "policy": { "enum": ["open", "required"] },
+      "provider_id": "number",
+      "require_methods": { "list": { "enum": ["sso", "totp", "passkey"] } }
+    }
+  },
+  "CommunityAuthSettingsRead": {
+    "fields": {
+      "auth_options": { "list": { "ref": "CommunityAuthOption" } },
+      "auth_policy": { "ref": "CommunityAuthPolicyRead" },
+      "enforce_compliance_session": "boolean",
+      "require_second_factor": "boolean",
+      "allow_push_notifications": "boolean",
+      "allow_email_notifications": "boolean",
+      "redact_notification_content": "boolean",
+      "push_allowed_by_platform": "boolean",
+      "email_allowed_by_platform": "boolean",
+      "redacted_by_platform": "boolean"
+    }
+  },
+  "CommunityAuthSettingsUpdate": {
+    "fields": {
+      "auth_policy": { "ref": "CommunityAuthPolicyUpdate" },
+      "enforce_compliance_session": "boolean",
+      "require_second_factor": "boolean",
+      "allow_push_notifications": "boolean",
+      "allow_email_notifications": "boolean",
+      "redact_notification_content": "boolean"
+    }
+  },
+  "CommunityBannerRead": {
+    "fields": {
+      "image_url": "string",
+      "color": "string",
+      "text_color": "string",
+      "text_align": { "ref": "BannerTextAlign" },
+      "fade": { "ref": "BannerFade" }
+    }
+  },
+  "CommunityBannerWrite": {
+    "fields": {
+      "color": "string",
+      "text_color": "string",
+      "text_align": { "ref": "BannerTextAlign" },
+      "fade": { "ref": "BannerFade" }
+    }
+  },
+  "CommunityBillingChangeRead": {
+    "fields": { "action": { "enum": ["cancel", "pause", "resume"] }, "on": "string" }
+  },
+  "CommunityBillingChargeRead": { "fields": { "total": "number", "currency": "string" } },
+  "CommunityBillingSummaryRead": {
+    "fields": {
+      "available": "boolean",
+      "tier_name": "string",
+      "trial_ends_on": "string",
+      "renews_on": "string",
+      "next_charge": { "ref": "CommunityBillingChargeRead" },
+      "scheduled_change": { "ref": "CommunityBillingChangeRead" },
+      "payment_failed": "boolean"
+    }
+  },
+  "CommunityBlockerInfo": { "fields": { "community_id": "number", "community_name": "string" } },
+  "CommunityCan": {
+    "fields": {
+      "enter": "boolean",
+      "content": "boolean",
+      "administer": "boolean",
+      "configure": "boolean",
+      "administer_content": "boolean",
+      "seat": "boolean"
+    }
+  },
+  "CommunityCategory": {
+    "enum": [
+      "art",
+      "gaming",
+      "ttrpg",
+      "music",
+      "writing",
+      "education",
+      "technology",
+      "sports",
+      "business",
+      "health",
+      "social",
+      "other"
+    ]
+  },
+  "CommunityClaimRuleCreate": {
+    "fields": {
+      "provider_id": "number",
+      "claim_value": "string",
+      "community_role": "string",
+      "initiative_id": "number",
+      "initiative_role_id": "number"
+    }
+  },
+  "CommunityClaimRuleRead": {
+    "fields": {
+      "id": "number",
+      "provider_id": "number",
+      "provider_display_name": "string",
+      "provider_icon": "string",
+      "claim_value": "string",
+      "community_role": "string",
+      "initiative_id": "number",
+      "initiative_name": "string",
+      "initiative_role_id": "number",
+      "initiative_role_name": "string"
+    }
+  },
+  "CommunityClaimRulesResponse": {
+    "fields": {
+      "rules": { "list": { "ref": "CommunityClaimRuleRead" } },
+      "reporting_provider_ids": { "list": "number" },
+      "provider_rules": { "list": { "ref": "ProviderPlacementRuleRead" } },
+      "placement_everywhere": "boolean"
+    }
+  },
+  "CommunityCreate": {
+    "fields": {
+      "name": "string",
+      "description": "string",
+      "plan": "string",
+      "owner_user_id": "number"
+    }
+  },
+  "CommunityDeletionRequest": { "fields": { "password": "string", "confirmation_text": "string" } },
+  "CommunityDmToggle": {
+    "fields": {
+      "community_id": "number",
+      "name": "string",
+      "icon_url": "string",
+      "enabled": "boolean"
+    }
+  },
+  "CommunityDmToggleUpdate": { "fields": { "community_id": "number", "enabled": "boolean" } },
+  "CommunityEntitlementsRead": {
+    "fields": { "community_id": "number", "banner_image_enabled": "boolean" }
+  },
+  "CommunityExportStatus": {
+    "fields": {
+      "cooldown_hours": "number",
+      "next_available_at": "string",
+      "latest": { "ref": "ExportJobRead" },
+      "latest_started_by": "string"
+    }
+  },
+  "CommunityInviteAcceptRequest": { "fields": { "code": "string" } },
+  "CommunityInviteCreate": {
+    "fields": { "expires_at": "string", "max_uses": "number", "invitee_email": "string" }
+  },
+  "CommunityInviteRead": {
+    "fields": {
+      "id": "number",
+      "code": "string",
+      "community_id": "number",
+      "created_by": "number",
+      "expires_at": "string",
+      "max_uses": "number",
+      "uses": "number",
+      "invitee_email": "string",
+      "created_at": "string"
+    }
+  },
+  "CommunityInviteStatus": {
+    "fields": {
+      "code": "string",
+      "community_id": "number",
+      "community_name": "string",
+      "is_valid": "boolean",
+      "reason": "string",
+      "expires_at": "string",
+      "max_uses": "number",
+      "uses": "number"
+    }
+  },
+  "CommunityLocation-Input": {
+    "fields": {
+      "text": "string",
+      "label": "string",
+      "country": "string",
+      "latitude": "number",
+      "longitude": "number"
+    }
+  },
+  "CommunityLocation-Output": {
+    "fields": {
+      "text": "string",
+      "label": "string",
+      "country": "string",
+      "latitude": "number",
+      "longitude": "number"
+    }
+  },
+  "CommunityMembershipUpdate": { "fields": { "role": { "ref": "CommunityRole" } } },
+  "CommunityNarrowingAgreement": { "fields": { "agreed": "boolean" } },
+  "CommunityNarrowingPending": {
+    "fields": {
+      "connection_id": "number",
+      "community_id": "number",
+      "community_name": "string",
+      "provider_display_name": "string",
+      "claim": "string",
+      "claim_values": { "list": "string" },
+      "auto_join": "boolean",
+      "agreed": "boolean"
+    }
+  },
+  "CommunityNotificationSettings": {
+    "fields": {
+      "community_id": "number",
+      "community_name": "string",
+      "level": { "ref": "NotificationLevel" },
+      "categories": { "map": { "map": "boolean" } }
+    }
+  },
+  "CommunityOrderUpdate": { "fields": { "community_ids": { "list": "number" } } },
+  "CommunityPaymentIssueRead": { "fields": { "payment_failed": "boolean" } },
+  "CommunityPluginArtifact": { "fields": { "type": "string", "id": "number" } },
+  "CommunityPluginConfigUpdate": { "fields": { "values": { "map": { "map": "any" } } } },
+  "CommunityPluginConnectStart": {
+    "fields": { "connection_id": "string", "connect_url": "string", "status": "string" }
+  },
+  "CommunityPluginConnectionRead": {
+    "fields": {
+      "id": "string",
+      "scope": "string",
+      "label": { "map": "string" },
+      "fields": { "list": { "map": "any" } },
+      "access_hint": { "map": "any" },
+      "values": { "map": "any" },
+      "has_value": { "map": "boolean" },
+      "satisfied": "boolean",
+      "runs_flow": "boolean",
+      "status": "string",
+      "account_label": "string",
+      "blocked": "boolean"
+    }
+  },
+  "CommunityPluginConnectionSummary": {
+    "fields": {
+      "connection_id": "string",
+      "label": { "map": "string" },
+      "connected_count": "number",
+      "blocked_count": "number",
+      "member_count": "number"
+    }
+  },
+  "CommunityPluginConsentAnswer": { "fields": { "access": { "ref": "ConsentAccess" } } },
+  "CommunityPluginConsentRead": {
+    "fields": {
+      "id": "number",
+      "purpose": "string",
+      "label": "string",
+      "initiative_id": "number",
+      "requested_access": { "ref": "ConsentAccess" },
+      "granted_access": { "ref": "ConsentAccess" },
+      "status": { "ref": "ConsentStatus" },
+      "requested_at": "string",
+      "granted_at": "string",
+      "revoked_at": "string"
+    }
+  },
+  "CommunityPluginConsentSummary": {
+    "fields": { "member_count": "number", "allowed_count": "number", "open_count": "number" }
+  },
+  "CommunityPluginDecline": { "fields": { "version": "string" } },
+  "CommunityPluginDetail": {
+    "fields": {
+      "id": "number",
+      "community_id": "number",
+      "listing_uid": "string",
+      "listing_version": "string",
+      "plugin_kind": "string",
+      "name": "string",
+      "enabled": "boolean",
+      "auto_update": "boolean",
+      "artifacts": { "list": { "ref": "CommunityPluginArtifact" } },
+      "needs_config": "boolean",
+      "config_state": "string",
+      "config_state_detail": "string",
+      "tool": "string",
+      "avatar_url": "string",
+      "features": { "list": "string" },
+      "definition": { "map": "any" },
+      "placements": { "list": { "ref": "PluginPlacementRead" } },
+      "surface_access": { "list": { "ref": "PluginSurfaceAccessRead" } },
+      "granted_scopes": { "list": "string" },
+      "mandatory": "boolean",
+      "available": "boolean",
+      "created_by": "number",
+      "created_at": "string",
+      "updated_at": "string",
+      "connections": { "list": { "ref": "CommunityPluginConnectionRead" } },
+      "consents": { "list": { "ref": "CommunityPluginConsentRead" } },
+      "update_version": "string",
+      "requested_scopes": { "list": "string" },
+      "grantable_scopes": { "list": "string" },
+      "pending_update": { "ref": "CommunityPluginUpgradeAsks" },
+      "plugin_names": { "map": "string" },
+      "listing": { "ref": "CommunityPluginListingRef" }
+    }
+  },
+  "CommunityPluginHandoff": {
+    "fields": {
+      "handoff_token": "string",
+      "expires_in_seconds": "number",
+      "page_url": "string",
+      "allowed_origins": { "list": "string" },
+      "audience": "string",
+      "surface_id": "string"
+    }
+  },
+  "CommunityPluginInstall": {
+    "fields": {
+      "listing_uid": "string",
+      "name": "string",
+      "granted_scopes": { "list": "string" },
+      "callers": { "list": "number" },
+      "placements": "any",
+      "role_kinds": { "list": "string" }
+    }
+  },
+  "CommunityPluginListResponse": {
+    "fields": { "items": { "list": { "ref": "CommunityPluginRead" } } }
+  },
+  "CommunityPluginListingRef": {
+    "fields": {
+      "id": "number",
+      "source": { "ref": "ListingSource" },
+      "publisher": "string",
+      "first_party": "boolean"
+    }
+  },
+  "CommunityPluginMemberConnection": {
+    "fields": {
+      "connection_id": "string",
+      "user_id": "number",
+      "status": "string",
+      "account_label": "string",
+      "blocked": "boolean",
+      "blocked_by_id": "number",
+      "created_at": "string",
+      "updated_at": "string"
+    }
+  },
+  "CommunityPluginMemberConsent": {
+    "fields": {
+      "id": "number",
+      "purpose": "string",
+      "label": "string",
+      "initiative_id": "number",
+      "requested_access": { "ref": "ConsentAccess" },
+      "granted_access": { "ref": "ConsentAccess" },
+      "status": { "ref": "ConsentStatus" },
+      "requested_at": "string",
+      "granted_at": "string",
+      "revoked_at": "string",
+      "user_id": "number"
+    }
+  },
+  "CommunityPluginMembersResponse": {
+    "fields": {
+      "total_count": "number",
+      "page": "number",
+      "page_size": "number",
+      "has_next": "boolean",
+      "has_prev": "boolean",
+      "summary": { "list": { "ref": "CommunityPluginConnectionSummary" } },
+      "items": { "list": { "ref": "CommunityPluginMemberConnection" } },
+      "consents": { "list": { "ref": "CommunityPluginMemberConsent" } },
+      "consent_summary": { "ref": "CommunityPluginConsentSummary" }
+    }
+  },
+  "CommunityPluginRead": {
+    "fields": {
+      "id": "number",
+      "community_id": "number",
+      "listing_uid": "string",
+      "listing_version": "string",
+      "plugin_kind": "string",
+      "name": "string",
+      "enabled": "boolean",
+      "auto_update": "boolean",
+      "artifacts": { "list": { "ref": "CommunityPluginArtifact" } },
+      "needs_config": "boolean",
+      "config_state": "string",
+      "config_state_detail": "string",
+      "tool": "string",
+      "avatar_url": "string",
+      "features": { "list": "string" },
+      "definition": { "map": "any" },
+      "placements": { "list": { "ref": "PluginPlacementRead" } },
+      "surface_access": { "list": { "ref": "PluginSurfaceAccessRead" } },
+      "granted_scopes": { "list": "string" },
+      "mandatory": "boolean",
+      "available": "boolean",
+      "created_by": "number",
+      "created_at": "string",
+      "updated_at": "string"
+    }
+  },
+  "CommunityPluginScopesUpdate": { "fields": { "granted": { "list": "string" } } },
+  "CommunityPluginUpdate": {
+    "fields": {
+      "name": "string",
+      "enabled": "boolean",
+      "auto_update": "boolean",
+      "placed_initiative_ids": { "list": "number" }
+    }
+  },
+  "CommunityPluginUpgrade": {
+    "fields": { "version": "string", "add_scopes": { "list": "string" } }
+  },
+  "CommunityPluginUpgradeAsks": {
+    "fields": {
+      "version": "string",
+      "added_scopes": { "list": "string" },
+      "added_surfaces": { "list": { "ref": "PluginSurfaceSummary" } },
+      "declined": "boolean"
+    }
+  },
+  "CommunityProviderConnectionCreate": {
+    "fields": {
+      "provider_id": "number",
+      "claim": "string",
+      "claim_values": { "list": "string" },
+      "enabled": "boolean",
+      "auto_join": "boolean",
+      "accepts_provider_placement": "boolean"
+    }
+  },
+  "CommunityProviderConnectionRead": {
+    "fields": {
+      "id": "number",
+      "inherited": "boolean",
+      "provider_id": "number",
+      "provider_slug": "string",
+      "provider_display_name": "string",
+      "provider_icon": "string",
+      "claim": "string",
+      "claim_values": { "list": "string" },
+      "enabled": "boolean",
+      "auto_join": "boolean",
+      "narrowing_approved": "boolean",
+      "accepts_provider_placement": "boolean",
+      "login_ready": "boolean"
+    }
+  },
+  "CommunityProviderConnectionUpdate": {
+    "fields": {
+      "claim": "string",
+      "claim_values": { "list": "string" },
+      "enabled": "boolean",
+      "auto_join": "boolean",
+      "accepts_provider_placement": "boolean"
+    }
+  },
+  "CommunityRead": {
+    "fields": {
+      "name": "string",
+      "description": "string",
+      "id": "number",
+      "role": { "ref": "CommunityRole" },
+      "can": { "ref": "CommunityCan" },
+      "position": "number",
+      "display_name": "string",
+      "created_at": "string",
+      "updated_at": "string",
+      "retention_days": "number",
+      "max_storage_bytes": "number",
+      "max_users": "number",
+      "member_count": "number",
+      "tier_name": "string",
+      "status": { "ref": "CommunityStatus" },
+      "content_read_only": "boolean",
+      "contact_email": "string",
+      "auth_options": { "list": { "ref": "CommunityAuthOption" } },
+      "enforce_compliance_session": "boolean",
+      "require_second_factor": "boolean",
+      "is_community": "boolean",
+      "categories": { "list": { "ref": "CommunityCategory" } },
+      "has_adult_content": "boolean",
+      "banner": { "ref": "CommunityBannerRead" },
+      "location": { "ref": "CommunityLocation-Output" },
+      "online_count": "number",
+      "icon_url": "string",
+      "banner_card_url": "string"
+    }
+  },
+  "CommunityRole": { "enum": ["admin", "member", "superadmin", "support"] },
+  "CommunityRosterMember": {
+    "fields": {
+      "id": "number",
+      "username": "string",
+      "discriminator": "number",
+      "avatar_url": "string",
+      "status": { "ref": "UserStatus" },
+      "display_name": "string",
+      "profile_decorations": { "ref": "ProfileDecorations-Output" },
+      "community_role": "string",
+      "presence": { "ref": "Presence" },
+      "custom_status": { "ref": "CustomStatus-Output" }
+    }
+  },
+  "CommunityRosterResponse": {
+    "fields": {
+      "total_count": "number",
+      "page": "number",
+      "page_size": "number",
+      "has_next": "boolean",
+      "has_prev": "boolean",
+      "items": { "list": { "ref": "CommunityRosterMember" } },
+      "presence_counts": { "map": "number" }
+    }
+  },
+  "CommunitySettingsResponse": {
+    "fields": {
+      "community_directory_enabled": "boolean",
+      "age_gate_enabled": "boolean",
+      "default_dm_policy": { "ref": "DmPolicy" },
+      "direct_messages_enabled": "boolean",
+      "deleted_community_retention_days": "number",
+      "deleted_account_retention_days": "number",
+      "on_hold_community_deletion_days": "number"
+    }
+  },
+  "CommunitySettingsUpdate": {
+    "fields": {
+      "community_directory_enabled": "boolean",
+      "age_gate_enabled": "boolean",
+      "default_dm_policy": { "ref": "DmPolicy" },
+      "direct_messages_enabled": "boolean",
+      "deleted_community_retention_days": "number",
+      "deleted_account_retention_days": "number",
+      "on_hold_community_deletion_days": "number"
+    }
+  },
+  "CommunityStatus": { "enum": ["active", "read_only", "suspended", "on_hold", "deleted"] },
+  "CommunityStorageUsageRead": { "fields": { "community_id": "number", "usage_bytes": "number" } },
+  "CommunityTaskBreakdown": {
+    "fields": { "community_id": "number", "community_name": "string", "completed_count": "number" }
+  },
+  "CommunityUpdate": {
+    "fields": {
+      "name": "string",
+      "description": "string",
+      "retention_days": "number",
+      "is_community": "boolean",
+      "categories": { "list": { "ref": "CommunityCategory" } },
+      "banner": { "ref": "CommunityBannerWrite" },
+      "location": { "ref": "CommunityLocation-Input" },
+      "has_adult_content": "boolean"
+    }
+  },
+  "ConnectableProviderRead": {
+    "fields": {
+      "id": "number",
+      "display_name": "string",
+      "icon": "string",
+      "login_ready": "boolean"
+    }
+  },
+  "ConnectionRequestCreate": { "fields": { "username": "string", "discriminator": "number" } },
+  "ConnectionScope": { "enum": ["platform", "community"] },
+  "ConsentAccess": { "enum": ["read", "read_write"] },
+  "ConsentStatus": { "enum": ["pending", "granted", "declined", "revoked"] },
+  "ContactCommunitySection": {
+    "fields": {
+      "community_id": "number",
+      "community_name": "string",
+      "icon_url": "string",
+      "total_count": "number",
+      "items": { "list": { "ref": "ContactRead" } },
+      "has_next": "boolean"
+    }
+  },
+  "ContactGrantRead": {
+    "fields": {
+      "user_id": "number",
+      "username": "string",
+      "discriminator": "number",
+      "avatar_url": "string",
+      "status": { "ref": "UserStatus" },
+      "presence": { "ref": "Presence" },
+      "profile_decorations": { "ref": "ProfileDecorations-Output" },
+      "state": "string",
+      "outgoing": "boolean",
+      "created_at": "string",
+      "responded_at": "string"
+    }
+  },
+  "ContactGrantsResponse": {
+    "fields": {
+      "accepted": { "list": { "ref": "ContactGrantRead" } },
+      "incoming": { "list": { "ref": "ContactGrantRead" } },
+      "outgoing": { "list": { "ref": "ContactGrantRead" } }
+    }
+  },
+  "ContactRead": {
+    "fields": {
+      "id": "number",
+      "username": "string",
+      "discriminator": "number",
+      "avatar_url": "string",
+      "status": { "ref": "UserStatus" },
+      "display_name": "string",
+      "profile_decorations": { "ref": "ProfileDecorations-Output" },
+      "community_role": "string",
+      "presence": { "ref": "Presence" },
+      "shared_community_ids": { "list": "number" }
+    }
+  },
+  "ContactSectionsResponse": {
+    "fields": {
+      "sections": { "list": { "ref": "ContactCommunitySection" } },
+      "page": "number",
+      "page_size": "number"
+    }
+  },
+  "ContentCan": { "fields": { "edit": "boolean" } },
+  "ControlKind": {
+    "enum": [
+      "select",
+      "task_status",
+      "task",
+      "member",
+      "tag",
+      "project",
+      "initiative",
+      "calendar",
+      "counter_group",
+      "reference",
+      "property_value",
+      "date",
+      "boolean",
+      "number",
+      "text"
+    ]
+  },
+  "Conversation": { "enum": ["none", "staff_first", "open"] },
+  "CookieCategory": { "enum": ["analytics", "marketing"] },
+  "CookieConsentRead": {
+    "fields": { "granted": { "list": "string" }, "version": "number", "decided_at": "string" }
+  },
+  "CookieConsentUpdate": {
+    "fields": { "granted": { "list": { "ref": "CookieCategory" } }, "version": "number" }
+  },
+  "CounterCreate": {
+    "fields": {
+      "properties": { "list": { "ref": "PropertyValueInput" } },
+      "name": "string",
+      "color": "string",
+      "count": "any",
+      "min": "any",
+      "max": "any",
+      "step": "any",
+      "initial_count": "any",
+      "view_mode": { "ref": "CounterViewMode" },
+      "position": "any"
+    }
+  },
+  "CounterGroupCreate": {
+    "fields": {
+      "properties": { "list": { "ref": "PropertyValueInput" } },
+      "name": "string",
+      "description": "string",
+      "initiative_id": "number",
+      "grants": { "list": { "ref": "ResourceGrantSchema" } }
+    }
+  },
+  "CounterGroupListResponse": {
+    "fields": {
+      "total_count": "number",
+      "page": "number",
+      "page_size": "number",
+      "has_next": "boolean",
+      "has_prev": "boolean",
+      "items": { "list": { "ref": "CounterGroupSummary" } }
+    }
+  },
+  "CounterGroupRead": {
+    "fields": {
+      "archived_at": "string",
+      "can": { "ref": "ToolCan" },
+      "id": "number",
+      "initiative_id": "number",
+      "community_id": "number",
+      "created_by": "number",
+      "created_at": "string",
+      "updated_at": "string",
+      "comments_enabled": "boolean",
+      "tags": { "list": { "ref": "TagSummary" } },
+      "properties": { "list": { "ref": "PropertySummary" } },
+      "grants": { "list": { "ref": "ResourceGrantSchema" } },
+      "name": "string",
+      "description": "string",
+      "preview": { "list": { "ref": "CounterPreview" } },
+      "counters": { "list": { "ref": "CounterRead" } }
+    }
+  },
+  "CounterGroupSummary": {
+    "fields": {
+      "archived_at": "string",
+      "can": { "ref": "ToolCan" },
+      "id": "number",
+      "initiative_id": "number",
+      "community_id": "number",
+      "created_by": "number",
+      "created_at": "string",
+      "updated_at": "string",
+      "comments_enabled": "boolean",
+      "tags": { "list": { "ref": "TagSummary" } },
+      "properties": { "list": { "ref": "PropertySummary" } },
+      "grants": { "list": { "ref": "ResourceGrantSchema" } },
+      "name": "string",
+      "description": "string",
+      "preview": { "list": { "ref": "CounterPreview" } }
+    }
+  },
+  "CounterGroupUpdate": { "fields": { "name": "string", "description": "string" } },
+  "CounterPreview": {
+    "fields": { "id": "number", "name": "string", "color": "string", "count": "string" }
+  },
+  "CounterRead": {
+    "fields": {
+      "id": "number",
+      "counter_group_id": "number",
+      "community_id": "number",
+      "name": "string",
+      "color": "string",
+      "count": "string",
+      "min": "string",
+      "max": "string",
+      "step": "string",
+      "initial_count": "string",
+      "view_mode": { "ref": "CounterViewMode" },
+      "position": "string",
+      "properties": { "list": { "ref": "PropertySummary" } },
+      "created_at": "string",
+      "updated_at": "string"
+    }
+  },
+  "CounterSetCountRequest": { "fields": { "count": "any" } },
+  "CounterSortDirection": { "enum": ["asc", "desc"] },
+  "CounterSortField": { "enum": ["name", "count"] },
+  "CounterSortRequest": {
+    "fields": {
+      "field": { "ref": "CounterSortField" },
+      "direction": { "ref": "CounterSortDirection" }
+    }
+  },
+  "CounterStepRequest": { "fields": { "direction": { "enum": ["up", "down"] }, "amount": "any" } },
+  "CounterUpdate": {
+    "fields": {
+      "name": "string",
+      "color": "string",
+      "min": "any",
+      "max": "any",
+      "step": "any",
+      "initial_count": "any",
+      "view_mode": { "ref": "CounterViewMode" },
+      "position": "any"
+    }
+  },
+  "CounterViewMode": { "enum": ["number", "progress_bar", "segmented_clock"] },
+  "CustomStatus-Input": { "fields": { "emoji": "string", "text": "string" } },
+  "CustomStatus-Output": { "fields": { "emoji": "string", "text": "string" } },
+  "DashboardCreate": {
+    "fields": {
+      "properties": { "list": { "ref": "PropertyValueInput" } },
+      "name": "string",
+      "description": "string",
+      "initiative_id": "number",
+      "tag_ids": { "list": "number" },
+      "listing_uid": "string",
+      "definition": { "map": "any" },
+      "config": { "map": "any" },
+      "grants": { "list": { "ref": "ResourceGrantSchema" } }
+    }
+  },
+  "DashboardDataResponse": {
+    "fields": { "initiative_id": "number", "widgets": { "map": { "ref": "DashboardWidgetData" } } }
+  },
+  "DashboardInstalledListings": { "fields": { "counts": { "map": "number" } } },
+  "DashboardListResponse": {
+    "fields": {
+      "total_count": "number",
+      "page": "number",
+      "page_size": "number",
+      "has_next": "boolean",
+      "has_prev": "boolean",
+      "items": { "list": { "ref": "DashboardSummary" } }
+    }
+  },
+  "DashboardPreview": { "fields": { "definition": { "map": "any" }, "config": { "map": "any" } } },
+  "DashboardRead": {
+    "fields": {
+      "archived_at": "string",
+      "can": { "ref": "ToolCan" },
+      "id": "number",
+      "initiative_id": "number",
+      "community_id": "number",
+      "created_by": "number",
+      "created_at": "string",
+      "updated_at": "string",
+      "comments_enabled": "boolean",
+      "tags": { "list": { "ref": "TagSummary" } },
+      "properties": { "list": { "ref": "PropertySummary" } },
+      "grants": { "list": { "ref": "ResourceGrantSchema" } },
+      "name": "string",
+      "description": "string",
+      "listing_uid": "string",
+      "listing_version": "string",
+      "view_mode": { "ref": "DashboardViewMode" },
+      "preview": { "ref": "DashboardPreview" },
+      "definition": { "map": "any" },
+      "config": { "map": "any" },
+      "can_run_as_initiative": "boolean"
+    }
+  },
+  "DashboardSummary": {
+    "fields": {
+      "archived_at": "string",
+      "can": { "ref": "ToolCan" },
+      "id": "number",
+      "initiative_id": "number",
+      "community_id": "number",
+      "created_by": "number",
+      "created_at": "string",
+      "updated_at": "string",
+      "comments_enabled": "boolean",
+      "tags": { "list": { "ref": "TagSummary" } },
+      "properties": { "list": { "ref": "PropertySummary" } },
+      "grants": { "list": { "ref": "ResourceGrantSchema" } },
+      "name": "string",
+      "description": "string",
+      "listing_uid": "string",
+      "listing_version": "string",
+      "view_mode": { "ref": "DashboardViewMode" },
+      "preview": { "ref": "DashboardPreview" }
+    }
+  },
+  "DashboardUpdate": {
+    "fields": {
+      "name": "string",
+      "description": "string",
+      "definition": { "map": "any" },
+      "config": { "map": "any" }
+    }
+  },
+  "DashboardViewMode": { "enum": ["individual", "initiative"] },
+  "DashboardViewModeRequest": { "fields": { "mode": { "ref": "DashboardViewMode" } } },
+  "DashboardWidgetData": { "fields": { "result": { "ref": "QueryResponse" }, "error": "string" } },
+  "DatasetName": {
+    "enum": [
+      "tasks",
+      "projects",
+      "calendar_events",
+      "counter_groups",
+      "counters",
+      "task_statuses",
+      "task_assignees",
+      "members",
+      "files",
+      "file_versions",
+      "queues",
+      "queue_items",
+      "calendars",
+      "dashboards",
+      "posts",
+      "galleries",
+      "gallery_images",
+      "gallery_image_versions",
+      "wikis",
+      "wiki_pages"
+    ]
+  },
+  "DecorationPack": {
+    "fields": {
+      "uid": "string",
+      "public_id": "string",
+      "name": "string",
+      "publisher": "string",
+      "description": "string",
+      "avatar_url": "string",
+      "contents": { "list": { "ref": "OwnedDecoration" } },
+      "installed": "boolean"
+    }
+  },
+  "DecorationPackListResponse": { "fields": { "items": { "list": { "ref": "DecorationPack" } } } },
+  "DefaultFilter": { "fields": { "field": "string", "op": { "ref": "FilterOp" }, "value": "any" } },
+  "DeletionEligibilityResponse": {
+    "fields": {
+      "can_delete": "boolean",
+      "last_owner": "boolean",
+      "sole_superadmin_communities": { "list": "string" }
+    }
+  },
+  "DirectMessagePermissionRead": { "fields": { "may_connect": "boolean", "permission": "string" } },
+  "DirectMessagePermissionsRequest": { "fields": { "user_ids": { "list": "number" } } },
+  "DirectMessagePermissionsResponse": {
+    "fields": { "permissions": { "map": { "ref": "DirectMessagePermissionRead" } } }
+  },
+  "DirectMessageSettingsRead": {
+    "fields": {
+      "dm_policy": { "ref": "DmPolicy" },
+      "communities": { "list": { "ref": "CommunityDmToggle" } },
+      "age_confirmed_at": "string",
+      "age_answer_required": "boolean",
+      "send_receipts": "boolean"
+    }
+  },
+  "DirectMessageSettingsUpdate": {
+    "fields": {
+      "dm_policy": { "ref": "DmPolicy" },
+      "communities": { "list": { "ref": "CommunityDmToggleUpdate" } },
+      "send_receipts": "boolean"
+    }
+  },
+  "DirectoryCommunityPage": {
+    "fields": {
+      "total_count": "number",
+      "page": "number",
+      "page_size": "number",
+      "has_next": "boolean",
+      "has_prev": "boolean",
+      "items": { "list": { "ref": "DirectoryCommunityRead" } }
+    }
+  },
+  "DirectoryCommunityRead": {
+    "fields": {
+      "id": "number",
+      "name": "string",
+      "description": "string",
+      "icon_url": "string",
+      "categories": { "list": { "ref": "CommunityCategory" } },
+      "member_count": "number",
+      "online_count": "number",
+      "already_member": "boolean",
+      "banner": { "ref": "CommunityBannerRead" },
+      "location": { "ref": "CommunityLocation-Output" }
+    }
+  },
+  "DmConversationCreate": { "fields": { "user_id": "number" } },
+  "DmConversationRead": {
+    "fields": {
+      "id": "string",
+      "other_user_id": "number",
+      "created_at": "string",
+      "kind": "string",
+      "member_ids": { "list": "number" },
+      "members": { "list": { "ref": "DmRosterMember" } },
+      "pending": "boolean"
+    }
+  },
+  "DmConversationsResponse": {
+    "fields": { "conversations": { "list": { "ref": "DmConversationRead" } } }
+  },
+  "DmDeviceRead": {
+    "fields": {
+      "id": "string",
+      "identity_key": "string",
+      "fingerprint_key": "string",
+      "signature": "string",
+      "label": "string",
+      "created_at": "string",
+      "last_seen_at": "string",
+      "one_time_key_count": "number"
+    }
+  },
+  "DmDeviceRegistration": {
+    "fields": {
+      "identity_key": "string",
+      "fingerprint_key": "string",
+      "signature": "string",
+      "fallback_key": { "ref": "DmOneTimeKeyUpload" },
+      "one_time_keys": { "list": { "ref": "DmOneTimeKeyUpload" } }
+    }
+  },
+  "DmDeviceSignature": {
+    "fields": {
+      "signature": "string",
+      "fallback_key": { "ref": "DmOneTimeKeyUpload" },
+      "one_time_keys": { "list": { "ref": "DmOneTimeKeyUpload" } }
+    }
+  },
+  "DmDevicesResponse": {
+    "fields": { "devices": { "list": { "ref": "DmDeviceRead" } }, "device_id": "string" }
+  },
+  "DmGroupCreate": { "fields": { "user_ids": { "list": "number" } } },
+  "DmOneTimeKeyBatch": {
+    "fields": {
+      "device_id": "string",
+      "one_time_keys": { "list": { "ref": "DmOneTimeKeyUpload" } }
+    }
+  },
+  "DmOneTimeKeyUpload": {
+    "fields": {
+      "key_id": "string",
+      "public_key": "string",
+      "signature": "string",
+      "fallback": "boolean"
+    }
+  },
+  "DmOutboundMessage": {
+    "fields": { "recipient_device_id": "string", "message_type": "number", "payload": "string" }
+  },
+  "DmOwnSessionKeysRequest": {
+    "fields": { "device_ids": { "list": "string" }, "device_id": "string" }
+  },
+  "DmPolicy": { "enum": ["private", "community", "public"] },
+  "DmQueueAck": { "fields": { "device_id": "string", "message_ids": { "list": "number" } } },
+  "DmQueueItemRead": {
+    "fields": {
+      "id": "number",
+      "conversation_id": "string",
+      "message_type": "number",
+      "payload": "string",
+      "created_at": "string"
+    }
+  },
+  "DmQueueResponse": {
+    "fields": { "items": { "list": { "ref": "DmQueueItemRead" } }, "more": "boolean" }
+  },
+  "DmRosterCheckRequest": { "fields": { "user_ids": { "list": "number" } } },
+  "DmRosterCheckResponse": {
+    "fields": {
+      "unreachable_pair": { "list": "number" },
+      "max_members": "number",
+      "too_large": "boolean"
+    }
+  },
+  "DmRosterMember": {
+    "fields": {
+      "user_id": "number",
+      "username": "string",
+      "discriminator": "number",
+      "avatar_url": "string",
+      "profile_decorations": { "ref": "ProfileDecorations-Output" },
+      "presence": { "ref": "Presence" }
+    }
+  },
+  "DmSendRequest": {
+    "fields": {
+      "messages": { "list": { "ref": "DmOutboundMessage" } },
+      "silent": "boolean",
+      "wake_own_devices": "boolean"
+    }
+  },
+  "DmSendResponse": { "fields": { "accepted": "number", "queue_full_for": { "list": "number" } } },
+  "DmSessionKey": {
+    "fields": {
+      "device_id": "string",
+      "identity_key": "string",
+      "fingerprint_key": "string",
+      "signature": "string",
+      "one_time_key": { "ref": "DmOneTimeKeyUpload" }
+    }
+  },
+  "DmSessionKeysRequest": { "fields": { "device_ids": { "list": "string" } } },
+  "DmSessionKeysResponse": {
+    "fields": { "user_id": "number", "devices": { "list": { "ref": "DmSessionKey" } } }
+  },
+  "DmVerificationInbox": { "fields": { "items": { "list": { "ref": "DmVerificationMessage" } } } },
+  "DmVerificationMessage": {
+    "fields": {
+      "id": "number",
+      "sender_device_id": "string",
+      "body": "string",
+      "created_at": "string"
+    }
+  },
+  "DmVerificationSend": {
+    "fields": { "device_id": "string", "to_device_id": "string", "body": "string" }
+  },
+  "EmailCadence": { "enum": ["instant", "hourly", "daily", "weekly"] },
+  "EmailOtpRegister": {
+    "fields": {
+      "registration_ticket": "string",
+      "username": "string",
+      "timezone": "string",
+      "invite_code": "string",
+      "community": { "ref": "NewCommunity" },
+      "username_offer": "string",
+      "birthdate": "string"
+    }
+  },
+  "EmailOtpSend": {
+    "fields": { "email": "string", "captcha_token": "string", "invite_code": "string" }
+  },
+  "EmailOtpSent": { "fields": { "status": "string", "challenge": "string" } },
+  "EmailOtpVerify": { "fields": { "challenge": "string", "code": "string" } },
+  "EmailSchedule-Input": {
+    "fields": {
+      "cadence": { "ref": "EmailCadence" },
+      "at": "string",
+      "weekday": "number",
+      "personal_instant": "boolean"
+    }
+  },
+  "EmailSchedule-Output": {
+    "fields": {
+      "cadence": { "ref": "EmailCadence" },
+      "at": "string",
+      "weekday": "number",
+      "personal_instant": "boolean"
+    }
+  },
+  "EmailSettingsResponse": {
+    "fields": {
+      "host": "string",
+      "port": "number",
+      "secure": "boolean",
+      "reject_unauthorized": "boolean",
+      "username": "string",
+      "has_password": "boolean",
+      "from_address": "string",
+      "test_recipient": "string"
+    }
+  },
+  "EmailSettingsUpdate": {
+    "fields": {
+      "host": "string",
+      "port": "number",
+      "secure": "boolean",
+      "reject_unauthorized": "boolean",
+      "username": "string",
+      "password": "string",
+      "from_address": "string",
+      "test_recipient": "string"
+    }
+  },
+  "EmailTestRequest": { "fields": { "recipient": "string" } },
+  "EmailTestResponse": { "fields": { "status": "string" } },
+  "EndpointRef": { "fields": { "type": { "ref": "SearchEntityType" }, "id": "number" } },
+  "EntityType": {
+    "enum": [
+      "project",
+      "file",
+      "queue",
+      "counter_group",
+      "calendar",
+      "dashboard",
+      "post",
+      "gallery",
+      "wiki",
+      "task",
+      "queue_item",
+      "calendar_event",
+      "counter",
+      "gallery_image",
+      "wiki_page",
+      "comment",
+      "initiative",
+      "tag"
+    ]
+  },
+  "EnvelopeImportRequest": {
+    "fields": { "initiative_id": "number", "envelope": { "map": "any" } }
+  },
+  "EnvelopeImportResult": {
+    "fields": {
+      "entity_id": "number",
+      "entity_title": "string",
+      "created": { "map": "number" },
+      "matched": { "map": "number" },
+      "failed": { "map": "number" },
+      "renamed_properties": { "list": "string" },
+      "renamed_property_count": "number",
+      "links_created": "number",
+      "links_unresolved": "number",
+      "unmatched_handles": { "list": "string" },
+      "warnings": { "list": "string" }
+    }
+  },
+  "ExportJobRead": {
+    "fields": {
+      "id": "number",
+      "community_id": "number",
+      "created_by": "number",
+      "source": "string",
+      "template_id": "string",
+      "format": "string",
+      "params": { "map": "any" },
+      "status": { "ref": "ExportJobStatus" },
+      "error": "string",
+      "expires_at": "string",
+      "created_at": "string",
+      "updated_at": "string",
+      "delivered": "boolean"
+    }
+  },
+  "ExportJobStatus": { "enum": ["queued", "running", "done", "failed", "expired"] },
+  "FCMConfigResponse": {
+    "fields": {
+      "enabled": "boolean",
+      "project_id": "string",
+      "application_id": "string",
+      "api_key": "string",
+      "sender_id": "string",
+      "push_relay_server_id": "string",
+      "android_via_relay": "boolean"
+    }
+  },
+  "FavoriteContactsResponse": {
+    "fields": { "items": { "list": { "ref": "ContactRead" } }, "total_count": "number" }
+  },
+  "FieldCatalogResponse": {
+    "fields": {
+      "dataset": "string",
+      "fields": { "list": { "ref": "FieldDescription" } },
+      "relations": { "list": { "ref": "RelationDescription" } },
+      "default_filters": { "list": { "ref": "DefaultFilter" } }
+    }
+  },
+  "FieldDescription": {
+    "fields": {
+      "name": "string",
+      "type": { "ref": "FieldType" },
+      "kind": { "ref": "ControlKind" },
+      "ops": { "list": { "ref": "FilterOp" } },
+      "multiple": "boolean",
+      "sortable": "boolean",
+      "options": { "list": "string" }
+    }
+  },
+  "FieldType": { "enum": ["text", "number", "date", "boolean", "enum", "reference"] },
+  "FileCreate": {
+    "fields": {
+      "properties": { "list": { "ref": "PropertyValueInput" } },
+      "name": "string",
+      "initiative_id": "number",
+      "featured_image_url": "string",
+      "is_template": "boolean",
+      "content": { "map": "any" },
+      "file_type": { "enum": ["native", "whiteboard", "smart_link", "spreadsheet"] },
+      "grants": { "list": { "ref": "ResourceGrantSchema" } }
+    }
+  },
+  "FileListResponse": {
+    "fields": {
+      "total_count": "number",
+      "page": "number",
+      "page_size": "number",
+      "has_next": "boolean",
+      "has_prev": "boolean",
+      "items": { "list": { "ref": "FileSummary" } }
+    }
+  },
+  "FileRead": {
+    "fields": {
+      "archived_at": "string",
+      "can": { "ref": "ToolCan" },
+      "id": "number",
+      "initiative_id": "number",
+      "community_id": "number",
+      "created_by": "number",
+      "created_at": "string",
+      "updated_at": "string",
+      "comments_enabled": "boolean",
+      "tags": { "list": { "ref": "TagSummary" } },
+      "properties": { "list": { "ref": "PropertySummary" } },
+      "grants": { "list": { "ref": "ResourceGrantSchema" } },
+      "name": "string",
+      "featured_image_url": "string",
+      "is_template": "boolean",
+      "initiative": { "ref": "InitiativeSummary" },
+      "owner": { "ref": "UserPublic" },
+      "owner_plugin": { "ref": "OwnerPluginSummary" },
+      "comment_count": "number",
+      "file_type": { "ref": "FileType" },
+      "file_url": "string",
+      "file_content_type": "string",
+      "file_size": "number",
+      "original_filename": "string",
+      "smart_link_url": "string",
+      "content": { "map": "any" },
+      "content_version": "string"
+    }
+  },
+  "FileSummary": {
+    "fields": {
+      "archived_at": "string",
+      "can": { "ref": "ToolCan" },
+      "id": "number",
+      "initiative_id": "number",
+      "community_id": "number",
+      "created_by": "number",
+      "created_at": "string",
+      "updated_at": "string",
+      "comments_enabled": "boolean",
+      "tags": { "list": { "ref": "TagSummary" } },
+      "properties": { "list": { "ref": "PropertySummary" } },
+      "grants": { "list": { "ref": "ResourceGrantSchema" } },
+      "name": "string",
+      "featured_image_url": "string",
+      "is_template": "boolean",
+      "initiative": { "ref": "InitiativeSummary" },
+      "owner": { "ref": "UserPublic" },
+      "owner_plugin": { "ref": "OwnerPluginSummary" },
+      "comment_count": "number",
+      "file_type": { "ref": "FileType" },
+      "file_url": "string",
+      "file_content_type": "string",
+      "file_size": "number",
+      "original_filename": "string",
+      "smart_link_url": "string"
+    }
+  },
+  "FileType": { "enum": ["native", "file", "whiteboard", "smart_link", "spreadsheet"] },
+  "FileUpdate": {
+    "fields": {
+      "name": "string",
+      "content": { "map": "any" },
+      "content_version": "string",
+      "featured_image_url": "string",
+      "is_template": "boolean"
+    }
+  },
+  "FileVersionRead": {
+    "fields": {
+      "id": "number",
+      "version_number": "number",
+      "file_content_type": "string",
+      "file_size": "number",
+      "original_filename": "string",
+      "created_by": "number",
+      "created_at": "string",
+      "is_current": "boolean"
+    }
+  },
+  "FiledTicketDetailRead": {
+    "fields": {
+      "task_id": "number",
+      "stream": { "ref": "IntakeStream" },
+      "subject": "string",
+      "state": { "ref": "FilerState" },
+      "opened_at": "string",
+      "updated_at": "string",
+      "conversation": { "ref": "Conversation" },
+      "can_reply": "boolean",
+      "messages": { "list": { "ref": "TicketMessageRead" } }
+    }
+  },
+  "FiledTicketList": { "fields": { "items": { "list": { "ref": "FiledTicketRead" } } } },
+  "FiledTicketRead": {
+    "fields": {
+      "task_id": "number",
+      "stream": { "ref": "IntakeStream" },
+      "subject": "string",
+      "state": { "ref": "FilerState" },
+      "opened_at": "string",
+      "updated_at": "string"
+    }
+  },
+  "FilerState": { "enum": ["received", "in_progress", "waiting_on_you", "closed"] },
+  "FilterCondition": {
+    "fields": {
+      "field": "string",
+      "op": { "ref": "FilterOp" },
+      "value": "any",
+      "negate": "boolean"
+    }
+  },
+  "FilterGroup": {
+    "fields": {
+      "logic": { "enum": ["and", "or"] },
+      "negate": "boolean",
+      "conditions": { "list": "any" }
+    }
+  },
+  "FilterOp": { "enum": ["eq", "lt", "lte", "gt", "gte", "in_", "ilike", "is_null"] },
+  "FilterPresetCreate": {
+    "fields": {
+      "name": "string",
+      "filters": { "ref": "TaskFilterSpec" },
+      "is_default": "boolean",
+      "position": "number"
+    }
+  },
+  "FilterPresetListResponse": {
+    "fields": { "items": { "list": { "ref": "FilterPresetRead" } }, "can_manage": "boolean" }
+  },
+  "FilterPresetRead": {
+    "fields": {
+      "id": "number",
+      "project_id": "number",
+      "slug": "string",
+      "name": "string",
+      "position": "number",
+      "is_default": "boolean",
+      "filters": { "ref": "TaskFilterSpec" },
+      "created_at": "string",
+      "updated_at": "string"
+    }
+  },
+  "FilterPresetReorderItem": { "fields": { "id": "number", "position": "number" } },
+  "FilterPresetReorderRequest": {
+    "fields": { "items": { "list": { "ref": "FilterPresetReorderItem" } } }
+  },
+  "FilterPresetUpdate": {
+    "fields": {
+      "name": "string",
+      "filters": { "ref": "TaskFilterSpec" },
+      "is_default": "boolean",
+      "position": "number"
+    }
+  },
+  "ForeignImportRequest": {
+    "fields": { "initiative_id": "number", "selection": "string", "content": "string" }
+  },
+  "ForeignPreview": {
+    "fields": {
+      "source": "string",
+      "picks_one": "boolean",
+      "options": { "list": { "ref": "ForeignSourceOption" } }
+    }
+  },
+  "ForeignSourceOption": {
+    "fields": { "key": "string", "name": "string", "task_count": "number" }
+  },
+  "GalleryCover": {
+    "fields": {
+      "image_id": "number",
+      "file_url": "string",
+      "thumbnail_url": "string",
+      "width": "number",
+      "height": "number"
+    }
+  },
+  "GalleryCreate": {
+    "fields": {
+      "properties": { "list": { "ref": "PropertyValueInput" } },
+      "name": "string",
+      "description": "string",
+      "initiative_id": "number",
+      "tag_ids": { "list": "number" },
+      "grants": { "list": { "ref": "ResourceGrantSchema" } }
+    }
+  },
+  "GalleryImageBulkDelete": { "fields": { "image_ids": { "list": "number" } } },
+  "GalleryImageBulkDeleteResponse": { "fields": { "deleted_count": "number" } },
+  "GalleryImageListResponse": {
+    "fields": {
+      "total_count": "number",
+      "page": "number",
+      "page_size": "number",
+      "has_next": "boolean",
+      "has_prev": "boolean",
+      "items": { "list": { "ref": "GalleryImageRead" } }
+    }
+  },
+  "GalleryImageRead": {
+    "fields": {
+      "id": "number",
+      "gallery_id": "number",
+      "community_id": "number",
+      "title": "string",
+      "caption": "string",
+      "file_url": "string",
+      "thumbnail_url": "string",
+      "file_content_type": "string",
+      "file_size": "number",
+      "original_filename": "string",
+      "width": "number",
+      "height": "number",
+      "created_by": "number",
+      "uploader": { "ref": "CommentAuthor" },
+      "created_at": "string",
+      "updated_at": "string",
+      "version_count": "number",
+      "tags": { "list": { "ref": "TagSummary" } },
+      "properties": { "list": { "ref": "PropertySummary" } }
+    }
+  },
+  "GalleryImageUpdate": {
+    "fields": {
+      "properties": { "list": { "ref": "PropertyValueInput" } },
+      "title": "string",
+      "caption": "string",
+      "tag_ids": { "list": "number" }
+    }
+  },
+  "GalleryImageVersionRead": {
+    "fields": {
+      "id": "number",
+      "version_number": "number",
+      "file_url": "string",
+      "thumbnail_url": "string",
+      "file_content_type": "string",
+      "file_size": "number",
+      "original_filename": "string",
+      "width": "number",
+      "height": "number",
+      "created_by": "number",
+      "created_at": "string",
+      "is_current": "boolean"
+    }
+  },
+  "GalleryListResponse": {
+    "fields": {
+      "total_count": "number",
+      "page": "number",
+      "page_size": "number",
+      "has_next": "boolean",
+      "has_prev": "boolean",
+      "items": { "list": { "ref": "GallerySummary" } }
+    }
+  },
+  "GalleryRead": {
+    "fields": {
+      "archived_at": "string",
+      "can": { "ref": "ToolCan" },
+      "id": "number",
+      "initiative_id": "number",
+      "community_id": "number",
+      "created_by": "number",
+      "created_at": "string",
+      "updated_at": "string",
+      "comments_enabled": "boolean",
+      "tags": { "list": { "ref": "TagSummary" } },
+      "properties": { "list": { "ref": "PropertySummary" } },
+      "grants": { "list": { "ref": "ResourceGrantSchema" } },
+      "name": "string",
+      "description": "string",
+      "cover_image_id": "number",
+      "cover": { "ref": "GalleryCover" },
+      "preview": { "list": { "ref": "GalleryCover" } },
+      "comment_count": "number"
+    }
+  },
+  "GallerySummary": {
+    "fields": {
+      "archived_at": "string",
+      "can": { "ref": "ToolCan" },
+      "id": "number",
+      "initiative_id": "number",
+      "community_id": "number",
+      "created_by": "number",
+      "created_at": "string",
+      "updated_at": "string",
+      "comments_enabled": "boolean",
+      "tags": { "list": { "ref": "TagSummary" } },
+      "properties": { "list": { "ref": "PropertySummary" } },
+      "grants": { "list": { "ref": "ResourceGrantSchema" } },
+      "name": "string",
+      "description": "string",
+      "cover_image_id": "number",
+      "cover": { "ref": "GalleryCover" },
+      "preview": { "list": { "ref": "GalleryCover" } },
+      "comment_count": "number"
+    }
+  },
+  "GalleryUpdate": {
+    "fields": { "name": "string", "description": "string", "cover_image_id": "number" }
+  },
+  "GenerateChecklistResponse": { "fields": { "items": { "list": "string" } } },
+  "GenerateDescriptionResponse": { "fields": { "description": "string" } },
+  "GenerateFileSummaryResponse": { "fields": { "summary": "string" } },
+  "HTTPValidationError": { "fields": { "detail": { "list": { "ref": "ValidationError" } } } },
+  "HeatmapDayData": { "fields": { "date": "string", "activity_count": "number" } },
+  "HeldChangeKind": { "enum": ["primary", "remove_address", "second_factor_off", "last_passkey"] },
+  "HeldChangeOutcome": { "fields": { "held": { "ref": "HeldChangeRead" } } },
+  "HeldChangeRead": {
+    "fields": {
+      "id": "number",
+      "kind": { "ref": "HeldChangeKind" },
+      "subject": "string",
+      "requested_at": "string",
+      "applies_at": "string"
+    }
+  },
+  "ICalEventPreview": {
+    "fields": {
+      "summary": "string",
+      "start_at": "string",
+      "end_at": "string",
+      "all_day": "boolean",
+      "has_recurrence": "boolean"
+    }
+  },
+  "ICalImportError": { "fields": { "problem": { "ref": "ICalImportProblem" }, "title": "string" } },
+  "ICalImportProblem": { "enum": ["no_start", "unreadable", "not_saved"] },
+  "ICalImportRequest": {
+    "fields": { "calendar_id": "number", "ics_content": "string", "tz": "string" }
+  },
+  "ICalImportResult": {
+    "fields": {
+      "events_created": "number",
+      "events_failed": "number",
+      "errors": { "list": { "ref": "ICalImportError" } }
+    }
+  },
+  "ICalParseRequest": { "fields": { "ics_content": "string", "tz": "string" } },
+  "ICalParseResult": {
+    "fields": {
+      "event_count": "number",
+      "events": { "list": { "ref": "ICalEventPreview" } },
+      "has_recurring": "boolean"
+    }
+  },
+  "IgnoreAccountCreate": { "fields": { "username": "string", "discriminator": "number" } },
+  "IgnoredAccountRead": {
+    "fields": {
+      "user_id": "number",
+      "username": "string",
+      "discriminator": "number",
+      "avatar_url": "string",
+      "created_at": "string"
+    }
+  },
+  "IgnoredAccountsResponse": {
+    "fields": {
+      "total_count": "number",
+      "page": "number",
+      "page_size": "number",
+      "has_next": "boolean",
+      "has_prev": "boolean",
+      "items": { "list": { "ref": "IgnoredAccountRead" } }
+    }
+  },
+  "ImportJobRead": {
+    "fields": {
+      "id": "number",
+      "community_id": "number",
+      "created_by": "number",
+      "source": "string",
+      "params": { "map": "any" },
+      "plan": { "map": "any" },
+      "result": { "map": "any" },
+      "status": { "ref": "ImportJobStatus" },
+      "error": "string",
+      "expires_at": "string",
+      "created_at": "string",
+      "updated_at": "string"
+    }
+  },
+  "ImportJobStatus": {
+    "enum": ["staged", "fetching", "queued", "running", "done", "failed", "cancelled", "expired"]
+  },
+  "InitiativeCan": {
+    "fields": {
+      "manage": "boolean",
+      "moderate": "boolean",
+      "view": { "list": { "ref": "Tool" } },
+      "create": { "list": { "ref": "Tool" } }
+    }
+  },
+  "InitiativeCreate": {
+    "fields": {
+      "projects_enabled": "boolean",
+      "files_enabled": "boolean",
+      "queues_enabled": "boolean",
+      "counter_groups_enabled": "boolean",
+      "calendars_enabled": "boolean",
+      "dashboards_enabled": "boolean",
+      "posts_enabled": "boolean",
+      "galleries_enabled": "boolean",
+      "wikis_enabled": "boolean",
+      "name": "string",
+      "description": "string",
+      "color": "string",
+      "join_policy": { "ref": "InitiativeJoinPolicy" }
+    }
+  },
+  "InitiativeDirectoryEntry": {
+    "fields": {
+      "id": "number",
+      "name": "string",
+      "description": "string",
+      "color": "string",
+      "join_policy": { "ref": "InitiativeJoinPolicy" },
+      "auto_join": "boolean",
+      "member_count": "number",
+      "is_member": "boolean",
+      "role_display_name": "string",
+      "has_pending_request": "boolean",
+      "pending_join_request_count": "number"
+    }
+  },
+  "InitiativeJoinPolicy": { "enum": ["private", "request", "open"] },
+  "InitiativeJoinRequestCreate": { "fields": { "message": "string" } },
+  "InitiativeJoinRequestRead": {
+    "fields": {
+      "id": "number",
+      "initiative_id": "number",
+      "user": { "ref": "UserSummary" },
+      "status": { "ref": "JoinRequestStatus" },
+      "message": "string",
+      "created_at": "string",
+      "resolved_at": "string",
+      "resolved_by": "number",
+      "prior_denials": "number"
+    }
+  },
+  "InitiativeListScope": { "enum": ["member", "community"] },
+  "InitiativeMemberAdd": { "fields": { "user_id": "number", "role_id": "number" } },
+  "InitiativeMemberListResponse": {
+    "fields": {
+      "total_count": "number",
+      "page": "number",
+      "page_size": "number",
+      "has_next": "boolean",
+      "has_prev": "boolean",
+      "items": { "list": { "ref": "InitiativeMemberRead" } }
+    }
+  },
+  "InitiativeMemberRead": {
+    "fields": {
+      "user": { "ref": "UserSummary" },
+      "role_id": "number",
+      "role_name": "string",
+      "role_display_name": "string",
+      "is_manager": "boolean",
+      "override_share_restrictions": "boolean",
+      "joined_at": "string",
+      "oidc_managed": "boolean",
+      "presence": { "ref": "Presence" }
+    }
+  },
+  "InitiativeMemberUpdate": { "fields": { "role_id": "number" } },
+  "InitiativeRead": {
+    "fields": {
+      "projects_enabled": "boolean",
+      "files_enabled": "boolean",
+      "queues_enabled": "boolean",
+      "counter_groups_enabled": "boolean",
+      "calendars_enabled": "boolean",
+      "dashboards_enabled": "boolean",
+      "posts_enabled": "boolean",
+      "galleries_enabled": "boolean",
+      "wikis_enabled": "boolean",
+      "name": "string",
+      "description": "string",
+      "color": "string",
+      "id": "number",
+      "community_id": "number",
+      "archived_at": "string",
+      "join_policy": { "ref": "InitiativeJoinPolicy" },
+      "auto_join": "boolean",
+      "keep_content_in": "boolean",
+      "created_at": "string",
+      "updated_at": "string",
+      "can": { "ref": "InitiativeCan" },
+      "member_count": "number",
+      "role_display_name": "string"
+    }
+  },
+  "InitiativeRoleCreate": {
+    "fields": {
+      "name": "string",
+      "display_name": "string",
+      "is_manager": "boolean",
+      "permissions": { "map": "boolean" }
+    }
+  },
+  "InitiativeRoleRead": {
+    "fields": {
+      "id": "number",
+      "name": "string",
+      "display_name": "string",
+      "is_builtin": "boolean",
+      "is_manager": "boolean",
+      "override_share_restrictions": "boolean",
+      "position": "number",
+      "permissions": { "map": "boolean" },
+      "member_count": "number"
+    }
+  },
+  "InitiativeRoleUpdate": {
+    "fields": {
+      "display_name": "string",
+      "is_manager": "boolean",
+      "permissions": { "map": "boolean" }
+    }
+  },
+  "InitiativeSharingRead": { "fields": { "items": { "list": { "ref": "SharedResourceRead" } } } },
+  "InitiativeSummary": { "fields": { "id": "number", "name": "string", "color": "string" } },
+  "InitiativeTaskStatusRead": {
+    "fields": {
+      "name": "string",
+      "category": { "ref": "TaskStatusCategory" },
+      "color": "string",
+      "icon": "string",
+      "project_count": "number",
+      "projects_total": "number"
+    }
+  },
+  "InitiativeUpdate": {
+    "fields": {
+      "projects_enabled": "boolean",
+      "files_enabled": "boolean",
+      "queues_enabled": "boolean",
+      "counter_groups_enabled": "boolean",
+      "calendars_enabled": "boolean",
+      "dashboards_enabled": "boolean",
+      "posts_enabled": "boolean",
+      "galleries_enabled": "boolean",
+      "wikis_enabled": "boolean",
+      "name": "string",
+      "description": "string",
+      "color": "string",
+      "join_policy": { "ref": "InitiativeJoinPolicy" },
+      "auto_join": "boolean",
+      "keep_content_in": "boolean"
+    }
+  },
+  "IntakeBindingRead": {
+    "fields": {
+      "stream": { "ref": "IntakeStream" },
+      "binding_id": "number",
+      "project_id": "number",
+      "project_name": "string",
+      "project_archived": "boolean",
+      "initiative_id": "number",
+      "initiative_name": "string",
+      "default_status_id": "number",
+      "default_status_name": "string",
+      "awaiting_filer_status_id": "number",
+      "active_status_id": "number",
+      "conversation": { "ref": "Conversation" },
+      "isolated": "boolean",
+      "shares_initiative": "boolean",
+      "enabled": "boolean",
+      "last_case_at": "string"
+    }
+  },
+  "IntakeBindingUpsert": {
+    "fields": {
+      "project_id": "number",
+      "default_status_id": "number",
+      "awaiting_filer_status_id": "number",
+      "active_status_id": "number",
+      "enabled": "boolean"
+    }
+  },
+  "IntakeBlueprintImport": { "fields": { "initiative_id": "number" } },
+  "IntakeContactUpdate": { "fields": { "email": "string" } },
+  "IntakeInitiativeOption": {
+    "fields": {
+      "id": "number",
+      "name": "string",
+      "projects": { "list": { "ref": "IntakeProjectOption" } }
+    }
+  },
+  "IntakeOptionsRead": {
+    "fields": { "initiatives": { "list": { "ref": "IntakeInitiativeOption" } } }
+  },
+  "IntakeProjectOption": {
+    "fields": {
+      "id": "number",
+      "name": "string",
+      "statuses": { "list": { "ref": "IntakeStatusOption" } }
+    }
+  },
+  "IntakeSettingsRead": {
+    "fields": {
+      "operations_community_id": "number",
+      "operations_community_name": "string",
+      "bindings": { "list": { "ref": "IntakeBindingRead" } },
+      "general_contact_email": "string",
+      "contact_emails": { "map": "string" }
+    }
+  },
+  "IntakeStatusOption": { "fields": { "id": "number", "name": "string" } },
+  "IntakeStream": { "enum": ["security", "moderation", "support", "feedback"] },
+  "InterfaceSettingsResponse": {
+    "fields": {
+      "light_accent_color": "string",
+      "dark_accent_color": "string",
+      "cookie_consent_enabled": "boolean"
+    }
+  },
+  "InterfaceSettingsUpdate": {
+    "fields": {
+      "light_accent_color": "string",
+      "dark_accent_color": "string",
+      "cookie_consent_enabled": "boolean"
+    }
+  },
+  "JoinRequestStatus": { "enum": ["pending", "approved", "denied"] },
+  "LeaveCommunityEligibilityResponse": {
+    "fields": { "can_leave": "boolean", "is_last_superadmin": "boolean" }
+  },
+  "LegalDocumentRead": {
+    "fields": {
+      "slug": "string",
+      "title": "string",
+      "version": "string",
+      "effective_date": "string",
+      "sha256": "string"
+    }
+  },
+  "LegalIndexRead": {
+    "fields": {
+      "documents": { "list": { "ref": "LegalDocumentRead" } },
+      "required": { "list": "string" }
+    }
+  },
+  "ListingKind": {
+    "enum": [
+      "auto",
+      "calendar",
+      "counter_group",
+      "dashboard",
+      "file",
+      "gallery",
+      "plugin",
+      "post",
+      "profile_pack",
+      "project",
+      "queue",
+      "wiki"
+    ]
+  },
+  "ListingMediaRead": { "fields": { "path": "string" } },
+  "ListingSource": { "enum": ["builtin", "local", "operator", "registry"] },
+  "ListingStartFrom": { "enum": ["blank", "example"] },
+  "ListingUploadRequest": { "fields": { "manifest": { "map": "any" } } },
+  "ListingUploadResult": {
+    "fields": { "uid": "string", "public_id": "string", "version": "string" }
+  },
+  "LoginMethod": { "enum": ["password", "sso", "totp", "passkey", "email_otp"] },
+  "LoginMethodStatus": {
+    "fields": {
+      "method": { "ref": "LoginMethod" },
+      "enabled": "boolean",
+      "primary": "boolean",
+      "answers_factor": "boolean",
+      "would_strand": "number"
+    }
+  },
+  "LoginProviderEntry": {
+    "fields": {
+      "id": "number",
+      "slug": "string",
+      "display_name": "string",
+      "kind": "string",
+      "login_url": "string",
+      "icon": "string",
+      "button_style": "string"
+    }
+  },
+  "LoginProvidersResponse": {
+    "fields": {
+      "providers": { "list": { "ref": "LoginProviderEntry" } },
+      "community_name": "string"
+    }
+  },
+  "MarketplaceInstallRequest": {
+    "fields": {
+      "initiative_id": "number",
+      "start_from": { "ref": "ListingStartFrom" },
+      "starts_on": "string"
+    }
+  },
+  "MarketplaceInstallResult": {
+    "fields": {
+      "kind": { "ref": "ListingKind" },
+      "listing_uid": "string",
+      "listing_version": "string",
+      "result": { "ref": "EnvelopeImportResult" }
+    }
+  },
+  "MarketplaceListingCaller": { "fields": { "id": "number", "name": "string" } },
+  "MarketplaceListingDetail": {
+    "fields": {
+      "id": "number",
+      "uid": "string",
+      "public_id": "string",
+      "kind": { "ref": "ListingKind" },
+      "source": { "ref": "ListingSource" },
+      "name": "string",
+      "publisher": "string",
+      "first_party": "boolean",
+      "description": "string",
+      "avatar_url": "string",
+      "images": { "list": "string" },
+      "installs_count": "number",
+      "available": "boolean",
+      "latest_version": { "ref": "MarketplaceVersionRead" },
+      "installable": "boolean",
+      "updated_at": "string",
+      "long_description": "string",
+      "definition": { "map": "any" },
+      "example": { "map": "any" },
+      "requested_scopes": { "list": "string" },
+      "grantable_scopes": { "list": "string" },
+      "plugin_names": { "map": "string" },
+      "has_initiative_surfaces": "boolean",
+      "callers": { "list": { "ref": "MarketplaceListingCaller" } }
+    }
+  },
+  "MarketplaceListingPage": {
+    "fields": {
+      "total_count": "number",
+      "page": "number",
+      "page_size": "number",
+      "has_next": "boolean",
+      "has_prev": "boolean",
+      "items": { "list": { "ref": "MarketplaceListingSummary" } }
+    }
+  },
+  "MarketplaceListingSummary": {
+    "fields": {
+      "id": "number",
+      "uid": "string",
+      "public_id": "string",
+      "kind": { "ref": "ListingKind" },
+      "source": { "ref": "ListingSource" },
+      "name": "string",
+      "publisher": "string",
+      "first_party": "boolean",
+      "description": "string",
+      "avatar_url": "string",
+      "images": { "list": "string" },
+      "installs_count": "number",
+      "available": "boolean",
+      "latest_version": { "ref": "MarketplaceVersionRead" },
+      "installable": "boolean",
+      "updated_at": "string"
+    }
+  },
+  "MarketplaceLocalSettings": { "fields": { "members_publish_directly": "boolean" } },
+  "MarketplacePendingVersionRead": {
+    "fields": {
+      "uid": "string",
+      "public_id": "string",
+      "kind": { "ref": "ListingKind" },
+      "name": "string",
+      "publisher": "string",
+      "description": "string",
+      "version": "string",
+      "release_notes": "string",
+      "submitted_at": "string",
+      "is_new_listing": "boolean",
+      "definition": { "map": "any" },
+      "example": { "map": "any" }
+    }
+  },
+  "MarketplaceShareResult": {
+    "fields": {
+      "uid": "string",
+      "public_id": "string",
+      "version": "string",
+      "awaiting_review": "boolean"
+    }
+  },
+  "MarketplaceSharedListingRead": {
+    "fields": {
+      "id": "number",
+      "uid": "string",
+      "public_id": "string",
+      "kind": { "ref": "ListingKind" },
+      "source": { "ref": "ListingSource" },
+      "name": "string",
+      "publisher": "string",
+      "first_party": "boolean",
+      "description": "string",
+      "avatar_url": "string",
+      "images": { "list": "string" },
+      "installs_count": "number",
+      "available": "boolean",
+      "latest_version": { "ref": "MarketplaceVersionRead" },
+      "installable": "boolean",
+      "updated_at": "string",
+      "pending_versions": { "list": "string" }
+    }
+  },
+  "MarketplaceVersionRead": {
+    "fields": {
+      "version": "string",
+      "release_notes": "string",
+      "min_app_version": "string",
+      "published_at": "string",
+      "compatible": "boolean"
+    }
+  },
+  "MemberAIConnectionView": {
+    "fields": {
+      "scope": { "ref": "ConnectionScope" },
+      "id": "number",
+      "label": "string",
+      "provider": { "ref": "AIProvider" },
+      "model": "string",
+      "has_member_key": "boolean",
+      "requires_member_key": "boolean",
+      "allow_member_keys": "boolean",
+      "is_selected": "boolean"
+    }
+  },
+  "MemberAIKeyUpdate": {
+    "fields": {
+      "scope": { "ref": "ConnectionScope" },
+      "connection_id": "number",
+      "api_key": "string"
+    }
+  },
+  "MemberAIPrefUpdate": {
+    "fields": {
+      "scope": { "ref": "ConnectionScope" },
+      "connection_id": "number",
+      "enabled": "boolean"
+    }
+  },
+  "MemberAIView": {
+    "fields": {
+      "mode": { "ref": "AIConfigMode" },
+      "enabled": "boolean",
+      "connections": { "list": { "ref": "MemberAIConnectionView" } }
+    }
+  },
+  "MemberApiAccessUpdate": { "fields": { "api_keys_allowed": "boolean" } },
+  "MemberDisplayNameUpdate": { "fields": { "display_name": "string" } },
+  "MessageRequestCreate": { "fields": { "user_id": "number" } },
+  "ModerationReportList": {
+    "fields": {
+      "total_count": "number",
+      "page": "number",
+      "page_size": "number",
+      "has_next": "boolean",
+      "has_prev": "boolean",
+      "items": { "list": { "ref": "ModerationReportRead" } }
+    }
+  },
+  "ModerationReportRead": {
+    "fields": {
+      "id": "number",
+      "initiative_id": "number",
+      "target_type": "string",
+      "target_id": "number",
+      "reason": { "ref": "ReportReason" },
+      "reported_at": "string",
+      "reporter_count": "number",
+      "details": { "list": "string" },
+      "outcome": { "ref": "ReportOutcome" },
+      "note": "string",
+      "decided_by": "number",
+      "decided_at": "string",
+      "target_excerpt": "string",
+      "target_link": { "ref": "ReportTargetLink" }
+    }
+  },
+  "ModerationTicketCreate": {
+    "fields": {
+      "target_type": "string",
+      "target_id": "number",
+      "reason": { "ref": "ReportReason" },
+      "detail": "string",
+      "community_id": "number",
+      "stream": "string"
+    }
+  },
+  "MyAIConnectionRow": {
+    "fields": {
+      "community_id": "number",
+      "community_name": "string",
+      "scope": { "ref": "ConnectionScope" },
+      "connection_id": "number",
+      "label": "string",
+      "provider": { "ref": "AIProvider" },
+      "model": "string",
+      "allow_member_keys": "boolean",
+      "has_member_key": "boolean",
+      "requires_member_key": "boolean",
+      "is_selected": "boolean"
+    }
+  },
+  "MyToolCountsResponse": { "fields": { "counts": { "map": "number" } } },
+  "NativeSignInRedeem": { "fields": { "code": "string", "code_verifier": "string" } },
+  "NewCommunity": { "fields": { "name": "string", "description": "string", "plan": "string" } },
+  "NotificationAlertRead": {
+    "fields": {
+      "notification": { "ref": "NotificationRead" },
+      "redacted": { "ref": "RedactedAlert" }
+    }
+  },
+  "NotificationCategory": {
+    "enum": [
+      "mentions",
+      "replies",
+      "comments",
+      "reactions",
+      "assignments",
+      "due_dates",
+      "membership",
+      "approvals",
+      "posts",
+      "events",
+      "event_reminders",
+      "direct_messages",
+      "connections",
+      "jobs",
+      "account"
+    ]
+  },
+  "NotificationCategoryRead": {
+    "fields": {
+      "category": { "ref": "NotificationCategory" },
+      "group": { "ref": "CategoryGroup" },
+      "personal": "boolean",
+      "community_scoped": "boolean",
+      "mutable_channels": { "list": { "ref": "Channel" } },
+      "defaults": { "map": "boolean" }
+    }
+  },
+  "NotificationChannelSet": {
+    "fields": {
+      "community_id": "number",
+      "category": { "ref": "NotificationCategory" },
+      "channel": { "ref": "Channel" },
+      "enabled": "boolean"
+    }
+  },
+  "NotificationCountResponse": { "fields": { "unread_count": "number" } },
+  "NotificationLevel": { "enum": ["everything", "personal", "nothing"] },
+  "NotificationLevelSet": {
+    "fields": { "community_id": "number", "level": { "ref": "NotificationLevel" } }
+  },
+  "NotificationListResponse": {
+    "fields": {
+      "notifications": { "list": { "ref": "NotificationRead" } },
+      "unread_count": "number",
+      "next_cursor": "string"
+    }
+  },
+  "NotificationPlace": {
+    "fields": {
+      "community_id": "number",
+      "initiative_id": "number",
+      "tool": "string",
+      "resource_id": "number",
+      "subject_type": "string",
+      "subject_id": "number"
+    }
+  },
+  "NotificationPreferencesRead": {
+    "fields": {
+      "categories": { "list": { "ref": "NotificationCategoryRead" } },
+      "settings": { "map": { "map": "boolean" } },
+      "quiet_hours": { "ref": "QuietHours" },
+      "email": { "ref": "EmailSchedule-Output" },
+      "pause": { "ref": "PauseRead" },
+      "respect_presence": "boolean",
+      "communities": { "list": { "ref": "CommunityNotificationSettings" } }
+    }
+  },
+  "NotificationPreferencesUpdate": {
+    "fields": {
+      "channels": { "list": { "ref": "NotificationChannelSet" } },
+      "levels": { "list": { "ref": "NotificationLevelSet" } },
+      "quiet_hours": { "ref": "QuietHours" },
+      "clear_quiet_hours": "boolean",
+      "email": { "ref": "EmailSchedule-Input" },
+      "pause_from": "string",
+      "pause_until": "string",
+      "clear_pause": "boolean",
+      "respect_presence": "boolean"
+    }
+  },
+  "NotificationRead": {
+    "fields": {
+      "id": "number",
+      "type": { "ref": "NotificationType" },
+      "data": { "map": "any" },
+      "created_at": "string",
+      "read_at": "string",
+      "community_id": "number",
+      "initiative_id": "number",
+      "tool": "string"
+    }
+  },
+  "NotificationSettingsResponse": {
+    "fields": {
+      "push_notifications_enabled": "boolean",
+      "email_notifications_enabled": "boolean",
+      "redact_notification_content": "boolean"
+    }
+  },
+  "NotificationSettingsUpdate": {
+    "fields": {
+      "push_notifications_enabled": "boolean",
+      "email_notifications_enabled": "boolean",
+      "redact_notification_content": "boolean"
+    }
+  },
+  "NotificationType": {
+    "enum": [
+      "task_assignment",
+      "overdue_tasks",
+      "initiative_added",
+      "initiative_join_requested",
+      "initiative_join_approved",
+      "initiative_join_denied",
+      "project_added",
+      "user_pending_approval",
+      "mention",
+      "comment_on_task",
+      "comment_on_resource",
+      "comment_reply",
+      "comment_reaction",
+      "post_published",
+      "access_grant_requested",
+      "access_grant_approved",
+      "access_grant_denied",
+      "access_grant_revoked",
+      "event_invitation",
+      "event_updated",
+      "event_cancelled",
+      "event_rsvp",
+      "event_reminder",
+      "export_ready",
+      "export_failed",
+      "import_ready",
+      "import_failed",
+      "avatar_removed",
+      "username_changed",
+      "account_suspended",
+      "account_unsuspended",
+      "community_on_hold",
+      "community_trial_ending",
+      "community_trial_ended",
+      "community_welcome",
+      "connection_requested",
+      "connection_accepted",
+      "message_request_received",
+      "message_request_accepted",
+      "direct_message",
+      "plugin_consent_requested",
+      "plugin_update_pending",
+      "ticket_updated"
+    ]
+  },
+  "OIDCSettingsResponse": {
+    "fields": {
+      "enabled": "boolean",
+      "issuer": "string",
+      "client_id": "string",
+      "redirect_uri": "string",
+      "post_login_redirect": "string",
+      "mobile_redirect_uri": "string",
+      "provider_name": "string",
+      "scopes": { "list": "string" }
+    }
+  },
+  "OccurrenceRequest": { "fields": { "start": "string" } },
+  "OperationsCommunityUpdate": { "fields": { "community_id": "number" } },
+  "OperatorCatalogProblem": { "fields": { "file": "string", "reason": "string" } },
+  "OperatorCatalogScanResult": {
+    "fields": {
+      "published": "number",
+      "withdrawn": "number",
+      "skipped": "number",
+      "problems": { "list": { "ref": "OperatorCatalogProblem" } }
+    }
+  },
+  "OperatorDeletionEligibilityResponse": {
+    "fields": {
+      "can_delete": "boolean",
+      "last_owner": "boolean",
+      "community_blockers": { "list": { "ref": "CommunityBlockerInfo" } }
+    }
+  },
+  "OperatorSuspensionUpdate": { "fields": { "suspended": "boolean", "reason": "string" } },
+  "OperatorUserDeleteRequest": {
+    "fields": {
+      "action": { "enum": ["deactivate", "soft_delete", "hard_delete"] },
+      "project_transfers": { "map": "number" }
+    }
+  },
+  "OperatorUserListResponse": {
+    "fields": {
+      "total_count": "number",
+      "page": "number",
+      "page_size": "number",
+      "has_next": "boolean",
+      "has_prev": "boolean",
+      "items": { "list": { "ref": "OperatorUserRead" } }
+    }
+  },
+  "OperatorUserRead": {
+    "fields": {
+      "email": "string",
+      "role": { "ref": "UserRole" },
+      "id": "number",
+      "username": "string",
+      "discriminator": "number",
+      "username_chosen": "boolean",
+      "age_confirmed_at": "string",
+      "age_below_minimum_at": "string",
+      "legal_acceptance_required": "boolean",
+      "birthdate_on_file": "boolean",
+      "birthdate_required": "boolean",
+      "cookie_consent": { "ref": "CookieConsentRead" },
+      "status": { "ref": "UserStatus" },
+      "email_verified": "boolean",
+      "created_at": "string",
+      "updated_at": "string",
+      "avatar_url": "string",
+      "custom_status": { "ref": "CustomStatus-Output" },
+      "presence": { "ref": "Presence" },
+      "profile_decorations": { "ref": "ProfileDecorations-Output" },
+      "week_starts_on": "number",
+      "time_format": "string",
+      "recent_tabs_limit": "number",
+      "timezone": "string",
+      "event_reminder_minutes_before": "number",
+      "last_overdue_notification_at": "string",
+      "last_task_assignment_digest_at": "string",
+      "color_theme": "string",
+      "task_completion_visual_feedback": "string",
+      "task_completion_audio_feedback": "boolean",
+      "task_completion_haptic_feedback": "boolean",
+      "locale": "string",
+      "has_federated_identity": "boolean",
+      "has_password": "boolean",
+      "password_required": "boolean",
+      "initiative_roles": { "list": { "ref": "UserInitiativeRole" } },
+      "purge_at": "string",
+      "sign_in_locked_until": "string",
+      "second_factor_enrolled": "boolean",
+      "api_key_count": "number",
+      "can_create_communities": "boolean",
+      "capabilities": { "list": { "ref": "Capability" } }
+    }
+  },
+  "OperatorUsernameUpdate": { "fields": { "username": "string" } },
+  "OwnedContentItem": { "fields": { "tool": { "ref": "Tool" }, "id": "number", "name": "string" } },
+  "OwnedContentResponse": {
+    "fields": {
+      "items": { "list": { "ref": "OwnedContentItem" } },
+      "counts": { "map": "number" },
+      "total": "number",
+      "eligible_plugins": { "list": { "ref": "OwnerPluginSummary" } }
+    }
+  },
+  "OwnedDecoration": {
+    "fields": {
+      "id": "string",
+      "kind": "string",
+      "name": "string",
+      "source": "string",
+      "image_url": "string"
+    }
+  },
+  "OwnedDecorationsResponse": { "fields": { "items": { "list": { "ref": "OwnedDecoration" } } } },
+  "OwnerPluginSummary": { "fields": { "id": "number", "name": "string", "avatar_url": "string" } },
+  "OwnershipTransferRequest": {
+    "fields": { "new_owner_id": "number", "new_owner_plugin_id": "number" }
+  },
+  "OwnershipTransferResponse": { "fields": { "counts": { "map": "number" }, "total": "number" } },
+  "PageView": { "fields": { "route": "string" } },
+  "PasskeyAuthenticationOptions": { "fields": { "options": { "map": "any" } } },
+  "PasskeyList": {
+    "fields": {
+      "passkeys": { "list": { "ref": "PasskeyRead" } },
+      "password_required": "boolean",
+      "limit": "number",
+      "site_supported": "boolean",
+      "offered": "boolean"
+    }
+  },
+  "PasskeyRead": {
+    "fields": {
+      "id": "string",
+      "name": "string",
+      "created_at": "string",
+      "last_used_at": "string",
+      "backed_up": "boolean",
+      "user_verified": "boolean",
+      "transports": { "list": "string" },
+      "aaguid": "string"
+    }
+  },
+  "PasskeyRegisterFinish": { "fields": { "credential": { "map": "any" }, "name": "string" } },
+  "PasskeyRegisterStart": { "fields": { "name": "string", "current_password": "string" } },
+  "PasskeyRegistrationOptions": { "fields": { "options": { "map": "any" } } },
+  "PasskeyRemove": { "fields": { "current_password": "string" } },
+  "PasskeyRename": { "fields": { "name": "string" } },
+  "PasskeySignInFinish": {
+    "fields": {
+      "credential": { "map": "any" },
+      "mobile": "boolean",
+      "device_name": "string",
+      "code_challenge": "string"
+    }
+  },
+  "PasskeySignInResult": {
+    "fields": { "access_token": "string", "token_type": "string", "redirect_to": "string" }
+  },
+  "PasskeySignInStart": { "fields": {} },
+  "PasskeySignUpFinish": {
+    "fields": {
+      "email": "string",
+      "username": "string",
+      "timezone": "string",
+      "captcha_token": "string",
+      "community": { "ref": "NewCommunity" },
+      "username_offer": "string",
+      "birthdate": "string",
+      "credential": { "map": "any" },
+      "name": "string"
+    }
+  },
+  "PasskeySignUpResult": {
+    "fields": { "access_token": "string", "token_type": "string", "codes": { "list": "string" } }
+  },
+  "PasskeySignUpStart": {
+    "fields": {
+      "email": "string",
+      "username": "string",
+      "timezone": "string",
+      "captcha_token": "string",
+      "community": { "ref": "NewCommunity" },
+      "username_offer": "string",
+      "birthdate": "string"
+    }
+  },
+  "PasskeyStepUpFinish": { "fields": { "credential": { "map": "any" } } },
+  "PasswordRecover": {
+    "fields": { "email": "string", "recovery_code": "string", "password": "string" }
+  },
+  "PasswordRemove": { "fields": { "current_password": "string" } },
+  "PasswordResetRequest": { "fields": { "email": "string" } },
+  "PasswordResetSubmit": { "fields": { "token": "string", "password": "string" } },
+  "PauseRead": { "fields": { "since": "string", "until": "string" } },
+  "PermissionKey": {
+    "enum": [
+      "projects_enabled",
+      "create_projects",
+      "files_enabled",
+      "create_files",
+      "queues_enabled",
+      "create_queues",
+      "counter_groups_enabled",
+      "create_counter_groups",
+      "calendars_enabled",
+      "create_calendars",
+      "dashboards_enabled",
+      "create_dashboards",
+      "posts_enabled",
+      "create_posts",
+      "galleries_enabled",
+      "create_galleries",
+      "wikis_enabled",
+      "create_wikis",
+      "dashboards_run_as_initiative"
+    ]
+  },
+  "PlacementCommunityRead": {
+    "fields": { "id": "number", "name": "string", "placeable": "boolean" }
+  },
+  "PlacementEverywhereUpdate": { "fields": { "enabled": "boolean" } },
+  "PlacementInitiativeRead": {
+    "fields": {
+      "id": "number",
+      "name": "string",
+      "roles": { "list": { "ref": "PlacementInitiativeRoleRead" } }
+    }
+  },
+  "PlacementInitiativeRoleRead": {
+    "fields": { "id": "number", "name": "string", "is_manager": "boolean" }
+  },
+  "PlacementProviderRead": {
+    "fields": {
+      "id": "number",
+      "display_name": "string",
+      "icon": "string",
+      "reports_groups": "boolean"
+    }
+  },
+  "PlatformAIModeResponse": { "fields": { "mode": { "ref": "AIConfigMode" } } },
+  "PlatformAIModeUpdate": { "fields": { "mode": { "ref": "AIConfigMode" } } },
+  "PlatformAuthSettingsResponse": {
+    "fields": {
+      "methods": { "list": { "ref": "LoginMethodStatus" } },
+      "communities_requiring_sign_in": "number",
+      "factor_methods_permitted": "boolean",
+      "session_max_hours": "number",
+      "session_idle_minutes": "number",
+      "second_factor_requirement": { "ref": "SecondFactorRequirement" },
+      "accounts_without_factor": { "ref": "AccountsWithoutFactor" }
+    }
+  },
+  "PlatformAuthSettingsUpdate": {
+    "fields": {
+      "methods": { "list": { "ref": "LoginMethod" } },
+      "acknowledge_stranded": "number",
+      "second_factor_requirement": { "ref": "SecondFactorRequirement" },
+      "session_max_hours": "number",
+      "session_idle_minutes": "number"
+    }
+  },
+  "PlatformCommunityRestore": {
+    "fields": { "status": { "ref": "CommunityStatus" }, "seat_user_id": "number" }
+  },
+  "PlatformCommunityStorageListResponse": {
+    "fields": {
+      "total_count": "number",
+      "page": "number",
+      "page_size": "number",
+      "has_next": "boolean",
+      "has_prev": "boolean",
+      "items": { "list": { "ref": "PlatformCommunityStorageRead" } },
+      "support_bound": "boolean"
+    }
+  },
+  "PlatformCommunityStorageRead": {
+    "fields": {
+      "id": "number",
+      "name": "string",
+      "member_count": "number",
+      "tier_name": "string",
+      "max_storage_bytes": "number",
+      "max_users": "number",
+      "status": { "ref": "CommunityStatus" },
+      "status_changed_at": "string",
+      "status_choices": { "list": { "ref": "CommunityStatus" } },
+      "purge_at": "string",
+      "has_seat": "boolean",
+      "auth_options": { "list": { "ref": "CommunityAuthOption" } },
+      "banner_image_enabled": "boolean",
+      "support_enabled": "boolean"
+    }
+  },
+  "PlatformCommunityStorageUpdate": {
+    "fields": {
+      "max_storage_bytes": "number",
+      "max_users": "number",
+      "status": { "ref": "CommunityStatus" },
+      "auth_options": { "list": { "ref": "CommunityAuthOption" } },
+      "banner_image_enabled": "boolean",
+      "support_enabled": "boolean"
+    }
+  },
+  "PlatformProviderDefaultRead": {
+    "fields": {
+      "provider_id": "number",
+      "claim": "string",
+      "claim_values": { "list": "string" },
+      "enabled": "boolean"
+    }
+  },
+  "PlatformProviderDefaultUpdate": {
+    "fields": { "claim": "string", "claim_values": { "list": "string" }, "enabled": "boolean" }
+  },
+  "PlatformRoleUpdate": { "fields": { "role": { "ref": "UserRole" } } },
+  "PluginAccessTokenResponse": {
+    "fields": {
+      "access_token": "string",
+      "token_type": "string",
+      "expires_in": "number",
+      "scope": "string"
+    }
+  },
+  "PluginConsentRequestCreate": {
+    "fields": {
+      "member": "string",
+      "purpose": "string",
+      "label": "string",
+      "initiative_id": "number",
+      "access": { "ref": "ConsentAccess" }
+    }
+  },
+  "PluginConsentRequestRead": {
+    "fields": {
+      "member": "string",
+      "purpose": "string",
+      "label": "string",
+      "initiative_id": "number",
+      "requested_access": { "ref": "ConsentAccess" },
+      "status": { "ref": "ConsentStatus" },
+      "granted_access": { "ref": "ConsentAccess" },
+      "requested_at": "string"
+    }
+  },
+  "PluginDataParam": {
+    "fields": {
+      "key": "string",
+      "type": "string",
+      "label": { "map": "string" },
+      "required": "boolean",
+      "options": { "list": "string" },
+      "options_from": { "ref": "PluginParamOptionSource" },
+      "list": "boolean"
+    }
+  },
+  "PluginDataResponse": {
+    "fields": {
+      "rows": { "list": { "map": "any" } },
+      "table": { "ref": "PluginDataTable" },
+      "values": { "map": "any" },
+      "fetched_at": "string",
+      "cached": "boolean"
+    }
+  },
+  "PluginDataReturn": {
+    "fields": { "key": "string", "type": "string", "label": { "map": "string" }, "list": "boolean" }
+  },
+  "PluginDataTable": {
+    "fields": {
+      "columns": { "list": { "ref": "QueryColumnDescription" } },
+      "rows": { "list": { "list": "any" } }
+    }
+  },
+  "PluginEndpointRead": {
+    "fields": {
+      "id": "string",
+      "admin_only": "boolean",
+      "cache_ttl_seconds": "number",
+      "params": { "list": { "ref": "PluginDataParam" } },
+      "returns": { "list": { "ref": "PluginDataReturn" } }
+    }
+  },
+  "PluginInstallationRead": { "fields": { "installation": "string", "active": "boolean" } },
+  "PluginOAuthErrorResponse": { "fields": { "error": "string", "error_description": "string" } },
+  "PluginParamOption": { "fields": { "value": "string", "label": "string" } },
+  "PluginParamOptionSource": {
+    "fields": {
+      "endpoint": "string",
+      "key": "string",
+      "label_key": "string",
+      "needs": { "map": "string" }
+    }
+  },
+  "PluginParamOptionsResponse": {
+    "fields": { "options": { "list": { "ref": "PluginParamOption" } }, "unavailable": "string" }
+  },
+  "PluginPlacementRead": {
+    "fields": { "initiative_id": "number", "role_ids": { "list": "number" } }
+  },
+  "PluginPlacementUpdate": { "fields": { "role_ids": { "list": "number" } } },
+  "PluginPublisherCreate": {
+    "fields": { "prefix": "string", "display_name": "string", "enabled": "boolean" }
+  },
+  "PluginPublisherRead": {
+    "fields": {
+      "id": "number",
+      "prefix": "string",
+      "display_name": "string",
+      "verified": "boolean",
+      "enabled": "boolean",
+      "created_at": "string"
+    }
+  },
+  "PluginPublisherUpdate": { "fields": { "display_name": "string", "enabled": "boolean" } },
+  "PluginServiceConnect": {
+    "fields": { "keys": { "list": { "ref": "PluginServicePublishedKey" } } }
+  },
+  "PluginServicePublishedKey": { "fields": { "kid": "string", "fingerprint": "string" } },
+  "PluginServiceRegistrationCreate": {
+    "fields": {
+      "public_id": "string",
+      "base_url": "string",
+      "page_origin": "string",
+      "allowed_origins": { "list": "string" },
+      "jwks": { "map": "any" },
+      "jwks_uri": "string",
+      "mandatory": "boolean",
+      "enabled": "boolean",
+      "vendor_values": { "map": "string" }
+    }
+  },
+  "PluginServiceRegistrationRead": {
+    "fields": {
+      "id": "number",
+      "public_id": "string",
+      "listing_uid": "string",
+      "kind": "string",
+      "publisher_id": "number",
+      "publisher_prefix": "string",
+      "publisher_name": "string",
+      "publisher_enabled": "boolean",
+      "base_url": "string",
+      "page_origin": "string",
+      "allowed_origins": { "list": "string" },
+      "jwks": { "map": "any" },
+      "jwks_uri": "string",
+      "scope_ceiling": { "list": "string" },
+      "mandatory": "boolean",
+      "enabled": "boolean",
+      "source": "string",
+      "image_digest": "string",
+      "compose_service": "string",
+      "compose_base_url": "string",
+      "vendor_fields": { "list": { "ref": "PluginVendorFieldRead" } },
+      "vendor_values": { "map": "string" },
+      "vendor_set": { "list": "string" },
+      "vendor_ready": "boolean",
+      "vendor_setup": "string",
+      "connection_callback_url": "string",
+      "connection_setup_url": "string",
+      "webhook_url": "string",
+      "live": "boolean",
+      "created_at": "string",
+      "updated_at": "string"
+    }
+  },
+  "PluginServiceRegistrationUpdate": {
+    "fields": {
+      "base_url": "string",
+      "page_origin": "string",
+      "allowed_origins": { "list": "string" },
+      "jwks": { "map": "any" },
+      "jwks_uri": "string",
+      "mandatory": "boolean",
+      "enabled": "boolean",
+      "vendor_values": { "map": "string" }
+    }
+  },
+  "PluginServiceVendorSetup": {
+    "fields": { "action": "string", "manifest": "string", "state": "string" }
+  },
+  "PluginServiceVendorSetupComplete": { "fields": { "code": "string", "state": "string" } },
+  "PluginServiceVendorSetupStart": { "fields": { "organization": "string" } },
+  "PluginSummaryListResponse": {
+    "fields": { "items": { "list": { "ref": "PluginSummaryRead" } } }
+  },
+  "PluginSummaryRead": {
+    "fields": {
+      "plugin_id": "number",
+      "name": "string",
+      "returns": { "list": { "ref": "PluginSummaryReturn" } }
+    }
+  },
+  "PluginSummaryReturn": {
+    "fields": {
+      "key": "string",
+      "type": "string",
+      "label": { "map": "string" },
+      "list": "boolean",
+      "of": "string"
+    }
+  },
+  "PluginSurfaceAccessRead": {
+    "fields": {
+      "surface_id": "string",
+      "openable_community_wide": "boolean",
+      "openable_initiatives": { "list": "number" }
+    }
+  },
+  "PluginSurfaceSummary": { "fields": { "id": "string", "name": { "map": "string" } } },
+  "PluginVendorFieldRead": {
+    "fields": {
+      "key": "string",
+      "type": "string",
+      "required": "boolean",
+      "label": { "map": "string" }
+    }
+  },
+  "PluginWidgetCatalogEntry": {
+    "fields": {
+      "plugin_id": "number",
+      "plugin_uid": "string",
+      "name": "string",
+      "enabled": "boolean",
+      "widgets": { "list": { "ref": "PluginWidgetRead" } },
+      "endpoints": { "list": { "ref": "PluginEndpointRead" } }
+    }
+  },
+  "PluginWidgetCatalogResponse": {
+    "fields": { "items": { "list": { "ref": "PluginWidgetCatalogEntry" } } }
+  },
+  "PluginWidgetRead": {
+    "fields": {
+      "type": "string",
+      "id": "string",
+      "meta": { "map": "any" },
+      "module_source": "string",
+      "endpoints": { "list": "string" },
+      "sample_data": { "map": "any" }
+    }
+  },
+  "PollOptionRead": {
+    "fields": {
+      "id": "number",
+      "text": "string",
+      "position": "number",
+      "vote_count": "number",
+      "voted_by_me": "boolean"
+    }
+  },
+  "PollOptionVoters": {
+    "fields": { "option_id": "number", "voters": { "list": { "ref": "PollVoter" } } }
+  },
+  "PollOptionWrite": { "fields": { "text": "string" } },
+  "PollRead": {
+    "fields": {
+      "id": "number",
+      "question": "string",
+      "allows_multiple": "boolean",
+      "is_anonymous": "boolean",
+      "hide_results": "boolean",
+      "closes_at": "string",
+      "is_closed": "boolean",
+      "options": { "list": { "ref": "PollOptionRead" } },
+      "has_voted": "boolean",
+      "results_visible": "boolean",
+      "total_voters": "number",
+      "is_locked": "boolean"
+    }
+  },
+  "PollVoteWrite": { "fields": { "option_ids": { "list": "number" } } },
+  "PollVoter": {
+    "fields": {
+      "id": "number",
+      "username": "string",
+      "discriminator": "number",
+      "display_name": "string",
+      "avatar_url": "string",
+      "profile_decorations": { "ref": "ProfileDecorations-Output" }
+    }
+  },
+  "PollVoters": {
+    "fields": {
+      "options": { "list": { "ref": "PollOptionVoters" } },
+      "not_voted": { "list": { "ref": "PollVoter" } }
+    }
+  },
+  "PollWrite": {
+    "fields": {
+      "question": "string",
+      "options": { "list": { "ref": "PollOptionWrite" } },
+      "allows_multiple": "boolean",
+      "is_anonymous": "boolean",
+      "hide_results": "boolean",
+      "closes_at": "string"
+    }
+  },
+  "PostCreate": {
+    "fields": {
+      "properties": { "list": { "ref": "PropertyValueInput" } },
+      "name": "string",
+      "initiative_id": "number",
+      "body": { "map": "any" },
+      "tag_ids": { "list": "number" },
+      "grants": { "list": { "ref": "ResourceGrantSchema" } },
+      "scheduled_for": "string",
+      "poll": { "ref": "PollWrite" }
+    }
+  },
+  "PostListResponse": {
+    "fields": {
+      "total_count": "number",
+      "page": "number",
+      "page_size": "number",
+      "has_next": "boolean",
+      "has_prev": "boolean",
+      "items": { "list": { "ref": "PostRead" } }
+    }
+  },
+  "PostPinUpdate": { "fields": { "pinned": "boolean", "expires_at": "string" } },
+  "PostReactionSettings": { "fields": { "reactions_enabled": "boolean" } },
+  "PostRead": {
+    "fields": {
+      "archived_at": "string",
+      "can": { "ref": "ToolCan" },
+      "id": "number",
+      "initiative_id": "number",
+      "community_id": "number",
+      "created_by": "number",
+      "created_at": "string",
+      "updated_at": "string",
+      "comments_enabled": "boolean",
+      "tags": { "list": { "ref": "TagSummary" } },
+      "properties": { "list": { "ref": "PropertySummary" } },
+      "grants": { "list": { "ref": "ResourceGrantSchema" } },
+      "name": "string",
+      "author": { "ref": "CommentAuthor" },
+      "excerpt": "string",
+      "pinned_at": "string",
+      "pinned_by": "number",
+      "pin_expires_at": "string",
+      "is_pinned": "boolean",
+      "published_at": "string",
+      "scheduled_for": "string",
+      "is_published": "boolean",
+      "is_read": "boolean",
+      "read_count": "number",
+      "reactions_enabled": "boolean",
+      "comment_count": "number",
+      "reactions": { "list": { "ref": "ReactionGroup" } },
+      "body": { "map": "any" },
+      "poll": { "ref": "PollRead" }
+    }
+  },
+  "PostReadMarks": { "fields": { "post_ids": { "list": "number" } } },
+  "PostReadReceipt": { "fields": { "marked": "number" } },
+  "PostReader": {
+    "fields": {
+      "id": "number",
+      "username": "string",
+      "discriminator": "number",
+      "display_name": "string",
+      "avatar_url": "string",
+      "profile_decorations": { "ref": "ProfileDecorations-Output" },
+      "read_at": "string"
+    }
+  },
+  "PostReaders": {
+    "fields": {
+      "read": { "list": { "ref": "PostReader" } },
+      "unread": { "list": { "ref": "PostReader" } }
+    }
+  },
+  "PostUpdate": {
+    "fields": { "name": "string", "body": { "map": "any" }, "scheduled_for": "string" }
+  },
+  "Presence": { "enum": ["online", "idle", "busy", "offline"] },
+  "PresetPropertyFilter": {
+    "fields": { "property_id": "number", "op": { "ref": "FilterOp" }, "value": "any" }
+  },
+  "ProfileDecorations-Input": {
+    "fields": {
+      "banner": "string",
+      "frame": "string",
+      "frame_tint": { "list": "string" },
+      "trophies": { "list": "string" },
+      "grad_year": "number"
+    }
+  },
+  "ProfileDecorations-Output": {
+    "fields": {
+      "banner": "string",
+      "frame": "string",
+      "frame_tint": { "list": "string" },
+      "trophies": { "list": "string" },
+      "grad_year": "number"
+    }
+  },
+  "ProjectActivityEntry": {
+    "fields": {
+      "comment_id": "number",
+      "content": "string",
+      "created_at": "string",
+      "author": { "ref": "CommentAuthor" },
+      "task_id": "number",
+      "task_title": "string"
+    }
+  },
+  "ProjectActivityResponse": {
+    "fields": {
+      "total_count": "number",
+      "page": "number",
+      "page_size": "number",
+      "has_next": "boolean",
+      "has_prev": "boolean",
+      "items": { "list": { "ref": "ProjectActivityEntry" } }
+    }
+  },
+  "ProjectCan": {
+    "fields": {
+      "edit": "boolean",
+      "contribute": "boolean",
+      "delete": "boolean",
+      "share": "boolean",
+      "export": "boolean",
+      "unarchive": "boolean",
+      "configure": "boolean"
+    }
+  },
+  "ProjectCreate": {
+    "fields": {
+      "properties": { "list": { "ref": "PropertyValueInput" } },
+      "name": "string",
+      "description": "string",
+      "icon": "string",
+      "start_date": "string",
+      "end_date": "string",
+      "initiative_id": "number",
+      "is_template": "boolean",
+      "template_id": "number",
+      "grants": { "list": { "ref": "ResourceGrantSchema" } }
+    }
+  },
+  "ProjectListResponse": {
+    "fields": {
+      "total_count": "number",
+      "page": "number",
+      "page_size": "number",
+      "has_next": "boolean",
+      "has_prev": "boolean",
+      "items": { "list": { "ref": "ProjectRead" } }
+    }
+  },
+  "ProjectRead": {
+    "fields": {
+      "archived_at": "string",
+      "can": { "ref": "ProjectCan" },
+      "id": "number",
+      "initiative_id": "number",
+      "community_id": "number",
+      "created_by": "number",
+      "created_at": "string",
+      "updated_at": "string",
+      "comments_enabled": "boolean",
+      "tags": { "list": { "ref": "TagSummary" } },
+      "properties": { "list": { "ref": "PropertySummary" } },
+      "grants": { "list": { "ref": "ResourceGrantSchema" } },
+      "name": "string",
+      "description": "string",
+      "icon": "string",
+      "start_date": "string",
+      "end_date": "string",
+      "owner_id": "number",
+      "is_template": "boolean",
+      "pinned_at": "string",
+      "default_view_mode": { "enum": ["table", "kanban", "calendar"] },
+      "owner": { "ref": "UserPublic" },
+      "owner_plugin": { "ref": "OwnerPluginSummary" },
+      "initiative": { "ref": "InitiativeSummary" },
+      "is_favorited": "boolean",
+      "last_viewed_at": "string",
+      "task_summary": { "ref": "ProjectTaskSummary" },
+      "task_statuses": { "list": { "ref": "TaskStatusRead" } }
+    }
+  },
+  "ProjectReorderRequest": { "fields": { "project_ids": { "list": "number" } } },
+  "ProjectTaskSummary": { "fields": { "total": "number", "completed": "number" } },
+  "ProjectUpdate": {
+    "fields": {
+      "name": "string",
+      "description": "string",
+      "icon": "string",
+      "is_template": "boolean",
+      "pinned": "boolean",
+      "default_view_mode": { "enum": ["table", "kanban", "calendar"] },
+      "start_date": "string",
+      "end_date": "string"
+    }
+  },
+  "PropertyDefinitionCreate": {
+    "fields": {
+      "name": "string",
+      "type": { "ref": "PropertyType" },
+      "position": "number",
+      "color": "string",
+      "options": { "list": { "ref": "PropertyOption" } },
+      "initiative_id": "number"
+    }
+  },
+  "PropertyDefinitionRead": {
+    "fields": {
+      "name": "string",
+      "type": { "ref": "PropertyType" },
+      "position": "number",
+      "color": "string",
+      "options": { "list": { "ref": "PropertyOption" } },
+      "id": "number",
+      "initiative_id": "number",
+      "created_at": "string",
+      "updated_at": "string"
+    }
+  },
+  "PropertyDefinitionUpdate": {
+    "fields": {
+      "name": "string",
+      "position": "number",
+      "color": "string",
+      "options": { "list": { "ref": "PropertyOption" } }
+    }
+  },
+  "PropertyDefinitionUpdateResponse": {
+    "fields": {
+      "definition": { "ref": "PropertyDefinitionRead" },
+      "orphaned_value_count": "number"
+    }
+  },
+  "PropertyOption": { "fields": { "value": "string", "label": "string", "color": "string" } },
+  "PropertySummary": {
+    "fields": {
+      "property_id": "number",
+      "name": "string",
+      "type": { "ref": "PropertyType" },
+      "options": { "list": { "ref": "PropertyOption" } },
+      "value": "any"
+    }
+  },
+  "PropertyTarget": {
+    "enum": [
+      "project",
+      "file",
+      "queue",
+      "counter_group",
+      "calendar",
+      "dashboard",
+      "post",
+      "gallery",
+      "wiki",
+      "task",
+      "queue_item",
+      "calendar_event",
+      "counter",
+      "gallery_image",
+      "wiki_page"
+    ]
+  },
+  "PropertyType": {
+    "enum": [
+      "text",
+      "number",
+      "checkbox",
+      "date",
+      "datetime",
+      "url",
+      "select",
+      "multi_select",
+      "user_reference"
+    ]
+  },
+  "PropertyValueInput": { "fields": { "property_id": "number", "value": "any" } },
+  "PropertyValuesSetRequest": {
+    "fields": { "values": { "list": { "ref": "PropertyValueInput" } } }
+  },
+  "ProviderPlacementResponse": {
+    "fields": {
+      "placement_everywhere": "boolean",
+      "providers": { "list": { "ref": "PlacementProviderRead" } },
+      "rules": { "list": { "ref": "ProviderPlacementRuleRead" } }
+    }
+  },
+  "ProviderPlacementRuleCreate": {
+    "fields": {
+      "provider_id": "number",
+      "claim_value": "string",
+      "scope_claim": "string",
+      "scope_value": "string",
+      "community_id": "number",
+      "community_role": "string",
+      "initiative_id": "number",
+      "initiative_role_id": "number"
+    }
+  },
+  "ProviderPlacementRuleRead": {
+    "fields": {
+      "id": "number",
+      "provider_id": "number",
+      "provider_display_name": "string",
+      "provider_icon": "string",
+      "claim_value": "string",
+      "scope_claim": "string",
+      "scope_value": "string",
+      "community_id": "number",
+      "community_name": "string",
+      "community_role": "string",
+      "initiative_id": "number",
+      "initiative_name": "string",
+      "initiative_role_id": "number",
+      "initiative_role_name": "string",
+      "applies": "boolean"
+    }
+  },
+  "ProviderPlacementRuleUpdate": {
+    "fields": {
+      "claim_value": "string",
+      "scope_claim": "string",
+      "scope_value": "string",
+      "community_role": "string",
+      "initiative_id": "number",
+      "initiative_role_id": "number"
+    }
+  },
+  "PushSettingsResponse": {
+    "fields": {
+      "enabled": "boolean",
+      "project_id": "string",
+      "application_id": "string",
+      "api_key": "string",
+      "sender_id": "string",
+      "has_service_account": "boolean"
+    }
+  },
+  "PushSettingsUpdate": {
+    "fields": {
+      "enabled": "boolean",
+      "project_id": "string",
+      "application_id": "string",
+      "api_key": "string",
+      "sender_id": "string",
+      "service_account_json": "string"
+    }
+  },
+  "PushTokenRegisterRequest": { "fields": { "push_token": "string", "platform": "string" } },
+  "PushTokenResponse": { "fields": { "status": "string" } },
+  "PushTokenUnregisterRequest": { "fields": { "push_token": "string" } },
+  "QueryBuildRequest": {
+    "fields": {
+      "dataset": "string",
+      "columns": { "list": { "ref": "QueryColumnSpec" } },
+      "where": { "list": "any" },
+      "group_by": { "list": "string" },
+      "order_by": { "ref": "QuerySortSpec" },
+      "limit": "number",
+      "initiative_id": "number"
+    }
+  },
+  "QueryBuildResponse": {
+    "fields": {
+      "sql": "string",
+      "columns": { "list": { "ref": "QueryColumnDescription" } },
+      "relations": { "list": "string" }
+    }
+  },
+  "QueryColumnDescription": {
+    "fields": { "name": "string", "type": { "ref": "FieldType" }, "grain": "string" }
+  },
+  "QueryColumnSpec": {
+    "fields": { "field": "string", "aggregate": "string", "bucket": "string", "alias": "string" }
+  },
+  "QueryConditionSpec": {
+    "fields": {
+      "field": "string",
+      "op": { "ref": "FilterOp" },
+      "value": "any",
+      "negate": "boolean"
+    }
+  },
+  "QueryFilterGroupSpec": {
+    "fields": { "logic": { "enum": ["and", "or"] }, "conditions": { "list": "any" } }
+  },
+  "QueryRequest": { "fields": { "sql": "string", "initiative_id": "number" } },
+  "QueryResponse": {
+    "fields": {
+      "columns": { "list": { "ref": "QueryColumnDescription" } },
+      "rows": { "list": { "list": "any" } },
+      "truncated": "boolean",
+      "relations": { "list": "string" }
+    }
+  },
+  "QueryShapeResponse": {
+    "fields": {
+      "columns": { "list": { "ref": "QueryColumnDescription" } },
+      "relations": { "list": "string" }
+    }
+  },
+  "QuerySortSpec": { "fields": { "field": "string", "descending": "boolean" } },
+  "QueryVocabulary": {
+    "fields": {
+      "datasets": { "list": "string" },
+      "functions": { "list": "string" },
+      "tokens": { "list": "string" }
+    }
+  },
+  "QueueCreate": {
+    "fields": {
+      "properties": { "list": { "ref": "PropertyValueInput" } },
+      "name": "string",
+      "description": "string",
+      "initiative_id": "number",
+      "grants": { "list": { "ref": "ResourceGrantSchema" } }
+    }
+  },
+  "QueueItemCreate": {
+    "fields": {
+      "properties": { "list": { "ref": "PropertyValueInput" } },
+      "label": "string",
+      "position": "number",
+      "color": "string",
+      "notes": "string",
+      "is_visible": "boolean",
+      "user_id": "number",
+      "tag_ids": { "list": "number" },
+      "task_ids": { "list": "number" }
+    }
+  },
+  "QueueItemRead": {
+    "fields": {
+      "label": "string",
+      "position": "number",
+      "color": "string",
+      "notes": "string",
+      "is_visible": "boolean",
+      "id": "number",
+      "queue_id": "number",
+      "user_id": "number",
+      "user": { "ref": "UserPublic" },
+      "tags": { "list": { "ref": "TagSummary" } },
+      "properties": { "list": { "ref": "PropertySummary" } },
+      "attachment_count": "number",
+      "held_at_round": "number",
+      "created_at": "string"
+    }
+  },
+  "QueueItemUpdate": {
+    "fields": {
+      "properties": { "list": { "ref": "PropertyValueInput" } },
+      "label": "string",
+      "position": "number",
+      "user_id": "number",
+      "color": "string",
+      "notes": "string",
+      "is_visible": "boolean",
+      "tag_ids": { "list": "number" }
+    }
+  },
+  "QueueListResponse": {
+    "fields": {
+      "total_count": "number",
+      "page": "number",
+      "page_size": "number",
+      "has_next": "boolean",
+      "has_prev": "boolean",
+      "items": { "list": { "ref": "QueueSummary" } }
+    }
+  },
+  "QueueRead": {
+    "fields": {
+      "archived_at": "string",
+      "can": { "ref": "ToolCan" },
+      "id": "number",
+      "initiative_id": "number",
+      "community_id": "number",
+      "created_by": "number",
+      "created_at": "string",
+      "updated_at": "string",
+      "comments_enabled": "boolean",
+      "tags": { "list": { "ref": "TagSummary" } },
+      "properties": { "list": { "ref": "PropertySummary" } },
+      "grants": { "list": { "ref": "ResourceGrantSchema" } },
+      "name": "string",
+      "description": "string",
+      "current_round": "number",
+      "is_active": "boolean",
+      "preview": { "list": { "ref": "QueueTurnPreview" } },
+      "items": { "list": { "ref": "QueueItemRead" } },
+      "current_item_id": "number"
+    }
+  },
+  "QueueReleaseRequest": { "fields": { "reposition": "boolean" } },
+  "QueueSummary": {
+    "fields": {
+      "archived_at": "string",
+      "can": { "ref": "ToolCan" },
+      "id": "number",
+      "initiative_id": "number",
+      "community_id": "number",
+      "created_by": "number",
+      "created_at": "string",
+      "updated_at": "string",
+      "comments_enabled": "boolean",
+      "tags": { "list": { "ref": "TagSummary" } },
+      "properties": { "list": { "ref": "PropertySummary" } },
+      "grants": { "list": { "ref": "ResourceGrantSchema" } },
+      "name": "string",
+      "description": "string",
+      "current_round": "number",
+      "is_active": "boolean",
+      "preview": { "list": { "ref": "QueueTurnPreview" } }
+    }
+  },
+  "QueueTurnPreview": {
+    "fields": { "id": "number", "label": "string", "color": "string", "current": "boolean" }
+  },
+  "QueueUpdate": { "fields": { "name": "string", "description": "string" } },
+  "QuietHours": { "fields": { "start": "string", "end": "string" } },
+  "RSVPStatus": { "enum": ["pending", "accepted", "declined", "tentative"] },
+  "ReactionGroup": {
+    "fields": {
+      "emoji": "string",
+      "count": "number",
+      "reacted": "boolean",
+      "users": { "list": { "ref": "ReactionUser" } }
+    }
+  },
+  "ReactionSummary": {
+    "fields": {
+      "target_type": { "ref": "ReactionTarget" },
+      "target_id": "number",
+      "groups": { "list": { "ref": "ReactionGroup" } }
+    }
+  },
+  "ReactionTarget": { "enum": ["comment", "post"] },
+  "ReactionToggle": { "fields": { "emoji": "string" } },
+  "ReactionUser": {
+    "fields": {
+      "id": "number",
+      "username": "string",
+      "discriminator": "number",
+      "display_name": "string",
+      "avatar_url": "string"
+    }
+  },
+  "RecentActivityEntry": {
+    "fields": {
+      "comment_id": "number",
+      "content": "string",
+      "created_at": "string",
+      "author": { "ref": "CommentAuthor" },
+      "project_id": "number",
+      "project_name": "string",
+      "entity_type": "string",
+      "entity_id": "number",
+      "entity_name": "string",
+      "initiative_id": "number",
+      "reactions": { "list": { "ref": "ReactionGroup" } }
+    }
+  },
+  "RecentEntityType": {
+    "enum": [
+      "project",
+      "file",
+      "queue",
+      "counter_group",
+      "calendar",
+      "dashboard",
+      "post",
+      "gallery",
+      "wiki"
+    ]
+  },
+  "RecentItemRead": {
+    "fields": {
+      "entity_type": { "ref": "RecentEntityType" },
+      "entity_id": "number",
+      "community_id": "number",
+      "initiative_id": "number",
+      "name": "string",
+      "last_viewed_at": "string",
+      "icon": "string",
+      "file_type": "string",
+      "mime_type": "string",
+      "original_filename": "string"
+    }
+  },
+  "RecentViewWrite": {
+    "fields": {
+      "entity_type": { "ref": "RecentEntityType" },
+      "entity_id": "number",
+      "last_viewed_at": "string"
+    }
+  },
+  "RecoveryCodes": { "fields": { "codes": { "list": "string" } } },
+  "RecoveryCodesRegenerate": { "fields": { "current_password": "string" } },
+  "RecurrencePreview": {
+    "fields": { "rule": "string", "shift": "number", "occurrences": { "list": "string" } }
+  },
+  "RecurrencePreviewRequest": {
+    "fields": {
+      "rule": "string",
+      "start": "string",
+      "tz": "string",
+      "kind": { "enum": ["task", "event"] },
+      "shift": "number",
+      "count": "number"
+    }
+  },
+  "RedactedAlert": { "fields": { "title": "string", "body": "string" } },
+  "ReferenceEmbed": {
+    "fields": {
+      "ref": "string",
+      "entity_type": { "ref": "SearchEntityType" },
+      "title": "string",
+      "description": "string",
+      "body": { "map": "any" }
+    }
+  },
+  "ReferenceEmbedList": { "fields": { "items": { "list": { "ref": "ReferenceEmbed" } } } },
+  "RefreshRequest": { "fields": { "refresh_token": "string", "idle_seconds": "number" } },
+  "RegistryRefreshRead": {
+    "fields": {
+      "root_version": "number",
+      "upserted": "number",
+      "withdrawn": "number",
+      "unchanged": "boolean",
+      "skipped": { "list": { "ref": "RegistrySkippedListing" } }
+    }
+  },
+  "RegistrySettings": { "fields": { "enabled": "boolean" } },
+  "RegistrySkippedListing": { "fields": { "name": "string", "code": "string" } },
+  "RegistryStatusRead": {
+    "fields": {
+      "enabled": "boolean",
+      "configured": "boolean",
+      "custom_root": "boolean",
+      "registry_url": "string",
+      "root_version": "number",
+      "expires_at": "string",
+      "last_source": "string",
+      "last_attempt_at": "string",
+      "last_success_at": "string",
+      "last_error": "string",
+      "listing_count": "number"
+    }
+  },
+  "RelatedEnd": {
+    "fields": {
+      "type": { "ref": "SearchEntityType" },
+      "id": "number",
+      "title": "string",
+      "initiative_id": "number",
+      "updated_at": "string",
+      "tool": { "ref": "Tool" },
+      "tool_id": "number",
+      "tool_title": "string",
+      "image_urls": { "list": "string" },
+      "icon": "string",
+      "color": "string",
+      "file_type": "string",
+      "mime_type": "string",
+      "original_filename": "string",
+      "smart_link_url": "string",
+      "is_open": "boolean"
+    }
+  },
+  "RelationDescription": { "fields": { "name": "string", "dataset": "string" } },
+  "RelationshipCreate": {
+    "fields": {
+      "source": { "ref": "EndpointRef" },
+      "relationship_type": { "ref": "RelationshipType" },
+      "target": { "ref": "EndpointRef" }
+    }
+  },
+  "RelationshipRead": {
+    "fields": {
+      "id": "number",
+      "relationship_type": { "ref": "RelationshipType" },
+      "direction": "string",
+      "other": { "ref": "RelatedEnd" },
+      "provenance": "string",
+      "confidence": "number",
+      "created_by": "number",
+      "created_at": "string"
+    }
+  },
+  "RelationshipType": {
+    "enum": ["attached", "depends_on", "part_of", "tagged_with", "references", "related_to"]
+  },
+  "ReportOutcome": { "enum": ["dismissed", "content_removed", "member_warned", "escalated"] },
+  "ReportReason": {
+    "enum": [
+      "spam",
+      "harassment",
+      "hate",
+      "violence",
+      "sexual_content",
+      "self_harm",
+      "illegal",
+      "misinformation",
+      "other"
+    ]
+  },
+  "ReportSettle": { "fields": { "outcome": { "ref": "ReportOutcome" }, "note": "string" } },
+  "ReportTargetLink": {
+    "fields": {
+      "entity_type": { "ref": "SearchEntityType" },
+      "entity_id": "number",
+      "tool": { "ref": "Tool" },
+      "tool_id": "number"
+    }
+  },
+  "ReportVenue": { "enum": ["platform", "initiative"] },
+  "ResolvedAISettingsResponse": {
+    "fields": {
+      "enabled": "boolean",
+      "provider": { "ref": "AIProvider" },
+      "has_api_key": "boolean",
+      "base_url": "string",
+      "model": "string",
+      "source": "string"
+    }
+  },
+  "ResourceAccessLevel": { "enum": ["owner", "write", "read"] },
+  "ResourceGrantBulkItem": {
+    "fields": {
+      "resource_type": { "ref": "Tool" },
+      "resource_id": "number",
+      "grants": { "list": { "ref": "ResourceGrantSchema" } }
+    }
+  },
+  "ResourceGrantBulkItemResult": {
+    "fields": {
+      "resource_type": { "ref": "Tool" },
+      "resource_id": "number",
+      "status": { "enum": ["ok", "forbidden", "not_found"] },
+      "detail": "string"
+    }
+  },
+  "ResourceGrantBulkRequest": {
+    "fields": { "items": { "list": { "ref": "ResourceGrantBulkItem" } } }
+  },
+  "ResourceGrantBulkResponse": {
+    "fields": { "results": { "list": { "ref": "ResourceGrantBulkItemResult" } } }
+  },
+  "ResourceGrantSchema": {
+    "fields": {
+      "level": { "ref": "ResourceAccessLevel" },
+      "user_id": "number",
+      "role_id": "number",
+      "all_initiative_members": "boolean",
+      "plugin_install_id": "number"
+    }
+  },
+  "RestoreResponse": { "fields": { "restored": "boolean" } },
+  "SearchEntityType": {
+    "enum": [
+      "calendar",
+      "calendar_event",
+      "comment",
+      "counter",
+      "counter_group",
+      "dashboard",
+      "file",
+      "gallery",
+      "gallery_image",
+      "post",
+      "project",
+      "queue",
+      "queue_item",
+      "tag",
+      "task",
+      "wiki",
+      "wiki_page"
+    ]
+  },
+  "SearchHit": {
+    "fields": {
+      "entity_type": { "ref": "SearchEntityType" },
+      "entity_id": "number",
+      "title": "string",
+      "snippet": "string",
+      "initiative_id": "number",
+      "tool": { "ref": "Tool" },
+      "tool_id": "number"
+    }
+  },
+  "SearchResults": {
+    "fields": {
+      "total_count": "number",
+      "page": "number",
+      "page_size": "number",
+      "has_next": "boolean",
+      "has_prev": "boolean",
+      "items": { "list": { "ref": "SearchHit" } },
+      "fuzzy": "boolean"
+    }
+  },
+  "SearchSuggestion": {
+    "fields": {
+      "entity_type": { "ref": "SearchEntityType" },
+      "entity_id": "number",
+      "title": "string",
+      "initiative_id": "number",
+      "tool": { "ref": "Tool" },
+      "tool_id": "number",
+      "can_write": "boolean",
+      "tool_title": "string",
+      "initiative_name": "string"
+    }
+  },
+  "SecondFactorAnswer": {
+    "fields": { "code": "string", "recovery_code": "string", "passkey": { "map": "any" } }
+  },
+  "SecondFactorChallengeAnswer": {
+    "fields": { "challenge": "string", "code": "string", "recovery_code": "string" }
+  },
+  "SecondFactorConfirm": { "fields": { "code": "string" } },
+  "SecondFactorDisable": {
+    "fields": { "current_password": "string", "code": "string", "recovery_code": "string" }
+  },
+  "SecondFactorEnrolStart": { "fields": { "current_password": "string" } },
+  "SecondFactorEnrolment": { "fields": { "secret": "string", "otpauth_uri": "string" } },
+  "SecondFactorRequirement": { "enum": ["nobody", "platform_roles", "everyone"] },
+  "SecondFactorStatus": {
+    "fields": {
+      "enrolled": "boolean",
+      "confirmed_at": "string",
+      "last_used_at": "string",
+      "recovery_codes_remaining": "number",
+      "password_required": "boolean",
+      "offered": "boolean",
+      "passwordless": "boolean"
+    }
+  },
+  "SecondFactorStepUpAnswer": { "fields": { "code": "string", "recovery_code": "string" } },
+  "SettingsLevel": { "enum": ["admin", "superadmin"] },
+  "SharedResourceRead": {
+    "fields": {
+      "resource_type": "string",
+      "resource_id": "number",
+      "name": "string",
+      "all_initiative_members": "boolean",
+      "user_grant_count": "number",
+      "role_grant_count": "number"
+    }
+  },
+  "SignedInSessionInfo": {
+    "fields": {
+      "id": "string",
+      "message_device_id": "string",
+      "device": "boolean",
+      "label": "string",
+      "kind": { "ref": "ClientKind" },
+      "ip": "string",
+      "started_at": "string",
+      "last_used_at": "string",
+      "is_current": "boolean"
+    }
+  },
+  "SmartChipAspect": {
+    "enum": ["status", "assignee", "due", "priority", "value", "when", "progress", "checklist"]
+  },
+  "SmartChipKind": {
+    "enum": [
+      "calendar_event:when",
+      "counter:value",
+      "project:progress",
+      "task:assignee",
+      "task:due",
+      "task:priority",
+      "task:status",
+      "task:checklist"
+    ]
+  },
+  "SmartChipState": {
+    "fields": {
+      "ref": "string",
+      "entity_type": { "ref": "SearchEntityType" },
+      "aspect": { "ref": "SmartChipAspect" },
+      "text": "string",
+      "title": "string",
+      "tone": { "ref": "SmartChipTone" },
+      "color": "string",
+      "date": "string",
+      "number": "string",
+      "writable": "boolean"
+    }
+  },
+  "SmartChipStateList": { "fields": { "items": { "list": { "ref": "SmartChipState" } } } },
+  "SmartChipTone": { "enum": ["neutral", "muted", "good", "warn", "danger"] },
+  "SortDir": { "enum": ["asc", "desc"] },
+  "SortField": { "fields": { "field": "string", "dir": { "ref": "SortDir" } } },
+  "SpreadsheetImportRead": { "fields": { "sheets": { "list": { "map": "any" } } } },
+  "StorageBackendKind": { "enum": ["local", "s3"] },
+  "StorageBackfillStatusResponse": {
+    "fields": {
+      "status": { "enum": ["idle", "running", "complete", "failed"] },
+      "copied": "number",
+      "skipped": "number",
+      "failed": "number",
+      "hash_mismatches": "number",
+      "failed_keys": { "list": "string" },
+      "started_at": "string",
+      "finished_at": "string",
+      "error": "string"
+    }
+  },
+  "StorageSettingsResponse": {
+    "fields": {
+      "backend": { "ref": "StorageBackendKind" },
+      "s3_bucket": "string",
+      "s3_region": "string",
+      "s3_endpoint_url": "string",
+      "s3_access_key_id": "string",
+      "has_secret_access_key": "boolean",
+      "s3_use_path_style": "boolean",
+      "s3_local_fallback": "boolean"
+    }
+  },
+  "StorageSettingsUpdate": {
+    "fields": {
+      "backend": { "ref": "StorageBackendKind" },
+      "s3_bucket": "string",
+      "s3_region": "string",
+      "s3_endpoint_url": "string",
+      "s3_access_key_id": "string",
+      "s3_secret_access_key": "string",
+      "s3_use_path_style": "boolean",
+      "s3_local_fallback": "boolean"
+    }
+  },
+  "StorageTestResponse": { "fields": { "success": "boolean", "message": "string" } },
+  "StreamAvailabilityRead": { "fields": { "mode": { "ref": "TicketMode" }, "contact": "string" } },
+  "SubjectReadRequest": {
+    "fields": { "community_id": "number", "subject_type": "string", "subject_id": "number" }
+  },
+  "SubjectReadResponse": { "fields": { "comment_ids": { "list": "number" }, "since": "string" } },
+  "SupportTicketCreate": {
+    "fields": {
+      "stream": "string",
+      "community_id": "number",
+      "subject": "string",
+      "body": "string"
+    }
+  },
+  "TagBulkEditRequest": {
+    "fields": {
+      "target_type": { "ref": "TagTarget" },
+      "target_ids": { "list": "number" },
+      "add_tag_ids": { "list": "number" },
+      "remove_tag_ids": { "list": "number" }
+    }
+  },
+  "TagBulkEditResponse": { "fields": { "updated_count": "number" } },
+  "TagCreate": { "fields": { "name": "string", "color": "string" } },
+  "TagRead": {
+    "fields": {
+      "name": "string",
+      "color": "string",
+      "id": "number",
+      "community_id": "number",
+      "created_at": "string",
+      "updated_at": "string"
+    }
+  },
+  "TagSetRequest": { "fields": { "tag_ids": { "list": "number" } } },
+  "TagSummary": { "fields": { "id": "number", "name": "string", "color": "string" } },
+  "TagTarget": {
+    "enum": [
+      "project",
+      "file",
+      "queue",
+      "counter_group",
+      "calendar",
+      "dashboard",
+      "post",
+      "gallery",
+      "wiki",
+      "task",
+      "queue_item",
+      "calendar_event",
+      "gallery_image",
+      "wiki_page"
+    ]
+  },
+  "TagUpdate": { "fields": { "name": "string", "color": "string" } },
+  "TaggedEntitiesResponse": { "fields": { "items": { "list": { "ref": "SearchHit" } } } },
+  "TaskAssigneeSummary": {
+    "fields": {
+      "id": "number",
+      "username": "string",
+      "discriminator": "number",
+      "display_name": "string",
+      "avatar_url": "string",
+      "status": { "ref": "UserStatus" }
+    }
+  },
+  "TaskCaseRead": {
+    "fields": {
+      "stream": { "ref": "IntakeStream" },
+      "opened_at": "string",
+      "filer": { "ref": "UserPublic" },
+      "filer_subject": "string",
+      "conversation": { "ref": "Conversation" },
+      "awaiting_filer_status_id": "number",
+      "active_status_id": "number",
+      "messages": { "list": { "ref": "CaseMessageRead" } }
+    }
+  },
+  "TaskCreate": {
+    "fields": {
+      "properties": { "list": { "ref": "PropertyValueInput" } },
+      "title": "string",
+      "priority": { "ref": "TaskPriority" },
+      "start_date": "string",
+      "due_date": "string",
+      "recurrence": "string",
+      "recurrence_strategy": { "enum": ["fixed", "rolling"] },
+      "description": "string",
+      "project_id": "number",
+      "tz": "string",
+      "assignee_ids": { "list": "number" },
+      "task_status_id": "number",
+      "tag_ids": { "list": "number" },
+      "checklist": { "list": { "ref": "ChecklistItemInput" } }
+    }
+  },
+  "TaskFilterSpec": {
+    "fields": {
+      "status_ids": { "list": "number" },
+      "status_categories": { "list": { "ref": "TaskStatusCategory" } },
+      "assignees": { "list": "string" },
+      "tag_ids": { "list": "number" },
+      "properties": { "list": { "ref": "PresetPropertyFilter" } },
+      "due": { "enum": ["overdue", "today", "7_days", "30_days"] },
+      "include_archived": "boolean"
+    }
+  },
+  "TaskListRead": {
+    "fields": {
+      "title": "string",
+      "priority": { "ref": "TaskPriority" },
+      "start_date": "string",
+      "due_date": "string",
+      "recurrence": "string",
+      "recurrence_strategy": { "enum": ["fixed", "rolling"] },
+      "description_excerpt": "string",
+      "has_description": "boolean",
+      "id": "number",
+      "project_id": "number",
+      "task_status_id": "number",
+      "task_status": { "ref": "TaskStatusRead" },
+      "created_at": "string",
+      "updated_at": "string",
+      "completed_at": "string",
+      "position": "number",
+      "archived_at": "string",
+      "created_by": "number",
+      "assignees": { "list": { "ref": "TaskAssigneeSummary" } },
+      "recurrence_occurrence_count": "number",
+      "recurrence_shift": "number",
+      "recurrence_until": "string",
+      "comment_count": "number",
+      "blocked_by_open_count": "number",
+      "community_id": "number",
+      "community_name": "string",
+      "project_name": "string",
+      "initiative_id": "number",
+      "initiative_name": "string",
+      "initiative_color": "string",
+      "checklist_progress": { "ref": "ChecklistProgress" },
+      "tags": { "list": { "ref": "TagSummary" } },
+      "properties": { "list": { "ref": "PropertySummary" } }
+    }
+  },
+  "TaskListResponse": {
+    "fields": {
+      "total_count": "number",
+      "page": "number",
+      "page_size": "number",
+      "has_next": "boolean",
+      "has_prev": "boolean",
+      "items": { "list": { "ref": "TaskListRead" } },
+      "sorting": "string"
+    }
+  },
+  "TaskMoveRequest": { "fields": { "target_project_id": "number" } },
+  "TaskPriority": { "enum": ["low", "medium", "high", "urgent"] },
+  "TaskProjectSummary": {
+    "fields": {
+      "id": "number",
+      "name": "string",
+      "icon": "string",
+      "initiative_id": "number",
+      "initiative": { "ref": "InitiativeSummary" },
+      "archived_at": "string",
+      "is_template": "boolean"
+    }
+  },
+  "TaskRead": {
+    "fields": {
+      "title": "string",
+      "priority": { "ref": "TaskPriority" },
+      "start_date": "string",
+      "due_date": "string",
+      "recurrence": "string",
+      "recurrence_strategy": { "enum": ["fixed", "rolling"] },
+      "description": "string",
+      "id": "number",
+      "project_id": "number",
+      "task_status_id": "number",
+      "task_status": { "ref": "TaskStatusRead" },
+      "created_at": "string",
+      "updated_at": "string",
+      "completed_at": "string",
+      "position": "number",
+      "archived_at": "string",
+      "created_by": "number",
+      "creator": { "ref": "UserPublic" },
+      "assignees": { "list": { "ref": "UserPublic" } },
+      "recurrence_occurrence_count": "number",
+      "recurrence_shift": "number",
+      "recurrence_until": "string",
+      "series_id": "number",
+      "series_size": "number",
+      "comment_count": "number",
+      "blocked_by_open_count": "number",
+      "project": { "ref": "TaskProjectSummary" },
+      "checklist": { "list": { "ref": "ChecklistItem" } },
+      "checklist_progress": { "ref": "ChecklistProgress" },
+      "tags": { "list": { "ref": "TagSummary" } },
+      "properties": { "list": { "ref": "PropertySummary" } }
+    }
+  },
+  "TaskReorderItem": {
+    "fields": { "id": "number", "task_status_id": "number", "position": "number" }
+  },
+  "TaskReorderRequest": {
+    "fields": { "project_id": "number", "items": { "list": { "ref": "TaskReorderItem" } } }
+  },
+  "TaskStatusCategory": { "enum": ["backlog", "todo", "in_progress", "done"] },
+  "TaskStatusCreate": {
+    "fields": {
+      "name": "string",
+      "category": { "ref": "TaskStatusCategory" },
+      "position": "number",
+      "is_default": "boolean",
+      "color": "string",
+      "icon": "string"
+    }
+  },
+  "TaskStatusDeleteRequest": { "fields": { "fallback_status_id": "number" } },
+  "TaskStatusRead": {
+    "fields": {
+      "name": "string",
+      "category": { "ref": "TaskStatusCategory" },
+      "position": "number",
+      "is_default": "boolean",
+      "color": "string",
+      "icon": "string",
+      "id": "number",
+      "project_id": "number"
+    }
+  },
+  "TaskStatusReorderItem": { "fields": { "id": "number", "position": "number" } },
+  "TaskStatusReorderRequest": {
+    "fields": { "items": { "list": { "ref": "TaskStatusReorderItem" } } }
+  },
+  "TaskStatusUpdate": {
+    "fields": {
+      "name": "string",
+      "category": { "ref": "TaskStatusCategory" },
+      "position": "number",
+      "is_default": "boolean",
+      "color": "string",
+      "icon": "string"
+    }
+  },
+  "TaskUpdate": {
+    "fields": {
+      "properties": { "list": { "ref": "PropertyValueInput" } },
+      "title": "string",
+      "description": "string",
+      "task_status_id": "number",
+      "priority": { "ref": "TaskPriority" },
+      "assignee_ids": { "list": "number" },
+      "start_date": "string",
+      "due_date": "string",
+      "recurrence": "string",
+      "tz": "string",
+      "recurrence_strategy": { "enum": ["fixed", "rolling"] },
+      "tag_ids": { "list": "number" },
+      "checklist": { "list": { "ref": "ChecklistItemInput" } },
+      "scope": { "enum": ["this", "following", "all"] }
+    }
+  },
+  "TicketAccepted": { "fields": { "accepted": "boolean", "venue": { "ref": "ReportVenue" } } },
+  "TicketAvailability": {
+    "fields": {
+      "security": { "ref": "StreamAvailabilityRead" },
+      "moderation": { "ref": "StreamAvailabilityRead" },
+      "support": { "ref": "StreamAvailabilityRead" },
+      "feedback": { "ref": "StreamAvailabilityRead" }
+    }
+  },
+  "TicketMessageRead": {
+    "fields": { "id": "number", "mine": "boolean", "content": "string", "created_at": "string" }
+  },
+  "TicketMode": { "enum": ["form", "email", "none"] },
+  "TicketReplyCreate": { "fields": { "body": "string" } },
+  "TimelineBucket": {
+    "fields": {
+      "period": "string",
+      "count": "number",
+      "anchor": "string",
+      "anchor_oldest": "string"
+    }
+  },
+  "TimelineResponse": { "fields": { "buckets": { "list": { "ref": "TimelineBucket" } } } },
+  "Token": {
+    "fields": { "access_token": "string", "token_type": "string", "refresh_token": "string" }
+  },
+  "Tool": {
+    "enum": [
+      "project",
+      "file",
+      "queue",
+      "counter_group",
+      "calendar",
+      "dashboard",
+      "post",
+      "gallery",
+      "wiki"
+    ]
+  },
+  "ToolCan": {
+    "fields": {
+      "edit": "boolean",
+      "contribute": "boolean",
+      "delete": "boolean",
+      "share": "boolean",
+      "export": "boolean",
+      "unarchive": "boolean"
+    }
+  },
+  "ToolCommentSettings": { "fields": { "comments_enabled": "boolean" } },
+  "ToolCountsByInitiativeResponse": { "fields": { "counts": { "map": { "map": "number" } } } },
+  "ToolCountsResponse": {
+    "fields": {
+      "views": { "map": "number" },
+      "tag_counts": { "map": "number" },
+      "untagged_count": "number"
+    }
+  },
+  "ToolDuplicateRequest": { "fields": { "name": "string", "target_initiative_id": "number" } },
+  "TrashItem": {
+    "fields": {
+      "entity_type": { "ref": "EntityType" },
+      "entity_id": "number",
+      "community_id": "number",
+      "name": "string",
+      "deleted_at": "string",
+      "deleted_by_id": "number",
+      "deleted_by_display": "string",
+      "purge_at": "string"
+    }
+  },
+  "TrashListResponse": {
+    "fields": {
+      "total_count": "number",
+      "page": "number",
+      "page_size": "number",
+      "has_next": "boolean",
+      "has_prev": "boolean",
+      "items": { "list": { "ref": "TrashItem" } },
+      "retention_days": "number"
+    }
+  },
+  "UnreadPlacesResponse": { "fields": { "places": { "list": { "ref": "NotificationPlace" } } } },
+  "UploadTokenResponse": {
+    "fields": { "upload_token": "string", "token_type": "string", "expires_in": "number" }
+  },
+  "UserCommunityMember": {
+    "fields": {
+      "id": "number",
+      "username": "string",
+      "discriminator": "number",
+      "avatar_url": "string",
+      "status": { "ref": "UserStatus" },
+      "created_at": "string",
+      "initiative_roles": { "list": { "ref": "UserInitiativeRole" } },
+      "community_role": "string",
+      "oidc_managed": "boolean",
+      "display_name": "string",
+      "api_keys_allowed": "boolean"
+    }
+  },
+  "UserCommunityMemberListResponse": {
+    "fields": {
+      "total_count": "number",
+      "page": "number",
+      "page_size": "number",
+      "has_next": "boolean",
+      "has_prev": "boolean",
+      "items": { "list": { "ref": "UserCommunityMember" } }
+    }
+  },
+  "UserCreate": {
+    "fields": {
+      "email": "string",
+      "username": "string",
+      "password": "string",
+      "timezone": "string",
+      "captcha_token": "string",
+      "community": { "ref": "NewCommunity" },
+      "username_offer": "string",
+      "birthdate": "string"
+    }
+  },
+  "UserEmailChange": { "fields": { "current_password": "string" } },
+  "UserEmailCreate": { "fields": { "email": "string", "current_password": "string" } },
+  "UserEmailListResponse": {
+    "fields": { "items": { "list": { "ref": "UserEmailRead" } }, "password_required": "boolean" }
+  },
+  "UserEmailRead": {
+    "fields": {
+      "id": "number",
+      "email": "string",
+      "verified": "boolean",
+      "is_primary": "boolean",
+      "source": "string",
+      "created_at": "string",
+      "last_login_at": "string"
+    }
+  },
+  "UserInitiativeRole": {
+    "fields": { "initiative_id": "number", "initiative_name": "string", "role": "string" }
+  },
+  "UserProfile": {
+    "fields": {
+      "id": "number",
+      "username": "string",
+      "discriminator": "number",
+      "avatar_url": "string",
+      "status": { "ref": "UserStatus" },
+      "custom_status": { "ref": "CustomStatus-Output" },
+      "profile_decorations": { "ref": "ProfileDecorations-Output" },
+      "presence": { "ref": "Presence" },
+      "joined_at": "string"
+    }
+  },
+  "UserPublic": {
+    "fields": {
+      "id": "number",
+      "username": "string",
+      "discriminator": "number",
+      "avatar_url": "string",
+      "status": { "ref": "UserStatus" },
+      "display_name": "string"
+    }
+  },
+  "UserRead": {
+    "fields": {
+      "email": "string",
+      "role": { "ref": "UserRole" },
+      "id": "number",
+      "username": "string",
+      "discriminator": "number",
+      "username_chosen": "boolean",
+      "age_confirmed_at": "string",
+      "age_below_minimum_at": "string",
+      "legal_acceptance_required": "boolean",
+      "birthdate_on_file": "boolean",
+      "birthdate_required": "boolean",
+      "cookie_consent": { "ref": "CookieConsentRead" },
+      "status": { "ref": "UserStatus" },
+      "email_verified": "boolean",
+      "created_at": "string",
+      "updated_at": "string",
+      "avatar_url": "string",
+      "custom_status": { "ref": "CustomStatus-Output" },
+      "presence": { "ref": "Presence" },
+      "profile_decorations": { "ref": "ProfileDecorations-Output" },
+      "week_starts_on": "number",
+      "time_format": "string",
+      "recent_tabs_limit": "number",
+      "timezone": "string",
+      "event_reminder_minutes_before": "number",
+      "last_overdue_notification_at": "string",
+      "last_task_assignment_digest_at": "string",
+      "color_theme": "string",
+      "task_completion_visual_feedback": "string",
+      "task_completion_audio_feedback": "boolean",
+      "task_completion_haptic_feedback": "boolean",
+      "locale": "string",
+      "has_federated_identity": "boolean",
+      "has_password": "boolean",
+      "password_required": "boolean",
+      "initiative_roles": { "list": { "ref": "UserInitiativeRole" } },
+      "can_create_communities": "boolean",
+      "capabilities": { "list": { "ref": "Capability" } }
+    }
+  },
+  "UserRole": { "enum": ["member", "support", "moderator", "operator", "owner"] },
+  "UserSelfUpdate": {
+    "fields": {
+      "password": "string",
+      "current_password": "string",
+      "avatar_url": "string",
+      "custom_status": { "ref": "CustomStatus-Input" },
+      "presence": { "ref": "Presence" },
+      "profile_decorations": { "ref": "ProfileDecorations-Input" },
+      "week_starts_on": "number",
+      "time_format": "string",
+      "recent_tabs_limit": "number",
+      "timezone": "string",
+      "event_reminder_minutes_before": "number",
+      "color_theme": "string",
+      "task_completion_visual_feedback": "string",
+      "task_completion_audio_feedback": "boolean",
+      "task_completion_haptic_feedback": "boolean",
+      "locale": "string"
+    }
+  },
+  "UserStatsResponse": {
+    "fields": {
+      "streak": "number",
+      "on_time_rate": "number",
+      "avg_completion_days": "number",
+      "tasks_completed_total": "number",
+      "tasks_completed_this_week": "number",
+      "backlog_trend": { "enum": ["Growing", "Shrinking"] },
+      "velocity_data": { "list": { "ref": "VelocityWeekData" } },
+      "heatmap_data": { "list": { "ref": "HeatmapDayData" } },
+      "community_breakdown": { "list": { "ref": "CommunityTaskBreakdown" } }
+    }
+  },
+  "UserStatus": { "enum": ["active", "suspended", "deactivated", "anonymized", "deleted"] },
+  "UserSummary": {
+    "fields": {
+      "id": "number",
+      "username": "string",
+      "discriminator": "number",
+      "avatar_url": "string",
+      "status": { "ref": "UserStatus" },
+      "display_name": "string",
+      "profile_decorations": { "ref": "ProfileDecorations-Output" },
+      "community_role": "string"
+    }
+  },
+  "UserSummaryListResponse": {
+    "fields": {
+      "total_count": "number",
+      "page": "number",
+      "page_size": "number",
+      "has_next": "boolean",
+      "has_prev": "boolean",
+      "items": { "list": { "ref": "UserSummary" } }
+    }
+  },
+  "UserViewPreferenceWrite": { "fields": { "value": "any" } },
+  "UserViewPreferencesMap": { "fields": { "items": { "map": "any" } } },
+  "UsernameAvailabilityResponse": {
+    "fields": {
+      "available": "boolean",
+      "reason": "string",
+      "discriminator": "number",
+      "offer": "string"
+    }
+  },
+  "UsernameClaim": { "fields": { "username": "string", "offer": "string" } },
+  "UsernameSuggestionsResponse": { "fields": { "suggestions": { "list": "string" } } },
+  "ValidationError": {
+    "fields": {
+      "loc": { "list": "any" },
+      "msg": "string",
+      "type": "string",
+      "input": "any",
+      "ctx": { "map": "any" }
+    }
+  },
+  "VelocityWeekData": {
+    "fields": { "week_start": "string", "assigned": "number", "completed": "number" }
+  },
+  "VerificationConfirmRequest": { "fields": { "token": "string" } },
+  "VerificationSendResponse": { "fields": { "status": "string" } },
+  "WebhookSubscriptionCreate": {
+    "fields": {
+      "target_url": "string",
+      "event_types": { "list": "string" },
+      "fields": { "list": "string" },
+      "initiative_id": "number"
+    }
+  },
+  "WebhookSubscriptionCreated": {
+    "fields": {
+      "id": "number",
+      "community_ref": "string",
+      "initiative_id": "number",
+      "created_by_ref": "string",
+      "target_url": "string",
+      "event_types": { "list": "string" },
+      "fields": { "list": "string" },
+      "active": "boolean",
+      "dead_letter_count": "number",
+      "created_at": "string",
+      "updated_at": "string",
+      "hmac_secret": "string"
+    }
+  },
+  "WebhookSubscriptionRead": {
+    "fields": {
+      "id": "number",
+      "community_ref": "string",
+      "initiative_id": "number",
+      "created_by_ref": "string",
+      "target_url": "string",
+      "event_types": { "list": "string" },
+      "fields": { "list": "string" },
+      "active": "boolean",
+      "dead_letter_count": "number",
+      "created_at": "string",
+      "updated_at": "string"
+    }
+  },
+  "WebhookSubscriptionUpdate": {
+    "fields": {
+      "target_url": "string",
+      "event_types": { "list": "string" },
+      "fields": { "list": "string" },
+      "active": "boolean"
+    }
+  },
+  "WidgetCatalog": {
+    "fields": {
+      "widgets": { "list": { "ref": "WidgetCatalogEntry" } },
+      "presets": { "list": { "ref": "WidgetPresetEntry" } }
+    }
+  },
+  "WidgetCatalogEntry": {
+    "fields": {
+      "type": { "ref": "WidgetType" },
+      "min_w": "number",
+      "min_h": "number",
+      "default_w": "number",
+      "default_h": "number",
+      "shape": { "list": { "ref": "WidgetSlot" } },
+      "options": { "list": { "ref": "WidgetOption" } }
+    }
+  },
+  "WidgetOption": {
+    "fields": { "key": "string", "values": { "list": "string" }, "default": "string" }
+  },
+  "WidgetPresetEntry": {
+    "fields": {
+      "name": "string",
+      "primitive": { "ref": "WidgetType" },
+      "options": { "map": "string" }
+    }
+  },
+  "WidgetSlot": {
+    "fields": {
+      "name": "string",
+      "types": { "list": { "ref": "FieldType" } },
+      "required": "boolean",
+      "repeatable": "boolean"
+    }
+  },
+  "WidgetType": {
+    "enum": ["board", "chart", "funnel", "gantt", "heatmap", "progress", "stat", "table"]
+  },
+  "WikiCreate": {
+    "fields": {
+      "properties": { "list": { "ref": "PropertyValueInput" } },
+      "name": "string",
+      "description": "string",
+      "initiative_id": "number",
+      "tag_ids": { "list": "number" },
+      "grants": { "list": { "ref": "ResourceGrantSchema" } }
+    }
+  },
+  "WikiListResponse": {
+    "fields": {
+      "total_count": "number",
+      "page": "number",
+      "page_size": "number",
+      "has_next": "boolean",
+      "has_prev": "boolean",
+      "items": { "list": { "ref": "WikiSummary" } }
+    }
+  },
+  "WikiPageCreate": {
+    "fields": {
+      "properties": { "list": { "ref": "PropertyValueInput" } },
+      "title": "string",
+      "parent_page_id": "number",
+      "is_draft": "boolean",
+      "content": { "map": "any" },
+      "tag_ids": { "list": "number" }
+    }
+  },
+  "WikiPageHeading": { "fields": { "text": "string", "level": "number", "anchor": "string" } },
+  "WikiPageKind": { "enum": ["page", "file"] },
+  "WikiPageMove": { "fields": { "parent_page_id": "number", "position": "number" } },
+  "WikiPageOrder": { "enum": ["manual", "title", "recently_updated"] },
+  "WikiPageRead": {
+    "fields": {
+      "id": "number",
+      "wiki_id": "number",
+      "community_id": "number",
+      "kind": { "ref": "WikiPageKind" },
+      "parent_page_id": "number",
+      "position": "number",
+      "is_draft": "boolean",
+      "title": "string",
+      "slug": "string",
+      "created_by": "number",
+      "created_at": "string",
+      "updated_at": "string",
+      "headings": { "list": { "ref": "WikiPageHeading" } },
+      "tags": { "list": { "ref": "TagSummary" } },
+      "properties": { "list": { "ref": "PropertySummary" } },
+      "file_type": "string",
+      "file_content_type": "string",
+      "original_filename": "string",
+      "smart_link_url": "string",
+      "content": { "map": "any" },
+      "content_version": "string"
+    }
+  },
+  "WikiPageSummary": {
+    "fields": {
+      "id": "number",
+      "wiki_id": "number",
+      "community_id": "number",
+      "kind": { "ref": "WikiPageKind" },
+      "parent_page_id": "number",
+      "position": "number",
+      "is_draft": "boolean",
+      "title": "string",
+      "slug": "string",
+      "created_by": "number",
+      "created_at": "string",
+      "updated_at": "string",
+      "headings": { "list": { "ref": "WikiPageHeading" } },
+      "tags": { "list": { "ref": "TagSummary" } },
+      "properties": { "list": { "ref": "PropertySummary" } },
+      "file_type": "string",
+      "file_content_type": "string",
+      "original_filename": "string",
+      "smart_link_url": "string"
+    }
+  },
+  "WikiPageTree": { "fields": { "items": { "list": { "ref": "WikiPageSummary" } } } },
+  "WikiPageUpdate": {
+    "fields": {
+      "properties": { "list": { "ref": "PropertyValueInput" } },
+      "title": "string",
+      "is_draft": "boolean",
+      "content": { "map": "any" },
+      "content_version": "string",
+      "tag_ids": { "list": "number" }
+    }
+  },
+  "WikiRead": {
+    "fields": {
+      "archived_at": "string",
+      "can": { "ref": "ToolCan" },
+      "id": "number",
+      "initiative_id": "number",
+      "community_id": "number",
+      "created_by": "number",
+      "created_at": "string",
+      "updated_at": "string",
+      "comments_enabled": "boolean",
+      "tags": { "list": { "ref": "TagSummary" } },
+      "properties": { "list": { "ref": "PropertySummary" } },
+      "grants": { "list": { "ref": "ResourceGrantSchema" } },
+      "name": "string",
+      "description": "string",
+      "home_page_id": "number",
+      "page_order": { "ref": "WikiPageOrder" },
+      "contents_depth": "number",
+      "show_connections": "boolean",
+      "show_updated_at": "boolean",
+      "reading_width": { "ref": "WikiReadingWidth" },
+      "accent_color": "string",
+      "template_page_id": "number",
+      "comment_count": "number"
+    }
+  },
+  "WikiReadingWidth": { "enum": ["wide", "comfortable"] },
+  "WikiSummary": {
+    "fields": {
+      "archived_at": "string",
+      "can": { "ref": "ToolCan" },
+      "id": "number",
+      "initiative_id": "number",
+      "community_id": "number",
+      "created_by": "number",
+      "created_at": "string",
+      "updated_at": "string",
+      "comments_enabled": "boolean",
+      "tags": { "list": { "ref": "TagSummary" } },
+      "properties": { "list": { "ref": "PropertySummary" } },
+      "grants": { "list": { "ref": "ResourceGrantSchema" } },
+      "name": "string",
+      "description": "string",
+      "home_page_id": "number",
+      "page_order": { "ref": "WikiPageOrder" },
+      "contents_depth": "number",
+      "show_connections": "boolean",
+      "show_updated_at": "boolean",
+      "reading_width": { "ref": "WikiReadingWidth" },
+      "accent_color": "string",
+      "template_page_id": "number",
+      "comment_count": "number"
+    }
+  },
+  "WikiUpdate": {
+    "fields": {
+      "page_order": { "ref": "WikiPageOrder" },
+      "contents_depth": "number",
+      "show_connections": "boolean",
+      "show_updated_at": "boolean",
+      "reading_width": { "ref": "WikiReadingWidth" },
+      "accent_color": "string",
+      "template_page_id": "number",
+      "name": "string",
+      "description": "string",
+      "home_page_id": "number"
+    }
+  }
+}

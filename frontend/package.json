@@ -31,6 +31,8 @@
     "build:editor-server": "node scripts/build-editor-server.mjs"
   },
   "dependencies": {
+    "@bufbuild/cel": "0.6.1",
+    "@bufbuild/protobuf": "^2.16.0",
     "@capacitor-community/keep-awake": "^8.0.1",
     "@capacitor-community/safe-area": "^8.0.1",
     "@capacitor/android": "^8.5.2",

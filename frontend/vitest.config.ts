@@ -1,12 +1,16 @@
 import path from "path";
 import { defineConfig } from "vitest/config";
 
+import { templates } from "./scripts/vite-plugin-templates.ts";
+
 // The app formats dates and numbers in the runtime's own locale, and the
 // tests expect English. Each test worker is a child process, which takes its
 // locale from this when it starts.
 process.env.LC_ALL = "en_US.UTF-8";
 
 export default defineConfig({
+  // Tavern's templates compile on import, in the tests as in the app.
+  plugins: [templates()],
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "./src"),
