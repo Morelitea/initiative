@@ -244,7 +244,7 @@ function CommunityConnection({
             </dl>
           )}
           {typed.length > 0 && (
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid grid-cols-pair gap-3">
               {typed.map((field) => (
                 <ConnectionFieldInput
                   key={field.key}

@@ -80,7 +80,7 @@ export const SettingsBrandingPage = () => {
           ) : interfaceQuery.isError ? (
             <p className="text-destructive text-sm">{t("branding.interfaceError")}</p>
           ) : (
-            <form className="grid gap-6 md:grid-cols-2" onSubmit={handleInterfaceSubmit}>
+            <form className="grid grid-cols-pair gap-6" onSubmit={handleInterfaceSubmit}>
               <div className="space-y-3 rounded-lg border p-4">
                 <Label htmlFor="light-accent" className="font-medium text-sm">
                   {t("branding.lightModeLabel")}

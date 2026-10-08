@@ -17,6 +17,76 @@
   --text-3xs--line-height: 0.875rem;
 }
 
+/* The widths. Tailwind's names, set to where devices fall, and published to
+   theme authors as the same four numbers:
+
+     (none)  under 600   phones; a foldable's cover screen
+     sm:     600         an unfolded foldable; a portrait tablet
+     md:     840         a landscape tablet; the sidebar docks
+     lg:     1200        a laptop
+     xl:     1600        a big desktop
+
+   sm: … xl: measure the screen: the sidebar, navigation, header, page padding
+   and type size, and useWidthClass in code. canvas-sm: … canvas-xl: measure
+   the nearest @container (the page area, or the body anywhere else), for
+   where one piece swaps for another, as a side panel for a row of chips;
+   useRegionWidthClass in code. Grids, forms and rows take no width at all:
+   grid-cols-fill-* and grid-cols-pair fill as many columns as fit, and
+   flex-wrap wraps. The no-other-widths Biome rule refuses any other width.
+
+   The breakpoints are static so they reach :root for useWidthClass, which
+   reads them rather than holding a copy. The canvas variants repeat them (a
+   query cannot read a variable); useWidthClass.test.ts holds the two
+   together. */
+@theme {
+  --breakpoint-*: initial;
+}
+
+@theme static {
+  --breakpoint-sm: 37.5rem;
+  --breakpoint-md: 52.5rem;
+  --breakpoint-lg: 75rem;
+  --breakpoint-xl: 100rem;
+}
+
+@custom-variant canvas-sm {
+  /* biome-ignore lint/plugin: the canvas variants are where the widths are defined */
+  @container (width >= 37.5rem) {
+    @slot;
+  }
+}
+@custom-variant canvas-md {
+  /* biome-ignore lint/plugin: the canvas variants are where the widths are defined */
+  @container (width >= 52.5rem) {
+    @slot;
+  }
+}
+@custom-variant canvas-lg {
+  /* biome-ignore lint/plugin: the canvas variants are where the widths are defined */
+  @container (width >= 75rem) {
+    @slot;
+  }
+}
+@custom-variant canvas-xl {
+  /* biome-ignore lint/plugin: the canvas variants are where the widths are defined */
+  @container (width >= 100rem) {
+    @slot;
+  }
+}
+
+/* Tiles, as many columns as fit at the given minimum width (a spacing step:
+   grid-cols-fill-60 is 15rem). A tile never overflows a region narrower than
+   its minimum. */
+@utility grid-cols-fill-* {
+  grid-template-columns: repeat(auto-fill, minmax(min(--spacing(--value(integer)), 100%), 1fr));
+}
+
+/* Form fields in pairs: two columns once both fit at 16rem, never more than
+   two, so fields paired side by side stay paired on a wide screen. */
+@utility grid-cols-pair {
+  grid-template-columns: repeat(auto-fit, minmax(max(min(16rem, 100%), 40%), 1fr));
+}
+
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -163,6 +233,9 @@
     font-family:
       "Outfit Variable", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     min-height: 100%;
+    /* The region a canvas-sm: measures when nothing nearer is one, so it
+       always has something to measure: a dialog, a sign-in page. */
+    container-type: inline-size;
     @apply bg-background text-foreground;
   }
   /* Non-native platforms (web): apply safe area insets via CSS */

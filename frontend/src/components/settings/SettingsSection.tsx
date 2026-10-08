@@ -95,7 +95,7 @@ export interface SettingsRowProps {
  */
 export const SettingsRow = ({ label, description, htmlFor, children, below }: SettingsRowProps) => (
   <div className="space-y-3 border-b pb-4 last:border-b-0 last:pb-0">
-    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+    <div className="flex flex-wrap gap-2 items-center justify-between gap-x-6">
       <div className="min-w-0 space-y-0.5">
         {htmlFor ? (
           <Label htmlFor={htmlFor}>{label}</Label>

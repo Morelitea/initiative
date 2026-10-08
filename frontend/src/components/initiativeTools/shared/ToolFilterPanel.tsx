@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { useIsCompactViewport } from "@/hooks/useMediaQuery";
+import { useWidthClass } from "@/hooks/useWidthClass";
 import { cn } from "@/lib/utils";
 
 /** How many filters are set, as a small pill; nothing while none are. */
@@ -90,7 +90,7 @@ export const ToolFilterPanel = ({
   children,
 }: ToolFilterPanelProps) => {
   const { t } = useTranslation("common");
-  const isCompact = useIsCompactViewport();
+  const isCompact = useWidthClass() === "base";
 
   const fields = (controls?: ReactNode) => (
     <div

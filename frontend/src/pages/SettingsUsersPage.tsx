@@ -439,7 +439,7 @@ export const SettingsUsersPage = () => {
             </Button>
           </CardHeader>
           <CardContent className="space-y-4">
-            <form className="grid gap-4 md:grid-cols-3" onSubmit={createInvite}>
+            <form className="grid grid-cols-fill-48 gap-4" onSubmit={createInvite}>
               <div className="space-y-2">
                 <Label htmlFor="invite-uses">{t("users.maxUsesLabel")}</Label>
                 <Input
@@ -498,7 +498,7 @@ export const SettingsUsersPage = () => {
                 return (
                   <div
                     key={invite.id}
-                    className="flex flex-col gap-3 rounded border bg-muted/30 p-4 text-sm md:flex-row md:items-center md:justify-between"
+                    className="flex flex-wrap gap-3 rounded border bg-muted/30 p-4 text-sm items-center justify-between"
                   >
                     <div>
                       <p className="font-medium">{link}</p>

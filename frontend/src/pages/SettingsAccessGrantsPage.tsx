@@ -254,7 +254,7 @@ const BreakGlassSection = () => {
         <CardDescription>{t("accessGrants.breakGlass.description")}</CardDescription>
       </CardHeader>
       <CardContent>
-        <form className="grid gap-4 sm:grid-cols-2" onSubmit={submit}>
+        <form className="grid grid-cols-pair gap-4" onSubmit={submit}>
           <div className="space-y-1">
             <Label htmlFor="bg-community">{t("accessGrants.communityIdLabel")}</Label>
             <Input
@@ -281,7 +281,7 @@ const BreakGlassSection = () => {
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-1 sm:col-span-2">
+          <div className="space-y-1 col-span-full">
             <Label htmlFor="bg-reason">{t("accessGrants.reasonLabel")}</Label>
             <Textarea
               id="bg-reason"
@@ -292,7 +292,7 @@ const BreakGlassSection = () => {
             />
           </div>
           {needsCode && (
-            <div className="space-y-1 sm:col-span-2">
+            <div className="space-y-1 col-span-full">
               <Label htmlFor="bg-code">{t("accessGrants.breakGlass.codeLabel")}</Label>
               <Input
                 id="bg-code"
@@ -312,7 +312,7 @@ const BreakGlassSection = () => {
               </p>
             </div>
           )}
-          <div className="flex flex-wrap gap-2 sm:col-span-2">
+          <div className="flex flex-wrap gap-2 col-span-full">
             <Button
               type="submit"
               variant="destructive"
@@ -401,7 +401,7 @@ const RequestSection = () => {
         <CardDescription>{t("accessGrants.requestDescription")}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <form className="grid gap-4 sm:grid-cols-2" onSubmit={submit}>
+        <form className="grid grid-cols-pair gap-4" onSubmit={submit}>
           <div className="space-y-1">
             <Label htmlFor="ag-community">{t("accessGrants.communityIdLabel")}</Label>
             <Input
@@ -456,7 +456,7 @@ const RequestSection = () => {
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-1 sm:col-span-2">
+          <div className="space-y-1 col-span-full">
             <Label htmlFor="ag-reason">{t("accessGrants.reasonLabel")}</Label>
             <Textarea
               id="ag-reason"
@@ -466,7 +466,7 @@ const RequestSection = () => {
               required
             />
           </div>
-          <div className="sm:col-span-2">
+          <div className="col-span-full">
             <Button type="submit" disabled={createRequest.isPending || !asksForSomething}>
               {createRequest.isPending ? t("common:submitting") : t("accessGrants.submitRequest")}
             </Button>

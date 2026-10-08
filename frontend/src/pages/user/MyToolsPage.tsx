@@ -115,7 +115,7 @@ export function MyToolsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+      <div className="flex flex-wrap items-end justify-between gap-4">
         <h1 className="font-semibold text-3xl tracking-tight">{t("title")}</h1>
 
         <div className="flex flex-wrap items-end gap-4">

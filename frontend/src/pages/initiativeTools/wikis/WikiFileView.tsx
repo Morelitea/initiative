@@ -21,7 +21,7 @@ import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useFile } from "@/hooks/useFiles";
-import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { atLeast, useRegionWidthClass } from "@/hooks/useWidthClass";
 import { useWiki } from "@/hooks/useWikis";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { toolDetailRoute } from "@/lib/tools";
@@ -67,7 +67,8 @@ export const WikiFileView = () => {
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [showConnections, setShowConnections] = useState(true);
   const [railAsked, setRailAsked] = useState(false);
-  const railFitsBeside = useMediaQuery("(min-width: 1280px)");
+  const [row, setRow] = useState<HTMLDivElement | null>(null);
+  const railFitsBeside = atLeast(useRegionWidthClass(row), "md");
 
   // Arriving at a heading, the same way a page of the wiki's own does.
   const hash = useLocation({ select: (location) => location.hash });
@@ -137,11 +138,11 @@ export const WikiFileView = () => {
           }
         />
 
-        <div className="flex min-h-0 flex-1">
+        <div ref={setRow} className="flex min-h-0 flex-1">
           <div className="min-w-0 flex-1 overflow-y-auto">
             <div
               className={cn(
-                "mx-auto w-full px-6 py-8 lg:px-10",
+                "mx-auto w-full px-6 py-8 md:px-10",
                 isComfortable ? "max-w-3xl" : "max-w-6xl"
               )}
             >

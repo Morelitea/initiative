@@ -96,7 +96,7 @@ export const WikiPageActions = ({
           <Button
             variant="ghost"
             size="icon"
-            className="hidden h-6 w-0 shrink-0 overflow-hidden p-0 opacity-0 transition-all focus-visible:w-6 focus-visible:opacity-100 group-hover/page:w-6 group-hover/page:opacity-100 motion-reduce:transition-none lg:flex"
+            className="hidden h-6 w-0 shrink-0 overflow-hidden p-0 opacity-0 transition-all focus-visible:w-6 focus-visible:opacity-100 group-hover/page:w-6 group-hover/page:opacity-100 motion-reduce:transition-none md:flex"
             aria-label={t("page.actions")}
           >
             <Settings2 className="size-3.5" aria-hidden />

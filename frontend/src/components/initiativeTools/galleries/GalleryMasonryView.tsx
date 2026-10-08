@@ -6,7 +6,7 @@ import { GalleryImageTile } from "@/components/initiativeTools/galleries/Gallery
 import { type MasonryEntry, MasonryWall } from "@/components/initiativeTools/galleries/MasonryWall";
 import { TagBadge } from "@/components/tags/TagBadge";
 import type { GridToggleOptions } from "@/hooks/useGridSelection";
-import { useIsCompactViewport } from "@/hooks/useMediaQuery";
+import { useWidthClass } from "@/hooks/useWidthClass";
 import { aspectRatio, groupByTag } from "@/lib/galleries";
 
 interface GalleryMasonryViewProps {
@@ -42,7 +42,7 @@ export const GalleryMasonryView = ({
   isSelected,
 }: GalleryMasonryViewProps) => {
   const { t } = useTranslation("galleries");
-  const compact = useIsCompactViewport();
+  const compact = useWidthClass() === "base";
   const minColumnWidth = compact ? COLUMN_WIDTH_COMPACT : COLUMN_WIDTH;
 
   const entriesOf = (items: GalleryImageRead[]): MasonryEntry[] =>

@@ -74,7 +74,7 @@ export const ProjectActivitySidebar = ({
   return (
     <aside
       className={cn(
-        "sticky top-0 right-0 z-20 hidden h-screen shrink-0 transition-all duration-200 xl:flex",
+        "sticky top-0 right-0 z-20 hidden h-screen shrink-0 transition-all duration-200 lg:flex",
         collapsed ? "w-15" : "w-80"
       )}
     >

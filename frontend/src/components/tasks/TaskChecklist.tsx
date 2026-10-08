@@ -461,7 +461,7 @@ const ChecklistItemRow = ({
     <li
       ref={setNodeRef}
       style={style}
-      className={`flex flex-col gap-2 rounded-md border bg-muted/30 px-3 py-2 text-sm md:flex-row md:items-center md:gap-3 ${
+      className={`flex flex-col gap-2 rounded-md border bg-muted/30 px-3 py-2 text-sm sm:flex-row sm:items-center sm:gap-3 ${
         isDragging ? "opacity-80 shadow-sm" : ""
       }`}
     >
@@ -522,7 +522,7 @@ const ChecklistItemRow = ({
         ) : null}
       </div>
       {canEdit ? (
-        <div className="flex items-center gap-1 self-end md:self-auto">
+        <div className="flex items-center gap-1 self-end sm:self-auto">
           <Button
             type="button"
             variant="ghost"

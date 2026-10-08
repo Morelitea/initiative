@@ -91,7 +91,7 @@ export function WidgetGalleryPage() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
+      <div className="grid grid-cols-fill-72 gap-4">
         {tiles.map(({ key, type }) => (
           <GalleryTile key={key} type={type} markOverride={markOverride} />
         ))}
@@ -102,7 +102,7 @@ export function WidgetGalleryPage() {
         <p className="text-muted-foreground text-sm">{t("gallery.failureModesDescription")}</p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
+      <div className="grid grid-cols-fill-72 gap-4">
         {HOSTILE_WIDGETS.map((widget) => (
           <div key={widget.key} className="h-40">
             <WidgetTile

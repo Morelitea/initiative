@@ -34,7 +34,7 @@ export const ProjectDateFields = ({
 
   return (
     <div className="space-y-2">
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-pair gap-4">
         <div className="space-y-2">
           <Label htmlFor={`${idPrefix}-start-date`}>{t("projects:schedule.startLabel")}</Label>
           <DateTimePicker

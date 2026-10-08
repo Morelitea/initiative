@@ -732,7 +732,7 @@ export function DataTable<TData extends RowData>({
             </div>
             <div className="ml-auto flex items-center justify-end gap-2">
               {/* Desktop: Show controls inline */}
-              <div className="hidden flex-wrap items-center justify-end gap-2 md:flex">
+              <div className="hidden flex-wrap items-center justify-end gap-2 canvas-sm:flex">
                 {enableClearSorting && (
                   <Button variant="ghost" onClick={() => table.resetSorting()}>
                     <span className="text-muted-foreground">{t("resetSorting")}</span>
@@ -801,7 +801,7 @@ export function DataTable<TData extends RowData>({
               {/* Mobile: Show overflow menu */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="icon" className="md:hidden">
+                  <Button variant="outline" size="icon" className="canvas-sm:hidden">
                     <MoreVertical className="h-4 w-4" />
                     <span className="sr-only">{t("tableOptions")}</span>
                   </Button>
@@ -1013,7 +1013,7 @@ export function DataTable<TData extends RowData>({
           </TableBody>
         </Table>
         {showPagination && (
-          <div className="pp4 flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="pp4 flex flex-wrap gap-3 p-4 items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="text-muted-foreground text-sm">{t("rowsPerPage")}</span>
               <Select
@@ -1037,7 +1037,7 @@ export function DataTable<TData extends RowData>({
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex items-center gap-2 self-end sm:self-auto">
+            <div className="ml-auto flex items-center gap-2">
               {manualPagination && externalPageCount !== undefined && (
                 <span className="text-muted-foreground text-sm">
                   {t("pageOf", {
