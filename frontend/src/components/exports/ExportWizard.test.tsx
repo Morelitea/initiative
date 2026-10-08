@@ -571,9 +571,7 @@ describe("ExportWizard", () => {
     await user.click(screen.getByRole("button", { name: "CSV" }));
     expect(screen.getByRole("switch", { name: "Show archived" })).toBeChecked();
     await user.click(screen.getByRole("button", { name: "Next" }));
-    expect(
-      screen.getByText("Tasks (1 status, with archived, in your table's order)")
-    ).toBeInTheDocument();
+    expect(screen.getByText("Tasks (1 status, with archived)")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /start export/i }));
 
     await waitFor(() => expect(sent).not.toBeNull());

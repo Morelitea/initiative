@@ -444,7 +444,6 @@ function useDescribeFilters() {
         // Said only where it differs from what the output carries anyway.
         content.tasks.include_archived !== backup &&
           t(backup ? "wizard.filterSummary.withoutArchived" : "wizard.filterSummary.withArchived"),
-        content.taskSorting.length > 0 && t("wizard.filterSummary.yourOrder"),
       ];
       parts.push(
         t("wizard.filterSummary.tasks", { filters: taskParts.filter(Boolean).join(", ") })

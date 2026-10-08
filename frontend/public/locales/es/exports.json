@@ -95,7 +95,6 @@
       "archivedOnly": "Solo archivados",
       "withoutArchived": "sin archivadas",
       "withArchived": "con archivadas",
-      "yourOrder": "en el orden de tu tabla",
       "more_one": "{{count}} filtro más",
       "more_other": "{{count}} filtros más",
       "tasks": "Tareas ({{filters}})"
