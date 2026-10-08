@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **A plug-in's framed screens are called pages throughout.** This follows plug-in SDK 5.0. A manifest declares them under `pages` with the feature `pages`, and one that still says `embeds` is refused, so a plug-in needs a release built with SDK 5.0 to be published or updated here. Plug-ins already installed keep working. If your `PLUGIN_SERVICES_CONFIG` file sets `embed_origin`, rename it to `page_origin`. Under the old name it is ignored, and the plug-in's pages load from its `base_url`. The plug-in service API's field and the handoff's `embed_url` are renamed the same way.
+
 ## [0.75.3] - 2026-10-08
 
 ### Added

@@ -88,8 +88,8 @@ def _service_definition(**overrides) -> dict:
             "protocol": 1,
             "scopes": ["comments:read", "projects:read", "projects:write"],
         },
-        "features": ["embeds"],
-        "embeds": [
+        "features": ["pages"],
+        "pages": [
             {
                 "id": "board",
                 "path": "/embed/board",
@@ -344,7 +344,7 @@ class TestMandatory:
 
 
 # ---------------------------------------------------------------------------
-# The embed handoff
+# The page handoff
 # ---------------------------------------------------------------------------
 
 
@@ -382,7 +382,7 @@ class TestHandoff:
         )
         assert response.status_code == 200, response.text
         body = response.json()
-        assert body["embed_url"] == "https://widgetco.example.test/embed/board"
+        assert body["page_url"] == "https://widgetco.example.test/embed/board"
         assert body["allowed_origins"] == ["https://widgetco.example.test"]
         assert body["audience"] == f"initiative-plugin:{SERVICE_ID}"
         assert body["expires_in_seconds"] == 60
@@ -398,7 +398,7 @@ class TestHandoff:
             session,
             registration,
             base_url="http://widgetco.internal:8200",
-            embed_origin="https://widgetco.example.test",
+            page_origin="https://widgetco.example.test",
         )
         a = await acting_user(guild_role=CommunityRole.superadmin)
         plugin = await _installed(session, a)
@@ -408,7 +408,7 @@ class TestHandoff:
         )
 
         assert response.status_code == 200, response.text
-        assert response.json()["embed_url"] == (
+        assert response.json()["page_url"] == (
             "https://widgetco.example.test/embed/board"
         )
 

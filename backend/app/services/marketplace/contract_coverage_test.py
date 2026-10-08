@@ -51,7 +51,7 @@ def maximal_manifest() -> dict:
             "protocol": 1,
             "scopes": ["projects:write", "comments:read", "plugins:acme.github"],
         },
-        "features": ["endpoints", "widgets", "embeds", "dashboards"],
+        "features": ["endpoints", "widgets", "pages", "dashboards"],
         "default_name": "Acme Tracker",
         "minimum_age": {"default": 16, "US": 13},
         "min_plugin_api": "4.2",
@@ -223,7 +223,7 @@ def maximal_manifest() -> dict:
                 "requires": {"any_of": ["vendor"]},
             }
         ],
-        "embeds": [
+        "pages": [
             {
                 "id": "panel",
                 "path": "/panel",
@@ -533,7 +533,7 @@ def _nodes(published: dict, declarative: dict) -> list[tuple[str, dict]]:
         # count against anything.
         ("endpointReturn", {**read["returns"][0], **read["returns"][2]}),
         ("widget", widget),
-        ("embed", published["embeds"][0]),
+        ("page", published["pages"][0]),
         ("bundledDashboard", dashboard),
         ("bundledDashboardWidget", dashboard["widgets"][0]),
         # `requires` names one operator at a time, so the two are covered from

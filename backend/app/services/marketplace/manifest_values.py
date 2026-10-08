@@ -84,7 +84,7 @@ MAX_URL_LENGTH = contract.cap("urlLength")
 #: An `access_hint` string — the API and permission names a connection asks for.
 MAX_HINT_LENGTH = contract.cap("hintLength")
 
-#: What an id inside a manifest may use: connection, widget, data source, embed.
+#: What an id inside a manifest may use: connection, widget, data source, page.
 #: Lowercase only, so two ids cannot differ by case alone.
 IDENTIFIER_CHARS = contract.charset("identifier")
 

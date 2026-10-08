@@ -18,7 +18,7 @@ const buildRegistration = (
   publisher_name: "Core Plug-ins",
   publisher_enabled: true,
   base_url: "http://initiative-github:8080",
-  embed_origin: null,
+  page_origin: null,
   allowed_origins: [],
   jwks: { keys: [{ kty: "OKP", crv: "Ed25519", kid: "k1", x: "abc" }] },
   jwks_uri: null,
@@ -213,7 +213,7 @@ describe("SettingsPluginServicesPage", () => {
           public_id: "acme.shopify",
           base_url: "https://shopify.example.com",
           // Left blank: the plug-in answers both surfaces at the base URL.
-          embed_origin: null,
+          page_origin: null,
           allowed_origins: null,
           // Nothing pasted: the keys come from the address.
           jwks: null,
@@ -251,7 +251,7 @@ describe("SettingsPluginServicesPage", () => {
       expect(createMutate).toHaveBeenCalledWith(
         expect.objectContaining({
           base_url: "http://shopify:8080",
-          embed_origin: "https://shop.example.com",
+          page_origin: "https://shop.example.com",
         }),
         expect.anything()
       );

@@ -89,8 +89,8 @@
       "items": {
         "enum": [
           "dashboards",
-          "embeds",
           "endpoints",
+          "pages",
           "widgets"
         ]
       },
@@ -173,11 +173,11 @@
         "$ref": "#/$defs/widget"
       }
     },
-    "embeds": {
+    "pages": {
       "type": "array",
       "maxItems": 12,
       "items": {
-        "$ref": "#/$defs/embed"
+        "$ref": "#/$defs/page"
       }
     },
     "dashboards": {
@@ -1095,7 +1095,7 @@
         }
       }
     },
-    "embed": {
+    "page": {
       "type": "object",
       "required": [
         "id",
@@ -1124,12 +1124,12 @@
           "default": [
             "community"
           ],
-          "description": "Where the surface renders. Declaring both gives it a community-wide entry and an entry inside each initiative."
+          "description": "Where the page renders. Declaring both gives it a community-wide entry and an entry inside each initiative."
         },
         "admin_only": {
           "type": "boolean",
           "default": false,
-          "description": "Only the community's admins open this surface, whatever roles a placement allows — a settings page, say. Who else may open a surface is chosen in the community, per initiative and per role, not declared here."
+          "description": "Only the community's admins open this page, whatever roles a placement allows — a settings page, say. Who else may open a page is chosen in the community, per initiative and per role, not declared here."
         },
         "capabilities": {
           "type": "array",
@@ -1145,7 +1145,7 @@
               "microphone"
             ]
           },
-          "description": "Browser features the frame is granted. A surface that names nothing is framed with all of them denied."
+          "description": "Browser features the frame is granted. A page that names nothing is framed with all of them denied."
         },
         "requires": {
           "$ref": "#/$defs/requires"

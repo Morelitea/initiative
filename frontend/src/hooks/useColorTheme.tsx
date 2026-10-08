@@ -42,7 +42,7 @@ const CSS_VAR_MAP: Record<keyof ThemeColors, string> = {
 /**
  * A color theme's tokens as CSS custom properties (`--background` →
  * `oklch(…)`), for one resolved mode. What {@link useColorTheme} applies to
- * this document, and what an embedded plug-in is handed so it can wear the same
+ * this document, and what a plug-in's page is handed so it can wear the same
  * palette (see `CommunityPluginPage`).
  */
 export const themeCssVariables = (
@@ -59,7 +59,7 @@ export const themeCssVariables = (
 };
 
 /**
- * The palette as an embedded plug-in should wear it: the color theme's tokens
+ * The palette as a plug-in's page should wear it: the color theme's tokens
  * plus `--primary` / `--primary-foreground` / `--ring`, which this document
  * derives from the community accent through the `--accent-<mode>-*` indirection.
  * An iframe on another origin cannot read this document's custom properties,

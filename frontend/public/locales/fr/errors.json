@@ -405,7 +405,7 @@
   "PLUGIN_SERVICE_INVALID_BASE_URL": "Cette adresse n'est pas valide. Indiquez l'URL de base du plug-in, sans paramètres de requête.",
   "PLUGIN_SERVICE_INVALID_ORIGIN": "Une origine autorisée n'est pas valide. Utilisez schéma://hôte avec un port facultatif et sans chemin.",
   "PLUGIN_SERVICE_INVALID_JWKS": "Ce jeu de clés ne permet pas à cette installation de vérifier une signature.",
-  "PLUGIN_SERVICE_INVALID_EMBED_ORIGIN": "Cette adresse du navigateur n'est pas valide. Indiquez une adresse http ou https sans chaîne de requête.",
+  "PLUGIN_SERVICE_INVALID_PAGE_ORIGIN": "Cette adresse du navigateur n'est pas valide. Indiquez une adresse http ou https sans chaîne de requête.",
   "PLUGIN_SERVICE_INVALID_JWKS_URI": "L'adresse du jeu de clés doit être en https, sur l'adresse propre du plug-in.",
   "PLUGIN_SERVICE_CONNECT_NEEDS_BASE_URL": "Enregistrez d'abord l'URL de base du plug-in. Connecter lit ses clés à cette adresse.",
   "PLUGIN_SERVICE_KEYS_UNREADABLE": "Le plug-in n'a pas répondu avec son jeu de clés. Vérifiez qu'il fonctionne et que son URL de base est correcte.",

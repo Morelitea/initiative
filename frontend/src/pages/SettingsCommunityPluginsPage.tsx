@@ -54,7 +54,7 @@ import { useCommunityPath } from "@/lib/communityUrl";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { formatDate } from "@/lib/formatDate";
 import { toast } from "@/lib/mascotToast";
-import { declaredEmbeds } from "@/lib/pluginSurfaces";
+import { declaredPages } from "@/lib/pluginSurfaces";
 import { cn } from "@/lib/utils";
 
 export function SettingsCommunityPluginsPage() {
@@ -265,7 +265,7 @@ function PluginDetailPanels({ pluginId, canManage }: { pluginId: number; canMana
       {canManage && (
         <>
           {/* Only a plug-in with an initiative surface has somewhere to place. */}
-          {declaredEmbeds(detail.data.definition, "initiative").length > 0 && (
+          {declaredPages(detail.data.definition, "initiative").length > 0 && (
             <PluginPlacementPanel plugin={detail.data} />
           )}
 

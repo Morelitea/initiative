@@ -10,14 +10,14 @@
  *    in the URL, so it stays out of history, referrers and proxy logs.
  * 3. Inbound messages are ignored unless `event.origin` is one the registration
  *    listed and `event.source` is the frame this page mounted.
- * 4. The token is one-shot, so a reloading embed asks again and gets a fresh
+ * 4. The token is one-shot, so a reloading page asks again and gets a fresh
  *    one rather than being stuck until the page is reloaded.
  * 5. The frame is granted the browser features the surface's manifest declared,
  *    and no others.
  *
  * The handoff also carries `sells`: whether this host may lead anyone to a
  * purchase here (a billing portal is configured, and this device may sell —
- * see `@/lib/storeSelling`). An embedded plug-in hides its own purchase copy when
+ * see `@/lib/storeSelling`). A plug-in's page hides its own purchase copy when
  * it is false.
  */
 
@@ -46,13 +46,13 @@ import { useCommunityPluginDetail } from "@/hooks/useCommunityPluginDetail";
 import { useServer } from "@/hooks/useServer";
 import { useTheme } from "@/hooks/useTheme";
 import { showsCuratedCatalogueOnly } from "@/lib/marketplaceCuration";
-import { embedAllow, pluginEmbeds } from "@/lib/pluginSurfaces";
+import { pageAllow, pluginPages } from "@/lib/pluginSurfaces";
 import { getItem, setItem } from "@/lib/storage";
 import { DEFAULT_THEME } from "@/lib/themes";
 import { cn } from "@/lib/utils";
 import { localized } from "@/lib/widgets/widgetMeta";
 
-/** The message names an embed and this host agree on. */
+/** The message names a page and this host agree on. */
 const READY = "initiative-plugin:ready";
 const HANDOFF = "initiative-plugin:handoff";
 const ERROR = "initiative-plugin:error";
@@ -76,9 +76,9 @@ export function CommunityPluginPage({ pluginId, initiativeId }: CommunityPluginP
   const plugin = detail.data;
 
   // Only the surfaces the server says this reader opens here.
-  const embeds = useMemo(() => pluginEmbeds(plugin, initiativeId), [plugin, initiativeId]);
+  const pages = useMemo(() => pluginPages(plugin, initiativeId), [plugin, initiativeId]);
   const [surfaceId, setSurfaceId] = useState<string | null>(null);
-  const active = embeds.find((embed) => embed.id === surfaceId) ?? embeds[0] ?? null;
+  const active = pages.find((page) => page.id === surfaceId) ?? pages[0] ?? null;
   // The surface as a plain id, so a refetch that hands back an equal-but-new
   // definition does not read as a surface change and mint a token nobody asked
   // for.
@@ -106,7 +106,7 @@ export function CommunityPluginPage({ pluginId, initiativeId }: CommunityPluginP
   const [error, setError] = useState<string | null>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   // Whether the token we hold has already been handed over. A later `ready`
-  // means the embed reloaded itself and the old token is spent, so the next
+  // means the page reloaded itself and the old token is spent, so the next
   // one is minted fresh.
   const spentRef = useRef(false);
 
@@ -139,7 +139,7 @@ export function CommunityPluginPage({ pluginId, initiativeId }: CommunityPluginP
         if (!cancelled) setHandoff(fresh);
       })
       .catch(() => {
-        if (!cancelled) setError(t("plugins:embed.handoffFailed"));
+        if (!cancelled) setError(t("plugins:page.handoffFailed"));
       });
     return () => {
       cancelled = true;
@@ -147,22 +147,22 @@ export function CommunityPluginPage({ pluginId, initiativeId }: CommunityPluginP
   }, [activeId, held, mint, t]);
 
   const origin = useMemo(() => {
-    if (!handoff?.embed_url) return null;
+    if (!handoff?.page_url) return null;
     try {
-      return new URL(handoff.embed_url).origin;
+      return new URL(handoff.page_url).origin;
     } catch {
       return null;
     }
-  }, [handoff?.embed_url]);
+  }, [handoff?.page_url]);
 
   const allowed = useMemo(
     () => new Set(handoff?.allowed_origins ?? []),
     [handoff?.allowed_origins]
   );
 
-  // The reader's appearance travels with the token so the embed opens already
+  // The reader's appearance travels with the token so the page opens already
   // wearing it: the resolved mode ("system" is resolved on this side — the
-  // embed should follow this page, not re-derive the OS preference), and the
+  // plug-in should follow this page, not re-derive the OS preference), and the
   // effective palette, since an iframe on another origin cannot read this
   // document's custom properties.
   const { resolvedTheme } = useTheme();
@@ -232,7 +232,7 @@ export function CommunityPluginPage({ pluginId, initiativeId }: CommunityPluginP
 
       if (data.type === READY) {
         const failed = () => {
-          if (!cancelled) setError(tRef.current("plugins:embed.handoffFailed"));
+          if (!cancelled) setError(tRef.current("plugins:page.handoffFailed"));
         };
         if (!spentRef.current) {
           spentRef.current = true;
@@ -247,11 +247,11 @@ export function CommunityPluginPage({ pluginId, initiativeId }: CommunityPluginP
             return send(target, fresh);
           })
           .catch(() => {
-            if (!cancelled) setError(tRef.current("plugins:embed.handoffFailed"));
+            if (!cancelled) setError(tRef.current("plugins:page.handoffFailed"));
           });
       } else if (data.type === ERROR) {
         setError(
-          typeof data.message === "string" ? data.message : tRef.current("plugins:embed.failed")
+          typeof data.message === "string" ? data.message : tRef.current("plugins:page.failed")
         );
       }
     };
@@ -263,7 +263,7 @@ export function CommunityPluginPage({ pluginId, initiativeId }: CommunityPluginP
     };
   }, [origin, allowed, handoff, mint]);
 
-  // Keep the embed in step with a language change.
+  // Keep the page in step with a language change.
   useEffect(() => {
     if (!origin) return;
     const target = iframeRef.current?.contentWindow;
@@ -272,7 +272,7 @@ export function CommunityPluginPage({ pluginId, initiativeId }: CommunityPluginP
   }, [origin, i18n.language]);
 
   // And with an appearance change — flipping light/dark (or the color theme)
-  // recolors the embed in place.
+  // recolors the page in place.
   useEffect(() => {
     if (!origin) return;
     const target = iframeRef.current?.contentWindow;
@@ -289,13 +289,13 @@ export function CommunityPluginPage({ pluginId, initiativeId }: CommunityPluginP
     );
   }
 
-  if (!plugin) return <Notice title={t("plugins:embed.notFound")} />;
-  if (!plugin.enabled) return <Notice title={t("plugins:embed.disabled", { name: plugin.name })} />;
+  if (!plugin) return <Notice title={t("plugins:page.notFound")} />;
+  if (!plugin.enabled) return <Notice title={t("plugins:page.disabled", { name: plugin.name })} />;
   if (!plugin.available)
     return (
       <Notice
-        title={t("plugins:embed.unavailable", { name: plugin.name })}
-        description={t("plugins:embed.unavailableDescription")}
+        title={t("plugins:page.unavailable", { name: plugin.name })}
+        description={t("plugins:page.unavailableDescription")}
       />
     );
   // Anything but our own can be reported from here, on every platform.
@@ -305,31 +305,31 @@ export function CommunityPluginPage({ pluginId, initiativeId }: CommunityPluginP
   ) : null;
 
   if (!active)
-    return <Notice title={t("plugins:embed.noSurface", { name: plugin.name })} action={report} />;
+    return <Notice title={t("plugins:page.noSurface", { name: plugin.name })} action={report} />;
   if (held)
     return (
       <PluginProviderNotice name={plugin.name} listing={plugin.listing} onContinue={acknowledge} />
     );
-  if (error) return <Notice title={t("plugins:embed.failed")} description={error} />;
+  if (error) return <Notice title={t("plugins:page.failed")} description={error} />;
 
   return (
     <div className="flex h-full flex-col">
-      {(embeds.length > 1 || reportable) && (
+      {(pages.length > 1 || reportable) && (
         <div className="flex shrink-0 items-center gap-1 border-b px-2">
-          {embeds.length > 1 &&
-            embeds.map((embed) => (
+          {pages.length > 1 &&
+            pages.map((page) => (
               <button
-                key={embed.id}
+                key={page.id}
                 type="button"
-                onClick={() => setSurfaceId(embed.id)}
+                onClick={() => setSurfaceId(page.id)}
                 className={cn(
                   "border-b-2 px-3 py-2 text-sm",
-                  embed.id === active.id
+                  page.id === active.id
                     ? "border-primary font-medium"
                     : "border-transparent text-muted-foreground hover:text-foreground"
                 )}
               >
-                {localized(embed.name, i18n.language) || embed.id}
+                {localized(page.name, i18n.language) || page.id}
               </button>
             ))}
           {reportable && (
@@ -341,13 +341,13 @@ export function CommunityPluginPage({ pluginId, initiativeId }: CommunityPluginP
           )}
         </div>
       )}
-      {handoff?.embed_url ? (
+      {handoff?.page_url ? (
         <iframe
           // Keyed by surface so switching tabs mounts a fresh frame rather
           // than reusing one that already spent its token.
           key={active.id}
           ref={iframeRef}
-          src={handoff.embed_url}
+          src={handoff.page_url}
           title={plugin.name}
           className="block min-h-0 w-full flex-1 border-0 bg-background"
           // Notably absent: allow-top-navigation, allow-modals,
@@ -356,12 +356,12 @@ export function CommunityPluginPage({ pluginId, initiativeId }: CommunityPluginP
           referrerPolicy="no-referrer"
           // Built from what this surface's manifest declared; empty when it
           // declared none.
-          allow={embedAllow(active)}
+          allow={pageAllow(active)}
         />
       ) : (
         <div className="flex flex-1 items-center gap-2 p-4 text-muted-foreground text-sm">
           <Loader2 className="h-4 w-4 animate-spin" />
-          {t("plugins:embed.connecting")}
+          {t("plugins:page.connecting")}
         </div>
       )}
     </div>
