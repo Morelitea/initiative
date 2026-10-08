@@ -725,7 +725,7 @@ async def notify_mentions(
     file = await resource_access.load_authorized(
         session, Tool.file, file_id, current_user, guild_context, access="write"
     )
-    name = notifications_service.actor_name(current_user)
+    name = await notifications_service.actor_name(session, current_user)
     await notifications_service.notify(
         session,
         NotificationType.mention,

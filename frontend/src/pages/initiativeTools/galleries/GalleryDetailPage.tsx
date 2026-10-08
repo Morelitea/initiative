@@ -38,7 +38,7 @@ import {
 import { ToolAccessStatus } from "@/components/ToolAccessStatus";
 import { ToolChest } from "@/components/tools/ToolChest";
 import { ToolPageHeader } from "@/components/tools/ToolPageHeader";
-import { UserHandle } from "@/components/UserHandle";
+import { UserName } from "@/components/UserHandle";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { RelativeTime } from "@/components/ui/relative-time";
@@ -196,7 +196,7 @@ export function GalleryDetailPage() {
         caption: (
           <span className="inline-flex flex-wrap items-center justify-center gap-x-2">
             {imageLabel(image) ? <span>{imageLabel(image)}</span> : null}
-            {image.uploader ? <UserHandle user={image.uploader} className="text-white/70" /> : null}
+            {image.uploader ? <UserName user={image.uploader} className="text-white/70" /> : null}
             <RelativeTime date={image.created_at} className="text-white/60" />
           </span>
         ),

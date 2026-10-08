@@ -461,7 +461,7 @@ async def _build_scope(
             entries=builder.entries,
             assets=builder.assets,
             skipped=builder.skipped,
-            people=builder.people(),
+            people=await builder.people(),
         )
         items = [
             RenderItem(
@@ -910,13 +910,20 @@ class _ScopeBuilder:
             if handle not in self._people:
                 self._people[handle] = (None, 0)
 
-    def people(self) -> list:
+    async def people(self) -> list:
         """The archive's people, most-quoted first — which is the order the
-        wizard should ask about them in."""
+        wizard should ask about them in. Each named as the community names
+        them, where they are still in it."""
         from app.schemas.tenant.backup_export import ManifestPerson
 
+        names = {
+            handle_of(profile): profile.display_name
+            for profile in (await self._guild_profiles()).values()
+        }
         return [
-            ManifestPerson(handle=handle, name=name, comment_count=count)
+            ManifestPerson(
+                handle=handle, name=names.get(handle) or name, comment_count=count
+            )
             for handle, (name, count) in sorted(
                 self._people.items(), key=lambda kv: (-kv[1][1], kv[0])
             )

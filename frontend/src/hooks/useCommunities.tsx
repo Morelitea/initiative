@@ -685,3 +685,16 @@ export const useCommunities = () => {
   }
   return context;
 };
+
+/**
+ * The signed-in person as the active community names them: their account,
+ * carrying the name they go by there (null where they set none, so the handle
+ * renders). For what others see of you — a live cursor, a presence chip.
+ */
+export const useSelfInCommunity = () => {
+  const { user } = useAuth();
+  // Read without useCommunities' guard: an editor mounted outside the
+  // provider names you by your handle rather than failing.
+  const name = useContext(CommunityContext)?.activeCommunity?.display_name ?? null;
+  return useMemo(() => (user ? { ...user, display_name: name } : null), [user, name]);
+};

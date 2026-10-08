@@ -2074,6 +2074,9 @@ async def test_a_knock_reaches_the_managers_on_both_channels(
         username="ada",
         discriminator=1815,
     )
+    member.membership.display_name = "Ada Lovelace"
+    session.add(member.membership)
+    await session.commit()
 
     response = await client.post(
         member.g(f"/initiatives/{initiative.id}/join-requests"),
@@ -2088,9 +2091,8 @@ async def test_a_knock_reaches_the_managers_on_both_channels(
     assert len(notes) == 1
     assert notes[0].data["initiative_id"] == initiative.id
     assert notes[0].data["requester_id"] == member.user.id
-    # A notification is read on the cross-guild list, and mail outside the app
-    # entirely, so both name her by handle whatever this guild renders.
-    assert notes[0].data["requester_name"] == "ada#1815"
+    # Both name her as the community she asked in names her.
+    assert notes[0].data["requester_name"] == "Ada Lovelace"
     assert notes[0].data["request_id"] == response.json()["id"]
     # It was sent to be acted on, so it opens the queue rather than the
     # initiative's front page. Only managers ever receive one.
@@ -2102,7 +2104,7 @@ async def test_a_knock_reaches_the_managers_on_both_channels(
     assert sent[0]["category"] is NotificationCategory.approvals
     assert sent[0]["guild_id"] == manager.guild.id
     assert sent[0]["subject"] == "Request to join Knockable"
-    assert "ada#1815" in sent[0]["body"]
+    assert "Ada Lovelace" in sent[0]["body"]
     assert "I maintain the parser" in sent[0]["body"]
     # Guild-scoped news, so the link carries the guild rather than being a bare
     # frontend path.

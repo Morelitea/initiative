@@ -35,6 +35,7 @@ from app.services.export.local_backend import LocalRenderBackend
 from app.services.storage import get_guild_storage
 from app.services.export import limits as export_limits
 from app.core.user_input_validators import resolve_zone
+from app.core.user_display import name_here
 
 
 #: Called once per rendered artifact, so a job can show it is still going.
@@ -156,7 +157,7 @@ async def start_export(
             session, user=user, guild_id=guild_id, params=params, format=format
         )
         request = await apply_brand(request, session)
-        request = stamp_export(request, user)
+        request = stamp_export(request, await name_here(session, user))
         artifacts = await get_backend().render(request)
         artifact = await asyncio.to_thread(
             _bundle,

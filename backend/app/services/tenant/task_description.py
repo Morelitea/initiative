@@ -76,7 +76,7 @@ async def description_saved(
     if author is None:
         return
 
-    name = notifications_service.actor_name(author)
+    name = await notifications_service.actor_name(session, author)
     await notifications_service.notify(
         session,
         NotificationType.mention,

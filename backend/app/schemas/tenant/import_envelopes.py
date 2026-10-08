@@ -51,6 +51,7 @@ class EnvelopePropertyValue(SanitizedBaseModel):
     value_boolean: Optional[bool] = None
     value_json: Any = None
     value_handle: Optional[str] = None
+    value_name: Optional[str] = None
 
 
 class FileEnvelope(_EnvelopeBase):
