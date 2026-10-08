@@ -13,6 +13,7 @@
   "reportedCount_other": "Reported by {{count}} people",
   "targetUnavailable": "This isn't here any more, or isn't yours to see.",
   "whatTheySaid": "What they said",
+  "attached": "What they sent",
   "reviewElsewhere": "Open the reported item to look at it in context, then decide here.",
   "notePlaceholder": "What you found, and why you decided this (optional)",
   "settledAt": "Settled {{when}}.",

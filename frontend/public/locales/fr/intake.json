@@ -140,5 +140,19 @@
     "fromTeam": "L'équipe ({{name}})",
     "someone": "Quelqu'un",
     "conversationLabel": "Conversation avec {{name}}"
+  },
+  "evidence": {
+    "attach": "Joindre des fichiers",
+    "limits_one": "Jusqu'à {{count}} fichier, {{size}} au maximum.",
+    "limits_other": "Jusqu'à {{count}} fichiers, {{size}} chacun au maximum.",
+    "remove": "Retirer {{name}}",
+    "tooMany_one": "Vous pouvez joindre {{count}} fichier.",
+    "tooMany_other": "Vous pouvez joindre jusqu'à {{count}} fichiers.",
+    "tooLarge": "{{name}} dépasse {{size}}.",
+    "notAllowed": "Les fichiers comme {{name}} ne sont pas acceptés ici.",
+    "heading": "Pièces jointes",
+    "reveal": "Afficher {{name}}",
+    "view": "Voir {{name}}",
+    "open": "Ouvrir {{name}}"
   }
 }

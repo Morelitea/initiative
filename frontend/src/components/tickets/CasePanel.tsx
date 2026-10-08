@@ -11,15 +11,18 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
+  type CaseEvidenceRead,
   type CaseMessageRead,
   CommentAudience,
   Conversation,
 } from "@/api/generated/initiativeAPI.schemas";
 import { CommentContent } from "@/components/comments/CommentContent";
+import { communityEvidenceUrl, EvidenceList } from "@/components/tickets/Evidence";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { UserHoverLink } from "@/components/user/UserHoverLink";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useCreateComment } from "@/hooks/useComments";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
 import { useUpdateTask } from "@/hooks/useTasks";
@@ -33,7 +36,15 @@ interface CasePanelProps {
   canEdit: boolean;
 }
 
-const Message = ({ message }: { message: CaseMessageRead }) => {
+const Message = ({
+  message,
+  evidence,
+  urlFor,
+}: {
+  message: CaseMessageRead;
+  evidence: CaseEvidenceRead[];
+  urlFor: (evidenceId: number) => string;
+}) => {
   const { t } = useTranslation("intake");
   const when = useRelativeTime(message.created_at);
   const name = message.author ? getUserDisplayName(message.author) : t("case.someone");
@@ -51,6 +62,7 @@ const Message = ({ message }: { message: CaseMessageRead }) => {
         <div className="text-sm">
           <CommentContent content={message.content} />
         </div>
+        <EvidenceList className="mt-2" items={evidence} urlFor={urlFor} blurred />
       </div>
     </li>
   );
@@ -59,6 +71,7 @@ const Message = ({ message }: { message: CaseMessageRead }) => {
 export const CasePanel = ({ taskId, canEdit }: CasePanelProps) => {
   const { t } = useTranslation(["intake", "common"]);
   const caseQuery = useTaskCase(taskId);
+  const communityId = useActiveCommunityId();
   const [reply, setReply] = useState("");
   const createComment = useCreateComment();
   const updateTask = useUpdateTask();
@@ -72,6 +85,14 @@ export const CasePanel = ({ taskId, canEdit }: CasePanelProps) => {
   const messages = found.messages ?? [];
   const teamHasSpoken = messages.some((message) => !message.from_requester);
   const pending = createComment.isPending || updateTask.isPending;
+  const evidence = found.evidence ?? [];
+  const shownIds = new Set(messages.map((message) => message.id));
+  // Files beside no message shown here: carried in with a report, or sent
+  // with words the conversation no longer holds.
+  const loose = evidence.filter(
+    (item) => item.comment_id == null || !shownIds.has(item.comment_id)
+  );
+  const urlFor = (evidenceId: number) => communityEvidenceUrl(communityId, evidenceId);
 
   const send = async (wait: boolean) => {
     const content = reply.trim();
@@ -116,12 +137,23 @@ export const CasePanel = ({ taskId, canEdit }: CasePanelProps) => {
           </p>
         ) : null}
       </CardHeader>
+      {loose.length > 0 ? (
+        <CardContent className="space-y-2 pb-3">
+          <p className="font-medium text-muted-foreground text-xs">{t("evidence.heading")}</p>
+          <EvidenceList items={loose} urlFor={urlFor} blurred />
+        </CardContent>
+      ) : null}
       {found.filer && (
         <CardContent className="space-y-3">
           {messages.length > 0 ? (
             <ul className="space-y-3" aria-label={t("case.conversationLabel", { name: filerName })}>
               {messages.map((message) => (
-                <Message key={message.id} message={message} />
+                <Message
+                  key={message.id}
+                  message={message}
+                  evidence={evidence.filter((item) => item.comment_id === message.id)}
+                  urlFor={urlFor}
+                />
               ))}
             </ul>
           ) : null}

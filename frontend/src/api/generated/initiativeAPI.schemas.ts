@@ -914,6 +914,12 @@ export interface BillingPortalHandoffResponse {
   expires_in_seconds: number;
 }
 
+export interface BodyFileTicket {
+  /** The ticket, as JSON: a support request or a report, told apart by ``stream``. */
+  payload: string;
+  files?: Blob[];
+}
+
 export interface BodyImportEnvelopeArchive {
   file: Blob;
   initiative_id: number;
@@ -937,6 +943,11 @@ export interface BodyLoginAccessToken {
 
 export interface BodyNotifyMentions {
   mentioned_user_ids: number[];
+}
+
+export interface BodyReplyToFiledTicket {
+  body: string;
+  files?: Blob[];
 }
 
 export interface BodySetCommunityBanner {
@@ -1612,6 +1623,19 @@ export interface CaptchaSettingsUpdate {
   provider?: CaptchaProvider | null;
   site_key?: string | null;
   secret_key?: string | null;
+}
+
+/**
+ * A file attached to a case, and where in the conversation it came.
+ */
+export interface CaseEvidenceRead {
+  id: number;
+  display_name: string;
+  content_type: string;
+  size_bytes: number;
+  created_at: string;
+  comment_id?: number | null;
+  from_requester?: boolean;
 }
 
 /**
@@ -4340,6 +4364,27 @@ export interface EnvelopeImportResult {
 }
 
 /**
+ * What may be attached: how many files, how large, of which types.
+ */
+export interface EvidencePolicyRead {
+  max_files: number;
+  max_bytes: number;
+  types: string[];
+}
+
+/**
+ * One attached file: what it is called and what it is. Fetched by its
+ * own route, never by a link that outlives the reader's access.
+ */
+export interface EvidenceRead {
+  id: number;
+  display_name: string;
+  content_type: string;
+  size_bytes: number;
+  created_at: string;
+}
+
+/**
  * Public FCM configuration for mobile app initialization.
  *
  * Only exposes public fields (API key, project ID, sender ID).
@@ -4599,6 +4644,7 @@ export interface TicketMessageRead {
   mine: boolean;
   content: string;
   created_at: string;
+  attachments?: EvidenceRead[];
 }
 
 /**
@@ -4613,6 +4659,7 @@ export interface FiledTicketDetailRead {
   updated_at: string | null;
   conversation: Conversation;
   can_reply: boolean;
+  evidence: EvidencePolicyRead;
   messages: TicketMessageRead[];
 }
 
@@ -5969,6 +6016,7 @@ export interface ModerationReportRead {
   decided_at?: string | null;
   target_excerpt?: string | null;
   target_link?: ReportTargetLink | null;
+  evidence?: EvidenceRead[];
 }
 
 export interface ModerationReportList {
@@ -5978,18 +6026,6 @@ export interface ModerationReportList {
   has_next: boolean;
   has_prev: boolean;
   items: ModerationReportRead[];
-}
-
-/**
- * Reporting something. The same shape from every surface.
- */
-export interface ModerationTicketCreate {
-  target_type: string;
-  target_id: number;
-  reason: ReportReason;
-  detail?: string | null;
-  community_id?: number | null;
-  stream: "moderation";
 }
 
 /**
@@ -8848,6 +8884,7 @@ export const TicketMode = {
 export interface StreamAvailabilityRead {
   mode: TicketMode;
   contact: string | null;
+  evidence: EvidencePolicyRead;
 }
 
 /**
@@ -8866,24 +8903,6 @@ export interface SubjectReadRequest {
 export interface SubjectReadResponse {
   comment_ids: number[];
   since: string | null;
-}
-
-/**
- * Asking for help, from inside a community.
- */
-export interface SupportTicketCreate {
-  stream: "support";
-  community_id: number;
-  /**
-   * @minLength 1
-   * @maxLength 200
-   */
-  subject: string;
-  /**
-   * @minLength 1
-   * @maxLength 5000
-   */
-  body: string;
 }
 
 /**
@@ -8986,6 +9005,7 @@ export interface TaskCaseRead {
   awaiting_filer_status_id?: number | null;
   active_status_id?: number | null;
   messages?: CaseMessageRead[];
+  evidence?: CaseEvidenceRead[];
 }
 
 export type TaskCreateRecurrenceStrategy =
@@ -9185,17 +9205,6 @@ export interface TicketAvailability {
   moderation: StreamAvailabilityRead;
   support: StreamAvailabilityRead;
   feedback: StreamAvailabilityRead;
-}
-
-/**
- * A filer's answer on their own case.
- */
-export interface TicketReplyCreate {
-  /**
-   * @minLength 1
-   * @maxLength 5000
-   */
-  body: string;
 }
 
 /**
@@ -10081,6 +10090,36 @@ export const SmartChipKind = {
   "task:status": "task:status",
   "task:checklist": "task:checklist",
 } as const;
+
+/**
+ * Reporting something. The same shape from every surface.
+ */
+export interface ModerationTicketCreate {
+  target_type: string;
+  target_id: number;
+  reason: ReportReason;
+  detail?: string | null;
+  community_id?: number | null;
+  stream: "moderation";
+}
+
+/**
+ * Asking for help, from inside a community.
+ */
+export interface SupportTicketCreate {
+  stream: "support";
+  community_id: number;
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  subject: string;
+  /**
+   * @minLength 1
+   * @maxLength 5000
+   */
+  body: string;
+}
 
 export type GetVersion200 = { [key: string]: string };
 

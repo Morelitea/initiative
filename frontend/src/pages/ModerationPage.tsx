@@ -18,6 +18,7 @@ import { useTranslation } from "react-i18next";
 
 import type { ModerationReportRead, ReportOutcome } from "@/api/generated/initiativeAPI.schemas";
 import { ReportOutcome as Outcome } from "@/api/generated/initiativeAPI.schemas";
+import { communityEvidenceUrl, EvidenceList } from "@/components/tickets/Evidence";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -249,6 +250,18 @@ const ReportCard = ({ report, communityId, initiativeId }: ReportCardProps) => {
                 {detail}
               </p>
             ))}
+          </div>
+        )}
+
+        {(report.evidence ?? []).length > 0 && (
+          <div className="space-y-2">
+            {/* As unattributed as the words: the reporters' files, together. */}
+            <p className="font-medium text-sm">{t("attached")}</p>
+            <EvidenceList
+              items={report.evidence ?? []}
+              urlFor={(id) => communityEvidenceUrl(communityId, id)}
+              blurred
+            />
           </div>
         )}
 

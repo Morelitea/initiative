@@ -120,6 +120,26 @@ describe("ModerationPage", () => {
     expect(await screen.findByText("Nothing has been reported.")).toBeInTheDocument();
   });
 
+  it("shows what the reporters sent, blurred until a moderator asks to look", async () => {
+    state.items = [
+      report({
+        evidence: [
+          {
+            id: 4,
+            display_name: "screenshot.png",
+            content_type: "image/png",
+            size_bytes: 1024,
+            created_at: new Date().toISOString(),
+          },
+        ],
+      }),
+    ];
+    render();
+    expect(await screen.findByText("What they sent")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Show screenshot.png" })).toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: "screenshot.png" })).toBeNull();
+  });
+
   it("shows what was reported and how many reported it, and never who", async () => {
     state.items = [report({ reporter_count: 3, details: ["Abusive.", "Not on."] })];
     render();

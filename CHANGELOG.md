@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Attach pictures and documents to a ticket or a report.** Asking for help, answering on a ticket and reporting something each take a few files, encrypted where they are kept. The places a picture was taken are removed before it is stored. The people handling a ticket or a report see pictures blurred until they choose to look, and files are deleted once the ticket has been closed long enough.
+
+### Changed
+
+- **API: filing a ticket and answering one take `multipart/form-data`.** `POST /api/v1/me/tickets` takes the ticket as JSON in a `payload` field, and `POST /api/v1/me/tickets/{task_id}/replies` takes the answer in a `body` field, each beside any `files`.
+
 ## [0.75.3] - 2026-10-08
 
 ### Added

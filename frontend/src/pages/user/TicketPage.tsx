@@ -17,6 +17,7 @@ import {
 } from "@/api/generated/initiativeAPI.schemas";
 import { CommentContent } from "@/components/comments/CommentContent";
 import { SkeletonRegion } from "@/components/skeletons/PageSkeletons";
+import { EvidenceList, EvidencePicker, filedEvidenceUrl } from "@/components/tickets/Evidence";
 import { TicketStateBadge } from "@/components/tickets/TicketStateBadge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -26,7 +27,7 @@ import { useRelativeTime } from "@/hooks/useRelativeTime";
 import { useFiledTicket, useReplyToTicket } from "@/hooks/useTickets";
 import { cn } from "@/lib/utils";
 
-const Message = ({ message }: { message: TicketMessageRead }) => {
+const Message = ({ message, taskId }: { message: TicketMessageRead; taskId: number }) => {
   const { t } = useTranslation("intake");
   const when = useRelativeTime(message.created_at);
   return (
@@ -43,6 +44,11 @@ const Message = ({ message }: { message: TicketMessageRead }) => {
         <div className="text-sm">
           <CommentContent content={message.content} />
         </div>
+        <EvidenceList
+          className="mt-2"
+          items={message.attachments ?? []}
+          urlFor={(id) => filedEvidenceUrl(taskId, id)}
+        />
       </div>
     </li>
   );
@@ -65,7 +71,13 @@ export const TicketPage = () => {
   const taskId = Number(raw);
   const ticketQuery = useFiledTicket(taskId, { enabled: Number.isFinite(taskId) });
   const [reply, setReply] = useState("");
-  const replyMutation = useReplyToTicket(taskId, { onSuccess: () => setReply("") });
+  const [files, setFiles] = useState<File[]>([]);
+  const replyMutation = useReplyToTicket(taskId, {
+    onSuccess: () => {
+      setReply("");
+      setFiles([]);
+    },
+  });
   const opened = useRelativeTime(ticketQuery.data?.opened_at ?? null);
 
   const ticket = ticketQuery.data;
@@ -105,7 +117,7 @@ export const TicketPage = () => {
 
           <ul className="space-y-3">
             {ticket.messages.map((message) => (
-              <Message key={message.id} message={message} />
+              <Message key={message.id} message={message} taskId={taskId} />
             ))}
           </ul>
 
@@ -120,11 +132,17 @@ export const TicketPage = () => {
                   rows={4}
                   disabled={replyMutation.isPending}
                 />
+                <EvidencePicker
+                  policy={ticket.evidence}
+                  files={files}
+                  onChange={setFiles}
+                  disabled={replyMutation.isPending}
+                />
                 <div className="flex justify-end">
                   <Button
                     type="button"
                     disabled={replyMutation.isPending || !reply.trim()}
-                    onClick={() => replyMutation.mutate(reply.trim())}
+                    onClick={() => replyMutation.mutate({ body: reply.trim(), files })}
                   >
                     {replyMutation.isPending ? t("tickets.sending") : t("tickets.send")}
                   </Button>

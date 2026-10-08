@@ -17,6 +17,11 @@ const fileOptions = vi.hoisted(() => ({
   current: undefined as { onError?: (e: unknown) => void } | undefined,
 }));
 const contacts = vi.hoisted(() => ({ moderation: null as string | null }));
+const POLICY = vi.hoisted(() => ({
+  max_files: 2,
+  max_bytes: 1024,
+  types: ["image/png", "application/pdf"],
+}));
 
 vi.mock("@/hooks/useTickets", async () => {
   const actual = await vi.importActual<typeof import("@/hooks/useTickets")>("@/hooks/useTickets");
@@ -24,8 +29,8 @@ vi.mock("@/hooks/useTickets", async () => {
     ...actual,
     useTicketAvailability: () => ({
       data: {
-        moderation: { mode: "form", contact: contacts.moderation },
-        support: { mode: "form", contact: null },
+        moderation: { mode: "form", contact: contacts.moderation, evidence: POLICY },
+        support: { mode: "form", contact: null, evidence: POLICY },
       },
     }),
     useFileTicket: (options: { onError?: (e: unknown) => void }) => {
@@ -74,12 +79,15 @@ describe("FileTicketDialog", () => {
       await user.click(screen.getByRole("button", { name: "Send report" }));
 
       expect(fileMutate).toHaveBeenCalledWith({
-        stream: "moderation",
-        target_type: "comment",
-        target_id: 42,
-        reason: "harassment",
-        detail: null,
-        community_id: 3,
+        ticket: {
+          stream: "moderation",
+          target_type: "comment",
+          target_id: 42,
+          reason: "harassment",
+          detail: null,
+          community_id: 3,
+        },
+        files: [],
       });
     });
 
@@ -92,7 +100,9 @@ describe("FileTicketDialog", () => {
       await user.click(screen.getByRole("button", { name: "Send report" }));
 
       expect(fileMutate).toHaveBeenCalledWith(
-        expect.objectContaining({ detail: "This is abusive.", reason: "hate" })
+        expect.objectContaining({
+          ticket: expect.objectContaining({ detail: "This is abusive.", reason: "hate" }),
+        })
       );
     });
 
@@ -107,7 +117,9 @@ describe("FileTicketDialog", () => {
       await user.click(screen.getByRole("button", { name: "Send report" }));
 
       expect(fileMutate).toHaveBeenCalledWith(
-        expect.objectContaining({ target_type: "user_profile", community_id: null })
+        expect.objectContaining({
+          ticket: expect.objectContaining({ target_type: "user_profile", community_id: null }),
+        })
       );
     });
 
@@ -189,11 +201,50 @@ describe("FileTicketDialog", () => {
       await user.click(send);
 
       expect(fileMutate).toHaveBeenCalledWith({
-        stream: "support",
-        community_id: 3,
-        subject: "Lost my phone",
-        body: "I can't sign in.",
+        ticket: {
+          stream: "support",
+          community_id: 3,
+          subject: "Lost my phone",
+          body: "I can't sign in.",
+        },
+        files: [],
       });
+    });
+  });
+
+  describe("attaching files", () => {
+    it("sends what was chosen with the report", async () => {
+      report();
+      const user = userEvent.setup();
+      const shot = new File(["png"], "shot.png", { type: "image/png" });
+      await user.upload(screen.getByTestId("evidence-input"), shot);
+      await chooseReason(user, "Harassment");
+      await user.click(screen.getByRole("button", { name: "Send report" }));
+      expect(fileMutate).toHaveBeenCalledWith(expect.objectContaining({ files: [shot] }));
+    });
+
+    it("says what it will not take, before anything is sent", async () => {
+      report();
+      const user = userEvent.setup({ applyAccept: false });
+      const big = new File(["x".repeat(2048)], "big.png", { type: "image/png" });
+      const odd = new File(["zip"], "a.zip", { type: "application/zip" });
+      await user.upload(screen.getByTestId("evidence-input"), big);
+      expect(screen.getByRole("alert")).toHaveTextContent("big.png is larger than 1 KB.");
+      await user.upload(screen.getByTestId("evidence-input"), odd);
+      expect(screen.getByRole("alert")).toHaveTextContent("a.zip isn't a kind of file this takes.");
+    });
+
+    it("stops at as many files as the stream takes", async () => {
+      report();
+      const user = userEvent.setup();
+      const files = ["a", "b", "c"].map(
+        (name) => new File([name], `${name}.png`, { type: "image/png" })
+      );
+      await user.upload(screen.getByTestId("evidence-input"), files);
+      expect(screen.getByRole("alert")).toHaveTextContent("You can attach up to 2 files.");
+      expect(screen.getByRole("button", { name: "Remove a.png" })).toBeInTheDocument();
+      expect(screen.queryByText("c.png")).toBeNull();
+      expect(screen.getByRole("button", { name: "Attach files" })).toBeDisabled();
     });
   });
 });

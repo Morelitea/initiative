@@ -21,6 +21,7 @@ import { useTranslation } from "react-i18next";
 import type { ReportReason } from "@/api/generated/initiativeAPI.schemas";
 import { ReportReason as Reason } from "@/api/generated/initiativeAPI.schemas";
 import { ContactDialog } from "@/components/tickets/ContactDialog";
+import { EvidencePicker } from "@/components/tickets/Evidence";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -96,6 +97,7 @@ export const FileTicketDialog = ({
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [reason, setReason] = useState<ReportReason | "">("");
+  const [files, setFiles] = useState<File[]>([]);
   // Set, to what the server said, when the people who run the deployment had
   // nowhere to receive this. Kept apart from their address, which may still
   // be on its way: the dialog turns into the address whenever it arrives, and
@@ -103,6 +105,7 @@ export const FileTicketDialog = ({
   const [nowhere, setNowhere] = useState<string | null>(null);
   const availability = useTicketAvailability(communityId, { enabled: open });
   const contact = availability.data?.[ticket.stream].contact ?? null;
+  const evidence = availability.data?.[ticket.stream].evidence ?? null;
 
   const isReport = ticket.stream === "moderation";
 
@@ -113,6 +116,7 @@ export const FileTicketDialog = ({
       setSubject("");
       setBody("");
       setReason("");
+      setFiles([]);
     },
     onError: (err) => {
       const message = getErrorMessage(
@@ -245,6 +249,13 @@ export const FileTicketDialog = ({
           </div>
         )}
 
+        <EvidencePicker
+          policy={evidence}
+          files={files}
+          onChange={setFiles}
+          disabled={file.isPending}
+        />
+
         {nowhere && !availability.isPending && (
           <p className="text-destructive text-sm" role="alert">
             {nowhere}
@@ -255,7 +266,10 @@ export const FileTicketDialog = ({
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             {t("common:cancel")}
           </Button>
-          <Button disabled={!ready || file.isPending} onClick={() => ready && file.mutate(ready)}>
+          <Button
+            disabled={!ready || file.isPending}
+            onClick={() => ready && file.mutate({ ticket: ready, files })}
+          >
             {isReport ? t("moderation:report.submit") : t("help.submit")}
           </Button>
         </DialogFooter>

@@ -13,6 +13,7 @@
   "reportedCount_other": "Denunciado por {{count}} personas",
   "targetUnavailable": "Esto ya no está aquí, o no es tuyo para verlo.",
   "whatTheySaid": "Lo que dijeron",
+  "attached": "Lo que enviaron",
   "reviewElsewhere": "Abre el elemento denunciado para verlo en contexto y luego decide aquí.",
   "notePlaceholder": "Qué encontraste y por qué decidiste esto (opcional)",
   "settledAt": "Resuelta el {{when}}.",
