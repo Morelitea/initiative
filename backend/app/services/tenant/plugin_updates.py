@@ -132,10 +132,10 @@ def upgrade_asks(
     )
     current = guild_plugins_service.initiative_surface_ids(plugin.definition)
     added_surfaces = tuple(
-        {"id": embed["id"], "name": embed.get("name") or {}}
-        for embed in guild_plugins_service.declared_surfaces(definition)
-        if guild_plugins_service.surface_renders_in(embed, "initiative")
-        and embed["id"] not in current
+        {"id": page["id"], "name": page.get("name") or {}}
+        for page in guild_plugins_service.declared_surfaces(definition)
+        if guild_plugins_service.surface_renders_in(page, "initiative")
+        and page["id"] not in current
     )
     return UpgradeAsks(added_scopes=added_scopes, added_surfaces=added_surfaces)
 

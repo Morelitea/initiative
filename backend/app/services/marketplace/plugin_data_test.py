@@ -372,7 +372,7 @@ class TestDefinitionReading:
             public_id="acme.shop",
             listing_uid=None,
             base_url="http://acme-shop:8200",
-            embed_origin="https://shop.example.com",
+            page_origin="https://shop.example.com",
             allowed_origins=(),
             keys={},
             mandatory=False,

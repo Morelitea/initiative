@@ -3,7 +3,7 @@
  *
  * Three shapes, and the sidebar treats each differently:
  *
- * - **A surface** — one or more embedded pages. Opens a page of its own.
+ * - **A surface** — one or more pages. Opens a page of its own.
  * - **Something to connect** — no page, but a credential the member or an
  *   admin supplies. Opens a dialog where they do that.
  * - **Neither** — it contributes widgets or data to somewhere else. There is
@@ -19,7 +19,7 @@
 
 import { initiativeRoute } from "@/lib/tools";
 
-export interface PluginEmbed {
+export interface PluginPage {
   id: string;
   path: string;
   /** Where it renders. Absent means community-wide, the only placement there was. */
@@ -40,8 +40,8 @@ export interface PluginEmbed {
  * that named nothing gets an empty attribute. Each entry defaults to the
  * frame's own origin, which is the plug-in's.
  */
-export const embedAllow = (embed: Pick<PluginEmbed, "capabilities"> | null | undefined): string =>
-  (embed?.capabilities ?? []).join("; ");
+export const pageAllow = (page: Pick<PluginPage, "capabilities"> | null | undefined): string =>
+  (page?.capabilities ?? []).join("; ");
 
 /** The places a surface can be reached from. */
 export type SurfaceScope = "community" | "initiative";
@@ -76,16 +76,16 @@ export const placedIn = (
   initiativeId: number
 ): boolean => (plugin.placements ?? []).some((one) => one.initiative_id === initiativeId);
 
-/** The embedded surfaces a definition declares for one scope, whoever reads. */
-export const declaredEmbeds = (
+/** The pages a definition declares for one scope, whoever reads. */
+export const declaredPages = (
   definition: Record<string, unknown> | null | undefined,
   scope: SurfaceScope
-): PluginEmbed[] => {
-  const embeds = definition?.embeds;
-  if (!Array.isArray(embeds)) return [];
-  return embeds.filter((embed): embed is PluginEmbed => {
-    if (typeof embed !== "object" || embed === null) return false;
-    const candidate = embed as PluginEmbed;
+): PluginPage[] => {
+  const pages = definition?.pages;
+  if (!Array.isArray(pages)) return [];
+  return pages.filter((page): page is PluginPage => {
+    if (typeof page !== "object" || page === null) return false;
+    const candidate = page as PluginPage;
     if (typeof candidate.id !== "string" || typeof candidate.path !== "string") return false;
     // Definitions pinned before surfaces could say where they belong carry no
     // scopes at all, and every one of them is community-wide.
@@ -95,21 +95,21 @@ export const declaredEmbeds = (
 };
 
 /**
- * The embedded surfaces a plug-in offers this reader in one place.
+ * The pages a plug-in offers this reader in one place.
  *
  * `initiativeId` is where: absent is the community level. A surface may declare
  * either scope or both, so this is a filter rather than a partition — a plug-in's
  * community-wide page and its per-initiative one are often the same surface reached
  * from two places. What the server did not say may be opened is not offered.
  */
-export const pluginEmbeds = (
+export const pluginPages = (
   plugin: Pick<PluginSurfaceSource, "definition" | "surface_access"> | null | undefined,
   initiativeId?: number
-): PluginEmbed[] => {
+): PluginPage[] => {
   const scope: SurfaceScope = initiativeId === undefined ? "community" : "initiative";
   const access = new Map((plugin?.surface_access ?? []).map((one) => [one.surface_id, one]));
-  return declaredEmbeds(plugin?.definition, scope).filter((embed) => {
-    const answer = access.get(embed.id);
+  return declaredPages(plugin?.definition, scope).filter((page) => {
+    const answer = access.get(page.id);
     if (!answer) return false;
     return initiativeId === undefined
       ? answer.openable_community_wide
@@ -140,7 +140,7 @@ export const communityPluginPath = (
     // real address, not a leftover.
     return "/calendars";
   }
-  return pluginEmbeds(plugin).length ? `/plugins/${plugin.id}` : null;
+  return pluginPages(plugin).length ? `/plugins/${plugin.id}` : null;
 };
 
 /**
@@ -155,7 +155,7 @@ export const initiativePluginPath = (
   initiativeId: number
 ): string | null => {
   if (plugin.tool || !placedIn(plugin, initiativeId)) return null;
-  return pluginEmbeds(plugin, initiativeId).length
+  return pluginPages(plugin, initiativeId).length
     ? `${initiativeRoute(initiativeId)}/plugins/${plugin.id}`
     : null;
 };

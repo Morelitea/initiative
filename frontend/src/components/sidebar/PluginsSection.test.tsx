@@ -126,7 +126,7 @@ describe("PluginsSection", () => {
         name: "Automations",
         tool: null,
         artifacts: [],
-        definition: { embeds: [{ id: "automations", path: "/embed" }] },
+        definition: { pages: [{ id: "automations", path: "/page" }] },
         // The server's answer for this reader: the surface opens community-wide.
         surface_access: [
           { surface_id: "automations", openable_community_wide: true, openable_initiatives: [] },

@@ -34,7 +34,7 @@ from app.services.marketplace.definitions import (
     reserved_prefix_problem,
 )
 from app.services.marketplace.manifest_values import IDENTIFIER_CHARS
-from app.services.marketplace.service_plugins import EMBED_CAPABILITIES
+from app.services.marketplace.service_plugins import PAGE_CAPABILITIES
 
 
 def _label(text: str = "A label") -> dict[str, str]:
@@ -243,13 +243,13 @@ class TestFeaturesMatchBlocks:
 
     def test_features_are_stored_in_a_stable_order(self):
         definition = _normalize(
-            features=["endpoints", "embeds", "endpoints"],
+            features=["endpoints", "pages", "endpoints"],
             endpoints=[
                 {"id": "plugin.tests.widget-co.thing-happened", "direction": "emit"}
             ],
-            embeds=[{"id": "main", "path": "/embed", "name": _label()}],
+            pages=[{"id": "main", "path": "/page", "name": _label()}],
         )
-        assert definition["features"] == ["embeds", "endpoints"]
+        assert definition["features"] == ["endpoints", "pages"]
 
     @pytest.mark.parametrize("feature", sorted(service_plugins.FEATURES))
     def test_every_feature_names_a_block(self, feature):
@@ -932,31 +932,31 @@ class TestWidgetTypeNamespacing:
             plugin_widget_type("K7M2QX8N4TVB9C", "sum:mary")
 
 
-class TestEmbeds:
-    def _embed(self, **overrides) -> dict:
-        embed = {
+class TestPages:
+    def _page(self, **overrides) -> dict:
+        page = {
             "id": "orders",
-            "path": "/embed/orders",
+            "path": "/page/orders",
             "admin_only": True,
             "name": _label("Orders"),
         }
-        embed.update(overrides)
-        return _normalize(features=["embeds"], embeds=[embed])
+        page.update(overrides)
+        return _normalize(features=["pages"], pages=[page])
 
-    def test_an_embed_names_itself_for_the_sidebar(self):
+    def test_a_page_names_itself_for_the_sidebar(self):
         with pytest.raises(ListingDefinitionError, match="label"):
-            self._embed(name=None)
+            self._page(name=None)
 
-    def test_an_embed_declares_a_path_not_an_address(self):
+    def test_a_page_declares_a_path_not_an_address(self):
         with pytest.raises(ListingDefinitionError, match="path"):
-            self._embed(path="https://widget.test/embed/orders")
+            self._page(path="https://widget.test/page/orders")
 
-    def test_an_embed_is_stored_canonically(self):
-        definition = self._embed()
-        assert definition["embeds"] == [
+    def test_a_page_is_stored_canonically(self):
+        definition = self._page()
+        assert definition["pages"] == [
             {
                 "id": "orders",
-                "path": "/embed/orders",
+                "path": "/page/orders",
                 "scopes": ["community"],
                 "admin_only": True,
                 "name": {"en": "Orders"},
@@ -972,16 +972,16 @@ class TestWhatASurfaceMayAskItsFrameFor:
     pinned before this existed says, and what their frames now get.
     """
 
-    def _embed(self, **overrides) -> dict:
-        embed = {"id": "board", "path": "/embed", "name": _label("Board")}
-        embed.update(overrides)
-        return _normalize(features=["embeds"], embeds=[embed])["embeds"][0]
+    def _page(self, **overrides) -> dict:
+        page = {"id": "board", "path": "/page", "name": _label("Board")}
+        page.update(overrides)
+        return _normalize(features=["pages"], pages=[page])["pages"][0]
 
     def test_a_surface_asking_for_nothing_stores_nothing(self):
-        assert "capabilities" not in self._embed()
+        assert "capabilities" not in self._page()
 
     def test_a_surface_may_ask_for_what_it_needs(self):
-        assert self._embed(capabilities=["clipboard-write"])["capabilities"] == [
+        assert self._page(capabilities=["clipboard-write"])["capabilities"] == [
             "clipboard-write"
         ]
 
@@ -989,14 +989,14 @@ class TestWhatASurfaceMayAskItsFrameFor:
         """Sorted and de-duplicated, so re-publishing the same manifest produces
         the same document."""
         asked = ["fullscreen", "clipboard-write", "fullscreen"]
-        assert self._embed(capabilities=asked)["capabilities"] == [
+        assert self._page(capabilities=asked)["capabilities"] == [
             "clipboard-write",
             "fullscreen",
         ]
 
     def test_a_capability_outside_the_vocabulary_is_refused(self):
         with pytest.raises(ListingDefinitionError, match="not a capability"):
-            self._embed(capabilities=["midi"])
+            self._page(capabilities=["midi"])
 
     @pytest.mark.parametrize(
         "entry", [{"camera": True}, ["camera"], 7, None, True], ids=repr
@@ -1006,14 +1006,14 @@ class TestWhatASurfaceMayAskItsFrameFor:
         one of the names. Set membership is defined only for a hashable value,
         so an entry is typed before it is looked up rather than after."""
         with pytest.raises(ListingDefinitionError, match="not a capability"):
-            self._embed(capabilities=[entry])
+            self._page(capabilities=[entry])
 
     def test_payment_is_not_namable(self):
-        """The platform takes payment on its own pages, so an embedded surface
+        """The platform takes payment on its own screens, so a plug-in's page
         has no reading of this to request."""
-        assert "payment" not in EMBED_CAPABILITIES
+        assert "payment" not in PAGE_CAPABILITIES
         with pytest.raises(ListingDefinitionError, match="not a capability"):
-            self._embed(capabilities=["payment"])
+            self._page(capabilities=["payment"])
 
 
 class TestWhereASurfaceRenders:
@@ -1024,33 +1024,33 @@ class TestWhereASurfaceRenders:
     places rather than two surfaces to keep in step.
     """
 
-    def _embed(self, **overrides) -> dict:
-        embed = {"id": "board", "path": "/embed", "name": _label("Board")}
-        embed.update(overrides)
-        return _normalize(features=["embeds"], embeds=[embed])["embeds"][0]
+    def _page(self, **overrides) -> dict:
+        page = {"id": "board", "path": "/page", "name": _label("Board")}
+        page.update(overrides)
+        return _normalize(features=["pages"], pages=[page])["pages"][0]
 
-    def test_saying_nothing_keeps_the_placement_embeds_already_had(self):
-        assert self._embed()["scopes"] == ["community"]
+    def test_saying_nothing_keeps_the_placement_pages_already_had(self):
+        assert self._page()["scopes"] == ["community"]
 
     def test_a_surface_may_render_in_both(self):
-        assert self._embed(scopes=["initiative", "community"])["scopes"] == [
+        assert self._page(scopes=["initiative", "community"])["scopes"] == [
             "community",
             "initiative",
         ]
 
     def test_a_surface_may_render_only_inside_initiatives(self):
-        assert self._embed(scopes=["initiative"])["scopes"] == ["initiative"]
+        assert self._page(scopes=["initiative"])["scopes"] == ["initiative"]
 
     def test_an_unknown_scope_is_refused(self):
         with pytest.raises(ListingDefinitionError, match="unknown scope"):
-            self._embed(scopes=["project"])
+            self._page(scopes=["project"])
 
     def test_nowhere_to_render_is_refused(self):
         with pytest.raises(ListingDefinitionError, match="nowhere to render"):
-            self._embed(scopes=[])
+            self._page(scopes=[])
 
     def test_a_repeated_scope_is_stored_once(self):
-        assert self._embed(scopes=["community", "community"])["scopes"] == ["community"]
+        assert self._page(scopes=["community", "community"])["scopes"] == ["community"]
 
 
 class TestAdminOnlySurfaces:
@@ -1060,37 +1060,37 @@ class TestAdminOnlySurfaces:
     role, so the manifest says only whether a surface is for admins alone.
     """
 
-    def _embed(self, **overrides) -> dict:
-        embed = {
+    def _page(self, **overrides) -> dict:
+        page = {
             "id": "board",
-            "path": "/embed",
+            "path": "/page",
             "name": _label("Board"),
             "scopes": ["initiative"],
         }
-        embed.update(overrides)
-        return _normalize(features=["embeds"], embeds=[embed])["embeds"][0]
+        page.update(overrides)
+        return _normalize(features=["pages"], pages=[page])["pages"][0]
 
     def test_saying_nothing_is_not_admin_only(self):
-        assert self._embed()["admin_only"] is False
+        assert self._page()["admin_only"] is False
 
     @pytest.mark.parametrize(
         "scopes", [["community"], ["initiative"], ["community", "initiative"]]
     )
     def test_any_surface_may_be_admin_only(self, scopes):
-        assert self._embed(scopes=scopes, admin_only=True)["admin_only"] is True
+        assert self._page(scopes=scopes, admin_only=True)["admin_only"] is True
 
     @pytest.mark.parametrize("value", ["true", 1, None, []])
     def test_anything_but_a_boolean_is_refused(self, value):
         if value is None:
             # Absent and null read the same: the default.
-            assert self._embed(admin_only=value)["admin_only"] is False
+            assert self._page(admin_only=value)["admin_only"] is False
             return
         with pytest.raises(ListingDefinitionError, match="admin_only"):
-            self._embed(admin_only=value)
+            self._page(admin_only=value)
 
     def test_the_retired_audience_term_is_refused(self):
         with pytest.raises(ListingDefinitionError, match="visibility"):
-            self._embed(visibility="initiative_manager")
+            self._page(visibility="initiative_manager")
 
 
 class TestEmissions:
@@ -1146,7 +1146,7 @@ class TestCanonicalShape:
         which route, and the deployment's registration says where. The one kind
         of address it may hold is its vendor's, in a flow Initiative runs."""
         definition = _normalize(
-            features=["endpoints", "embeds"],
+            features=["endpoints", "pages"],
             service={
                 "public_id": "tests.widget-co",
                 "protocol": 1,
@@ -1162,12 +1162,12 @@ class TestCanonicalShape:
             ],
             vendor=VENDOR,
             endpoints=[{"id": READ_ID, "direction": "read"}],
-            embeds=[
+            pages=[
                 {
                     "id": "orders",
-                    "path": "/embed/orders",
+                    "path": "/page/orders",
                     "name": _label(),
-                    "url": "https://widget.test/embed/orders",
+                    "url": "https://widget.test/page/orders",
                 }
             ],
         )
@@ -1193,10 +1193,10 @@ class TestCanonicalShape:
     def test_a_block_longer_than_its_cap_is_refused_not_truncated(self):
         with pytest.raises(ListingDefinitionError, match="more than"):
             _normalize(
-                features=["embeds"],
-                embeds=[
-                    {"id": f"e{index}", "path": f"/embed/{index}", "name": _label()}
-                    for index in range(service_plugins.MAX_EMBEDS + 1)
+                features=["pages"],
+                pages=[
+                    {"id": f"e{index}", "path": f"/page/{index}", "name": _label()}
+                    for index in range(service_plugins.MAX_PAGES + 1)
                 ],
             )
 

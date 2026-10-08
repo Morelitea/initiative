@@ -71,7 +71,7 @@ __all__ = [
     "WIDGET_BINDABLE_DIRECTIONS",
     "CONNECTION_SCOPES",
     "DIRECTIONS",
-    "EMBED_CAPABILITIES",
+    "PAGE_CAPABILITIES",
     "FEATURES",
     "FEATURE_BLOCKS",
     "FIELD_TYPES",
@@ -182,7 +182,7 @@ def is_admin_only(declared: Any) -> bool:
     return declared.get(RETIRED_AUDIENCE_TERM) == "guild_admin"
 
 
-#: Browser features an embedded surface may ask its frame for.
+#: Browser features a page may ask its frame for.
 #:
 #: A frame is granted nothing it did not name here, so a plug-in that says nothing
 #: gets a frame with every one of these denied. The vocabulary is closed for the
@@ -191,13 +191,13 @@ def is_admin_only(declared: Any) -> bool:
 #:
 #: These are Permissions-Policy feature names, and what a manifest asks for is
 #: what a guild admin is shown at install. ``payment`` is deliberately not
-#: namable — an embedded surface takes no money, and the platform processes
-#: payments on its own pages.
-EMBED_CAPABILITIES: frozenset[str] = contract.enum("embedCapability")
+#: namable — a page takes no money, and the platform processes
+#: payments on its own screens.
+PAGE_CAPABILITIES: frozenset[str] = contract.enum("pageCapability")
 
-#: No surface has a use for the whole vocabulary at once; a manifest reaching
-#: this many is describing something other than an embedded page.
-MAX_EMBED_CAPABILITIES = contract.cap("embedCapabilities")
+#: No page has a use for the whole vocabulary at once; a manifest reaching
+#: this many is describing something other than a page.
+MAX_PAGE_CAPABILITIES = contract.cap("pageCapabilities")
 
 #: Protocol versions this build speaks to a plug-in service. A manifest naming a
 #: newer one is refused by name — the version floor (`min_app_version`) is how a
@@ -312,7 +312,7 @@ MAX_PARAMS_PER_ENDPOINT = contract.cap("paramsPerEndpoint")
 #: purpose: describing an answer is cheaper than asking for one, and a plug-in
 #: that returns a dozen fields is ordinary where one taking a dozen is not.
 MAX_RETURNS_PER_ENDPOINT = contract.cap("returnsPerEndpoint")
-MAX_EMBEDS = contract.cap("embeds")
+MAX_PAGES = contract.cap("pages")
 #: How many countries a minimum age may name, and the oldest it may ask for.
 MAX_MINIMUM_AGE_REGIONS = contract.cap("minimumAgeRegions")
 MAX_MINIMUM_AGE_YEARS = contract.cap("minimumAgeYears")
@@ -347,7 +347,7 @@ MAX_IDENTITY_KEY_PARTS = contract.cap("identityKeyParts")
 MAX_HOSTS = contract.cap("hosts")
 MAX_HOST_LENGTH = contract.cap("hostLength")
 MAX_STEPS = contract.cap("steps")
-MAX_PAGES = contract.cap("pages")
+MAX_PAGES_READ = contract.cap("maxPages")
 MAX_PER_PAGE = contract.cap("perPage")
 MAX_REQUEST_QUERY = contract.cap("requestQuery")
 MAX_REQUEST_HEADERS = contract.cap("requestHeaders")
@@ -1319,7 +1319,10 @@ def _paging(
     cleaned: dict[str, Any] = {
         "kind": kind,
         "max_pages": _page_count(
-            paging.get("max_pages"), what=f"{what}.max_pages", low=1, high=MAX_PAGES
+            paging.get("max_pages"),
+            what=f"{what}.max_pages",
+            low=1,
+            high=MAX_PAGES_READ,
         ),
         "on_limit": on_limit,
     }
@@ -2311,7 +2314,7 @@ def _sample_data(raw: Any, *, sources: list[str], what: str) -> dict[str, Any]:
 def _scopes(raw: Any, *, what: str) -> list[str]:
     """Where a surface asked to render, canonically.
 
-    Absent means ``["community"]`` — the placement every embed had before there was
+    Absent means ``["community"]`` — the placement every page had before there was
     anywhere else to put one. Sorted and de-duplicated, so re-publishing the
     same manifest produces the same document.
     """
@@ -2337,44 +2340,42 @@ def _capabilities(raw: Any, *, what: str) -> list[str]:
     """
     if raw is None:
         return []
-    declared = require_list(raw, f"{what} capabilities", MAX_EMBED_CAPABILITIES)
+    declared = require_list(raw, f"{what} capabilities", MAX_PAGE_CAPABILITIES)
     capabilities: set[str] = set()
     for entry in declared:
         # Typed before it is looked up: set membership is defined only for a
         # hashable value, so a name is what this compares.
-        if not isinstance(entry, str) or entry not in EMBED_CAPABILITIES:
+        if not isinstance(entry, str) or entry not in PAGE_CAPABILITIES:
             fail(
-                f"{what}: {entry!r} is not a capability a surface may request "
-                f"(one of {', '.join(sorted(EMBED_CAPABILITIES))})"
+                f"{what}: {entry!r} is not a capability a page may request "
+                f"(one of {', '.join(sorted(PAGE_CAPABILITIES))})"
             )
         capabilities.add(entry)
     return sorted(capabilities)
 
 
-def _embed(raw: Any, *, connection_ids: set[str]) -> dict[str, Any]:
-    embed = require_mapping(raw, "embed")
-    embed_id = check_identifier(embed.get("id"), what="embed id")
-    what = f"embed {embed_id!r}"
+def _page(raw: Any, *, connection_ids: set[str]) -> dict[str, Any]:
+    page = require_mapping(raw, "page")
+    page_id = check_identifier(page.get("id"), what="page id")
+    what = f"page {page_id!r}"
 
-    _refuse_retired_audience(embed, what=what)
+    _refuse_retired_audience(page, what=what)
 
-    admin_only = _admin_only(embed, what=what)
+    admin_only = _admin_only(page, what=what)
 
     cleaned: dict[str, Any] = {
-        "id": embed_id,
-        "path": check_path(embed.get("path"), what=f"{what} path"),
-        "scopes": _scopes(embed.get("scopes"), what=what),
+        "id": page_id,
+        "path": check_path(page.get("path"), what=f"{what} path"),
+        "scopes": _scopes(page.get("scopes"), what=what),
         # Stored whichever way it was declared, so every pinned surface answers
         # the question the same way.
         "admin_only": admin_only,
-        "name": _label(embed.get("name"), what=what),
+        "name": _label(page.get("name"), what=what),
     }
-    capabilities = _capabilities(embed.get("capabilities"), what=what)
+    capabilities = _capabilities(page.get("capabilities"), what=what)
     if capabilities:
         cleaned["capabilities"] = capabilities
-    requires = _requires(
-        embed.get("requires"), connection_ids=connection_ids, what=what
-    )
+    requires = _requires(page.get("requires"), connection_ids=connection_ids, what=what)
     if requires is not None:
         cleaned["requires"] = requires
     return cleaned
@@ -2582,7 +2583,7 @@ def normalize_service_plugin_definition(
             fail("service plug-in: a declarative plug-in names the hosts it calls")
         if body.get("auth") is not None:
             auth = _auth(body["auth"])
-        for term in ("schedules", "embeds"):
+        for term in ("schedules", "pages"):
             if body.get(term) is not None:
                 fail(f"service plug-in: a declarative plug-in has no {term}")
     else:
@@ -2675,17 +2676,17 @@ def normalize_service_plugin_definition(
             fail(f"service plug-in: two widgets share the id {widget['id']!r}")
         widget_ids.add(widget["id"])
 
-    embeds = [
-        _embed(entry, connection_ids=connection_ids)
+    pages = [
+        _page(entry, connection_ids=connection_ids)
         for entry in require_list(
-            body.get("embeds"), "service plug-in: embeds", MAX_EMBEDS
+            body.get("pages"), "service plug-in: pages", MAX_PAGES
         )
     ]
-    embed_ids: set[str] = set()
-    for embed in embeds:
-        if embed["id"] in embed_ids:
-            fail(f"service plug-in: two embeds share the id {embed['id']!r}")
-        embed_ids.add(embed["id"])
+    page_ids: set[str] = set()
+    for page in pages:
+        if page["id"] in page_ids:
+            fail(f"service plug-in: two pages share the id {page['id']!r}")
+        page_ids.add(page["id"])
 
     cleaned: dict[str, Any] = {
         "plugin_kind": "service",
@@ -2711,8 +2712,8 @@ def normalize_service_plugin_definition(
         cleaned["endpoints"] = endpoints
     if widgets:
         cleaned["widgets"] = widgets
-    if embeds:
-        cleaned["embeds"] = embeds
+    if pages:
+        cleaned["pages"] = pages
 
     # After the widgets and endpoints it can name, because every tile is checked
     # against them — the whole point of bundling rather than publishing

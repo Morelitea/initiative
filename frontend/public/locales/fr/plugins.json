@@ -161,7 +161,7 @@
     "adminTitle": "Paramètres de la communauté",
     "adminDescription": "Ce que la communauté gère pour ce plug-in. Visible uniquement par le superadmin."
   },
-  "embed": {
+  "page": {
     "connecting": "Connexion…",
     "handoffFailed": "Impossible d'ouvrir ce plug-in. Réessayez dans un instant.",
     "failed": "Impossible d'ouvrir ce plug-in",

@@ -39,7 +39,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { useCommunities } from "@/hooks/useCommunities";
 import { useCommunityPluginDetail } from "@/hooks/useCommunityPluginDetail";
-import { declaredEmbeds } from "@/lib/pluginSurfaces";
+import { declaredPages } from "@/lib/pluginSurfaces";
 
 export interface PluginSettingsDialogProps {
   pluginId: number;
@@ -65,7 +65,7 @@ export function PluginSettingsDialog({
   const showsPlacement =
     isCommunityAdmin &&
     !!plugin &&
-    (declaredEmbeds(plugin.definition, "initiative").length > 0 ||
+    (declaredPages(plugin.definition, "initiative").length > 0 ||
       (plugin.requested_scopes ?? []).length > 0);
   // Install management, which the seat holds — not the manifest's
   // admin-visible surfaces above, which ask whether you administer the

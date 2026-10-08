@@ -98,7 +98,7 @@ Rather click nothing? `PLUGIN_SERVICES_CONFIG` names a JSON file Initiative read
   {
     "public_id": "acme.tracker",
     "base_url": "http://tracker:8080",
-    "embed_origin": "https://tracker.example.com",
+    "page_origin": "https://tracker.example.com",
     "jwks_uri": "https://tracker.example.com/.well-known/jwks.json"
   },
   {
@@ -119,7 +119,7 @@ Rather click nothing? `PLUGIN_SERVICES_CONFIG` names a JSON file Initiative read
 |---|---|
 | `public_id` | Which plug-in. Required. |
 | `base_url` | Where Initiative's server calls it. Giving one gives its browser address and keys with it, and clears whichever of those the entry leaves out. |
-| `embed_origin` | Its **Browser address**. |
+| `page_origin` | Its **Browser address**. |
 | `jwks` / `jwks_uri` | Its keys, pasted or by address. |
 | `allowed_origins` | A list of origins. |
 | `mandatory` | `true` installs it in every community. |

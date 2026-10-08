@@ -35,7 +35,7 @@ def _snapshot(*, jwks_uri: str | None = JWKS_URI, base_url: str = BASE, keys=Non
         public_id="acme.tracker",
         listing_uid="K7M2QX8N4TVB9C",
         base_url=base_url,
-        embed_origin=None,
+        page_origin=None,
         allowed_origins=(base_url,),
         keys=MappingProxyType(keys or {}),
         mandatory=False,
