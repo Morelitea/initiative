@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A new device gets its whole history**, however long, and even while your newest conversation is an invitation you haven't answered. The notice asking you to verify it goes away once you have.
 - **A device keeps receiving messages** when some sent to it can never be opened, such as ones from a device that has since signed out. Those are cleared instead of holding up everything behind them.
 - **The notification list scrolls again.** With more unread than fit, everything past the first few was cut off with no way to reach it.
+- **The prompt to turn on push notifications sits below the notch on iPhone** instead of under it, where its text was hidden.
 
 ## [0.75.2] - 2026-10-07
 
