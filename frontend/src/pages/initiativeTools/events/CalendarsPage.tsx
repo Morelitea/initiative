@@ -474,17 +474,11 @@ export const CalendarsView = ({
   const [createCalendarOpen, setCreateCalendarOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [subscribeOpen, setSubscribeOpen] = useState(false);
-  // What can be subscribed to, a link per calendar: the one in focus, or every
-  // calendar an initiative's page or the community's lists. Not while the
-  // initiative keeps its content in, nor where the community does not take
-  // this member's API keys. The focus page has already read its calendar, so
-  // that read is the cache.
-  const focusedCalendar = useCalendar(focusCalendarId ?? null).data;
-  const subscribeCalendars = focusedCalendar
-    ? [focusedCalendar]
-    : communityScope || initiativeId
-      ? calendars
-      : [];
+  // What can be subscribed to, a link per calendar: the calendars this page
+  // lists, an initiative's or the community's own. Not while the initiative
+  // keeps its content in, nor where the community does not take this member's
+  // API keys.
+  const subscribeCalendars = communityOnly || initiativeId ? calendars : [];
   const subscribable =
     subscribeCalendars.length > 0 && !keepsContentIn && Boolean(activeCommunity?.can.use_api);
   const [createDefaultDate, setCreateDefaultDate] = useState<Date | null>(null);
