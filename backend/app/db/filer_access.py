@@ -72,6 +72,19 @@ FILER_TABLE_ACCESS: dict[str, tuple[str, ...]] = {
         "deleted_at",
         "deleted_by",
     ),
+    # Their own attachments: what they are and when they sent them. Never the
+    # stored key or the wrapped key: serving reads those on its own session
+    # once this read has shown the file is theirs.
+    "evidence": (
+        "id",
+        "case_id",
+        "comment_id",
+        "display_name",
+        "content_type",
+        "size_bytes",
+        "created_by",
+        "created_at",
+    ),
 }
 
 #: Columns the community's own row policies read while deciding a filer's
@@ -82,7 +95,12 @@ FILER_TABLE_ACCESS: dict[str, tuple[str, ...]] = {
 #: so a policy can be evaluated, not so a filer can read them: their rows
 #: answer no.
 POLICY_READS: dict[str, tuple[str, ...]] = {
-    "projects": ("id", "initiative_id"),
+    "projects": ("id", "initiative_id", "held_at"),
+    "moderation_reports": ("id", "initiative_id"),
+    # Every holdable table's ``held_restrict`` reads ``held_at``
+    # (``app.db.holds``), whoever is reading.
+    "tasks": ("held_at",),
+    "comments": ("held_at",),
 }
 
 #: The row each granted table admits a filer to, as SQL over that table, with
@@ -105,6 +123,10 @@ FILER_ROWS: dict[str, str] = {
         " WHERE c.stream = intake_bindings.stream)"
     ),
     "comments": f"audience = 'filer' AND task_id = ANY ({_CASES})",
+    "evidence": (
+        f'created_by = {_UID} AND EXISTS (SELECT 1 FROM "{{s}}".intake_cases c'
+        f" WHERE c.id = evidence.case_id AND c.task_id = ANY ({_CASES}))"
+    ),
 }
 
 #: The policies that hold a filer to those rows, on each table: one
@@ -136,7 +158,12 @@ def _grant_statements(schema: str, role: str) -> list[str]:
         # in public; no table there is granted.
         f'GRANT USAGE ON SCHEMA public TO "{role}"',
     ]
-    for table, columns in sorted({**POLICY_READS, **FILER_TABLE_ACCESS}.items()):
+    readable: dict[str, tuple[str, ...]] = {}
+    for source in (FILER_TABLE_ACCESS, POLICY_READS):
+        for table, columns in source.items():
+            seen = readable.get(table, ())
+            readable[table] = seen + tuple(c for c in columns if c not in seen)
+    for table, columns in sorted(readable.items()):
         cols = ", ".join(f'"{c}"' for c in columns)
         stmts.append(f'GRANT SELECT ({cols}) ON "{schema}"."{table}" TO "{role}"')
     stmts.append(f'GRANT "{role}" TO "{APP_LOGIN_ROLE}" WITH INHERIT FALSE')

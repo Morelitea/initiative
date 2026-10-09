@@ -9,6 +9,7 @@ import { TagBadgeList } from "@/components/tags/TagBadge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { getContrastingTextColor } from "@/lib/counter-color";
+import { numberFormat } from "@/lib/intl";
 import { toolDetailRoute } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
@@ -32,7 +33,7 @@ const CounterGroupPreview = ({ counters }: { counters: CounterPreview[] }) => (
       >
         <span className="truncate text-xs opacity-80">{counter.name}</span>
         <span className="font-semibold text-xl tabular-nums leading-tight">
-          {Number(counter.count).toLocaleString()}
+          {numberFormat().format(Number(counter.count))}
         </span>
       </div>
     ))}

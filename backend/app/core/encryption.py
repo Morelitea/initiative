@@ -65,6 +65,9 @@ SALT_PLUGIN_VENDOR_SETUP = b"app-vendor-setup"  # stored value, do not change
 # The value a job needs to read a foreign site. Kept under its original
 # name so values written before the job carried it still decrypt.
 SALT_IMPORT_CREDENTIAL = b"import-credential"
+# What a community or platform moderator wrote when placing a hold: who asked
+# for it, a reference number. Read only by the platform.
+SALT_HOLD_NOTE = b"hold-note"
 # The API token one import job uses to read a foreign site. Held for the
 # length of that job and deleted with it.
 

@@ -18,7 +18,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import AsyncIterator, Optional
+from typing import TYPE_CHECKING, AsyncIterator, Optional, Sequence
 
 from limits import parse
 from sqlalchemy import String, cast
@@ -32,10 +32,14 @@ from app.db.session import routed_guild_id
 from app.models.platform.app_setting import AppSetting
 from app.models.platform.user import User
 from app.models.tenant.comment import Comment
+from app.models.tenant.evidence import Evidence
 from app.models.tenant.intake import IntakeBinding, IntakeCase
 from app.models.tenant.task import Task, TaskStatus, TaskStatusCategory
 from app.services.platform import intake as intake_service
 from app.services.tenant import support as support_service
+
+if TYPE_CHECKING:
+    from app.services.platform.evidence import PreparedEvidence
 
 #: The counter namespace a filing's pace is kept under.
 _PACE_NAMESPACE = "tickets"
@@ -205,6 +209,19 @@ class TicketMessage:
     mine: bool
     content: str
     created_at: datetime
+    #: What they sent with it.
+    attachments: tuple["TicketAttachment", ...] = ()
+
+
+@dataclass(frozen=True)
+class TicketAttachment:
+    """A file the filer sent, as they read it back."""
+
+    id: int
+    display_name: str
+    content_type: str
+    size_bytes: int
+    created_at: datetime
 
 
 @dataclass(frozen=True)
@@ -345,16 +362,35 @@ async def read_filed(user: User, task_id: int) -> FiledTicketDetail:
                 .order_by(Comment.created_at, Comment.id)
             )
         ).all()
+        sent = (
+            await session.exec(
+                select(
+                    Evidence.comment_id,
+                    Evidence.id,
+                    Evidence.display_name,
+                    Evidence.content_type,
+                    Evidence.size_bytes,
+                    Evidence.created_at,
+                )
+                .join(IntakeCase, IntakeCase.id == Evidence.case_id)
+                .where(IntakeCase.task_id == task_id)
+                .order_by(Evidence.created_at, Evidence.id)
+            )
+        ).all()
         guild_id = routed_guild_id(session)
     if guild_id is None:
         raise TicketNotFound
     ticket = _ticket_from(row)
+    attached: dict[Optional[int], list[TicketAttachment]] = {}
+    for comment_id, *fields in sent:
+        attached.setdefault(comment_id, []).append(TicketAttachment(*fields))
     messages = [
         TicketMessage(
             id=comment_id,
             mine=author == user.id,
             content=content,
             created_at=created_at,
+            attachments=tuple(attached.get(comment_id, ())),
         )
         for comment_id, author, content, created_at in said
     ]
@@ -368,7 +404,39 @@ async def read_filed(user: User, task_id: int) -> FiledTicketDetail:
     )
 
 
-async def reply(user: User, detail: FiledTicketDetail, words: str) -> None:
+async def filed_evidence(user: User, task_id: int, evidence_id: int) -> int:
+    """The operations community holding file ``evidence_id`` of case
+    ``task_id``, where it is one ``user`` sent with it. Raises
+    :class:`TicketNotFound` otherwise, the same for a file that is not theirs
+    as for one that does not exist.
+
+    Read through their filer role, which admits only their own files on their
+    own cases; serving it reads the rest on the operations community's system
+    session once this has answered.
+    """
+    async with _as_filer(user) as session:
+        if session is None:
+            raise TicketNotFound
+        found = (
+            await session.exec(
+                select(Evidence.id)
+                .join(IntakeCase, IntakeCase.id == Evidence.case_id)
+                .where(Evidence.id == evidence_id)
+                .where(IntakeCase.task_id == task_id)
+            )
+        ).first()
+        guild_id = routed_guild_id(session)
+    if found is None or guild_id is None:
+        raise TicketNotFound
+    return guild_id
+
+
+async def reply(
+    user: User,
+    detail: FiledTicketDetail,
+    words: str,
+    evidence: Sequence["PreparedEvidence"] = (),
+) -> None:
     """Add ``user``'s answer to a case they filed.
 
     ``detail`` is the case as read through their filer access, which is what
@@ -386,6 +454,7 @@ async def reply(user: User, detail: FiledTicketDetail, words: str) -> None:
         filer=user,
         words=words,
         stream=detail.ticket.stream,
+        evidence=evidence,
     )
     if not taken:
         raise ReplyRefused

@@ -13,6 +13,7 @@
   "reportedCount_other": "Denunciado por {{count}} personas",
   "targetUnavailable": "Esto ya no está aquí, o no es tuyo para verlo.",
   "whatTheySaid": "Lo que dijeron",
+  "attached": "Lo que enviaron",
   "reviewElsewhere": "Abre el elemento denunciado para verlo en contexto y luego decide aquí.",
   "notePlaceholder": "Qué encontraste y por qué decidiste esto (opcional)",
   "settledAt": "Resuelta el {{when}}.",
@@ -22,7 +23,8 @@
     "dismissed": "Descartar",
     "content_removed": "Contenido eliminado",
     "member_warned": "Miembro advertido",
-    "escalated": "Escalar"
+    "escalated": "Enviado a la plataforma",
+    "held": "Ocultado y enviado a la plataforma"
   },
   "reasons": {
     "spam": "Spam",
@@ -87,5 +89,43 @@
     "roles_one": "{{count}} rol",
     "roles_other": "{{count}} roles"
   },
-  "loadFailed": "No se pudo cargar. Inténtalo de nuevo."
+  "loadFailed": "No se pudo cargar. Inténtalo de nuevo.",
+  "hold": {
+    "title": "Retener para la plataforma",
+    "description": "La plataforma conserva esto tal como está. Nadie en esta comunidad puede verlo, cambiarlo ni eliminarlo hasta que la plataforma lo libere.",
+    "reasonLabel": "Por qué",
+    "reasons": {
+      "legal_request": "Una solicitud legal de conservarlo",
+      "illegal_content": "Puede ser ilegal"
+    },
+    "basisLabel": "Qué ley",
+    "basisPlaceholder": "Elige una",
+    "bases": {
+      "child_safety": "Protección de menores",
+      "terrorism": "Terrorismo",
+      "intellectual_property": "Propiedad intelectual",
+      "fraud": "Fraude",
+      "privacy": "Privacidad",
+      "other": "Otra cosa"
+    },
+    "noteLabel": "Nota para la plataforma (opcional)",
+    "notePlaceholder": "Quién lo pidió y cualquier número de referencia",
+    "noteHelp": "Solo la plataforma puede leer esto.",
+    "submit": "Retener",
+    "held": "Retenido para la plataforma.",
+    "error": "No se pudo retener.",
+    "releaseError": "No se pudo levantar la retención."
+  },
+  "sendToPlatform": {
+    "action": "Enviar a la plataforma",
+    "title": "Enviar a la plataforma",
+    "description": "Entrega esta denuncia a quien gestiona este servidor. Aquí se cierra y ellos deciden qué pasa después.",
+    "question": "Mientras lo revisan",
+    "leaveLabel": "Dejarlo visible mientras lo revisan",
+    "leaveDescription": "Todos pueden seguir viéndolo hasta que decidan.",
+    "hideLabel": "Ocultarlo ahora y conservarlo tal como está",
+    "hideDescription": "Úsalo si la policía o un tribunal te pidió conservarlo, o si puede ser ilegal. Desaparece para todos, incluido tú, y nadie aquí puede cambiarlo ni eliminarlo hasta que la plataforma decida.",
+    "leaveSubmit": "Enviar",
+    "hideSubmit": "Ocultar y enviar"
+  }
 }

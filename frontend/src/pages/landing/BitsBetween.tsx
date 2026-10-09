@@ -31,9 +31,9 @@ const Card = ({ title, body, children }: { title: string; body: string; children
     >
       {children}
     </div>
-    <div className="p-4 md:p-5">
-      <h3 className="font-bold text-lg leading-tight md:text-xl">{title}</h3>
-      <p className="mt-1.5 text-muted-foreground text-sm md:text-[15px]">{body}</p>
+    <div className="p-4 sm:p-5">
+      <h3 className="font-bold text-lg leading-tight sm:text-xl">{title}</h3>
+      <p className="mt-1.5 text-muted-foreground text-sm sm:text-[15px]">{body}</p>
     </div>
   </li>
 );
@@ -75,11 +75,11 @@ export const BitsBetween = () => {
 
   return (
     <section className="bg-muted/40" aria-labelledby="landing-between-title">
-      <div className="mx-auto max-w-6xl px-4 py-14 md:px-8 md:py-22">
-        <div className="mb-7 max-w-2xl md:mb-10">
+      <div className="mx-auto max-w-6xl px-4 py-14 sm:px-8 sm:py-22">
+        <div className="mb-7 max-w-2xl sm:mb-10">
           <h2
             id="landing-between-title"
-            className="font-extrabold text-3xl tracking-tight md:text-5xl"
+            className="font-extrabold text-3xl tracking-tight sm:text-5xl"
           >
             {t("between.title")}
           </h2>

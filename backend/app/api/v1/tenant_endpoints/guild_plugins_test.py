@@ -13,10 +13,6 @@ an initiative.
 The other is who may do this. Installing mounts a guild-wide surface, so it is a
 guild-admin action; reading the list is not, because the sidebar has to know
 what is there.
-
-An embed plug-in is the other shape: it brings no content, so there is nothing to
-create, share or trash, and the answer to "who may open this" comes back on the
-plug-in itself rather than from grants that do not exist.
 """
 
 import pytest

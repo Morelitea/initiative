@@ -13,7 +13,7 @@ are what the shape buys:
   a source needs a member's own vendor credential the token carries
   ``connection_refs`` — the opaque handles from :mod:`app.services.tenant.
   plugin_connections` — so the plug-in selects the right credential while learning
-  nothing about who the member is. The embed handoff is the one channel that
+  nothing about who the member is. The page handoff is the one channel that
   carries a real identity, because that is a person's session crossing into an
   interactive surface; this one is the platform calling a service.
 * **Its audience is one plug-in.** ``aud`` is ``initiative-plugin:<public_id>``, so a

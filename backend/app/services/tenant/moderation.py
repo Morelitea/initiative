@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
-from typing import Optional
+from typing import TYPE_CHECKING, Optional, Sequence
 
 from fastapi import HTTPException, status as http_status
 from sqlalchemy import Table, select as sa_select, text, tuple_
@@ -26,7 +26,7 @@ from sqlmodel import SQLModel, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.intake import IntakeStream
-from app.core.messages import ModerationMessages
+from app.core.messages import HoldMessages, ModerationMessages
 from app.core.moderation import (
     PLATFORM_TARGET_RELATION,
     PlatformReportTarget,
@@ -46,8 +46,14 @@ from app.models.platform import user_profile_view
 from app.models.platform.user import User
 from app.models.tenant.moderation import ModerationReport, ModerationReportReporter
 from app.models.tenant.search_entry import SearchEntry
-from app.services.platform.intake import CaseRefs, open_case
+from app.services.platform import evidence as evidence_service
+from app.services.platform.intake import CaseOutcome, CaseRefs, open_case
 from app.db.request_context import SystemGuild
+
+if TYPE_CHECKING:
+    from app.db.guild_standing import GuildContext
+    from app.services.platform.evidence import PreparedEvidence
+    from app.services.platform.holds import HoldWhy
 
 logger = logging.getLogger(__name__)
 
@@ -120,6 +126,7 @@ async def file_report(
     reason: ReportReason,
     detail: Optional[str],
     guild_id: Optional[int] = None,
+    evidence: Sequence["PreparedEvidence"] = (),
     now: Optional[datetime] = None,
 ) -> ReportFiled:
     """Route one report to whoever handles that kind of thing.
@@ -130,7 +137,8 @@ async def file_report(
     report something they can already see, and the database is what decides
     that rather than a check here. ``guild_id`` says which community they were
     standing in; it is validated as theirs before it is used, and it decides
-    nothing about the venue.
+    nothing about the venue. ``evidence`` is stored with the report wherever
+    it lands: on the community's report, or on the operations case.
     """
     moment = now or datetime.now(timezone.utc)
     venue = venue_for(target)
@@ -153,6 +161,7 @@ async def file_report(
                 reason=reason,
                 detail=detail,
                 moment=moment,
+                evidence=evidence,
             )
             return ReportFiled(ReportVenue.initiative)
         # Nothing in the community answers to that id for this reader, and a
@@ -184,8 +193,10 @@ async def file_report(
             if target is PlatformReportTarget.marketplace_listing
             else None
         ),
+        evidence=evidence,
+        evidence_by=reporter.id,
     )
-    if not opened:
+    if opened is None:
         # Nothing is bound to receive it. Say so rather than answering 202 to
         # a report that reached nobody.
         raise HTTPException(
@@ -205,6 +216,7 @@ async def _place_in_initiative(
     reason: ReportReason,
     detail: Optional[str],
     moment: datetime,
+    evidence: Sequence["PreparedEvidence"] = (),
 ) -> None:
     """Open or join the community's report for this target.
 
@@ -262,7 +274,15 @@ async def _place_in_initiative(
                     detail=detail,
                 )
             )
-        await session.commit()
+        with evidence_service.Sealing(guild_id) as sealing:
+            sealing.store(
+                session,
+                prepared=evidence,
+                created_by=reporter_id,
+                report_id=existing.id,
+            )
+            await session.commit()
+            sealing.keep()
 
 
 #: Identity targets whose id names an account. For these the case's subject is
@@ -370,10 +390,12 @@ async def _open_platform_case(
     note: Optional[str] = None,
     reporters: tuple[tuple[int, Optional[str]], ...] = (),
     guild_id: Optional[int] = None,
-) -> bool:
+    evidence: Sequence["PreparedEvidence"] = (),
+    evidence_by: Optional[int] = None,
+) -> Optional[CaseOutcome]:
     """File the report as an intake case in the operations guild.
 
-    Returns whether a case actually opened. ``open_case`` answers ``None`` on
+    Returns the case, or ``None`` where none opened. ``open_case`` answers ``None`` on
     a deployment that has bound no moderation project — which is every fresh
     install — and a report that opened nothing has not been received.
 
@@ -416,8 +438,10 @@ async def _open_platform_case(
             if guild_id is not None
             else f"report:{target.value}:{target_id}"
         ),
+        evidence=evidence,
+        evidence_by=evidence_by,
     )
-    return outcome is not None
+    return outcome
 
 
 async def settle_report(
@@ -429,11 +453,18 @@ async def settle_report(
     decided_by: int,
     guild_id: int,
     now: Optional[datetime] = None,
+    context: Optional["GuildContext"] = None,
+    hold: Optional["HoldWhy"] = None,
 ) -> ModerationReport:
     """Close a community report. Every outcome closes it.
 
     The session must already be routed into the guild; RLS is what decides
     whether this reader may see the row at all.
+
+    ``escalated`` and ``held`` both hand the report to the platform as a
+    case. ``held`` also holds the reported thing where it is, worked on that
+    case (``app.services.platform.holds``): ``hold`` says why, and ``context``
+    is the reader's standing, which decides whether they may.
     """
     moment = now or datetime.now(timezone.utc)
     # Locked before it is read, so two moderators deciding at once resolve in
@@ -458,7 +489,7 @@ async def settle_report(
             detail=ModerationMessages.REPORT_ALREADY_SETTLED,
         )
 
-    if outcome is ReportOutcome.escalated:
+    if outcome in (ReportOutcome.escalated, ReportOutcome.held):
         # The one crossing between the two shapes, and one direction only.
         #
         # The case is opened before the report closes, and on its own
@@ -489,7 +520,7 @@ async def settle_report(
             reporters=tuple((reporter_id, words) for reporter_id, words in reporters),
             guild_id=guild_id,
         )
-        if not opened:
+        if opened is None:
             # Nothing is bound to receive it, so the report stays open and the
             # moderator is told. Closing it as escalated would record a handover
             # that never happened.
@@ -497,6 +528,46 @@ async def settle_report(
                 status_code=http_status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail=ModerationMessages.NOWHERE_TO_SEND,
             )
+        # What the reporters attached goes with it: the stored bytes copied
+        # as they are, their keys wrapped for the operations community.
+        await evidence_service.carry_report(
+            session,
+            source_guild_id=guild_id,
+            report_id=report.id,
+            case_id=opened.case_id,
+        )
+        if outcome is ReportOutcome.held:
+            from app.services.platform import holds as holds_service
+
+            if hold is None or context is None:  # pragma: no cover - the schema refuses
+                raise ValueError(
+                    "a held outcome needs a hold and the reader's standing"
+                )
+            try:
+                await holds_service.place(
+                    session,
+                    context,
+                    guild_id=guild_id,
+                    placed_by=decided_by,
+                    request=holds_service.HoldRequest(
+                        target_type=report.target_type,
+                        target_id=report.target_id,
+                        reason=hold.reason,
+                        legal_basis=hold.legal_basis,
+                        note=hold.note,
+                    ),
+                    opened_case_task_id=opened.task_id,
+                )
+            except holds_service.HoldError as exc:
+                # Held already — an earlier attempt to settle it got that far
+                # before the report itself failed to close — or gone from the
+                # moderator's sight since. Either way there is nothing left
+                # for them to hold, and the case has it.
+                if exc.code not in (
+                    HoldMessages.ALREADY_HELD,
+                    HoldMessages.TARGET_NOT_FOUND,
+                ):
+                    raise
 
     report.outcome = outcome
     report.note = note

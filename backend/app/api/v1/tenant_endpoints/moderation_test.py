@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 from httpx import AsyncClient, Response
 from sqlmodel import select
@@ -39,7 +41,7 @@ async def _report(client: AsyncClient, actor, **body) -> Response:
     """File a report the way every surface does: as a moderation ticket."""
     return await client.post(
         "/api/v1/me/tickets",
-        json={"stream": "moderation", **body},
+        data={"payload": json.dumps({"stream": "moderation", **body})},
         headers=actor.headers,
     )
 
@@ -312,12 +314,16 @@ async def test_a_second_reporter_joins_the_open_report(client, session, scene):
     for headers in (scene["member"].headers, get_auth_headers(another)):
         response = await client.post(
             "/api/v1/me/tickets",
-            json={
-                "stream": "moderation",
-                "target_type": "comment",
-                "target_id": scene["comment"].id,
-                "reason": "spam",
-                "community_id": scene["guild"].id,
+            data={
+                "payload": json.dumps(
+                    {
+                        "stream": "moderation",
+                        "target_type": "comment",
+                        "target_id": scene["comment"].id,
+                        "reason": "spam",
+                        "community_id": scene["guild"].id,
+                    }
+                )
             },
             headers=headers,
         )
@@ -350,12 +356,16 @@ async def test_a_community_a_reporter_is_not_in_places_nothing_there(
 
     response = await client.post(
         "/api/v1/me/tickets",
-        json={
-            "stream": "moderation",
-            "target_type": "comment",
-            "target_id": scene["comment"].id,
-            "reason": "spam",
-            "community_id": scene["guild"].id,
+        data={
+            "payload": json.dumps(
+                {
+                    "stream": "moderation",
+                    "target_type": "comment",
+                    "target_id": scene["comment"].id,
+                    "reason": "spam",
+                    "community_id": scene["guild"].id,
+                }
+            )
         },
         headers=get_auth_headers(outsider),
     )

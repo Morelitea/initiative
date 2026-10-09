@@ -22,11 +22,12 @@ from sqlmodel import Enum as SQLEnum, Field, Relationship
 from app.core.tools import Tool
 from app.models.tenant._mixins import (
     ArchiveMixin,
-    attach_actions,
     CommentsToggleMixin,
     CreatedByMixin,
+    HoldMixin,
     ListingProvenanceMixin,
     SoftDeleteMixin,
+    attach_actions,
 )
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -52,6 +53,7 @@ _YJS_STATE = Column(LargeBinary, nullable=True)
 
 
 class File(
+    HoldMixin,
     CommentsToggleMixin,
     CreatedByMixin,
     ArchiveMixin,

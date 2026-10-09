@@ -68,6 +68,7 @@ def test_every_outcome_closes_a_report():
         ReportOutcome.content_removed,
         ReportOutcome.member_warned,
         ReportOutcome.escalated,
+        ReportOutcome.held,
     }
 
 

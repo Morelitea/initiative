@@ -48,10 +48,10 @@ export const PricingPage = () => {
   return (
     <LandingShell current="pricing">
       <DarkBand stars aria-labelledby="landing-pricing-title">
-        <div className="relative mx-auto max-w-6xl px-4 pt-10 pb-24 md:px-8 md:pt-18 md:pb-28">
+        <div className="relative mx-auto max-w-6xl px-4 pt-10 pb-24 sm:px-8 sm:pt-18 sm:pb-28">
           <h1
             id="landing-pricing-title"
-            className="font-extrabold text-[2.6rem] leading-tight tracking-tight md:text-6xl"
+            className="font-extrabold text-[2.6rem] leading-tight tracking-tight sm:text-6xl"
           >
             {catalog.data?.headline ?? t("pricing.sectionLabel")}
           </h1>
@@ -61,7 +61,7 @@ export const PricingPage = () => {
         </div>
       </DarkBand>
 
-      <div className="mx-auto max-w-6xl px-4 md:px-8">
+      <div className="mx-auto max-w-6xl px-4 sm:px-8">
         {catalog.isError ? (
           <div
             className="relative -mt-12 rounded-3xl border bg-card p-8 text-center shadow-xl"
@@ -87,7 +87,7 @@ export const PricingPage = () => {
         )}
 
         <ul
-          className="mt-12 grid gap-3 md:grid-cols-3 md:gap-4"
+          className="mt-12 grid gap-3 md:grid-cols-3 sm:gap-4"
           aria-label={t("pricing.everyPlanAria")}
         >
           <Fact icon={Layers} title={t("pricing.sameTitle")} body={t("pricing.sameBody")} />
@@ -95,7 +95,7 @@ export const PricingPage = () => {
           <Fact icon={ShieldCheck} title={t("pricing.dataTitle")} body={t("pricing.dataBody")} />
         </ul>
         {portalUrl ? (
-          <p className="mt-8 mb-20 text-center md:mb-24">
+          <p className="mt-8 mb-20 text-center sm:mb-24">
             <a
               href={portalPricingUrl(portalUrl)}
               target="_blank"

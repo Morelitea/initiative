@@ -210,6 +210,9 @@ export function useListReports<
  *
  * ``escalated`` also opens a platform case carrying the references — the one
  * crossing between a community's reports and the operator's, in one direction.
+ * ``held`` does the same and holds the reported thing where it is, out of
+ * the whole community's sight, until the platform releases it; ``hold``
+ * says why.
  * @summary Settle Report
  */
 export const settleReport = (

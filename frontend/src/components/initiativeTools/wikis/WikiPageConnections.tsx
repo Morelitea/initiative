@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import type { EndpointRef } from "@/api/generated/initiativeAPI.schemas";
 import { RelationsSection } from "@/components/entities/RelationsSection";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { useIsCompactViewport } from "@/hooks/useMediaQuery";
+import { useWidthClass } from "@/hooks/useWidthClass";
 import { cn } from "@/lib/utils";
 
 interface WikiPageConnectionsProps {
@@ -47,7 +47,7 @@ export const WikiConnectionsSheet = ({
   onOpenChange: (open: boolean) => void;
 }) => {
   const { t } = useTranslation("wikis");
-  const compact = useIsCompactViewport();
+  const compact = useWidthClass() === "base";
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent

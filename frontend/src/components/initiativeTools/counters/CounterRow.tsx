@@ -218,7 +218,7 @@ export const CounterRow = ({
           // row). A min-height floor + content-driven growth avoids overlap.
           // md+ cards are wide enough that the square height clears the floor,
           // so aspect-square is safe and restores the square look.
-          "relative flex min-h-45 flex-col overflow-hidden rounded-lg border border-black/10 px-3 pt-2 pb-3 shadow-sm md:aspect-square dark:border-white/10",
+          "relative flex min-h-45 flex-col overflow-hidden rounded-lg border border-black/10 px-3 pt-2 pb-3 shadow-sm sm:aspect-square dark:border-white/10",
           isDragging && "opacity-70"
         )}
       >

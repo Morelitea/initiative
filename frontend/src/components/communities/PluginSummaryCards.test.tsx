@@ -2,6 +2,7 @@ import { screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders } from "@/__tests__/helpers/render";
+import { dateTimeFormat } from "@/lib/intl";
 
 const state = vi.hoisted(() => ({
   summaries: [] as unknown[],
@@ -56,7 +57,7 @@ describe("PluginSummaryCards", () => {
     expect(screen.queryByText("Monthly allowance")).not.toBeInTheDocument();
     expect(screen.getByText("Credits left")).toBeInTheDocument();
     expect(screen.getByText("1,500")).toBeInTheDocument();
-    const resets = new Intl.DateTimeFormat("en", { dateStyle: "long" }).format(new Date(RESETS_ON));
+    const resets = dateTimeFormat("en", { dateStyle: "long" }).format(new Date(RESETS_ON));
     expect(screen.getByText(resets)).toBeInTheDocument();
   });
 

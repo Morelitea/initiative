@@ -143,8 +143,7 @@ LOCAL_SOURCE = "local"
 #:
 #: ``tool_instance`` mounts one of the plug-in's own tools at guild scope — the plug-in
 #: creates an ordinary row in an ordinary table and the existing UI renders it.
-#: ``embed`` hosts an external surface in an iframe, driven by the signed handoff
-#: machinery. ``service`` declares features a container the operator runs will
+#: ``service`` declares features a container the operator runs will
 #: serve.
 PLUGIN_KINDS: frozenset[str] = frozenset({"tool_instance", "service"})
 
@@ -232,10 +231,8 @@ def _normalize_plugin_definition(
 ) -> dict[str, Any]:
     """A plug-in's body: which kind it is, and what that kind needs.
 
-    ``tool_instance`` and ``embed`` are deliberately narrow — a kind and one
-    thing, either which of this build's tools to mount or which configured embed
-    target to open. Neither carries code or a URL: an embed target names a slot
-    in the deployment's own configuration, which is where the address comes from.
+    ``tool_instance`` is deliberately narrow — a kind and one thing, which of
+    this build's tools to mount. It carries no code or URL.
 
     ``service`` is the wide one, and it keeps the same rule (see
     ``service_plugins``): paths, never addresses. Unknown keys are dropped rather

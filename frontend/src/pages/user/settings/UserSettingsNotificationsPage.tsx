@@ -371,7 +371,7 @@ export const UserSettingsNotificationsPage = ({
         title={t("notifications.timing.title")}
         description={t("notifications.timing.description")}
       >
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-fill-48/3 gap-4">
           <div className="space-y-2">
             <Label htmlFor="email-cadence">{t("notifications.timing.cadence.label")}</Label>
             <Select
@@ -463,7 +463,7 @@ export const UserSettingsNotificationsPage = ({
           description={t("notifications.quietHours.description")}
           below={
             preferences?.quiet_hours ? (
-              <div className="grid gap-4 sm:max-w-md sm:grid-cols-2">
+              <div className="grid grid-cols-pair gap-4 sm:max-w-md">
                 <div className="space-y-2">
                   <Label htmlFor="quiet-start">{t("notifications.quietHours.from")}</Label>
                   <Input

@@ -266,13 +266,13 @@ class TestExport:
 class TestSurfaceAccess:
     """The one decision behind opening a surface, without a database."""
 
-    EMBED = {"id": "e", "path": "/e", "scopes": ["community", "initiative"]}
-    ADMIN_ONLY = {**EMBED, "admin_only": True}
+    PAGE = {"id": "e", "path": "/e", "scopes": ["community", "initiative"]}
+    ADMIN_ONLY = {**PAGE, "admin_only": True}
 
     @staticmethod
-    def _decide(embed, *, initiative_id=1, roles=(10,), admin=False, held=(10,)):
+    def _decide(page, *, initiative_id=1, roles=(10,), admin=False, held=(10,)):
         return surface_access(
-            embed,
+            page,
             initiative_id=initiative_id,
             placement_role_ids=roles,
             is_guild_admin=admin,
@@ -280,25 +280,25 @@ class TestSurfaceAccess:
         )
 
     def test_a_role_the_placement_allows_opens_it(self):
-        assert self._decide(self.EMBED) is SurfaceAccess.open
+        assert self._decide(self.PAGE) is SurfaceAccess.open
 
     def test_a_role_it_does_not_allow_is_refused(self):
-        assert self._decide(self.EMBED, held=(11,)) is SurfaceAccess.refused
+        assert self._decide(self.PAGE, held=(11,)) is SurfaceAccess.refused
 
     def test_not_placed_is_not_here_even_for_an_admin(self):
         for admin in (False, True):
             assert (
-                self._decide(self.EMBED, roles=None, admin=admin)
+                self._decide(self.PAGE, roles=None, admin=admin)
                 is SurfaceAccess.not_here
             )
 
     def test_the_community_level_is_for_admins(self):
         assert (
-            self._decide(self.EMBED, initiative_id=None, roles=None)
+            self._decide(self.PAGE, initiative_id=None, roles=None)
             is SurfaceAccess.refused
         )
         assert (
-            self._decide(self.EMBED, initiative_id=None, roles=None, admin=True)
+            self._decide(self.PAGE, initiative_id=None, roles=None, admin=True)
             is SurfaceAccess.open
         )
 
@@ -307,7 +307,7 @@ class TestSurfaceAccess:
         assert self._decide(self.ADMIN_ONLY, admin=True) is SurfaceAccess.open
 
     def test_a_surface_that_does_not_render_here_is_not_here(self):
-        inside_only = {**self.EMBED, "scopes": ["initiative"]}
+        inside_only = {**self.PAGE, "scopes": ["initiative"]}
         assert (
             self._decide(inside_only, initiative_id=None, roles=None, admin=True)
             is SurfaceAccess.not_here
@@ -316,10 +316,10 @@ class TestSurfaceAccess:
     def test_a_surface_pinned_as_admin_only_under_the_earlier_contract(self):
         """``visibility: "guild_admin"`` on a definition pinned before this
         contract means ``admin_only`` until the install moves on."""
-        legacy = {**self.EMBED, "visibility": "guild_admin"}
+        legacy = {**self.PAGE, "visibility": "guild_admin"}
         assert self._decide(legacy) is SurfaceAccess.refused
         assert self._decide(legacy, admin=True) is SurfaceAccess.open
 
     def test_an_earlier_member_surface_follows_the_placement(self):
-        legacy = {**self.EMBED, "visibility": "member"}
+        legacy = {**self.PAGE, "visibility": "member"}
         assert self._decide(legacy) is SurfaceAccess.open

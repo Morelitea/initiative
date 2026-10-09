@@ -9,6 +9,7 @@ import {
 } from "@/api/generated/initiativeAPI.schemas";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatDate, formatDateTime } from "@/lib/formatDate";
+import { numberFormat } from "@/lib/intl";
 import { getAvatarSrc, getInitialsForUser, getUserDisplayName } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
 
@@ -29,11 +30,11 @@ export interface PropertyValueCellProps {
 
 const formatNumber = (raw: unknown): string => {
   if (typeof raw === "number" && Number.isFinite(raw)) {
-    return new Intl.NumberFormat().format(raw);
+    return numberFormat().format(raw);
   }
   if (typeof raw === "string" && raw.trim() !== "") {
     const parsed = Number(raw);
-    if (Number.isFinite(parsed)) return new Intl.NumberFormat().format(parsed);
+    if (Number.isFinite(parsed)) return numberFormat().format(parsed);
   }
   return "";
 };

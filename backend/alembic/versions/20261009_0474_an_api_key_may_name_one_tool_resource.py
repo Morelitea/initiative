@@ -7,16 +7,16 @@ holds one per resource.
 
 ``user_api_keys`` is read on the system engine alone, so nothing is granted.
 
-Revision ID: 20261008_0470
-Revises: 20261007_0469
-Create Date: 2026-10-08
+Revision ID: 20261009_0474
+Revises: 20261009_0473
+Create Date: 2026-10-09
 """
 
 import sqlalchemy as sa
 from alembic import op
 
-revision = "20261008_0470"
-down_revision = "20261007_0469"
+revision = "20261009_0474"
+down_revision = "20261009_0473"
 branch_labels = None
 depends_on = None
 

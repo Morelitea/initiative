@@ -69,7 +69,7 @@ export const FileCard = ({ file, className }: FileCardProps) => {
           <div className="flex h-full items-center justify-center">
             <FileIcon
               className={cn(
-                "h-10 w-10 md:h-20 md:w-20 lg:h-24 lg:w-24 xl:h-28 xl:w-28",
+                "h-10 w-10 sm:h-20 sm:w-20 md:h-24 md:w-24 lg:h-28 lg:w-28",
                 fileIconColor
               )}
             />

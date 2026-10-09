@@ -13,17 +13,17 @@ import { describe, expect, it } from "vitest";
 
 import {
   communityPluginPath,
-  declaredEmbeds,
-  embedAllow,
+  declaredPages,
   initiativePluginPath,
+  pageAllow,
   placedIn,
-  pluginEmbeds,
+  pluginPages,
   type SurfaceAccess,
 } from "./pluginSurfaces";
 
-const embed = (id: string, scopes?: string[], adminOnly?: boolean) => ({
+const page = (id: string, scopes?: string[], adminOnly?: boolean) => ({
   id,
-  path: `/embed/${id}`,
+  path: `/page/${id}`,
   name: { en: id },
   ...(scopes ? { scopes } : {}),
   ...(adminOnly !== undefined ? { admin_only: adminOnly } : {}),
@@ -35,80 +35,80 @@ const access = (
   openable_initiatives: number[] = []
 ): SurfaceAccess => ({ surface_id, openable_community_wide, openable_initiatives });
 
-describe("embedAllow", () => {
+describe("pageAllow", () => {
   it("grants a surface exactly what it asked for", () => {
-    expect(embedAllow({ capabilities: ["clipboard-write", "fullscreen"] })).toBe(
+    expect(pageAllow({ capabilities: ["clipboard-write", "fullscreen"] })).toBe(
       "clipboard-write; fullscreen"
     );
   });
 
   it("grants nothing to a surface that asked for nothing", () => {
-    expect(embedAllow({ capabilities: [] })).toBe("");
+    expect(pageAllow({ capabilities: [] })).toBe("");
   });
 
   it("grants nothing to a definition pinned before surfaces could ask", () => {
-    expect(embedAllow({})).toBe("");
+    expect(pageAllow({})).toBe("");
   });
 
   it("grants nothing when there is no surface open", () => {
-    expect(embedAllow(null)).toBe("");
+    expect(pageAllow(null)).toBe("");
   });
 });
 
-describe("declaredEmbeds", () => {
+describe("declaredPages", () => {
   it("reads a surface that says nothing as community-wide", () => {
-    const definition = { embeds: [embed("board")] };
-    expect(declaredEmbeds(definition, "community").map((e) => e.id)).toEqual(["board"]);
-    expect(declaredEmbeds(definition, "initiative")).toEqual([]);
+    const definition = { pages: [page("board")] };
+    expect(declaredPages(definition, "community").map((e) => e.id)).toEqual(["board"]);
+    expect(declaredPages(definition, "initiative")).toEqual([]);
   });
 
   it("offers a surface in both places when it asked for both", () => {
-    const definition = { embeds: [embed("runs", ["community", "initiative"])] };
-    expect(declaredEmbeds(definition, "community").map((e) => e.id)).toEqual(["runs"]);
-    expect(declaredEmbeds(definition, "initiative").map((e) => e.id)).toEqual(["runs"]);
+    const definition = { pages: [page("runs", ["community", "initiative"])] };
+    expect(declaredPages(definition, "community").map((e) => e.id)).toEqual(["runs"]);
+    expect(declaredPages(definition, "initiative").map((e) => e.id)).toEqual(["runs"]);
   });
 
   it("ignores entries that are not surfaces", () => {
-    const definition = { embeds: [{ id: "no-path" }, null, "board", embed("real")] };
-    expect(declaredEmbeds(definition, "community").map((e) => e.id)).toEqual(["real"]);
+    const definition = { pages: [{ id: "no-path" }, null, "board", page("real")] };
+    expect(declaredPages(definition, "community").map((e) => e.id)).toEqual(["real"]);
   });
 
-  it("has nothing when the plug-in declares no embeds", () => {
-    expect(declaredEmbeds({}, "community")).toEqual([]);
-    expect(declaredEmbeds(null, "community")).toEqual([]);
+  it("has nothing when the plug-in declares no pages", () => {
+    expect(declaredPages({}, "community")).toEqual([]);
+    expect(declaredPages(null, "community")).toEqual([]);
   });
 });
 
-describe("pluginEmbeds", () => {
+describe("pluginPages", () => {
   it("offers a community-wide surface only where the server says it opens", () => {
-    const definition = { embeds: [embed("board")] };
+    const definition = { pages: [page("board")] };
     expect(
-      pluginEmbeds({ definition, surface_access: [access("board", true)] }).map((e) => e.id)
+      pluginPages({ definition, surface_access: [access("board", true)] }).map((e) => e.id)
     ).toEqual(["board"]);
-    expect(pluginEmbeds({ definition, surface_access: [access("board", false)] })).toEqual([]);
+    expect(pluginPages({ definition, surface_access: [access("board", false)] })).toEqual([]);
   });
 
   it("offers an initiative surface in the initiatives the server listed", () => {
-    const definition = { embeds: [embed("runs", ["community", "initiative"])] };
+    const definition = { pages: [page("runs", ["community", "initiative"])] };
     const plugin = { definition, surface_access: [access("runs", false, [4])] };
-    expect(pluginEmbeds(plugin, 4).map((e) => e.id)).toEqual(["runs"]);
-    expect(pluginEmbeds(plugin, 5)).toEqual([]);
-    expect(pluginEmbeds(plugin)).toEqual([]);
+    expect(pluginPages(plugin, 4).map((e) => e.id)).toEqual(["runs"]);
+    expect(pluginPages(plugin, 5)).toEqual([]);
+    expect(pluginPages(plugin)).toEqual([]);
   });
 
   it("keeps an initiative-only surface off the community page", () => {
     // Even if an answer said otherwise, the surface never asked to render there.
-    const definition = { embeds: [embed("runs", ["initiative"])] };
+    const definition = { pages: [page("runs", ["initiative"])] };
     const plugin = { definition, surface_access: [access("runs", true, [4])] };
-    expect(pluginEmbeds(plugin)).toEqual([]);
-    expect(pluginEmbeds(plugin, 4).map((e) => e.id)).toEqual(["runs"]);
+    expect(pluginPages(plugin)).toEqual([]);
+    expect(pluginPages(plugin, 4).map((e) => e.id)).toEqual(["runs"]);
   });
 
   it("offers nothing the server gave no answer for", () => {
-    const definition = { embeds: [embed("board")] };
-    expect(pluginEmbeds({ definition })).toEqual([]);
-    expect(pluginEmbeds({ definition, surface_access: null })).toEqual([]);
-    expect(pluginEmbeds(null)).toEqual([]);
+    const definition = { pages: [page("board")] };
+    expect(pluginPages({ definition })).toEqual([]);
+    expect(pluginPages({ definition, surface_access: null })).toEqual([]);
+    expect(pluginPages(null)).toEqual([]);
   });
 });
 
@@ -117,7 +117,7 @@ describe("communityPluginPath", () => {
     expect(
       communityPluginPath({
         id: 7,
-        definition: { embeds: [embed("board")] },
+        definition: { pages: [page("board")] },
         surface_access: [access("board", true)],
       })
     ).toBe("/plugins/7");
@@ -127,7 +127,7 @@ describe("communityPluginPath", () => {
     expect(
       communityPluginPath({
         id: 7,
-        definition: { embeds: [embed("console", ["community"], true)] },
+        definition: { pages: [page("console", ["community"], true)] },
         surface_access: [access("console", false)],
       })
     ).toBeNull();
@@ -137,7 +137,7 @@ describe("communityPluginPath", () => {
     expect(
       communityPluginPath({
         id: 7,
-        definition: { embeds: [embed("runs", ["initiative"])] },
+        definition: { pages: [page("runs", ["initiative"])] },
         surface_access: [access("runs", false, [4])],
       })
     ).toBeNull();
@@ -167,7 +167,7 @@ describe("communityPluginPath", () => {
 describe("initiativePluginPath", () => {
   const plugin = (openIn: number[]) => ({
     id: 7,
-    definition: { embeds: [embed("runs", ["initiative"])] },
+    definition: { pages: [page("runs", ["initiative"])] },
     placements: [{ initiative_id: 4 }],
     surface_access: [access("runs", false, openIn)],
   });
@@ -182,7 +182,7 @@ describe("initiativePluginPath", () => {
       initiativePluginPath(
         {
           id: 7,
-          definition: { embeds: [embed("board")] },
+          definition: { pages: [page("board")] },
           placements: [{ initiative_id: 4 }],
           surface_access: [access("board", true)],
         },
@@ -218,7 +218,7 @@ describe("placedIn", () => {
       id: 7,
       placements: [{ initiative_id: 9 }],
       definition: {
-        embeds: [{ id: "runs", path: "/embed", name: { en: "Runs" }, scopes: ["initiative"] }],
+        pages: [{ id: "runs", path: "/page", name: { en: "Runs" }, scopes: ["initiative"] }],
       },
       surface_access: [access("runs", false, [9])],
     };

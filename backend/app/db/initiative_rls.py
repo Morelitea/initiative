@@ -1251,6 +1251,46 @@ def uploads_path() -> InitiativePath:
     )
 
 
+def evidence_path() -> InitiativePath:
+    """A stored object is reached exactly as the one parent it names is: a
+    community report by those who settle it, an operations case by those in
+    the initiative its task is in.
+
+    Reading walks to the parent, whose own policy answers. Writing asks the
+    parent's own write question: full access for a report, the case task's
+    initiative for a case.
+    """
+    report_walk = (
+        "EXISTS (SELECT 1 FROM moderation_reports mr WHERE mr.id = {t}.report_id"
+    )
+    case_walk = "EXISTS (SELECT 1 FROM intake_cases ic WHERE ic.id = {t}.case_id"
+
+    def predicate(t: str, w: bool) -> str:
+        if not w:
+            report = report_walk.format(t=t) + ")"
+            case = case_walk.format(t=t) + ")"
+        else:
+            report = (
+                report_walk.format(t=t) + f" AND {_full_access('mr.initiative_id', w)})"
+            )
+            case = (
+                "EXISTS (SELECT 1 FROM intake_cases ic JOIN tasks tk ON tk.id = ic.task_id"
+                f" JOIN projects pr ON pr.id = tk.project_id WHERE ic.id = {t}.case_id"
+                f" AND {_access('pr.initiative_id', w)})"
+            )
+        return f"(CASE WHEN {t}.report_id IS NOT NULL THEN {report} ELSE {case} END)"
+
+    return InitiativePath(
+        predicate=predicate,
+        initiative_expr=lambda r: (
+            f"COALESCE((SELECT mr.initiative_id FROM moderation_reports mr "  # noqa: S608
+            f"WHERE mr.id = {r}.report_id), (SELECT pr.initiative_id FROM intake_cases ic "
+            f"JOIN tasks tk ON tk.id = ic.task_id JOIN projects pr ON pr.id = tk.project_id "
+            f"WHERE ic.id = {r}.case_id))"
+        ),
+    )
+
+
 def recent_views_path() -> InitiativePath:
     """A reader's own record of visiting something, reached exactly like the
     thing itself: ``(entity_type, entity_id)`` is the pair the entity function
@@ -1345,6 +1385,8 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     # A case is read exactly as hard as the task it describes, so it hangs off
     # the task rather than off the project column it is keyed by.
     "intake_cases": via_task_project("task_id"),
+    # What a person attached: reached as its report or its case is.
+    "evidence": evidence_path(),
     # Two hops -> queue_items -> queues
     # Two hops -> post_polls -> posts
     "post_poll_options": via_post_poll("poll_id"),
@@ -1819,6 +1861,7 @@ EVENT_SOURCES: dict[str, Emit | Silent] = {
     "moderation_report_reporters": Silent("the reporters behind one report"),
     "intake_cases": Silent("the key -> task map; the task is what a subscriber hears"),
     "uploads": Silent("a stored file; the content showing it is what changed"),
+    "evidence": Silent("an attached file; its case or report is what changed"),
     # -- Guild-level tables that emit ---------------------------------------
     # The structural initiative tables are deliberately exempt from
     # initiative-member RLS (a membership table gated by the membership check it

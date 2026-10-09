@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/select";
 import { useRecurrencePreview } from "@/hooks/useRecurrencePreview";
 import { formatDate, formatDateTime } from "@/lib/formatDate";
+import { dateTimeFormat } from "@/lib/intl";
 import {
   createRecurrenceFromPreset,
   detectRecurrencePreset,
@@ -170,14 +171,14 @@ export const RecurrenceEditor = ({
       {
         value: "weekly",
         label: t("recurrence.weeklyOn", {
-          day: anchor.toLocaleDateString(i18n.language, { weekday: "long" }),
+          day: dateTimeFormat(i18n.language, { weekday: "long" }).format(anchor),
         }),
       },
       { value: "monthly", label: t("recurrence.monthlyOnDay", { day: anchor.getDate() }) },
       {
         value: "yearly",
         label: t("recurrence.annuallyOn", {
-          month: anchor.toLocaleDateString(i18n.language, { month: "long" }),
+          month: dateTimeFormat(i18n.language, { month: "long" }).format(anchor),
           day: anchor.getDate(),
         }),
       },
@@ -187,7 +188,7 @@ export const RecurrenceEditor = ({
   );
 
   const monthName = (month: number) =>
-    new Date(2026, month - 1, 1).toLocaleDateString(i18n.language, { month: "short" });
+    dateTimeFormat(i18n.language, { month: "short" }).format(new Date(2026, month - 1, 1));
   const weekdayName = (day: RecurrenceWeekday) => t(`dates:weekdaysShort.${day}` as never);
 
   // The next dates, from the rule as it would be saved, or the stored one.
@@ -257,7 +258,7 @@ export const RecurrenceEditor = ({
 
       {building && rule ? (
         <div className="space-y-4 rounded-md border border-border/70 p-4">
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className="grid grid-cols-pair gap-3">
             <div className="space-y-2">
               <Label>{t("recurrence.frequency")}</Label>
               <Select
@@ -364,7 +365,7 @@ export const RecurrenceEditor = ({
               ) : null}
 
               {rule.monthly_mode === "weekday" ? (
-                <div className="grid gap-3 md:grid-cols-2">
+                <div className="grid grid-cols-pair gap-3">
                   <Select
                     value={rule.weekday_position ?? "first"}
                     onValueChange={(position) =>

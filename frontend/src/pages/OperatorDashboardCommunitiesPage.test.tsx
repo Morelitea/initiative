@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { buildPage, buildUser } from "@/__tests__/factories";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import type { PlatformCommunityStorageRead } from "@/api/generated/initiativeAPI.schemas";
+import { dateTimeFormat } from "@/lib/intl";
 
 const GIB = 1024 ** 3;
 
@@ -645,7 +646,7 @@ describe("OperatorDashboardCommunitiesPage", () => {
       // The purge date is an instant, not a calendar day, so it is drawn in
       // the reader's own timezone — computed here the same way rather than
       // written out, which would only pass in the timezone it was written in.
-      const expected = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(
+      const expected = dateTimeFormat(undefined, { dateStyle: "medium" }).format(
         new Date("2026-11-30T00:00:00Z")
       );
       expect(

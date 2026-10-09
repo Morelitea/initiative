@@ -156,6 +156,7 @@
     "greeting": "Hallo <strong>{{name}}</strong>,",
     "levelRead": "Lesezugriff",
     "levelReadWrite": "Lese- und Schreibzugriff",
+    "levelModerate": "Moderationszugriff",
     "levelAdmin": "auf Community-Einstellungen (Admin)",
     "levelSuperadmin": "auf Community-Einstellungen (Superadmin)",
     "requested": {

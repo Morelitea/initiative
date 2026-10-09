@@ -16,6 +16,8 @@ from app.core.tools import Tool
 #                          single guild context (see /me routes below).
 from app.api.v1.tenant_endpoints import (
     moderation,
+    evidence,
+    holds,
     archive,
     query,
     smart_chips,
@@ -284,6 +286,10 @@ guild_router.include_router(tasks.router, prefix="/tasks", tags=["tasks"])
 # the reports of an initiative lead with the initiative, and settling one leads
 # with the report. Who may read any of it is the tables' RLS, not a check here.
 guild_router.include_router(moderation.router, tags=["moderation"])
+# Files attached to a report or a case, opened for whoever may read the one
+# they hang off.
+guild_router.include_router(evidence.router, prefix="/evidence", tags=["evidence"])
+guild_router.include_router(holds.router, prefix="/holds", tags=["holds"])
 # Asking whoever runs the deployment for help. Guild-scoped because whether
 # it is offered at all is the community's own setting.
 guild_router.include_router(comments.router, prefix="/comments", tags=["comments"])

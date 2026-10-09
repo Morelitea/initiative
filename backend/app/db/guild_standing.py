@@ -45,6 +45,7 @@ import json
 from dataclasses import dataclass, fields, replace
 from typing import TYPE_CHECKING, Any, Optional, Sequence
 
+from app.core.capabilities import Capability, roles_with_capability
 from app.core.plugin_scopes import (
     PLUGIN_SCOPE_PREFIX,
     LEVEL_SCOPES,
@@ -127,6 +128,13 @@ def _writes(values: dict[gucs.Guc, str]) -> str:
     )
 
 
+#: The platform tiers that hold ``content.moderate``: who may read held content
+#: under a ``moderate`` grant.
+_MODERATING_TIERS_SQL = ", ".join(
+    f"'{role.value}'"
+    for role in sorted(roles_with_capability(Capability.CONTENT_MODERATE), key=str)
+)
+
 #: The reader's own rows the person statement reads, each table once. Every
 #: key below is an aggregate over one of these, so a new key picks a row set
 #: rather than reading its table again.
@@ -191,6 +199,16 @@ _PERSON_STANDING: dict[gucs.Guc, str] = {
         WHERE g.purpose = '{AccessGrantPurpose.content.value}'
           AND g.access_level = '{AccessLevel.read_write.value}'
       )::text
+    )""",
+    # A moderate grant reads what the platform holds only while its holder
+    # still moderates: the tier is read as it stands now, not as it stood when
+    # the grant was approved.
+    gucs.PAM_MODERATE: f"""(
+      SELECT (EXISTS (
+        SELECT 1 FROM my_grants g
+        WHERE g.purpose = '{AccessGrantPurpose.content.value}'
+          AND g.access_level = '{AccessLevel.moderate.value}'
+      ) AND COALESCE({gucs.PLATFORM_ROLE.sql} IN ({_MODERATING_TIERS_SQL}), false))::text
     )""",
     gucs.MEMBER_INITIATIVES: """COALESCE((
       SELECT string_agg(DISTINCT mi.initiative_id::text, ',')
@@ -324,6 +342,7 @@ _INSTALL_STANDING: dict[gucs.Guc, str] = {
     gucs.PAM_GUILD_ID: """''""",
     gucs.PAM_READ: """'false'""",
     gucs.PAM_WRITE: """'false'""",
+    gucs.PAM_MODERATE: """'false'""",
     gucs.MEMBER_INITIATIVES: """COALESCE((
       SELECT string_agg(p.initiative_id::text, ',' ORDER BY p.initiative_id)
       FROM placed p
@@ -664,6 +683,8 @@ class GuildContext:
     #: A live content grant covers this request, at read / read_write.
     pam_read: bool = False
     pam_write: bool = False
+    #: A live content grant at ``moderate`` covers it: held content reads.
+    pam_moderate: bool = False
     member_initiatives: tuple[int, ...] = ()
     manager_initiatives: tuple[int, ...] = ()
     member_role_ids: tuple[int, ...] = ()
@@ -789,9 +810,12 @@ class GuildContext:
     @property
     def grant_content(self) -> Optional[str]:
         """The content grant's level as the database found it: ``read``,
-        ``read_write``, or ``None`` when no live grant covers this request."""
+        ``read_write``, ``moderate``, or ``None`` when no live grant covers
+        this request."""
         if self.pam_write:
             return "read_write"
+        if self.pam_moderate:
+            return "moderate"
         return "read" if self.pam_read else None
 
     def grant_satisfies(
@@ -830,6 +854,7 @@ class GuildContext:
             settings_rung=None,
             pam_read=False,
             pam_write=False,
+            pam_moderate=False,
         )
 
     # --- The standing --------------------------------------------------------

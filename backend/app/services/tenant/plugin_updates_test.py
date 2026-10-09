@@ -420,11 +420,11 @@ def _asking_definition(
             "protocol": 1,
             "scopes": list(scopes),
         },
-        "features": ["embeds"] if inside else [],
+        "features": ["pages"] if inside else [],
         "default_name": name,
         **(
             {
-                "embeds": [
+                "pages": [
                     {
                         "id": surface,
                         "path": f"/embed/{surface}",

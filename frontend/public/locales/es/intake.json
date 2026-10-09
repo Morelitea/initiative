@@ -139,6 +139,54 @@
     "replyAndWait": "Enviar y esperar su respuesta",
     "fromTeam": "El equipo ({{name}})",
     "someone": "Alguien",
-    "conversationLabel": "Conversación con {{name}}"
+    "conversationLabel": "Conversación con {{name}}",
+    "holds": {
+      "title": "Retenciones",
+      "none": "No hay nada retenido en este caso.",
+      "needGrant": "Para ver y liberar lo que está retenido en la comunidad {{community}}, solicita acceso de moderación a ella.",
+      "requestAccess": "Solicitar acceso",
+      "holdReported": "Retener el contenido denunciado",
+      "target": "{{type}} {{id}}",
+      "via": {
+        "community": "Retenido por la comunidad",
+        "platform": "Retenido por la plataforma"
+      },
+      "reasons": {
+        "legal_request": "Solicitud legal",
+        "illegal_content": "Puede ser ilegal"
+      },
+      "bases": {
+        "child_safety": "Protección de menores",
+        "terrorism": "Terrorismo",
+        "intellectual_property": "Propiedad intelectual",
+        "fraud": "Fraude",
+        "privacy": "Privacidad",
+        "other": "Otro"
+      },
+      "restore": "Restaurar",
+      "remove": "Quitar",
+      "purge": "Purgar",
+      "purgeTitle": "¿Purgar este contenido?",
+      "purgeDescription": "Esto lo destruye para siempre, con todo lo que se retiene con él. No se puede deshacer.",
+      "released": {
+        "restore": "Liberado: restaurado",
+        "remove": "Liberado: quitado",
+        "purge": "Liberado: purgado"
+      }
+    }
+  },
+  "evidence": {
+    "attach": "Adjuntar archivos",
+    "limits_one": "Hasta {{count}} archivo, de {{size}} como máximo.",
+    "limits_other": "Hasta {{count}} archivos, de {{size}} como máximo cada uno.",
+    "remove": "Quitar {{name}}",
+    "tooMany_one": "Puedes adjuntar {{count}} archivo.",
+    "tooMany_other": "Puedes adjuntar hasta {{count}} archivos.",
+    "tooLarge": "{{name}} ocupa más de {{size}}.",
+    "notAllowed": "Aquí no se admiten archivos como {{name}}.",
+    "heading": "Adjuntos",
+    "reveal": "Mostrar {{name}}",
+    "view": "Ver {{name}}",
+    "open": "Abrir {{name}}"
   }
 }

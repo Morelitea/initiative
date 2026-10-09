@@ -10,6 +10,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Subscribe to a calendar from Google Calendar, Apple Calendar or Outlook.** Choose **Subscribe** on an initiative's calendars or the community's, and get a link for each calendar you want. Each keeps that app up to date and stays a separate calendar there. The link shows the calendar as you see it, and only while you can see it. It stops working if you leave the community, if your API access there is turned off, or if the calendar's initiative keeps its content in. It shows under Settings › Security with your API keys, where you can remove it.
+- **Attach pictures and documents to a ticket or a report.** Asking for help, answering on a ticket and reporting something each take a few files, encrypted where they are kept. The places a picture was taken are removed before it is stored. The people handling a ticket or a report see pictures blurred until they choose to look, and files are deleted once the ticket has been closed long enough.
+- **Hide reported content while the platform looks at it.** Sending a report to the platform now asks whether to leave the reported thing up or hide it. Hide it when the police or a court asked for it to be kept, or it may be illegal: it disappears for everyone in the community, admins and the moderator included, and nobody there can change or delete it until the platform puts it back, moves it to the trash, or deletes it for good. A report of something illegal is hidden by default. A comment's replies stay visible under an "Unavailable" placeholder, and a community with hidden content isn't deleted for good until the platform has dealt with it.
+- **Moderation access.** Platform moderators can request a new access level, Moderate, which reads everything in a community, including what is held, and changes nothing. Releasing a hold needs it, and it is never self-issued.
+
+### Changed
+
+- **Layouts fit foldable phones and tablets.** On an unfolded foldable or a tablet held upright, forms go two fields to a row and cards fill as many columns as fit, rather than waiting for a laptop-sized screen. On a large screen, cards stop at the columns they had before and grow wider instead. The sidebar now stays open beside the page from the width of a tablet held sideways, where before it waited for 1024 pixels.
+- **Plug-ins are built with SDK 5.0.** Initiative serves plug-in API 5.0, where a plug-in's own screens are declared as `pages` rather than `embeds`. Publishing or updating a plug-in here needs a release built with SDK 5.0. Plug-ins already installed keep working.
+- **Dates and numbers format faster** on every screen that shows them. Building a formatter was most of what a large board spent redrawing.
+- **Escalate is now Send to the platform** on a report card, and a settled report says "Sent to the platform".
+- **API: filing a ticket and answering one take `multipart/form-data`.** `POST /api/v1/me/tickets` takes the ticket as JSON in a `payload` field, and `POST /api/v1/me/tickets/{task_id}/replies` takes the answer in a `body` field, each beside any `files`.
 
 ## [0.75.3] - 2026-10-08
 

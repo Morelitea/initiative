@@ -774,7 +774,13 @@ async def provision_guild(guild_id: int) -> str:
 
 
 async def deprovision_guild(guild_id: int) -> None:
-    """Drop a guild's schema + role on the superuser engine, and remove its blobs."""
+    """Drop a guild's schema + role on the superuser engine, and remove its blobs.
+
+    Refused with ``HoldsInForce`` while the platform holds anything there
+    (``app.db.holds``): the schema stays until every hold is released."""
+    from app.db.holds import refuse_while_held
+
+    await refuse_while_held(guild_id)
     async with db_session.provisioning_engine.begin() as conn:
         await drop_guild_schema(conn, guild_id)
     # Remove the guild's stored blobs (the ``guild_<id>/`` storage namespace).

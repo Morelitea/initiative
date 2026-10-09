@@ -17,7 +17,12 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
 
 from app.core import recurrence
-from app.models.tenant._mixins import ArchiveMixin, CreatedByMixin, SoftDeleteMixin
+from app.models.tenant._mixins import (
+    ArchiveMixin,
+    CreatedByMixin,
+    HoldMixin,
+    SoftDeleteMixin,
+)
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.project import Project
@@ -90,7 +95,7 @@ class TaskAssignee(SQLModel, table=True):
     user_id: int = Field(foreign_key="users.id", primary_key=True, index=True)
 
 
-class Task(CreatedByMixin, ArchiveMixin, SoftDeleteMixin, table=True):
+class Task(HoldMixin, CreatedByMixin, ArchiveMixin, SoftDeleteMixin, table=True):
     __tablename__ = "tasks"
     _display_field = "title"
 

@@ -52,6 +52,9 @@ _WRITE_EXCEPTIONS = {
     # the seam when the import runs.
     "app/services/import_engine/engine.py::stage_payload",
     "app/services/import_engine/engine.py::stage_payload_file",
+    # Evidence: sealed under a key of its own and reached only through its
+    # own row, never through the upload route.
+    "app/services/platform/evidence.py::store",
     # Test data.
     "app/testing/factories.py::create_gallery_image",
 }

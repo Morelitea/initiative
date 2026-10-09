@@ -6,6 +6,8 @@ Reports are filed through the same route; what becomes of them is
 
 from __future__ import annotations
 
+import json
+
 import pytest
 from sqlmodel import select
 
@@ -38,7 +40,9 @@ async def _ask(client, actor, guild_id, **body):
         "body": "It spins forever.",
     }
     payload.update(body)
-    return await client.post(TICKETS, json=payload, headers=actor.headers)
+    return await client.post(
+        TICKETS, data={"payload": json.dumps(payload)}, headers=actor.headers
+    )
 
 
 async def _offered(client, actor, guild_id=None) -> dict:
@@ -49,6 +53,11 @@ async def _offered(client, actor, guild_id=None) -> dict:
     )
     assert response.status_code == 200, response.text
     return response.json()
+
+
+def _offer(answer: dict) -> dict:
+    """What a stream offers, less what it takes as attachments."""
+    return {key: value for key, value in answer.items() if key != "evidence"}
 
 
 async def _set_contacts(session, *, general=None, **streams) -> None:
@@ -221,7 +230,7 @@ async def test_no_form_is_offered_where_nothing_is_bound(client, session, acting
     await _set_support(session, member.guild.id, True)
 
     offered = await _offered(client, member, member.guild.id)
-    assert offered["support"] == {"mode": "none", "contact": None}
+    assert _offer(offered["support"]) == {"mode": "none", "contact": None}
 
 
 async def test_without_a_form_the_streams_address_is_offered(
@@ -236,9 +245,15 @@ async def test_without_a_form_the_streams_address_is_offered(
     )
 
     offered = await _offered(client, member, member.guild.id)
-    assert offered["security"] == {"mode": "email", "contact": "security@example.org"}
-    assert offered["support"] == {"mode": "email", "contact": "ops@example.org"}
-    assert offered["feedback"] == {"mode": "email", "contact": "ops@example.org"}
+    assert _offer(offered["security"]) == {
+        "mode": "email",
+        "contact": "security@example.org",
+    }
+    assert _offer(offered["support"]) == {"mode": "email", "contact": "ops@example.org"}
+    assert _offer(offered["feedback"]) == {
+        "mode": "email",
+        "contact": "ops@example.org",
+    }
 
 
 async def test_a_report_is_always_a_form(client, session, acting_user):
@@ -249,7 +264,10 @@ async def test_a_report_is_always_a_form(client, session, acting_user):
     await _set_contacts(session, moderation="trust@example.org")
 
     offered = await _offered(client, member)
-    assert offered["moderation"] == {"mode": "form", "contact": "trust@example.org"}
+    assert _offer(offered["moderation"]) == {
+        "mode": "form",
+        "contact": "trust@example.org",
+    }
 
 
 async def test_help_is_offered_only_from_a_community_the_reader_is_in(

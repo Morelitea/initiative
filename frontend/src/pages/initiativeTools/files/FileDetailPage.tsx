@@ -701,7 +701,7 @@ export const FileDetailPage = () => {
                       isOpen={outline.isOpen}
                       onOpenChange={outline.setIsOpen}
                       className={cn(
-                        "hidden w-64 shrink-0 lg:flex",
+                        "hidden w-64 shrink-0 md:flex",
                         isFullscreen ? "min-h-0" : "max-h-[80vh]"
                       )}
                     />

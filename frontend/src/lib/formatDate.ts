@@ -1,3 +1,4 @@
+import { dateTimeFormat } from "@/lib/intl";
 import { hour12Option } from "@/lib/timeFormat";
 import type { TranslateFn } from "@/types/i18n";
 
@@ -18,7 +19,7 @@ const format = (value: unknown, withTime: boolean): string => {
   if (typeof value !== "string" || !value) return "";
   const date = toDate(value);
   if (Number.isNaN(date.getTime())) return "";
-  return new Intl.DateTimeFormat(undefined, {
+  return dateTimeFormat(undefined, {
     dateStyle: "medium",
     ...(withTime ? { timeStyle: "short", hour12: hour12Option() } : {}),
   }).format(date);
@@ -80,7 +81,7 @@ export const formatDayHeading = (value: string, t: TranslateFn): string => {
   const key = dayKeyOf(date);
   if (key === dayKeyOf(today)) return t("common:days.today");
   if (key === dayKeyOf(yesterday)) return t("common:days.yesterday");
-  return new Intl.DateTimeFormat(undefined, {
+  return dateTimeFormat(undefined, {
     weekday: "short",
     year: "numeric",
     month: "short",
@@ -103,15 +104,13 @@ const periodDate = (period: string): Date | null => {
  *  "March 2026". Returns the raw period if it is not one. */
 export const formatPeriod = (period: string): string => {
   const date = periodDate(period);
-  return date
-    ? new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric" }).format(date)
-    : period;
+  return date ? dateTimeFormat(undefined, { month: "long", year: "numeric" }).format(date) : period;
 };
 
 /** Just the year of a `YYYY-MM` period, for a timeline's group headings. */
 export const formatPeriodYear = (period: string): string => {
   const date = periodDate(period);
-  return date ? new Intl.DateTimeFormat(undefined, { year: "numeric" }).format(date) : period;
+  return date ? dateTimeFormat(undefined, { year: "numeric" }).format(date) : period;
 };
 
 /**

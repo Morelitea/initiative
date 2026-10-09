@@ -470,6 +470,9 @@ STANDING_FIELDS: tuple[tuple[str, str, str], ...] = (
     # The community's content is on hold (``read_only``) for this reader: no
     # change to any of it, whatever their rung. A grant is not held.
     _read(gucs.CONTENT_HOLD),
+    # A ``moderate`` content grant covers the request: held content is
+    # readable (``app.db.holds``). Last, as ``ALTER TYPE`` appends.
+    _read(gucs.PAM_MODERATE),
 )
 _STANDING_NAMES = frozenset(name for name, _type, _expr in STANDING_FIELDS)
 
@@ -585,6 +588,10 @@ class Legs:
     @property
     def content_hold(self) -> str:
         return self.field("content_hold")
+
+    @property
+    def pam_moderate(self) -> str:
+        return self.field("pam_moderate")
 
     @property
     def pam_any(self) -> str:
@@ -1264,9 +1271,26 @@ AUTHORIZATION_FUNCTIONS: tuple[tuple[str, str], ...] = (
 #: ``guild_ddl.render_guild_rls_ddl`` ahead of the policies that call them,
 #: in this order: the SQL bodies are checked at creation, and each names only
 #: tables and the ``public`` functions above.
+#: Whether this statement reads what the platform holds (``app.db.holds``):
+#: the system engine, or a ``moderate`` content grantee. One function, so each
+#: holdable table's policy names one once-per-statement call.
+READS_HELD = """\
+CREATE OR REPLACE FUNCTION reads_held()
+ RETURNS boolean
+ LANGUAGE plpgsql
+ STABLE
+AS $function$
+BEGIN
+    RETURN standing_system_session() OR standing_pam_moderate();
+END
+$function$
+
+"""
+
 GUILD_AUTHORIZATION_FUNCTIONS: tuple[tuple[str, str], ...] = (
     *READ_FUNCTIONS,
     ("current_standing", CURRENT_STANDING),
+    ("reads_held", READS_HELD),
     ("initiative_access", INITIATIVE_ACCESS),
     ("initiative_full_access", INITIATIVE_FULL_ACCESS),
     ("initiative_role_permits", INITIATIVE_ROLE_PERMITS),
@@ -1286,6 +1310,7 @@ GUILD_AUTHORIZATION_FUNCTIONS: tuple[tuple[str, str], ...] = (
 GUILD_FUNCTION_SIGNATURES: dict[str, str] = {
     **{name: "()" for name, _sql in READ_FUNCTIONS},
     "current_standing": "()",
+    "reads_held": "()",
     "initiative_access": "(integer, integer, boolean, public.standing)",
     "initiative_full_access": "(integer, boolean, public.standing)",
     "initiative_role_permits": "(integer, integer, text, boolean, public.standing)",

@@ -43,7 +43,6 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsBar, TabsContent, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useAuth } from "@/hooks/useAuth";
 import { useAutoCloseSidebar } from "@/hooks/useAutoCloseSidebar";
@@ -55,6 +54,7 @@ import { compareVersions, useLatestVersion } from "@/hooks/useLatestVersion";
 import { useFavoriteProjects, useProjects } from "@/hooks/useProjects";
 import { useTags } from "@/hooks/useTags";
 import { useToolCountsByInitiative } from "@/hooks/useToolCounts";
+import { atLeast, useWidthClass } from "@/hooks/useWidthClass";
 import { communityPath } from "@/lib/communityUrl";
 import { canAccessOperatorDashboard, canManagePlatformConfig } from "@/lib/permissions";
 import { getItem, setItem } from "@/lib/storage";
@@ -64,7 +64,7 @@ export const AppSidebar = () => {
   const { user, logout, refreshUser } = useAuth();
   const { communityDirectoryEnabled, isLoading: configLoading } = useAppConfig();
   const { activeCommunity, activeCommunityId } = useCommunities();
-  const isMobile = useIsMobile();
+  const isMobile = !atLeast(useWidthClass(), "md");
   const location = useLocation();
   const { t } = useTranslation(["nav", "tags", "initiatives"]);
 

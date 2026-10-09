@@ -75,6 +75,8 @@ class LockNamespace(IntEnum):
     INTAKE_CASE = _tag(b"INTK")
     #: One moderation report target, keyed by guild, initiative and target.
     MODERATION_REPORT = _tag(b"MODR")
+    #: Placing or releasing a hold in a guild, and destroying the guild.
+    CONTENT_HOLDS = _tag(b"HOLD")
     #: One poll, keyed by guild and poll.
     POST_POLL = _tag(b"POLL")
     #: One plug-in connection's token, keyed by guild, install and connection.

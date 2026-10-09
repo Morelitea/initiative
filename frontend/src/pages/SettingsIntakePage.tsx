@@ -503,7 +503,7 @@ const StreamCard = ({ binding, initiatives, settled }: StreamCardProps) => {
 
             {binding.conversation && binding.conversation !== Conversation.none ? (
               <div className="space-y-3">
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid grid-cols-pair gap-3">
                   <div className="space-y-2">
                     <Label htmlFor={`awaiting-${stream}`}>{t("stream.awaitingLabel")}</Label>
                     <Select

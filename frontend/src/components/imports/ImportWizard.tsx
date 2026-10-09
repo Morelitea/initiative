@@ -541,7 +541,7 @@ export function ImportWizard({ open, onOpenChange }: ImportWizardProps) {
       backLabel={t("wizard.back")}
     >
       {step === "source" && (
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-pair gap-3">
           {SOURCES.map((option) => (
             <button
               key={option}

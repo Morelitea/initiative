@@ -84,7 +84,7 @@ A request names **what it reaches**, and the two halves are asked for separately
 
 | | What it reaches |
 |---|---|
-| **Content** | What the community holds — read-only, or read-and-write. A read-write grant edits existing material; it doesn't author new material or manage members. |
+| **Content** | What the community holds — read-only, read-and-write, or **moderate**. A read-write grant edits existing material; it doesn't author new material or manage members. A moderate grant reads everything, including what is [held](#held-content), and changes nothing. Only moderators and operators can ask for one, and it can't be self-issued. |
 | **Settings** | The community's configuration and nothing inside it, held at **admin** or **superadmin** — the community's own two rungs. Somebody helping with a moderation setting has no business in anybody's files, and this is how they don't end up there. |
 
 Ask for one, the other, or both. Each is approved and recorded on its own.
@@ -148,6 +148,20 @@ It's all one page, **Settings → Platform → Intake**. Pick the community, the
 Give security and moderation an initiative each, so only the people working those cases can read them. The page says so if two kinds share one.
 
 The people who asked follow their cases from **My Tickets**. Pick the status that means **Waiting on the requester**, and the one their answer moves a case to; **Set this up for me** picks both. With none picked, requesters see Received, In progress and Closed, and never "Waiting on you". Answer them from the panel on the case, which is kept apart from its comments, so the team's own discussion stays the team's.
+
+## Held content
+
+A community's moderators can **hold** something for the platform when a legal request asks for it to be kept, or it may be illegal. Held content disappears for everyone in that community, its admins included, and nobody there can change or delete it. The community can't be deleted for good while anything in it is held.
+
+Each hold opens a moderation case in the operations community, or lands on the case a platform moderator placed it from. The case shows its **Holds** to anyone with a moderate grant on that community: why it was held, the note left with it, and three ways to release it:
+
+| Release | What happens |
+|---|---|
+| **Restore** | It's back exactly as it was. |
+| **Remove** | It goes to the community's bin. |
+| **Purge** | It's deleted for good, with everything held with it. |
+
+A hold never expires. Every 30 days it stays in place, its case is reminded.
 
 ## Who to contact
 

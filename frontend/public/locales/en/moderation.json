@@ -13,6 +13,7 @@
   "reportedCount_other": "Reported by {{count}} people",
   "targetUnavailable": "This isn't here any more, or isn't yours to see.",
   "whatTheySaid": "What they said",
+  "attached": "What they sent",
   "reviewElsewhere": "Open the reported item to look at it in context, then decide here.",
   "notePlaceholder": "What you found, and why you decided this (optional)",
   "settledAt": "Settled {{when}}.",
@@ -22,7 +23,8 @@
     "dismissed": "Dismiss",
     "content_removed": "Content removed",
     "member_warned": "Member warned",
-    "escalated": "Escalate"
+    "escalated": "Sent to the platform",
+    "held": "Hidden and sent to the platform"
   },
   "reasons": {
     "spam": "Spam",
@@ -87,5 +89,43 @@
     "roles_one": "{{count}} role",
     "roles_other": "{{count}} roles"
   },
-  "loadFailed": "Could not load that. Try again."
+  "loadFailed": "Could not load that. Try again.",
+  "hold": {
+    "title": "Hold for the platform",
+    "description": "The platform keeps this exactly as it is. Nobody in this community can see, change or delete it until the platform releases it.",
+    "reasonLabel": "Why",
+    "reasons": {
+      "legal_request": "A legal request to keep it",
+      "illegal_content": "It may be illegal"
+    },
+    "basisLabel": "Which law",
+    "basisPlaceholder": "Choose one",
+    "bases": {
+      "child_safety": "Child safety",
+      "terrorism": "Terrorism",
+      "intellectual_property": "Intellectual property",
+      "fraud": "Fraud",
+      "privacy": "Privacy",
+      "other": "Something else"
+    },
+    "noteLabel": "Note for the platform (optional)",
+    "notePlaceholder": "Who asked, and any reference number",
+    "noteHelp": "Only the platform can read this.",
+    "submit": "Hold it",
+    "held": "Held for the platform.",
+    "error": "Couldn't hold this.",
+    "releaseError": "Couldn't release this hold."
+  },
+  "sendToPlatform": {
+    "action": "Send to the platform",
+    "title": "Send to the platform",
+    "description": "Hand this report to whoever runs this server. It closes here, and they decide what happens next.",
+    "question": "While they look at it",
+    "leaveLabel": "Leave it up while they look",
+    "leaveDescription": "Everyone can still see it until they decide.",
+    "hideLabel": "Hide it now, and keep it exactly as it is",
+    "hideDescription": "Use this if the police or a court asked you to keep it, or if it may be illegal. It disappears for everyone, you included, and nobody here can change or delete it until the platform decides.",
+    "leaveSubmit": "Send",
+    "hideSubmit": "Hide and send"
+  }
 }

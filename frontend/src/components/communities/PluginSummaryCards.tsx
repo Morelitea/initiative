@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { parseDateValue } from "@/lib/formatDate";
+import { dateTimeFormat, numberFormat } from "@/lib/intl";
 import { localized } from "@/lib/widgets/widgetMeta";
 
 type Translate = TFunction<["communities", "common"]>;
@@ -15,11 +16,11 @@ type Translate = TFunction<["communities", "common"]>;
 const formatOne = (value: unknown, type: string, lang: string, t: Translate): string | null => {
   if (value == null) return null;
   if (type === "int" && typeof value === "number") {
-    return new Intl.NumberFormat(lang).format(value);
+    return numberFormat(lang).format(value);
   }
   if (type === "datetime") {
     const date = parseDateValue(String(value));
-    return date ? new Intl.DateTimeFormat(lang, { dateStyle: "long" }).format(date) : null;
+    return date ? dateTimeFormat(lang, { dateStyle: "long" }).format(date) : null;
   }
   if (type === "bool" && typeof value === "boolean") {
     return value ? t("common:yes") : t("common:no");

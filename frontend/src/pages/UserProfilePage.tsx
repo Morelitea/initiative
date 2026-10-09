@@ -148,7 +148,7 @@ export const UserProfilePage = () => {
                 <h2 className="px-1 font-medium text-muted-foreground text-sm">
                   {t("profiles:communities.title")}
                 </h2>
-                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                <div className="grid grid-cols-fill-64/3 gap-4">
                   {shelved.map((community) => (
                     <CommunityCard key={community.id} community={community} />
                   ))}

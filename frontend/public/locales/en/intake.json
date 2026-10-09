@@ -139,6 +139,54 @@
     "replyAndWait": "Send and wait for them",
     "fromTeam": "The team ({{name}})",
     "someone": "Someone",
-    "conversationLabel": "Conversation with {{name}}"
+    "conversationLabel": "Conversation with {{name}}",
+    "holds": {
+      "title": "Holds",
+      "none": "Nothing is held on this case.",
+      "needGrant": "To see and release what is held in community {{community}}, request moderation access to it.",
+      "requestAccess": "Request access",
+      "holdReported": "Hold the reported content",
+      "target": "{{type}} {{id}}",
+      "via": {
+        "community": "Held by the community",
+        "platform": "Held by the platform"
+      },
+      "reasons": {
+        "legal_request": "Legal request",
+        "illegal_content": "May be illegal"
+      },
+      "bases": {
+        "child_safety": "Child safety",
+        "terrorism": "Terrorism",
+        "intellectual_property": "Intellectual property",
+        "fraud": "Fraud",
+        "privacy": "Privacy",
+        "other": "Other"
+      },
+      "restore": "Restore",
+      "remove": "Remove",
+      "purge": "Purge",
+      "purgeTitle": "Purge this content?",
+      "purgeDescription": "This destroys it for good, with everything held with it. It can't be undone.",
+      "released": {
+        "restore": "Released: restored",
+        "remove": "Released: removed",
+        "purge": "Released: purged"
+      }
+    }
+  },
+  "evidence": {
+    "attach": "Attach files",
+    "limits_one": "Up to {{count}} file, {{size}} at most.",
+    "limits_other": "Up to {{count}} files, {{size}} each at most.",
+    "remove": "Remove {{name}}",
+    "tooMany_one": "You can attach {{count}} file.",
+    "tooMany_other": "You can attach up to {{count}} files.",
+    "tooLarge": "{{name}} is larger than {{size}}.",
+    "notAllowed": "{{name}} isn't a kind of file this takes.",
+    "heading": "Attached",
+    "reveal": "Show {{name}}",
+    "view": "View {{name}}",
+    "open": "Open {{name}}"
   }
 }

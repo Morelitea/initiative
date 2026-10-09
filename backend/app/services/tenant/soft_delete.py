@@ -51,6 +51,7 @@ from app.models.tenant.file import File
 from app.models.tenant.gallery import GalleryImage
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.task import Task
+from app.services.tenant.held import refuse_if_held
 from app.services.tenant.lifecycle_tree import (
     CASCADE_CHILDREN,
     Level,
@@ -185,6 +186,16 @@ async def trash(
     return retention_days
 
 
+def _live_and_not_held(model: type):
+    """What trashing a parent takes with it: what is not in the trash already,
+    and not held. A held row stays where it is when its parent goes
+    (``app.db.holds``)."""
+    live = model.deleted_at.is_(None)
+    if hasattr(model, "held_at"):
+        return live & model.held_at.is_(None)
+    return live
+
+
 async def soft_delete_entity(
     session: AsyncSession,
     entity: SoftDeleteMixin,
@@ -211,9 +222,7 @@ async def soft_delete_entity(
     # under it at the database, so a child written after its parent was stamped
     # would be refused. Collected before anything is stamped, while the walk's
     # own queries still see an untouched tree.
-    levels = await subtree_levels(
-        session, [entity], where=lambda model: model.deleted_at.is_(None)
-    )
+    levels = await subtree_levels(session, [entity], where=_live_and_not_held)
     for level in reversed(levels):
         await _write_level(session, level, values, park=True)
 
@@ -310,7 +319,9 @@ async def hard_purge_entities(
     in the bin or not, then deleted a level at a time from the bottom up, one
     statement per table, so no foreign key is left pointing at a row that went
     first. For Files anywhere in the set, upload cleanup runs before the
-    DELETEs so ``Upload`` rows pinned only by the doomed files go too.
+    DELETEs so ``Upload`` rows pinned only by the doomed files go too. The
+    stored names returned include the evidence objects of doomed cases and
+    reports, which live in the same storage.
     """
     from app.services.tenant.files import unresolve_wikilinks_to_file
     from app.services.tenant.attachments import (
@@ -335,6 +346,9 @@ async def hard_purge_entities(
     for level in levels:
         for model, ids in level.items():
             doomed.setdefault(model, []).extend(ids)
+    # Held content is never destroyed by a purge of what it sits in: the purge
+    # waits until the platform releases it (app.db.holds).
+    await refuse_if_held(session, roots, doomed)
 
     loaded: dict[type, list] = {}
     for model, options in _PURGE_LOADS.items():
@@ -373,6 +387,16 @@ async def hard_purge_entities(
     # What is left of an initiative's files goes with it.
     if doomed.get(Initiative):
         released |= await purge_initiative_uploads(session, doomed[Initiative])
+
+    # Files attached to a doomed case or report, which go with their rows.
+    if doomed.get(Task) or doomed.get(Initiative):
+        from app.services.platform.evidence import released_by_purge
+
+        released |= await released_by_purge(
+            session,
+            task_ids=doomed.get(Task, ()),
+            initiative_ids=doomed.get(Initiative, ()),
+        )
 
     # Tombstones go with the edges: what one remembers is a link between two
     # things, and one of them is about to stop existing. Last of the sweeps,

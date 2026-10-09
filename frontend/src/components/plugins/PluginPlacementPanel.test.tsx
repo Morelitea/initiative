@@ -90,7 +90,7 @@ const plugin = (placed: number[], roleIds: number[] = [], page = true) =>
   ({
     id: 7,
     name: "Automations",
-    definition: { embeds: page ? [initiativePage] : [] },
+    definition: { pages: page ? [initiativePage] : [] },
     requested_scopes: ["projects:read"],
     placements: placed.map((initiative_id) => ({ initiative_id, role_ids: roleIds })),
   }) as unknown as CommunityPluginDetail;

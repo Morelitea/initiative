@@ -44,7 +44,7 @@ export function YearView({
   }, [weekStartsOn, t]);
 
   return (
-    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+    <div className="grid grid-cols-fill-56/4 gap-6">
       {months.map((monthDate) => {
         const days = eachDayOfInterval({
           start: startOfWeek(monthDate, { weekStartsOn }),

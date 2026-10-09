@@ -65,6 +65,12 @@
       "tailwindDirectives": true
     }
   },
+  // The width classes are the app's only widths: see styles.css.
+  "plugins": [
+    "./biome-plugins/no-other-widths.grit",
+    "./biome-plugins/no-other-widths-css.grit",
+    "./biome-plugins/one-formatter.grit"
+  ],
   "linter": {
     "enabled": true,
     "rules": {

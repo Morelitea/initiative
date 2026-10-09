@@ -1112,6 +1112,8 @@ def render_retired_functions_ddl() -> str:
 
 
 def render_guild_rls_ddl() -> str:
+    from app.db.holds import render_holds_ddl
+
     blocks = [_table_block(t, INITIATIVE_PATHS[t]) for t in sorted(INITIATIVE_PATHS)]
     # Shared, and written before the policies that call it. Re-rendered on every
     # provisioning run from the same registry the policies come from, so a kind
@@ -1160,6 +1162,7 @@ def render_guild_rls_ddl() -> str:
     out += "\n\n" + _PLUGIN_SECTION + "\n\n" + "\n\n".join(plugin_blocks)
     out += "\n\n" + _SHARING_SECTION + "\n\n" + _sharing_block()
     out += "\n\n" + _DRAFT_SECTION + "\n\n" + _draft_block()
+    out += "\n\n" + render_holds_ddl()
     out += (
         "\n\n"
         + _DEPARTURE_SECTION

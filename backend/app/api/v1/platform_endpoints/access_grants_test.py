@@ -569,3 +569,40 @@ async def test_a_revoked_grant_is_not_recorded_as_expiring(
     await session.refresh(revoked)
     assert revoked.status == "revoked"
     assert emitted(capfd, AuditEventType.ACCESS_GRANT_DECIDED) == []
+
+
+async def test_a_moderate_grant_is_for_those_who_moderate(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Reading what the platform holds is moderation work: support may not ask
+    for it, a moderator may, and approving it asks again of the grantee."""
+    guild = await create_guild(session)
+    support = await acting_user("support")
+    refused = await _request_access(client, support, guild, access_level="moderate")
+    assert refused.status_code == 403
+    assert refused.json()["detail"] == "ACCESS_GRANT_MODERATE_NOT_HELD"
+
+    moderator = await acting_user("moderator")
+    asked = await _request_access(client, moderator, guild, access_level="moderate")
+    assert asked.status_code in (200, 201), asked.text
+    assert asked.json()["access_level"] == "moderate"
+
+
+async def test_a_moderate_grant_is_never_self_issued(
+    session: AsyncSession, acting_user
+):
+    from app.core.messages import AccessGrantMessages
+    from app.models.platform.access_grant import AccessLevel
+    from app.schemas.platform.access_grant import BreakGlassCreate
+    from app.services.platform import access_grants as service
+
+    guild = await create_guild(session)
+    operator = await acting_user("operator")
+    with pytest.raises(service.AccessGrantError) as refused:
+        await service.break_glass(
+            session,
+            actor=operator.user,
+            payload=BreakGlassCreate(community_id=guild.id, reason="looking quickly"),
+            level=AccessLevel.moderate.value,
+        )
+    assert refused.value.code == AccessGrantMessages.MODERATE_NOT_HELD

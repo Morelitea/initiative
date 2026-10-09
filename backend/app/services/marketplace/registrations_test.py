@@ -39,7 +39,7 @@ BASE_URL = "http://127.0.0.1:9100"
 HTTPS_BASE_URL = "https://widgets.example.com"
 #: A public address for the same plug-in, standing in for what a reverse proxy
 #: publishes while ``BASE_URL`` stays the address the deployment itself calls.
-EMBED_ORIGIN = "https://widgets.example.com"
+PAGE_ORIGIN = "https://widgets.example.com"
 #: The catalog listing the plug-in speaks for.
 LISTING_UID = "K7M2QX8N4TVB9C"
 
@@ -152,21 +152,21 @@ def test_origins_default_to_the_browser_base_origin():
     """The list holds browser origins, so it is derived from the address a
     browser uses — the wire surface only when the plug-in answers on one address."""
     assert service.normalize_origins(None, browser_base=BASE_URL) == [BASE_URL]
-    assert service.normalize_origins(
-        None, browser_base=f"{EMBED_ORIGIN}/plugins/x"
-    ) == [EMBED_ORIGIN]
+    assert service.normalize_origins(None, browser_base=f"{PAGE_ORIGIN}/plugins/x") == [
+        PAGE_ORIGIN
+    ]
 
 
-def test_embed_origin_accepts_a_base_and_reports_its_own_code():
+def test_page_origin_accepts_a_base_and_reports_its_own_code():
     """Held to the same shape as base_url, since it stands in for it — a
     deployment publishing a plug-in under a path prefix says so here too."""
-    assert service.normalize_embed_origin(f"{EMBED_ORIGIN}/auto/") == (
-        f"{EMBED_ORIGIN}/auto"
+    assert service.normalize_page_origin(f"{PAGE_ORIGIN}/auto/") == (
+        f"{PAGE_ORIGIN}/auto"
     )
     for bad in ("ftp://x", "http://", "https://h#frag", "not-a-url"):
         with pytest.raises(HTTPException) as excinfo:
-            service.normalize_embed_origin(bad)
-        assert excinfo.value.detail == PluginServiceMessages.INVALID_EMBED_ORIGIN
+            service.normalize_page_origin(bad)
+        assert excinfo.value.detail == PluginServiceMessages.INVALID_PAGE_ORIGIN
 
 
 # --- signing key -------------------------------------------------------------
@@ -466,11 +466,11 @@ async def test_connect_needs_a_base_url(session):
 
 
 async def test_the_browser_address_names_the_allowed_origins(session):
-    row = await _create(session, embed_origin=EMBED_ORIGIN)
+    row = await _create(session, page_origin=PAGE_ORIGIN)
 
-    assert row.embed_origin == EMBED_ORIGIN
+    assert row.page_origin == PAGE_ORIGIN
     # Browser origins, so they come from the browser address.
-    assert row.allowed_origins == [EMBED_ORIGIN]
+    assert row.allowed_origins == [PAGE_ORIGIN]
 
 
 async def test_moving_the_browser_address_moves_a_default_origin_list(session):
@@ -478,29 +478,29 @@ async def test_moving_the_browser_address_moves_a_default_origin_list(session):
     assert row.allowed_origins == [BASE_URL]
 
     updated = await service.update_registration(
-        session, row.id, embed_origin=EMBED_ORIGIN
+        session, row.id, page_origin=PAGE_ORIGIN
     )
 
     # The list was still the plug-in's own origin, so it follows the plug-in.
-    assert updated.allowed_origins == [EMBED_ORIGIN]
+    assert updated.allowed_origins == [PAGE_ORIGIN]
 
 
 async def test_an_operators_own_origin_list_survives_a_move(session):
     row = await _create(session, allowed_origins=["https://chosen.example.com"])
 
     updated = await service.update_registration(
-        session, row.id, embed_origin=EMBED_ORIGIN
+        session, row.id, page_origin=PAGE_ORIGIN
     )
 
     assert updated.allowed_origins == ["https://chosen.example.com"]
 
 
 async def test_clearing_the_browser_address_puts_both_surfaces_back(session):
-    row = await _create(session, embed_origin=EMBED_ORIGIN)
+    row = await _create(session, page_origin=PAGE_ORIGIN)
 
-    updated = await service.update_registration(session, row.id, embed_origin="")
+    updated = await service.update_registration(session, row.id, page_origin="")
 
-    assert updated.embed_origin is None
+    assert updated.page_origin is None
     assert updated.allowed_origins == [BASE_URL]
 
 
@@ -714,7 +714,7 @@ async def test_a_container_republished_as_declarative_leaves_its_location(sessio
 
     row = await _registration(session)
     assert row.kind == "declarative"
-    assert (row.base_url, row.embed_origin, row.jwks, row.jwks_uri) == (None,) * 4
+    assert (row.base_url, row.page_origin, row.jwks, row.jwks_uri) == (None,) * 4
     assert row.allowed_origins == []
 
 
@@ -882,7 +882,7 @@ async def test_reconcile_reads_the_browser_address_from_the_file(
     )
     await service.reconcile_from_config(session)
 
-    entry["embed_origin"] = EMBED_ORIGIN
+    entry["page_origin"] = PAGE_ORIGIN
     monkeypatch.setattr(
         settings, "PLUGIN_SERVICES_CONFIG", _write_config(tmp_path, [entry])
     )
@@ -890,8 +890,8 @@ async def test_reconcile_reads_the_browser_address_from_the_file(
 
     assert (result.updated, result.unchanged) == (1, 0)
     row = await _registration(session, "acme.two-addresses")
-    assert row.embed_origin == EMBED_ORIGIN
-    assert row.allowed_origins == [EMBED_ORIGIN]
+    assert row.page_origin == PAGE_ORIGIN
+    assert row.allowed_origins == [PAGE_ORIGIN]
 
 
 async def test_reconcile_is_idempotent(session, tmp_path, monkeypatch):

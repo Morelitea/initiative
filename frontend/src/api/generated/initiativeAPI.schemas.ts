@@ -103,6 +103,7 @@ export type AccessLevel = (typeof AccessLevel)[keyof typeof AccessLevel];
 export const AccessLevel = {
   read: "read",
   read_write: "read_write",
+  moderate: "moderate",
 } as const;
 
 /**
@@ -932,6 +933,12 @@ export interface BillingPortalHandoffResponse {
   expires_in_seconds: number;
 }
 
+export interface BodyFileTicket {
+  /** The ticket, as JSON: a support request or a report, told apart by ``stream``. */
+  payload: string;
+  files?: Blob[];
+}
+
 export interface BodyImportEnvelopeArchive {
   file: Blob;
   initiative_id: number;
@@ -955,6 +962,11 @@ export interface BodyLoginAccessToken {
 
 export interface BodyNotifyMentions {
   mentioned_user_ids: number[];
+}
+
+export interface BodyReplyToFiledTicket {
+  body: string;
+  files?: Blob[];
 }
 
 export interface BodySetCommunityBanner {
@@ -1630,6 +1642,19 @@ export interface CaptchaSettingsUpdate {
   provider?: CaptchaProvider | null;
   site_key?: string | null;
   secret_key?: string | null;
+}
+
+/**
+ * A file attached to a case, and where in the conversation it came.
+ */
+export interface CaseEvidenceRead {
+  id: number;
+  display_name: string;
+  content_type: string;
+  size_bytes: number;
+  created_at: string;
+  comment_id?: number | null;
+  from_requester?: boolean;
 }
 
 /**
@@ -2643,7 +2668,7 @@ export interface PluginSurfaceAccessRead {
 export type PluginSurfaceSummaryName = { [key: string]: string };
 
 /**
- * One of a plug-in's embedded surfaces, by id and by its localized name.
+ * One of a plug-in's pages, by id and by its localized name.
  */
 export interface PluginSurfaceSummary {
   id: string;
@@ -2732,7 +2757,7 @@ export interface CommunityPluginDetail {
 }
 
 /**
- * A short-lived credential for one of a plug-in's embedded surfaces.
+ * A short-lived credential for one of a plug-in's pages.
  *
  * The token reaches the iframe by ``postMessage`` and never a query string,
  * and it is worth a minute. ``allowed_origins`` is what the SPA posts to and
@@ -2741,7 +2766,7 @@ export interface CommunityPluginDetail {
 export interface CommunityPluginHandoff {
   handoff_token: string;
   expires_in_seconds: number;
-  embed_url: string;
+  page_url: string;
   allowed_origins: string[];
   audience: string;
   surface_id: string;
@@ -3192,6 +3217,70 @@ export interface ContactSectionsResponse {
   sections: ContactCommunitySection[];
   page: number;
   page_size: number;
+}
+
+/**
+ * Who placed a hold.
+ */
+export type HoldVia = (typeof HoldVia)[keyof typeof HoldVia];
+
+export const HoldVia = {
+  community: "community",
+  platform: "platform",
+} as const;
+
+/**
+ * Why content is held.
+ */
+export type HoldReason = (typeof HoldReason)[keyof typeof HoldReason];
+
+export const HoldReason = {
+  legal_request: "legal_request",
+  illegal_content: "illegal_content",
+} as const;
+
+/**
+ * The law something is held, or reported, under. Closed, so cases can be
+ * counted by it.
+ */
+export type LegalBasis = (typeof LegalBasis)[keyof typeof LegalBasis];
+
+export const LegalBasis = {
+  child_safety: "child_safety",
+  terrorism: "terrorism",
+  intellectual_property: "intellectual_property",
+  fraud: "fraud",
+  privacy: "privacy",
+  other: "other",
+} as const;
+
+/**
+ * How a hold ended. Only the platform releases one.
+ */
+export type HoldRelease = (typeof HoldRelease)[keyof typeof HoldRelease];
+
+export const HoldRelease = {
+  restore: "restore",
+  remove: "remove",
+  purge: "purge",
+} as const;
+
+/**
+ * One hold, as the platform reads it.
+ */
+export interface ContentHoldRead {
+  id: number;
+  target_type: string;
+  target_id: number;
+  label?: string | null;
+  case_task_id?: number | null;
+  placed_via: HoldVia;
+  reason: HoldReason;
+  legal_basis?: LegalBasis | null;
+  note?: string | null;
+  placed_at: string;
+  released_at?: string | null;
+  release_outcome?: HoldRelease | null;
 }
 
 /**
@@ -4359,6 +4448,27 @@ export interface EnvelopeImportResult {
 }
 
 /**
+ * What may be attached: how many files, how large, of which types.
+ */
+export interface EvidencePolicyRead {
+  max_files: number;
+  max_bytes: number;
+  types: string[];
+}
+
+/**
+ * One attached file: what it is called and what it is. Fetched by its
+ * own route, never by a link that outlives the reader's access.
+ */
+export interface EvidenceRead {
+  id: number;
+  display_name: string;
+  content_type: string;
+  size_bytes: number;
+  created_at: string;
+}
+
+/**
  * Public FCM configuration for mobile app initialization.
  *
  * Only exposes public fields (API key, project ID, sender ID).
@@ -4618,6 +4728,7 @@ export interface TicketMessageRead {
   mine: boolean;
   content: string;
   created_at: string;
+  attachments?: EvidenceRead[];
 }
 
 /**
@@ -4632,6 +4743,7 @@ export interface FiledTicketDetailRead {
   updated_at: string | null;
   conversation: Conversation;
   can_reply: boolean;
+  evidence: EvidencePolicyRead;
   messages: TicketMessageRead[];
 }
 
@@ -5007,6 +5119,37 @@ export interface HeldChangeRead {
  */
 export interface HeldChangeOutcome {
   held: HeldChangeRead | null;
+}
+
+/**
+ * Hold something for the platform.
+ */
+export interface HoldCreate {
+  /**
+   * @minLength 1
+   * @maxLength 32
+   */
+  target_type: string;
+  target_id: number;
+  reason: HoldReason;
+  legal_basis?: LegalBasis | null;
+  note?: string | null;
+  case_task_id?: number | null;
+}
+
+/**
+ * A hold was placed. Nothing more is said: from now on, the content
+ * reads as absent to the community, the moderator who held it included.
+ */
+export interface HoldPlaced {
+  placed?: boolean;
+}
+
+/**
+ * End a hold.
+ */
+export interface HoldReleaseCreate {
+  outcome: HoldRelease;
 }
 
 export interface ICalEventPreview {
@@ -5938,6 +6081,7 @@ export const ReportOutcome = {
   content_removed: "content_removed",
   member_warned: "member_warned",
   escalated: "escalated",
+  held: "held",
 } as const;
 
 /**
@@ -5974,6 +6118,7 @@ export interface ModerationReportRead {
   decided_at?: string | null;
   target_excerpt?: string | null;
   target_link?: ReportTargetLink | null;
+  evidence?: EvidenceRead[];
 }
 
 export interface ModerationReportList {
@@ -5983,18 +6128,6 @@ export interface ModerationReportList {
   has_next: boolean;
   has_prev: boolean;
   items: ModerationReportRead[];
-}
-
-/**
- * Reporting something. The same shape from every surface.
- */
-export interface ModerationTicketCreate {
-  target_type: string;
-  target_id: number;
-  reason: ReportReason;
-  detail?: string | null;
-  community_id?: number | null;
-  stream: "moderation";
 }
 
 /**
@@ -7158,7 +7291,7 @@ export type PluginServiceRegistrationCreateVendorValues = { [key: string]: strin
 /**
  * Set up a plug-in service's deployment facts before its listing arrives.
  *
- * ``public_id`` names the plug-in. ``embed_origin`` is optional, and unset is the
+ * ``public_id`` names the plug-in. ``page_origin`` is optional, and unset is the
  * ordinary case: a plug-in reachable at one address needs only ``base_url``.
  * Give one when the address a browser must use is not the address this
  * deployment calls.
@@ -7171,7 +7304,7 @@ export interface PluginServiceRegistrationCreate {
   public_id: string;
   /** @maxLength 1000 */
   base_url: string;
-  embed_origin?: string | null;
+  page_origin?: string | null;
   allowed_origins?: string[] | null;
   jwks?: PluginServiceRegistrationCreateJwks;
   jwks_uri?: string | null;
@@ -7210,7 +7343,7 @@ export interface PluginServiceRegistrationRead {
   publisher_name: string;
   publisher_enabled: boolean;
   base_url: string | null;
-  embed_origin: string | null;
+  page_origin: string | null;
   allowed_origins: string[];
   jwks: PluginServiceRegistrationReadJwks;
   jwks_uri: string | null;
@@ -7241,7 +7374,7 @@ export type PluginServiceRegistrationUpdateVendorValues = { [key: string]: strin
 /**
  * Partial edit.
  *
- * An empty ``embed_origin`` clears it, putting both surfaces back on
+ * An empty ``page_origin`` clears it, putting both surfaces back on
  * ``base_url``. An empty ``jwks_uri`` clears it, and an empty ``jwks``
  * object clears the pasted set. In ``vendor_values`` a key sent empty or
  * null clears that value, and a key left out keeps it, so a secret is kept
@@ -7249,7 +7382,7 @@ export type PluginServiceRegistrationUpdateVendorValues = { [key: string]: strin
  */
 export interface PluginServiceRegistrationUpdate {
   base_url?: string | null;
-  embed_origin?: string | null;
+  page_origin?: string | null;
   allowed_origins?: string[] | null;
   jwks?: PluginServiceRegistrationUpdateJwks;
   jwks_uri?: string | null;
@@ -8456,11 +8589,21 @@ export interface RelationshipRead {
 }
 
 /**
+ * Why a report's target is being held for the platform.
+ */
+export interface ReportHold {
+  reason: HoldReason;
+  legal_basis?: LegalBasis | null;
+  note?: string | null;
+}
+
+/**
  * Settling a report. Every outcome closes it.
  */
 export interface ReportSettle {
   outcome: ReportOutcome;
   note?: string | null;
+  hold?: ReportHold | null;
 }
 
 /**
@@ -8853,6 +8996,7 @@ export const TicketMode = {
 export interface StreamAvailabilityRead {
   mode: TicketMode;
   contact: string | null;
+  evidence: EvidencePolicyRead;
 }
 
 /**
@@ -8871,24 +9015,6 @@ export interface SubjectReadRequest {
 export interface SubjectReadResponse {
   comment_ids: number[];
   since: string | null;
-}
-
-/**
- * Asking for help, from inside a community.
- */
-export interface SupportTicketCreate {
-  stream: "support";
-  community_id: number;
-  /**
-   * @minLength 1
-   * @maxLength 200
-   */
-  subject: string;
-  /**
-   * @minLength 1
-   * @maxLength 5000
-   */
-  body: string;
 }
 
 /**
@@ -8991,6 +9117,10 @@ export interface TaskCaseRead {
   awaiting_filer_status_id?: number | null;
   active_status_id?: number | null;
   messages?: CaseMessageRead[];
+  evidence?: CaseEvidenceRead[];
+  subject_community_id?: number | null;
+  resource_type?: string | null;
+  resource_id?: number | null;
 }
 
 export type TaskCreateRecurrenceStrategy =
@@ -9190,17 +9320,6 @@ export interface TicketAvailability {
   moderation: StreamAvailabilityRead;
   support: StreamAvailabilityRead;
   feedback: StreamAvailabilityRead;
-}
-
-/**
- * A filer's answer on their own case.
- */
-export interface TicketReplyCreate {
-  /**
-   * @minLength 1
-   * @maxLength 5000
-   */
-  body: string;
 }
 
 /**
@@ -10087,6 +10206,36 @@ export const SmartChipKind = {
   "task:checklist": "task:checklist",
 } as const;
 
+/**
+ * Reporting something. The same shape from every surface.
+ */
+export interface ModerationTicketCreate {
+  target_type: string;
+  target_id: number;
+  reason: ReportReason;
+  detail?: string | null;
+  community_id?: number | null;
+  stream: "moderation";
+}
+
+/**
+ * Asking for help, from inside a community.
+ */
+export interface SupportTicketCreate {
+  stream: "support";
+  community_id: number;
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  subject: string;
+  /**
+   * @minLength 1
+   * @maxLength 5000
+   */
+  body: string;
+}
+
 export type GetVersion200 = { [key: string]: string };
 
 export type GetLatestReleaseVersion200 = { [key: string]: string | null };
@@ -10855,6 +11004,11 @@ export type ListReportsParams = {
    * @maximum 200
    */
   page_size?: number;
+};
+
+export type ListHoldsParams = {
+  case_task_id?: number | null;
+  open_only?: boolean;
 };
 
 export type ListCommentsParams = {

@@ -630,10 +630,10 @@ class Settings(BaseSettings):
         ``'unsafe-inline'`` because the charting component and some UI libraries
         inject inline ``<style>``. Origins the app genuinely loads (Google
         Fonts, file embeds, and — when configured — the captcha provider and
-        app embeds) are listed explicitly rather than via a blanket
+        plug-in pages) are listed explicitly rather than via a blanket
         ``https:``.
 
-        ``plugin_frame_origins`` is how a marketplace plug-in's embedded surface gets
+        ``plugin_frame_origins`` is how a marketplace plug-in's page gets
         framed. It holds the origins of the plug-in services this deployment has
         registered — the operator's trusted-site list, passed in by
         ``app.api.embed_csp`` on the documents where ``frame-src`` applies, and
@@ -981,13 +981,13 @@ class Settings(BaseSettings):
     # from the marketplace, and an entry naming a listing field is refused:
     #   [{"public_id": "acme.shopify",
     #     "base_url": "http://shopify:9100",
-    #     "embed_origin": "https://shopify.example.com",
+    #     "page_origin": "https://shopify.example.com",
     #     "jwks": {"keys": […]},
     #     "allowed_origins": ["https://shopify.example.com"],
     #     "vendor_env": {"client_secret": "SHOPIFY_CLIENT_SECRET"},
     #     "mandatory": false}]
     # ``base_url`` is where this server calls the plug-in, so it may be an address
-    # only the container network resolves; ``embed_origin`` is where a browser
+    # only the container network resolves; ``page_origin`` is where a browser
     # loads its pages, omitted when the plug-in answers both at one address. Give
     # the plug-in's public keys as ``jwks``, or as ``jwks_uri`` when the plug-in serves
     # them at ``base_url``'s origin (``/.well-known/jwks.json`` for a plug-in built

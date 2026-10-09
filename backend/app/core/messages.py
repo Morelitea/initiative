@@ -583,6 +583,21 @@ class SettingsMessages:
     STORAGE_BACKFILL_NOT_CONFIGURED = "SETTINGS_STORAGE_BACKFILL_NOT_CONFIGURED"
 
 
+class EvidenceMessages:
+    """What a person attaches to a ticket or a report."""
+
+    #: The stream takes no files.
+    NOT_TAKEN = "EVIDENCE_NOT_TAKEN"
+    TOO_MANY = "EVIDENCE_TOO_MANY"
+    TOO_LARGE = "EVIDENCE_TOO_LARGE"
+    EMPTY = "EVIDENCE_EMPTY"
+    #: Its bytes are not one of the types the stream takes.
+    TYPE_NOT_ALLOWED = "EVIDENCE_TYPE_NOT_ALLOWED"
+    #: A picture that could not be read to take its location out.
+    UNREADABLE = "EVIDENCE_UNREADABLE"
+    NOT_FOUND = "EVIDENCE_NOT_FOUND"
+
+
 class ModerationMessages:
     """Reporting something, and settling a report."""
 
@@ -592,6 +607,29 @@ class ModerationMessages:
     NOWHERE_TO_SEND = "MODERATION_NOWHERE_TO_SEND"
     TARGET_NOT_FOUND = "MODERATION_TARGET_NOT_FOUND"
     NOT_A_MODERATOR = "MODERATION_NOT_A_MODERATOR"
+
+
+class HoldMessages:
+    """Holding content for the platform, and releasing a hold."""
+
+    #: There is nothing to hold there, or nothing the reader may hold.
+    TARGET_NOT_FOUND = "HOLD_TARGET_NOT_FOUND"
+    #: Holding is for the community's moderators and the platform's.
+    NOT_ALLOWED = "HOLD_NOT_ALLOWED"
+    #: It is held already.
+    ALREADY_HELD = "HOLD_ALREADY_HELD"
+    #: A hold for illegal content names the law it falls under.
+    LEGAL_BASIS_REQUIRED = "HOLD_LEGAL_BASIS_REQUIRED"
+    #: The platform takes no moderation cases here, so nobody would see it.
+    NOWHERE_TO_SEND = "HOLD_NOWHERE_TO_SEND"
+    NOT_FOUND = "HOLD_NOT_FOUND"
+    ALREADY_RELEASED = "HOLD_ALREADY_RELEASED"
+    #: The case named isn't one the platform is working.
+    CASE_NOT_FOUND = "HOLD_CASE_NOT_FOUND"
+    #: Another hold still covers it, so it can't be removed or destroyed.
+    COVERED_BY_ANOTHER = "HOLD_COVERED_BY_ANOTHER"
+    #: The community is being deleted for good.
+    COMMUNITY_GONE = "HOLD_COMMUNITY_GONE"
 
 
 class SupportMessages:
@@ -660,6 +698,8 @@ class AccessGrantMessages:
     #: Approving asks whether the requester may still request access: an
     #: active account whose role holds ``access.request``.
     GRANTEE_INELIGIBLE = "ACCESS_GRANT_GRANTEE_INELIGIBLE"
+    #: A ``moderate`` grant is for those who hold ``content.moderate``.
+    MODERATE_NOT_HELD = "ACCESS_GRANT_MODERATE_NOT_HELD"
     #: A settings rung reads; changing what it reaches takes a read_write
     #: content grant beside it.
     WRITE_GRANT_REQUIRED = "ACCESS_GRANT_WRITE_REQUIRED"
@@ -1312,7 +1352,7 @@ class PluginServiceMessages:
     INVALID_BASE_URL = "PLUGIN_SERVICE_INVALID_BASE_URL"
     #: The browser-facing base, when a plug-in answers there rather than at the
     #: address Initiative's own server calls.
-    INVALID_EMBED_ORIGIN = "PLUGIN_SERVICE_INVALID_EMBED_ORIGIN"
+    INVALID_PAGE_ORIGIN = "PLUGIN_SERVICE_INVALID_PAGE_ORIGIN"
     INVALID_ORIGIN = "PLUGIN_SERVICE_INVALID_ORIGIN"
     #: The key set is not a JWKS this build can verify against, or an entry in
     #: it carries no ``kid`` for a JWT to name.

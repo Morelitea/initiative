@@ -21,19 +21,19 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  BodyFileTicket,
+  BodyReplyToFiledTicket,
   FiledTicketDetailRead,
   FiledTicketList,
   HTTPValidationError,
-  ModerationTicketCreate,
   ReadTicketAvailabilityParams,
-  SupportTicketCreate,
   TicketAccepted,
   TicketAvailability,
-  TicketReplyCreate,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
 import type { ErrorType, BodyType } from "../../mutator";
+import { toFormData } from "../../formData";
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
@@ -190,23 +190,25 @@ export function useReadTicketAvailability<
 /**
  * File a ticket. One route, whatever kind and from wherever.
  *
- * The reply says that it arrived and nothing more: not who will read it, and
- * for a report not whether one already existed.
+ * Sent as ``multipart/form-data``: the ticket as JSON in ``payload``, and up
+ * to as many ``files`` as the stream takes (``/availability`` says how many,
+ * how large and of which types). The reply says that it arrived and nothing
+ * more: not who will read it, and for a report not whether one already
+ * existed.
  * @summary File Ticket
  */
 export const fileTicket = (
-  supportTicketCreateModerationTicketCreate:
-    | BodyType<SupportTicketCreate | ModerationTicketCreate>
-    | ModerationTicketCreate,
+  bodyFileTicket: BodyType<BodyFileTicket>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
+  const formData = toFormData(bodyFileTicket);
   return apiMutator<TicketAccepted>(
     {
       url: `/api/v1/me/tickets`,
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      data: supportTicketCreateModerationTicketCreate,
+      headers: { "Content-Type": "multipart/form-data" },
+      data: formData,
       signal,
     },
     options
@@ -252,11 +254,9 @@ export const getFileTicketMutationOptions = <
 };
 
 export type FileTicketMutationResult = NonNullable<Awaited<ReturnType<typeof fileTicket>>>;
-export type FileTicketMutationBody = BodyType<SupportTicketCreate | ModerationTicketCreate>;
+export type FileTicketMutationBody = BodyType<BodyFileTicket>;
 export type FileTicketMutationError = ErrorType<HTTPValidationError>;
-export type FileTicketMutationVariables = {
-  data: BodyType<SupportTicketCreate | ModerationTicketCreate>;
-};
+export type FileTicketMutationVariables = { data: BodyType<BodyFileTicket> };
 
 /**
  * @summary File Ticket
@@ -515,22 +515,24 @@ export function useReadFiledTicket<
 /**
  * Answer on a case the reader filed. Returns the case as it now stands.
  *
- * Paced like a filing into the case's stream: each answer is something a
- * person reads.
+ * Sent as ``multipart/form-data``: the answer in ``body``, and any ``files``
+ * the stream takes. Paced like a filing into the case's stream: each answer
+ * is something a person reads.
  * @summary Reply To Filed Ticket
  */
 export const replyToFiledTicket = (
   taskId: number,
-  ticketReplyCreate: BodyType<TicketReplyCreate>,
+  bodyReplyToFiledTicket: BodyType<BodyReplyToFiledTicket>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
+  const formData = toFormData(bodyReplyToFiledTicket);
   return apiMutator<FiledTicketDetailRead>(
     {
       url: `/api/v1/me/tickets/${taskId}/replies`,
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      data: ticketReplyCreate,
+      headers: { "Content-Type": "multipart/form-data" },
+      data: formData,
       signal,
     },
     options
@@ -578,11 +580,11 @@ export const getReplyToFiledTicketMutationOptions = <
 export type ReplyToFiledTicketMutationResult = NonNullable<
   Awaited<ReturnType<typeof replyToFiledTicket>>
 >;
-export type ReplyToFiledTicketMutationBody = BodyType<TicketReplyCreate>;
+export type ReplyToFiledTicketMutationBody = BodyType<BodyReplyToFiledTicket>;
 export type ReplyToFiledTicketMutationError = ErrorType<HTTPValidationError>;
 export type ReplyToFiledTicketMutationVariables = {
   taskId: number;
-  data: BodyType<TicketReplyCreate>;
+  data: BodyType<BodyReplyToFiledTicket>;
 };
 
 /**

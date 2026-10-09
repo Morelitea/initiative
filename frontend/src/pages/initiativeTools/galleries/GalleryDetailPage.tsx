@@ -407,10 +407,7 @@ export function GalleryDetailPage() {
       >
         {feed.isLoading ? (
           <SkeletonRegion label={t("loadingPictures")}>
-            <CardGridSkeleton
-              count={8}
-              className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4"
-            />
+            <CardGridSkeleton count={8} className="grid grid-cols-fill-36/4 gap-3" />
           </SkeletonRegion>
         ) : feed.isError ? (
           <p className="text-destructive text-sm">{t("loadError")}</p>

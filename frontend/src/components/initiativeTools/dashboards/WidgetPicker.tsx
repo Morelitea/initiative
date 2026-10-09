@@ -164,9 +164,9 @@ export function WidgetPicker({ catalog, widgetCount, onAdd }: WidgetPickerProps)
           </div>
 
           {selected ? (
-            <div className="grid min-h-0 flex-1 gap-4 md:grid-cols-[15rem_minmax(0,1fr)]">
+            <div className="grid min-h-0 flex-1 gap-4 sm:grid-cols-[15rem_minmax(0,1fr)]">
               <ul
-                className="max-h-40 min-h-0 space-y-1 overflow-y-auto pr-1 md:max-h-none"
+                className="max-h-40 min-h-0 space-y-1 overflow-y-auto pr-1 sm:max-h-none"
                 aria-label={t("picker.listLabel")}
               >
                 {filtered.map((item) => (

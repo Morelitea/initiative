@@ -247,7 +247,7 @@ export const AnnouncementEditorDialog = ({
                 />
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid grid-cols-pair gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="announcement-category">{t("operator.fields.category")}</Label>
                   <Select
@@ -299,7 +299,7 @@ export const AnnouncementEditorDialog = ({
                   </p>
                 </div>
 
-                <div className="space-y-2 sm:col-span-2">
+                <div className="space-y-2 col-span-full">
                   <Label htmlFor="announcement-accounts">
                     {t("operator.fields.audienceAccounts")}
                   </Label>
@@ -347,7 +347,7 @@ export const AnnouncementEditorDialog = ({
                 />
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid grid-cols-pair gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="announcement-dismissals">
                     {t("operator.fields.dismissalsRequired")}
@@ -396,8 +396,8 @@ export const AnnouncementEditorDialog = ({
                 </div>
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2 sm:col-span-2">
+              <div className="grid grid-cols-pair gap-4">
+                <div className="space-y-2 col-span-full">
                   {/* Both times are entered and shown in whatever timezone this
                       browser is in, and stored as an instant (UTC) — so a
                       notice published "at 9am" appears at the author's 9am, not

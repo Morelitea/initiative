@@ -6,10 +6,10 @@ from typing import Optional
 from sqlalchemy import CheckConstraint, Column, DateTime, String
 from sqlmodel import Field
 
-from app.models.tenant._mixins import CreatedByMixin
+from app.models.tenant._mixins import CreatedByMixin, HoldMixin
 
 
-class Upload(CreatedByMixin, table=True):
+class Upload(HoldMixin, CreatedByMixin, table=True):
     __tablename__ = "uploads"
     __table_args__ = (
         CheckConstraint(

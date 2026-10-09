@@ -273,9 +273,9 @@ const Directory = () => {
   const d = (key: string) => t(`directory.${key}` as never) as string;
 
   return (
-    <div className="mt-16 grid items-center gap-2 border-white/10 border-t pt-12 md:mt-20 md:grid-cols-[5fr_6fr] md:gap-14 md:pt-14">
+    <div className="sm:mt-20 mt-16 grid md:grid-cols-[5fr_6fr] items-center md:gap-14 gap-2 border-white/10 border-t sm:pt-14 pt-12">
       <div>
-        <h2 className="font-extrabold text-3xl tracking-tight md:text-4xl">
+        <h2 className="font-extrabold text-3xl tracking-tight sm:text-4xl">
           {t("directory.title")}
         </h2>
         <p className="mt-3 text-slate-300">{t("directory.description")}</p>
@@ -319,7 +319,7 @@ const Directory = () => {
             key={card.key}
             aria-hidden={front === card.key ? undefined : "true"}
             className={cn(
-              "absolute top-6 left-1/2 -ml-[135px] flex w-[270px] flex-col overflow-hidden rounded-2xl border bg-card text-card-foreground shadow-2xl transition-[transform,opacity] duration-500 motion-reduce:transition-none md:-ml-[165px] md:w-[330px]",
+              "absolute top-6 left-1/2 -ml-[135px] md:-ml-[165px] flex md:w-[330px] w-[270px] flex-col overflow-hidden rounded-2xl border bg-card text-card-foreground shadow-2xl transition-[transform,opacity] duration-500 motion-reduce:transition-none",
               SLOT[slotOf(card.key, front)]
             )}
           >
@@ -379,11 +379,11 @@ export const HangOut = () => {
 
   return (
     <DarkBand stars aria-labelledby="landing-hangout-title">
-      <div className="relative mx-auto max-w-6xl px-4 py-14 md:px-8 md:py-22">
+      <div className="relative mx-auto max-w-6xl px-4 py-14 sm:px-8 sm:py-22">
         <div className="mb-8 max-w-3xl">
           <h2
             id="landing-hangout-title"
-            className="font-extrabold text-3xl tracking-tight md:text-5xl"
+            className="font-extrabold text-3xl tracking-tight sm:text-5xl"
           >
             {t("hangout.titleStart")}{" "}
             <span className="text-amber-400">{t("hangout.titleHighlight")}</span>

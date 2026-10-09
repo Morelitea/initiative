@@ -528,7 +528,7 @@ export const SettingsCommunitySecurityPage = () => {
 
               {unmetProviderSlug && (
                 <Alert>
-                  <AlertDescription className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <AlertDescription className="flex flex-wrap gap-2 items-center justify-between">
                     <span>
                       {t("communityAuth.policy.selfUnsatisfied", {
                         providerName: selectedProvider?.display_name ?? unmetProviderSlug,
@@ -546,7 +546,7 @@ export const SettingsCommunitySecurityPage = () => {
               )}
               {unmetFactor && (
                 <Alert>
-                  <AlertDescription className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <AlertDescription className="flex flex-wrap gap-2 items-center justify-between">
                     <span>{t(FACTOR_COPY[unmetFactor].line)}</span>
                     <Button size="sm" onClick={() => presentFactor(unmetFactor)}>
                       {t(FACTOR_COPY[unmetFactor].button)}
