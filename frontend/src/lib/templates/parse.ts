@@ -68,6 +68,18 @@ const NAME = /[a-z][a-z0-9-]*/y;
 const ATTRIBUTE_NAME = /[:a-z][a-z0-9:_.-]*/y;
 const SPACE = /\s*/y;
 
+/** Neighbouring literal parts as one, with whitespace runs still a single space. */
+function joinParts(parts: TemplateText["parts"]): TemplateText["parts"] {
+  const joined: TemplateText["parts"] = [];
+  for (const part of parts) {
+    const last = joined[joined.length - 1];
+    if (typeof part === "string" && typeof last === "string") {
+      joined[joined.length - 1] = (last + part).replace(/[ \t\r\n]+/g, " ");
+    } else joined.push(part);
+  }
+  return joined;
+}
+
 export function parseTemplate(source: string): TemplateNode[] {
   let index = 0;
 
@@ -242,7 +254,11 @@ export function parseTemplate(source: string): TemplateNode[] {
         continue;
       }
       const text = readText();
-      if (text) children.push(text);
+      if (!text) continue;
+      // A comment does not split text: the runs on either side are one.
+      const previous = children[children.length - 1];
+      if (previous?.kind === "text") previous.parts = joinParts([...previous.parts, ...text.parts]);
+      else children.push(text);
     }
   };
 
