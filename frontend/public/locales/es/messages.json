@@ -102,7 +102,8 @@
     "sendHistory": "Enviarle mi historial de mensajes",
     "verify": "Verificar",
     "remove": "No es mío, quitarlo",
-    "error": "No se pudo guardar tu respuesta. Inténtalo de nuevo."
+    "error": "No se pudo guardar tu respuesta. Inténtalo de nuevo.",
+    "gone": "Ese dispositivo cerró sesión o se quitó, así que no hay nada que verificar."
   },
   "historyAsk": {
     "title": "Verifica este dispositivo desde otro de los tuyos",

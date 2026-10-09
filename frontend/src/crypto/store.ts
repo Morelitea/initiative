@@ -311,6 +311,14 @@ export type DeviceClaim =
 const DEVICE_CLAIM = "device-claim";
 const CLAIM_STALE_MS = 30_000;
 
+/**
+ * Whether a claim is free to take: handed back, never made, or made by a tab
+ * that has gone quiet for longer than a registration takes.
+ */
+export const claimOpen = (claim: DeviceClaim | undefined, now = Date.now()): boolean =>
+  claim === undefined ||
+  (claim.status === "claiming" && (claim.at === 0 || now - claim.at >= CLAIM_STALE_MS));
+
 export const deviceClaim = {
   read: () => read<DeviceClaim>(DEVICE_CLAIM),
 
@@ -325,10 +333,7 @@ export const deviceClaim = {
     const now = Date.now();
     const token = crypto.randomUUID();
     const { written } = await update<DeviceClaim>(DEVICE_CLAIM, (current) => {
-      if (current?.status === "ready") return undefined;
-      if (current?.status === "claiming" && now - current.at < CLAIM_STALE_MS) {
-        return undefined;
-      }
+      if (!claimOpen(current, now)) return undefined;
       return { status: "claiming", at: now, token };
     });
     return written ? token : null;
@@ -1002,6 +1007,48 @@ export const peerKeyChanges = {
       existing?.map((change) =>
         deviceIds.includes(change.deviceId) ? { ...change, asked: true as const } : change
       )
+    );
+  },
+  /**
+   * Let go of the holds on this account's devices that the server no longer
+   * lists. A device that signed out, or was removed, has nothing left to
+   * verify, and a prompt about it could never be answered.
+   *
+   * Only holds raised before the listing was asked for (`listedSince`, epoch
+   * milliseconds). Another tab may have held a device that arrived after this
+   * listing, and is about to read that hold to decide what it may send to: a
+   * device absent from a listing asked for after it was held is one that left,
+   * while one held since may only be too new to be listed. A device id is
+   * never reissued, so a device that left does not come back under it.
+   */
+  withdrawUnlisted: async (
+    userId: number,
+    listed: string[],
+    listedSince: number
+  ): Promise<void> => {
+    const present = new Set(listed);
+    await updatePair<Record<string, StoredPeerKey>, PeerKeyChange[]>(
+      PEER_KEYS_PREFIX + userId,
+      PEER_CHANGES,
+      (known, held) => {
+        const gone = (held ?? [])
+          .filter(
+            (change) =>
+              change.userId === userId &&
+              !present.has(change.deviceId) &&
+              Date.parse(change.at) < listedSince
+          )
+          .map((change) => change.deviceId);
+        if (gone.length === 0) return {};
+        const keys = { ...(known ?? {}) };
+        for (const id of gone) delete keys[id];
+        return {
+          a: keys,
+          b: (held ?? []).filter(
+            (change) => change.userId !== userId || !gone.includes(change.deviceId)
+          ),
+        };
+      }
     );
   },
   /** The person has dealt with these devices: the keys are already remembered, and this clears their holds. */

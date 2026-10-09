@@ -113,7 +113,12 @@ async def _open_channel(session, a, b) -> None:
     await session.commit()
 
 
-async def _register(client, actor, seed=1, user_agent="Firefox on Linux") -> str:
+FIREFOX_ON_LINUX = (
+    "Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Gecko/20100101 Firefox/140.0"
+)
+
+
+async def _register(client, actor, seed=1, user_agent=FIREFOX_ON_LINUX) -> str:
     response = await client.post(
         "/api/v1/me/dm/devices",
         json=_registration(seed),
@@ -134,7 +139,8 @@ async def test_a_device_publishes_only_public_keys(client, acting_user):
 
     body = listed.json()["devices"][0]
     assert body["id"] == device_id
-    # Named by what connected, not by what the client asked to be called.
+    # Named by what connected, not by what the client asked to be called, and
+    # in words a person recognises rather than as the raw user agent.
     assert body["label"] == "Firefox on Linux"
     assert body["one_time_key_count"] == 1
     # The account's own public keys, which is what it needs to recognise a

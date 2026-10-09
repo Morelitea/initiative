@@ -22,6 +22,7 @@ import {
   collectVerification as collectInbox,
   sendVerification as sendRelay,
 } from "@/api/generated/direct-messages/direct-messages";
+import { getErrorCode } from "@/lib/errorMessage";
 
 import { ratchet } from "./client";
 import { type Context, ensureDeviceContext } from "./device";
@@ -38,6 +39,18 @@ const EMOJI_INFO = "INITIATIVE_DEVICE_VERIFICATION_V1_EMOJI";
 const MAC_INFO = "INITIATIVE_DEVICE_VERIFICATION_V1_MAC";
 
 type FailReason = "mismatch" | "cancelled" | "timeout" | "elsewhere";
+
+/**
+ * The device the prompt named has left the account: signed out, or removed
+ * from another device. There is nothing to compare with, and its prompt is
+ * gone by the time this is thrown.
+ */
+export class DeviceGoneError extends Error {
+  constructor() {
+    super("that device is not listed any more");
+    this.name = "DeviceGoneError";
+  }
+}
 
 /** What the dialog draws. */
 export type VerificationView =
@@ -220,7 +233,15 @@ export async function startVerification(
   const peer = [...ctx.own.held, ...ctx.own.devices].find(
     (device) => device.id === change.deviceId
   );
-  if (!peer) throw new Error("that device is not listed any more");
+  if (!peer) {
+    // Reading the account's devices lets go of the hold on one that left. A
+    // hold still standing is a device still listed whose keys do not verify,
+    // which is a failure to compare rather than nothing to compare with.
+    const stillHeld = (await peerKeyChanges.all()).some(
+      (held) => held.deviceId === change.deviceId
+    );
+    throw stillHeld ? new Error("that device's keys do not verify") : new DeviceGoneError();
+  }
   const release = await takeLock();
   if (!release) {
     show({ phase: "failed", device: peer, reason: "elsewhere" });
@@ -241,6 +262,13 @@ export async function startVerification(
     current.start = await send(current, { v: 1, txn, type: "start" });
   } catch (error) {
     finish(current, { phase: "idle" });
+    if (getErrorCode(error) === "DM_DEVICE_NOT_FOUND") {
+      // Gone between the listing and the send. Reading the devices again is
+      // what lets go of its hold; `ensureDeviceContext` replaces this one if
+      // it was this device that went.
+      await ensureDeviceContext().catch(() => undefined);
+      throw new DeviceGoneError();
+    }
     throw error;
   }
 }

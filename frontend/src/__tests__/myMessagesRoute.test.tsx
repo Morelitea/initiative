@@ -18,7 +18,8 @@ import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { RecipientHasNoDeviceError } from "@/crypto/messaging";
+import { DeviceGoneError, RecipientHasNoDeviceError } from "@/crypto/messaging";
+import { toast } from "@/lib/mascotToast";
 import { routeTree } from "@/routeTree.gen";
 
 import { buildRouterContext, renderPage } from "./helpers/render";
@@ -62,10 +63,11 @@ const mocks = vi.hoisted(() => ({
 // The ratchet is exercised for real in src/crypto/ratchet.test.ts. Here it is
 // the seam the page talks to, so the page's own behaviour is what is on trial.
 vi.mock("@/crypto/messaging", async (importOriginal) => ({
-  // The error class is real: the page tells one kind of failure from another by
-  // identity, so a stand-in would prove nothing.
+  // The error classes are real: the page tells one kind of failure from another
+  // by identity, so a stand-in would prove nothing.
   RecipientHasNoDeviceError: (await importOriginal<Record<string, unknown>>())
     .RecipientHasNoDeviceError,
+  DeviceGoneError: (await importOriginal<Record<string, unknown>>()).DeviceGoneError,
   ensureDevice: () => mocks.ensureDevice(),
   registeredDevice: () => mocks.registeredDevice(),
   collect: () => mocks.collect(),
@@ -102,6 +104,12 @@ vi.mock("@/crypto/messaging", async (importOriginal) => ({
   cancelVerification: vi.fn(),
   dismissVerification: vi.fn(),
   peerDeviceChanges: { all: () => mocks.peerDeviceChanges() },
+}));
+
+// The mascot types its toasts out over time, so what a toast says is read from
+// the call rather than the screen.
+vi.mock("@/lib/mascotToast", () => ({
+  toast: { info: vi.fn(), error: vi.fn(), success: vi.fn() },
 }));
 
 vi.mock("@/api/generated/direct-messages/direct-messages", async (importOriginal) => ({
@@ -637,6 +645,48 @@ describe("My Messages", () => {
       { sendHistory: true }
     );
   });
+
+  it("takes down the prompt for a device that has left the account", async () => {
+    // Signed out, or removed from another device, after it was held here.
+    mocks.ownDevice.mockResolvedValue({
+      userId: 1,
+      deviceId: "device-2",
+      label: "A laptop",
+      now: KEYS,
+      at: "2026-09-06T00:00:00Z",
+    });
+    mocks.startVerification.mockImplementation(async () => {
+      mocks.ownDevice.mockResolvedValue(null);
+      throw new DeviceGoneError();
+    });
+
+    await renderMessages();
+    await userEvent.click(await screen.findByRole("button", { name: /^verify$/i }));
+
+    await waitFor(() =>
+      expect(toast.info).toHaveBeenCalledWith(expect.stringMatching(/signed out or was removed/i))
+    );
+    expect(toast.error).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(screen.queryByRole("heading", { name: /new device signed in/i })).toBeNull()
+    );
+  });
+
+  it("offers another go when this device could not be set up", async () => {
+    // The hook retries on its own first, so the page waits out its backoff.
+    mocks.ensureDevice.mockRejectedValue(new Error("offline"));
+
+    await renderMessages();
+    const retry = await screen.findByRole("button", { name: /try again/i }, { timeout: 8_000 });
+    expect(screen.getByText(/could not be set up/i)).toBeInTheDocument();
+    expect(mocks.ensureDevice).toHaveBeenCalledTimes(3);
+
+    mocks.ensureDevice.mockResolvedValue("device-1");
+    await userEvent.click(retry);
+
+    expect(await screen.findByRole("heading", { name: /my messages/i })).toBeInTheDocument();
+    expect(screen.queryByText(/could not be set up/i)).toBeNull();
+  }, 15_000);
 
   it("tells the waiting device where to verify it, and shows no standing code", async () => {
     mocks.historyAsk.mockResolvedValue({ expiresAt: Date.now() + 60_000 });

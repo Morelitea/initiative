@@ -35,6 +35,7 @@ from fastapi import status
 from app.core.errors import CodedError
 from app.core.messages import DirectMessageTransportMessages as Messages
 from app.core.transitions import DM_SIGNED_DEVICES
+from app.core.user_agents import describe as describe_client
 from app.db.advisory_locks import LockNamespace, advisory_lock
 from app.models.platform.dm_conversation import (
     DmConversation,
@@ -405,7 +406,9 @@ async def list_devices(session: AsyncSession, *, user_id: int) -> list[DmDeviceR
             identity_key=_encode_key(device.identity_key),
             fingerprint_key=_encode_key(device.fingerprint_key),
             signature=_encode_key(device.signature) if device.signature else None,
-            label=device.label,
+            # Stored as the user agent that registered it, which is no name a
+            # person would recognise their own laptop by.
+            label=describe_client(device.label),
             created_at=device.created_at,
             last_seen_at=device.last_seen_at,
             one_time_key_count=counts.get(device.id, 0),

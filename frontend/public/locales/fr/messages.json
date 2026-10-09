@@ -102,7 +102,8 @@
     "sendHistory": "Lui envoyer mon historique de messages",
     "verify": "Vérifier",
     "remove": "Pas le mien, le retirer",
-    "error": "Impossible d'enregistrer ta réponse. Réessaie."
+    "error": "Impossible d'enregistrer ta réponse. Réessaie.",
+    "gone": "Cet appareil s'est déconnecté ou a été retiré : il n'y a plus rien à vérifier."
   },
   "historyAsk": {
     "title": "Vérifie cet appareil depuis un autre des tiens",

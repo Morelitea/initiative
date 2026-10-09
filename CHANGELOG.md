@@ -22,6 +22,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Escalate is now Send to the platform** on a report card, and a settled report says "Sent to the platform".
 - **API: filing a ticket and answering one take `multipart/form-data`.** `POST /api/v1/me/tickets` takes the ticket as JSON in a `payload` field, and `POST /api/v1/me/tickets/{task_id}/replies` takes the answer in a `body` field, each beside any `files`.
 
+### Fixed
+
+- **A "New device signed in" prompt about a device that is gone can be cleared.** When the device it named had signed out or been removed, Verify and Not mine both failed with "That device is not set up for encrypted messages" and the prompt stayed. It now goes away on its own, and either button closes it.
+- **Encrypted messages set themselves up after a reload during setup.** Reloading or opening a second tab while a browser was first setting up messages could leave it showing "Encrypted messages could not be set up on this device" until reloaded again. It now picks up where the other tab left off, and the message has a Try again button.
+- **One notification when a new device asks for your message history.** Each of your other devices was notified once for every device the new one asked, so an account with four devices got four at once.
+- **New devices are named in words.** The "New device signed in" prompt says "Chrome on Windows" rather than the browser's full user-agent string.
+
 ## [0.75.3] - 2026-10-08
 
 ### Added

@@ -5,6 +5,7 @@
  */
 
 import { removeDevice } from "@/api/generated/direct-messages/direct-messages";
+import { getErrorCode } from "@/lib/errorMessage";
 
 import type { Context } from "./device";
 import { type Envelope, newMessageId, sendTransfer } from "./envelope";
@@ -123,8 +124,10 @@ export async function requestHistory(ctx: Context): Promise<boolean> {
         deviceId: ctx.device,
         fingerprint: me.fingerprintKey,
       },
-      // The one ask that has to reach a device nobody is looking at.
-      true
+      // The one ask that has to reach a device nobody is looking at. Once:
+      // the push wakes every other device the account has, so a second would
+      // only ring the same phones again for the same ask.
+      asked.length === 0
     );
     if (sent) asked.push(device.id);
   }
@@ -188,7 +191,11 @@ export async function answerNewDevice(
   { mine, sendHistory }: { mine: boolean; sendHistory: boolean }
 ): Promise<void> {
   if (!mine) {
-    await removeDevice(change.deviceId);
+    // Already gone, from another device or by signing out, is the answer
+    // asked for.
+    await removeDevice(change.deviceId).catch((error: unknown) => {
+      if (getErrorCode(error) !== "DM_DEVICE_NOT_FOUND") throw error;
+    });
   } else {
     await approvedDevices.decide(change.deviceId, change.now.fingerprint, sendHistory);
   }

@@ -102,7 +102,8 @@
     "sendHistory": "Meinen Nachrichtenverlauf senden",
     "verify": "Bestätigen",
     "remove": "Nicht meins, entfernen",
-    "error": "Deine Antwort konnte nicht gespeichert werden. Versuche es erneut."
+    "error": "Deine Antwort konnte nicht gespeichert werden. Versuche es erneut.",
+    "gone": "Dieses Gerät wurde abgemeldet oder entfernt, es gibt nichts mehr zu bestätigen."
   },
   "historyAsk": {
     "title": "Bestätige dieses Gerät von einem deiner anderen aus",

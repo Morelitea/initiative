@@ -18,6 +18,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   accountPickle,
+  claimOpen,
   deviceClaim,
   deviceId,
   deviceOwner,
@@ -465,6 +466,19 @@ describe("the device-registration claim", () => {
     expect(await deviceClaim.read()).toMatchObject({ status: "claiming", token: quick });
   });
 
+  it("reads as open once handed back or gone stale, and not while fresh or settled", async () => {
+    expect(claimOpen(undefined)).toBe(true);
+    const turn = await take();
+    expect(claimOpen(await deviceClaim.read())).toBe(false);
+    expect(await afterStale(async () => claimOpen(await deviceClaim.read()))).toBe(true);
+
+    await deviceClaim.release(turn);
+    expect(claimOpen(await deviceClaim.read())).toBe(true);
+
+    await deviceClaim.settle(await take(), "device-1", "pickle-1");
+    expect(await afterStale(async () => claimOpen(await deviceClaim.read()))).toBe(false);
+  });
+
   /** Take the claim, failing the test rather than the assertion if it is held. */
   async function take(): Promise<string> {
     const turn = await deviceClaim.take();
@@ -738,6 +752,58 @@ describe("the list of changes waiting to be seen", () => {
     expect(left).toMatchObject({ deviceId: "b", asked: true });
     await peerKeyChanges.acknowledge(["b"]);
     expect(await peerKeyChanges.all()).toEqual([]);
+  });
+
+  /** A listing asked for after every hold so far was raised. */
+  const later = () => Date.now() + 1_000;
+
+  it("lets go of a device the account no longer lists", async () => {
+    await hold(7, "a", "b");
+
+    await peerKeyChanges.withdrawUnlisted(7, ["known", "b"], later());
+
+    expect((await peerKeyChanges.all()).map((entry) => entry.deviceId)).toEqual(["b"]);
+  });
+
+  it("leaves other accounts' holds alone", async () => {
+    await hold(7, "a");
+    await hold(8, "c");
+
+    await peerKeyChanges.withdrawUnlisted(7, ["known"], later());
+
+    expect((await peerKeyChanges.all()).map((entry) => entry.deviceId)).toEqual(["c"]);
+  });
+
+  it("keeps a hold raised after the listing was asked for", async () => {
+    // Another tab held a device too new for this tab's listing, and is about
+    // to read that hold to decide what it may send to.
+    const asked = Date.now() - 1_000;
+    await hold(7, "a");
+
+    await peerKeyChanges.withdrawUnlisted(7, ["known"], asked);
+
+    expect((await peerKeyChanges.all()).map((entry) => entry.deviceId)).toEqual(["a"]);
+    expect(
+      await peerDeviceKeys.reconcile(
+        7,
+        [{ deviceId: "a", fingerprint: "fp-a", identityKey: "id-a" }],
+        { hold: true }
+      )
+    ).toEqual([]);
+  });
+
+  it("asks again about a withdrawn device that is listed after all", async () => {
+    await hold(7, "a");
+    await peerKeyChanges.withdrawUnlisted(7, ["known"], later());
+
+    const changes = await peerDeviceKeys.reconcile(
+      7,
+      [{ deviceId: "a", fingerprint: "fp-a", identityKey: "id-a" }],
+      { hold: true }
+    );
+
+    expect(changes.map((change) => change.deviceId)).toEqual(["a"]);
+    expect((await peerKeyChanges.all()).map((entry) => entry.deviceId)).toEqual(["a"]);
   });
 });
 

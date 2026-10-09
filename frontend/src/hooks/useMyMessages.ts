@@ -14,6 +14,7 @@
 
 import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useSyncExternalStore } from "react";
+import { useTranslation } from "react-i18next";
 
 import {
   acceptInvitation,
@@ -32,6 +33,7 @@ import {
   collect,
   collectVerification,
   confirmMatch,
+  DeviceGoneError,
   dismissVerification,
   ensureDevice,
   historyAsk,
@@ -107,7 +109,10 @@ export function useDmDevice() {
     // for a channel that does not exist.
     enabled: dmEnabled,
     staleTime: Number.POSITIVE_INFINITY,
-    retry: false,
+    // Setting up is safe to ask again: a device already registered is found
+    // rather than made twice. One failed round trip should not leave the page
+    // saying this browser cannot do encrypted messages until it is reloaded.
+    retry: 2,
   });
 }
 
@@ -307,13 +312,20 @@ function useCollectVerification(enabled: boolean) {
 
 /** What the prompt and the dialog can do about a comparison. */
 export function useVerificationActions() {
+  const { t } = useTranslation("messages");
+  const queryClient = useQueryClient();
   const onError = (error: unknown) =>
     toast.error(getErrorMessage(error, "messages:verification.error"));
   return {
     start: useMutation({
       mutationFn: ({ change, sendHistory }: { change: PeerKeyChange; sendHistory: boolean }) =>
         startVerification(change, { sendHistory }),
-      onError,
+      onError: (error) => {
+        if (!(error instanceof DeviceGoneError)) return onError(error);
+        // Its prompt is already gone from the store; this takes it off screen.
+        toast.info(t("newDevice.gone"));
+        void queryClient.invalidateQueries({ queryKey: messageKeys.ownDevice });
+      },
     }),
     confirm: useMutation({ mutationFn: confirmMatch, onError }),
     reject: useMutation({ mutationFn: rejectMatch, onError }),

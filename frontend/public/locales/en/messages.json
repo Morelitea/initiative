@@ -102,7 +102,8 @@
     "sendHistory": "Send it my message history",
     "verify": "Verify",
     "remove": "Not mine, remove it",
-    "error": "Couldn't save your answer. Try again."
+    "error": "Couldn't save your answer. Try again.",
+    "gone": "That device has signed out or was removed, so there's nothing to verify."
   },
   "historyAsk": {
     "title": "Verify this device from another of yours",
