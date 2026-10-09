@@ -1,27 +1,59 @@
 import { useBlocker, useParams, useRouter } from "@tanstack/react-router";
 import { format } from "date-fns";
-import { AlertCircle } from "lucide-react";
-import { type FormEvent, useEffect, useId, useMemo, useRef, useState } from "react";
+import {
+  AlertCircle,
+  Archive,
+  ArchiveRestore,
+  Copy,
+  FolderInput,
+  Loader2,
+  MoreHorizontal,
+  Save,
+  SkipForward,
+  Sparkles,
+  Trash2,
+  X,
+} from "lucide-react";
+import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { PropertySummary, TaskRead } from "@/api/generated/initiativeAPI.schemas";
-import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { getReadTaskQueryKey, readTask } from "@/api/generated/tasks/tasks";
 import { invalidate, q } from "@/api/query-keys";
+import { CommentSection } from "@/components/comments/CommentSection";
+import { ToolRelationsPanel } from "@/components/entities/ToolRelationsPanel";
+import { MentionComposer } from "@/components/markdown/MentionComposer";
 import { normalizePropertyValue } from "@/components/properties/propertyHelpers";
 import { useScopePrompt } from "@/components/recurrence/OccurrenceScopeDialog";
 import { StatusMessage } from "@/components/StatusMessage";
 import { TaskEditSkeleton } from "@/components/skeletons/PageSkeletons";
 import { ToolAccessStatus } from "@/components/ToolAccessStatus";
 import { MoveTaskDialog } from "@/components/tasks/MoveTaskDialog";
-import { type TaskPageContext, taskPageParts } from "@/components/tasks/parts";
+import { TaskChecklist } from "@/components/tasks/TaskChecklist";
+import { TaskDescription } from "@/components/tasks/TaskDescription";
 import {
   emptyTaskFormValue,
   serializeTaskFormValue,
+  TaskForm,
   type TaskFormValue,
   taskFormPropertyValues,
 } from "@/components/tasks/TaskForm";
+import { CasePanel } from "@/components/tickets/CasePanel";
+import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Label } from "@/components/ui/label";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useAIEnabled } from "@/hooks/useAIEnabled";
 import { useArchiveEntity, useUnarchiveEntity } from "@/hooks/useArchive";
@@ -32,6 +64,7 @@ import { useCommunities } from "@/hooks/useCommunities";
 import { useDateLocale } from "@/hooks/useDateLocale";
 import { useInitiative } from "@/hooks/useInitiatives";
 import { useReadOnOpen } from "@/hooks/useNotifications";
+import { usePastedImages } from "@/hooks/usePastedImages";
 import { useProject, useProjectTaskStatuses, useWritableProjects } from "@/hooks/useProjects";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
 import { useServerForm } from "@/hooks/useServerForm";
@@ -50,7 +83,7 @@ import { getHttpStatus } from "@/lib/errorMessage";
 import { toast } from "@/lib/mascotToast";
 import { queryClient } from "@/lib/queryClient";
 import { fromStored, rulePayload } from "@/lib/recurrence";
-import { Section } from "@/lib/templates/Section";
+import { referenceRef } from "@/lib/smartChips";
 import { dateTimePattern } from "@/lib/timeFormat";
 import { taskRoute, toolDetailRoute, toolListRoute } from "@/lib/tools";
 import {
@@ -59,6 +92,9 @@ import {
   getUserDisplayName,
   isAnonymizedUser,
 } from "@/lib/userDisplay";
+
+/** The preview of a description being edited reads the way the saved one will. */
+const renderDescription = (draft: string) => <TaskDescription content={draft} />;
 
 const toLocalInputValue = (value?: string | null) => {
   if (!value) {
@@ -142,6 +178,7 @@ export const TaskEditPage = () => {
   const parsedTaskId = Number(taskId);
   const router = useRouter();
   const communityId = useActiveCommunityId();
+  const uploadImage = usePastedImages();
   const { user: currentUser } = useAuth();
   useCommunities();
   const { t } = useTranslation(["tasks", "common", "properties"]);
@@ -473,10 +510,6 @@ export const TaskEditPage = () => {
   // reload or a closed tab, and it has to repeat the condition: the router
   // defaults it to true and never consults `shouldBlockFn` for an unload, so
   // without it every reload of this page prompts.
-  const formId = useId();
-  // The same object while the task is, so the template reuses what it worked out.
-  const sectionData = useMemo(() => (task ? { task } : null), [task]);
-
   const blocker = useBlocker({
     shouldBlockFn: () => isDirty && !bypassGuardRef.current,
     enableBeforeUnload: () => isDirty && !bypassGuardRef.current,
@@ -522,51 +555,314 @@ export const TaskEditPage = () => {
     !taskStatuses.some((item) => item.id === effectiveStatusId)
       ? [...taskStatuses, task.task_status]
       : taskStatuses;
-  const context: TaskPageContext = {
-    form: { values: form.values, set: form.set },
-    formId,
-    readOnly: isReadOnly,
-    readOnlyMessage: isReadOnly ? readOnlyMessage : null,
-    statuses: statusOptions,
-    project: project ?? null,
-    initiativeId,
-    currentUserId: currentUser?.id,
-    creation: creationMeta,
-    save: { submit: handleSubmit, pending: isSaving, blocked: datesInverted },
-    cancel: () =>
-      router.navigate({
-        to: gp(toolDetailRoute(Tool.project, initiativeId, projectId as number)),
-      }),
-    menu: {
-      move: { run: () => setIsMoveDialogOpen(true), pending: moveTask.isPending },
-      duplicate: {
-        run: () => duplicateTask.mutate(parsedTaskId),
-        pending: duplicateTask.isPending,
-      },
-      archive: {
-        run: () => toggleArchive.mutate({ entityType: "task", entityId: parsedTaskId }),
-        pending: toggleArchive.isPending,
-        archived: task?.archived_at !== null,
-      },
-      skip: repeating
-        ? { run: () => skipTask.mutate(parsedTaskId), pending: skipTask.isPending }
-        : null,
-      remove: { run: () => void handleDelete(), pending: deleteTask.isPending },
-    },
-    describe: aiEnabled
-      ? {
-          run: () => generateDescription.mutate(parsedTaskId),
-          pending: generateDescription.isPending,
-        }
-      : null,
-    comments: { query: commentsQuery, cache: commentsCache },
-  };
+  // Prefer the project's status list (authoritative; reflects renames/colors)
+  // but fall back to the task's own embedded ``task_status`` snapshot so the
+  // badge + select trigger render correctly during the window between
+  // "task loaded" and "project statuses loaded" — and as a safety net if
+  // the status was archived out of the list since the task was last saved.
+  // Delete and move are excluded: their confirm/move dialogs stay open and
+  // already show the mutation's own loading state.
+  const menuActionPending =
+    duplicateTask.isPending || toggleArchive.isPending || skipTask.isPending;
+
+  // Assemble the shared TaskForm value from the page's individual states. The
+  // effective* fallbacks keep the form from flashing defaults during the
+  // one-render gap between "task loaded" and "load effect ran".
+  const formValue = form.values;
+  const handleFormChange = (next: TaskFormValue) => form.set(next);
+
+  // The editor's richer description block — the shared markdown composer, with
+  // the AI action sitting in its toolbar — passed to TaskForm as its slot.
+  const descriptionSlot = (
+    <div className="space-y-2">
+      <Label htmlFor="task-description">{t("edit.descriptionLabel")}</Label>
+      {isReadOnly ? (
+        description ? (
+          <div className="rounded-md border border-border/70 border-dashed bg-muted/40 px-3 py-2">
+            <TaskDescription content={description} />
+          </div>
+        ) : (
+          <p className="text-muted-foreground text-sm italic">{t("edit.noDescriptionReadOnly")}</p>
+        )
+      ) : (
+        <MentionComposer
+          id="task-description"
+          value={description}
+          onChange={setDescription}
+          initiativeId={initiativeId ?? 0}
+          subject={referenceRef(SearchEntityType.task, parsedTaskId)}
+          renderPreview={renderDescription}
+          onUploadImage={uploadImage}
+          defaultMode="preview"
+          placeholder={t("edit.descriptionPlaceholder")}
+          actions={
+            aiEnabled ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 px-2 text-xs"
+                onClick={() => generateDescription.mutate(parsedTaskId)}
+                disabled={generateDescription.isPending}
+              >
+                {generateDescription.isPending ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <Sparkles className="h-3 w-3" />
+                )}
+                {t("edit.aiGenerate")}
+              </Button>
+            ) : null
+          }
+        />
+      )}
+    </div>
+  );
 
   return (
-    <>
-      {sectionData ? (
-        <Section name="task.page" data={sectionData} context={context} parts={taskPageParts} />
+    <div className="space-y-6">
+      <ToolBreadcrumb
+        tool={Tool.project}
+        initiativeId={initiativeId}
+        trail={
+          project
+            ? [
+                {
+                  label: project.name,
+                  to: toolDetailRoute(Tool.project, initiativeId, project.id),
+                },
+              ]
+            : []
+        }
+      />
+      {/* The task's title and status are rendered once each, by the form's own
+          title field and status select. This row carries only the byline. */}
+      <h1 className="sr-only">{title || task?.title}</h1>
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-3">
+          {creationMeta ? (
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="ml-auto flex items-center gap-2 text-muted-foreground text-xs">
+                    {creationMeta.displayName ? (
+                      <Avatar className="h-5 w-5 border text-3xs">
+                        {creationMeta.avatarSrc ? (
+                          <AvatarImage
+                            src={creationMeta.avatarSrc}
+                            alt={creationMeta.displayName}
+                          />
+                        ) : null}
+                        <AvatarFallback
+                          userId={creationMeta.anonymized ? null : creationMeta.creatorId}
+                        >
+                          {creationMeta.initials}
+                        </AvatarFallback>
+                      </Avatar>
+                    ) : null}
+                    <span>
+                      {creationMeta.displayName
+                        ? t("edit.createdBy", {
+                            name: creationMeta.displayName,
+                            time: creationMeta.relative,
+                          })
+                        : t("edit.createdAt", { time: creationMeta.relative })}
+                    </span>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>{creationMeta.absolute}</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          ) : null}
+        </div>
+      </div>
+
+      {/* Two columns once there is room for both at their full 25rem, one
+          otherwise. The track definition decides that from the CONTAINER's
+          width, so it holds wherever this page is mounted and at whatever
+          width the sidebar leaves — and `min(25rem,100%)` lets the single
+          column shrink below 25rem on a phone instead of overflowing, which is
+          what a bare min-width could not do. It replaces a flex row that wrapped
+          only because each half claimed a min-width above `sm`: between 468px
+          and 639px nothing claimed one, so the halves sat side by side at a
+          width neither was meant to be used at. */}
+      <div className="grid gap-6 [grid-template-columns:repeat(auto-fit,minmax(min(25rem,100%),1fr))]">
+        <Card>
+          <CardContent className="pt-6">
+            {isReadOnly && readOnlyMessage ? (
+              <p className="rounded-md border border-border bg-muted/50 px-3 py-2 text-muted-foreground text-sm">
+                {readOnlyMessage}
+              </p>
+            ) : null}
+            <form className="space-y-6" onSubmit={handleSubmit}>
+              <TaskForm
+                layout="page"
+                disabled={isReadOnly}
+                value={formValue}
+                onChange={handleFormChange}
+                statuses={statusOptions}
+                projectId={projectId ?? null}
+                initiativeId={project?.initiative_id ?? null}
+                currentUserId={currentUser?.id}
+                selectedAssignees={task?.assignees}
+                descriptionSlot={descriptionSlot}
+                recurrenceReferenceDate={dueDate || startDate || task?.due_date || task?.start_date}
+                storedRecurrence={
+                  task?.recurrence
+                    ? { rule: task.recurrence, shift: task.recurrence_shift ?? 0 }
+                    : null
+                }
+              />
+
+              {/* Save and cancel are the only actions that earn a button here;
+                  everything else a task supports lives behind the overflow
+                  menu so the row stays readable at any width. */}
+              <div className="flex flex-wrap items-center gap-3">
+                <Button type="submit" disabled={isSaving || isReadOnly || datesInverted}>
+                  <Save className="h-4 w-4" />
+                  {isSaving ? t("edit.saving") : t("edit.saveTask")}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() =>
+                    router.navigate({
+                      to: gp(toolDetailRoute(Tool.project, initiativeId, projectId as number)),
+                    })
+                  }
+                >
+                  <X className="h-4 w-4" />
+                  {t("common:cancel")}
+                </Button>
+                {!isReadOnly ? (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      {/* Duplicate and archive dismiss the menu that holds their
+                          own pending label, and neither opens a dialog to carry
+                          one, so the trigger reports their progress instead. */}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="ml-auto"
+                        aria-label={t("common:toolbar.moreActions")}
+                        aria-busy={menuActionPending}
+                      >
+                        {menuActionPending ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <MoreHorizontal className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        disabled={moveTask.isPending}
+                        onSelect={() => setIsMoveDialogOpen(true)}
+                      >
+                        <FolderInput className="h-4 w-4" />
+                        {t("edit.moveToProject")}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        disabled={duplicateTask.isPending}
+                        onSelect={() => {
+                          duplicateTask.mutate(parsedTaskId);
+                        }}
+                      >
+                        <Copy className="h-4 w-4" />
+                        {duplicateTask.isPending ? t("edit.duplicating") : t("edit.duplicateTask")}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        disabled={toggleArchive.isPending}
+                        onSelect={() =>
+                          toggleArchive.mutate({
+                            entityType: "task",
+                            entityId: parsedTaskId,
+                          })
+                        }
+                      >
+                        {task?.archived_at !== null ? (
+                          <>
+                            <ArchiveRestore className="h-4 w-4" />
+                            {toggleArchive.isPending ? t("edit.unarchiving") : t("edit.unarchive")}
+                          </>
+                        ) : (
+                          <>
+                            <Archive className="h-4 w-4" />
+                            {toggleArchive.isPending ? t("edit.archiving") : t("edit.archive")}
+                          </>
+                        )}
+                      </DropdownMenuItem>
+                      {repeating ? (
+                        <DropdownMenuItem
+                          disabled={skipTask.isPending}
+                          onSelect={() => skipTask.mutate(parsedTaskId)}
+                        >
+                          <SkipForward className="h-4 w-4" />
+                          {t("edit.skipOccurrence")}
+                        </DropdownMenuItem>
+                      ) : null}
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive"
+                        disabled={deleteTask.isPending}
+                        onSelect={() => void handleDelete()}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        {deleteTask.isPending ? t("edit.deleting") : t("edit.deleteTask")}
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                ) : null}
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+
+        <div className="space-y-4">
+          <TaskChecklist
+            taskId={parsedTaskId}
+            items={task?.checklist ?? []}
+            canEdit={!isReadOnly}
+          />
+          {/* Under the checklist: what the task is waiting on is the next thing
+              you want after what it is made of. A task is addressed inside its
+              project, so that is the tool a link refreshes. */}
+          {task ? (
+            <ToolRelationsPanel
+              tool={Tool.project}
+              entity={{
+                id: task.project_id,
+                initiative_id: task.project?.initiative_id ?? null,
+              }}
+              target={{ type: SearchEntityType.task, id: parsedTaskId }}
+              canEdit={!isReadOnly}
+              entityTitle={task.title}
+              defaultLayout="rows"
+            />
+          ) : null}
+        </div>
+      </div>
+
+      {/* The thread gets the whole row rather than half of one: a conversation
+          read in a column this narrow wraps every reply. */}
+      {commentsQuery.isError ? (
+        <p className="text-destructive text-sm">{t("edit.commentsError")}</p>
       ) : null}
+      <CasePanel taskId={parsedTaskId} canEdit={!isReadOnly} />
+      <CommentSection
+        entityType="task"
+        entityId={parsedTaskId}
+        comments={commentsQuery.data ?? []}
+        isLoading={commentsQuery.isLoading}
+        hasOlder={commentsQuery.hasNextPage}
+        isLoadingOlder={commentsQuery.isFetchingNextPage}
+        onLoadOlder={() => void commentsQuery.fetchNextPage()}
+        onCommentCreated={commentsCache.putComment}
+        onCommentDeleted={commentsCache.removeComment}
+        onCommentUpdated={commentsCache.putComment}
+        initiativeId={projectQuery.data?.initiative_id ?? 0}
+      />
 
       <MoveTaskDialog
         open={isMoveDialogOpen}
@@ -607,6 +903,6 @@ export const TaskEditPage = () => {
         onConfirm={() => blocker.proceed?.()}
         destructive
       />
-    </>
+    </div>
   );
 };
