@@ -478,6 +478,37 @@ describe("TaskEditPage", () => {
     await expectSaved(/^priority$/i);
   });
 
+  it("writes nothing into the next session when a save lands after it began", async () => {
+    let release = () => {};
+    const held = new Promise<undefined>((resolve) => {
+      release = () => resolve(undefined);
+    });
+    const { sent, unmount, queryClient } = renderTaskPage({ refuse: () => held });
+
+    await choose(/^status$/i, /doing/i);
+    await waitFor(() => expect(sent).toHaveLength(1));
+    // Signed out, and into another server whose task has the same ids.
+    unmount();
+    queryClient.clear();
+    setStoredServerUrl("https://elsewhere.example/api/v1");
+    const key = getReadTaskQueryKey(COMMUNITY_ID, TASK_ID);
+    const theirs = { ...buildTask({ id: TASK_ID, project_id: PROJECT_ID }), title: "Theirs" };
+    queryClient.setQueryData(key, theirs);
+    const landed = new Promise<void>((resolve) =>
+      queryClient.getMutationCache().subscribe((event) => {
+        if (event.type === "updated" && event.action.type === "success") resolve();
+      })
+    );
+
+    release();
+    await landed;
+    clearStoredServerUrl();
+
+    expect(queryClient.getQueryData(key)).toEqual(theirs);
+    expect(queryClient.getQueryState(key)?.isInvalidated).toBe(false);
+    expect(toasts.success).not.toHaveBeenCalled();
+  });
+
   it("keeps a failed property removal's error on the property, with Retry", async () => {
     let failing = true;
     let refuse = () => {};

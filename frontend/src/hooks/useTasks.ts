@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { type QueryClient, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -44,13 +44,14 @@ import {
   toggleChecklistItem,
   updateTask,
 } from "@/api/generated/tasks/tasks";
-import { invalidate, q } from "@/api/query-keys";
+import { describes, invalidate, q } from "@/api/query-keys";
 import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useCommunityMutation } from "@/hooks/useApiMutation";
 import { useAuth } from "@/hooks/useAuth";
-import { getErrorMessage, getHttpStatus } from "@/lib/errorMessage";
+import { getErrorMessage } from "@/lib/errorMessage";
 import { fetchAllPages } from "@/lib/fetchAllPages";
 import { toast } from "@/lib/mascotToast";
+import { currentServerKey } from "@/lib/offlineSession";
 import { withZone } from "@/lib/recurrence";
 import { fireTaskCompletionFeedback } from "@/lib/taskCompletionFeedback";
 import { statusForCategory } from "@/lib/taskStatusDefaults";
@@ -60,26 +61,18 @@ import type { QueryOpts } from "@/types/query";
 
 // ── Queries ─────────────────────────────────────────────────────────────────
 
-/** What a task's fields with a save in flight show meanwhile, by community and
- *  task, so a response or a refresh that lands first does not take them back. */
-const savingFields = new Map<string, Map<string, { value: unknown; save: object }>>();
-
-/** The task, with each field still being saved as it will be. */
-const withSavingFields = (communityId: number, task: TaskRead): TaskRead => {
-  const fields = savingFields.get(`${communityId}:${task.id}`);
-  if (!fields?.size) return task;
-  return { ...task, ...Object.fromEntries([...fields].map(([name, { value }]) => [name, value])) };
-};
-
 // Returns the full ``TaskRead`` (the detail endpoint's shape) — a superset of
 // the list row that additionally carries the ``creator`` summary the edit page
-// renders. The list hooks stay on ``TaskListRead``.
+// renders. The list hooks stay on ``TaskListRead``. A field with a save still
+// in flight reads as that save shows it, so a refresh that lands first does
+// not take it back.
 export const useTask = (taskId: number | null, options?: QueryOpts<TaskRead>) => {
   const communityId = useActiveCommunityId();
   const { enabled: userEnabled = true, ...rest } = options ?? {};
   return useQuery<TaskRead>({
     queryKey: getReadTaskQueryKey(communityId, taskId!),
-    queryFn: async () => withSavingFields(communityId, await readTask(communityId, taskId!)),
+    queryFn: async ({ client }) =>
+      withPendingFields(client, communityId, await readTask(communityId, taskId!)),
     enabled: taskId !== null && Number.isFinite(taskId) && userEnabled,
     ...rest,
   });
@@ -167,8 +160,8 @@ export interface UpdateTaskVariables {
 export const useUpdateTask = (
   options?: MutationOpts<TaskRead, UpdateTaskVariables>,
   /** What a failure says. Defaults to the status-change wording, which is what
-   *  most callers of this are doing; null when the caller says it itself. */
-  errorKey: string | null = "tasks:errors.statusUpdate"
+   *  most callers of this are doing. */
+  errorKey = "tasks:errors.statusUpdate"
 ) => {
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
   const queryClient = useQueryClient();
@@ -216,7 +209,7 @@ export const useUpdateTask = (
       onSuccess?.(...args);
     },
     onError: (...args) => {
-      if (errorKey) toast.error(getErrorMessage(args[0], errorKey));
+      toast.error(getErrorMessage(args[0], errorKey));
       onError?.(...args);
     },
     onSettled,
@@ -245,6 +238,41 @@ const SERIES_FIELDS: (keyof TaskUpdate)[] = [
 
 const SAVED_SHOWN_MS = 2_000;
 
+/** One save of some of a task's fields, as the mutation that sends it carries it. */
+interface TaskFieldSave {
+  communityId: number;
+  taskId: number;
+  edit: TaskEdit;
+  /** The edit the confirmation's Undo sends. */
+  undo?: TaskEdit;
+  /** Who sent it, to which server. Its answer is written only while both still hold. */
+  session: { userId: number | undefined; server: string };
+}
+
+/** Every save of one task's fields shares this key, whichever field it is. */
+const taskFieldSaveKey = (communityId: number, taskId: number) =>
+  ["task-field", communityId, taskId] as const;
+
+/** The task's field saves still in flight, oldest first. */
+const pendingFieldSaves = (
+  client: QueryClient,
+  communityId: number,
+  taskId: number
+): TaskFieldSave[] =>
+  client
+    .getMutationCache()
+    .findAll({ mutationKey: taskFieldSaveKey(communityId, taskId), exact: true, status: "pending" })
+    .sort((a, b) => a.mutationId - b.mutationId)
+    .map((mutation) => mutation.state.variables as TaskFieldSave);
+
+/** The task, with each field a save is still sending as the newest such save shows it. */
+const withPendingFields = (client: QueryClient, communityId: number, task: TaskRead): TaskRead => {
+  const pending = pendingFieldSaves(client, communityId, task.id);
+  return pending.length
+    ? Object.assign({ ...task }, ...pending.map((save) => save.edit.shows))
+    : task;
+};
+
 /**
  * The one way a task's page saves a field: the fields it names, shown at once
  * and taken back if it fails. A change to a repeating task's series fields
@@ -253,9 +281,11 @@ const SAVED_SHOWN_MS = 2_000;
  * Given `undo`, the edit that puts it back, the confirmation offers Undo: for
  * a status move, or a cleared value.
  *
- * Fields share the one cached task. A save's answer, or a refresh, sets only
- * the fields no other save is still sending, so one field's save never takes
- * back another's.
+ * Each save is a mutation keyed by its task, so the saves in flight are read
+ * from the mutation cache: a save's answer, or a refresh, sets only the fields
+ * no other save is still sending, and the task is read afresh once the last
+ * of them settles. An answer that lands after its session ended (signed out,
+ * or another server) writes nothing.
  */
 export const useTaskFieldSave = (
   task: TaskRead,
@@ -271,11 +301,16 @@ export const useTaskFieldSave = (
   const { t } = useTranslation("common");
   const communityId = useActiveCommunityId();
   const queryClient = useQueryClient();
-  const { mutateAsync } = useUpdateTask(undefined, null);
+  const { user } = useAuth();
   const [state, setState] = useState<FieldSaveState>("idle");
   const [error, setError] = useState<unknown>(null);
-  const pending = useRef(0);
+  const sending = useRef(0);
   const last = useRef<{ edit: TaskEdit; undo?: TaskEdit } | null>(null);
+  // Who is signed in now, for answers that land later.
+  const signedIn = useRef(user?.id);
+  useEffect(() => {
+    signedIn.current = user?.id;
+  });
 
   useEffect(() => {
     if (state !== "saved") return;
@@ -283,51 +318,72 @@ export const useTaskFieldSave = (
     return () => clearTimeout(timer);
   }, [state]);
 
-  const send = async (edit: TaskEdit, undo?: TaskEdit): Promise<boolean> => {
-    const key = getReadTaskQueryKey(communityId, task.id);
-    const before = queryClient.getQueryData<TaskRead>(key) ?? task;
-    const shown = Object.keys(edit.shows) as (keyof TaskRead)[];
-    const fieldsId = `${communityId}:${task.id}`;
-    const sending = savingFields.get(fieldsId) ?? new Map();
-    savingFields.set(fieldsId, sending);
-    // Marks this save's fields, which a later save of the same field takes over.
-    const mark = {};
-    for (const name of shown) sending.set(name, { value: edit.shows[name], save: mark });
-    const settle = () => {
-      for (const name of shown) if (sending.get(name)?.save === mark) sending.delete(name);
-      if (sending.size === 0) savingFields.delete(fieldsId);
-    };
-    last.current = { edit, undo };
-    pending.current += 1;
-    setState("saving");
-    setError(null);
-    queryClient.setQueryData<TaskRead>(key, (current) => current && { ...current, ...edit.shows });
-    const moved = edit.shows.task_status;
-    let saved = false;
-    try {
-      const written: Partial<TaskRead> =
-        "patch" in edit
-          ? await mutateAsync({
-              taskId: task.id,
-              data: edit.patch,
-              statusChange: moved
-                ? { from: before.task_status.category, to: moved.category }
-                : undefined,
-            })
-          : {
-              properties: await setProperties(communityId, PropertyTarget.task, task.id, {
-                ...edit.properties,
-                merge: true,
-              }),
-            };
-      if (!("patch" in edit)) void invalidate(q.propertyHolder(PropertyTarget.task));
-      settle();
+  /** The task's saves in flight, while `save` still belongs to this session;
+   *  null once it does not. Clearing the cache on sign-out drops it from them. */
+  const inSession = (save: TaskFieldSave): TaskFieldSave[] | null => {
+    const { userId, server } = save.session;
+    if (userId !== signedIn.current || server !== currentServerKey()) return null;
+    const pending = pendingFieldSaves(queryClient, save.communityId, save.taskId);
+    return pending.includes(save) ? pending : null;
+  };
+
+  const { mutateAsync } = useMutation({
+    mutationKey: taskFieldSaveKey(communityId, task.id),
+    mutationFn: async ({ edit, ...save }: TaskFieldSave): Promise<Partial<TaskRead>> =>
+      "patch" in edit
+        ? updateTask(save.communityId, save.taskId, withZone(edit.patch))
+        : {
+            properties: await setProperties(save.communityId, PropertyTarget.task, save.taskId, {
+              ...edit.properties,
+              merge: true,
+            }),
+          },
+    onMutate: async (save) => {
+      const key = getReadTaskQueryKey(save.communityId, save.taskId);
+      // A read still in flight would land over what this save shows.
+      await queryClient.cancelQueries({ queryKey: key, exact: true });
+      const before = queryClient.getQueryData<TaskRead>(key) ?? task;
       queryClient.setQueryData<TaskRead>(
         key,
-        (current) => current && withSavingFields(communityId, { ...current, ...written })
+        (current) => current && { ...current, ...save.edit.shows }
       );
-      saved = true;
+      // The move shows as made now, so the completion feedback goes with it.
+      const moved = save.edit.shows.task_status;
+      if (moved?.category === "done" && before.task_status.category !== "done" && user) {
+        const isAssigned = before.assignees.some((assignee) => assignee.id === user.id);
+        fireTaskCompletionFeedback(user, { isAssigned });
+      }
+      return { before };
+    },
+    onSuccess: (written, save) => {
+      const pending = inSession(save);
+      if (!pending) return;
+      const { taskId, edit, undo } = save;
+      // This save's own fields read as answered, unless a newer save is sending them.
+      const answered = Object.fromEntries(
+        Object.keys(edit.shows)
+          .filter((name) => name in written)
+          .map((name) => [name, written[name as keyof TaskRead]])
+      );
+      queryClient.setQueryData<TaskRead>(
+        getReadTaskQueryKey(save.communityId, taskId),
+        (current) =>
+          current &&
+          Object.assign(
+            { ...current, ...written },
+            ...pending.map((other) => (other === save ? answered : other.edit.shows))
+          )
+      );
+      // The lists showing the task; the task itself is read once the last save settles.
+      const lists = describes(
+        "patch" in edit ? q.allTasks() : q.propertyHolder(PropertyTarget.task)
+      );
+      const itself = describes(q.task(taskId));
+      void queryClient.invalidateQueries({
+        predicate: ({ queryKey }) => lists(queryKey) && !itself(queryKey),
+      });
       if (undo) {
+        const moved = edit.shows.task_status;
         toast.success(
           moved
             ? t("fieldSave.moved", { status: moved.name })
@@ -345,25 +401,56 @@ export const useTaskFieldSave = (
           }
         );
       }
-    } catch (failed) {
-      setError(failed);
-      settle();
-      // A field a later save is still sending keeps what that save shows.
-      const back = shown.filter((name) => !sending.has(name));
+      onSaved?.(edit);
+    },
+    onError: (_failed, save, context) => {
+      const pending = inSession(save);
+      if (!pending || !context) return;
+      // A field a newer save is sending keeps what that save shows.
+      const newer = pending.slice(pending.indexOf(save) + 1);
+      const back = (Object.keys(save.edit.shows) as (keyof TaskRead)[]).filter(
+        (name) => !newer.some((other) => name in other.edit.shows)
+      );
       queryClient.setQueryData<TaskRead>(
-        key,
+        getReadTaskQueryKey(save.communityId, save.taskId),
         (current) =>
           current && {
             ...current,
-            ...Object.fromEntries(back.map((name) => [name, before[name]])),
+            ...Object.fromEntries(back.map((name) => [name, context.before[name]])),
           }
       );
-      // Refused as out of date: what it is now is the next thing to show.
-      if (getHttpStatus(failed) === 409) void queryClient.invalidateQueries({ queryKey: key });
+    },
+    onSettled: (_written, _failed, save) => {
+      // Only this save is left: what the server holds now is what to show.
+      if (inSession(save)?.length === 1) {
+        void queryClient.invalidateQueries({
+          queryKey: getReadTaskQueryKey(save.communityId, save.taskId),
+          exact: true,
+        });
+      }
+    },
+  });
+
+  const send = async (edit: TaskEdit, undo?: TaskEdit): Promise<boolean> => {
+    last.current = { edit, undo };
+    sending.current += 1;
+    setState("saving");
+    setError(null);
+    let saved = false;
+    try {
+      await mutateAsync({
+        communityId,
+        taskId: task.id,
+        edit,
+        undo,
+        session: { userId: user?.id, server: currentServerKey() },
+      });
+      saved = true;
+    } catch (failed) {
+      setError(failed);
     }
-    pending.current -= 1;
-    if (pending.current === 0) setState(saved ? "saved" : "error");
-    if (saved) onSaved?.(edit);
+    sending.current -= 1;
+    if (sending.current === 0) setState(saved ? "saved" : "error");
     return saved;
   };
 
