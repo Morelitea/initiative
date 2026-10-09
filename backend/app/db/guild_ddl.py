@@ -31,7 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlalchemy.schema import CheckConstraint, CreateTable
 
 from app.core.plugin_scopes import PluginScopeResource, tool_resource
-from app.core.tools import PROPERTY_TARGETS, Tool
+from app.core.tools import INSTALL_METADATA_KIND, ITEM_KINDS, PROPERTY_TARGETS, Tool
 from app.db.plugin_rls import (
     PLUGIN_REFUSED_TABLES,
     PLUGIN_TABLE_ACCESS,
@@ -745,19 +745,39 @@ def _plugin_search_read() -> str:
     )
 
 
+def _entity_tool_scope(table: str, kinds: tuple[str, ...]) -> str:
+    """The scope resource of the tool that governs the thing a ``table`` row
+    names by ``(entity_type, entity_id)`` — a task's is ``projects``."""
+    tables = entity_tables()
+    arms = " ".join(
+        f"WHEN '{kind}' THEN '{tool_resource(governing_path(tables[kind])[0]).value}'"  # ty: ignore[not-subscriptable] — every kind has a tool
+        for kind in kinds
+    )
+    return f"(CASE {table}.entity_type {arms} END)"
+
+
 def _property_values_scope(write: bool) -> str:
     """An installed plug-in reaches a property value with the scope of the tool
     that governs the row it is on — a task's with ``projects``."""
-    tables = entity_tables()
-    arms = " ".join(
-        f"WHEN '{target}' THEN "
-        f"'{tool_resource(governing_path(tables[target])[0]).value}'"  # ty: ignore[not-subscriptable] — every target has a tool
-        for target in PROPERTY_TARGETS
-    )
     held = IN_POLICY.field("install_write" if write else "install_read")
+    scope = _entity_tool_scope("property_values", PROPERTY_TARGETS)
+    return f"({_IID} IS NULL OR {scope} = ANY ({held}))"
+
+
+def _plugin_metadata_scope(write: bool) -> str:
+    """An installed plug-in reaches its own values and no other install's: on
+    an item with the read scope of the tool that governs it, for writing too,
+    and on the install itself with none. It writes none while the community's
+    content is on hold."""
+    held = IN_POLICY.field("install_read")
+    scope = _entity_tool_scope("plugin_metadata", ITEM_KINDS)
+    reach = (
+        f"(plugin_metadata.entity_type = '{INSTALL_METADATA_KIND}'"
+        f" OR COALESCE({scope} = ANY ({held}), false))"
+    )
+    hold = f" AND NOT {IN_POLICY.content_hold}" if write else ""
     return (
-        f"({_IID} IS NULL OR "
-        f"(CASE property_values.entity_type {arms} END) = ANY ({held}))"
+        f"({_IID} IS NULL OR (plugin_metadata.install_id = {_IID}{hold} AND {reach}))"
     )
 
 
@@ -784,6 +804,14 @@ def _plugin_predicates(table: str) -> dict[str, str]:
         write = _property_values_scope(True)
         return {
             "SELECT": _property_values_scope(False),
+            "INSERT": write,
+            "UPDATE": write,
+            "DELETE": write,
+        }
+    if table == "plugin_metadata":
+        write = _plugin_metadata_scope(True)
+        return {
+            "SELECT": _plugin_metadata_scope(False),
             "INSERT": write,
             "UPDATE": write,
             "DELETE": write,

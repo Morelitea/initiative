@@ -108,6 +108,9 @@ _NAMED: dict[str, PluginTableAccess] = {
     # No scope of its own: a value takes the scope of the tool that governs the
     # row it is on, per row (``guild_ddl._property_values_scope``).
     "property_values": PluginTableAccess(PluginTableKind.scoped),
+    # An install's own values: on an item with the read scope of the tool that
+    # governs it, and on the install with none (``guild_ddl._plugin_metadata_scope``).
+    "plugin_metadata": PluginTableAccess(PluginTableKind.scoped),
     "initiative_members": _scoped("members"),
     "webhook_subscriptions": PluginTableAccess(PluginTableKind.subscriptions),
     **{

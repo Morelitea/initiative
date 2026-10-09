@@ -81,6 +81,9 @@ class LockNamespace(IntEnum):
     POST_POLL = _tag(b"POLL")
     #: One plug-in connection's token, keyed by guild, install and connection.
     PLUGIN_TOKEN = _tag(b"PTOK")
+    #: The values one install keeps on one item, keyed by guild, install and
+    #: item, written under the per-item caps.
+    PLUGIN_METADATA = _tag(b"PMET")
 
     # -- keyed by an account ------------------------------------------------
     #: Creating communities under the daily limit.
