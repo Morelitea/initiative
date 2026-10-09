@@ -15,7 +15,6 @@ import { TaskEditSkeleton } from "@/components/skeletons/PageSkeletons";
 import { ToolAccessStatus } from "@/components/ToolAccessStatus";
 import { MoveTaskDialog } from "@/components/tasks/MoveTaskDialog";
 import { type TaskPageContext, taskPageParts } from "@/components/tasks/parts";
-import { TaskDescription } from "@/components/tasks/TaskDescription";
 import {
   emptyTaskFormValue,
   serializeTaskFormValue,
@@ -33,7 +32,6 @@ import { useCommunities } from "@/hooks/useCommunities";
 import { useDateLocale } from "@/hooks/useDateLocale";
 import { useInitiative } from "@/hooks/useInitiatives";
 import { useReadOnOpen } from "@/hooks/useNotifications";
-import { usePastedImages } from "@/hooks/usePastedImages";
 import { useProject, useProjectTaskStatuses, useWritableProjects } from "@/hooks/useProjects";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
 import { useServerForm } from "@/hooks/useServerForm";
@@ -61,9 +59,6 @@ import {
   getUserDisplayName,
   isAnonymizedUser,
 } from "@/lib/userDisplay";
-
-/** The preview of a description being edited reads the way the saved one will. */
-const _renderDescription = (draft: string) => <TaskDescription content={draft} />;
 
 const toLocalInputValue = (value?: string | null) => {
   if (!value) {
@@ -147,7 +142,6 @@ export const TaskEditPage = () => {
   const parsedTaskId = Number(taskId);
   const router = useRouter();
   const communityId = useActiveCommunityId();
-  const _uploadImage = usePastedImages();
   const { user: currentUser } = useAuth();
   useCommunities();
   const { t } = useTranslation(["tasks", "common", "properties"]);

@@ -305,23 +305,20 @@ export const TaskRecurrenceField = ({
     referenceDate?: string | null;
     /** The stored repeat and its shift, previewed while it is kept as custom. */
     stored?: { rule: string; shift: number } | null;
-  }) => {
-  const editor = (
-    <RecurrenceEditor
-      kind="task"
-      form={form}
-      value={value.recurrence}
-      onChange={(recurrence) => onChange({ recurrence })}
-      strategy={value.recurrenceStrategy}
-      onStrategyChange={(recurrenceStrategy) => onChange({ recurrenceStrategy })}
-      disabled={disabled}
-      referenceDate={referenceDate ?? value.dueDate ?? value.startDate}
-      stored={stored}
-    />
-  );
-  // The editor draws its own outermost element, so classes need one around it.
-  return className ? <div className={className}>{editor}</div> : editor;
-};
+  }) => (
+  <RecurrenceEditor
+    kind="task"
+    className={className}
+    form={form}
+    value={value.recurrence}
+    onChange={(recurrence) => onChange({ recurrence })}
+    strategy={value.recurrenceStrategy}
+    onStrategyChange={(recurrenceStrategy) => onChange({ recurrenceStrategy })}
+    disabled={disabled}
+    referenceDate={referenceDate ?? value.dueDate ?? value.startDate}
+    stored={stored}
+  />
+);
 
 export const TaskAssigneesField = ({
   value,

@@ -73,6 +73,8 @@ type RecurrenceEditorProps = {
   strategy?: TaskListReadRecurrenceStrategy;
   onStrategyChange?: (value: TaskListReadRecurrenceStrategy) => void;
   disabled?: boolean;
+  /** For the editor's outermost element, as a template places it. */
+  className?: string;
   /** The form its typed inputs submit with, when the field sits outside that
    *  form (`<input form>`): Enter in one submits it, and the browser's own
    *  checks on the value hold it back. */
@@ -134,6 +136,7 @@ export const RecurrenceEditor = ({
   strategy,
   onStrategyChange,
   disabled = false,
+  className,
   form,
 }: RecurrenceEditorProps) => {
   const { t, i18n } = useTranslation(["projects", "dates"]);
@@ -228,7 +231,7 @@ export const RecurrenceEditor = ({
         : null;
 
   return (
-    <div className="space-y-4">
+    <div className={cn("space-y-4", className)}>
       <div className="space-y-2">
         <Label>{t("recurrence.repeat")}</Label>
         <Select
