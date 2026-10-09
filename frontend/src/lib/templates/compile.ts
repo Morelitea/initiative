@@ -7,7 +7,9 @@
  *
  * - an allowlist of elements and attributes, so markup can only be structure
  *   and text, never script, forms or frames;
- * - our own `<part>`, placing one of the section's components;
+ * - our own `<part>`, placing one of the section's components, and `<blocks>`,
+ *   placing one of its block areas (a theme's alone: a plug-in's block cannot
+ *   place blocks);
  * - directives on whole elements (`if`, `else-if`, `else`, `for`, `:attr`) and
  *   `{{ }}` in text, every expression checked by expressions.ts;
  * - every required part exactly once, outside any `if` or `for`.
@@ -19,7 +21,6 @@
  * `.ts` files: the Vite plugin runs it in Node.
  */
 
-import type { WidgetElementDefinition } from "../widgets/elements.ts";
 import { checkExpression, type ExpressionScope } from "./expressions.ts";
 import {
   parseTemplate,
@@ -53,8 +54,16 @@ export type CompiledNode =
     }
   | { t: "text"; parts: Array<string | number> }
   | { t: "part"; name: string; attrs: Record<string, string>; bind: Record<string, number> }
-  /** One of our components, drawn from the props the template gives it. */
-  | { t: "component"; name: string; attrs: Record<string, string>; bind: Record<string, number> }
+  /** One of our components, drawn from the props the template gives it, around what it holds. */
+  | {
+      t: "component";
+      name: string;
+      attrs: Record<string, string>;
+      bind: Record<string, number>;
+      kids: CompiledNode[];
+    }
+  /** A block area: the plug-in blocks offered there, each given these classes. */
+  | { t: "blocks"; area: string; attrs: Record<string, string>; bind: Record<string, number> }
   | { t: "if"; branches: Array<{ when: number | null; node: CompiledNode }> }
   | { t: "for"; item: string; list: number; node: CompiledNode };
 
@@ -74,6 +83,17 @@ export interface CompiledTemplate {
 export const MAX_LOOP_DEPTH = LIMITS.loopDepth;
 const FOR_PATTERN = /^\s*([a-z_][A-Za-z0-9_]*)\s+in\s+([\s\S]+)$/;
 
+/** One of our components a template may place as an element. */
+export interface ElementDefinition {
+  /** Its props, as the template writes them (`x-label`) mapped to the names the
+   *  component takes (`xLabel`). */
+  props: Readonly<Record<string, string>>;
+  /** It holds content of its own, such as a button's label. */
+  holds?: boolean;
+  /** Props given as they are, never bound, each naming one of these values. */
+  fixed?: Readonly<Record<string, readonly string[]>>;
+}
+
 export interface CompileOptions {
   name: string;
   section: SectionDefinition;
@@ -81,7 +101,7 @@ export interface CompileOptions {
    *  widget's model, worked out by code the compiler does not read. */
   scope?: Readonly<Record<string, Shape>>;
   /** Components it may place, such as a widget's charts, by element name. */
-  elements?: Readonly<Record<string, WidgetElementDefinition>>;
+  elements?: Readonly<Record<string, ElementDefinition>>;
   /** A plug-in's template: only the contract's classes, and no `t()`. */
   plugin?: boolean;
 }
@@ -138,6 +158,7 @@ export function compileTemplate(source: string, options: CompileOptions): Compil
   };
 
   const partCounts = new Map<string, number>();
+  const placedAreas = new Set<string>();
 
   const attributesOf = (
     element: TemplateElement,
@@ -228,10 +249,44 @@ export function compileTemplate(source: string, options: CompileOptions): Compil
       );
       return { t: "part", name, attrs, bind };
     }
+    if (element.name === "blocks") {
+      if (options.plugin) {
+        report("A plug-in's template cannot place <blocks>", element);
+        return null;
+      }
+      const area = directive(element, "area")?.value;
+      if (!area) {
+        report("<blocks> needs an area", element);
+        return null;
+      }
+      if (!options.section.areas?.[area]) {
+        report(`${options.name} has no block area called ${area}`, element);
+        return null;
+      }
+      if (placedAreas.has(area) || placement.loops > 0) {
+        report(`The ${area} block area is placed once`, element);
+      }
+      placedAreas.add(area);
+      if (element.children.length > 0) report("<blocks> holds nothing: close it with />", element);
+      const { attrs, bind } = attributesOf(
+        { ...element, attributes: element.attributes.filter((a) => a.name !== "area") },
+        scope,
+        (attribute) => attribute === "class"
+      );
+      return { t: "blocks", area, attrs, bind };
+    }
     const component = options.elements?.[element.name];
     if (component) {
-      if (element.children.length > 0) {
+      if (element.children.length > 0 && !component.holds) {
         report(`<${element.name}> holds nothing: close it with />`, element);
+      }
+      for (const [prop, values] of Object.entries(component.fixed ?? {})) {
+        const given = element.attributes.find((a) => a.name === prop || a.name === `:${prop}`);
+        if (!given || given.name !== prop || given.value === null) {
+          report(`<${element.name}> needs ${prop}, given as it is`, given ?? element);
+        } else if (!values.includes(given.value)) {
+          report(`<${element.name}> names ${prop} ${given.value}, which is not declared`, given);
+        }
       }
       const { attrs, bind } = attributesOf(element, scope, (name) =>
         Object.hasOwn(component.props, name)
@@ -246,6 +301,7 @@ export function compileTemplate(source: string, options: CompileOptions): Compil
         name: element.name,
         attrs: rename(attrs) as Record<string, string>,
         bind: rename(bind) as Record<string, number>,
+        kids: children(element.children, scope, placement),
       };
     }
     if (!ELEMENT_ATTRIBUTES.has(element.name)) {

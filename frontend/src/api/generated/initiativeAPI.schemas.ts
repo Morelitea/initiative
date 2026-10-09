@@ -6969,6 +6969,45 @@ export interface PluginAccessTokenResponse {
 }
 
 /**
+ * The task one of a block's actions is run on.
+ */
+export interface PluginBlockActionRequest {
+  task_id: number;
+}
+
+export type PluginBlockActionResponseRow = { [key: string]: unknown } | null;
+
+/**
+ * The block's fresh row for the task the action ran on, when the plug-in
+ * answered with one.
+ */
+export interface PluginBlockActionResponse {
+  row?: PluginBlockActionResponseRow;
+}
+
+/**
+ * The tasks a view holds that one of a plug-in's blocks may be drawn on.
+ */
+export interface PluginBlockRowsRequest {
+  /** @maxItems 100 */
+  task_ids: number[];
+}
+
+export type PluginBlockRowsResponseRows = { [key: string]: { [key: string]: unknown } };
+
+/**
+ * A block's read: each task's row, by task id.
+ *
+ * Only tasks the block is drawn on for this viewer and the install can read
+ * have a row, and a task the plug-in said nothing about has none.
+ */
+export interface PluginBlockRowsResponse {
+  rows?: PluginBlockRowsResponseRows;
+  fetched_at: string;
+  cached?: boolean;
+}
+
+/**
  * A plug-in asking one member to let it act as them, for one purpose.
  */
 export interface PluginConsentRequestCreate {
@@ -7735,6 +7774,7 @@ export interface ProjectRead {
   end_date: string | null;
   owner_id: number | null;
   is_template: boolean;
+  listing_uid: string | null;
   pinned_at: string | null;
   default_view_mode: ProjectReadDefaultViewMode;
   owner: UserPublic | null;

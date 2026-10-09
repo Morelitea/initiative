@@ -64,6 +64,17 @@ export const pluginDataKey = (
     JSON.stringify(Object.entries(params ?? {}).sort(([a], [b]) => (a < b ? -1 : 1))),
   ] as const;
 
+/** A plug-in block's rows; without `taskIds`, the prefix every view's rows of it share. */
+export const pluginBlockRowsKey = (
+  communityId: number,
+  pluginId?: number,
+  blockId?: string,
+  taskIds?: string
+) =>
+  ["plugin-block-rows", communityId, pluginId, blockId, taskIds].filter(
+    (part) => part !== undefined
+  );
+
 /** Which widgets this community's installed plug-ins contribute. Enabled installs only —
  *  a disabled plug-in's widgets have nothing to draw. */
 export const usePluginWidgetCatalog = (enabled = true) => {

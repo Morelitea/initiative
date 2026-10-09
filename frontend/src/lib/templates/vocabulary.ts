@@ -40,6 +40,13 @@ export const FUNCTIONS: ReadonlySet<string> = new Set(templates.functions);
 export const WIDGET_ELEMENT_PROPS: Readonly<Record<string, readonly string[]>> =
   templates.widgetElements;
 
+/** The elements only a plug-in block may place, and the props each takes. */
+export const BLOCK_ELEMENT_PROPS: Readonly<Record<string, readonly string[]>> =
+  templates.blockElements;
+
+/** The most tasks one call for a block's rows may name. */
+export const BLOCK_SUBJECT_IDS: number = caps.blockSubjectIds;
+
 /** The classes a plug-in's template may use, all of which the stylesheet carries. */
 export const PLUGIN_CLASSES: ReadonlySet<string> = new Set(templates.classes);
 

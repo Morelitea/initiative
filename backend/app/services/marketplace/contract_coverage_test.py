@@ -51,7 +51,7 @@ def maximal_manifest() -> dict:
             "protocol": 1,
             "scopes": ["projects:write", "comments:read", "plugins:acme.github"],
         },
-        "features": ["endpoints", "widgets", "pages", "dashboards"],
+        "features": ["endpoints", "widgets", "pages", "dashboards", "blocks"],
         "default_name": "Acme Tracker",
         "minimum_age": {"default": 16, "US": 13},
         "min_plugin_api": "4.2",
@@ -209,6 +209,19 @@ def maximal_manifest() -> dict:
                 "returns": [{"key": "number", "type": "int"}],
                 "identity": {"kind": "issue", "key": ["number"]},
             },
+            # A block's read and the action its button runs, both about tasks.
+            {
+                "id": "plugin.acme.tracker.timers",
+                "direction": "read",
+                "subject": "task",
+                "per_viewer": True,
+                "returns": [{"key": "task_id", "type": "int", "list": True}],
+            },
+            {
+                "id": "plugin.acme.tracker.start",
+                "direction": "write",
+                "subject": "task",
+            },
         ],
         "community_summary": READ_ENDPOINT,
         "widgets": [
@@ -226,6 +239,22 @@ def maximal_manifest() -> dict:
                 # The endpoint's answer, written in its returns.
                 "sample_data": {"count": [1], "labels": ["one"], "used": 1},
                 "requires": {"any_of": ["vendor"]},
+            }
+        ],
+        "blocks": [
+            {
+                "id": "timer",
+                "areas": ["task.card.inline", "task.page.aside"],
+                "name": {"en": "Timer"},
+                "template": (
+                    '<button action="start">{{ strings.start }}</button>'
+                    '<open page="panel">{{ task.title }}</open>'
+                ),
+                "endpoint": "plugin.acme.tracker.timers",
+                "actions": ["plugin.acme.tracker.start"],
+                "project_listing": "WY4WAN93PFP3X4",
+                "strings": {"start": {"en": "Start"}},
+                "requires": {"all_of": ["other"]},
             }
         ],
         "pages": [
@@ -503,7 +532,7 @@ def _nodes(published: dict, declarative: dict) -> list[tuple[str, dict]]:
     """Each contract object beside the published node that should carry it,
     measured across both manifests where neither alone carries every field."""
     connection, other = published["connections"]
-    read, written, _emitted = published["endpoints"]
+    read, written, _emitted, timers, _start = published["endpoints"]
     widget = published["widgets"][0]
     dashboard = published["dashboards"][0]
     workspace, profile = declarative["connections"]
@@ -529,12 +558,13 @@ def _nodes(published: dict, declarative: dict) -> list[tuple[str, dict]]:
         # A read carries the caller-side fields and a write carries the
         # identity; no single direction carries every field, so the two are
         # measured together.
-        ("endpoint", {**read, **written, **listed, **labelled}),
+        ("endpoint", {**read, **written, **timers, **listed, **labelled}),
         ("endpointParam", read["params"][0]),
         # `list` and `of` never share a return: a list has no one figure to
         # count against anything.
         ("endpointReturn", {**read["returns"][0], **read["returns"][2]}),
         ("widget", widget),
+        ("block", published["blocks"][0]),
         ("page", published["pages"][0]),
         ("bundledDashboard", dashboard),
         ("bundledDashboardWidget", dashboard["widgets"][0]),

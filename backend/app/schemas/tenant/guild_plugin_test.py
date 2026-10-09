@@ -21,6 +21,7 @@ from types import SimpleNamespace
 from app.db.guild_standing import GuildContext
 from app.models.platform.guild import Guild
 from app.schemas.tenant.guild_plugin import serialize_guild_plugin
+from app.services.marketplace.registration_lookup import InstallState
 from app.services.tenant.plugin_age import AgeViewer
 
 #: An adult whose country is known, so no age limit is what is under test.
@@ -249,3 +250,53 @@ def test_surface_access_is_computed_for_the_viewer():
             "openable_initiatives": [2, 5],
         },
     }
+
+
+def test_block_access_is_computed_for_the_viewer():
+    """Each declared block, with the initiatives whose tasks show it: a
+    placement admitting the viewer's role, every placement for an admin, and
+    none while the install is off or its service is not live."""
+    definition = {**DEFINITION, "blocks": [{"id": "timer"}, {"id": "badge"}]}
+    rows = [
+        SimpleNamespace(initiative_id=5, role_ids=[41]),
+        SimpleNamespace(initiative_id=2, role_ids=[40]),
+    ]
+    member = GuildContext(
+        guild=Guild(id=7, name="g"),
+        user_id=12,
+        guild_id=7,
+        standing_guild_id=7,
+        member_role_ids=(40,),
+    )
+    admin = GuildContext(
+        guild=Guild(id=7, name="g"),
+        user_id=11,
+        guild_id=7,
+        standing_guild_id=7,
+        guild_admin=True,
+    )
+
+    def access(context, *, state=None, **overrides):
+        payload = serialize_guild_plugin(
+            _plugin(definition=definition, **overrides),
+            context=context,
+            placements=rows,
+            install_state=state,
+            viewer=ADULT,
+        )
+        return {one.block_id: one.openable_initiatives for one in payload.block_access}
+
+    assert access(member) == {"timer": [2], "badge": [2]}
+    assert access(admin) == {"timer": [2, 5], "badge": [2, 5]}
+    assert access(admin, enabled=False) == {"timer": [], "badge": []}
+    assert access(admin, state=InstallState(available=False)) == {
+        "timer": [],
+        "badge": [],
+    }
+    young = serialize_guild_plugin(
+        _plugin(definition={**definition, "minimum_age": {"default": 18}}),
+        context=admin,
+        placements=rows,
+        viewer=AgeViewer(age=15, country="US"),
+    )
+    assert [one.openable_initiatives for one in young.block_access] == [[], []]

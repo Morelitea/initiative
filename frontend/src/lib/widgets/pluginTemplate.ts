@@ -41,20 +41,30 @@ const RETURN_SHAPES: Readonly<Record<string, Shape>> = {
   url: "string",
 };
 
+/** The fields of one row of an endpoint's answer, as a template reads them:
+ *  its `list` returns, or its single ones. */
+export const returnFields = (returns: readonly EndpointReturn[], list: boolean): Shape => ({
+  fields: Object.fromEntries(
+    returns
+      .filter((declared) => Boolean(declared.list) === list)
+      .map((declared) => [declared.key, RETURN_SHAPES[declared.type] ?? "any"])
+  ),
+});
+
+/** A plug-in's own words, `strings.<key>`. */
+export const stringsShape = (stringKeys: readonly string[]): Shape => ({
+  fields: Object.fromEntries(stringKeys.map((key) => [key, "string"])),
+});
+
 /** What a plug-in widget's template may read. */
 export function pluginWidgetScope(
   returns: readonly EndpointReturn[],
   stringKeys: readonly string[]
 ): Record<string, Shape> {
-  const row: Record<string, Shape> = {};
-  const values: Record<string, Shape> = {};
-  for (const declared of returns) {
-    (declared.list ? row : values)[declared.key] = RETURN_SHAPES[declared.type] ?? "any";
-  }
   return {
-    rows: { list: { fields: row } },
-    values: { fields: values },
-    strings: { fields: Object.fromEntries(stringKeys.map((key) => [key, "string"])) },
+    rows: { list: returnFields(returns, true) },
+    values: returnFields(returns, false),
+    strings: stringsShape(stringKeys),
     now: "number",
   };
 }

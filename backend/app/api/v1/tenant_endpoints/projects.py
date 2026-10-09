@@ -252,6 +252,7 @@ def _slim_project_reads(
                 created_at=project.created_at,
                 updated_at=project.updated_at,
                 is_template=project.is_template,
+                listing_uid=project.listing_uid,
                 archived_at=project.archived_at,
                 pinned_at=project.pinned_at,
                 community_id=context.guild_id,

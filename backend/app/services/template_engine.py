@@ -1,9 +1,9 @@
 """The template compiler, as the server runs it.
 
-A plug-in's widget template is compiled by the same compiler the browser runs
-(``frontend/src/lib/widgets/pluginTemplate.ts``), so a template that does not
-compile refuses the plug-in when it is published rather than reaching a
-dashboard. Its server build (``frontend/src/lib/widgets/serverTemplates.ts``,
+A plug-in's widget and block templates are compiled by the same compiler the
+browser runs (``frontend/src/lib/widgets/pluginTemplate.ts``), so a template
+that does not compile refuses the plug-in when it is published rather than
+reaching a dashboard or a task. Its server build (``frontend/src/lib/widgets/serverTemplates.ts``,
 built by ``pnpm build:editor-server``) runs in an embedded V8 in a worker
 process (:mod:`app.services.template_worker`, through
 :mod:`app.services.worker_pool`). The pool starts on the first check, and a
@@ -20,7 +20,7 @@ from typing import Any, Optional
 
 from app.services.worker_pool import Pool, PoolError
 
-__all__ = ["TemplateEngineError", "check_widget", "shutdown"]
+__all__ = ["TemplateEngineError", "check_block", "check_widget", "shutdown"]
 
 _BACKEND = Path(__file__).resolve().parents[2]
 #: Where the compiler's server build is: copied beside the backend in the
@@ -91,10 +91,38 @@ def check_widget(
     its fields are checked against, and ``string_keys`` the keys of its own
     ``strings``. Blocking: a publish waits for its plug-in's templates.
     """
+    return _ask({"template": template, "returns": returns, "strings": string_keys})
+
+
+def check_block(
+    template: str,
+    returns: list[dict[str, Any]],
+    string_keys: list[str],
+    action_keys: list[str],
+    page_ids: list[str],
+) -> list[str]:
+    """Every problem with a plug-in block's template, or none.
+
+    As :func:`check_widget`, with ``returns`` those of the read the block
+    draws (none for a block drawn from the task alone), ``action_keys`` its
+    actions by key (the endpoint id after ``plugin.<public id>.``) and
+    ``page_ids`` the manifest's pages, which its buttons and ``<open>`` name.
+    """
+    return _ask(
+        {
+            "kind": "block",
+            "template": template,
+            "returns": returns,
+            "strings": string_keys,
+            "actions": action_keys,
+            "pages": page_ids,
+        }
+    )
+
+
+def _ask(request: dict[str, Any]) -> list[str]:
     try:
-        reply = _the_pool().ask(
-            {"template": template, "returns": returns, "strings": string_keys}
-        )
+        reply = _the_pool().ask(request)
     except PoolError as exc:
         raise TemplateEngineError(str(exc)) from exc
     if "error" in reply:

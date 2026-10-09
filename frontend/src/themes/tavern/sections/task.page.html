@@ -3,6 +3,7 @@
   <part name="breadcrumb" />
   <div class="space-y-3">
     <div class="flex flex-wrap items-center gap-3">
+      <blocks area="header" />
       <part name="byline" class="ml-auto" />
     </div>
   </div>
@@ -42,7 +43,12 @@
             <h2 class="font-medium text-muted-foreground text-xs uppercase tracking-wide">{{ t('properties:title') }}</h2>
             <part name="properties" />
           </section>
-          <part name="actions" class="flex flex-wrap items-center gap-3" />
+          <blocks area="main" />
+          <!-- The actions part's own row, with the plug-ins' menu beside its overflow menu. -->
+          <div class="flex flex-wrap items-center gap-3">
+            <part name="actions" class="contents" />
+            <blocks area="actions" />
+          </div>
         </div>
       </div>
     </div>
@@ -50,6 +56,7 @@
     <div class="space-y-4">
       <part name="checklist" />
       <part name="relations" />
+      <blocks area="aside" />
     </div>
   </div>
 

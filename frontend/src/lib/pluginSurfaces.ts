@@ -159,3 +159,41 @@ export const initiativePluginPath = (
     ? `${initiativeRoute(initiativeId)}/plugins/${plugin.id}`
     : null;
 };
+
+/** A block, as a plug-in's definition declares it (the contract's `defs.block`). */
+export interface PluginBlock {
+  id: string;
+  /** The block areas it fits, such as `task.card.inline`. */
+  areas: string[];
+  name?: Record<string, string>;
+  template: string;
+  /** The read it draws, with `subject: "task"`; absent for one drawn from the task alone. */
+  endpoint?: string;
+  /** The writes its buttons and menu items run, by full endpoint id. */
+  actions?: string[];
+  /** Only on tasks whose project was installed from this listing. */
+  project_listing?: string;
+  strings?: Record<string, Record<string, string>>;
+}
+
+/** The blocks a definition declares, whoever reads. */
+export const declaredBlocks = (definition: Record<string, unknown> | null | undefined) => {
+  const blocks = definition?.blocks;
+  if (!Array.isArray(blocks)) return [];
+  return blocks.filter(
+    (block): block is PluginBlock =>
+      typeof block?.id === "string" &&
+      typeof block.template === "string" &&
+      Array.isArray(block.areas)
+  );
+};
+
+/** An endpoint id as a block's template names it: without its `plugin.<public id>.`. */
+export const endpointKey = (
+  definition: Record<string, unknown> | null | undefined,
+  endpointId: string
+): string => {
+  const service = definition?.service as { public_id?: unknown } | undefined;
+  const prefix = `plugin.${String(service?.public_id)}.`;
+  return endpointId.startsWith(prefix) ? endpointId.slice(prefix.length) : endpointId;
+};

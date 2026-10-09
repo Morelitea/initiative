@@ -39,6 +39,13 @@ holding a single value stay whole beside them. Nothing interprets a value; the
 projection is by name alone, on its way to a widget's template, which reads the
 result as data.
 
+**The same call serves a block on a task.** A read declaring ``subject:
+"task"`` is called with the ids of the tasks a view holds, which the token
+carries as ``task_ids`` and the cache key holds; one declaring ``per_viewer``
+also names who is looking (``viewer``), so its answers are never shared between
+viewers. Which ids may be sent is decided before this module runs
+(:mod:`app.services.marketplace.plugin_blocks`).
+
 **The same call serves one plug-in calling another.** :mod:`plugin_hub` checks such a
 call and makes it through :func:`_call_plugin` and :func:`cached_call`, reading
 the answer whole rather than through the returns.
@@ -59,7 +66,7 @@ import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
-from typing import Any, Mapping, Optional, TypeVar
+from typing import Any, Mapping, Optional, Sequence, TypeVar
 
 import httpx
 from sqlmodel import select
@@ -79,7 +86,10 @@ from app.core.security import (
 from app.models.tenant.guild_plugin import GuildPlugin
 from app.models.tenant.guild_plugin_user_connection import GuildPluginUserConnection
 from app.services.fields.spec import FieldType
-from app.services.marketplace.plugin_refs import ensure_plugin_guild_ref
+from app.services.marketplace.plugin_refs import (
+    ensure_plugin_guild_ref,
+    ensure_plugin_ref,
+)
 from app.services.marketplace.context_jwt import mint_context_token
 from app.services.marketplace.registration_lookup import (
     RegistrationSnapshot,
@@ -641,8 +651,13 @@ def _cache_key(
     canonical_params: str,
     refs: Mapping[str, str],
     fields: Mapping[str, Mapping[str, Any]],
+    task_ids: Optional[Sequence[int]] = None,
+    viewer: Optional[str] = None,
 ) -> str:
     """Every credential the response depended on, in one string.
+
+    A block's read also depends on the tasks it was asked about, and a
+    ``per_viewer`` one on who was looking.
 
     Guild and install lead so an entry is scoped to the same boundary the
     request was, and a prefix drop can retire one install's answers. The
@@ -657,6 +672,10 @@ def _cache_key(
         "secret_fields": plugin.secret_fields or {},
         "refs": dict(sorted(refs.items())),
     }
+    if task_ids is not None:
+        depends["task_ids"] = sorted(task_ids)
+    if viewer is not None:
+        depends["viewer"] = viewer
     if is_declarative(plugin.definition):
         # What a declarative endpoint's expressions read, a member's own
         # connection's fields among them.
@@ -852,9 +871,14 @@ async def _call_plugin(
     transport: httpx.AsyncBaseTransport | None,
     read: Callable[[httpx.Request | Answered], Awaitable[T]],
     caller: Optional[CallingPlugin] = None,
+    task_ids: Optional[Sequence[int]] = None,
+    viewer: Optional[str] = None,
 ) -> T:
     """One upstream call, under this worker's in-flight cap for the plug-in, and
     what ``read`` made of its answer. Sent once: nothing here retries.
+
+    ``task_ids`` and ``viewer`` are a block's: the tasks the call is about, and
+    the member looking at them by this install's reference for them.
 
     A declarative plug-in is called by Initiative itself
     (:func:`~app.services.marketplace.declarative.call_endpoint`), with no
@@ -890,6 +914,8 @@ async def _call_plugin(
                         refs=refs,
                         fields=fields,
                         actor=caller.actor if caller is not None else None,
+                        tasks=task_ids,
+                        viewer=viewer,
                     )
                 )
             )
@@ -909,6 +935,8 @@ async def _call_plugin(
                 actor=caller.actor if caller is not None else None,
                 member=caller.member_ref if caller is not None else None,
                 initiative_id=caller.initiative_id if caller is not None else None,
+                task_ids=task_ids,
+                viewer=viewer,
             )
         except PluginPlatformSigningNotConfiguredError as exc:
             raise PluginDataError(
@@ -964,6 +992,7 @@ async def fetch_plugin_source(
     user_id: int,
     is_guild_admin: bool,
     transport: httpx.AsyncBaseTransport | None = None,
+    task_ids: Optional[Sequence[int]] = None,
 ) -> PluginDataResult:
     """Resolve one endpoint for one caller.
 
@@ -972,11 +1001,18 @@ async def fetch_plugin_source(
     runs. What is decided here is the plug-in's own vocabulary: the endpoint exists,
     the caller may read it, both kill switches are open, the parameters are ones
     the endpoint declared, and the credentials it named are present.
+
+    ``task_ids`` are a block's, already narrowed to what the caller and the
+    install may both read, and given exactly when the endpoint has a subject.
     """
     endpoint = find_read_endpoint(plugin.definition, endpoint_id)
-    if endpoint is None or (
-        service_public_id(plugin.definition) is None
-        and not is_declarative(plugin.definition)
+    if (
+        endpoint is None
+        or (
+            service_public_id(plugin.definition) is None
+            and not is_declarative(plugin.definition)
+        )
+        or ("subject" in endpoint) != (task_ids is not None)
     ):
         raise PluginDataError(PluginDataMessages.ENDPOINT_NOT_FOUND, 404)
 
@@ -990,14 +1026,24 @@ async def fetch_plugin_source(
     refs, fields = await _resolve_connections(
         session, plugin=plugin, endpoint=endpoint, user_id=user_id
     )
+    guild_id = routed_guild_id(session)
+    viewer = (
+        await ensure_plugin_ref(
+            guild_id=int(guild_id or 0), plugin_install_id=plugin.id, user_id=user_id
+        )
+        if endpoint.get("per_viewer") is True
+        else None
+    )
 
     key = _cache_key(
-        guild_id=routed_guild_id(session),
+        guild_id=guild_id,
         plugin=plugin,
         endpoint_id=endpoint_id,
         canonical_params=canonical,
         refs=refs,
         fields=fields,
+        task_ids=task_ids,
+        viewer=viewer,
     )
 
     async def read(
@@ -1016,6 +1062,8 @@ async def fetch_plugin_source(
             fields=fields,
             transport=transport,
             read=read,
+            task_ids=task_ids,
+            viewer=viewer,
         )
         return PluginDataResult(
             rows=rows, values=values, fetched_at=datetime.now(timezone.utc)

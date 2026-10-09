@@ -184,6 +184,7 @@ async def lifespan(app: FastAPI):
     # background and a deployment that cannot reach it still delivers every
     # frame to the sockets this process holds.
     from app.services import guild_work
+    from app.services.marketplace import plugin_blocks
     from app.services.platform import notice_outbox, notify_bus, user_stream
     from app.services.tenant import outbox_poller, room_sink
 
@@ -198,6 +199,7 @@ async def lifespan(app: FastAPI):
     # The same hint wakes the webhook outbox's drain.
     notify_bus.register(room_sink.CHANNEL, outbox_poller.hint)
     notify_bus.register(guild_work.CHANNEL, guild_work.deliver)
+    notify_bus.register(plugin_blocks.CHANNEL, plugin_blocks.deliver_stale)
     notify_bus.register(notice_outbox.CHANNEL, notice_outbox.hint)
     await notify_bus.start()
 

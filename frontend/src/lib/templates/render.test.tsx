@@ -1,4 +1,5 @@
 import { screen } from "@testing-library/react";
+import type { ReactNode } from "react";
 
 import { buildTask } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
@@ -8,7 +9,11 @@ import { compileTemplate } from "./compile";
 import { MAX_RENDERED_NODES, renderTemplate } from "./render";
 import { SECTIONS } from "./sections";
 
-const draw = (source: string, task: TaskListRead) => {
+const draw = (
+  source: string,
+  task: TaskListRead,
+  blocks?: (area: string, className: string | undefined) => ReactNode
+) => {
   const { template, errors } = compileTemplate(source, {
     name: "task.card",
     section: SECTIONS["task.card"],
@@ -24,6 +29,7 @@ const draw = (source: string, task: TaskListRead) => {
         context: undefined,
         parts: { title: Title as never },
         communityId: 7,
+        blocks,
       })}
     </>
   );
@@ -101,5 +107,27 @@ describe("renderTemplate", () => {
     expect(screen.getAllByRole("listitem").length).toBeLessThan(MAX_RENDERED_NODES);
     // The required part comes after the loop and is still there.
     expect(screen.getByRole("heading")).toBeInTheDocument();
+  });
+
+  it("draws a block area's blocks where the template places it, adding no element", async () => {
+    const source = `<div data-testid="row" class="flex"><part name="title" /><blocks area="inline" class="gap-1" /></div>`;
+    const { unmount } = draw(source, buildTask({ title: "Ship it" }), (area, className) => (
+      <>
+        <span className={className}>{area} one</span>
+        <span className={className}>{area} two</span>
+      </>
+    ));
+    const row = await screen.findByTestId("row");
+    expect([...row.children].map((child) => child.textContent)).toEqual([
+      "Ship it",
+      "inline one",
+      "inline two",
+    ]);
+    expect(screen.getByText("inline one")).toHaveClass("gap-1");
+    unmount();
+
+    // With no blocks on offer, the area draws nothing at all.
+    draw(source, buildTask({ title: "Ship it" }));
+    expect((await screen.findByTestId("row")).children).toHaveLength(1);
   });
 });

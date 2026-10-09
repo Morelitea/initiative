@@ -16,6 +16,8 @@ and is refused.
   configuration it was handed.
 * ``POST /installation/events`` — an event the plug-in emits, kept for the outbox
   poller to deliver to the community's subscriptions.
+* ``POST /installation/blocks/stale`` — one of the plug-in's blocks changed on
+  some tasks; the browsers showing them read it again. Nothing is kept.
 
 The token is checked by the install seam (``establish_install_access``),
 whose standing statement admits the install only while it may act: the
@@ -49,6 +51,7 @@ from app.core.messages import AuthMessages, PluginChannelMessages
 from app.db.session import clear_rls_context
 from app.models.tenant.guild_plugin import GuildPlugin
 from app.schemas.tenant.plugin_channel import (
+    PluginBlockStale,
     PluginConnectionRead,
     PluginConnectionsResponse,
     PluginConnectionToken,
@@ -57,7 +60,7 @@ from app.schemas.tenant.plugin_channel import (
     PluginStatusRead,
     PluginStatusReport,
 )
-from app.services.marketplace import registration_lookup
+from app.services.marketplace import plugin_blocks, registration_lookup
 from app.services.marketplace.registration_lookup import RegistrationSnapshot
 from app.services.tenant import plugin_channels as channels_service
 
@@ -262,6 +265,32 @@ async def ingest_installation_event(
         event_type=payload.event_type,
         payload=payload.payload,
         initiative_id=payload.initiative_id,
+        token_initiative_id=installation.initiative_id,
+    )
+    return {"status": "accepted"}
+
+
+@router.post("/blocks/stale", status_code=status.HTTP_202_ACCEPTED)
+@_bounded
+async def mark_installation_block_stale(
+    payload: PluginBlockStale,
+    installation: InstallationDep,
+    session: SystemSessionDep,
+) -> dict[str, str]:
+    """Say one of this plug-in's blocks changed on these tasks.
+
+    The block must be one the pinned definition declares
+    (``PLUGIN_BLOCK_NOT_FOUND`` otherwise). Of the tasks, only those this
+    install can read count, and the browsers showing them in their
+    initiatives read the block again. Answers ``202`` whatever that reached.
+    """
+    plugin = await _load(session, installation)
+    await plugin_blocks.mark_stale(
+        plugin,
+        installation.registration,
+        guild_id=installation.guild_id,
+        block_id=payload.block,
+        task_ids=payload.task_ids,
         token_initiative_id=installation.initiative_id,
     )
     return {"status": "accepted"}

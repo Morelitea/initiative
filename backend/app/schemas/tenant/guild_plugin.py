@@ -36,6 +36,8 @@ from app.services.tenant import plugin_age
 from app.services.tenant import plugin_config as plugin_config_service
 from app.services.tenant.plugin_age import AgeViewer
 from app.services.tenant.guild_plugins import (
+    block_initiatives,
+    declared_blocks,
     grantable_scopes,
     offered_scopes,
     surface_openability,
@@ -557,15 +559,28 @@ def serialize_guild_plugin(
     """
     definition = plugin.definition or {}
     state = plugin_config_service.config_state(plugin)
+    age_allows = plugin_age.age_allows(definition, viewer)
     openability = surface_openability(
         definition,
         placements=placements,
         is_guild_admin=context.is_admin,
         member_role_ids=context.member_role_ids,
-        age_allows=plugin_age.age_allows(definition, viewer),
+        age_allows=age_allows,
     )
     features = definition.get("features")
     service_state = install_state or InstallState()
+    # A block answers only while the install is on and its service is live,
+    # so one that is not is drawn nowhere.
+    block_shown = (
+        block_initiatives(
+            placements,
+            is_guild_admin=context.is_admin,
+            member_role_ids=context.member_role_ids,
+            age_allows=age_allows,
+        )
+        if plugin.enabled and service_state.available
+        else ()
+    )
     return CommunityPluginRead(
         id=plugin.id,
         community_id=context.guild_id,
@@ -596,6 +611,12 @@ def serialize_guild_plugin(
                 openable_initiatives=list(one.openable_initiatives),
             )
             for one in openability
+        ],
+        block_access=[
+            PluginBlockAccessRead(
+                block_id=block["id"], openable_initiatives=list(block_shown)
+            )
+            for block in declared_blocks(definition)
         ],
         granted_scopes=sorted(plugin.granted_scopes or []),
         mandatory=service_state.mandatory,

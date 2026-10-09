@@ -35,6 +35,7 @@ import { useReadOnOpen } from "@/hooks/useNotifications";
 import { useProject, useProjectTaskStatuses, useWritableProjects } from "@/hooks/useProjects";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
 import { useServerForm } from "@/hooks/useServerForm";
+import { useTaskBlocks } from "@/hooks/useTaskBlocks";
 import {
   useDeleteTask,
   useDuplicateTask,
@@ -476,6 +477,8 @@ export const TaskEditPage = () => {
   const formId = useId();
   // The same object while the task is, so the template reuses what it worked out.
   const sectionData = useMemo(() => (task ? { task } : null), [task]);
+  const blockTaskIds = useMemo(() => [parsedTaskId], [parsedTaskId]);
+  const blocks = useTaskBlocks("task.page", { project, taskIds: blockTaskIds });
 
   const blocker = useBlocker({
     shouldBlockFn: () => isDirty && !bypassGuardRef.current,
@@ -565,7 +568,13 @@ export const TaskEditPage = () => {
   return (
     <>
       {sectionData ? (
-        <Section name="task.page" data={sectionData} context={context} parts={taskPageParts} />
+        <Section
+          name="task.page"
+          data={sectionData}
+          context={context}
+          parts={taskPageParts}
+          blocks={blocks}
+        />
       ) : null}
 
       <MoveTaskDialog

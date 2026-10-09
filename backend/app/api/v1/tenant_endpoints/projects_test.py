@@ -358,7 +358,11 @@ async def test_list_projects_slim_projection(
     heavy relationships (grants, tags, nested initiative)."""
     admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     project = await create_project(
-        session, admin.initiative, admin.user, name="Slim One"
+        session,
+        admin.initiative,
+        admin.user,
+        name="Slim One",
+        listing_uid="WY4WAN93PFP3X4",
     )
 
     response = await client.get(admin.g("/projects/?slim=true"), headers=admin.headers)
@@ -366,6 +370,8 @@ async def test_list_projects_slim_projection(
     assert response.status_code == 200
     item = next(p for p in response.json()["items"] if p["id"] == project.id)
     assert item["name"] == "Slim One"
+    # Where it came from, which a plug-in block confined to one kind reads.
+    assert item["listing_uid"] == "WY4WAN93PFP3X4"
     assert item["initiative_id"] == admin.initiative.id
     # Guild admin holds the owner's rung on every project.
     assert item["can"]["delete"] is True

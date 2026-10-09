@@ -6,6 +6,7 @@ import type { DashboardDataResponse } from "@/api/generated/initiativeAPI.schema
 import { readMe } from "@/api/generated/users/users";
 import { invalidate, q, type Spec } from "@/api/query-keys";
 import { syncComments } from "@/hooks/useComments";
+import { pluginBlockRowsKey } from "@/hooks/usePluginData";
 import { canvasIsStale, dashboardDataKey } from "@/hooks/useSqlQuery";
 import { openLiveSocket } from "@/lib/liveSocket";
 import { queryClient } from "@/lib/queryClient";
@@ -195,6 +196,14 @@ export const applyChanges = (changes: readonly RealtimeChange[], communityId: nu
   // names, so it is matched by what its widgets read: stale when a change is
   // to one of those tables, in its initiative. Initiative ids are per community,
   // so only this community's canvases are asked.
+  // A plug-in said its blocks' rows are stale: what they draw lives with the
+  // plug-in, so every view's rows of that install are read again.
+  for (const ref of resources.values()) {
+    if (ref[0].type === "plugin_block") {
+      void queryClient.invalidateQueries({ queryKey: pluginBlockRowsKey(communityId, ref[0].id) });
+    }
+  }
+
   const [scope, kind] = dashboardDataKey(communityId, 0);
   void queryClient.invalidateQueries({
     predicate: (query) =>

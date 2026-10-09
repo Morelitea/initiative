@@ -82,6 +82,7 @@ import {
   useProjectTaskTableState,
   useProjectTaskView,
 } from "@/hooks/useProjectTaskView";
+import type { ListedProject } from "@/hooks/useTaskBlocks";
 import {
   type UpdateTaskVariables,
   useArchiveDoneTasks,
@@ -142,6 +143,8 @@ type ProjectTasksSectionProps = {
   taskHref: (taskId: number) => string;
   initialComposerOpen?: boolean;
   onComposerOpenChange?: (isOpen: boolean) => void;
+  /** The project, for the plug-in blocks its board's cards are offered. */
+  project?: ListedProject | null;
 };
 
 export const ProjectTasksSection = ({
@@ -154,6 +157,7 @@ export const ProjectTasksSection = ({
   taskHref,
   initialComposerOpen,
   onComposerOpenChange,
+  project,
 }: ProjectTasksSectionProps) => {
   const { t } = useTranslation(["projects", "common"]);
   // Nothing is exported from an initiative that keeps its content in.
@@ -1065,6 +1069,7 @@ export const ProjectTasksSection = ({
             initiativeId={initiativeId}
             taskStatuses={sortedTaskStatuses}
             groupedTasks={groupedTasks}
+            project={project}
             collapsedStatusIds={collapsedStatuses}
             canReorderTasks={canReorderTasks}
             taskHref={taskHref}

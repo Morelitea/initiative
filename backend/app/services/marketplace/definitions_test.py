@@ -933,6 +933,170 @@ class TestWidgetTypeNamespacing:
             plugin_widget_type("K7M2QX8N4TVB9C", "sum:mary")
 
 
+#: A block's read and the write its button runs, both about tasks.
+BLOCK_READ = "plugin.tests.widget-co.timers"
+BLOCK_WRITE = "plugin.tests.widget-co.start"
+#: A listing uid in the catalog alphabet.
+SALES_PIPELINE = "WY4WAN93PFP3X4"
+
+
+def _with_block(
+    *, read: dict | None = None, write: dict | None = None, **block_overrides
+) -> dict:
+    """A plug-in with a task read, a task write, a page, and one block on them."""
+    block = {
+        "id": "timer",
+        "areas": ["task.card.inline", "task.page.aside"],
+        "name": {"en": "Timer"},
+        "endpoint": BLOCK_READ,
+        "actions": [BLOCK_WRITE],
+        "template": (
+            '<span if="answer != null">{{ answer.running_since }}</span>'
+            '<button action="start">{{ strings.start }}</button>'
+            '<open page="panel">{{ task.title }}</open>'
+        ),
+        "strings": {"start": {"en": "Start"}},
+    }
+    block.update(block_overrides)
+    return _normalize(
+        features=["blocks", "endpoints", "pages"],
+        endpoints=[
+            {
+                "id": BLOCK_READ,
+                "direction": "read",
+                "subject": "task",
+                "per_viewer": True,
+                "returns": [
+                    {"key": "task_id", "type": "int", "list": True},
+                    {"key": "running_since", "type": "datetime", "list": True},
+                ],
+                **(read or {}),
+            },
+            {
+                "id": BLOCK_WRITE,
+                "direction": "write",
+                "subject": "task",
+                **(write or {}),
+            },
+        ],
+        pages=[{"id": "panel", "path": "/panel", "name": _label()}],
+        blocks=[block],
+    )
+
+
+class TestBlocks:
+    def test_a_block_is_stored_canonically(self):
+        definition = _with_block(project_listing=SALES_PIPELINE)
+        (block,) = definition["blocks"]
+        assert block["endpoint"] == BLOCK_READ
+        assert block["actions"] == [BLOCK_WRITE]
+        assert block["project_listing"] == SALES_PIPELINE
+        assert block["strings"] == {"start": {"en": "Start"}}
+        read, write = definition["endpoints"]
+        assert (read["subject"], read["per_viewer"]) == ("task", True)
+        assert write["subject"] == "task" and "per_viewer" not in write
+
+    def test_a_block_drawn_from_the_task_alone_has_no_read(self):
+        definition = _with_block(
+            endpoint=None, actions=[], template="<span>{{ task.title }}</span>"
+        )
+        assert "endpoint" not in definition["blocks"][0]
+
+    @pytest.mark.parametrize(
+        ("overrides", "problem"),
+        [
+            ({"areas": []}, "names no area"),
+            ({"areas": ["task.sidebar"]}, "areas must be drawn from"),
+            ({"areas": ["task.card.inline", "task.card.inline"]}, "an area twice"),
+            ({"endpoint": BLOCK_WRITE}, "not a declared read endpoint with subject"),
+            ({"actions": [BLOCK_READ]}, "not a declared write endpoint with subject"),
+            ({"project_listing": "sales"}, "project_listing"),
+            ({"template": '<button action="stop">Stop</button>'}, "template:"),
+            ({"template": '<open page="nowhere">Open</open>'}, "template:"),
+        ],
+        ids=[
+            "no area",
+            "an area the contract does not name",
+            "an area twice",
+            "a read that is not about tasks",
+            "an action that is not a task write",
+            "a listing that is not a uid",
+            "a button naming an undeclared action",
+            "an open naming an undeclared page",
+        ],
+    )
+    def test_what_a_block_names_must_exist(self, overrides, problem):
+        with pytest.raises(ListingDefinitionError, match=problem):
+            _with_block(**overrides)
+
+    def test_a_block_read_names_the_task_of_each_row(self):
+        with pytest.raises(ListingDefinitionError, match="must return 'task_id'"):
+            _with_block(
+                read={"returns": [{"key": "task_id", "type": "int"}]},
+                template="<span>{{ task.title }}</span>",
+            )
+
+    def test_strings_are_capped(self):
+        strings = {
+            f"s{index}": {"en": "Text"}
+            for index in range(service_plugins.MAX_BLOCK_STRINGS + 1)
+        }
+        with pytest.raises(ListingDefinitionError, match="at most"):
+            _with_block(strings=strings)
+
+    @pytest.mark.parametrize(
+        ("read", "write", "problem"),
+        [
+            ({"subject": None}, {}, "per_viewer belongs to a read"),
+            ({}, {"per_viewer": True}, "per_viewer belongs to a read"),
+            ({"subject": "project"}, {}, "subject must be one of"),
+        ],
+        ids=[
+            "per_viewer without a subject",
+            "per_viewer on a write",
+            "a subject not in the contract",
+        ],
+    )
+    def test_an_endpoint_s_subject_terms(self, read, write, problem):
+        with pytest.raises(ListingDefinitionError, match=problem):
+            _with_block(read=read, write=write)
+
+    def test_an_emission_has_no_subject(self):
+        with pytest.raises(ListingDefinitionError, match="an emit endpoint has no"):
+            _normalize(
+                features=["endpoints"],
+                endpoints=[
+                    {
+                        "id": "plugin.tests.widget-co.thing-happened",
+                        "direction": "emit",
+                        "subject": "task",
+                    }
+                ],
+            )
+
+    def test_a_widget_cannot_draw_a_read_about_tasks(self):
+        with pytest.raises(ListingDefinitionError, match="a widget can draw"):
+            _normalize(
+                features=["endpoints", "widgets"],
+                endpoints=[
+                    {
+                        "id": READ_ID,
+                        "direction": "read",
+                        "subject": "task",
+                        "returns": [{"key": "task_id", "type": "int", "list": True}],
+                    }
+                ],
+                widgets=[
+                    {
+                        "id": "summary",
+                        "meta": {"name": {"en": "Summary"}},
+                        "endpoint": READ_ID,
+                        "template": "<p>Total</p>",
+                    }
+                ],
+            )
+
+
 class TestPages:
     def _page(self, **overrides) -> dict:
         page = {

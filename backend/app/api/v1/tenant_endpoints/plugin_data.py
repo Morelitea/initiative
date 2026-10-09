@@ -32,6 +32,11 @@ on the settings rung, so the list is not the content-gated install list. The cal
 is read comes from the pinned definition — and it is the settings rung that
 decides who may ask, the same as the storage figure beside it.
 
+``/plugins/{plugin_id}/blocks/{block_id}/rows`` is a block's read on the tasks a
+view holds, and ``/plugins/{plugin_id}/blocks/{block_id}/actions/{action_key}``
+runs one of its actions on one task. Which tasks reach the plug-in, and what an
+action checks, are :mod:`app.services.marketplace.plugin_blocks`'s.
+
 ``/plugins/{plugin_id}/endpoints/{endpoint_id}/options`` fills a menu. It is the one
 read here with no dashboard on it, because it exists to fill in a form for a
 widget nobody has placed yet — and what stands in for that gate is that the
@@ -53,12 +58,18 @@ from app.api.deps import (
     SettingsAdminContextDep,
     SettingsRLSSessionDep,
 )
+from app.core.audit_events import AuditEventType
 from app.core.messages import GuildPluginMessages, PluginDataMessages
+from app.core.rate_limit import PLUGIN_BLOCK_ACTIONS_PER_MEMBER, take_allowance
 from app.core.tools import Tool
 from app.models.tenant.guild_plugin import GuildPlugin
 from app.schemas.sql_query import QueryColumnDescription
 from app.services.query import rows as rows_query
 from app.schemas.tenant.plugin_data import (
+    PluginBlockActionRequest,
+    PluginBlockActionResponse,
+    PluginBlockRowsRequest,
+    PluginBlockRowsResponse,
     PluginDataTable,
     PluginDataResponse,
     PluginEndpointRead,
@@ -71,7 +82,10 @@ from app.schemas.tenant.plugin_data import (
     PluginWidgetCatalogResponse,
     PluginWidgetRead,
 )
+from app.services import audit as audit_service
+from app.services.marketplace import plugin_blocks
 from app.services.marketplace import plugin_data as plugin_data_service
+from app.services.marketplace.plugin_data import PluginDataError
 from app.services.marketplace.service_plugins import (
     PLUGIN_WIDGET_TYPE_PREFIX,
     is_admin_only,
@@ -94,6 +108,26 @@ def _projected_sample(raw: Any, endpoint: dict[str, Any] | None) -> dict[str, An
 
 
 router = APIRouter()
+
+
+async def _plugin_for_viewer(
+    session: RLSSessionDep, plugin_id: int, viewer: AgeViewerDep
+) -> GuildPlugin:
+    """The install, or 404; refused to a viewer too young for what it shows."""
+    plugin = (
+        await session.exec(select(GuildPlugin).where(GuildPlugin.id == plugin_id))
+    ).first()
+    if plugin is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=PluginDataMessages.ENDPOINT_NOT_FOUND,
+        )
+    if not plugin_age.age_allows(plugin.definition, viewer):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=GuildPluginMessages.AGE_RESTRICTED,
+        )
+    return plugin
 
 
 def _bound_bindings(
@@ -284,20 +318,7 @@ async def read_plugin_data(
         session, Tool.dashboard, dashboard_id, current_user, guild_context
     )
 
-    plugin = (
-        await session.exec(select(GuildPlugin).where(GuildPlugin.id == plugin_id))
-    ).first()
-    if plugin is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=PluginDataMessages.ENDPOINT_NOT_FOUND,
-        )
-    # What a tile shows is the plug-in's, so a viewer too young for it reads none.
-    if not plugin_age.age_allows(plugin.definition, viewer):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=GuildPluginMessages.AGE_RESTRICTED,
-        )
+    plugin = await _plugin_for_viewer(session, plugin_id, viewer)
     bound = _bound_bindings(
         dashboard.definition,
         dashboard.config,
@@ -487,20 +508,7 @@ async def read_plugin_param_options(
     A source that will not resolve is not an error: it comes back as
     ``unavailable`` with no options, and the parameter stays typeable.
     """
-    plugin = (
-        await session.exec(select(GuildPlugin).where(GuildPlugin.id == plugin_id))
-    ).first()
-    if plugin is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=PluginDataMessages.ENDPOINT_NOT_FOUND,
-        )
-    # What a tile shows is the plug-in's, so a viewer too young for it reads none.
-    if not plugin_age.age_allows(plugin.definition, viewer):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=GuildPluginMessages.AGE_RESTRICTED,
-        )
+    plugin = await _plugin_for_viewer(session, plugin_id, viewer)
 
     options, unavailable = await plugin_data_service.resolve_param_options(
         session,
@@ -516,3 +524,113 @@ async def read_plugin_param_options(
         options=[PluginParamOption(**option) for option in options],
         unavailable=unavailable,
     )
+
+
+@router.post(
+    "/{plugin_id}/blocks/{block_id}/rows", response_model=PluginBlockRowsResponse
+)
+async def read_plugin_block_rows(
+    plugin_id: int,
+    block_id: str,
+    payload: PluginBlockRowsRequest,
+    session: RLSSessionDep,
+    current_user: CurrentUser,
+    guild_context: GuildContextDep,
+    viewer: AgeViewerDep,
+) -> PluginBlockRowsResponse:
+    """One block's read, for the tasks a view holds.
+
+    Each row is keyed by the task it names. A task the viewer cannot see, that
+    the block is not drawn on for them, or that the plug-in cannot read has no
+    row, and with none left the plug-in is not called. A plug-in that does not
+    answer comes back as the widget proxy's own message code.
+    """
+    plugin = await _plugin_for_viewer(session, plugin_id, viewer)
+    result = await plugin_blocks.block_rows(
+        session,
+        plugin=plugin,
+        block_id=block_id,
+        task_ids=payload.task_ids,
+        context=guild_context,
+        user_id=current_user.id,
+    )
+    return PluginBlockRowsResponse(
+        rows=result.rows, fetched_at=result.fetched_at, cached=result.cached
+    )
+
+
+#: The counter namespace for block actions' allowance.
+_ACTION_LIMIT_NAMESPACE = "plugin-block-action"
+#: How an action ended, in the audit line, when the plug-in answered.
+_ACTION_OK = "ok"
+
+
+@router.post(
+    "/{plugin_id}/blocks/{block_id}/actions/{action_key}",
+    response_model=PluginBlockActionResponse,
+)
+async def run_plugin_block_action(
+    plugin_id: int,
+    block_id: str,
+    action_key: str,
+    payload: PluginBlockActionRequest,
+    session: RLSSessionDep,
+    current_user: CurrentUser,
+    guild_context: GuildContextDep,
+    viewer: AgeViewerDep,
+) -> PluginBlockActionResponse:
+    """Run one of a block's actions on one task.
+
+    ``action_key`` is the action's endpoint id after ``plugin.<public id>.``.
+    The plug-in does the work, with its own access, and answers with the
+    block's fresh row for the task; Initiative changes nothing itself. Refused
+    with ``PLUGIN_BLOCK_NOT_FOUND`` when the block declares no such action,
+    ``PLUGIN_BLOCK_NOT_OFFERED`` when the block is not drawn on this task for
+    this viewer, and 429 past the allowance.
+    """
+    plugin = await _plugin_for_viewer(session, plugin_id, viewer)
+
+    def audit(outcome: str) -> None:
+        audit_service.emit(
+            event_type=AuditEventType.PLUGIN_BLOCK_ACTION,
+            actor_user_id=current_user.id,
+            guild_id=guild_context.guild_id,
+            target_type="task",
+            target_id=payload.task_id,
+            detail={
+                "install_id": plugin.id,
+                "listing_uid": plugin.listing_uid,
+                "block": block_id,
+                "action": action_key,
+                "outcome": outcome,
+            },
+        )
+
+    if not await take_allowance(
+        PLUGIN_BLOCK_ACTIONS_PER_MEMBER,
+        _ACTION_LIMIT_NAMESPACE,
+        f"{guild_context.guild_id}:{plugin.id}:{current_user.id}",
+    ):
+        audit(PluginDataMessages.RATE_LIMITED)
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=PluginDataMessages.RATE_LIMITED,
+        )
+    try:
+        row = await plugin_blocks.run_block_action(
+            session,
+            plugin=plugin,
+            block_id=block_id,
+            action_key=action_key,
+            task_id=payload.task_id,
+            context=guild_context,
+            user_id=current_user.id,
+        )
+    except PluginDataError as exc:
+        audit(exc.code)
+        raise
+    except HTTPException as exc:
+        audit(str(exc.detail))
+        raise
+    audit(_ACTION_OK)
+    return PluginBlockActionResponse(row=row)

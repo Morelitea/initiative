@@ -23,6 +23,7 @@ from pydantic import Field
 
 from app.schemas.base import RawTextStr, SanitizedBaseModel
 from app.schemas.sql_query import QueryColumnDescription
+from app.services.marketplace.service_plugins import MAX_BLOCK_SUBJECT_IDS
 
 
 class PluginDataTable(SanitizedBaseModel):
@@ -226,3 +227,36 @@ class PluginParamOptionsResponse(SanitizedBaseModel):
     options: List[PluginParamOption] = []
     #: ``no-source``, ``needs-sibling`` or ``unresolved``.
     unavailable: Optional[str] = None
+
+
+class PluginBlockRowsRequest(SanitizedBaseModel):
+    """The tasks a view holds that one of a plug-in's blocks may be drawn on."""
+
+    task_ids: List[int] = Field(max_length=MAX_BLOCK_SUBJECT_IDS)
+
+
+class PluginBlockRowsResponse(SanitizedBaseModel):
+    """A block's read: each task's row, by task id.
+
+    Only tasks the block is drawn on for this viewer and the install can read
+    have a row, and a task the plug-in said nothing about has none.
+    """
+
+    rows: Dict[str, Dict[str, Any]] = {}
+    #: When the upstream call happened; the request's time when nothing was
+    #: called.
+    fetched_at: datetime
+    cached: bool = False
+
+
+class PluginBlockActionRequest(SanitizedBaseModel):
+    """The task one of a block's actions is run on."""
+
+    task_id: int
+
+
+class PluginBlockActionResponse(SanitizedBaseModel):
+    """The block's fresh row for the task the action ran on, when the plug-in
+    answered with one."""
+
+    row: Optional[Dict[str, Any]] = None

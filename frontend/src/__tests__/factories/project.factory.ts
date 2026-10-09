@@ -94,6 +94,7 @@ export function buildProject(overrides: Partial<ProjectRead> = {}): ProjectRead 
     tags: [],
     properties: [],
     comments_enabled: true,
+    listing_uid: null,
     ...overrides,
   };
 }

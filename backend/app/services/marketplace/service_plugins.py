@@ -34,6 +34,7 @@ foothold in a guild is a legitimate install with nothing to render.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any, Optional
 
 from app.core.plugin_scopes import ALL_SCOPES, plugin_scope_target
@@ -233,6 +234,14 @@ DIRECTIONS: frozenset[str] = contract.enum("direction")
 #: answers; nothing constrains an automation the same way.
 WIDGET_BINDABLE_DIRECTIONS: frozenset[str] = frozenset({"read"})
 
+#: The rows a block calls an endpoint about. A read naming one is called with a
+#: view's ids of it; a write naming one is a block action, called for one.
+ENDPOINT_SUBJECTS: frozenset[str] = contract.enum("endpointSubject")
+#: Where a block may be offered.
+BLOCK_AREAS: frozenset[str] = contract.enum("blockArea")
+#: The return each row of a block's read names its task in.
+BLOCK_SUBJECT_RETURN = "task_id"
+
 #: Whose credential an endpoint runs on. The plug-in resolves it; this is the
 #: vocabulary it states its preference in, best first.
 ACTOR_KINDS: frozenset[str] = contract.enum("actorKind")
@@ -306,6 +315,12 @@ MAX_REQUIRES_TERMS = contract.cap("requiresTerms")
 MAX_WIDGETS = contract.cap("widgets")
 #: Keys in one widget's own words.
 MAX_WIDGET_STRINGS = contract.cap("widgetStrings")
+MAX_BLOCKS = contract.cap("blocks")
+#: Keys in one block's own words, and the writes its buttons may run.
+MAX_BLOCK_STRINGS = contract.cap("blockStrings")
+MAX_BLOCK_ACTIONS = contract.cap("blockActions")
+#: The most tasks one read of a block may name.
+MAX_BLOCK_SUBJECT_IDS = contract.cap("blockSubjectIds")
 #: Reads, writes and emissions share one list, so this bounds all three
 #: together rather than each separately.
 MAX_ENDPOINTS = contract.cap("endpoints")
@@ -1810,6 +1825,8 @@ def _endpoint(
             "admin_only",
             "public",
             "unavailable",
+            "subject",
+            "per_viewer",
             *DECLARATIVE_ENDPOINT_TERMS,
         ):
             if endpoint.get(absent) is not None:
@@ -1819,6 +1836,7 @@ def _endpoint(
     codes = _unavailable_codes(endpoint, what=what)
     if codes:
         cleaned["unavailable"] = codes
+    _endpoint_subject(endpoint, cleaned, what=what)
     # A declarative plug-in's reads and writes are a request and a map; a
     # container's are its handler, and carry neither.
     if declarative:
@@ -1876,6 +1894,29 @@ def _endpoint(
                 "which requires does not name"
             )
     return cleaned
+
+
+def _endpoint_subject(
+    raw: dict[str, Any], cleaned: dict[str, Any], *, what: str
+) -> None:
+    """``subject`` and ``per_viewer``, on a read or a write.
+
+    ``per_viewer`` is a read's alone, and only beside a subject: it says the
+    answer differs by who is looking at the rows.
+    """
+    subject = raw.get("subject")
+    if subject is not None:
+        if subject not in ENDPOINT_SUBJECTS:
+            fail(f"{what}: subject must be one of {sorted(ENDPOINT_SUBJECTS)}")
+        cleaned["subject"] = subject
+    per_viewer = raw.get("per_viewer")
+    if per_viewer is None or per_viewer is False:
+        return
+    if per_viewer is not True:
+        fail(f"{what}: per_viewer must be true or false")
+    if cleaned["direction"] != "read" or subject is None:
+        fail(f"{what}: per_viewer belongs to a read endpoint with a subject")
+    cleaned["per_viewer"] = True
 
 
 def _requests(endpoint: dict[str, Any]) -> list[dict[str, Any]]:
@@ -2068,24 +2109,20 @@ def _widget(
         # Named rather than described: a write and an emission are both real
         # endpoints, and neither fills a tile, so "unknown" would be the wrong
         # word for the mistake somebody is most likely making.
-        fail(f"{what}: binds {endpoint!r}, which is not a declared read endpoint")
+        fail(
+            f"{what}: binds {endpoint!r}, which is not a declared read endpoint "
+            "a widget can draw"
+        )
 
     strings = _widget_strings(widget.get("strings"), what=what)
 
-    template = widget.get("template")
-    if not isinstance(template, str) or not template.strip():
-        fail(f"{what}: template is required")
-    encoded = utf8_bytes(template, what=f"{what} template")
-    if len(encoded) > MAX_TEMPLATE_BYTES:
-        fail(f"{what}: template is larger than {MAX_TEMPLATE_BYTES} bytes")
-    try:
-        problems = template_engine.check_widget(
+    template = _template_source(widget.get("template"), what=what)
+    _refuse_problems(
+        lambda: template_engine.check_widget(
             template, readable[endpoint], list(strings)
-        )
-    except template_engine.TemplateEngineError as exc:
-        fail(f"{what}: its template could not be checked: {exc}")
-    if problems:
-        fail(f"{what}: template: {'; '.join(problems[:5])}")
+        ),
+        what=what,
+    )
 
     cleaned: dict[str, Any] = {
         "id": widget_id,
@@ -2107,8 +2144,31 @@ def _widget(
     return cleaned
 
 
-def _widget_strings(raw: Any, *, what: str) -> dict[str, dict[str, str]]:
-    """A widget's own words: each key's text in the languages it supports.
+def _template_source(raw: Any, *, what: str) -> str:
+    """A widget's or block's template, present and within its byte cap."""
+    if not isinstance(raw, str) or not raw.strip():
+        fail(f"{what}: template is required")
+    encoded = utf8_bytes(raw, what=f"{what} template")
+    if len(encoded) > MAX_TEMPLATE_BYTES:
+        fail(f"{what}: template is larger than {MAX_TEMPLATE_BYTES} bytes")
+    return raw
+
+
+def _refuse_problems(check: Callable[[], list[str]], *, what: str) -> None:
+    """Refuse a template the server's compiler finds problems with."""
+    try:
+        problems = check()
+    except template_engine.TemplateEngineError as exc:
+        fail(f"{what}: its template could not be checked: {exc}")
+    if problems:
+        fail(f"{what}: template: {'; '.join(problems[:5])}")
+
+
+def _widget_strings(
+    raw: Any, *, what: str, cap: int = MAX_WIDGET_STRINGS
+) -> dict[str, dict[str, str]]:
+    """A widget's or block's own words: each key's text in the languages it
+    supports.
 
     Held to the rules its meta's text is (``localized_text``): trimmed and
     truncated rather than refused, and a key with no usable text is dropped.
@@ -2116,8 +2176,8 @@ def _widget_strings(raw: Any, *, what: str) -> dict[str, dict[str, str]]:
     if raw is None:
         return {}
     supplied = require_mapping(raw, f"{what} strings")
-    if len(supplied) > MAX_WIDGET_STRINGS:
-        fail(f"{what}: strings may hold at most {MAX_WIDGET_STRINGS} keys")
+    if len(supplied) > cap:
+        fail(f"{what}: strings may hold at most {cap} keys")
     strings: dict[str, dict[str, str]] = {}
     for key, value in supplied.items():
         name = check_identifier(key, what=f"{what} strings key")
@@ -2125,6 +2185,107 @@ def _widget_strings(raw: Any, *, what: str) -> dict[str, dict[str, str]]:
         if text:
             strings[name] = text
     return strings
+
+
+def _block(
+    raw: Any,
+    *,
+    endpoints: dict[str, dict[str, Any]],
+    endpoint_prefix: str,
+    page_ids: set[str],
+    connection_ids: set[str],
+) -> dict[str, Any]:
+    """One block: a template drawn on a task, the read it draws, and the writes
+    its buttons run.
+
+    ``endpoints`` is every endpoint this plug-in declares, by id, and
+    ``endpoint_prefix`` the ``plugin.<public id>.`` its ids begin with: a
+    template names an action by the rest.
+    """
+    block = require_mapping(raw, "block")
+    block_id = check_identifier(block.get("id"), what="block id")
+    what = f"block {block_id!r}"
+
+    areas = require_list(block.get("areas"), f"{what} areas", len(BLOCK_AREAS))
+    if not areas:
+        fail(f"{what}: names no area it fits")
+    for area in areas:
+        if area not in BLOCK_AREAS:
+            fail(f"{what}: areas must be drawn from {sorted(BLOCK_AREAS)}")
+    if len(set(areas)) != len(areas):
+        fail(f"{what}: names an area twice")
+
+    cleaned: dict[str, Any] = {
+        "id": block_id,
+        "areas": list(areas),
+        "name": _label(block.get("name"), what=what),
+    }
+
+    returns: list[dict[str, Any]] = []
+    endpoint_id = block.get("endpoint")
+    if endpoint_id is not None:
+        endpoint = endpoints.get(endpoint_id) if isinstance(endpoint_id, str) else None
+        if (
+            endpoint is None
+            or endpoint["direction"] != "read"
+            or endpoint.get("subject") != "task"
+        ):
+            fail(
+                f"{what}: draws {endpoint_id!r}, which is not a declared read "
+                "endpoint with subject 'task'"
+            )
+        returns = endpoint.get("returns", [])
+        if not any(
+            value["key"] == BLOCK_SUBJECT_RETURN and value.get("list") is True
+            for value in returns
+        ):
+            fail(
+                f"{what}: {endpoint_id!r} must return {BLOCK_SUBJECT_RETURN!r} as "
+                "a list, naming the task each row is about"
+            )
+        cleaned["endpoint"] = endpoint_id
+
+    actions = require_list(block.get("actions"), f"{what} actions", MAX_BLOCK_ACTIONS)
+    action_keys: list[str] = []
+    for action in actions:
+        endpoint = endpoints.get(action) if isinstance(action, str) else None
+        if (
+            endpoint is None
+            or endpoint["direction"] != "write"
+            or endpoint.get("subject") != "task"
+        ):
+            fail(
+                f"{what}: action {action!r} is not a declared write endpoint "
+                "with subject 'task'"
+            )
+        key = action[len(endpoint_prefix) :]
+        if key in action_keys:
+            fail(f"{what}: names the action {action!r} twice")
+        action_keys.append(key)
+    if actions:
+        cleaned["actions"] = list(actions)
+
+    listing = block.get("project_listing")
+    if listing is not None:
+        cleaned["project_listing"] = check_uid(listing, what=f"{what} project_listing")
+
+    strings = _widget_strings(block.get("strings"), what=what, cap=MAX_BLOCK_STRINGS)
+    template = _template_source(block.get("template"), what=what)
+    _refuse_problems(
+        lambda: template_engine.check_block(
+            template, returns, list(strings), action_keys, sorted(page_ids)
+        ),
+        what=what,
+    )
+    cleaned["template"] = template
+    if strings:
+        cleaned["strings"] = strings
+    requires = _requires(
+        block.get("requires"), connection_ids=connection_ids, what=what
+    )
+    if requires is not None:
+        cleaned["requires"] = requires
+    return cleaned
 
 
 def _bundled_dashboard(raw: Any, *, widget_ids: set[str]) -> dict[str, Any]:
@@ -2686,10 +2847,12 @@ def normalize_service_plugin_definition(
     # nothing — which is indistinguishable from a vendor being slow.
     _check_option_sources(endpoints, readable_ids=readable_ids)
 
+    # A read about a block's rows is called with their ids, which a tile has
+    # none of.
     readable = {
         endpoint["id"]: endpoint.get("returns", [])
         for endpoint in endpoints
-        if endpoint["id"] in readable_ids
+        if endpoint["id"] in readable_ids and "subject" not in endpoint
     }
     widgets = [
         _widget(entry, readable=readable, connection_ids=connection_ids)
@@ -2715,6 +2878,24 @@ def normalize_service_plugin_definition(
             fail(f"service plug-in: two pages share the id {page['id']!r}")
         page_ids.add(page["id"])
 
+    blocks = [
+        _block(
+            entry,
+            endpoints={endpoint["id"]: endpoint for endpoint in endpoints},
+            endpoint_prefix=f"{ENDPOINT_ID_PREFIX}{plugin_public_id}.",
+            page_ids=page_ids,
+            connection_ids=connection_ids,
+        )
+        for entry in require_list(
+            body.get("blocks"), "service plug-in: blocks", MAX_BLOCKS
+        )
+    ]
+    block_ids: set[str] = set()
+    for block in blocks:
+        if block["id"] in block_ids:
+            fail(f"service plug-in: two blocks share the id {block['id']!r}")
+        block_ids.add(block["id"])
+
     cleaned: dict[str, Any] = {
         "plugin_kind": "service",
         "features": _features(body.get("features")),
@@ -2739,6 +2920,8 @@ def normalize_service_plugin_definition(
         cleaned["endpoints"] = endpoints
     if widgets:
         cleaned["widgets"] = widgets
+    if blocks:
+        cleaned["blocks"] = blocks
     if pages:
         cleaned["pages"] = pages
 

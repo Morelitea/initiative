@@ -313,5 +313,14 @@
     "provided": "Cette communauté l'a ajouté, et c'est son éditeur qui le fournit, pas Initiative.",
     "report": "Un problème ? Signalez-le.",
     "continue": "Continuer"
+  },
+  "blocks": {
+    "label": "{{block}}, de {{plugin}}",
+    "menu": "Actions des plug-ins",
+    "copy": "Copier",
+    "copied": "Copié",
+    "copyFailed": "Impossible de copier",
+    "unavailable": "Indisponible pour le moment",
+    "actionFailed": "Le plug-in n’a pas pu le faire. Réessayez dans un instant."
   }
 }

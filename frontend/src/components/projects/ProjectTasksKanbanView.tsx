@@ -26,6 +26,7 @@ import type { TaskCardContext } from "@/components/tasks/parts";
 import { MentionedPeopleScope, ReportMentionedPeople } from "@/hooks/useMentionedPeople";
 import { usePersistedColumnVisibility } from "@/hooks/usePersistedColumnVisibility";
 import { useProperties } from "@/hooks/useProperties";
+import { type ListedProject, useTaskBlocks } from "@/hooks/useTaskBlocks";
 import { cn } from "@/lib/utils";
 import type { TranslateFn } from "@/types/i18n";
 
@@ -49,6 +50,8 @@ type ProjectTasksKanbanViewProps = {
   /** The properties the cards can show. When given, the board asks for none:
    *  a listing's preview has no initiative to ask. */
   propertyDefinitions?: PropertyDefinitionRead[];
+  /** The project, for the plug-in blocks confined to the listing it was installed from. */
+  project?: ListedProject | null;
 };
 
 export const ProjectTasksKanbanView = ({
@@ -69,6 +72,7 @@ export const ProjectTasksKanbanView = ({
   onArchiveDoneTasks,
   isArchivingDoneTasks,
   propertyDefinitions: givenDefinitions,
+  project,
 }: ProjectTasksKanbanViewProps) => {
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   useHorizontalDragScroll(scrollContainerRef);
@@ -97,9 +101,15 @@ export const ProjectTasksKanbanView = ({
 
   // Asked for once here, for every card on the board.
   const { t } = useTranslation(["projects", "dates", "relations"]);
+  // Every task the board has loaded, so each plug-in block reads once for all of them.
+  const taskIds = useMemo(
+    () => Object.values(groupedTasks).flatMap((tasks) => tasks.map((task) => task.id)),
+    [groupedTasks]
+  );
+  const blocks = useTaskBlocks("task.card", { project, taskIds });
   const cardContext = useMemo<TaskCardContext>(
-    () => ({ taskHref, showsProperty: visibleFields.showsProperty, t: t as TranslateFn }),
-    [taskHref, visibleFields, t]
+    () => ({ taskHref, showsProperty: visibleFields.showsProperty, t: t as TranslateFn, blocks }),
+    [taskHref, visibleFields, t, blocks]
   );
   const dragContext = useMemo<TaskCardContext>(
     () => ({ ...cardContext, taskHref: null }),

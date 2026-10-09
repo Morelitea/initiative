@@ -85,6 +85,8 @@ __all__ = [
     "declared_surfaces",
     "create_plugin_artifacts",
     "find_mounting_plugin",
+    "block_initiatives",
+    "declared_blocks",
     "has_initiative_surfaces",
     "initiative_surface_ids",
     "install_plugin",
@@ -1155,9 +1157,22 @@ def initiative_surface_ids(definition: Any) -> set[str]:
     }
 
 
+def declared_blocks(definition: Any) -> list[dict[str, Any]]:
+    """The blocks a pinned definition declares, well-formed ones only."""
+    blocks = definition.get("blocks") if isinstance(definition, dict) else None
+    if not isinstance(blocks, list):
+        return []
+    return [
+        block
+        for block in blocks
+        if isinstance(block, dict) and isinstance(block.get("id"), str)
+    ]
+
+
 def has_initiative_surfaces(definition: Any) -> bool:
-    """Whether the plug-in has anything to place in an initiative."""
-    return bool(initiative_surface_ids(definition))
+    """Whether the plug-in has anything to place in an initiative: a page that
+    renders in one, or a block, which is drawn on its tasks."""
+    return bool(initiative_surface_ids(definition)) or bool(declared_blocks(definition))
 
 
 def surface_renders_in(page: dict[str, Any], scope: str) -> bool:
@@ -1215,6 +1230,35 @@ def surface_access(
     if allowed.intersection(member_role_ids):
         return SurfaceAccess.open
     return SurfaceAccess.refused
+
+
+#: A block as :func:`surface_access` reads it: drawn on tasks, so in an
+#: initiative only, for whoever the placement admits.
+_BLOCK_SURFACE: dict[str, Any] = {"scopes": ["initiative"]}
+
+
+def block_initiatives(
+    placements: Sequence[PluginPlacement],
+    *,
+    is_guild_admin: bool,
+    member_role_ids: Collection[int],
+    age_allows: bool = True,
+) -> tuple[int, ...]:
+    """The initiatives whose tasks show an install's blocks to this viewer:
+    each placement :func:`surface_access` opens, as it would a page there."""
+    return tuple(
+        row.initiative_id
+        for row in sorted(placements, key=lambda row: row.initiative_id)
+        if surface_access(
+            _BLOCK_SURFACE,
+            initiative_id=row.initiative_id,
+            placement_role_ids=list(row.role_ids or []),
+            is_guild_admin=is_guild_admin,
+            member_role_ids=member_role_ids,
+            age_allows=age_allows,
+        )
+        is SurfaceAccess.open
+    )
 
 
 @dataclass(frozen=True)

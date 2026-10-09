@@ -32,18 +32,25 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.plugin_access_token import seal_install_token
 from app.core.encryption import SALT_PLUGIN_CONFIG, encrypt_field
-from app.core.messages import PluginChannelMessages
+from app.core.messages import PluginChannelMessages, PluginDataMessages
 from app.models.platform.plugin_service_registration import PluginServiceRegistration
 from app.models.platform.publisher import Publisher
+from app.models.tenant.event_outbox import EventOutbox
 from app.models.tenant.plugin_event_outbox import PluginEventOutbox
+from app.models.tenant.plugin_placement import PluginPlacement
 from app.models.tenant.guild_plugin import GuildPlugin
 from app.models.tenant.guild_plugin_user_connection import GuildPluginUserConnection
+from app.services.content_sockets import initiative_room, sockets
 from app.services.marketplace.registration_lookup import invalidate_registrations
 from app.services.tenant import plugin_channels as channels_service
 from app.testing import (
+    create_initiative,
     create_plugin_service_registration,
     create_guild,
     create_guild_plugin,
+    create_project,
+    create_resource_grant,
+    create_task,
     create_user,
     route_session_to_guild,
 )
@@ -609,3 +616,95 @@ class TestEvents:
         assert response.status_code == 400
         assert response.json()["detail"] == PluginChannelMessages.UNKNOWN_EVENT_TYPE
         assert await _kept(session, guild.id) == []
+
+
+class TestBlockStale:
+    async def test_the_rooms_of_readable_tasks_are_told_and_nothing_is_kept(
+        self, client: AsyncClient, session: AsyncSession, monkeypatch
+    ):
+        """Tasks the install reads are in two initiatives it is placed in; one
+        in an initiative it is not placed in, and one nobody shared with it,
+        reach no room."""
+        await _register(session, scope_ceiling=["projects:read"])
+        definition = {
+            **_definition(),
+            "service": {"public_id": SHOP, "protocol": 1, "scopes": ["projects:read"]},
+            "blocks": [{"id": "timer", "areas": ["task.card.inline"]}],
+        }
+        guild, user, plugin = await _install(
+            session, definition=definition, granted_scopes=["projects:read"]
+        )
+        placed = [
+            await create_initiative(session, guild, user, name=name)
+            for name in ("A", "B")
+        ]
+        unplaced = await create_initiative(session, guild, user, name="C")
+        await route_session_to_guild(session, guild.id)
+        for initiative in placed:
+            session.add(
+                PluginPlacement(install_id=plugin.id, initiative_id=initiative.id)
+            )
+        await session.commit()
+
+        async def task_in(initiative, *, shared=True) -> int | None:
+            project = await create_project(session, initiative, user)
+            if shared:
+                await create_resource_grant(
+                    session, project, all_initiative_members=True
+                )
+            return (await create_task(session, project)).id
+
+        readable = [await task_in(initiative) for initiative in placed]
+        unreadable = [
+            await task_in(unplaced),
+            await task_in(placed[0], shared=False),
+        ]
+        logged = len((await session.exec(select(EventOutbox))).all())
+        sent: list[tuple] = []
+        monkeypatch.setattr(sockets, "guild_ids", lambda: [guild.id])
+        monkeypatch.setattr(
+            sockets, "emit_json", lambda room, message: sent.append((room, message))
+        )
+
+        response = await client.post(
+            f"{BASE}/blocks/stale",
+            headers=_headers(guild, plugin),
+            json={"block": "timer", "task_ids": [*unreadable, *readable, 999_999]},
+        )
+
+        assert response.status_code == 202, response.text
+        assert sent == [
+            (
+                initiative_room(guild.id, initiative.id),
+                {
+                    "changes": [
+                        {
+                            "resource": {"type": "plugin_block", "id": plugin.id},
+                            "parents": [],
+                            "initiative_id": initiative.id,
+                            "action": "stale",
+                            "changed": ["timer"],
+                        }
+                    ]
+                },
+            )
+            for initiative in placed
+        ]
+        assert await _kept(session, guild.id) == []
+        session.expunge_all()
+        assert len((await session.exec(select(EventOutbox))).all()) == logged
+
+    async def test_a_block_the_plugin_does_not_declare_is_refused(
+        self, client: AsyncClient, session: AsyncSession
+    ):
+        await _register(session)
+        guild, _, plugin = await _install(session)
+
+        response = await client.post(
+            f"{BASE}/blocks/stale",
+            headers=_headers(guild, plugin),
+            json={"block": "timer", "task_ids": [1]},
+        )
+
+        assert response.status_code == 404
+        assert response.json()["detail"] == PluginDataMessages.BLOCK_NOT_FOUND

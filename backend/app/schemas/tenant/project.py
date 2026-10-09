@@ -99,6 +99,10 @@ class ProjectRead(ProjectBase, ToolSummaryBase):
     # same fact with the user attached.
     owner_id: Optional[PersonId] = None
     is_template: bool
+    #: The catalog listing the project was installed from, or None for one
+    #: made from scratch. A plug-in block confined to one kind of project
+    #: reads it.
+    listing_uid: Optional[str] = None
     pinned_at: Optional[datetime] = None
     default_view_mode: Optional[ProjectViewMode] = None
     owner: Optional[UserPublic] = Field(default=None, validation_alias="owner_source")

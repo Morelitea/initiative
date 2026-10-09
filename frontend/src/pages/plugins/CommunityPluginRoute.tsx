@@ -1,4 +1,4 @@
-import { useParams } from "@tanstack/react-router";
+import { useParams, useSearch } from "@tanstack/react-router";
 
 import { CommunityPluginPage } from "@/pages/plugins/CommunityPluginPage";
 
@@ -22,9 +22,12 @@ export function InitiativePluginRoute() {
     pluginId?: string;
     initiativeId?: string;
   };
+  const { page } = useSearch({ strict: false }) as { page?: string };
   const parsedPlugin = Number(pluginId);
   const parsedInitiative = Number(initiativeId);
   if (!Number.isFinite(parsedPlugin) || !Number.isFinite(parsedInitiative)) return null;
 
-  return <CommunityPluginPage pluginId={parsedPlugin} initiativeId={parsedInitiative} />;
+  return (
+    <CommunityPluginPage pluginId={parsedPlugin} initiativeId={parsedInitiative} pageId={page} />
+  );
 }

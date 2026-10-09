@@ -275,6 +275,7 @@ export const TaskCard = memo(function TaskCard({ task, context, visibleFields }:
       context={context}
       parts={taskCardParts}
       hidden={visibleFields.hidden}
+      blocks={context.blocks}
     />
   );
 });

@@ -7,8 +7,9 @@ build:editor-server``), run in an embedded V8 held to that much heap. This
 imports the standard library and ``mini-racer`` and nothing of Initiative.
 
 A request is ``{"template": <source>, "returns": [<declared return>],
-"strings": [<key>]}``, answered ``{"problems": [<message>]}``, empty when the
-template compiles. One the engine cannot run is answered ``{"error"}``; one
+"strings": [<key>]}`` for a widget, and for a block also carries ``"kind":
+"block"``, ``"actions": [<key>]`` and ``"pages": [<id>]``. It is answered
+``{"problems": [<message>]}``, empty when the template compiles. One the engine cannot run is answered ``{"error"}``; one
 that runs out of heap also carries ``"replace": true``, and the worker exits.
 """
 
@@ -23,13 +24,17 @@ from py_mini_racer import JSEvalException, JSOOMException, MiniRacer
 
 def answer(engine: MiniRacer, request: dict[str, Any]) -> dict[str, Any]:
     """What one request answers: the template's problems, or an error."""
+    arguments = [
+        request["template"],
+        json.dumps(request["returns"]),
+        json.dumps(request["strings"]),
+    ]
+    check = "serverTemplates.checkWidget"
+    if request.get("kind") == "block":
+        check = "serverTemplates.checkBlock"
+        arguments += [json.dumps(request["actions"]), json.dumps(request["pages"])]
     try:
-        problems = engine.call(
-            "serverTemplates.checkWidget",
-            request["template"],
-            json.dumps(request["returns"]),
-            json.dumps(request["strings"]),
-        )
+        problems = engine.call(check, *arguments)
         return {"problems": json.loads(problems)}
     except JSOOMException:
         return {"error": "the template compiler ran out of memory", "replace": True}

@@ -13,7 +13,14 @@ import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { TAVERN } from "@/themes/tavern";
 
 import { renderTemplate } from "./render";
-import type { PartName, PartsFor, SectionContext, SectionData, SectionName } from "./sections";
+import type {
+  PartName,
+  PartsFor,
+  SectionBlocks,
+  SectionContext,
+  SectionData,
+  SectionName,
+} from "./sections";
 
 export interface SectionProps<S extends SectionName> {
   name: S;
@@ -26,6 +33,8 @@ export interface SectionProps<S extends SectionName> {
   parts: PartsFor<S>;
   /** Parts the member has turned off, such as the fields a board's menu hides. */
   hidden?: ReadonlySet<PartName<S>>;
+  /** The plug-in blocks offered to this data, drawn where the template places each area. */
+  blocks?: SectionBlocks<S>;
 }
 
 export function Section<S extends SectionName>({
@@ -34,6 +43,7 @@ export function Section<S extends SectionName>({
   context,
   parts,
   hidden,
+  blocks,
 }: SectionProps<S>) {
   const communityId = useActiveCommunityId();
   const template = TAVERN[name];
@@ -45,5 +55,6 @@ export function Section<S extends SectionName>({
     parts: parts as never,
     communityId,
     hidden,
+    blocks: blocks && ((area, className) => blocks(area as never, data, className)),
   });
 }

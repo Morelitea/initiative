@@ -37,7 +37,7 @@ import logging
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Mapping, Optional
+from typing import Any, Mapping, Optional, Sequence
 from urllib.parse import parse_qsl, quote, urljoin, urlsplit
 
 import httpx
@@ -544,6 +544,8 @@ async def run_endpoint(
     connections: Mapping[str, Mapping[str, Any]],
     credentials: Credentials,
     now: datetime,
+    tasks: Optional[Sequence[int]] = None,
+    viewer: Optional[str] = None,
 ) -> dict[str, Any]:
     """One declarative endpoint's answer: its result, or ``{"unavailable":
     <code>}``.
@@ -551,7 +553,9 @@ async def run_endpoint(
     ``connections`` holds each connection's non-secret fields and
     ``credentials`` its token, by connection id. Expressions read a request's
     own connection as ``connection`` and every connection the endpoint's
-    ``requires`` names as ``connections.<id>``. A passing failure raises
+    ``requires`` names as ``connections.<id>``. A block's call also gives them
+    the ids of the tasks it is about as ``tasks`` and, where it names one, the
+    viewer's reference as ``viewer``. A passing failure raises
     :class:`PluginDataError` as the plug-in being unavailable.
     """
     run = _Run(
@@ -561,7 +565,7 @@ async def run_endpoint(
         now=now,
     )
     required, _ = _required_connection_ids(endpoint)
-    base = {
+    base: dict[str, Any] = {
         "params": dict(params),
         "connections": {
             connection_id: dict(connections[connection_id])
@@ -570,6 +574,10 @@ async def run_endpoint(
         },
         "now": run.now,
     }
+    if tasks is not None:
+        base["tasks"] = list(tasks)
+    if viewer is not None:
+        base["viewer"] = viewer
     steps = endpoint.get("steps") or [{"name": "", "request": endpoint["request"]}]
     named = "steps" in endpoint
     answers: dict[str, Any] = {}
@@ -956,13 +964,16 @@ async def call_endpoint(
     refs: Mapping[str, str],
     fields: Mapping[str, Mapping[str, Any]],
     actor: Optional[str],
+    tasks: Optional[Sequence[int]] = None,
+    viewer: Optional[str] = None,
 ) -> dict[str, Any]:
     """One declarative endpoint of an install, answered as a container
     answers: ``{endpoint, actor, result}``.
 
     ``fields`` is each satisfied connection's non-secret fields as the
     caller's resolution read them, which the response cache key holds, so
-    the expressions read those.
+    the expressions read those. ``tasks`` and ``viewer`` are a block's
+    (:func:`run_endpoint`).
 
     Held to the envelope's time and size, as a container's answer is; each
     vendor answer to the connection egress limits.
@@ -996,6 +1007,8 @@ async def call_endpoint(
                 connections={**used, **fields},
                 credentials=tokens,
                 now=datetime.now(timezone.utc),
+                tasks=tasks,
+                viewer=viewer,
             )
     except TimeoutError as exc:
         raise PluginDataError(

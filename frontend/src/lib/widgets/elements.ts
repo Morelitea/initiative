@@ -13,6 +13,7 @@
  * Node to compile the built-in widgets' templates.
  */
 
+import type { ElementDefinition } from "../templates/compile.ts";
 import type { Shape } from "../templates/shapes.ts";
 import { WIDGET_ELEMENT_PROPS } from "../templates/vocabulary.ts";
 
@@ -27,12 +28,9 @@ export const WIDGET_SCOPE: Readonly<Record<string, Shape>> = {
   now: "number",
 };
 
-export interface WidgetElementDefinition {
+export interface WidgetElementDefinition extends ElementDefinition {
   /** The kind of picture it draws, as the drawing components name it. */
   kind: "metric" | "series" | "timeline" | "funnel" | "progress" | "matrix" | "table" | "board";
-  /** Its props, as the template writes them (`x-label`) mapped to the names the
-   *  component takes (`xLabel`). */
-  props: Readonly<Record<string, string>>;
 }
 
 /** What each element the contract names is drawn as, by the drawing components. */
@@ -48,7 +46,7 @@ const KINDS: Readonly<Record<string, WidgetElementDefinition["kind"]>> = {
 };
 
 /** `x-label` as the component takes it: `xLabel`. */
-const camel = (attribute: string) =>
+export const camel = (attribute: string) =>
   attribute.replace(/-([a-z])/g, (_, letter: string) => letter.toUpperCase());
 
 /** The contract's widget elements, each with the component that draws it. */

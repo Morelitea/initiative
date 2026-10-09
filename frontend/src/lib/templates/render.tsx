@@ -39,7 +39,14 @@ export interface RenderInput {
   /** Parts the member has turned off, drawn as nothing wherever the template places them. */
   hidden?: ReadonlySet<string>;
   /** The components a template may place, such as a widget's charts, by element name. */
-  elements?: Readonly<Record<string, ComponentType<{ props: Record<string, unknown> }>>>;
+  elements?: Readonly<
+    Record<string, ComponentType<{ props: Record<string, unknown>; children?: ReactNode }>>
+  >;
+  /**
+   * The plug-in blocks in one of the section's block areas, each given the
+   * template's classes. Absent, every area draws nothing.
+   */
+  blocks?: (area: string, className: string | undefined) => ReactNode;
   /** For a plug-in's template: the only classes a bound `:class` may add. */
   classes?: ReadonlySet<string>;
 }
@@ -209,7 +216,21 @@ export function renderTemplate(template: CompiledTemplate, input: RenderInput): 
         // As the template gave them: a bound value goes on as data, not as text.
         const values: Record<string, unknown> = { ...node.attrs };
         for (const [name, index] of Object.entries(node.bind)) values[name] = value(index, scope);
-        return createElement(Component, { key, props: values });
+        return createElement(
+          Component,
+          { key, props: values },
+          ...node.kids.map((kid, index) => draw(kid, scope, index))
+        );
+      }
+      case "blocks": {
+        if (!input.blocks) return null;
+        // No element of its own: each block puts the classes on its own.
+        const { className } = props(node.attrs, node.bind, scope);
+        return createElement(
+          Fragment,
+          { key },
+          input.blocks(node.area, className as string | undefined)
+        );
       }
       case "if": {
         for (const branch of node.branches) {

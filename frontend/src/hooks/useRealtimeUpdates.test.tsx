@@ -22,6 +22,7 @@ import { getListCommentsQueryKey } from "@/api/generated/comments/comments";
 import type { CommentRead } from "@/api/generated/initiativeAPI.schemas";
 import { setInvalidationCommunity } from "@/api/query-keys";
 import { commentThreadQueryOptions } from "@/hooks/useComments";
+import { pluginBlockRowsKey } from "@/hooks/usePluginData";
 import { applyChanges, useRealtimeUpdates } from "@/hooks/useRealtimeUpdates";
 import { dashboardDataKey } from "@/hooks/useSqlQuery";
 import { queryClient } from "@/lib/queryClient";
@@ -375,6 +376,28 @@ describe("realtime resource frames", () => {
     );
 
     expect(other()).toBe(false);
+  });
+
+  it("reads a plug-in's stale block rows again, for that install only", () => {
+    const stale = seed(pluginBlockRowsKey(COMMUNITY, ENTITY_ID, "timer", "1,2"));
+    const otherInstall = seed(pluginBlockRowsKey(COMMUNITY, ENTITY_ID + 1, "timer", "1,2"));
+    const otherCommunity = seed(pluginBlockRowsKey(COMMUNITY + 1, ENTITY_ID, "timer", "1,2"));
+
+    applyChanges(
+      [
+        {
+          resource: { type: "plugin_block", id: ENTITY_ID },
+          initiative_id: 5,
+          action: "stale",
+          changed: ["timer"],
+        },
+      ],
+      COMMUNITY
+    );
+
+    expect(stale(), "the install's rows").toBe(true);
+    expect(otherInstall(), "another install's rows").toBe(false);
+    expect(otherCommunity(), "another community's rows").toBe(false);
   });
 
   it("ignores a resource type it has no invalidation for", () => {

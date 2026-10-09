@@ -37,6 +37,10 @@ import type {
   CommunityPluginUpgrade,
   HTTPValidationError,
   ListCommunityPluginMembersParams,
+  PluginBlockActionRequest,
+  PluginBlockActionResponse,
+  PluginBlockRowsRequest,
+  PluginBlockRowsResponse,
   PluginDataResponse,
   PluginParamOptionsResponse,
   PluginPlacementRead,
@@ -852,6 +856,215 @@ export function useReadPluginParamOptions<
   return withQueryKey(query, queryOptions.queryKey);
 }
 
+/**
+ * One block's read, for the tasks a view holds.
+ *
+ * Each row is keyed by the task it names. A task the viewer cannot see, that
+ * the block is not drawn on for them, or that the plug-in cannot read has no
+ * row, and with none left the plug-in is not called. A plug-in that does not
+ * answer comes back as the widget proxy's own message code.
+ * @summary Read Plugin Block Rows
+ */
+export const readPluginBlockRows = (
+  communityId: number,
+  pluginId: number,
+  blockId: string,
+  pluginBlockRowsRequest: BodyType<PluginBlockRowsRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<PluginBlockRowsResponse>(
+    {
+      url: `/api/v1/c/${communityId}/plugins/${pluginId}/blocks/${blockId}/rows`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: pluginBlockRowsRequest,
+      signal,
+    },
+    options
+  );
+};
+
+export const getReadPluginBlockRowsMutationKey = () => ["readPluginBlockRows"] as const;
+
+export const getReadPluginBlockRowsMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof readPluginBlockRows>>,
+    TError,
+    ReadPluginBlockRowsMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof readPluginBlockRows>>,
+  TError,
+  ReadPluginBlockRowsMutationVariables,
+  TContext
+> => {
+  const mutationKey = getReadPluginBlockRowsMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof readPluginBlockRows>>,
+    ReadPluginBlockRowsMutationVariables
+  > = (props) => {
+    const { communityId, pluginId, blockId, data } = props ?? {};
+
+    return readPluginBlockRows(communityId, pluginId, blockId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ReadPluginBlockRowsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof readPluginBlockRows>>
+>;
+export type ReadPluginBlockRowsMutationBody = BodyType<PluginBlockRowsRequest>;
+export type ReadPluginBlockRowsMutationError = ErrorType<HTTPValidationError>;
+export type ReadPluginBlockRowsMutationVariables = {
+  communityId: number;
+  pluginId: number;
+  blockId: string;
+  data: BodyType<PluginBlockRowsRequest>;
+};
+
+/**
+ * @summary Read Plugin Block Rows
+ */
+export const useReadPluginBlockRows = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof readPluginBlockRows>>,
+      TError,
+      ReadPluginBlockRowsMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof readPluginBlockRows>>,
+  TError,
+  ReadPluginBlockRowsMutationVariables,
+  TContext
+> => {
+  return useMutation(getReadPluginBlockRowsMutationOptions(options), queryClient);
+};
+/**
+ * Run one of a block's actions on one task.
+ *
+ * ``action_key`` is the action's endpoint id after ``plugin.<public id>.``.
+ * The plug-in does the work, with its own access, and answers with the
+ * block's fresh row for the task; Initiative changes nothing itself. Refused
+ * with ``PLUGIN_BLOCK_NOT_FOUND`` when the block declares no such action,
+ * ``PLUGIN_BLOCK_NOT_OFFERED`` when the block is not drawn on this task for
+ * this viewer, and 429 past the allowance.
+ * @summary Run Plugin Block Action
+ */
+export const runPluginBlockAction = (
+  communityId: number,
+  pluginId: number,
+  blockId: string,
+  actionKey: string,
+  pluginBlockActionRequest: BodyType<PluginBlockActionRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<PluginBlockActionResponse>(
+    {
+      url: `/api/v1/c/${communityId}/plugins/${pluginId}/blocks/${blockId}/actions/${actionKey}`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: pluginBlockActionRequest,
+      signal,
+    },
+    options
+  );
+};
+
+export const getRunPluginBlockActionMutationKey = () => ["runPluginBlockAction"] as const;
+
+export const getRunPluginBlockActionMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof runPluginBlockAction>>,
+    TError,
+    RunPluginBlockActionMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof runPluginBlockAction>>,
+  TError,
+  RunPluginBlockActionMutationVariables,
+  TContext
+> => {
+  const mutationKey = getRunPluginBlockActionMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof runPluginBlockAction>>,
+    RunPluginBlockActionMutationVariables
+  > = (props) => {
+    const { communityId, pluginId, blockId, actionKey, data } = props ?? {};
+
+    return runPluginBlockAction(communityId, pluginId, blockId, actionKey, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RunPluginBlockActionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof runPluginBlockAction>>
+>;
+export type RunPluginBlockActionMutationBody = BodyType<PluginBlockActionRequest>;
+export type RunPluginBlockActionMutationError = ErrorType<HTTPValidationError>;
+export type RunPluginBlockActionMutationVariables = {
+  communityId: number;
+  pluginId: number;
+  blockId: string;
+  actionKey: string;
+  data: BodyType<PluginBlockActionRequest>;
+};
+
+/**
+ * @summary Run Plugin Block Action
+ */
+export const useRunPluginBlockAction = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof runPluginBlockAction>>,
+      TError,
+      RunPluginBlockActionMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof runPluginBlockAction>>,
+  TError,
+  RunPluginBlockActionMutationVariables,
+  TContext
+> => {
+  return useMutation(getRunPluginBlockActionMutationOptions(options), queryClient);
+};
 /**
  * Every plug-in installed in this guild, enabled or not.
  *

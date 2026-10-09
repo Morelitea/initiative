@@ -56,8 +56,16 @@ from app.services.tenant.dashboard_definition import normalize_dashboard_definit
 from app.testing.fake_vendor import FakeVendor, declarative_plugin
 from app.models.platform.access_grant import AccessGrantPurpose, SettingsLevel
 from app.models.platform.user import UserRole
+from app.models.tenant.initiative import InitiativeMember
+from app.models.tenant.plugin_placement import PluginPlacement
+from app.models.tenant.task import Task
+from app.services.marketplace.plugin_refs import ensure_plugin_ref
 from app.testing import (
     create_access_grant,
+    create_initiative,
+    create_project,
+    create_resource_grant,
+    create_task,
     create_user,
     get_auth_headers,
     guild_of,
@@ -1760,3 +1768,319 @@ async def test_a_viewer_too_young_for_the_plugin_reads_no_tile(
     assert response.status_code == 403
     assert response.json()["detail"] == GuildPluginMessages.AGE_RESTRICTED
     assert upstream.count == 0
+
+
+# ---------------------------------------------------------------------------
+# Blocks on tasks
+# ---------------------------------------------------------------------------
+
+TIMERS = f"plugin.{PUBLIC_ID}.timers"
+STATUS = f"plugin.{PUBLIC_ID}.status"
+START = f"plugin.{PUBLIC_ID}.start"
+#: The built-in Sales pipeline's listing, which one block is confined to.
+SALES_PIPELINE = "WY4WAN93PFP3X4"
+
+
+def _block_definition() -> dict:
+    """Two blocks on task reads, one per viewer with an action, one confined
+    to deals."""
+    rows = [
+        {"key": "task_id", "type": "int", "list": True},
+        {"key": "label", "type": "string", "list": True},
+    ]
+
+    def block(block_id: str, **extra) -> dict:
+        return {
+            "id": block_id,
+            "areas": ["task.card.inline"],
+            "name": {"en": block_id},
+            "template": "<span>{{ task.title }}</span>",
+            **extra,
+        }
+
+    return {
+        "plugin_kind": "service",
+        "service": {"public_id": PUBLIC_ID, "protocol": 1, "scopes": ["projects:read"]},
+        "features": ["blocks", "endpoints"],
+        "endpoints": [
+            {
+                "id": TIMERS,
+                "direction": "read",
+                "subject": "task",
+                "per_viewer": True,
+                "cache_ttl_seconds": 60,
+                "returns": rows,
+            },
+            {
+                "id": STATUS,
+                "direction": "read",
+                "subject": "task",
+                "cache_ttl_seconds": 60,
+                "returns": rows,
+            },
+            {"id": START, "direction": "write", "subject": "task"},
+        ],
+        "blocks": [
+            block("timer", endpoint=TIMERS, actions=[START]),
+            block("deal", endpoint=STATUS, project_listing=SALES_PIPELINE),
+        ],
+    }
+
+
+async def _board(session: AsyncSession, acting_user):
+    """An install placed in one initiative for its members, and tasks each side
+    reads differently: ``shared`` both read, ``hidden`` only the install,
+    ``mine`` only the member, ``deal`` both and in a Sales pipeline project,
+    ``elsewhere`` in an initiative the install is not placed in."""
+    admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
+    member = await acting_user(
+        guild_role=CommunityRole.member,
+        guild=admin.guild,
+        initiative=admin.initiative,
+        initiative_role="member",
+    )
+    await create_plugin_service_registration(
+        session,
+        public_id=PUBLIC_ID,
+        listing_uid=PLUGIN_UID,
+        base_url=BASE_URL,
+        allowed_origins=[BASE_URL],
+        scope_ceiling=["projects:read"],
+    )
+    plugin = await create_guild_plugin(
+        session,
+        admin.guild,
+        admin.user,
+        definition=_block_definition(),
+        listing_uid=PLUGIN_UID,
+        name="Timers",
+        granted_scopes=["projects:read"],
+    )
+    await route_session_to_guild(session, admin.guild.id)
+    role_id = (
+        await session.exec(
+            select(InitiativeMember.role_id).where(
+                InitiativeMember.initiative_id == admin.initiative.id,
+                InitiativeMember.user_id == member.user.id,
+            )
+        )
+    ).one()
+    session.add(
+        PluginPlacement(
+            install_id=plugin.id, initiative_id=admin.initiative.id, role_ids=[role_id]
+        )
+    )
+    await session.commit()
+
+    async def task_in(initiative, owner, *, members=False, install=False, **project):
+        made = await create_project(session, initiative, owner, **project)
+        if members:
+            await create_resource_grant(session, made, all_initiative_members=True)
+        if install:
+            await create_resource_grant(session, made, plugin_install_id=plugin.id)
+        return await create_task(session, made)
+
+    other = await create_initiative(session, admin.guild, admin.user, name="B")
+    tasks = {
+        "shared": await task_in(admin.initiative, admin.user, members=True),
+        "hidden": await task_in(admin.initiative, admin.user, install=True),
+        "mine": await task_in(admin.initiative, member.user),
+        "deal": await task_in(
+            admin.initiative, admin.user, members=True, listing_uid=SALES_PIPELINE
+        ),
+        "elsewhere": await task_in(other, admin.user, members=True),
+    }
+    return admin, member, plugin, {name: task.id for name, task in tasks.items()}
+
+
+def _claims(request: httpx.Request) -> dict:
+    return jwt.decode(
+        request.headers["Authorization"].removeprefix("Bearer "),
+        options={"verify_signature": False},
+        algorithms=["RS256"],
+    )
+
+
+class TestBlockRows:
+    async def test_only_tasks_both_sides_read_reach_the_plugin(
+        self, client, acting_user, session, upstream
+    ):
+        """The member cannot see ``hidden``, the install cannot read ``mine``,
+        and ``elsewhere`` is in neither's reach; a row about a task nobody
+        asked for is dropped."""
+        admin, member, plugin, ids = await _board(session, acting_user)
+        upstream.rows = [
+            {"task_id": ids["deal"], "label": "Deal"},
+            {"task_id": ids["shared"], "label": "Shared"},
+            {"task_id": ids["hidden"], "label": "Not asked"},
+        ]
+
+        response = await client.post(
+            member.g(f"/plugins/{plugin.id}/blocks/timer/rows"),
+            headers=member.headers,
+            json={"task_ids": [ids[name] for name in ids] + [ids["shared"]]},
+        )
+
+        assert response.status_code == 200, response.text
+        assert response.json()["rows"] == {
+            str(ids["shared"]): {"task_id": ids["shared"], "label": "Shared"},
+            str(ids["deal"]): {"task_id": ids["deal"], "label": "Deal"},
+        }
+        (call,) = upstream.calls
+        claims = _claims(call)
+        assert claims["endpoint_id"] == TIMERS
+        assert claims["task_ids"] == sorted([ids["shared"], ids["deal"]])
+        assert claims["viewer"] == await ensure_plugin_ref(
+            guild_id=member.guild.id,
+            plugin_install_id=plugin.id,
+            user_id=member.user.id,
+        )
+
+    async def test_a_block_for_one_kind_of_project_reads_only_those(
+        self, client, acting_user, session, upstream
+    ):
+        admin, _member, plugin, ids = await _board(session, acting_user)
+
+        response = await client.post(
+            admin.g(f"/plugins/{plugin.id}/blocks/deal/rows"),
+            headers=admin.headers,
+            json={"task_ids": [ids["shared"], ids["deal"], ids["elsewhere"]]},
+        )
+
+        assert response.status_code == 200, response.text
+        claims = _claims(upstream.calls[0])
+        assert claims["task_ids"] == [ids["deal"]]
+        # Not a per-viewer read, so nobody is named.
+        assert "viewer" not in claims
+
+    async def test_a_per_viewer_answer_is_never_served_to_another_viewer(
+        self, client, acting_user, session, upstream
+    ):
+        admin, member, plugin, ids = await _board(session, acting_user)
+        body = {"task_ids": [ids["shared"], ids["deal"]]}
+
+        for actor in (admin, member, admin):
+            response = await client.post(
+                actor.g(f"/plugins/{plugin.id}/blocks/timer/rows"),
+                headers=actor.headers,
+                json=body,
+            )
+            assert response.status_code == 200, response.text
+        assert len({_claims(call)["viewer"] for call in upstream.calls}) == 2
+        assert upstream.count == 2
+
+        shared = [
+            await client.post(
+                actor.g(f"/plugins/{plugin.id}/blocks/deal/rows"),
+                headers=actor.headers,
+                json=body,
+            )
+            for actor in (admin, member)
+        ]
+        assert [one.json()["cached"] for one in shared] == [False, True]
+        assert upstream.count == 3
+
+    async def test_with_nothing_left_the_plugin_is_not_called(
+        self, client, acting_user, session, upstream
+    ):
+        _admin, member, plugin, ids = await _board(session, acting_user)
+
+        response = await client.post(
+            member.g(f"/plugins/{plugin.id}/blocks/timer/rows"),
+            headers=member.headers,
+            json={"task_ids": [ids["mine"], ids["hidden"]]},
+        )
+
+        assert response.status_code == 200, response.text
+        assert response.json()["rows"] == {}
+        assert upstream.count == 0
+
+    async def test_a_block_the_install_does_not_declare_is_not_found(
+        self, client, acting_user, session, upstream
+    ):
+        admin, _member, plugin, ids = await _board(session, acting_user)
+
+        response = await client.post(
+            admin.g(f"/plugins/{plugin.id}/blocks/absent/rows"),
+            headers=admin.headers,
+            json={"task_ids": [ids["shared"]]},
+        )
+
+        assert response.status_code == 404
+        assert response.json()["detail"] == PluginDataMessages.BLOCK_NOT_FOUND
+        assert upstream.count == 0
+
+
+class TestBlockActions:
+    async def test_the_plugin_makes_the_change_and_initiative_writes_nothing(
+        self, client, acting_user, session, upstream
+    ):
+        _admin, member, plugin, ids = await _board(session, acting_user)
+        await route_session_to_guild(session, member.guild.id)
+        before = (
+            await session.exec(select(Task).where(Task.id == ids["shared"]))
+        ).one()
+        stamp = before.updated_at
+        upstream.rows = [{"task_id": ids["shared"], "label": "Running"}]
+
+        response = await client.post(
+            member.g(f"/plugins/{plugin.id}/blocks/timer/actions/start"),
+            headers=member.headers,
+            json={"task_id": ids["shared"]},
+        )
+
+        assert response.status_code == 200, response.text
+        assert response.json()["row"] == {"task_id": ids["shared"], "label": "Running"}
+        (call,) = upstream.calls
+        assert json.loads(call.content)["endpoint"] == START
+        claims = _claims(call)
+        assert claims["endpoint_id"] == START
+        assert claims["task_ids"] == [ids["shared"]]
+        assert claims["viewer"] == await ensure_plugin_ref(
+            guild_id=member.guild.id,
+            plugin_install_id=plugin.id,
+            user_id=member.user.id,
+        )
+        assert "act" not in claims and "member" not in claims
+        session.expunge_all()
+        after = (await session.exec(select(Task).where(Task.id == ids["shared"]))).one()
+        assert after.updated_at == stamp
+
+    @pytest.mark.parametrize(
+        ("block", "action"),
+        [("timer", "stop"), ("deal", "start"), ("absent", "start")],
+        ids=["an action no block declares", "another block's action", "no block"],
+    )
+    async def test_an_undeclared_action_is_not_found(
+        self, client, acting_user, session, upstream, block, action
+    ):
+        admin, _member, plugin, ids = await _board(session, acting_user)
+
+        response = await client.post(
+            admin.g(f"/plugins/{plugin.id}/blocks/{block}/actions/{action}"),
+            headers=admin.headers,
+            json={"task_id": ids["deal"]},
+        )
+
+        assert response.status_code == 404
+        assert response.json()["detail"] == PluginDataMessages.BLOCK_NOT_FOUND
+        assert upstream.count == 0
+
+    @pytest.mark.parametrize(
+        ("task", "status_code"),
+        [("hidden", 404), ("mine", 403)],
+        ids=["a task the viewer cannot see", "a task the install cannot read"],
+    )
+    async def test_the_connection_is_made_only_where_both_sides_reach(
+        self, client, acting_user, session, upstream, task, status_code
+    ):
+        _admin, member, plugin, ids = await _board(session, acting_user)
+
+        response = await client.post(
+            member.g(f"/plugins/{plugin.id}/blocks/timer/actions/start"),
+            headers=member.headers,
+            json={"task_id": ids[task]},
+        )
+
+        assert response.status_code == status_code, response.text
+        assert upstream.count == 0

@@ -223,3 +223,45 @@ export const pluginWidgetSample = (
   catalog: PluginWidgetCatalogResponse | undefined,
   widgetType: string
 ): PluginSample => asSample(pluginWidgetEntry(catalog, widgetType)?.widget.sample_data);
+
+/** One block's rows for a view's tasks, keyed by task id; a task with no row is absent. */
+export interface PluginBlockRowsResponse {
+  rows: Record<string, Record<string, unknown>>;
+  fetched_at: string;
+  cached: boolean;
+}
+
+export interface PluginBlockRequest {
+  communityId: number;
+  pluginId: number;
+  blockId: string;
+}
+
+/**
+ * A block's rows for these tasks, at most the contract's `blockSubjectIds` of
+ * them. The block names its own endpoint; the server reads the tasks as the
+ * viewer before the plug-in is asked about any of them.
+ */
+export const getPluginBlockRows = (
+  { communityId, pluginId, blockId }: PluginBlockRequest,
+  taskIds: readonly number[]
+) =>
+  apiClient
+    .post<PluginBlockRowsResponse>(
+      `/c/${communityId}/plugins/${pluginId}/blocks/${encodeURIComponent(blockId)}/rows`,
+      { task_ids: taskIds }
+    )
+    .then((r) => r.data);
+
+/** Run one of a block's actions for a task, by its key; the answer is the task's fresh row. */
+export const runPluginBlockAction = (
+  { communityId, pluginId, blockId }: PluginBlockRequest,
+  actionKey: string,
+  taskId: number
+) =>
+  apiClient
+    .post<{ row: Record<string, unknown> | null }>(
+      `/c/${communityId}/plugins/${pluginId}/blocks/${encodeURIComponent(blockId)}/actions/${encodeURIComponent(actionKey)}`,
+      { task_id: taskId }
+    )
+    .then((r) => r.data);

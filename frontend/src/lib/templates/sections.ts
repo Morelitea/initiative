@@ -14,7 +14,7 @@
  * `.ts` files: the Vite plugin reads it in Node.
  */
 
-import type { ComponentType } from "react";
+import type { ComponentType, ReactNode } from "react";
 
 import type { TaskListRead, TaskRead } from "../../api/generated/initiativeAPI.schemas.ts";
 import type { TaskCardContext, TaskPageContext } from "../../components/tasks/parts.tsx";
@@ -24,10 +24,18 @@ export interface PartDefinition {
   required?: boolean;
 }
 
+/** How a block area draws the plug-in blocks in it: on a line, as panels, or as menu items. */
+export type BlockAreaKind = "inline" | "panel" | "menu";
+
 export interface SectionDefinition {
   /** Each name a template may read, and the API schema it holds. */
   data: Readonly<Record<string, string>>;
   parts: Readonly<Record<string, PartDefinition>>;
+  /**
+   * The block areas a template may place with `<blocks area>`, each with its
+   * kind. A plug-in names one as `<section>.<area>`, such as `task.card.inline`.
+   */
+  areas?: Readonly<Record<string, BlockAreaKind>>;
 }
 
 /**
@@ -63,6 +71,7 @@ export const SECTIONS = {
       tags: {},
       properties: {},
     },
+    areas: { inline: "inline" },
   }),
   /** The whole task page, one field per part so a theme can hide any one. */
   "task.page": defineSection<{ task: TaskRead }, TaskPageContext>()({
@@ -86,6 +95,7 @@ export const SECTIONS = {
       case: {},
       comments: {},
     },
+    areas: { header: "inline", aside: "panel", main: "panel", actions: "menu" },
   }),
 } satisfies Record<string, SectionDefinition>;
 
@@ -97,6 +107,8 @@ export type SectionData<S extends SectionName> = NonNullable<DefinitionOf<S>["__
 export type SectionContext<S extends SectionName> = NonNullable<DefinitionOf<S>["__context"]>[0];
 
 export type PartName<S extends SectionName> = keyof DefinitionOf<S>["parts"] & string;
+
+export type BlockAreaName<S extends SectionName> = keyof DefinitionOf<S>["areas"] & string;
 
 /** What a part receives: the section's data, and whatever its route shares. */
 export interface PartProps<S extends SectionName> {
@@ -114,3 +126,13 @@ export interface PartProps<S extends SectionName> {
 export type PartsFor<S extends SectionName> = {
   [P in keyof DefinitionOf<S>["parts"]]: ComponentType<PartProps<S>>;
 };
+
+/**
+ * Draws the plug-in blocks a section's data is offered in one of its areas,
+ * with the classes the template gives each block's outermost element.
+ */
+export type SectionBlocks<S extends SectionName> = (
+  area: BlockAreaName<S>,
+  data: SectionData<S>,
+  className: string | undefined
+) => ReactNode;

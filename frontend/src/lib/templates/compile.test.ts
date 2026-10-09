@@ -186,6 +186,29 @@ describe("compileTemplate", () => {
     ).toEqual([]);
   });
 
+  it("places a section's block areas, once each, in a theme's template only", () => {
+    const { template } = compile(`<part name="title" /><blocks area="inline" class="gap-1" />`);
+    expect(template?.root[1]).toEqual({
+      t: "blocks",
+      area: "inline",
+      attrs: { class: "gap-1" },
+      bind: {},
+    });
+    expect(errorsOf(`<part name="title" /><blocks area="aside" />`)[0]).toMatch(
+      /task.card has no block area called aside/
+    );
+    expect(errorsOf(`<part name="title" /><blocks />`)[0]).toMatch(/<blocks> needs an area/);
+    expect(
+      errorsOf(`<part name="title" /><blocks area="inline" /><blocks area="inline" />`)[0]
+    ).toMatch(/The inline block area is placed once/);
+    const plugin = compileTemplate(`<part name="title" /><blocks area="inline" />`, {
+      name: "task.card",
+      section: SECTIONS["task.card"],
+      plugin: true,
+    });
+    expect(plugin.errors[0]?.message).toMatch(/A plug-in's template cannot place <blocks>/);
+  });
+
   it("refuses directives that do not make sense together", () => {
     expect(errorsOf(`<part name="title" /><span else>x</span>`)[0]).toMatch(
       /else must follow an if/

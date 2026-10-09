@@ -71,7 +71,7 @@ import { useCommunityPath } from "@/lib/communityUrl";
 import { formatDateTime } from "@/lib/formatDate";
 import { summarizeStored } from "@/lib/recurrence";
 import { referenceRef } from "@/lib/smartChips";
-import type { PartProps, PartsFor } from "@/lib/templates/sections";
+import type { PartProps, PartsFor, SectionBlocks } from "@/lib/templates/sections";
 import { truncateText } from "@/lib/text";
 import { toolDetailRoute } from "@/lib/tools";
 import { cn } from "@/lib/utils";
@@ -84,6 +84,8 @@ export interface TaskCardContext {
   showsProperty: (propertyId: number) => boolean;
   /** The board's translations (projects, dates, relations), so no card asks for its own. */
   t: (key: string, options?: Record<string, unknown>) => string;
+  /** The plug-in blocks the board's tasks are offered, asked for once for the board. */
+  blocks?: SectionBlocks<"task.card">;
 }
 
 /** Something the task page can do, and whether it is under way. */

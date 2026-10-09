@@ -1453,6 +1453,16 @@ class PluginDataMessages:
     #: This worker already has as many calls in flight to this plug-in as it will
     #: hold open, so one slow plug-in cannot consume the pool.
     BUSY = "PLUGIN_DATA_BUSY"
+    #: Too many calls in a short window: a block's actions, or one plug-in's
+    #: calls to others.
+    RATE_LIMITED = "PLUGIN_DATA_RATE_LIMITED"
+    #: The install declares no such block, the block draws no read, or it
+    #: declares no such action.
+    BLOCK_NOT_FOUND = "PLUGIN_BLOCK_NOT_FOUND"
+    #: The block is not drawn on this task for this viewer: the install is not
+    #: placed in its initiative for them, the task's project is not the kind
+    #: the block is for, or the plug-in cannot read the task.
+    BLOCK_NOT_OFFERED = "PLUGIN_BLOCK_NOT_OFFERED"
 
 
 class PluginChannelMessages:

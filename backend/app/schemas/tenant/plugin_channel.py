@@ -27,6 +27,8 @@ from typing import Any, Dict, List, Literal, Optional
 from pydantic import ConfigDict, Field
 
 from app.schemas.base import SanitizedBaseModel
+from app.services.marketplace.manifest_values import MAX_IDENTIFIER_LENGTH
+from app.services.marketplace.service_plugins import MAX_BLOCK_SUBJECT_IDS
 
 __all__ = [
     "PluginConnectionRead",
@@ -148,3 +150,11 @@ class PluginInstallationEvent(SanitizedBaseModel):
     event_type: str = Field(max_length=200)
     payload: Dict[str, Any] = {}
     initiative_id: Optional[int] = None
+
+
+class PluginBlockStale(SanitizedBaseModel):
+    """One of the plug-in's blocks changed on these tasks, in what only the
+    plug-in holds. Nothing about the change is sent: the block is read again."""
+
+    block: str = Field(max_length=MAX_IDENTIFIER_LENGTH)
+    task_ids: List[int] = Field(min_length=1, max_length=MAX_BLOCK_SUBJECT_IDS)
