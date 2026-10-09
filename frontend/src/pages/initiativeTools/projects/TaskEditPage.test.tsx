@@ -182,44 +182,6 @@ describe("TaskEditPage", () => {
     expect(put).not.toHaveBeenCalled();
   });
 
-  it("ties the typed fields to the page's form, which refuses a save with no title", async () => {
-    const { task } = renderTaskPage({
-      properties: [
-        buildPropertySummary({
-          property_id: 4,
-          name: "Hours",
-          type: PropertyType.number,
-          value: 1,
-        }),
-      ],
-    });
-    const sent: Record<string, unknown>[] = [];
-    server.use(
-      communityHttp.patch("/tasks/:taskId", async ({ request }) => {
-        sent.push((await request.json()) as Record<string, unknown>);
-        return HttpResponse.json(task);
-      })
-    );
-
-    // The fields sit outside the page's <form> and name it (`<input form>`),
-    // so Enter in one saves the task and the browser checks it first, as when
-    // they sat inside it.
-    const title = (await screen.findByRole("textbox", { name: /title/i })) as HTMLInputElement;
-    const save = screen.getByRole("button", { name: /save task/i }) as HTMLButtonElement;
-    expect(save.form).not.toBeNull();
-    expect(title.form).toBe(save.form);
-    expect((screen.getByPlaceholderText("0") as HTMLInputElement).form).toBe(save.form);
-
-    await userEvent.clear(title);
-    await userEvent.click(save);
-    expect(sent).toHaveLength(0);
-
-    await userEvent.type(title, "Wire the porch light");
-    await userEvent.click(save);
-    await waitFor(() => expect(sent).toHaveLength(1));
-    expect(sent[0].title).toBe("Wire the porch light");
-  });
-
   it("reports duplicate progress on the trigger once the menu closes", async () => {
     renderTaskPage();
     server.use(

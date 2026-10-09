@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Layouts fit foldable phones and tablets.** On an unfolded foldable or a tablet held upright, forms go two fields to a row and cards fill as many columns as fit, rather than waiting for a laptop-sized screen. On a large screen, cards stop at the columns they had before and grow wider instead. The sidebar now stays open beside the page from the width of a tablet held sideways, where before it waited for 1024 pixels.
 - **Plug-ins are built with SDK 5.0.** Initiative serves plug-in API 5.0, where a plug-in's own screens are declared as `pages` rather than `embeds`. Publishing or updating a plug-in here needs a release built with SDK 5.0. Plug-ins already installed keep working.
-- **Boards and lists draw faster, and the card you drag is the card.** A board of a few hundred tasks opens and redraws in about half the time it took, and every screen that shows dates or numbers formats them faster. While you move a task, it shows everything its card shows, as the Fields menu sets it, rather than a shorter copy.
+- **Dates and numbers format faster** on every screen that shows them. Building a formatter was most of what a large board spent redrawing.
 - **Escalate is now Send to the platform** on a report card, and a settled report says "Sent to the platform".
 - **API: filing a ticket and answering one take `multipart/form-data`.** `POST /api/v1/me/tickets` takes the ticket as JSON in a `payload` field, and `POST /api/v1/me/tickets/{task_id}/replies` takes the answer in a `body` field, each beside any `files`.
 

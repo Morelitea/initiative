@@ -1,20 +1,44 @@
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { Link } from "@tanstack/react-router";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Archive, ChevronLeft, ChevronRight, SquareCheckBig } from "lucide-react";
+import {
+  Archive,
+  Ban,
+  ChevronLeft,
+  ChevronRight,
+  MessageSquare,
+  SquareCheckBig,
+} from "lucide-react";
 import type { IconName } from "lucide-react/dynamic";
-import { memo, useCallback, useMemo, useRef } from "react";
+import { memo, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { TaskListRead, TaskStatusRead } from "@/api/generated/initiativeAPI.schemas";
+import type {
+  TaskListRead,
+  TaskPriority,
+  TaskStatusRead,
+} from "@/api/generated/initiativeAPI.schemas";
+import { UnreadDot } from "@/components/notifications/UnreadDot";
 import type { KanbanCardFields } from "@/components/projects/kanbanFields";
-import type { TaskCardContext } from "@/components/tasks/parts";
-import { taskCardParts } from "@/components/tasks/parts";
+import type { PriorityBadgeVariant } from "@/components/projects/projectTasksConfig";
+import { TaskAssigneeList } from "@/components/projects/TaskAssigneeList";
+import { PropertyValueCell } from "@/components/properties/PropertyValueCell";
+import { nonEmptyPropertySummaries } from "@/components/properties/propertyHelpers";
+import { TagBadge } from "@/components/tags";
+import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon-picker";
-import { Section } from "@/lib/templates/Section";
+import { MentionText } from "@/components/user/MentionText";
+import { useUnreadTree } from "@/hooks/useUnreadTree";
+import { useCommunityPath } from "@/lib/communityUrl";
+import { formatDateTime } from "@/lib/formatDate";
+import { summarizeStored } from "@/lib/recurrence";
+import { truncateText } from "@/lib/text";
 import { cn } from "@/lib/utils";
+import type { TranslateFn } from "@/types/i18n";
 
 const VIRTUALIZE_THRESHOLD = 20;
 const CARD_ESTIMATE_HEIGHT = 140;
@@ -24,8 +48,8 @@ interface KanbanColumnProps {
   status: TaskStatusRead;
   tasks: TaskListRead[];
   canWrite: boolean;
-  /** What every card on the board shares, made once for the board. */
-  cardContext: TaskCardContext;
+  priorityVariant: Record<TaskPriority, PriorityBadgeVariant>;
+  taskHref: (taskId: number) => string;
   collapsed: boolean;
   onToggleCollapse: (statusId: number) => void;
   taskCount: number;
@@ -39,7 +63,8 @@ export const KanbanColumn = ({
   status,
   tasks,
   canWrite,
-  cardContext,
+  priorityVariant,
+  taskHref,
   collapsed,
   onToggleCollapse,
   taskCount,
@@ -131,7 +156,8 @@ export const KanbanColumn = ({
                       data-index={virtualRow.index}
                       ref={virtualizer.measureElement}
                       task={task}
-                      context={cardContext}
+                      priorityVariant={priorityVariant}
+                      taskHref={taskHref}
                       visibleFields={visibleFields}
                     />
                   ) : (
@@ -140,7 +166,8 @@ export const KanbanColumn = ({
                       data-index={virtualRow.index}
                       ref={virtualizer.measureElement}
                       task={task}
-                      context={cardContext}
+                      priorityVariant={priorityVariant}
+                      taskHref={taskHref}
                       visibleFields={visibleFields}
                     />
                   );
@@ -153,7 +180,8 @@ export const KanbanColumn = ({
                   key={task.id}
                   task={task}
                   canWrite={canWrite}
-                  context={cardContext}
+                  priorityVariant={priorityVariant}
+                  taskHref={taskHref}
                   visibleFields={visibleFields}
                 />
               ))
@@ -256,106 +284,245 @@ const CollapsedHeader = ({
   );
 };
 
-// --- Card (the task.card section, memoized) ---
+// --- Card content (pure display, memoized) ---
 
-interface TaskCardProps {
+interface KanbanCardContentProps {
   task: TaskListRead;
-  context: TaskCardContext;
+  priorityVariant: Record<TaskPriority, PriorityBadgeVariant>;
+  taskHref: (taskId: number) => string;
   visibleFields: KanbanCardFields;
 }
 
-/** One card, drawn by its template. Also the card a drag holds up. */
-export const TaskCard = memo(function TaskCard({ task, context, visibleFields }: TaskCardProps) {
-  // The same object while the task is, so the template reuses what it worked out.
-  const data = useMemo(() => ({ task }), [task]);
-  return (
-    <Section
-      name="task.card"
-      data={data}
-      context={context}
-      parts={taskCardParts}
-      hidden={visibleFields.hidden}
-    />
-  );
-});
+const KanbanCardContent = memo(
+  function KanbanCardContent({
+    task,
+    priorityVariant,
+    taskHref,
+    visibleFields,
+  }: KanbanCardContentProps) {
+    const { t } = useTranslation(["projects", "dates"]);
+    const { t: tRelations } = useTranslation("relations");
+    const gp = useCommunityPath();
+    const unreadDot = useUnreadTree().hasSubject(task.community_id, "task", task.id) ? (
+      <UnreadDot className="ml-2 inline-block align-middle" />
+    ) : null;
 
-// The wrappers hold what a board does with a card, and draw nothing of their
-// own: the drag, the virtualiser's measuring, and the scroll lock.
+    const { shows, showsProperty } = visibleFields;
+
+    const recurrenceSummary = task.recurrence
+      ? summarizeStored(
+          task.recurrence,
+          task.due_date || task.start_date,
+          { strategy: task.recurrence_strategy, shift: task.recurrence_shift },
+          t as TranslateFn
+        )
+      : null;
+    const recurrenceText = recurrenceSummary ? truncateText(recurrenceSummary, 80) : null;
+    // `formatDateTime` rather than `toLocaleString`: it is what every other
+    // timestamp in the app goes through, so it honours the reader's 12/24-hour
+    // choice and reads the same way ("Aug 3, 2026, 21:15").
+    const formattedStart = formatDateTime(task.start_date);
+    const formattedDue = formatDateTime(task.due_date);
+    const commentCount = task.comment_count ?? 0;
+    const blockedCount = task.blocked_by_open_count ?? 0;
+    // A property is turned off by its own menu entry, resolved by id.
+    const visibleProperties = nonEmptyPropertySummaries(task.properties).filter((summary) =>
+      showsProperty(summary.property_id)
+    );
+
+    return (
+      <>
+        <div className="flex w-full min-w-0 flex-col items-start gap-1 text-left">
+          {/* Only the title opens the task: the rest of the card is the card,
+              and a real link means middle-click and "open in new tab" work. */}
+          <Link
+            to={taskHref(task.id)}
+            draggable={false}
+            className="wrap-break-word w-full min-w-0 rounded-sm font-medium underline-offset-4 outline-none hover:underline focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            {task.title}
+            {unreadDot}
+          </Link>
+          {shows("description") && task.description_excerpt ? (
+            // Two lines of words, not a picture that fills the card.
+            <p className="wrap-break-word line-clamp-2 w-full min-w-0 text-muted-foreground text-sm">
+              <MentionText text={task.description_excerpt} />
+            </p>
+          ) : null}
+          <div className="wrap-break-word w-full min-w-0 space-y-1 text-muted-foreground text-xs">
+            {shows("assignees") && task.assignees.length > 0 ? (
+              <TaskAssigneeList assignees={task.assignees} className="text-xs" />
+            ) : null}
+            {shows("startDate") && formattedStart ? (
+              <p>{t("kanban.starts", { date: formattedStart })}</p>
+            ) : null}
+            {shows("dueDate") && formattedDue ? (
+              <p>{t("kanban.due", { date: formattedDue })}</p>
+            ) : null}
+            {shows("recurrence") && recurrenceText ? <p>{recurrenceText}</p> : null}
+          </div>
+          {shows("checklist") ? (
+            <TaskChecklistProgress progress={task.checklist_progress} className="w-full pt-1" />
+          ) : null}
+        </div>
+        <div className="flex min-w-0 flex-wrap gap-2">
+          {shows("priority") ? (
+            <Badge variant={priorityVariant[task.priority]}>
+              {t("kanban.priority", { priority: task.priority.replace("_", " ") })}
+            </Badge>
+          ) : null}
+          {shows("comments") && commentCount > 0 ? (
+            <Badge variant="outline" className="inline-flex items-center gap-1 text-xs">
+              <MessageSquare className="h-3.5 w-3.5" aria-hidden="true" />
+              {commentCount}
+            </Badge>
+          ) : null}
+          {/* The signal the retired Blocked column used to give, back on the
+              card and keeping itself current: it goes when the last thing
+              holding this up is finished, with nobody moving anything. */}
+          {shows("blockers") && blockedCount > 0 ? (
+            <Badge
+              variant="outline"
+              className="inline-flex items-center gap-1 border-warning/40 text-warning text-xs"
+              title={tRelations("blockers.label", { count: blockedCount })}
+            >
+              <Ban className="h-3.5 w-3.5" aria-hidden="true" />
+              {blockedCount}
+            </Badge>
+          ) : null}
+          {shows("tags") &&
+            task.tags &&
+            task.tags.length > 0 &&
+            task.tags.map((tag) => (
+              <TagBadge key={tag.id} tag={tag} size="sm" to={gp(`/tags/${tag.id}`)} />
+            ))}
+          {visibleProperties.map((summary) => (
+            <PropertyValueCell key={summary.property_id} summary={summary} variant="chip" />
+          ))}
+        </div>
+      </>
+    );
+  },
+  (prev, next) => prev.task === next.task && prev.visibleFields === next.visibleFields
+);
 
 // --- Sortable card (with DnD, used in virtualized mode) ---
 
-interface KanbanTaskCardVirtualProps extends TaskCardProps {
+interface KanbanTaskCardVirtualProps {
+  task: TaskListRead;
+  priorityVariant: Record<TaskPriority, PriorityBadgeVariant>;
+  taskHref: (taskId: number) => string;
+  visibleFields: KanbanCardFields;
   "data-index": number;
 }
 
-const KanbanTaskCardSortable = memo(function KanbanTaskCardSortable({
-  task,
-  context,
-  visibleFields,
-  "data-index": dataIndex,
-  ref,
-}: KanbanTaskCardVirtualProps & { ref?: React.Ref<HTMLDivElement> }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: task.id.toString(),
-    data: { type: "task", statusId: task.task_status_id },
-  });
+const KanbanTaskCardSortable = memo(
+  function KanbanTaskCardSortable({
+    task,
+    priorityVariant,
+    taskHref,
+    visibleFields,
+    "data-index": dataIndex,
+    ref,
+  }: KanbanTaskCardVirtualProps & { ref?: React.Ref<HTMLDivElement> }) {
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+      id: task.id.toString(),
+      data: { type: "task", statusId: task.task_status_id },
+    });
 
-  const mergedRef = useCallback(
-    (el: HTMLDivElement | null) => {
-      setNodeRef(el);
-      if (typeof ref === "function") {
-        ref(el);
-      } else if (ref && typeof ref === "object") {
-        (ref as React.MutableRefObject<HTMLDivElement | null>).current = el;
-      }
-    },
-    [setNodeRef, ref]
-  );
+    const mergedRef = useCallback(
+      (el: HTMLDivElement | null) => {
+        setNodeRef(el);
+        if (typeof ref === "function") {
+          ref(el);
+        } else if (ref && typeof ref === "object") {
+          (ref as React.MutableRefObject<HTMLDivElement | null>).current = el;
+        }
+      },
+      [setNodeRef, ref]
+    );
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.25 : undefined,
-  };
+    const style = {
+      transform: CSS.Transform.toString(transform),
+      transition,
+      opacity: isDragging ? 0.25 : undefined,
+    };
 
-  return (
-    <div
-      ref={mergedRef}
-      data-index={dataIndex}
-      style={style}
-      {...attributes}
-      {...listeners}
-      className="rounded-lg"
-      data-kanban-scroll-lock="true"
-    >
-      <TaskCard task={task} context={context} visibleFields={visibleFields} />
-    </div>
-  );
-});
+    return (
+      <div
+        ref={mergedRef}
+        data-index={dataIndex}
+        style={style}
+        {...attributes}
+        {...listeners}
+        className={cn(
+          "space-y-3 rounded-lg border bg-card p-3 shadow-sm",
+          task.archived_at !== null && "opacity-50"
+        )}
+        data-kanban-scroll-lock="true"
+      >
+        <KanbanCardContent
+          task={task}
+          priorityVariant={priorityVariant}
+          taskHref={taskHref}
+          visibleFields={visibleFields}
+        />
+      </div>
+    );
+  },
+  (prev, next) => prev.task === next.task && prev.visibleFields === next.visibleFields
+);
 
 // --- Plain card (no DnD hooks, used in virtualized mode when !canWrite) ---
 
-const KanbanTaskCardPlain = memo(function KanbanTaskCardPlain({
-  task,
-  context,
-  visibleFields,
-  "data-index": dataIndex,
-  ref,
-}: KanbanTaskCardVirtualProps & { ref?: React.Ref<HTMLDivElement> }) {
-  return (
-    <div ref={ref} data-index={dataIndex} className="rounded-lg" data-kanban-scroll-lock="true">
-      <TaskCard task={task} context={context} visibleFields={visibleFields} />
-    </div>
-  );
-});
+const KanbanTaskCardPlain = memo(
+  function KanbanTaskCardPlain({
+    task,
+    priorityVariant,
+    taskHref,
+    visibleFields,
+    "data-index": dataIndex,
+    ref,
+  }: KanbanTaskCardVirtualProps & { ref?: React.Ref<HTMLDivElement> }) {
+    return (
+      <div
+        ref={ref}
+        data-index={dataIndex}
+        className={cn(
+          "space-y-3 rounded-lg border bg-card p-3 shadow-sm",
+          task.archived_at !== null && "opacity-50"
+        )}
+        data-kanban-scroll-lock="true"
+      >
+        <KanbanCardContent
+          task={task}
+          priorityVariant={priorityVariant}
+          taskHref={taskHref}
+          visibleFields={visibleFields}
+        />
+      </div>
+    );
+  },
+  (prev, next) => prev.task === next.task && prev.visibleFields === next.visibleFields
+);
 
 // --- Original non-virtualized card (used for small lists) ---
 
-interface KanbanTaskCardProps extends TaskCardProps {
+interface KanbanTaskCardProps {
+  task: TaskListRead;
   canWrite: boolean;
+  priorityVariant: Record<TaskPriority, PriorityBadgeVariant>;
+  taskHref: (taskId: number) => string;
+  visibleFields: KanbanCardFields;
 }
 
-const KanbanTaskCard = ({ task, canWrite, context, visibleFields }: KanbanTaskCardProps) => {
+const KanbanTaskCard = ({
+  task,
+  canWrite,
+  priorityVariant,
+  taskHref,
+  visibleFields,
+}: KanbanTaskCardProps) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id.toString(),
     data: { type: "task", statusId: task.task_status_id },
@@ -374,10 +541,18 @@ const KanbanTaskCard = ({ task, canWrite, context, visibleFields }: KanbanTaskCa
       style={style}
       {...attributes}
       {...listeners}
-      className="rounded-lg"
+      className={cn(
+        "space-y-3 rounded-lg border bg-card p-3 shadow-sm",
+        task.archived_at !== null && "opacity-50"
+      )}
       data-kanban-scroll-lock="true"
     >
-      <TaskCard task={task} context={context} visibleFields={visibleFields} />
+      <KanbanCardContent
+        task={task}
+        priorityVariant={priorityVariant}
+        taskHref={taskHref}
+        visibleFields={visibleFields}
+      />
     </div>
   );
 };

@@ -14,6 +14,7 @@ import { useTranslation } from "react-i18next";
 
 import type { MarketplaceListingDetail } from "@/api/generated/initiativeAPI.schemas";
 import { ProjectTasksKanbanView } from "@/components/projects/ProjectTasksKanbanView";
+import { priorityVariant } from "@/components/projects/projectTasksConfig";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { projectListingBoard, readProjectEnvelope } from "@/lib/projectListing";
@@ -80,6 +81,7 @@ export function ProjectListingPreview({ listing }: { listing: MarketplaceListing
         }
         canReorderTasks={false}
         taskHref={() => listingHref}
+        priorityVariant={priorityVariant}
         sensors={undefined}
         activeTask={null}
         onDragStart={noop}

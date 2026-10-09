@@ -49,6 +49,7 @@ import { ProjectTaskComposer } from "@/components/projects/ProjectTaskComposer";
 import { ProjectTasksFilters } from "@/components/projects/ProjectTasksFilters";
 import { ProjectTasksKanbanView } from "@/components/projects/ProjectTasksKanbanView";
 import { ProjectTasksTableView } from "@/components/projects/ProjectTasksTableView";
+import { priorityVariant } from "@/components/projects/projectTasksConfig";
 import {
   computeMidpoint,
   isDraggingDown,
@@ -1068,6 +1069,7 @@ export const ProjectTasksSection = ({
             collapsedStatusIds={collapsedStatuses}
             canReorderTasks={canReorderTasks}
             taskHref={taskHref}
+            priorityVariant={priorityVariant}
             sensors={kanbanSensors}
             activeTask={activeTask}
             onDragStart={handleTaskDragStart}

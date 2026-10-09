@@ -1,6 +1,5 @@
 import type { PropertyDefinitionRead } from "@/api/generated/initiativeAPI.schemas";
 import { propertyColumnId, propertyColumnLabel } from "@/components/properties/propertyColumns";
-import type { PartName } from "@/lib/templates/sections";
 
 /**
  * What a kanban card is allowed to show, and what a reader may turn off.
@@ -9,8 +8,7 @@ import type { PartName } from "@/lib/templates/sections";
  * is no column to hide — the columns are the statuses — so the same idea is
  * called **fields**, and this list is what the Fields menu offers.
  *
- * The title is deliberately absent: a card with no title is not a card. Each
- * id is the name of the card part it shows (the `task.card` section).
+ * The title is deliberately absent: a card with no title is not a card.
  */
 export const KANBAN_FIELD_IDS = [
   "description",
@@ -23,7 +21,7 @@ export const KANBAN_FIELD_IDS = [
   "comments",
   "blockers",
   "tags",
-] as const satisfies readonly PartName<"task.card">[];
+] as const;
 
 export type KanbanFieldId = (typeof KANBAN_FIELD_IDS)[number];
 
@@ -91,8 +89,6 @@ export const kanbanFieldOptions = (
 export type KanbanCardFields = {
   shows: (field: KanbanFieldId) => boolean;
   showsProperty: (propertyId: number) => boolean;
-  /** The fields turned off, which are the card parts it hides. */
-  hidden: ReadonlySet<KanbanFieldId>;
 };
 
 export const buildKanbanCardFields = (
@@ -108,7 +104,6 @@ export const buildKanbanCardFields = (
   return {
     shows: (field) => isKanbanFieldVisible(visibility, field),
     showsProperty: (propertyId) => !hiddenProperties.has(propertyId),
-    hidden: new Set(KANBAN_FIELD_IDS.filter((field) => !isKanbanFieldVisible(visibility, field))),
   };
 };
 
