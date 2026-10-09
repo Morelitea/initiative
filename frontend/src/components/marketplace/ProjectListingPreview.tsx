@@ -9,12 +9,11 @@
  */
 
 import { format } from "date-fns";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { MarketplaceListingDetail } from "@/api/generated/initiativeAPI.schemas";
 import { ProjectTasksKanbanView } from "@/components/projects/ProjectTasksKanbanView";
-import { priorityVariant } from "@/components/projects/projectTasksConfig";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { projectListingBoard, readProjectEnvelope } from "@/lib/projectListing";
@@ -41,10 +40,11 @@ export function ProjectListingPreview({ listing }: { listing: MarketplaceListing
     () => (envelope ? projectListingBoard(envelope, format(new Date(), "yyyy-MM-dd")) : null),
     [envelope]
   );
+  const listingHref = gp(`/marketplace/${listing.public_id}`);
+  // Stable, so the board's cards are not redrawn on every pass here.
+  const taskHref = useCallback(() => listingHref, [listingHref]);
 
   if (!board) return null;
-
-  const listingHref = gp(`/marketplace/${listing.public_id}`);
 
   return (
     <div className="space-y-4">
@@ -80,8 +80,7 @@ export function ProjectListingPreview({ listing }: { listing: MarketplaceListing
           })
         }
         canReorderTasks={false}
-        taskHref={() => listingHref}
-        priorityVariant={priorityVariant}
+        taskHref={taskHref}
         sensors={undefined}
         activeTask={null}
         onDragStart={noop}
