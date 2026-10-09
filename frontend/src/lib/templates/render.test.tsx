@@ -2,17 +2,16 @@ import { screen } from "@testing-library/react";
 
 import { buildTask } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
-import { TASK_SHAPES, taskCardSection } from "@/__tests__/helpers/templates";
 import type { TaskListRead } from "@/api/generated/initiativeAPI.schemas";
 
 import { compileTemplate } from "./compile";
 import { MAX_RENDERED_NODES, renderTemplate } from "./render";
+import { SECTIONS } from "./sections";
 
 const draw = (source: string, task: TaskListRead) => {
   const { template, errors } = compileTemplate(source, {
-    name: "test.card",
-    section: taskCardSection,
-    shapes: TASK_SHAPES,
+    name: "task.card",
+    section: SECTIONS["task.card"],
   });
   expect(errors).toEqual([]);
   const Title = ({ data }: { data: { task: TaskListRead } }) => <h2>{data.task.title}</h2>;

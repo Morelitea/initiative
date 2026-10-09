@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Write `src/api/generated/schemaShapes.json` from the OpenAPI spec.
+ * Write `src/api/generated/initiativeAPI.shapes.json` from the OpenAPI spec.
  *
  * The template compiler checks every field a template reads against the data
  * its section is given, and that data is an API response. This is the same
@@ -11,7 +11,8 @@
  *
  * Only the schemas a section reads are written, with everything they
  * reference: the registry (src/lib/templates/sections.ts) names them, so a
- * schema no template can reach never appears here or changes it.
+ * schema no template can reach never appears here or changes it. It reads the
+ * spec Orval reads, so it holds nothing the generated client does not.
  *
  * Orval runs it after writing the client (`afterAllFilesWrite` in
  * orval.config.ts), so `pnpm generate:api` and the codegen check regenerate it
@@ -27,7 +28,7 @@ import { SECTIONS } from "../src/lib/templates/sections.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const specPath = process.argv[2] ?? join(here, "..", "openapi.json");
-const outPath = join(here, "..", "src", "api", "generated", "schemaShapes.json");
+const outPath = join(here, "..", "src", "api", "generated", "initiativeAPI.shapes.json");
 
 const spec = JSON.parse(readFileSync(specPath, "utf-8"));
 const schemas = spec.components?.schemas ?? {};

@@ -1,11 +1,10 @@
-import { TASK_SHAPES, taskCardSection } from "@/__tests__/helpers/templates";
-
 import { compileTemplate } from "./compile";
 import { checkExpression, MAX_EXPRESSION_LENGTH } from "./expressions";
 import { parseTemplate } from "./parse";
+import { SECTIONS } from "./sections";
 
 const compile = (source: string) =>
-  compileTemplate(source, { name: "test.card", section: taskCardSection, shapes: TASK_SHAPES });
+  compileTemplate(source, { name: "task.card", section: SECTIONS["task.card"] });
 const errorsOf = (source: string) => compile(source).errors.map((error) => error.message);
 
 describe("parseTemplate", () => {
@@ -57,7 +56,7 @@ describe("parseTemplate", () => {
 
 describe("checkExpression", () => {
   const scope = new Map([["task", { ref: "TaskListRead" } as const]]);
-  const check = (source: string) => checkExpression(source, scope, TASK_SHAPES);
+  const check = (source: string) => checkExpression(source, scope);
 
   it("checks names, fields and functions against what the section reads", () => {
     expect(check("task.title.lowerAscii() == 'x'").problems).toEqual([]);
@@ -142,7 +141,7 @@ describe("compileTemplate", () => {
 
   it("places every required part exactly once, never conditionally", () => {
     expect(errorsOf("<div></div>")).toEqual([
-      "test.card must place its title part (line 1, column 1)",
+      "task.card must place its title part (line 1, column 1)",
     ]);
     expect(errorsOf(`<part name="title" /><part name="title" />`)[0]).toMatch(
       /title is placed 2 times/
@@ -150,12 +149,12 @@ describe("compileTemplate", () => {
     expect(errorsOf(`<div if="true"><part name="title" /></div>`)[0]).toMatch(
       /title is required, so it cannot sit inside if or for/
     );
-    expect(errorsOf(`<part name="title" /><part name="comments" />`)[0]).toMatch(
-      /test.card has no part called comments/
+    expect(errorsOf(`<part name="title" /><part name="checklist" />`)[0]).toMatch(
+      /task.card has no part called checklist/
     );
     // An optional part may come and go.
     expect(
-      errorsOf(`<part name="title" /><part if="has(task.due_date)" name="checklist" />`)
+      errorsOf(`<part name="title" /><part if="has(task.due_date)" name="excerpt" />`)
     ).toEqual([]);
   });
 

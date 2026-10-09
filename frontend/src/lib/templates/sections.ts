@@ -16,6 +16,8 @@
 
 import type { ComponentType } from "react";
 
+import type { TaskListRead, TaskRead } from "../../api/generated/initiativeAPI.schemas.ts";
+
 export interface PartDefinition {
   /** A screen that cannot work without it, so no template may leave it out. */
   required?: boolean;
@@ -38,7 +40,46 @@ export const defineSection =
   ) =>
     definition as Definition & { readonly __data?: Data; readonly __context?: Context };
 
-export const SECTIONS = {} satisfies Record<string, SectionDefinition>;
+export const SECTIONS = {
+  /** A task on a board. */
+  "task.card": defineSection<{ task: TaskListRead }>()({
+    data: { task: "TaskListRead" },
+    parts: {
+      title: { required: true },
+      excerpt: {},
+      assignees: {},
+      dates: {},
+      recurrence: {},
+      progress: {},
+      priority: {},
+      comments: {},
+      blockers: {},
+      tags: {},
+      properties: {},
+    },
+  }),
+  /** The whole task page, one field per part so a theme can hide any one. */
+  "task.page": defineSection<{ task: TaskRead }>()({
+    data: { task: "TaskRead" },
+    parts: {
+      title: { required: true },
+      actions: { required: true },
+      byline: {},
+      description: {},
+      status: {},
+      priority: {},
+      dates: {},
+      recurrence: {},
+      assignees: {},
+      tags: {},
+      properties: {},
+      checklist: {},
+      relations: {},
+      case: {},
+      comments: {},
+    },
+  }),
+} satisfies Record<string, SectionDefinition>;
 
 export type SectionName = keyof typeof SECTIONS;
 
