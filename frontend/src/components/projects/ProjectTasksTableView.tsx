@@ -34,7 +34,7 @@ import { DataTable, type DataTableRowWrapperProps } from "@/components/ui/data-t
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { TableRow } from "@/components/ui/table";
 import { usePersistedColumnVisibility } from "@/hooks/usePersistedColumnVisibility";
-import { projectTaskTableKey, type useProjectTaskTableState } from "@/hooks/useProjectTaskView";
+import type { useProjectTaskTableState } from "@/hooks/useProjectTaskView";
 import { useProperties } from "@/hooks/useProperties";
 import type { AppColumnDef } from "@/lib/table";
 import { cn } from "@/lib/utils";
@@ -63,7 +63,8 @@ type ProjectTasksListViewProps = {
   onTaskSelectionChange?: (selectedTasks: TaskListRead[]) => void;
   onExitSelection?: () => void;
   /** How the reader left the table: from {@link useProjectTaskTableState},
-   *  held by the section so its export follows the same sort. */
+   *  held by the section so its export follows the same sort. It seeds the
+   *  table once, at mount, so the section keys this component by it. */
   tableState: ReturnType<typeof useProjectTaskTableState>;
 };
 
@@ -385,7 +386,6 @@ const ProjectTasksTableViewComponent = ({
 
   const sortableItems = useMemo(() => tasks.map((task) => task.id.toString()), [tasks]);
 
-  const tableStorageKey = projectTaskTableKey(projectId);
   const { grouping, sorting } = tableState;
   // Grouping and sorting each disable drag-to-reorder: a manual order can only
   // be expressed by the table's own row order.
@@ -431,10 +431,6 @@ const ProjectTasksTableViewComponent = ({
         strategy={verticalListSortingStrategy}
       >
         <DataTable
-          // The table seeds its grouping and sorting once, at mount. Moving
-          // between projects swaps which saved answer applies, so it has to be
-          // a fresh table rather than the previous project's.
-          key={tableStorageKey}
           columns={columns}
           data={rows}
           enableVirtualization

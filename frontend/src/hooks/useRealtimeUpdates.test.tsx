@@ -330,6 +330,24 @@ describe("realtime resource frames", () => {
     expect(project(), "project").toBe(true);
   });
 
+  it("refreshes a project's views when they change, and not on any other update", () => {
+    // The views are read at an address of their own, so the project's own
+    // refresh does not reach them.
+    const views = seed([`/api/v1/c/${COMMUNITY}/views/`, { tool: "project", tool_id: 7 }]);
+    const project = (changed: string[]) => ({
+      resource: { type: "projects", id: 7 },
+      parents: [],
+      action: "updated",
+      changed,
+    });
+
+    applyChanges([project(["name"])], COMMUNITY);
+    expect(views(), "after a rename").toBe(false);
+
+    applyChanges([project(["views"])], COMMUNITY);
+    expect(views(), "after a views change").toBe(true);
+  });
+
   it("refreshes the roster, the roles, what they permit and the properties", () => {
     // Membership, role and property definition rows have no route of their
     // own, so these report as the initiative — one frame has to cover them.

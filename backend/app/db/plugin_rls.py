@@ -65,14 +65,15 @@ def _scoped(resource: str) -> PluginTableAccess:
 _NOT_PLUGIN_SURFACE: frozenset[str] = frozenset(
     {
         # One person's own state: their ordering, favourites, read markers and
-        # ballots. (A project's filter presets are the project's own, seeded
-        # when it or its first task is created, so they follow ``projects``.)
+        # ballots.
         "project_orders",
         "project_favorites",
         "post_reads",
         "post_poll_votes",
         # Run by the reminder scheduler.
         "event_reminder_dispatches",
+        # How an initiative lays its tools out, which its own managers set.
+        "tool_views",
         # Operations intake, which the community's own staff runs.
         "intake_bindings",
         "intake_cases",

@@ -4,9 +4,9 @@
  * Drop-in shape for the old `useState` + `getItem`/`setItem` pattern:
  *
  * ```tsx
- * const [filters, setFilters] = useViewPreference<StoredFilters>(
- *   `project:${projectId}:view-filters`,
- *   DEFAULT_FILTERS,
+ * const [mode, setMode] = useViewPreference<CalendarViewMode>(
+ *   CALENDAR_VIEW_MODE_KEY,
+ *   "month",
  * );
  * ```
  *

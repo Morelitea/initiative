@@ -48,7 +48,13 @@ from sqlmodel import SQLModel
 import app.db.base  # noqa: F401 — registers every model's table on the metadata
 from app.core.reactions import ReactionTarget
 from app.core.relationships import ENDPOINT_KINDS
-from app.core.tools import ARCHIVE_TARGETS, KINDS, PROPERTY_TARGETS, Tool
+from app.core.tools import (
+    ARCHIVE_TARGETS,
+    KINDS,
+    PROPERTY_TARGETS,
+    VIEWS_PER_INSTANCE,
+    Tool,
+)
 from app.db import gucs
 from app.db.initiative_rls import (
     COMMENT_PARENTS,
@@ -866,6 +872,21 @@ def _edge_leg(alias: str, trashed_ok: str) -> str:
     return "(" + " OR ".join(ends) + ")"
 
 
+def _tool_views_leg(alias: str, trashed_ok: str) -> str:
+    """A view freezes with the instance it is for, or with its initiative
+    when it is for a shared page."""
+    arms = " ".join(
+        f"WHEN '{tool.value}' THEN resource_frozen("
+        f"'{tool.plural}', {alias}.tool_id, {trashed_ok})"
+        for tool in VIEWS_PER_INSTANCE
+    )
+    return (
+        f"COALESCE((CASE WHEN {alias}.tool_id IS NULL THEN resource_frozen("
+        f"'initiatives', {alias}.initiative_id, {trashed_ok})"
+        f" ELSE (CASE {alias}.tool {arms} ELSE false END) END), false)"
+    )
+
+
 def _resource_grants_leg(alias: str, trashed_ok: str) -> str:
     """A grant freezes with the resource it shares, WHEN it can see it.
 
@@ -904,6 +925,7 @@ _FREEZE_DEVIATIONS: dict[str, Callable[[str, str], str]] = {
     "property_values": _property_values_leg,
     "relationships": _edge_leg,
     "resource_grants": _resource_grants_leg,
+    "tool_views": _tool_views_leg,
 }
 
 

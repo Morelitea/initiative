@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **A project's saved filters are now views.** One menu on a project lists its views, and each is a layout with its own filters: Table, Board, Calendar, Incomplete, Unassigned and Mine to begin with. Saved filter sets someone made or changed became views of their own with the project's default layout, and links to them still open them. Your own filter changes on a view are kept for you alone, and Reset to view puts back its filters. People who can configure the project can save the current filters as a new view, update a view, and rename, reorder, delete or choose the default one under the project's settings › Views.
 - **Layouts fit foldable phones and tablets.** On an unfolded foldable or a tablet held upright, forms go two fields to a row and cards fill as many columns as fit, rather than waiting for a laptop-sized screen. On a large screen, cards stop at the columns they had before and grow wider instead. The sidebar now stays open beside the page from the width of a tablet held sideways, where before it waited for 1024 pixels.
 - **Plug-ins are built with SDK 5.0.** Initiative serves plug-in API 5.0, where a plug-in's own screens are declared as `pages` rather than `embeds`. Publishing or updating a plug-in here needs a release built with SDK 5.0. Plug-ins already installed keep working.
 - **Dates and numbers format faster** on every screen that shows them. Building a formatter was most of what a large board spent redrawing.

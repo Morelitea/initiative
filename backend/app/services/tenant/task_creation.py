@@ -34,7 +34,6 @@ from app.models.tenant.project import Project
 from app.models.tenant.task import Task, TaskAssignee, TaskStatus, TaskStatusCategory
 from app.services import notifications as notifications_service
 from app.services.tenant import relationships
-from app.services.tenant import filter_presets as filter_presets_service
 from app.services.tenant import named_people
 from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
@@ -73,7 +72,6 @@ async def resolve_start_status(
     somehow arrived without its defaults gets them.
     """
     await task_statuses_service.ensure_default_statuses(session, project_id)
-    await filter_presets_service.ensure_default_presets(session, project_id)
 
     if task_status_id is not None:
         selected = await task_statuses_service.get_project_status(

@@ -49,7 +49,6 @@ from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant import archive as archive_service
 from app.services.tenant import tool_listing
-from app.services.tenant import filter_presets as filter_presets_service
 from app.services.tenant import task_statuses as task_statuses_service
 from app.core.messages import ProjectMessages
 from app.schemas.tenant.project import (
@@ -377,8 +376,8 @@ async def create_project(
         )
         session.add(project)
         await session.flush()
-        # Sharing before anything that hangs off it: a status or a preset is
-        # reached through the project, so the project has to be reachable first.
+        # Sharing before anything that hangs off it: a status is reached
+        # through the project, so the project has to be reachable first.
         await resource_access.grant_initial_sharing(
             session,
             guild_context,
@@ -391,7 +390,6 @@ async def create_project(
         )
         await session.flush()
         await task_statuses_service.ensure_default_statuses(session, project.id)
-        await filter_presets_service.ensure_default_presets(session, project.id)
         await attachments_service.claim_uploads(session, project)
     await properties_service.write_on_create(session, project, project_in.properties)
     settled = named_people.Governing.of(Tool.project, project)

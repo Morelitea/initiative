@@ -9,17 +9,7 @@ import {
 } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import type { LucideIcon } from "lucide-react";
-import {
-  Archive,
-  BookmarkPlus,
-  Calendar,
-  Kanban,
-  Plus,
-  RotateCcw,
-  Save,
-  Table,
-} from "lucide-react";
+import { Archive, BookmarkPlus, Plus, RotateCcw, Save } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -42,13 +32,14 @@ import {
 } from "@/components/calendar";
 import { ToolFilterPanel } from "@/components/initiativeTools/shared/ToolFilterPanel";
 import { ToolListToolbar } from "@/components/initiativeTools/shared/ToolListToolbar";
-import { ToolPresetSelect } from "@/components/initiativeTools/shared/ToolPresetSelect";
+import { ToolViewSelect } from "@/components/initiativeTools/shared/ToolViewSelect";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
-import { ProjectFilterPresetDialog } from "@/components/projects/ProjectFilterPresetDialog";
 import { ProjectTaskComposer } from "@/components/projects/ProjectTaskComposer";
 import { ProjectTasksFilters } from "@/components/projects/ProjectTasksFilters";
 import { ProjectTasksKanbanView } from "@/components/projects/ProjectTasksKanbanView";
 import { ProjectTasksTableView } from "@/components/projects/ProjectTasksTableView";
+import { ProjectViewDialog } from "@/components/projects/ProjectViewDialog";
+import { viewLayouts, viewName } from "@/components/projects/projectTasksConfig";
 import {
   computeMidpoint,
   isDraggingDown,
@@ -71,17 +62,22 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Dialog } from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useAuth } from "@/hooks/useAuth";
-import { useCreateFilterPreset, useUpdateFilterPreset } from "@/hooks/useFilterPresets";
 import { useInitiative } from "@/hooks/useInitiatives";
 import {
+  projectTaskTableKey,
   taskViewSorting,
   useProjectTaskTableState,
   useProjectTaskView,
 } from "@/hooks/useProjectTaskView";
+import {
+  useProjectViews,
+  usePutProjectViews,
+  viewSetWrite,
+  viewWrites,
+} from "@/hooks/useProjectViews";
 import {
   type UpdateTaskVariables,
   useArchiveDoneTasks,
@@ -100,11 +96,10 @@ import {
   EMPTY_TASK_FILTERS,
   matchesDueWindow,
   specToApi,
-  TASK_VIEW_MODES,
   type TaskFilterSpec,
-  type TaskViewMode,
   taskFilterCount,
 } from "@/lib/filters/taskFilters";
+import type { ViewSearch } from "@/lib/filters/views";
 import { toast } from "@/lib/mascotToast";
 import { getProjectColor } from "@/lib/projectColor";
 import { rulePayload } from "@/lib/recurrence";
@@ -112,18 +107,8 @@ import { getItem, setItem } from "@/lib/storage";
 import { taskReadToListRow } from "@/lib/taskUtils";
 import { browserTimezone } from "@/lib/timezones";
 
-type ViewMode = TaskViewMode;
-
 /** A status change on screen whose request has not answered yet. */
 type PendingStatus = { vars: UpdateTaskVariables; status: TaskStatusRead };
-
-type TaskViewOption = { value: ViewMode; labelKey: string; icon: LucideIcon };
-
-const TASK_VIEW_OPTIONS: TaskViewOption[] = [
-  { value: "table", labelKey: "tasks.viewTable", icon: Table },
-  { value: "kanban", labelKey: "tasks.viewKanban", icon: Kanban },
-  { value: "calendar", labelKey: "tasks.viewCalendar", icon: Calendar },
-];
 
 type ProjectTasksSectionProps = {
   projectId: number;
@@ -134,9 +119,6 @@ type ProjectTasksSectionProps = {
    */
   initiativeId: number;
   taskStatuses: TaskStatusRead[];
-  /** The project's configured default view, used only when this person has no
-   *  view of their own yet and the URL doesn't name one. */
-  projectDefaultViewMode?: string | null;
   canEditTaskDetails: boolean;
   projectIsArchived: boolean;
   taskHref: (taskId: number) => string;
@@ -148,7 +130,6 @@ export const ProjectTasksSection = ({
   projectId,
   initiativeId,
   taskStatuses,
-  projectDefaultViewMode,
   canEditTaskDetails,
   projectIsArchived,
   taskHref,
@@ -173,46 +154,30 @@ export const ProjectTasksSection = ({
   // task and its property values in one request.
   const [composerValue, setComposerValue] = useState<TaskFormValue>(() => emptyTaskFormValue());
   const navigate = useNavigate();
-  const search = useSearch({ strict: false }) as { preset?: string; view?: ViewMode };
+  const search = useSearch({ strict: false }) as ViewSearch;
   const {
     filtersLoaded,
-    patchFilters,
-    presets,
-    presetsLoaded,
-    canManagePresets,
-    viewMode,
-    activeSlug,
+    viewsLoaded,
+    views,
+    canConfigure,
+    view,
+    layout,
     modified,
-    unresolvedPreset,
+    unresolvedView,
     appliedSpec,
-  } = useProjectTaskView({
-    projectId,
-    taskStatuses,
-    defaultView: projectDefaultViewMode,
-    search,
-  });
-
-  // A preset named in the URL becomes this person's current view, so coming
-  // back without the param finds it as they left it. Written once per slug:
-  // the preference write is debounced and optimistic, and re-firing it every
-  // render would race the router.
-  const appliedPresetRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!filtersLoaded || !presetsLoaded) return;
-    const slug = search.preset ?? null;
-    if (slug === null || appliedPresetRef.current === slug) return;
-    const preset = presets.find((candidate) => candidate.slug === slug);
-    if (!preset) return;
-    appliedPresetRef.current = slug;
-    patchFilters({ ...preset.filters, activePresetSlug: slug });
-  }, [search.preset, presets, filtersLoaded, presetsLoaded, patchFilters]);
+    setOwnFilters,
+    rememberView,
+    hasOwnFilters,
+    linkFor,
+  } = useProjectTaskView({ projectId, taskStatuses, search });
+  const viewSet = useProjectViews(projectId).data;
 
   const setSearchParams = useCallback(
-    (next: { preset?: string; view?: ViewMode }) => {
+    (next: { view?: string; preset?: string }) => {
       // replace: the back button is for moving between resources, not for
-      // stepping back through filter edits.
-      // resetScroll: naming the preset in the URL is bookkeeping about the
-      // list you are already looking at — the router's default would throw you
+      // stepping back through views.
+      // resetScroll: naming the view in the URL is bookkeeping about the list
+      // you are already looking at — the router's default would throw you
       // back to the top of it on every pick.
       void navigate({
         to: ".",
@@ -224,62 +189,118 @@ export const ProjectTasksSection = ({
     [navigate]
   );
 
-  /**
-   * Apply ad-hoc filter values.
-   *
-   * The preset stays recorded as where these values came from — that is what
-   * lets the picker say "Incomplete · modified" and offer to fold the change
-   * back into it. But it comes off the URL immediately: a link saying
-   * `?preset=incomplete` has to show the preset, not one person's edit of it.
-   */
+  // A view the URL names shows its own filters, and arriving by such a link
+  // makes it this person's current view with their own filters for it
+  // dropped, so coming back without the param finds what the link showed. A
+  // link from before views (`?preset=`, `?view=kanban`) is rewritten to name
+  // it, or loses the param where its slug would name another view. Once per
+  // slug: the preference write is debounced and optimistic, and re-firing it
+  // every render would race the router.
+  const rememberedViewRef = useRef<string | null>(null);
+  const urlNamesView = Boolean(search.preset ?? search.view) && !unresolvedView;
+  useEffect(() => {
+    if (!filtersLoaded || !view || !urlNamesView) return;
+    const link = linkFor(view.slug);
+    if (search.preset !== undefined || search.view !== link) {
+      setSearchParams({ preset: undefined, view: link });
+    }
+    if (rememberedViewRef.current === view.slug) return;
+    rememberedViewRef.current = view.slug;
+    rememberView(view.slug, true);
+  }, [
+    filtersLoaded,
+    view,
+    urlNamesView,
+    search.preset,
+    search.view,
+    setSearchParams,
+    rememberView,
+    linkFor,
+  ]);
+
+  /** Switch to a view. The URL names it only while it shows the view's own
+   *  filters: one this person has filters of their own for is remembered
+   *  instead, so picking it finds them as they were left. */
+  const selectView = useCallback(
+    (slug: string) => {
+      rememberedViewRef.current = slug;
+      rememberView(slug);
+      setSearchParams({ preset: undefined, view: hasOwnFilters(slug) ? undefined : linkFor(slug) });
+    },
+    [rememberView, hasOwnFilters, setSearchParams, linkFor]
+  );
+
+  /** Keep `next` as this person's own filters for the view on screen. They
+   *  come off the URL at once: a link naming the view has to show the view,
+   *  not one person's edit of it. */
   const applySpec = useCallback(
     (next: TaskFilterSpec) => {
-      // Record the resolved view and origin preset alongside the values: this
-      // may be the first thing ever written for this person, and the project's
-      // defaults are what they were looking at when they made the edit.
-      patchFilters({ ...next, viewMode, activePresetSlug: activeSlug });
-      setSearchParams({ preset: undefined });
+      setOwnFilters(next);
+      setSearchParams({ preset: undefined, view: undefined });
     },
-    [patchFilters, setSearchParams, viewMode, activeSlug]
+    [setOwnFilters, setSearchParams]
   );
 
-  const selectPreset = useCallback(
-    (slug: string | null) => {
-      const preset = slug ? presets.find((candidate) => candidate.slug === slug) : null;
-      appliedPresetRef.current = slug;
-      patchFilters(
-        preset ? { ...preset.filters, activePresetSlug: preset.slug } : { activePresetSlug: null }
-      );
-      setSearchParams({ preset: preset?.slug });
-    },
-    [presets, patchFilters, setSearchParams]
+  /** Back to the view's own filters, which the URL can name again. */
+  const resetView = useCallback(() => {
+    if (!view) return;
+    setOwnFilters(null);
+    rememberedViewRef.current = view.slug;
+    setSearchParams({ view: linkFor(view.slug) });
+  }, [view, setOwnFilters, setSearchParams, linkFor]);
+
+  const viewOptions = useMemo(
+    () =>
+      views.map((each) => ({
+        slug: each.slug,
+        name: viewName(each, t),
+        icon: viewLayouts[each.definition.layout.type].icon,
+      })),
+    [views, t]
   );
+  const activeViewName = view ? viewName(view, t) : "";
 
-  const [presetDialogOpen, setPresetDialogOpen] = useState(false);
-  const createPreset = useCreateFilterPreset(projectId, {
-    onSuccess: (created) => {
-      setPresetDialogOpen(false);
-      appliedPresetRef.current = created.slug;
-      patchFilters({ activePresetSlug: created.slug });
-      setSearchParams({ preset: created.slug });
-      toast.success(t("filters.presetSaved"));
-    },
-  });
-  const updatePreset = useUpdateFilterPreset(projectId, {
-    onSuccess: () => toast.success(t("filters.presetSaved")),
-  });
+  const [viewDialogOpen, setViewDialogOpen] = useState(false);
+  const putViews = usePutProjectViews(projectId);
 
-  const activePresetName = presets.find((preset) => preset.slug === activeSlug)?.name ?? "";
-
-  /** Fold the current, tweaked filters back into the preset they came from. */
-  const updateActivePreset = useCallback(() => {
-    const active = presets.find((preset) => preset.slug === activeSlug);
-    if (!active) return;
-    updatePreset.mutate({
-      presetId: active.id,
-      data: { filters: specToApi(appliedSpec) },
+  /** Save the layout and filters on screen as a new view, and switch to it:
+   *  the view this person tweaked goes back to its own filters. */
+  const saveAsView = ({ name, isDefault }: { name: string; isDefault: boolean }) => {
+    if (!viewSet) return;
+    const existing = viewWrites(viewSet).map((each) =>
+      isDefault ? { ...each, is_default: false } : each
+    );
+    const created = {
+      name,
+      is_default: isDefault,
+      definition: { layout: { type: layout }, filters: specToApi(appliedSpec) },
+    };
+    putViews.mutate(viewSetWrite(viewSet, [...existing, created]), {
+      onSuccess: (saved) => {
+        setViewDialogOpen(false);
+        setOwnFilters(null);
+        const slug = saved.views[existing.length]?.slug;
+        if (slug) selectView(slug);
+        toast.success(t("views.saved"));
+      },
     });
-  }, [presets, activeSlug, appliedSpec, updatePreset]);
+  };
+
+  /** Fold the current, tweaked filters back into the view they sit on. */
+  const updateView = () => {
+    if (!viewSet || !view) return;
+    const writes = viewWrites(viewSet).map((each) =>
+      each.slug === view.slug
+        ? { ...each, definition: { ...each.definition, filters: specToApi(appliedSpec) } }
+        : each
+    );
+    putViews.mutate(viewSetWrite(viewSet, writes), {
+      onSuccess: () => {
+        resetView();
+        toast.success(t("views.saved"));
+      },
+    });
+  };
 
   // Closed until asked for. The filter button carries a count of what's set, so
   // a narrowed list still says so with the panel shut — and the fields no
@@ -310,15 +331,23 @@ export const ProjectTasksSection = ({
 
   const [activeTaskId, setActiveTaskId] = useState<number | null>(null);
   const [selectedTasks, setSelectedTasks] = useState<TaskListRead[]>([]);
+  // A selection belongs to the list it was made in: switching project or view
+  // starts with none.
+  const selectionList = `${projectId}:${view?.slug ?? ""}`;
+  const [selectedIn, setSelectedIn] = useState(selectionList);
+  if (selectedIn !== selectionList) {
+    setSelectedIn(selectionList);
+    setSelectedTasks([]);
+  }
 
   // An export lists the tasks in the order the reader sees them: the table's
   // own sort while it is showing, and the project's order in every other view.
-  const tableState = useProjectTaskTableState(projectId);
+  const tableState = useProjectTaskTableState(projectId, view?.slug ?? "");
   const tableSorting = tableState[0].sorting;
   const exportSorting = useMemo(() => {
-    const sorting = taskViewSorting(viewMode, tableSorting);
+    const sorting = taskViewSorting(layout, tableSorting);
     return sorting.length > 0 ? { sorting, tz: browserTimezone() } : {};
-  }, [viewMode, tableSorting]);
+  }, [layout, tableSorting]);
   const [isBulkEditDialogOpen, setIsBulkEditDialogOpen] = useState(false);
   const [isBulkEditTagsDialogOpen, setIsBulkEditTagsDialogOpen] = useState(false);
   const [isArchiveDialogOpen, setIsArchiveDialogOpen] = useState(false);
@@ -345,7 +374,7 @@ export const ProjectTasksSection = ({
   );
 
   const tasksQuery = useTasks(taskListParams, {
-    enabled: Number.isFinite(projectId) && filtersLoaded && presetsLoaded,
+    enabled: Number.isFinite(projectId) && filtersLoaded && viewsLoaded,
   });
 
   const projectTasks = useMemo(() => tasksQuery.data?.items ?? [], [tasksQuery.data]);
@@ -370,13 +399,6 @@ export const ProjectTasksSection = ({
     const explicit = sortedTaskStatuses.find((status) => status.is_default);
     return explicit?.id ?? sortedTaskStatuses[0]?.id ?? null;
   }, [sortedTaskStatuses]);
-
-  const handleViewModeChange = (value: string) => {
-    if (TASK_VIEW_MODES.includes(value as ViewMode)) {
-      patchFilters({ viewMode: value as ViewMode });
-      setSearchParams({ view: value as ViewMode });
-    }
-  };
 
   useEffect(() => {
     setLocalOverride(null);
@@ -924,7 +946,7 @@ export const ProjectTasksSection = ({
   return (
     <div className="space-y-4">
       {scopePrompt.dialog}
-      <Tabs value={viewMode} onValueChange={handleViewModeChange} className="space-y-4">
+      <div className="space-y-4">
         <ToolListToolbar
           heading={
             <h2 className="truncate font-semibold text-xl tracking-tight">
@@ -936,22 +958,17 @@ export const ProjectTasksSection = ({
             onOpenChange: setFiltersOpen,
             activeCount: activeFilterCount,
           }}
-          // The task views ARE this section's `Tabs`, so the picker has to be
-          // the existing triggers rather than a second, nested Tabs.
+          // The project's views, each a layout with its own filters, so one
+          // control picks both.
           viewControl={
-            <TabsList className="h-9">
-              {TASK_VIEW_OPTIONS.map(({ value, labelKey, icon: Icon }) => (
-                <TabsTrigger
-                  key={value}
-                  value={value}
-                  aria-label={t(labelKey as never)}
-                  className="gap-2 px-2.5 sm:px-3"
-                >
-                  <Icon className="h-4 w-4" />
-                  <span className="hidden sm:inline">{t(labelKey as never)}</span>
-                </TabsTrigger>
-              ))}
-            </TabsList>
+            <ToolViewSelect
+              views={viewOptions}
+              activeSlug={view?.slug ?? null}
+              modified={modified}
+              onSelect={selectView}
+              label={t("views.label")}
+              modifiedLabel={t("filters.modified")}
+            />
           }
           trailing={
             /* resumePending: this is the view's single adopter of a stored
@@ -991,9 +1008,9 @@ export const ProjectTasksSection = ({
           }
         />
 
-        {unresolvedPreset ? (
+        {unresolvedView ? (
           <Alert variant="default" className="mb-2">
-            <AlertDescription>{t("filters.presetUnavailable")}</AlertDescription>
+            <AlertDescription>{t("views.unavailable")}</AlertDescription>
           </Alert>
         ) : null}
 
@@ -1002,49 +1019,33 @@ export const ProjectTasksSection = ({
           onOpenChange={setFiltersOpen}
           onClear={clearFilters}
           activeCount={activeFilterCount}
-          leading={
-            <ToolPresetSelect
-              presets={presets}
-              activeSlug={activeSlug}
-              modified={modified}
-              onSelect={selectPreset}
-              label={t("filters.preset")}
-              customLabel={t("filters.customFilters")}
-              modifiedLabel={t("filters.modified")}
-            />
-          }
           actions={
             <>
-              {/* Picking the preset again in the select can't undo an edit —
-                  it is already the selected value — so getting back to it is
-                  its own control, and it is for everyone, not just curators. */}
-              {activeSlug && modified ? (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => selectPreset(activeSlug)}
-                  title={activePresetName}
-                >
+              {/* Picking the view again can't undo an edit — it is already the
+                  selected value — so getting back to it is its own control,
+                  and it is for everyone, not just curators. */}
+              {modified ? (
+                <Button variant="ghost" size="sm" onClick={resetView} title={activeViewName}>
                   <RotateCcw className="h-4 w-4" />
-                  {t("filters.resetToPreset")}
+                  {t("views.reset")}
                 </Button>
               ) : null}
-              {canManagePresets ? (
+              {canConfigure ? (
                 <>
-                  {activeSlug && modified ? (
+                  {modified ? (
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={updateActivePreset}
-                      disabled={updatePreset.isPending}
+                      onClick={updateView}
+                      disabled={putViews.isPending}
                     >
                       <Save className="h-4 w-4" />
-                      {t("filters.updatePreset", { name: activePresetName })}
+                      {t("views.update", { name: activeViewName })}
                     </Button>
                   ) : null}
-                  <Button variant="ghost" size="sm" onClick={() => setPresetDialogOpen(true)}>
+                  <Button variant="ghost" size="sm" onClick={() => setViewDialogOpen(true)}>
                     <BookmarkPlus className="h-4 w-4" />
-                    {t("filters.saveAsPreset")}
+                    {t("views.saveAs")}
                   </Button>
                 </>
               ) : null}
@@ -1059,7 +1060,7 @@ export const ProjectTasksSection = ({
           />
         </ToolFilterPanel>
 
-        <TabsContent value="kanban">
+        {layout === "board" ? (
           <ProjectTasksKanbanView
             projectId={projectId}
             initiativeId={initiativeId}
@@ -1085,74 +1086,80 @@ export const ProjectTasksSection = ({
             }
             isArchivingDoneTasks={archiveDoneTasks.isPending}
           />
-        </TabsContent>
+        ) : null}
 
-        <TabsContent value="table" className="space-y-4">
-          {selectedTasks.length > 0 && canEditTaskDetails && (
-            <TaskBulkEditPanel
-              selectedTasks={selectedTasks}
-              exportParams={
-                keepsContentIn
-                  ? undefined
-                  : {
-                      conditions: [
-                        { field: "id", op: "in_", value: selectedTasks.map((t) => t.id) },
-                      ],
-                      // Selection came from the visible list, which may include
-                      // archived rows when the toggle is on.
-                      include_archived: appliedSpec.include_archived,
-                      ...exportSorting,
-                    }
-              }
-              onEdit={() => setIsBulkEditDialogOpen(true)}
-              onEditTags={() => setIsBulkEditTagsDialogOpen(true)}
-              onArchive={() => bulkArchiveTasks.mutate(selectedTasks.map((t) => t.id))}
-              onDelete={() => {
-                if (confirm(t("tasks.bulkDeleteConfirm", { count: selectedTasks.length }))) {
-                  bulkDeleteTasks.mutate(selectedTasks.map((t) => t.id));
+        {layout === "table" ? (
+          <div className="space-y-4">
+            {selectedTasks.length > 0 && canEditTaskDetails && (
+              <TaskBulkEditPanel
+                selectedTasks={selectedTasks}
+                exportParams={
+                  keepsContentIn
+                    ? undefined
+                    : {
+                        conditions: [
+                          { field: "id", op: "in_", value: selectedTasks.map((t) => t.id) },
+                        ],
+                        // Selection came from the visible list, which may include
+                        // archived rows when the toggle is on.
+                        include_archived: appliedSpec.include_archived,
+                        ...exportSorting,
+                      }
                 }
-              }}
-              isArchiving={bulkArchiveTasks.isPending}
-            />
-          )}
-          <ProjectTasksTableView
-            projectId={projectId}
-            initiativeId={initiativeId}
-            tasks={statusFilteredTasks}
-            taskStatuses={sortedTaskStatuses}
-            sensors={listSensors}
-            canReorderTasks={canReorderTasks}
-            canEditTaskDetails={canEditTaskDetails}
-            taskActionsDisabled={taskActionsDisabled}
-            onDragStart={handleTaskDragStart}
-            onDragEnd={handleListDragEnd}
-            onDragCancel={handleListDragCancel}
-            onStatusChange={changeTaskStatus}
-            taskHref={taskHref}
-            onTaskSelectionChange={setSelectedTasks}
-            onExitSelection={() => setSelectedTasks([])}
-            tableState={tableState}
-          />
-          {canEditTaskDetails && (
-            <div className="flex justify-end">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setArchiveDialogStatusId(undefined);
-                  setIsArchiveDialogOpen(true);
+                onEdit={() => setIsBulkEditDialogOpen(true)}
+                onEditTags={() => setIsBulkEditTagsDialogOpen(true)}
+                onArchive={() => bulkArchiveTasks.mutate(selectedTasks.map((t) => t.id))}
+                onDelete={() => {
+                  if (confirm(t("tasks.bulkDeleteConfirm", { count: selectedTasks.length }))) {
+                    bulkDeleteTasks.mutate(selectedTasks.map((t) => t.id));
+                  }
                 }}
-                disabled={archiveDoneTasks.isPending}
-              >
-                <Archive className="h-4 w-4" />
-                {archiveDoneTasks.isPending
-                  ? t("common:toolSettings.archive.archiving")
-                  : t("tasks.archiveDoneTasks")}
-              </Button>
-            </div>
-          )}
-        </TabsContent>
-        <TabsContent value="calendar">
+                isArchiving={bulkArchiveTasks.isPending}
+              />
+            )}
+            <ProjectTasksTableView
+              // The table seeds its grouping and sorting once, at mount, and
+              // each view keeps its own, so moving between projects or views has
+              // to be a fresh table rather than the previous one's.
+              key={projectTaskTableKey(projectId, view?.slug ?? "")}
+              projectId={projectId}
+              initiativeId={initiativeId}
+              tasks={statusFilteredTasks}
+              taskStatuses={sortedTaskStatuses}
+              sensors={listSensors}
+              canReorderTasks={canReorderTasks}
+              canEditTaskDetails={canEditTaskDetails}
+              taskActionsDisabled={taskActionsDisabled}
+              onDragStart={handleTaskDragStart}
+              onDragEnd={handleListDragEnd}
+              onDragCancel={handleListDragCancel}
+              onStatusChange={changeTaskStatus}
+              taskHref={taskHref}
+              onTaskSelectionChange={setSelectedTasks}
+              onExitSelection={() => setSelectedTasks([])}
+              tableState={tableState}
+            />
+            {canEditTaskDetails && (
+              <div className="flex justify-end">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setArchiveDialogStatusId(undefined);
+                    setIsArchiveDialogOpen(true);
+                  }}
+                  disabled={archiveDoneTasks.isPending}
+                >
+                  <Archive className="h-4 w-4" />
+                  {archiveDoneTasks.isPending
+                    ? t("common:toolSettings.archive.archiving")
+                    : t("tasks.archiveDoneTasks")}
+                </Button>
+              </div>
+            )}
+          </div>
+        ) : null}
+        {layout === "calendar" ? (
           <CalendarView
             entries={calendarEntries}
             viewMode={calendarViewMode}
@@ -1166,8 +1173,8 @@ export const ProjectTasksSection = ({
             onEntryReschedule={canEditTaskDetails ? handleCalendarReschedule : undefined}
             weekStartsOn={weekStartsOn}
           />
-        </TabsContent>
-      </Tabs>
+        ) : null}
+      </div>
 
       {canEditTaskDetails ? (
         <>
@@ -1236,18 +1243,6 @@ export const ProjectTasksSection = ({
               onCancel={() => setIsBulkEditDialogOpen(false)}
             />
           </Dialog>
-          <ProjectFilterPresetDialog
-            open={presetDialogOpen}
-            onOpenChange={setPresetDialogOpen}
-            isSubmitting={createPreset.isPending}
-            onSubmit={({ name, isDefault }) =>
-              createPreset.mutate({
-                name,
-                is_default: isDefault,
-                filters: specToApi(appliedSpec),
-              })
-            }
-          />
 
           <BulkEditTaskTagsDialog
             open={isBulkEditTagsDialogOpen}
@@ -1256,6 +1251,15 @@ export const ProjectTasksSection = ({
             onSuccess={() => {}}
           />
         </>
+      ) : null}
+
+      {canConfigure ? (
+        <ProjectViewDialog
+          open={viewDialogOpen}
+          onOpenChange={setViewDialogOpen}
+          isSubmitting={putViews.isPending}
+          onSubmit={saveAsView}
+        />
       ) : null}
 
       <ConfirmDialog

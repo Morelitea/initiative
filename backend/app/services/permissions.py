@@ -690,8 +690,8 @@ def require_project_configure(
     project: Project, *, context: ActorContext | None
 ) -> None:
     """Raise 403 unless the request may configure the project itself — pin it,
-    set its default view, curate its filter presets: a guild admin, a manager of
-    the owning initiative, or the project's owner, on a live project."""
+    set its default view and its views: a guild admin, a manager of the owning initiative, or the
+    project's owner, on a live project."""
     require_access(
         DAC_RESOURCES[Tool.project], project, context=context, action=Action.configure
     )

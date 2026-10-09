@@ -28,7 +28,6 @@ from app.models.tenant.task import (
 )
 from app.schemas.tenant.task import mint_checklist_item_id
 from app.services.tenant.archive import archive_entity
-from app.services.tenant.filter_presets import ensure_default_presets
 from app.services.tenant.task_completion import sync_completed_at
 from app.services.tenant.task_statuses import ensure_default_statuses
 
@@ -1488,11 +1487,11 @@ async def seed(c: Community) -> None:
 
 
 async def create_project(c: Community, d: dict) -> Project:
-    """A project, its sharing, its default statuses and presets, and its tasks.
+    """A project, its sharing, its default statuses, and its tasks.
 
     The seed builds Project rows directly rather than going through the create
     endpoint, so it owns every default that endpoint would have applied — the
-    filter presets included. Archived last, not first: archived work is
+    statuses included. Archived last, not first: archived work is
     read-only all the way down, so the date is remembered and stamped once the
     community holds everything it is meant to hold.
     """
@@ -1522,7 +1521,6 @@ async def create_project(c: Community, d: dict) -> Project:
         status.category: status
         for status in await ensure_default_statuses(c.session, project.id)
     }
-    await ensure_default_presets(c.session, project.id)
     for position, td in enumerate(d.get("tasks", ())):
         status = resolve_status(statuses, td["category"])
         await _create_task(c, project, status, position, td)

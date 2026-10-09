@@ -49,7 +49,7 @@ const board = () =>
         taskHref={(taskId) => `/tasks/${taskId}`}
       />
     ),
-    { routerSearch: { view: "kanban" } }
+    { routerSearch: { view: "board" } }
   );
 
 const openFieldsMenu = async () => {

@@ -42,10 +42,12 @@ from app.core.tools import (
     INSTALL_METADATA_KIND,
     ITEM_KINDS,
     PROPERTY_TARGETS,
+    VIEWS_PER_INSTANCE,
     Tool,
 )
 from app.db.authorization import (
     IN_POLICY,
+    POLICY_SETTINGS_ADMIN,
     STANDING,
     plugin_narrowed,
     plugin_scope,
@@ -1098,6 +1100,43 @@ def plugin_metadata_path() -> InitiativePath:
     )
 
 
+def managed_write(initiative_expr: str) -> str:
+    """Who changes what an initiative is set up with: its managers by the
+    standing, the community's admin, a settings rung writing beside a
+    read_write grant, or the system engine. The structural initiative tables'
+    ``managed_*`` policies, and a shared page's views."""
+    return (
+        f"({_P.system} OR {_P.admin} OR ({POLICY_SETTINGS_ADMIN} AND {_P.pam_write})"
+        f" OR ({_P.this_guild}"
+        f" AND ({initiative_expr}) = ANY ({_P.field('manager_initiatives')})))"
+    )
+
+
+def tool_views_path() -> InitiativePath:
+    """A view is read by the members of its initiative. A view of one instance
+    of a tool is written by whoever may write that instance, in the view's own
+    initiative: :data:`ENTITY_ACCESS_FN` asks the instance's own entry, sharing
+    included, as a property value's write does. A view of a shared page (no
+    instance) is written as the initiative's setup is (:func:`managed_write`).
+    """
+
+    def build(t: str, w: bool) -> str:
+        if not w:
+            return _access(f"{t}.initiative_id", False)
+        instance = (
+            f"({_entity_call(f'{t}.tool', f'{t}.tool_id', True, True)}"
+            f" AND {ENTITY_INITIATIVE_FN}({t}.tool, {t}.tool_id) = {t}.initiative_id)"
+        )
+        return (
+            f"(CASE WHEN {t}.tool_id IS NULL THEN {managed_write(f'{t}.initiative_id')}"
+            f" ELSE ({_P.system} OR {instance}) END)"
+        )
+
+    return InitiativePath(
+        predicate=build, initiative_expr=lambda r: f"{r}.initiative_id"
+    )
+
+
 def relationships_path() -> InitiativePath:
     """An edge is reached by whoever can reach BOTH of the things it connects.
 
@@ -1394,7 +1433,6 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     # One hop -> projects
     "tasks": via("projects", "project_id"),
     "task_statuses": via("projects", "project_id"),
-    "project_filter_presets": via("projects", "project_id"),
     # One hop -> files
     "file_versions": via("files", "file_id"),
     # One hop -> queues
@@ -1434,6 +1472,8 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     # What an installed plug-in keeps on items and on itself, by (entity_type,
     # entity_id).
     "plugin_metadata": plugin_metadata_path(),
+    # An initiative's views of one tool instance, or of a shared page.
+    "tool_views": tool_views_path(),
     "comments": comments_path(),
     # Polymorphic over what it is on; gated by that thing's own path.
     "reactions": reactions_path(),
@@ -1794,6 +1834,22 @@ def properties_report_on_their_target() -> ReportsAs:
     )
 
 
+def views_report_on_their_target() -> ReportsAs:
+    """A view is a facet of the instance it is for, or of its initiative when
+    it is for a shared page. Whoever shows the set re-reads it."""
+    arms = " ".join(f"WHEN '{t.value}' THEN '{t.plural}'" for t in VIEWS_PER_INSTANCE)
+    return ReportsAs(
+        resource_types=frozenset(t.plural for t in VIEWS_PER_INSTANCE)
+        | {"initiatives"},
+        id_expr=lambda r: f"COALESCE({r}.tool_id, {r}.initiative_id)",
+        facet="views",
+        type_expr=lambda r: (
+            f"(CASE WHEN {r}.tool_id IS NULL THEN 'initiatives'"
+            f" ELSE (CASE {r}.tool {arms} END) END)"
+        ),
+    )
+
+
 def poll_options_report_on_their_post() -> ReportsAs:
     """A poll option is a facet of the notice that asks the question.
 
@@ -1957,9 +2013,9 @@ EVENT_SOURCES: dict[str, Emit | Silent] = {
     "property_definitions": Emit(
         reports_as=reports_as("initiatives", "initiative_id", "properties")
     ),
-    "project_filter_presets": Emit(
-        reports_as=reports_as("projects", "project_id", "filter_presets")
-    ),
+    # A view is read in its instance's set, or its initiative's for a shared
+    # page, so a change reports as that.
+    "tool_views": Emit(reports_as=views_report_on_their_target()),
     "file_versions": Emit(reports_as=reports_as("files", "file_id", "versions")),
     # A picture is read through its gallery rather than at an address of its
     # own, so every change to one reports as the gallery it is in — its tags

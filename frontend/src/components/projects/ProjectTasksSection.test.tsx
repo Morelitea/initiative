@@ -1,13 +1,10 @@
 /**
  * What a task view shows, and what a link to it means.
  *
- * The three sources are ranked, not merged: the URL, then this person's
- * remembered filters, then the project's default preset. These cover the
- * ranking end-to-end — including that picking a preset writes it to the URL,
- * so the view is linkable.
- *
- * The preset picker lives in the filter panel, since picking one sets every
- * field below it; opening the panel is the first step of most of these.
+ * A project's views are shared and named, each a layout with fixed filters;
+ * the filters one person sets on top are theirs, kept per view. These cover
+ * choosing a view (which writes it to the URL, so it is linkable), the links
+ * made before views, and saving the filters on screen back into the set.
  */
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -15,16 +12,18 @@ import { HttpResponse, http } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
-  buildDefaultFilterPresets,
   buildDefaultTaskStatuses,
+  buildSavedViewSet,
   buildTag,
   buildTagSummary,
   buildTask,
   buildTaskListResponse,
+  buildToolViewSet,
 } from "@/__tests__/factories";
 import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
+import type { ToolViewSetRead, ToolViewSetWrite } from "@/api/generated/initiativeAPI.schemas";
 import { ProjectTasksSection } from "@/components/projects/ProjectTasksSection";
 import { toast } from "@/lib/mascotToast";
 import { setItem } from "@/lib/storage";
@@ -78,18 +77,35 @@ const withTags = (ids: number[]) => {
   );
 };
 
-/** Seed this person's remembered filters for project 1. */
-const rememberFilters = (spec: Record<string, unknown>) => {
+/** The project's views as the server sends them (the shipped six), with
+ *  `overrides`. */
+const withViews = (overrides: Partial<ToolViewSetRead>) => {
+  server.use(communityHttp.get("/views/", () => HttpResponse.json(buildToolViewSet(overrides))));
+};
+
+/** The body of each save of the set. */
+const captureSaves = () => {
+  const saves: ToolViewSetWrite[] = [];
+  server.use(
+    communityHttp.put("/views/", async ({ request }) => {
+      const body = (await request.json()) as ToolViewSetWrite;
+      saves.push(body);
+      return HttpResponse.json(buildSavedViewSet(body));
+    })
+  );
+  return saves;
+};
+
+/** Seed this person's own filters for one of project 1's views. */
+const rememberFilters = (view: string, spec: Record<string, unknown>) => {
   server.use(
     http.get("/api/v1/user-view-preferences", () =>
-      HttpResponse.json({
-        items: { "project:1:view-filters": { activePresetSlug: null, ...spec } },
-      })
+      HttpResponse.json({ items: { "project:1:views": { view, filters: { [view]: spec } } } })
     )
   );
 };
 
-/** The picker is inside the filter panel, which starts closed. */
+/** The filters live in a panel, which starts closed. */
 const openFilters = async () => {
   const user = userEvent.setup();
   await user.click(await screen.findByRole("button", { name: /filters/i }));
@@ -105,26 +121,66 @@ const toggleAssigneeToken = async (user: ReturnType<typeof userEvent.setup>, nam
   await user.keyboard("{Escape}");
 };
 
-/** Pick a preset the way someone would, rather than seeding the URL.
+const viewSwitcher = () => screen.findByRole("combobox", { name: /^view$/i });
+
+/** Pick a view the way someone would, rather than seeding the URL.
  *
  *  `renderPage` re-seeds its `routerSearch` whenever the page navigates to an
- *  empty search, so a test that starts from `?preset=…` can never observe the
- *  param being dropped. Going through the picker avoids that entirely. */
-const pickPreset = async (user: ReturnType<typeof userEvent.setup>, name: string) => {
-  await user.click(await screen.findByRole("combobox", { name: /preset/i }));
+ *  empty search, so a test that starts from `?view=…` can never observe the
+ *  param being dropped. Going through the switcher avoids that entirely. */
+const pickView = async (user: ReturnType<typeof userEvent.setup>, name: string) => {
+  await user.click(await viewSwitcher());
   await user.click(await screen.findByRole("option", { name }));
 };
+
+const urlView = (router: ReturnType<typeof section>["router"]) =>
+  router.state.location.search as { view?: string; preset?: string };
 
 beforeEach(() => {
   captureTaskRequests();
 });
 
-describe("ProjectTasksSection presets", () => {
-  it("shows the project's default preset when the URL says nothing", async () => {
+describe("ProjectTasksSection views", () => {
+  it("offers the shipped views, and opens on the default, before any are saved", async () => {
+    const user = userEvent.setup();
     section();
-    await openFilters();
 
-    expect(await screen.findByRole("combobox", { name: /preset/i })).toHaveTextContent("All");
+    await waitFor(async () => expect(await viewSwitcher()).toHaveTextContent("Table"));
+    await user.click(await viewSwitcher());
+    expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
+      "Table",
+      "Board",
+      "Calendar",
+      "Incomplete",
+      "Unassigned",
+      "Mine",
+    ]);
+  });
+
+  it("sets the layout and names the view in the URL when one is chosen", async () => {
+    const { router } = section();
+    const user = userEvent.setup();
+
+    await pickView(user, "Board");
+
+    await waitFor(() => expect(urlView(router).view).toBe("board"));
+    expect(await screen.findByRole("button", { name: /fields/i })).toBeInTheDocument();
+  });
+
+  it("does not throw the reader back to the top of the list when picking one", async () => {
+    // Naming the view in the URL is bookkeeping about the list you are
+    // already looking at, so the router's scroll reset must not fire.
+    const { router } = section();
+    const user = userEvent.setup();
+    const navigate = vi.spyOn(router, "navigate");
+
+    await pickView(user, "Board");
+
+    await waitFor(() => expect(navigate).toHaveBeenCalled());
+    expect(navigate.mock.calls.at(-1)?.[0]).toMatchObject({
+      replace: true,
+      resetScroll: false,
+    });
   });
 
   it("offers statuses and status categories in one control", async () => {
@@ -147,18 +203,18 @@ describe("ProjectTasksSection presets", () => {
     expect(screen.getAllByRole("option", { name: "Backlog" })).toHaveLength(1);
   });
 
-  it("applies the preset the URL names", async () => {
-    section({ routerSearch: { preset: "incomplete" } });
+  it("applies the filters of the view the URL names", async () => {
+    section({ routerSearch: { view: "incomplete" } });
 
     await waitFor(() => expect(fieldsUsed()).toContain("status_category"));
     const category = lastConditions.find((entry) => entry.field === "status_category");
     expect(category?.value).toEqual(["backlog", "todo", "in_progress"]);
-    // Status *ids* are per-project, so a shared preset must never carry them.
+    // Status *ids* are per-project, so a shared view must never carry them.
     expect(fieldsUsed()).not.toContain("task_status_id");
   });
 
   it("asks for unassigned tasks with is_null, which no id list can express", async () => {
-    section({ routerSearch: { preset: "unassigned" } });
+    section({ routerSearch: { view: "unassigned" } });
 
     await waitFor(() =>
       expect(lastConditions).toContainEqual({
@@ -170,7 +226,7 @@ describe("ProjectTasksSection presets", () => {
   });
 
   it("keeps 'me' a token, so the same link works for whoever opens it", async () => {
-    section({ routerSearch: { preset: "mine" } });
+    section({ routerSearch: { view: "mine" } });
 
     await waitFor(() =>
       expect(lastConditions).toContainEqual({
@@ -181,13 +237,42 @@ describe("ProjectTasksSection presets", () => {
     );
   });
 
+  it("opens a link from before views on the view its preset became", async () => {
+    const { router } = section({ routerSearch: { preset: "mine" } });
+
+    await waitFor(async () => expect(await viewSwitcher()).toHaveTextContent("Mine"));
+    await waitFor(() => expect(urlView(router).view).toBe("mine"));
+    expect(urlView(router).preset).toBeUndefined();
+  });
+
+  it("opens a link to the board from before views on the board", async () => {
+    const { router } = section({ routerSearch: { view: "kanban" } });
+
+    await waitFor(async () => expect(await viewSwitcher()).toHaveTextContent("Board"));
+    await waitFor(() => expect(urlView(router).view).toBe("board"));
+  });
+
+  it("opens a link to All from before views on the default view", async () => {
+    withViews({
+      views: buildToolViewSet().views.map((view) => ({
+        ...view,
+        is_default: view.slug === "calendar",
+      })),
+    });
+    const { router } = section({ routerSearch: { preset: "all" } });
+
+    await waitFor(async () => expect(await viewSwitcher()).toHaveTextContent("Calendar"));
+    await waitFor(() => expect(urlView(router).view).toBe("calendar"));
+    expect(urlView(router).preset).toBeUndefined();
+  });
+
   it("offers 'me' and 'unassigned' inside the assignee picker", async () => {
     // Neither is a person the roster could return — the server resolves both
-    // per request, which is what keeps a shared preset portable. They answer
+    // per request, which is what keeps a shared view portable. They answer
     // the same question as the people list, so they live in the same control.
     section();
     const user = await openFilters();
-    await pickPreset(user, "Mine");
+    await pickView(user, "Mine");
 
     await user.click(await screen.findByRole("combobox", { name: /filter by assignee/i }));
 
@@ -209,7 +294,7 @@ describe("ProjectTasksSection presets", () => {
     // misdescribe the list.
     section();
     const user = await openFilters();
-    await pickPreset(user, "Mine");
+    await pickView(user, "Mine");
 
     await waitFor(() =>
       expect(screen.getByRole("combobox", { name: /filter by assignee/i })).toHaveTextContent(
@@ -221,54 +306,18 @@ describe("ProjectTasksSection presets", () => {
   it("lets go of 'me' from the same picker", async () => {
     section();
     const user = await openFilters();
-    await pickPreset(user, "Mine");
+    await pickView(user, "Mine");
 
     await toggleAssigneeToken(user, /^Assigned to me$/);
 
     await waitFor(() => expect(fieldsUsed()).not.toContain("assignee_ids"));
   });
 
-  it("does not throw the reader back to the top of the list when picking one", async () => {
-    // Naming the preset in the URL is bookkeeping about the list you are
-    // already looking at, so the router's scroll reset must not fire.
-    const { router } = section();
-    const user = await openFilters();
-    const navigate = vi.spyOn(router, "navigate");
-
-    await pickPreset(user, "Mine");
-
-    await waitFor(() => expect(navigate).toHaveBeenCalled());
-    expect(navigate.mock.calls.at(-1)?.[0]).toMatchObject({
-      replace: true,
-      resetScroll: false,
-    });
-  });
-
-  it("names the chosen preset in the URL, so the view can be linked", async () => {
-    const { router } = section();
-    const user = await openFilters();
-
-    await user.click(await screen.findByRole("combobox", { name: /preset/i }));
-    await user.click(await screen.findByRole("option", { name: "Mine" }));
-
-    await waitFor(() =>
-      expect((router.state.location.search as { preset?: string }).preset).toBe("mine")
-    );
-  });
-
-  it("honours the view mode named in the URL", async () => {
-    section({ routerSearch: { view: "kanban" } });
-
-    await waitFor(() =>
-      expect(screen.getByRole("tab", { name: /kanban/i })).toHaveAttribute("data-state", "active")
-    );
-  });
-
   it("keeps a remembered tag that still exists", async () => {
     // The positive control for the next case: this proves the remembered
     // filter reaches the query at all.
     withTags([7]);
-    rememberFilters({ tag_ids: [7] });
+    rememberFilters("table", { tag_ids: [7] });
     section();
 
     await waitFor(() =>
@@ -281,7 +330,7 @@ describe("ProjectTasksSection presets", () => {
     // it matches nothing, so the list goes empty and the control that would
     // explain why has no option left to render.
     withTags([7]);
-    rememberFilters({ tag_ids: [999] });
+    rememberFilters("table", { tag_ids: [999] });
     section();
 
     // Both in one tick: the first request goes out before the tag list has
@@ -298,7 +347,7 @@ describe("ProjectTasksSection presets", () => {
     // Showing more than was asked for is recoverable; an unexplained empty
     // list is not.
     server.use(communityHttp.get("/tags/", () => new HttpResponse(null, { status: 500 })));
-    rememberFilters({ tag_ids: [7] });
+    rememberFilters("table", { tag_ids: [7] });
     section();
 
     await waitFor(() => {
@@ -307,106 +356,176 @@ describe("ProjectTasksSection presets", () => {
     });
   });
 
-  it("says so and still lists tasks when the URL names a preset that is gone", async () => {
-    section({ routerSearch: { preset: "long-deleted" } });
+  it("says so and still lists tasks when the URL names a view that is gone", async () => {
+    section({ routerSearch: { view: "long-deleted" } });
 
     expect(await screen.findByText(/no longer exists/i)).toBeInTheDocument();
     // Still resolved to something, rather than 404ing the page.
     await waitFor(() => expect(fieldsUsed()).toContain("project_id"));
   });
 
-  it("hides the curation affordances from someone who may not curate", async () => {
+  it("shows a linked view's own filters, and drops this person's for it on arrival", async () => {
+    rememberFilters("mine", { assignees: ["none"] });
+    const writes: unknown[] = [];
     server.use(
-      communityHttp.get("/projects/:projectId/filter-presets/", () =>
-        HttpResponse.json({ items: [], can_manage: false })
-      )
+      http.put("/api/v1/user-view-preferences/:scopeKey", async ({ request }) => {
+        writes.push(((await request.json()) as { value: unknown }).value);
+        return HttpResponse.json({});
+      })
     );
+    section({ routerSearch: { preset: "mine" } });
+
+    await waitFor(() =>
+      expect(lastConditions).toContainEqual({ field: "assignee_ids", op: "in_", value: ["me"] })
+    );
+    expect(lastConditions).not.toContainEqual(expect.objectContaining({ op: "is_null" }));
+    expect(await viewSwitcher()).not.toHaveTextContent(/modified/i);
+    await waitFor(() => expect(writes).toContainEqual({ view: "mine", filters: {} }));
+  });
+
+  it("keeps this person's filters on a plain return to the project", async () => {
+    rememberFilters("mine", { assignees: ["none"] });
+    section();
+
+    await waitFor(async () => expect(await viewSwitcher()).toHaveTextContent(/Mine.*modified/i));
+    expect(lastConditions).toContainEqual({ field: "assignee_ids", op: "is_null", value: true });
+  });
+
+  it("stops naming the view in the URL once its filters are tweaked", async () => {
+    // A link saying ?view=mine has to show the view, not one person's edit
+    // of it.
+    const { router } = section();
+    const user = await openFilters();
+    await pickView(user, "Mine");
+    await waitFor(() => expect(urlView(router).view).toBe("mine"));
+
+    await toggleAssigneeToken(user, /^Unassigned$/);
+
+    await waitFor(() => expect(urlView(router).view).toBeUndefined());
+    expect(await viewSwitcher()).toHaveTextContent(/Mine.*modified/i);
+  });
+
+  it("marks the view modified, and offers a way back, once filters are tweaked", async () => {
+    // Re-picking it can't undo the edit — it is already the selected value —
+    // so getting back is its own control.
+    section();
+    const user = await openFilters();
+    await pickView(user, "Mine");
+
+    expect(screen.queryByRole("button", { name: /reset to view/i })).toBeNull();
+
+    await toggleAssigneeToken(user, /^Unassigned$/);
+
+    await waitFor(async () => expect(await viewSwitcher()).toHaveTextContent(/Mine.*modified/i));
+
+    await user.click(await screen.findByRole("button", { name: /reset to view/i }));
+
+    await waitFor(async () => expect(await viewSwitcher()).not.toHaveTextContent(/modified/i));
+    await waitFor(async () => expect(await viewSwitcher()).toHaveTextContent("Mine"));
+  });
+
+  it("keeps a person's filters with the view they set them on", async () => {
+    section();
+    const user = await openFilters();
+    await pickView(user, "Mine");
+    await toggleAssigneeToken(user, /^Unassigned$/);
+    await waitFor(async () => expect(await viewSwitcher()).toHaveTextContent(/modified/i));
+
+    // Another view starts from its own filters, not these.
+    await pickView(user, "Incomplete");
+    await waitFor(() => expect(fieldsUsed()).toContain("status_category"));
+    expect(fieldsUsed()).not.toContain("assignee_ids");
+    expect(await viewSwitcher()).not.toHaveTextContent(/modified/i);
+
+    // And coming back finds them as they were left.
+    await pickView(user, "Mine");
+    await waitFor(async () => expect(await viewSwitcher()).toHaveTextContent(/Mine.*modified/i));
+    expect(lastConditions).toContainEqual({
+      logic: "or",
+      conditions: [
+        { field: "assignee_ids", op: "is_null", value: true },
+        { field: "assignee_ids", op: "in_", value: ["me"] },
+      ],
+    });
+  });
+
+  it("offers the way back even to someone who may not configure views", async () => {
+    withViews({ can_configure: false });
+    section();
+    const user = await openFilters();
+    await pickView(user, "Mine");
+
+    await toggleAssigneeToken(user, /^Unassigned$/);
+
+    expect(await screen.findByRole("button", { name: /reset to view/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /save as view/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /update/i })).toBeNull();
+  });
+
+  it("hides saving views from someone who may not configure them", async () => {
+    withViews({ can_configure: false });
     section();
     await openFilters();
 
-    await waitFor(() => expect(screen.queryByRole("button", { name: /save preset/i })).toBeNull());
+    await waitFor(() => expect(screen.queryByRole("button", { name: /save as view/i })).toBeNull());
     // The filters themselves are still theirs to set.
     expect(screen.getByRole("button", { name: /clear all/i })).toBeInTheDocument();
   });
 
-  it("offers saving a preset, beside Clear all, to someone who may curate", async () => {
-    section();
-    await openFilters();
-
-    expect(await screen.findByRole("button", { name: /save preset/i })).toBeInTheDocument();
-  });
-
-  it("offers updating the active preset only once its filters were tweaked", async () => {
+  it("offers updating the view only once its filters were tweaked, naming it", async () => {
     section();
     const user = await openFilters();
+    await pickView(user, "Incomplete");
 
     expect(screen.queryByRole("button", { name: /update/i })).toBeNull();
-
-    await toggleAssigneeToken(user, /^Unassigned$/);
-
-    expect(await screen.findByRole("button", { name: /update/i })).toBeInTheDocument();
-  });
-
-  it("names the preset it would update", async () => {
-    section();
-    const user = await openFilters();
-    await pickPreset(user, "Incomplete");
 
     await toggleAssigneeToken(user, /^Unassigned$/);
 
     expect(await screen.findByRole("button", { name: /update/i })).toHaveTextContent(/Incomplete/);
   });
 
-  it("marks the preset modified, and offers a way back, once filters are tweaked", async () => {
-    // Re-picking it in the select can't undo the edit — it is already the
-    // selected value — so getting back is its own control.
-    section();
-    const user = await openFilters();
-    await pickPreset(user, "Mine");
-
-    expect(screen.queryByRole("button", { name: /reset to preset/i })).toBeNull();
-
-    await toggleAssigneeToken(user, /^Unassigned$/);
-
-    const combobox = await screen.findByRole("combobox", { name: /preset/i });
-    await waitFor(() => expect(combobox).toHaveTextContent(/Mine.*modified/i));
-
-    await user.click(await screen.findByRole("button", { name: /reset to preset/i }));
-
-    await waitFor(() => expect(combobox).toHaveTextContent("Mine"));
-    expect(combobox).not.toHaveTextContent(/modified/i);
-  });
-
-  it("offers the way back even to someone who may not curate presets", async () => {
-    server.use(
-      communityHttp.get("/projects/:projectId/filter-presets/", () =>
-        HttpResponse.json({ items: buildDefaultFilterPresets(1), can_manage: false })
-      )
-    );
-    section();
-    const user = await openFilters();
-    await pickPreset(user, "Mine");
-
-    await toggleAssigneeToken(user, /^Unassigned$/);
-
-    expect(await screen.findByRole("button", { name: /reset to preset/i })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /save preset/i })).toBeNull();
-  });
-
-  it("stops naming the preset in the URL once the filters are tweaked", async () => {
-    // A link saying ?preset=mine has to show the preset, not one person's
-    // edit of it.
+  it("saves the shipped views with a new one in them, and opens it", async () => {
+    const saves = captureSaves();
     const { router } = section();
     const user = await openFilters();
-    await pickPreset(user, "Mine");
-    await waitFor(() =>
-      expect((router.state.location.search as { preset?: string }).preset).toBe("mine")
-    );
-
     await toggleAssigneeToken(user, /^Unassigned$/);
 
-    await waitFor(() =>
-      expect((router.state.location.search as { preset?: string }).preset).toBeUndefined()
+    await user.click(await screen.findByRole("button", { name: /save as view/i }));
+    await user.type(await screen.findByLabelText(/view name/i), "Up for grabs");
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    await waitFor(() => expect(saves).toHaveLength(1));
+    expect(saves[0].views.map((view) => view.slug ?? view.name)).toEqual([
+      "table",
+      "board",
+      "calendar",
+      "incomplete",
+      "unassigned",
+      "mine",
+      "Up for grabs",
+    ]);
+    expect(saves[0].views[6]).toMatchObject({
+      is_default: false,
+      definition: { layout: { type: "table" }, filters: { assignees: ["none"] } },
+    });
+    await waitFor(() => expect(urlView(router).view).toBe("up-for-grabs"));
+    expect(await viewSwitcher()).not.toHaveTextContent(/modified/i);
+  });
+
+  it("folds tweaked filters back into the view they sit on", async () => {
+    const saves = captureSaves();
+    section();
+    const user = await openFilters();
+    await pickView(user, "Mine");
+    await toggleAssigneeToken(user, /^Unassigned$/);
+
+    await user.click(await screen.findByRole("button", { name: /update/i }));
+
+    await waitFor(() => expect(saves).toHaveLength(1));
+    expect(saves[0].views).toHaveLength(6);
+    expect(saves[0].views[5].slug).toBe("mine");
+    expect(saves[0].views[5].definition.filters?.assignees).toEqual(
+      expect.arrayContaining(["none", "me"])
     );
   });
 });
@@ -433,7 +552,7 @@ describe("ProjectTasksSection export", () => {
 
   beforeEach(() => {
     setItem(
-      "initiative-project-1-task-table",
+      "initiative-project-1-table-task-table",
       JSON.stringify({ grouping: [], sorting: [{ id: "due date", desc: true }] })
     );
   });
@@ -446,7 +565,7 @@ describe("ProjectTasksSection export", () => {
   });
 
   it("keeps the project's order from a view the table's sort does not reach", async () => {
-    expect(await exportSorting("kanban")).toBeNull();
+    expect(await exportSorting("board")).toBeNull();
   });
 });
 
@@ -619,12 +738,34 @@ describe("ProjectTasksSection table", () => {
     expect(within(row).getByText("2")).toBeInTheDocument();
   });
 
+  it("lets go of a selection when the view changes", async () => {
+    server.use(
+      communityHttp.get("/tasks/", () =>
+        HttpResponse.json(buildTaskListResponse([buildTask({ title: "Chore 1" })]))
+      )
+    );
+    section();
+    const user = userEvent.setup();
+    await screen.findByRole("link", { name: "Chore 1" });
+    await user.click(await screen.findByRole("button", { name: /^select$/i }));
+    await user.click(await screen.findByRole("checkbox", { name: /select row/i }));
+    expect(await screen.findByText(/1 task selected/i)).toBeInTheDocument();
+
+    await pickView(user, "Incomplete");
+
+    await waitFor(() => expect(screen.queryByText(/1 task selected/i)).not.toBeInTheDocument());
+  });
+
   it("names the fields in the Columns menu by their labels", async () => {
     server.use(
-      communityHttp.get("/tasks/", () => HttpResponse.json(buildTaskListResponse([buildTask()])))
+      communityHttp.get("/tasks/", () =>
+        HttpResponse.json(buildTaskListResponse([buildTask({ title: "Chore 1" })]))
+      )
     );
     section({ routerSearch: { view: "table" } });
     const user = userEvent.setup();
+    // The tasks arrive once the view is known, which is the table to stay.
+    await screen.findByRole("link", { name: "Chore 1" });
 
     await user.click(await screen.findByRole("button", { name: /^columns$/i }));
 

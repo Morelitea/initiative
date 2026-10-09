@@ -273,6 +273,20 @@ ITEM_KINDS: tuple[str, ...] = tuple(k for k in CHILD_KINDS if k != "wiki_page") 
 INSTALL_METADATA_KIND = "plugin"
 METADATA_TARGETS: tuple[str, ...] = ITEM_KINDS + (INSTALL_METADATA_KIND,)
 
+# Views (``tool_views``): the tools whose items an initiative lays out. Each of
+# these has its own views per instance (a project's, a queue's); the calendar
+# and the posts feed are one page per initiative, so their views belong to the
+# initiative and name no instance. The table's CHECKs, its policies, its events
+# and its purge derive from these.
+VIEWS_PER_INSTANCE: tuple[Tool, ...] = (
+    Tool.project,
+    Tool.queue,
+    Tool.counter_group,
+    Tool.gallery,
+)
+VIEWS_SHARED: tuple[Tool, ...] = (Tool.calendar, Tool.post)
+VIEW_TOOLS: tuple[Tool, ...] = VIEWS_PER_INSTANCE + VIEWS_SHARED
+
 
 def tool_export_source(tool: Tool) -> str:
     """The export adapter registry key for a tool."""

@@ -1553,48 +1553,40 @@ async def test_default_view_rejects_an_unknown_mode(
     assert response.status_code == 422
 
 
-# ── Presets travel with the project ───────────────────────────────────
+# ── Views travel with the project ─────────────────────────────────────
 
 
-async def test_new_project_is_seeded_with_default_presets(
+async def test_duplicating_a_project_copies_its_views(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
-
-    created = await client.post(
-        a.g("/projects/"),
-        json={"name": "Fresh", "initiative_id": a.initiative.id},
-        headers=a.headers,
-    )
-    assert created.status_code == 201
-    project_id = created.json()["id"]
-
-    presets = await client.get(
-        a.g(f"/projects/{project_id}/filter-presets/"), headers=a.headers
-    )
-
-    assert [p["slug"] for p in presets.json()["items"]] == [
-        "all",
-        "incomplete",
-        "unassigned",
-        "mine",
-    ]
-
-
-async def test_duplicating_a_project_clones_its_presets(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    from app.services.tenant import filter_presets as filter_presets_service
-
     a = await acting_user(
         guild_role=CommunityRole.member, initiative=True, project=True
     )
     source_status = await create_task_status(session, project=a.project, name="Review")
-    seeded = await filter_presets_service.ensure_default_presets(session, a.project.id)
-    mine = next(p for p in seeded if p.slug == "mine")
-    mine.filters = {"status_ids": [source_status.id], "assignees": ["me"]}
-    session.add(mine)
-    await session.commit()
+    views_url = a.g("/views/")
+    saved = await client.put(
+        views_url,
+        params={"tool": "project", "tool_id": a.project.id},
+        json={
+            "views": [
+                {
+                    "name": "Table",
+                    "slug": "table",
+                    "definition": {"layout": {"type": "table"}},
+                },
+                {
+                    "name": "In review",
+                    "is_default": True,
+                    "definition": {
+                        "layout": {"type": "board"},
+                        "filters": {"status_ids": [source_status.id]},
+                    },
+                },
+            ]
+        },
+        headers=a.headers,
+    )
+    assert saved.status_code == 200, saved.text
 
     duplicated = await client.post(
         a.g(f"/projects/{a.project.id}/duplicate"),
@@ -1602,17 +1594,21 @@ async def test_duplicating_a_project_clones_its_presets(
         headers=a.headers,
     )
     assert duplicated.status_code == 201
-    copy_id = duplicated.json()["id"]
+    copied = (
+        await client.get(
+            views_url,
+            params={"tool": "project", "tool_id": duplicated.json()["id"]},
+            headers=a.headers,
+        )
+    ).json()
 
-    presets = (
-        await client.get(a.g(f"/projects/{copy_id}/filter-presets/"), headers=a.headers)
-    ).json()["items"]
-    by_slug = {p["slug"]: p for p in presets}
-
-    assert set(by_slug) == {"all", "incomplete", "unassigned", "mine"}
-    assert by_slug["all"]["is_default"] is True
+    assert copied["stored"] is True
+    assert [(v["slug"], v["is_default"]) for v in copied["views"]] == [
+        ("table", False),
+        ("in-review", True),
+    ]
     # The status id was translated to the copy's own status, not carried over.
-    cloned_status_ids = by_slug["mine"]["filters"]["status_ids"]
+    cloned_status_ids = copied["views"][1]["definition"]["filters"]["status_ids"]
     assert cloned_status_ids
     assert source_status.id not in cloned_status_ids
 

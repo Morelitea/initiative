@@ -222,10 +222,6 @@ const projectTaskStatuses = (projectId: number): Spec => ({
   communityExact: [`/api/v1/projects/${projectId}/task-statuses/`],
 });
 
-const projectFilterPresets = (projectId: number): Spec => ({
-  communityExact: [`/api/v1/projects/${projectId}/filter-presets/`],
-});
-
 // Recents list is a cross-community personal endpoint (`/api/v1/recents/`, no /c/).
 const recents = (): Spec => ({ personalExact: ["/api/v1/recents/"] });
 
@@ -498,6 +494,11 @@ const wikiPages = (wikiId: number): Spec => ({
 /** One page's own read. */
 const wikiPage = (pageId: number): Spec => ({ communityExact: [`/api/v1/wiki-pages/${pageId}`] });
 
+// ── Views (community) ────────────────────────────────────────────────────────
+
+/** Every set of views. One path serves them all, its target in the params. */
+const views = (): Spec => ({ communityExact: ["/api/v1/views/"] });
+
 // ── Version (personal) ───────────────────────────────────────────────────────
 
 const version = (): Spec => ({ personalExact: ["/api/v1/version"] });
@@ -671,7 +672,6 @@ export const q = {
   post,
   postTimeline,
   project,
-  projectFilterPresets,
   projectTaskStatuses,
   propertyHolder,
   pushSettings,
@@ -689,6 +689,7 @@ export const q = {
   toolSubtree,
   userStats,
   version,
+  views,
   wiki,
   wikiPage,
   wikiPages,

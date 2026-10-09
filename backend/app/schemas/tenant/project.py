@@ -83,8 +83,8 @@ class ProjectTaskSummary(SanitizedBaseModel):
 
 
 class ProjectCan(ToolCan):
-    #: Configure the project itself — pin it, set its default view, curate its
-    #: filter presets (``resource_actions``).
+    #: Configure the project itself — pin it, set its default view and its
+    #: views (``resource_actions``).
     configure: bool = False
 
 

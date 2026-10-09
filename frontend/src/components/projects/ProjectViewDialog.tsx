@@ -14,7 +14,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-type ProjectFilterPresetDialogProps = {
+type ProjectViewDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit: (values: { name: string; isDefault: boolean }) => void;
@@ -22,16 +22,16 @@ type ProjectFilterPresetDialogProps = {
 };
 
 /**
- * Name the filters currently on screen and save them for the whole project.
- * Only rendered for someone who may curate presets — the server decides that
- * and says so in the preset list's `can_manage`.
+ * Name the layout and filters currently on screen and save them as a view for
+ * the whole project. Only rendered for someone who may configure the project's
+ * views — the server decides that and says so in the set's `can_configure`.
  */
-export const ProjectFilterPresetDialog = ({
+export const ProjectViewDialog = ({
   open,
   onOpenChange,
   onSubmit,
   isSubmitting,
-}: ProjectFilterPresetDialogProps) => {
+}: ProjectViewDialogProps) => {
   const { t } = useTranslation(["projects", "common"]);
   const [name, setName] = useState("");
   const [isDefault, setIsDefault] = useState(false);
@@ -56,29 +56,29 @@ export const ProjectFilterPresetDialog = ({
           }}
         >
           <DialogHeader>
-            <DialogTitle>{t("projects:filters.saveAsPreset")}</DialogTitle>
-            <DialogDescription>{t("projects:filters.savePresetDescription")}</DialogDescription>
+            <DialogTitle>{t("projects:views.saveAs")}</DialogTitle>
+            <DialogDescription>{t("projects:views.saveAsDescription")}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="preset-name">{t("projects:filters.presetName")}</Label>
+              <Label htmlFor="view-name">{t("projects:views.name")}</Label>
               <Input
-                id="preset-name"
+                id="view-name"
                 value={name}
                 onChange={(event) => setName(event.target.value)}
-                placeholder={t("projects:filters.presetNamePlaceholder")}
+                placeholder={t("projects:views.namePlaceholder")}
                 maxLength={100}
                 autoFocus
               />
             </div>
             <div className="flex items-center gap-2">
               <Checkbox
-                id="preset-default"
+                id="view-default"
                 checked={isDefault}
                 onCheckedChange={(checked) => setIsDefault(checked === true)}
               />
-              <Label htmlFor="preset-default" className="cursor-pointer font-medium text-sm">
-                {t("projects:filters.presetSetDefault")}
+              <Label htmlFor="view-default" className="cursor-pointer font-medium text-sm">
+                {t("projects:views.setDefault")}
               </Label>
             </div>
           </div>
