@@ -4,7 +4,7 @@
   platform*, which opens a moderation case; a platform moderator under a
   ``moderate`` grant holds it against a case.
 - ``GET /holds`` — the holds in the community, for a ``moderate`` grantee.
-  Anyone else reads none: the record is the platform's.
+  Anyone else is refused: the record is the platform's.
 - ``POST /holds/{hold_id}/release`` — end a hold, under a ``moderate`` grant.
 
 See ``app.services.platform.holds``.
@@ -14,9 +14,10 @@ from __future__ import annotations
 
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.api.deps import GuildContextDep, RLSSessionDep, get_current_active_user
+from app.core.messages import HoldMessages
 from app.core.moderation import HoldReason, HoldRelease, HoldVia, LegalBasis
 from app.models.platform.user import User
 from app.schemas.tenant.hold import (
@@ -83,8 +84,13 @@ async def list_holds(
     case_task_id: Optional[int] = Query(default=None),
     open_only: bool = Query(default=False),
 ) -> list[ContentHoldRead]:
-    """The holds in the community, newest first. Read under its own row
-    security: a ``moderate`` grantee reads them, and anyone else reads none."""
+    """The holds in the community, newest first, for a ``moderate``
+    grantee. Anyone else is refused rather than shown none, so a reader
+    without the grant is told so rather than told nothing is held."""
+    if not guild_context.pam_moderate:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=HoldMessages.NOT_ALLOWED
+        )
     views = await holds_service.listed(
         session, case_task_id=case_task_id, open_only=open_only
     )

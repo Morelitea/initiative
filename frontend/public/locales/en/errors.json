@@ -795,5 +795,7 @@
   "HOLD_NOWHERE_TO_SEND": "The platform isn't taking moderation cases here, so a hold can't be placed. Contact whoever runs this server.",
   "HOLD_NOT_FOUND": "That hold doesn't exist.",
   "HOLD_ALREADY_RELEASED": "That hold has already been released.",
-  "HOLD_CASE_NOT_FOUND": "That case isn't one the platform is working."
+  "HOLD_CASE_NOT_FOUND": "That case isn't one the platform is working.",
+  "HOLD_COMMUNITY_GONE": "This community is being deleted for good, so nothing more can be held in it.",
+  "HOLD_COVERED_BY_ANOTHER": "Another hold still covers this. Release that one first, or restore this one."
 }

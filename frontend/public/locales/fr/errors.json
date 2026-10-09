@@ -795,5 +795,7 @@
   "HOLD_NOWHERE_TO_SEND": "La plateforme ne prend pas de dossiers de modération ici, la retenue est donc impossible. Contactez l'équipe qui gère ce serveur.",
   "HOLD_NOT_FOUND": "Cette retenue n'existe pas.",
   "HOLD_ALREADY_RELEASED": "Cette retenue a déjà été levée.",
-  "HOLD_CASE_NOT_FOUND": "Ce dossier n'est pas traité par la plateforme."
+  "HOLD_CASE_NOT_FOUND": "Ce dossier n'est pas traité par la plateforme.",
+  "HOLD_COMMUNITY_GONE": "Cette communauté est en cours de suppression définitive, plus rien ne peut y être retenu.",
+  "HOLD_COVERED_BY_ANOTHER": "Une autre retenue le couvre encore. Levez-la d'abord, ou restaurez celle-ci."
 }

@@ -22,10 +22,16 @@ from app.db.session import set_rls_context
 from app.models.platform.guild import CommunityRole
 from app.models.tenant.comment import Comment
 from app.models.tenant.content_hold import ContentHold
+from app.models.tenant.gallery import GalleryImage
 from app.models.tenant.intake import IntakeCase
 from app.models.tenant.task import Task
 from app.services.platform import holds as holds_service
-from app.testing import create_comment, create_user
+from app.testing import (
+    create_comment,
+    create_gallery,
+    create_gallery_image,
+    create_user,
+)
 from app.testing.factories import create_access_grant, get_auth_headers
 
 # The moderation suite's fixtures, by name.
@@ -328,11 +334,137 @@ async def test_a_moderate_grantee_reads_what_is_held_and_others_dont(
         holds = await client.get(
             f"/api/v1/c/{guild.id}/holds", headers=get_auth_headers(other)
         )
-        assert holds.json() == []
+        # Refused rather than empty: told they lack the grant, not that
+        # nothing is held.
+        assert holds.status_code == 403
 
     # The community reads none of the platform's record.
     holds = await client.get(scene["mod"].g("/holds"), headers=scene["mod"].headers)
-    assert holds.json() == []
+    assert holds.status_code == 403
+    assert holds.json()["detail"] == HoldMessages.NOT_ALLOWED
+
+
+async def _platform_hold(client, moderator, guild, target_type: str, target_id: int):
+    response = await client.post(
+        f"/api/v1/c/{guild.id}/holds",
+        json={
+            "target_type": target_type,
+            "target_id": target_id,
+            "reason": "legal_request",
+        },
+        headers=get_auth_headers(moderator),
+    )
+    assert response.status_code == 201, response.text
+    holds = await client.get(
+        f"/api/v1/c/{guild.id}/holds", headers=get_auth_headers(moderator)
+    )
+    return next(
+        h
+        for h in holds.json()
+        if h["target_id"] == target_id and h["target_type"] == target_type
+    )
+
+
+async def _release(client, moderator, guild, hold_id: int, outcome: str):
+    return await client.post(
+        f"/api/v1/c/{guild.id}/holds/{hold_id}/release",
+        json={"outcome": outcome},
+        headers=get_auth_headers(moderator),
+    )
+
+
+async def test_a_picture_and_its_gallery_can_be_held(
+    client, session, scene, operations
+):
+    owner = scene["mod"]
+    gallery = await create_gallery(session, scene["initiative"], owner.user)
+    image = await create_gallery_image(session, gallery, owner.user)
+    await set_rls_context(session, Unattributed())
+    moderator = await _moderator(session, scene["guild"])
+    await _platform_hold(client, moderator, scene["guild"], "gallery", gallery.id)
+    await _system(session, scene["guild"].id)
+    held = (
+        await session.exec(select(GalleryImage).where(GalleryImage.id == image.id))
+    ).one()
+    assert held.held_at is not None
+
+
+async def test_releasing_one_hold_never_releases_anothers_content(
+    client, session, scene, operations
+):
+    guild = scene["guild"]
+    moderator = await _moderator(session, guild)
+    comment_hold = await _platform_hold(
+        client, moderator, guild, "comment", scene["comment"].id
+    )
+    await _platform_hold(client, moderator, guild, "task", scene["task"].id)
+
+    # The comment is inside the held task: it can't be destroyed while that
+    # hold stands, and restoring its own hold leaves it held by the other.
+    refused = await _release(client, moderator, guild, comment_hold["id"], "purge")
+    assert refused.status_code == 409
+    assert refused.json()["detail"] == HoldMessages.COVERED_BY_ANOTHER
+    restored = await _release(client, moderator, guild, comment_hold["id"], "restore")
+    assert restored.status_code == 200, restored.text
+
+    await _system(session, guild.id)
+    comment = (
+        await session.exec(select(Comment).where(Comment.id == scene["comment"].id))
+    ).one()
+    task_hold = (
+        await session.exec(select(ContentHold).where(ContentHold.target_type == "task"))
+    ).one()
+    assert comment.held_at is not None
+    assert comment.hold_id == task_hold.id
+
+
+async def test_a_moderator_no_longer_moderating_reads_nothing_held(
+    client, session, scene, operations
+):
+    guild = scene["guild"]
+    moderator = await _moderator(session, guild)
+    hold = await _platform_hold(
+        client, moderator, guild, "comment", scene["comment"].id
+    )
+
+    await set_rls_context(session, Unattributed())
+    moderator.role = "support"
+    session.add(moderator)
+    await session.commit()
+
+    holds = await client.get(
+        f"/api/v1/c/{guild.id}/holds", headers=get_auth_headers(moderator)
+    )
+    assert holds.status_code == 403
+    released = await _release(client, moderator, guild, hold["id"], "purge")
+    assert released.status_code == 404
+
+
+async def test_a_reminder_that_could_not_be_noted_is_tried_again(
+    client, session, scene, operations, monkeypatch
+):
+    assert (
+        await _hold(client, scene["mod"], "comment", scene["comment"].id)
+    ).status_code == 201
+    guild_id = scene["guild"].id
+    await _system(session, guild_id)
+    hold = (await session.exec(select(ContentHold))).one()
+    hold.placed_at = datetime.now(timezone.utc) - timedelta(days=31)
+    session.add(hold)
+    await session.commit()
+
+    async def unwritten(*args, **kwargs):
+        return False
+
+    noted = holds_service._note_on_case
+    # Set back by hand: undoing the fixture's monkeypatch would undo the
+    # suite's own patches with it.
+    monkeypatch.setattr(holds_service, "_note_on_case", unwritten)
+    await _system(session, guild_id)
+    assert await holds_service.remind_due(session, guild_id) == 0
+    monkeypatch.setattr(holds_service, "_note_on_case", noted)
+    await _system(session, guild_id)
+    assert await holds_service.remind_due(session, guild_id) == 1
 
 
 @pytest.mark.parametrize("outcome", ["restore", "remove", "purge"])

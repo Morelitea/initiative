@@ -138,8 +138,9 @@ export const usePlaceHold = <TError = ErrorType<HTTPValidationError>, TContext =
   return useMutation(getPlaceHoldMutationOptions(options), queryClient);
 };
 /**
- * The holds in the community, newest first. Read under its own row
- * security: a ``moderate`` grantee reads them, and anyone else reads none.
+ * The holds in the community, newest first, for a ``moderate``
+ * grantee. Anyone else is refused rather than shown none, so a reader
+ * without the grant is told so rather than told nothing is held.
  * @summary List Holds
  */
 export const listHolds = (

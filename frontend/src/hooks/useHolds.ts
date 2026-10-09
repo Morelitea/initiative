@@ -27,8 +27,8 @@ import { queryClient } from "@/lib/queryClient";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
 
-/** Every query on a community's holds: the record and whatever it hides. */
-const refreshAfterHolding = () =>
+/** Every query in the communities: what a hold hides, wherever it was shown. */
+export const refreshAfterHolding = () =>
   queryClient.invalidateQueries({
     predicate: (query) => {
       const [path] = query.queryKey as [unknown];

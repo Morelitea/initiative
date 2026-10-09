@@ -155,7 +155,7 @@ async def _shown_uploads(
     texts: list[str] = []
     parents = {
         FileVersion: (File, "file_id"),
-        GalleryImageVersion: (GalleryImage, "image_id"),
+        GalleryImageVersion: (GalleryImage, "gallery_image_id"),
     }
     for model, column in _upload_columns():
         if model in parents:
@@ -212,6 +212,47 @@ async def _unstamp(session: AsyncSession, hold_id: int) -> None:
             .values(held_at=None, hold_id=None)
             .execution_options(synchronize_session=False)
         )
+
+
+async def _cover_again(session: AsyncSession, released_id: int) -> None:
+    """Hold again, under the hold that covers it, whatever releasing
+    ``released_id`` let go that another open hold still covers: a comment
+    held on its own and then inside its task, or an upload two held things
+    show. Releasing one hold never releases another's content."""
+    others = (
+        await session.exec(
+            select(ContentHold)
+            .where(ContentHold.released_at.is_(None))  # type: ignore[union-attr]
+            .where(ContentHold.id != released_id)
+            .order_by(ContentHold.id)
+        )
+    ).all()
+    for other in others:
+        model = model_for(other.target_type)
+        target = (
+            await session.exec(
+                select_including_deleted(model)
+                .where(model.id == other.target_id)
+                .execution_options(populate_existing=True)
+            )
+        ).first()
+        if target is None:
+            continue
+        covered = await _covered(session, target)
+        await _stamp(session, covered, await _shown_uploads(session, covered), other)
+
+
+async def _community_stays(session: AsyncSession, guild_id: int) -> None:
+    """Serialize with the community being destroyed (``guild_purge``), and
+    refuse once it has been: a hold placed after that could never be reached
+    to release it."""
+    from app.db.advisory_locks import LockNamespace, advisory_lock
+    from app.models.platform.guild import Guild
+
+    await advisory_lock(session, LockNamespace.CONTENT_HOLDS, guild_id)
+    present = (await session.exec(select(Guild.id).where(Guild.id == guild_id))).first()
+    if present is None:
+        raise HoldError(HoldMessages.COMMUNITY_GONE, status.HTTP_404_NOT_FOUND)
 
 
 # -- Placing --------------------------------------------------------------------
@@ -289,16 +330,17 @@ async def _require_case(case_task_id: int) -> None:
 
 async def _note_on_case(
     case_task_id: Optional[int], kind: case_activity.ActivityKind, words: str
-) -> None:
+) -> bool:
     """Note ``words`` on the operations case, where there is one to note it
-    on. Best effort: the hold stands whether or not its case hears of it."""
+    on. Best effort: the hold stands whether or not its case hears of it.
+    Returns whether the note was written."""
     from app.services.platform.intake import configured_operations_guild_id
 
     if case_task_id is None:
-        return
+        return False
     operations = await configured_operations_guild_id()
     if operations is None:
-        return
+        return False
     try:
         async with cohorts.system_session(operations) as session:
             await set_rls_context(session, SystemGuild(operations))
@@ -306,8 +348,10 @@ async def _note_on_case(
                 session, task_id=case_task_id, kind=kind, text=words
             )
             await session.commit()
+        return True
     except Exception:  # pragma: no cover - logged, and the sweep reminds again
         logger.exception("holds: could not note on case %s", case_task_id)
+        return False
 
 
 async def place(
@@ -364,6 +408,7 @@ async def place(
 
     async with cohorts.system_session(guild_id) as system:
         await set_rls_context(system, SystemGuild(guild_id))
+        await _community_stays(system, guild_id)
         # Writing the hold columns of archived or trashed rows is a write to
         # frozen content on purpose, as a purge's is (``gucs.PURGING``).
         await raise_flag(system, gucs.PURGING)
@@ -452,15 +497,26 @@ async def release(
             raise HoldError(HoldMessages.NOT_FOUND, status.HTTP_404_NOT_FOUND)
         if hold.released_at is not None:
             raise HoldError(HoldMessages.ALREADY_RELEASED, status.HTTP_409_CONFLICT)
+        await _community_stays(system, guild_id)
         await raise_flag(system, gucs.PURGING)
         await _unstamp(system, int(hold.id))
+        await _cover_again(system, int(hold.id))
         await raise_flag(system, gucs.PURGING, False)
         model = model_for(hold.target_type)
         target = (
             await system.exec(
-                select_including_deleted(model).where(model.id == hold.target_id)
+                select_including_deleted(model)
+                .where(model.id == hold.target_id)
+                .execution_options(populate_existing=True)
             )
         ).first()
+        if (
+            target is not None
+            and outcome is not HoldRelease.restore
+            and target.held_at is not None
+        ):
+            # Another hold covers it: it stays as it is until that one ends.
+            raise HoldError(HoldMessages.COVERED_BY_ANOTHER, status.HTTP_409_CONFLICT)
         if target is not None and outcome is HoldRelease.remove:
             if getattr(target, "deleted_at", None) is None:
                 await trash(system, target, deleted_by_user_id=released_by)
@@ -586,16 +642,21 @@ async def remind_due(session: AsyncSession, guild_id: int) -> int:
             )
         )
     ).all()
+    reminded = 0
     for hold in due:
         days = (now - hold.placed_at).days
-        await _note_on_case(
+        noted = await _note_on_case(
             hold.case_task_id,
             case_activity.ActivityKind.hold_reminder,
             f"Hold {hold.id} on {hold.target_type} {hold.target_id} in community "
             f"{guild_id} is still in place, {days} days on.",
         )
+        if not noted:
+            # Tried again on the next pass, not in a month.
+            continue
         hold.reminded_at = now
         session.add(hold)
-    if due:
+        reminded += 1
+    if reminded:
         await session.commit()
-    return len(due)
+    return reminded

@@ -27,6 +27,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { MentionText } from "@/components/user/MentionText";
 import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
+import { refreshAfterHolding } from "@/hooks/useHolds";
 import { useInitiativeRoster } from "@/hooks/useInitiatives";
 import { MentionedPeopleScope, ReportMentionedPeople } from "@/hooks/useMentionedPeople";
 import { useInitiativeSharing, useModerationReports, useSettleReport } from "@/hooks/useModeration";
@@ -312,7 +313,16 @@ const ReportCard = ({ report, communityId, initiativeId }: ReportCardProps) => {
               note={note}
               sending={settle.isPending}
               onSend={(body) =>
-                settle.mutate({ reportId: report.id, body }, { onSuccess: () => setSending(false) })
+                settle.mutate(
+                  { reportId: report.id, body },
+                  {
+                    onSuccess: () => {
+                      setSending(false);
+                      // What was hidden is gone from every view of it.
+                      if (body.outcome === Outcome.held) void refreshAfterHolding();
+                    },
+                  }
+                )
               }
             />
           </div>

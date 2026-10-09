@@ -795,5 +795,7 @@
   "HOLD_NOWHERE_TO_SEND": "Die Plattform nimmt hier keine Moderationsfälle an, daher kann nichts zurückgehalten werden. Wende dich an die Betreiber dieses Servers.",
   "HOLD_NOT_FOUND": "Diese Zurückhaltung gibt es nicht.",
   "HOLD_ALREADY_RELEASED": "Diese Zurückhaltung wurde bereits aufgehoben.",
-  "HOLD_CASE_NOT_FOUND": "Dieser Fall wird von der Plattform nicht bearbeitet."
+  "HOLD_CASE_NOT_FOUND": "Dieser Fall wird von der Plattform nicht bearbeitet.",
+  "HOLD_COMMUNITY_GONE": "Diese Community wird endgültig gelöscht, daher kann darin nichts mehr zurückgehalten werden.",
+  "HOLD_COVERED_BY_ANOTHER": "Eine andere Zurückhaltung deckt das noch ab. Hebe zuerst diese auf oder stelle das hier wieder her."
 }
