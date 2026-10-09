@@ -221,4 +221,46 @@ describe("CommentSection", () => {
       );
     }
   });
+
+  it("keeps replies to a comment the reader can't see under a placeholder", async () => {
+    const visible = buildComment({ content: "Still here", created_at: "2026-01-10T09:00:00Z" });
+    const replyA = buildComment({
+      content: "Answering the hidden one",
+      parent_comment_id: 9999,
+      created_at: "2026-01-11T09:00:00Z",
+    });
+    const replyB = buildComment({
+      content: "Me too",
+      parent_comment_id: 9999,
+      created_at: "2026-01-12T09:00:00Z",
+    });
+
+    renderPage(() => (
+      <CommentSection
+        entityType="task"
+        entityId={3}
+        comments={[visible, replyA, replyB]}
+        initiativeId={7}
+      />
+    ));
+
+    const placeholder = await screen.findByText("Unavailable");
+    // One placeholder for the hidden comment, and its replies after it, in order.
+    expect(screen.getAllByText("Unavailable")).toHaveLength(1);
+    const said = [
+      placeholder,
+      screen.getByText("Answering the hidden one"),
+      screen.getByText("Me too"),
+    ];
+    for (let i = 1; i < said.length; i++) {
+      expect(said[i - 1].compareDocumentPosition(said[i]) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+        Node.DOCUMENT_POSITION_FOLLOWING
+      );
+    }
+    // The newer conversation (the placeholder's) comes first.
+    expect(
+      placeholder.compareDocumentPosition(screen.getByText("Still here")) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
 });

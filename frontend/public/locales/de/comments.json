@@ -36,5 +36,6 @@
   "readOnlyNote": "Du hast hier nur Lesezugriff, daher ist das Kommentieren deaktiviert.",
   "reply": "Antworten",
   "replyPlaceholder": "Eine Antwort schreiben...",
-  "title": "Kommentare"
+  "title": "Kommentare",
+  "unavailable": "Nicht verfügbar"
 }

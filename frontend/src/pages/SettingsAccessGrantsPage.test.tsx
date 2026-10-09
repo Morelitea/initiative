@@ -160,6 +160,24 @@ describe("SettingsAccessGrantsPage", () => {
     expect(createRequest.mock.calls[0][0].settings_level).toBeUndefined();
   });
 
+  it("offers moderation access only to those who moderate", async () => {
+    const user = userEvent.setup();
+    const { unmount } = render();
+    await user.click(await screen.findByLabelText(/^content access$/i));
+    expect(screen.queryByRole("option", { name: "Moderate" })).toBeNull();
+    unmount();
+
+    renderWithProviders(<SettingsAccessGrantsPage />, {
+      auth: { user: buildUser({ capabilities: ["access.request", "content.moderate"] }) },
+    });
+    await user.type(await screen.findByLabelText(/community id/i), "7");
+    await user.click(screen.getByLabelText(/^content access$/i));
+    await user.click(await screen.findByRole("option", { name: "Moderate" }));
+    await user.type(screen.getByLabelText(/reason/i), "a held comment");
+    await user.click(screen.getByRole("button", { name: /request access/i }));
+    expect(createRequest.mock.calls[0][0]).toMatchObject({ access_level: "moderate" });
+  });
+
   it("offers the windows up to the ceiling the server reports", async () => {
     requestCeiling = 480;
     const user = userEvent.setup();

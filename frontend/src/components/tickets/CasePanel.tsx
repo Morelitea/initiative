@@ -17,6 +17,7 @@ import {
   Conversation,
 } from "@/api/generated/initiativeAPI.schemas";
 import { CommentContent } from "@/components/comments/CommentContent";
+import { CaseHolds } from "@/components/tickets/CaseHolds";
 import { communityEvidenceUrl, EvidenceList } from "@/components/tickets/Evidence";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -142,6 +143,14 @@ export const CasePanel = ({ taskId, canEdit }: CasePanelProps) => {
           <p className="font-medium text-muted-foreground text-xs">{t("evidence.heading")}</p>
           <EvidenceList items={loose} urlFor={urlFor} blurred />
         </CardContent>
+      ) : null}
+      {found.stream === "moderation" && found.subject_community_id != null ? (
+        <CaseHolds
+          taskId={taskId}
+          communityId={found.subject_community_id}
+          resourceType={found.resource_type}
+          resourceId={found.resource_id}
+        />
       ) : null}
       {found.filer && (
         <CardContent className="space-y-3">

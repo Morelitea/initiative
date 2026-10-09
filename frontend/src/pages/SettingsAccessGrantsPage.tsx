@@ -341,6 +341,10 @@ const BreakGlassSection = () => {
 
 const RequestSection = () => {
   const { t } = useTranslation(["settings", "common"]);
+  const { user } = useAuth();
+  // Reading what the platform holds is moderation work: only those who
+  // moderate content may ask for it.
+  const canModerate = hasCapability(user, Capability.contentModerate);
   const myGrants = useMyAccessGrants();
   const limits = useAccessGrantLimits();
   const sortedGrants = useMemo(
@@ -385,7 +389,7 @@ const RequestSection = () => {
     if (!gid || !reason.trim() || !asksForSomething || !duration) return;
     createRequest.mutate({
       community_id: gid,
-      ...(level === "none" ? {} : { access_level: level as "read" | "read_write" }),
+      ...(level === "none" ? {} : { access_level: level as "read" | "read_write" | "moderate" }),
       ...(settingsLevel === "none"
         ? {}
         : { settings_level: settingsLevel as "admin" | "superadmin" }),
@@ -423,6 +427,9 @@ const RequestSection = () => {
                 <SelectItem value="none">{t("accessGrants.levelNone")}</SelectItem>
                 <SelectItem value="read">{t("accessGrants.levelRead")}</SelectItem>
                 <SelectItem value="read_write">{t("accessGrants.levelReadWrite")}</SelectItem>
+                {canModerate ? (
+                  <SelectItem value="moderate">{t("accessGrants.levelModerate")}</SelectItem>
+                ) : null}
               </SelectContent>
             </Select>
             <p className="text-muted-foreground text-xs">{t("accessGrants.purposeContentHelp")}</p>

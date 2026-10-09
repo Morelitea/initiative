@@ -36,5 +36,6 @@
   "readOnlyNote": "Vous avez un accès en lecture seule ici, donc les commentaires sont désactivés.",
   "reply": "Répondre",
   "replyPlaceholder": "Écrire une réponse...",
-  "title": "Commentaires"
+  "title": "Commentaires",
+  "unavailable": "Indisponible"
 }

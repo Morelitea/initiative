@@ -23,7 +23,8 @@
     "dismissed": "Verwerfen",
     "content_removed": "Inhalt entfernt",
     "member_warned": "Mitglied verwarnt",
-    "escalated": "Eskalieren"
+    "escalated": "An die Plattform übergeben",
+    "held": "Ausgeblendet und an die Plattform übergeben"
   },
   "reasons": {
     "spam": "Spam",
@@ -88,5 +89,43 @@
     "roles_one": "{{count}} Rolle",
     "roles_other": "{{count}} Rollen"
   },
-  "loadFailed": "Das konnte nicht geladen werden. Versuche es erneut."
+  "loadFailed": "Das konnte nicht geladen werden. Versuche es erneut.",
+  "hold": {
+    "title": "Für die Plattform zurückhalten",
+    "description": "Die Plattform bewahrt dies genau so auf, wie es ist. Niemand in dieser Community kann es sehen, ändern oder löschen, bis die Plattform es freigibt.",
+    "reasonLabel": "Warum",
+    "reasons": {
+      "legal_request": "Eine rechtliche Aufforderung, es aufzubewahren",
+      "illegal_content": "Es könnte rechtswidrig sein"
+    },
+    "basisLabel": "Welches Gesetz",
+    "basisPlaceholder": "Wähle eines",
+    "bases": {
+      "child_safety": "Kinderschutz",
+      "terrorism": "Terrorismus",
+      "intellectual_property": "Geistiges Eigentum",
+      "fraud": "Betrug",
+      "privacy": "Datenschutz",
+      "other": "Etwas anderes"
+    },
+    "noteLabel": "Notiz für die Plattform (optional)",
+    "notePlaceholder": "Wer es angefordert hat, und ein Aktenzeichen",
+    "noteHelp": "Nur die Plattform kann das lesen.",
+    "submit": "Zurückhalten",
+    "held": "Für die Plattform zurückgehalten.",
+    "error": "Das konnte nicht zurückgehalten werden.",
+    "releaseError": "Die Zurückhaltung konnte nicht aufgehoben werden."
+  },
+  "sendToPlatform": {
+    "action": "An die Plattform übergeben",
+    "title": "An die Plattform übergeben",
+    "description": "Übergib diese Meldung an die Betreiber dieses Servers. Sie wird hier geschlossen, und sie entscheiden, wie es weitergeht.",
+    "question": "Während sie es sich ansehen",
+    "leaveLabel": "Sichtbar lassen, während sie es prüfen",
+    "leaveDescription": "Alle können es weiterhin sehen, bis sie entscheiden.",
+    "hideLabel": "Jetzt ausblenden und genau so aufbewahren",
+    "hideDescription": "Nutze das, wenn die Polizei oder ein Gericht dich gebeten hat, es aufzubewahren, oder wenn es rechtswidrig sein könnte. Es verschwindet für alle, auch für dich, und niemand hier kann es ändern oder löschen, bis die Plattform entscheidet.",
+    "leaveSubmit": "Übergeben",
+    "hideSubmit": "Ausblenden und übergeben"
+  }
 }

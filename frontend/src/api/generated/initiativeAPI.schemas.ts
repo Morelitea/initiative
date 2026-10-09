@@ -103,6 +103,7 @@ export type AccessLevel = (typeof AccessLevel)[keyof typeof AccessLevel];
 export const AccessLevel = {
   read: "read",
   read_write: "read_write",
+  moderate: "moderate",
 } as const;
 
 /**
@@ -3200,6 +3201,70 @@ export interface ContactSectionsResponse {
 }
 
 /**
+ * Who placed a hold.
+ */
+export type HoldVia = (typeof HoldVia)[keyof typeof HoldVia];
+
+export const HoldVia = {
+  community: "community",
+  platform: "platform",
+} as const;
+
+/**
+ * Why content is held.
+ */
+export type HoldReason = (typeof HoldReason)[keyof typeof HoldReason];
+
+export const HoldReason = {
+  legal_request: "legal_request",
+  illegal_content: "illegal_content",
+} as const;
+
+/**
+ * The law something is held, or reported, under. Closed, so cases can be
+ * counted by it.
+ */
+export type LegalBasis = (typeof LegalBasis)[keyof typeof LegalBasis];
+
+export const LegalBasis = {
+  child_safety: "child_safety",
+  terrorism: "terrorism",
+  intellectual_property: "intellectual_property",
+  fraud: "fraud",
+  privacy: "privacy",
+  other: "other",
+} as const;
+
+/**
+ * How a hold ended. Only the platform releases one.
+ */
+export type HoldRelease = (typeof HoldRelease)[keyof typeof HoldRelease];
+
+export const HoldRelease = {
+  restore: "restore",
+  remove: "remove",
+  purge: "purge",
+} as const;
+
+/**
+ * One hold, as the platform reads it.
+ */
+export interface ContentHoldRead {
+  id: number;
+  target_type: string;
+  target_id: number;
+  label?: string | null;
+  case_task_id?: number | null;
+  placed_via: HoldVia;
+  reason: HoldReason;
+  legal_basis?: LegalBasis | null;
+  note?: string | null;
+  placed_at: string;
+  released_at?: string | null;
+  release_outcome?: HoldRelease | null;
+}
+
+/**
  * Which control fills this field.
  *
  * A presentation fact, kept here rather than on the client because it belongs
@@ -5037,6 +5102,37 @@ export interface HeldChangeOutcome {
   held: HeldChangeRead | null;
 }
 
+/**
+ * Hold something for the platform.
+ */
+export interface HoldCreate {
+  /**
+   * @minLength 1
+   * @maxLength 32
+   */
+  target_type: string;
+  target_id: number;
+  reason: HoldReason;
+  legal_basis?: LegalBasis | null;
+  note?: string | null;
+  case_task_id?: number | null;
+}
+
+/**
+ * A hold was placed. Nothing more is said: from now on, the content
+ * reads as absent to the community, the moderator who held it included.
+ */
+export interface HoldPlaced {
+  placed?: boolean;
+}
+
+/**
+ * End a hold.
+ */
+export interface HoldReleaseCreate {
+  outcome: HoldRelease;
+}
+
 export interface ICalEventPreview {
   summary: string;
   start_at: string;
@@ -5980,6 +6076,7 @@ export const ReportOutcome = {
   content_removed: "content_removed",
   member_warned: "member_warned",
   escalated: "escalated",
+  held: "held",
 } as const;
 
 /**
@@ -8487,11 +8584,21 @@ export interface RelationshipRead {
 }
 
 /**
+ * Why a report's target is being held for the platform.
+ */
+export interface ReportHold {
+  reason: HoldReason;
+  legal_basis?: LegalBasis | null;
+  note?: string | null;
+}
+
+/**
  * Settling a report. Every outcome closes it.
  */
 export interface ReportSettle {
   outcome: ReportOutcome;
   note?: string | null;
+  hold?: ReportHold | null;
 }
 
 /**
@@ -9006,6 +9113,9 @@ export interface TaskCaseRead {
   active_status_id?: number | null;
   messages?: CaseMessageRead[];
   evidence?: CaseEvidenceRead[];
+  subject_community_id?: number | null;
+  resource_type?: string | null;
+  resource_id?: number | null;
 }
 
 export type TaskCreateRecurrenceStrategy =
@@ -10889,6 +10999,11 @@ export type ListReportsParams = {
    * @maximum 200
    */
   page_size?: number;
+};
+
+export type ListHoldsParams = {
+  case_task_id?: number | null;
+  open_only?: boolean;
 };
 
 export type ListCommentsParams = {

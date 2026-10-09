@@ -36,5 +36,6 @@
   "readOnlyNote": "You have read-only access here, so commenting is disabled.",
   "reply": "Reply",
   "replyPlaceholder": "Write a reply...",
-  "title": "Comments"
+  "title": "Comments",
+  "unavailable": "Unavailable"
 }

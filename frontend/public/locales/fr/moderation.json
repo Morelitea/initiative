@@ -23,7 +23,8 @@
     "dismissed": "Rejeter",
     "content_removed": "Contenu supprimé",
     "member_warned": "Membre averti",
-    "escalated": "Escalader"
+    "escalated": "Transmis à la plateforme",
+    "held": "Masqué et transmis à la plateforme"
   },
   "reasons": {
     "spam": "Spam",
@@ -88,5 +89,43 @@
     "roles_one": "{{count}} rôle",
     "roles_other": "{{count}} rôles"
   },
-  "loadFailed": "Impossible de charger. Réessayez."
+  "loadFailed": "Impossible de charger. Réessayez.",
+  "hold": {
+    "title": "Retenir pour la plateforme",
+    "description": "La plateforme conserve ceci tel quel. Personne dans cette communauté ne peut le voir, le modifier ni le supprimer tant que la plateforme ne l'a pas libéré.",
+    "reasonLabel": "Pourquoi",
+    "reasons": {
+      "legal_request": "Une demande légale de le conserver",
+      "illegal_content": "Il pourrait être illégal"
+    },
+    "basisLabel": "Quelle loi",
+    "basisPlaceholder": "Choisissez-en une",
+    "bases": {
+      "child_safety": "Protection de l'enfance",
+      "terrorism": "Terrorisme",
+      "intellectual_property": "Propriété intellectuelle",
+      "fraud": "Fraude",
+      "privacy": "Vie privée",
+      "other": "Autre chose"
+    },
+    "noteLabel": "Note pour la plateforme (facultatif)",
+    "notePlaceholder": "Qui l'a demandé, et un numéro de référence",
+    "noteHelp": "Seule la plateforme peut lire ceci.",
+    "submit": "Retenir",
+    "held": "Retenu pour la plateforme.",
+    "error": "Impossible de retenir ceci.",
+    "releaseError": "Impossible de lever cette retenue."
+  },
+  "sendToPlatform": {
+    "action": "Transmettre à la plateforme",
+    "title": "Transmettre à la plateforme",
+    "description": "Confiez ce signalement à l'équipe qui gère ce serveur. Il est clos ici, et c'est elle qui décide de la suite.",
+    "question": "Pendant qu'elle l'examine",
+    "leaveLabel": "Le laisser visible pendant l'examen",
+    "leaveDescription": "Tout le monde peut encore le voir jusqu'à sa décision.",
+    "hideLabel": "Le masquer maintenant et le conserver tel quel",
+    "hideDescription": "Utilisez ceci si la police ou un tribunal vous a demandé de le conserver, ou s'il pourrait être illégal. Il disparaît pour tout le monde, vous compris, et personne ici ne peut le modifier ni le supprimer avant la décision de la plateforme.",
+    "leaveSubmit": "Transmettre",
+    "hideSubmit": "Masquer et transmettre"
+  }
 }

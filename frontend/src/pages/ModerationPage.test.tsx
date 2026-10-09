@@ -120,6 +120,46 @@ describe("ModerationPage", () => {
     expect(await screen.findByText("Nothing has been reported.")).toBeInTheDocument();
   });
 
+  it("sends a report to the platform with it left up", async () => {
+    state.items = [report()];
+    const user = userEvent.setup();
+    render();
+    await user.click(await screen.findByRole("button", { name: "Send to the platform" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByRole("radio", { name: /Leave it up/ })).toBeChecked();
+    await user.click(within(dialog).getByRole("button", { name: "Send" }));
+    expect(settleMutate).toHaveBeenCalledWith(
+      { reportId: 1, body: { outcome: "escalated", note: null } },
+      expect.anything()
+    );
+  });
+
+  it("hides an illegal report's target by default, asking which law", async () => {
+    state.items = [report({ reason: "illegal" })];
+    const user = userEvent.setup();
+    render();
+    await user.click(await screen.findByRole("button", { name: "Send to the platform" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByRole("radio", { name: /Hide it now/ })).toBeChecked();
+    expect(within(dialog).getByText(/disappears for everyone, you included/)).toBeInTheDocument();
+    const send = within(dialog).getByRole("button", { name: "Hide and send" });
+    expect(send).toBeDisabled();
+    await user.click(within(dialog).getByRole("combobox", { name: "Which law" }));
+    await user.click(await screen.findByRole("option", { name: "Privacy" }));
+    await user.click(send);
+    expect(settleMutate).toHaveBeenCalledWith(
+      {
+        reportId: 1,
+        body: {
+          outcome: "held",
+          note: null,
+          hold: { reason: "illegal_content", legal_basis: "privacy", note: null },
+        },
+      },
+      expect.anything()
+    );
+  });
+
   it("shows what the reporters sent, blurred until a moderator asks to look", async () => {
     state.items = [
       report({
@@ -164,7 +204,7 @@ describe("ModerationPage", () => {
     const user = userEvent.setup();
 
     const card = await screen.findByRole("region", { name: "A comment" });
-    for (const label of ["Dismiss", "Content removed", "Member warned", "Escalate"]) {
+    for (const label of ["Dismiss", "Content removed", "Member warned", "Send to the platform"]) {
       expect(within(card).getByRole("button", { name: label })).toBeInTheDocument();
     }
 
