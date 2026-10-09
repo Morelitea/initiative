@@ -347,8 +347,9 @@ async def test_purge_removes_dead_sessions_and_keeps_live_ones(session):
     long-expired row and a long-revoked one. A live session, a session that
     expired only yesterday, and one revoked only yesterday all stay.
 
-    A browser's key store goes once its sign-in has ended; a device's stays
-    through it, and so does a live browser's."""
+    A browser's key store goes once its sign-in has ended, though not in the
+    moment a renewal may still be moving it; a device's stays through it, and
+    so does a live browser's."""
     user = await create_user(session)
     now = _at(days=100)
 
@@ -388,10 +389,16 @@ async def test_purge_removes_dead_sessions_and_keeps_live_ones(session):
         install_id=uuid.uuid4(),
         now=now,
     )
+    ending = await session_service.create_session(
+        session, user_id=user.id, amr=["pwd"], satisfied_providers=[], now=now
+    )
     for ended in (just_revoked, signed_out_device):
         await session_service.revoke_session(
             session, session_id=ended.session.id, now=now - timedelta(days=1)
         )
+    await session_service.revoke_session(
+        session, session_id=ending.session.id, now=now - timedelta(minutes=1)
+    )
     stores = {
         name: DmDevice(
             user_id=user.id,
@@ -402,6 +409,7 @@ async def test_purge_removes_dead_sessions_and_keeps_live_ones(session):
         for name, issued in {
             "live_browser": live,
             "ended_browser": just_revoked,
+            "ending_browser": ending,
             "signed_out_device": signed_out_device,
         }.items()
     }
@@ -432,6 +440,7 @@ async def test_purge_removes_dead_sessions_and_keeps_live_ones(session):
     assert await session.get(AuthSession, ids["long_revoked"]) is None
     assert await session.get(DmDevice, store_ids["live_browser"]) is not None
     assert await session.get(DmDevice, store_ids["ended_browser"]) is None
+    assert await session.get(DmDevice, store_ids["ending_browser"]) is not None
     assert await session.get(DmDevice, store_ids["signed_out_device"]) is not None
 
 

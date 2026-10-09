@@ -16,6 +16,8 @@ import "fake-indexeddb/auto";
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { toBase64 } from "@/lib/base64";
+
 import {
   accountPickle,
   claimOpen,
@@ -335,6 +337,35 @@ describe("the account", () => {
     expect(await pickleKey()).toBe(key);
     serveAccount("https://one.example", 2);
     expect(await held()).toEqual(["theirs"]);
+  });
+
+  it("keeps the keys a device already had when they move to their own database", async () => {
+    // Before each account had its own store, the keys lived in the first one.
+    // Its pickles are sealed with that pickle key, so a fresh one would leave
+    // every message on the device unreadable.
+    const wrap = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, false, [
+      "encrypt",
+      "decrypt",
+    ]);
+    const raw = crypto.getRandomValues(new Uint8Array(32));
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const data = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, wrap, raw);
+    const first = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open("initiative-dm", 1);
+      request.onupgradeneeded = () => request.result.createObjectStore("keys");
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    await new Promise<void>((resolve, reject) => {
+      const transaction = first.transaction("keys", "readwrite");
+      transaction.objectStore("keys").put(wrap, "wrap-key");
+      transaction.objectStore("keys").put({ iv: iv.buffer, data }, "pickle-key");
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+    });
+    first.close();
+
+    expect(await pickleKey()).toBe(toBase64(raw));
   });
 });
 
