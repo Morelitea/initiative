@@ -683,3 +683,130 @@ async def test_the_log_is_its_initiatives_alone(client, session, scene):
     assert row.initiative_id == scene["initiative"].id
     # Sealed at rest.
     assert row.snapshot and "A test comment" not in row.snapshot
+
+
+async def test_a_later_illegal_report_makes_the_open_one_illegal(
+    client, session, scene, operations
+):
+    """The gravest reason wins, with the law it names."""
+    first = await moderation._report_comment(client, scene, reason="spam")
+    assert first.status_code == 202, first.text
+    second = await moderation._report(
+        client,
+        scene["mod"],
+        target_type="comment",
+        target_id=scene["comment"].id,
+        reason="illegal",
+        legal_basis="privacy",
+        detail="My address.",
+        community_id=scene["guild"].id,
+    )
+    assert second.status_code == 202, second.text
+
+    await _system(session, scene["guild"].id)
+    report = (await session.exec(select(ModerationReport))).one()
+    assert report.reason == "illegal"
+    assert report.legal_basis == "privacy"
+    assert report.platform_notified_at is not None
+
+
+async def test_child_safety_asks_for_a_hold_on_a_case_already_open(
+    client, session, scene, operations
+):
+    """A case another law opened still hears that a hold is needed — once."""
+    for actor, basis in (
+        (scene["member"], "privacy"),
+        (scene["mod"], "child_safety"),
+        (scene["member"], "child_safety"),
+    ):
+        filed = await moderation._report(
+            client,
+            actor,
+            target_type="comment",
+            target_id=scene["comment"].id,
+            reason="illegal",
+            legal_basis=basis,
+            detail="Here.",
+            community_id=scene["guild"].id,
+        )
+        assert filed.status_code == 202, filed.text
+
+    await _system(session, operations["guild"].id)
+    case = (await session.exec(select(IntakeCase))).one()
+    notes = (
+        await session.exec(
+            select(Comment.system_kind).where(Comment.task_id == case.task_id)
+        )
+    ).all()
+    assert notes.count("hold_requested") == 1
+
+
+async def test_settling_as_removed_refuses_what_the_platform_holds(
+    client, session, scene, operations
+):
+    """Held is out of sight, not down: closing the report as removed would
+    record a removal the hold's end could undo."""
+    report_id = await moderation._filed_report_id(client, session, scene)
+    held = await client.post(
+        scene["mod"].g("/holds"),
+        json={
+            "target_type": "comment",
+            "target_id": scene["comment"].id,
+            "reason": "legal_request",
+        },
+        headers=scene["mod"].headers,
+    )
+    assert held.status_code == 201, held.text
+
+    settled = await client.post(
+        scene["mod"].g(f"/reports/{report_id}/settle"),
+        json={"outcome": "content_removed"},
+        headers=scene["mod"].headers,
+    )
+    assert settled.status_code == 409, settled.text
+    await _system(session, scene["guild"].id)
+    report = (
+        await session.exec(
+            select(ModerationReport)
+            .where(ModerationReport.id == report_id)
+            .execution_options(populate_existing=True)
+        )
+    ).one()
+    assert report.outcome is None
+
+
+async def test_restoring_undoes_only_the_removal_standing_on_it(client, session, scene):
+    post = await create_post(session, scene["initiative"], scene["member"].user)
+    await set_rls_context(session, Unattributed())
+    mod = scene["mod"]
+
+    async def restore(action_id: int):
+        return await client.post(
+            mod.g(f"/moderation/acts/{action_id}/restore"), json={}, headers=mod.headers
+        )
+
+    first = (await _act(client, mod, "remove", "post", post.id, reason="spam")).json()
+    assert (await restore(first["id"])).status_code == 200
+    second = (await _act(client, mod, "remove", "post", post.id, reason="hate")).json()
+
+    # The first was answered already; the second is the one standing.
+    stale = await restore(first["id"])
+    assert stale.status_code == 409
+    assert stale.json()["detail"] == ModerationMessages.NOT_REMOVED
+    assert (await restore(second["id"])).status_code == 200
+
+    # Deleted by its author since: not a moderator's removal to undo.
+    third = (await _act(client, mod, "remove", "post", post.id, reason="spam")).json()
+    await _system(session, scene["guild"].id)
+    row = (
+        await session.exec(
+            select(Post)
+            .where(Post.id == post.id)
+            .execution_options(include_deleted=True, populate_existing=True)
+        )
+    ).one()
+    row.deleted_by = scene["member"].user.id
+    session.add(row)
+    await session.commit()
+    await set_rls_context(session, Unattributed())
+    assert (await restore(third["id"])).status_code == 409

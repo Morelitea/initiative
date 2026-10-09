@@ -322,6 +322,17 @@ async def _place_in_initiative(
             )
             session.add(existing)
             await session.flush()
+        elif reason is ReportReason.illegal and (
+            existing.reason != ReportReason.illegal or existing.legal_basis is None
+        ):
+            # The gravest reason wins: an open report somebody has now called
+            # illegal is one, and carries the law they named.
+            existing.reason = ReportReason.illegal
+            existing.legal_basis = existing.legal_basis or (
+                legal_basis.value if legal_basis else None
+            )
+            session.add(existing)
+            await session.flush()
 
         already = (
             await session.exec(
@@ -409,11 +420,27 @@ async def _tell_the_platform(
             session.add(report)
             await session.commit()
 
-    if opened.opened and legal_basis is LegalBasis.child_safety:
+    if legal_basis is LegalBasis.child_safety:
+        # Asked once per case, whichever report brought child safety to it:
+        # the case may have been opened by a report naming another law.
+        from app.models.tenant.comment import Comment
+
         operations = await configured_operations_guild_id()
         if operations is not None:
             async with cohorts.system_session(operations) as ops:
                 await set_rls_context(ops, SystemGuild(operations))
+                asked = (
+                    await ops.exec(
+                        select(Comment.id)
+                        .where(Comment.task_id == opened.task_id)
+                        .where(
+                            Comment.system_kind
+                            == case_activity.ActivityKind.hold_requested.value
+                        )
+                    )
+                ).first()
+                if asked is not None:
+                    return None
                 await case_activity.post(
                     ops,
                     task_id=opened.task_id,
@@ -802,6 +829,14 @@ async def _act_on_report(
             ModerationMessages.TARGET_NOT_FOUND,
         ):
             raise
+        if await moderation_acts.is_held(
+            guild_id, report.target_type, report.target_id
+        ):
+            # Out of the moderator's sight because the platform holds it, not
+            # because it is down: it can come back when the hold ends.
+            raise moderation_acts.ActError(
+                HoldMessages.ALREADY_HELD, http_status.HTTP_409_CONFLICT
+            ) from exc
         # Taken down already — by an earlier attempt at this, or by someone
         # else — or gone. Either way it is down, which is what the report
         # says.

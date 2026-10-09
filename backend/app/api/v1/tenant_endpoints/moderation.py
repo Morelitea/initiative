@@ -16,6 +16,7 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import (
     RLSSessionDep,
@@ -25,6 +26,7 @@ from app.api.deps import (
 from app.core.messages import ModerationMessages
 from app.db.query import build_paginated_response
 from app.models.platform.user import User
+from app.models.tenant.moderation import ModerationAction
 from app.core.moderation import LegalBasis, ModerationAct, RemovalReason
 from app.schemas.tenant.moderation import (
     InitiativeSharingRead,
@@ -241,7 +243,7 @@ async def read_initiative_sharing(
     )
 
 
-async def _people(session, ids: set[int]) -> dict[int, ModerationPerson]:
+async def _people(session: AsyncSession, ids: set[int]) -> dict[int, ModerationPerson]:
     """Who the log names, as the community knows them."""
     from sqlmodel import select
 
@@ -280,7 +282,7 @@ def _logged(
     )
 
 
-async def _one(session, action) -> ModerationActionRead:
+async def _one(session: AsyncSession, action: ModerationAction) -> ModerationActionRead:
     entry = moderation_acts.LogEntry(
         action=action,
         snapshot=moderation_acts.open_snapshot(action),

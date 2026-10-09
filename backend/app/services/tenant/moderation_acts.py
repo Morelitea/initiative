@@ -133,6 +133,24 @@ async def _locate(
     return model, int(initiative_id)
 
 
+async def is_held(guild_id: int, target_type: str, target_id: int) -> bool:
+    """Whether the platform holds this target, read as the platform: a held
+    row reads as absent to everyone in the community."""
+    model = model_for(target_type)
+    async with cohorts.system_session(guild_id) as system:
+        await set_rls_context(system, SystemGuild(guild_id, read_only=True))
+        held = (
+            await system.exec(
+                select_including_deleted(model)
+                .where(model.id == target_id)  # type: ignore[attr-defined]
+                .where(model.held_at.is_not(None))  # type: ignore[union-attr]
+                .with_only_columns(model.id)  # type: ignore[attr-defined]
+            )
+        ).first()
+        await system.rollback()
+    return held is not None
+
+
 def _grant_id(context: Optional[GuildContext]) -> Optional[int]:
     if context is None or not context.pam_moderate or context.grant is None:
         return None
@@ -389,6 +407,13 @@ async def _restore_on(
     ).first()
     if row is None:
         raise ActError(ModerationMessages.NOT_REMOVED, status.HTTP_409_CONFLICT)
+    # Only the removal standing on its target is undone: not one a restore
+    # already answered, and not one a later removal took the place of.
+    standing = (await _standing(system, [removal])).get(
+        (removal.target_type, removal.target_id)
+    )
+    if standing != removal.id:
+        raise ActError(ModerationMessages.NOT_REMOVED, status.HTTP_409_CONFLICT)
     if row.held_at is not None:
         raise ActError(HoldMessages.ALREADY_HELD, status.HTTP_409_CONFLICT)
     if isinstance(row, Comment):
@@ -402,7 +427,14 @@ async def _restore_on(
         await system.flush()
         await content_references.sync_for_comment(system, row, author_id=who.actor_id)
     else:
-        if getattr(row, "deleted_at", None) is None:
+        # In the trash because this removal put it there — not because its
+        # author deleted it since, after it was brought back another way.
+        deleted_at = getattr(row, "deleted_at", None)
+        if (
+            deleted_at is None
+            or deleted_at < removal.created_at
+            or getattr(row, "deleted_by", None) != removal.created_by
+        ):
             raise ActError(ModerationMessages.NOT_REMOVED, status.HTTP_409_CONFLICT)
         await restore_entity(system, row)  # type: ignore[arg-type]
     return await _record(
@@ -633,6 +665,41 @@ async def restore(
 # -- Reading the log ------------------------------------------------------------
 
 
+async def _standing(
+    session: AsyncSession, removals: list[ModerationAction]
+) -> dict[tuple[str, int], int]:
+    """For each target these removals name, the newest remove or restore on
+    it: a removal is still standing when it is that row."""
+    from sqlalchemy import tuple_
+
+    targets = sorted({(a.target_type, a.target_id) for a in removals})
+    if not targets:
+        return {}
+    initiatives = sorted({a.initiative_id for a in removals})
+    rows = (
+        await session.exec(
+            select(
+                ModerationAction.target_type,
+                ModerationAction.target_id,
+                func.max(ModerationAction.id),
+            )
+            .where(ModerationAction.initiative_id.in_(initiatives))  # type: ignore[attr-defined]
+            .where(
+                tuple_(ModerationAction.target_type, ModerationAction.target_id).in_(
+                    targets
+                )
+            )
+            .where(
+                ModerationAction.action.in_(  # type: ignore[attr-defined]
+                    (ModerationAct.remove.value, ModerationAct.restore.value)
+                )
+            )
+            .group_by(ModerationAction.target_type, ModerationAction.target_id)
+        )
+    ).all()
+    return {(t, i): int(latest) for t, i, latest in rows}
+
+
 @dataclass(frozen=True)
 class LogEntry:
     action: ModerationAction
@@ -664,28 +731,7 @@ async def log(
         page_size,
     )
     removals = [a for a in actions if a.action == ModerationAct.remove.value]
-    standing: dict[tuple[str, int], int] = {}
-    if removals:
-        targets = {(a.target_type, a.target_id) for a in removals}
-        history = (
-            await session.exec(
-                select(
-                    ModerationAction.target_type,
-                    ModerationAction.target_id,
-                    ModerationAction.id,
-                )
-                .where(ModerationAction.initiative_id == initiative_id)
-                .where(
-                    ModerationAction.action.in_(  # type: ignore[attr-defined]
-                        (ModerationAct.remove.value, ModerationAct.restore.value)
-                    )
-                )
-                .order_by(ModerationAction.id)
-            )
-        ).all()
-        for target_type, target_id, action_id in history:
-            if (target_type, target_id) in targets:
-                standing[(target_type, target_id)] = action_id
+    standing = await _standing(session, removals)
     entries = [
         LogEntry(
             action=action,
