@@ -17,16 +17,16 @@ import { basename } from "node:path";
 import { compileTemplate } from "../src/lib/templates/compile.ts";
 import { SECTIONS } from "../src/lib/templates/sections.ts";
 
-const SUFFIX = ".html?template";
-
 /** @returns {import("vite").Plugin} */
 export function templates() {
   return {
     name: "initiative-templates",
     enforce: "pre",
     load(id) {
-      if (!id.endsWith(SUFFIX)) return null;
-      const file = id.slice(0, -"?template".length);
+      // The dev server adds flags of its own to the query (`?import&template`),
+      // so `template` is looked for among them rather than as the whole query.
+      const [file, query = ""] = id.split("?");
+      if (!file.endsWith(".html") || !new URLSearchParams(query).has("template")) return null;
       this.addWatchFile(file);
       const name = basename(file, ".html");
       const section = SECTIONS[name];
