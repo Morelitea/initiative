@@ -12,8 +12,8 @@ The log's policies and its guards, and the tombstone guard on ``comments``,
 are rendered by the provisioning run (``app.db.moderation_log``). The
 downgrade drops the columns with whatever was rendered on them.
 
-Revision ID: 20261009_0476
-Revises: 20261009_0475
+Revision ID: 20261009_0477
+Revises: 20261009_0476
 Create Date: 2026-10-09
 """
 
@@ -22,8 +22,8 @@ from alembic import op
 
 from app.db.guild_migrations import run_for_each_guild_schema
 
-revision = "20261009_0476"
-down_revision = "20261009_0475"
+revision = "20261009_0477"
+down_revision = "20261009_0476"
 branch_labels = None
 depends_on = None
 
