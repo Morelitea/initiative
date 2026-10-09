@@ -1,6 +1,6 @@
 /**
- * The chart through the whole path it takes in production: sandboxed module,
- * validator, scene.
+ * The chart through the path its model takes in production: the widget's
+ * shape, validator, scene.
  *
  * What is worth pinning here is the arrangement — the order categories end up
  * in, and what happens to the ones past the cap. Those are decisions the widget
@@ -11,10 +11,9 @@
 import { describe, expect, it } from "vitest";
 
 import type { CellValue, TabularData } from "../dataShapes";
-import { builtinWidgetSource } from "../registry";
-import { renderInSandbox } from "../runtime/sandbox";
 import type { SeriesNode } from "../sceneSpec";
 import { validateScene } from "../validateScene";
+import { chart } from "./chart.widget";
 
 const draw = async (
   data: TabularData,
@@ -22,17 +21,7 @@ const draw = async (
   locale?: string,
   slots: Record<string, number[]> = { label: [0], value: [1] }
 ): Promise<SeriesNode> => {
-  const result = await renderInSandbox({
-    source: builtinWidgetSource("chart") as string,
-    data,
-    config,
-    locale,
-    slots,
-  });
-  expect(result.ok, JSON.stringify(result)).toBe(true);
-  if (!result.ok) throw new Error("render failed");
-
-  const validation = validateScene(result.value);
+  const validation = validateScene({ v: 1, scene: chart.shape(data, config, { locale, slots }) });
   expect(validation.ok, JSON.stringify(validation)).toBe(true);
   if (!validation.ok) throw new Error("invalid scene");
   return validation.spec.scene as SeriesNode;

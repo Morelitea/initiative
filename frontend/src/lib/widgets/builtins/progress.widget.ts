@@ -1,12 +1,23 @@
 /**
- * What this widget calls itself, in every language it supports.
+ * Built-in: progress — a meter, or a column of them.
  *
- * Names and option labels live in the module rather than in the app's locale
- * files: a marketplace widget has to be able to name itself without an app
- * release, and the built-ins get no special treatment. Binding *source* labels
- * stay plugin-owned — they name our endpoints and are shared by every widget.
+ * A meter answers "how far along, against what?", which needs both ends of the
+ * range stated. A counter brings its own (its min and max); a set of tasks
+ * brings a denominator; a project brings both plus, where it has an end date,
+ * an idea of where it *should* be by now — drawn as a target mark so the fill
+ * reads against the plan rather than against the bar's own end.
+ *
+ * Its template draws one meter on its own, or a list of them stacked.
  */
-const meta = {
+
+import type { CellValue } from "../dataShapes";
+import type { ProgressNode, Tone } from "../sceneSpec";
+import type { WidgetMeta } from "../widgetMeta";
+import { type BuiltinWidget, empty, sayer, type WidgetStrings } from "./builtin";
+import template from "./progress.widget.html?template";
+
+/** What this widget calls itself, in every language it supports. */
+const meta: WidgetMeta = {
   name: {
     en: "Progress",
     de: "Fortschritt",
@@ -57,16 +68,8 @@ const meta = {
   },
 };
 
-/**
- * This widget's own output, in every language it speaks.
- *
- * Beside `meta` and for the same reason: a column heading and an empty-state
- * line are the widget's words, and there is no app locale file a marketplace
- * widget could add itself to. The host hands `render` the viewer's language
- * tag; `say` picks from here. Formatting numbers and dates is still the host's
- * job — the sandbox has no locale data and no timezone.
- */
-const strings = {
+/** This widget's own words, in every language it speaks. */
+const strings: WidgetStrings = {
   noRows: {
     en: "Nothing to show",
     de: "Nichts anzuzeigen",
@@ -85,42 +88,37 @@ const strings = {
   of: { en: "of", de: "von", es: "de", fr: "sur" },
 };
 
-/**
- * Built-in: progress — a meter, or a column of them.
- *
- * A meter answers "how far along, against what?", which needs both ends of the
- * range stated. A counter brings its own (its min and max); a set of tasks
- * brings a denominator; a project brings both plus, where it has an end date,
- * an idea of where it *should* be by now — drawn as a target mark so the fill
- * reads against the plan rather than against the bar's own end.
- *
- * @param {import("../dataShapes").WidgetData} data
- * @param {import("../dataShapes").WidgetConfig} config
- */
-function render(data, config, context) {
-  // The viewer's language, and this module's own words in it. An older host
-  // that passes no context leaves this at English rather than failing.
-  const lang = context?.locale || "en";
-  const say = (key) => {
-    const entry = strings[key] || {};
-    return entry[lang] || entry[lang.split("-")[0]] || entry.en || key;
-  };
+/** Several meters, for the template to stack. */
+interface ProgressList {
+  kind: "list";
+  items: ProgressNode[];
+}
+
+type Row = CellValue[];
+
+const shape: BuiltinWidget["shape"] = (data, config, context) => {
+  const say = sayer(strings, context.locale);
   const each = config.breakdown === "each";
-  const format = config.format === "plain" ? "plain" : "percent";
-  const today = Date.now();
+  const format: ProgressNode["format"] = config.format === "plain" ? "plain" : "percent";
 
-  const empty = (message) => ({ v: 1, scene: { kind: "empty", message } });
-
-  const meter = (label, value, min, max, caption, tone, target) => {
-    const node = {
+  const meter = (
+    label: string,
+    value: number,
+    min: number,
+    max: number,
+    caption: string,
+    tone: Tone,
+    target?: number
+  ): ProgressNode => {
+    const node: ProgressNode = {
       kind: "progress",
-      value: value,
-      min: min,
-      max: max,
+      value,
+      min,
+      max,
       label: label || undefined,
       caption: caption || undefined,
       tone: tone || undefined,
-      format: format,
+      format,
     };
     if (typeof target === "number") node.target = target;
     return node;
@@ -128,37 +126,34 @@ function render(data, config, context) {
 
   /** Several meters stacked. One is drawn on its own — a stack of one is a
    *  wrapper with nothing to compose. */
-  const column = (nodes) => {
-    if (!nodes.length) return empty(say("nothingToMeasure"));
-    if (nodes.length === 1) return { v: 1, scene: nodes[0] };
-    return {
-      v: 1,
-      scene: { kind: "stack", direction: "column", gap: "sm", children: nodes.slice(0, 12) },
-    };
+  const column = (nodes: ProgressNode[]) => {
+    if (nodes.length === 1) return nodes[0] as ProgressNode;
+    return { kind: "list", items: nodes.slice(0, 12) } satisfies ProgressList;
   };
 
-  const shareTone = (done, total, late) => {
+  const shareTone = (done: number, total: number, late: boolean): Tone => {
     if (total > 0 && done >= total) return "positive";
     return late ? "negative" : "accent";
   };
 
   // Which columns fill this widget's slots, resolved by the host.
-  const slots = context?.slots || {};
-  const valueAt = (slots.value || [])[0];
-  const totalAt = (slots.total || [])[0];
-  const labelAt = (slots.label || [])[0];
+  const slots = context.slots ?? {};
+  const valueAt = slots.value?.[0];
+  const totalAt = slots.total?.[0];
+  const labelAt = slots.label?.[0];
 
-  const rows = data.rows || [];
+  const rows = data.rows ?? [];
   if (!rows.length) return empty(say("noRows"));
   if (valueAt === undefined) return empty(say("noNumeric"));
 
-  const number = (row, index) => (typeof row[index] === "number" ? row[index] : 0);
-  const name = (row, fallback) =>
+  const number = (row: Row, index: number): number =>
+    typeof row[index] === "number" ? (row[index] as number) : 0;
+  const name = (row: Row, fallback: string): string =>
     labelAt !== undefined && row[labelAt] !== null ? String(row[labelAt]) : fallback;
 
   // With a total column each row is a part of its own whole; without one the
   // rows are parts of each other, which is what a set of counts is.
-  const wholeOf = (row) => {
+  const wholeOf = (row: Row): number => {
     if (totalAt !== undefined) return number(row, totalAt) || 1;
     let sum = 0;
     for (const other of rows) sum += number(other, valueAt);
@@ -171,11 +166,11 @@ function render(data, config, context) {
         const value = number(row, valueAt);
         const whole = wholeOf(row);
         return meter(
-          name(row, say("row") + " " + (index + 1)),
+          name(row, `${say("row")} ${index + 1}`),
           value,
           0,
           whole,
-          value + " " + say("of") + " " + whole,
+          `${value} ${say("of")} ${whole}`,
           shareTone(value, whole, false)
         );
       })
@@ -190,15 +185,14 @@ function render(data, config, context) {
     whole += totalAt !== undefined ? number(row, totalAt) : 0;
   }
   if (totalAt === undefined) whole = value;
-  return {
-    v: 1,
-    scene: meter(
-      rows.length === 1 ? name(rows[0], say("total")) : say("total"),
-      value,
-      0,
-      whole || 1,
-      value + " " + say("of") + " " + (whole || 1),
-      shareTone(value, whole || 1, false)
-    ),
-  };
-}
+  return meter(
+    rows.length === 1 ? name(rows[0] as Row, say("total")) : say("total"),
+    value,
+    0,
+    whole || 1,
+    `${value} ${say("of")} ${whole || 1}`,
+    shareTone(value, whole || 1, false)
+  );
+};
+
+export const progress: BuiltinWidget = { meta, shape, template };

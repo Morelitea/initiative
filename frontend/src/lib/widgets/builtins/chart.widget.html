@@ -1,0 +1,4 @@
+<chart if="model.kind == 'series'" :mark="model.mark" :series="model.series" :stacked="model.stacked" :format="model.format" :x-label="model.xLabel" :y-label="model.yLabel" :x-time="model.xTime" :show-legend="model.showLegend" :labels="model.labels" :target="model.target" :target-label="model.targetLabel" :emphasis="model.emphasis" :horizontal="model.horizontal" />
+<div else class="flex h-full w-full items-center justify-center p-4 text-center">
+  <p class="text-muted-foreground text-sm">{{ model.message }}</p>
+</div>

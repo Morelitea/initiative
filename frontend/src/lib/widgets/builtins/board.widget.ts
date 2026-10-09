@@ -1,12 +1,29 @@
 /**
- * What this widget calls itself, in every language it supports.
+ * Built-in: board — tasks dealt into columns.
  *
- * Names and option labels live in the module rather than in the app's locale
- * files: a marketplace widget has to be able to name itself without an app
- * release, and the built-ins get no special treatment. Binding *source* labels
- * stay plugin-owned — they name our endpoints and are shared by every widget.
+ * Display only, like every widget on a dashboard: a card is a card, not a
+ * handle. There is nothing to drag it onto and no affordance suggesting there
+ * is, because moving work between states is a project view's job and a
+ * dashboard only ever reads.
+ *
+ * What a column stands for is this widget's whole decision — a status, the
+ * person on the work, a tag, or one of the initiative's own custom properties.
+ * That last one is why the property arrives on the *binding* rather than as a
+ * display option: options are a closed set of literals fixed at build time, and
+ * a team's own field is by definition one this build never heard of. The host
+ * resolves the binding to the property's name and the values it can take, so an
+ * option nobody has used yet still gets its column instead of quietly ceasing
+ * to exist.
  */
-const meta = {
+
+import type { CellValue } from "../dataShapes";
+import type { BoardCard, BoardColumn, BoardNode } from "../sceneSpec";
+import type { WidgetMeta } from "../widgetMeta";
+import template from "./board.widget.html?template";
+import { type BuiltinWidget, empty, sayer, type WidgetStrings } from "./builtin";
+
+/** What this widget calls itself, in every language it supports. */
+const meta: WidgetMeta = {
   name: {
     en: "Board",
     de: "Board",
@@ -93,16 +110,8 @@ const meta = {
   },
 };
 
-/**
- * This widget's own output, in every language it speaks.
- *
- * Beside `meta` and for the same reason: a column heading and an empty-state
- * line are the widget's words, and there is no app locale file a marketplace
- * widget could add itself to. The host hands `render` the viewer's language
- * tag; `say` picks from here. Formatting numbers and dates is still the host's
- * job — the sandbox has no locale data and no timezone.
- */
-const strings = {
+/** This widget's own words, in every language it speaks. */
+const strings: WidgetStrings = {
   noRows: {
     en: "Nothing to show",
     de: "Nichts anzuzeigen",
@@ -120,48 +129,29 @@ const strings = {
   late: { en: "late", de: "überfällig", es: "atrasadas", fr: "en retard" },
 };
 
-/**
- * Built-in: board — tasks dealt into columns.
- *
- * Display only, like every widget on a dashboard: a card is a card, not a
- * handle. There is nothing to drag it onto and no affordance suggesting there
- * is, because moving work between states is a project view's job and a
- * dashboard only ever reads.
- *
- * What a column stands for is this widget's whole decision — a status, the
- * person on the work, a tag, or one of the initiative's own custom properties.
- * That last one is why the property arrives on the *binding* rather than as a
- * display option: options are a closed set of literals fixed at build time, and
- * a team's own field is by definition one this build never heard of. The host
- * resolves the binding to the property's name and the values it can take, so an
- * option nobody has used yet still gets its column instead of quietly ceasing
- * to exist.
- *
- * @param {import("../dataShapes").WidgetData} data
- * @param {import("../dataShapes").WidgetConfig} config
- */
-function render(data, config, context) {
-  // The viewer's language, and this module's own words in it. An older host
-  // that passes no context leaves this at English rather than failing.
-  const lang = context?.locale || "en";
-  const resolve = (entry) => {
-    const table = entry || {};
-    return table[lang] || table[lang.split("-")[0]] || table.en;
-  };
-  const say = (key) => resolve(strings[key]) || key;
+type Row = CellValue[];
 
-  const empty = (message) => ({ v: 1, scene: { kind: "empty", message } });
+/** One column while the rows are dealt: its raw value, its rows, and the order
+ *  the statement first produced it in. */
+interface Bucket {
+  key: string | null;
+  rows: Row[];
+  rank: number;
+}
+
+const shape: BuiltinWidget["shape"] = (data, config, context) => {
+  const say = sayer(strings, context.locale);
 
   // Which columns fill this widget's slots, resolved by the host. What a board
   // groups by is therefore the author's mapping rather than a display option:
   // the column column *is* the grouping.
-  const slots = context?.slots || {};
-  const cardAt = (slots.card || [])[0];
-  const columnAt = (slots.column || [])[0];
-  const dateAt = (slots.date || [])[0];
+  const slots = context.slots ?? {};
+  const cardAt = slots.card?.[0];
+  const columnAt = slots.column?.[0];
+  const dateAt = slots.date?.[0];
 
-  const rows = data.rows || [];
-  const columnsMeta = data.columns || [];
+  const rows = data.rows ?? [];
+  const columnsMeta = data.columns ?? [];
   const detail = config.cards || "standard";
   const sort = config.sort || "label";
   const markOverdue = config.highlight !== "off";
@@ -171,26 +161,34 @@ function render(data, config, context) {
   if (cardAt === undefined || columnAt === undefined) return empty(say("needColumns"));
 
   // The clock the host handed us. A widget must never invent one.
-  const today = Date.now();
+  const today = context.now ?? Date.now();
 
-  const text = (row, index) =>
+  const text = (row: Row, index: number | undefined): string | null =>
     index !== undefined && row[index] !== null && row[index] !== undefined
       ? String(row[index])
       : null;
 
-  const isOverdue = (row) =>
-    dateAt !== undefined && typeof row[dateAt] === "number" && row[dateAt] < today;
+  const dateOf = (row: Row): number | undefined => {
+    if (dateAt === undefined) return undefined;
+    const value = row[dateAt];
+    return typeof value === "number" ? value : undefined;
+  };
+
+  const isOverdue = (row: Row): boolean => {
+    const date = dateOf(row);
+    return date !== undefined && date < today;
+  };
 
   // --- the columns --------------------------------------------------------
   //
   // Keyed on the raw value, so two values that happen to read alike stay two
   // columns. The empty bucket is named for the column it is missing from.
-  const columns = new Map();
-  const columnFor = (key) => {
+  const columns = new Map<string, Bucket>();
+  const columnFor = (key: string | null): Bucket => {
     const id = key === null ? " none" : key;
     let column = columns.get(id);
     if (!column) {
-      column = { key: key, rows: [], rank: columns.size };
+      column = { key, rows: [], rank: columns.size };
       columns.set(id, column);
     }
     return column;
@@ -198,7 +196,7 @@ function render(data, config, context) {
   for (const row of rows) columnFor(text(row, columnAt));
 
   const emptyLabel = columnsMeta[columnAt]
-    ? say("noValue") + " " + columnsMeta[columnAt].name
+    ? `${say("noValue")} ${columnsMeta[columnAt].name}`
     : say("noValue");
 
   // --- cards --------------------------------------------------------------
@@ -210,30 +208,31 @@ function render(data, config, context) {
     .map((_column, index) => index)
     .filter((index) => index !== cardAt && index !== columnAt && index !== dateAt);
 
-  const cardFor = (row) => {
-    const card = { title: text(row, cardAt) || say("untitled") };
+  const cardFor = (row: Row): BoardCard => {
+    const card: BoardCard = { title: text(row, cardAt) || say("untitled") };
     if (markOverdue && isOverdue(row)) card.tone = "negative";
     if (detail === "compact") return card;
 
     const limit = detail === "detailed" ? chipColumns.length : 2;
-    const chips = [];
+    const chips: string[] = [];
     for (const index of chipColumns.slice(0, limit)) {
       const value = text(row, index);
       if (value !== null) chips.push(value);
     }
     if (chips.length) card.chips = chips;
-    if (dateAt !== undefined && typeof row[dateAt] === "number") card.date = row[dateAt];
+    const date = dateOf(row);
+    if (date !== undefined) card.date = date;
     return card;
   };
 
   // --- order --------------------------------------------------------------
 
-  const compare = (a, b) => {
+  const compare = (a: Row, b: Row): number => {
     if (sort === "date" && dateAt !== undefined) {
       // Undated work has no place on a date ladder, so it sits at the foot
       // rather than being given a date it does not have.
-      const left = typeof a[dateAt] === "number" ? a[dateAt] : Infinity;
-      const right = typeof b[dateAt] === "number" ? b[dateAt] : Infinity;
+      const left = dateOf(a) ?? Infinity;
+      const right = dateOf(b) ?? Infinity;
       if (left !== right) return left - right;
     }
     const leftTitle = text(a, cardAt) || "";
@@ -242,11 +241,12 @@ function render(data, config, context) {
   };
 
   const labelled = [...columns.values()].map((column) => ({
-    column: column,
+    column,
     label: column.key === null ? emptyLabel : column.key,
   }));
 
-  const byLabel = (a, b) => (a.label < b.label ? -1 : a.label > b.label ? 1 : 0);
+  const byLabel = (a: { label: string }, b: { label: string }): number =>
+    a.label < b.label ? -1 : a.label > b.label ? 1 : 0;
 
   for (const row of rows) {
     const key = text(row, columnAt);
@@ -268,16 +268,18 @@ function render(data, config, context) {
     });
   }
 
-  const scene = { kind: "board", columns: [] };
+  const scene: BoardNode = { kind: "board", columns: [] };
   for (const entry of labelled) {
     const ordered = entry.column.rows.slice().sort(compare);
-    const column = { label: entry.label, cards: ordered.map(cardFor) };
+    const column: BoardColumn = { label: entry.label, cards: ordered.map(cardFor) };
     if (markOverdue) {
       let late = 0;
       for (const row of ordered) if (isOverdue(row)) late++;
-      if (late) column.caption = late + " " + say("late");
+      if (late) column.caption = `${late} ${say("late")}`;
     }
     scene.columns.push(column);
   }
-  return { v: 1, scene: scene };
-}
+  return scene;
+};
+
+export const board: BuiltinWidget = { meta, shape, template };

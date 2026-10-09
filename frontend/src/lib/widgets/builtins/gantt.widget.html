@@ -1,0 +1,4 @@
+<timeline if="model.kind == 'timeline'" :lanes="model.lanes" :start="model.start" :end="model.end" :scale="model.scale" :now="model.now" />
+<div else class="flex h-full w-full items-center justify-center p-4 text-center">
+  <p class="text-muted-foreground text-sm">{{ model.message }}</p>
+</div>

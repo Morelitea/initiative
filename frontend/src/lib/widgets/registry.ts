@@ -1,11 +1,9 @@
 /**
  * The built-in widget registry.
  *
- * Each entry is a widget module's *source*, imported with Vite's `?raw` so it
- * reaches the sandbox exactly as a marketplace listing's would — as text to be
- * evaluated, never as app code linked into the bundle. That is what keeps the
- * built-ins honest: they cannot accidentally acquire a capability a listing's
- * widget would not have, because they are shipped and executed the same way.
+ * Each built-in is our own code and template (`builtins/<type>.widget.ts` and
+ * `.widget.html`): the code works out what to draw from the binding's data, and
+ * the template draws it with the widget elements.
  *
  * The keys mirror `WIDGET_SPECS` in the backend's
  * `app/services/tenant/dashboard_definition.py`, which is the authority on
@@ -13,42 +11,37 @@
  * two and fails on drift.
  */
 
-import boardSource from "./builtins/board.widget.js?raw";
+import { board } from "./builtins/board.widget";
 import type { BuiltinWidget } from "./builtins/builtin";
-import chartSource from "./builtins/chart.widget.js?raw";
+import { chart } from "./builtins/chart.widget";
 import { funnel } from "./builtins/funnel.widget";
-import ganttSource from "./builtins/gantt.widget.js?raw";
-import heatmapSource from "./builtins/heatmap.widget.js?raw";
-import progressSource from "./builtins/progress.widget.js?raw";
+import { gantt } from "./builtins/gantt.widget";
+import { heatmap } from "./builtins/heatmap.widget";
+import { progress } from "./builtins/progress.widget";
 import { stat } from "./builtins/stat.widget";
-import tableSource from "./builtins/table.widget.js?raw";
+import { table } from "./builtins/table.widget";
 
 /**
- * Module source per built-in type — and *only* that. Which sources a widget may
- * bind to, its size floors, and its display options all live in the backend's
+ * Each built-in by type — and *only* that. Which sources a widget may bind to,
+ * its size floors, and its display options all live in the backend's
  * `WIDGET_SPECS` and arrive over `GET …/dashboards/widget-catalog`, so there is
  * no second copy of the vocabulary to drift.
  */
-export const BUILTIN_WIDGETS: Record<string, string> = {
-  gantt: ganttSource,
-  chart: chartSource,
-  progress: progressSource,
-  heatmap: heatmapSource,
-  table: tableSource,
-  board: boardSource,
+const BUILTINS: Record<string, BuiltinWidget> = {
+  gantt,
+  stat,
+  chart,
+  funnel,
+  progress,
+  heatmap,
+  table,
+  board,
 };
 
-/** The built-ins drawn as our own code and template. */
-const BUILTINS: Record<string, BuiltinWidget> = { funnel, stat };
+export const BUILTIN_WIDGET_TYPES = Object.keys(BUILTINS);
 
-export const BUILTIN_WIDGET_TYPES = [...Object.keys(BUILTIN_WIDGETS), ...Object.keys(BUILTINS)];
-
-/** A built-in by type, or `undefined` for a type this build does not have. */
+/** A built-in by type, or `undefined` for a type this build does not have —
+ *  which is how an installed listing naming a newer primitive surfaces as a
+ *  clear tile rather than a crash. */
 export const builtinWidget = (type: string): BuiltinWidget | undefined =>
   Object.hasOwn(BUILTINS, type) ? BUILTINS[type] : undefined;
-
-/** A widget module by type, or `undefined` for a type this build has no
- *  renderer for — which is how an installed listing naming a newer primitive
- *  surfaces as a clear tile rather than a crash. */
-export const builtinWidgetSource = (type: string): string | undefined =>
-  Object.hasOwn(BUILTIN_WIDGETS, type) ? BUILTIN_WIDGETS[type] : undefined;

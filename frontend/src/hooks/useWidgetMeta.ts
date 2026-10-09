@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { builtinWidget, builtinWidgetSource } from "@/lib/widgets/registry";
+import { builtinWidget } from "@/lib/widgets/registry";
 import { readWidgetMeta } from "@/lib/widgets/runtime/host";
 import { type WidgetMeta, widgetDisplayName } from "@/lib/widgets/widgetMeta";
 
@@ -17,7 +17,7 @@ export function useWidgetMeta(type: string, source?: string) {
   const [meta, setMeta] = useState<WidgetMeta | null>(null);
   // A built-in names itself in code; only a module has to be run to ask.
   const builtin = source ? undefined : builtinWidget(type);
-  const moduleSource = builtin ? undefined : (source ?? builtinWidgetSource(type));
+  const moduleSource = builtin ? undefined : source;
 
   useEffect(() => {
     if (builtin) {
@@ -64,10 +64,7 @@ export function useWidgetMetas(types: string[]): Record<string, WidgetMeta | nul
     const wanted = key ? key.split("\n") : [];
     Promise.all(
       wanted.map(async (type) => {
-        const builtin = builtinWidget(type);
-        if (builtin) return [type, builtin.meta] as const;
-        const source = builtinWidgetSource(type);
-        return [type, source ? await readWidgetMeta(source) : null] as const;
+        return [type, builtinWidget(type)?.meta ?? null] as const;
       })
     ).then((entries) => {
       if (!cancelled) setMetas(Object.fromEntries(entries));

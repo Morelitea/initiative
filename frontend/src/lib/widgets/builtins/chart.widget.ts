@@ -1,12 +1,32 @@
 /**
- * What this widget calls itself, in every language it supports.
+ * Built-in: chart — a series drawn as bars, lines, an area, or slices.
  *
- * Names and option labels live in the module rather than in the app's locale
- * files: a marketplace widget has to be able to name itself without an app
- * release, and the built-ins get no special treatment. Binding *source* labels
- * stay plugin-owned — they name our endpoints and are shared by every widget.
+ * The workhorse: the `bar_chart`/`line_chart`/`area_chart`/`pie_chart`/
+ * `stacked_bar_chart` presets are all this widget with a fixed `mark`.
+ *
+ * What it grew: an order, a category ceiling, a direction, selective value
+ * labels, and emphasis. The ceiling is the one worth explaining — past its slot
+ * count a categorical palette has no more distinguishable colors, so a chart
+ * with thirty projects on it cannot be read however it is drawn. Folding the
+ * tail into one "Other" is the honest answer; inventing a thirtieth color is
+ * not.
  */
-const meta = {
+
+import type { CellValue } from "../dataShapes";
+import type {
+  Series,
+  SeriesLabels,
+  SeriesMark,
+  SeriesNode,
+  SeriesPoint,
+  SeriesTimeUnit,
+} from "../sceneSpec";
+import type { WidgetMeta } from "../widgetMeta";
+import { type BuiltinWidget, empty, sayer, type WidgetStrings } from "./builtin";
+import template from "./chart.widget.html?template";
+
+/** What this widget calls itself, in every language it supports. */
+const meta: WidgetMeta = {
   name: {
     en: "Chart",
     de: "Diagramm",
@@ -200,16 +220,8 @@ const meta = {
   },
 };
 
-/**
- * This widget's own output, in every language it speaks.
- *
- * Beside `meta` and for the same reason: a column heading and an empty-state
- * line are the widget's words, and there is no app locale file a marketplace
- * widget could add itself to. The host hands `render` the viewer's language
- * tag; `say` picks from here. Formatting numbers and dates is still the host's
- * job — the sandbox has no locale data and no timezone.
- */
-const strings = {
+/** This widget's own words, in every language it speaks. */
+const strings: WidgetStrings = {
   noRows: {
     en: "Nothing to show",
     de: "Nichts anzuzeigen",
@@ -226,76 +238,44 @@ const strings = {
   series: { en: "Series", de: "Reihe", es: "Serie", fr: "Série" },
 };
 
-/**
- * Built-in: chart — a series drawn as bars, lines, an area, or slices.
- *
- * The workhorse: the `bar_chart`/`line_chart`/`area_chart`/`pie_chart`/
- * `stacked_bar_chart` presets are all this module with a fixed `mark`.
- *
- * What it grew: an order, a category ceiling, a direction, selective value
- * labels, and emphasis. The ceiling is the one worth explaining — past its slot
- * count a categorical palette has no more distinguishable colors, so a chart
- * with thirty projects on it cannot be read however it is drawn. Folding the
- * tail into one "Other" is the honest answer; inventing a thirtieth color is
- * not.
- *
- * @param {import("../dataShapes").WidgetData} data
- * @param {import("../dataShapes").WidgetConfig} config
- */
-function render(data, config, context) {
-  // The viewer's language, and this module's own words in it. An older host
-  // that passes no context leaves this at English rather than failing.
-  const lang = context?.locale || "en";
-  const say = (key) => {
-    const entry = strings[key] || {};
-    return entry[lang] || entry[lang.split("-")[0]] || entry.en || key;
-  };
-  const mark = config.mark || "bar";
+/** The periods a date label can be rounded to. */
+const GRAINS: readonly SeriesTimeUnit[] = ["day", "week", "month", "quarter", "year"];
+
+/** One category, and its total across every series. */
+interface Category {
+  x: SeriesPoint["x"];
+  total: number;
+}
+
+const shape: BuiltinWidget["shape"] = (data, config, context) => {
+  const say = sayer(strings, context.locale);
+  const mark = (config.mark || "bar") as SeriesMark;
   const stacked = config.stacked === "true";
   const sort = config.sort || "source";
   const limit = config.limit === "all" || !config.limit ? 0 : Number(config.limit) || 0;
   const horizontal = config.orientation === "bars";
-  const labels = config.values && config.values !== "none" ? config.values : undefined;
+  const labels =
+    config.values && config.values !== "none" ? (config.values as SeriesLabels) : undefined;
   const emphasis = config.emphasis || "none";
-
-  const empty = (message) => ({ v: 1, scene: { kind: "empty", message } });
 
   /** What the folded tail is called. */
   const OTHER_LABEL = say("other");
 
   /** Which series gets to keep its color when the rest go gray. */
-  const emphasisIndex = (series) => {
+  const emphasisIndex = (series: Series[]): number | undefined => {
     if (emphasis === "none" || series.length < 2) return undefined;
     if (emphasis === "last") return series.length - 1;
     let best = 0;
     let bestTotal = -Infinity;
-    for (let index = 0; index < series.length; index++) {
+    for (const [index, entry] of series.entries()) {
       let total = 0;
-      for (const point of series[index].points) total += point.y;
+      for (const point of entry.points) total += point.y;
       if (total > bestTotal) {
         bestTotal = total;
         best = index;
       }
     }
     return best;
-  };
-
-  const chart = (series, xLabel, yLabel, xTime) => {
-    const scene = {
-      kind: "series",
-      mark: mark,
-      series: series,
-      stacked: stacked || undefined,
-      xLabel: xLabel || undefined,
-      yLabel: yLabel || undefined,
-      xTime: xTime || undefined,
-      // A legend earns its space only once there is more than one series.
-      showLegend: series.length > 1,
-      labels: labels,
-      horizontal: horizontal && mark === "bar" ? true : undefined,
-      emphasis: emphasisIndex(series),
-    };
-    return { v: 1, scene: scene };
   };
 
   /**
@@ -314,9 +294,9 @@ function render(data, config, context) {
    * and "source" is meaningful more often than not (a day sequence, a workflow
    * order).
    */
-  const arrangeAll = (list) => {
-    const totals = new Map();
-    const seen = [];
+  const arrangeAll = (list: Series[]): Series[] => {
+    const totals = new Map<string, Category>();
+    const seen: Category[] = [];
     for (const series of list) {
       for (const point of series.points) {
         const key = String(point.x);
@@ -342,11 +322,10 @@ function render(data, config, context) {
     // The tail becomes one category rather than more colors, chosen by total so
     // "Other" is genuinely the small remainder.
     let kept = order;
-    let keptKeys = null;
+    let keptKeys: Set<string> | null = null;
     if (limit && order.length > limit) {
       const byValue = order.slice().sort((a, b) => b.total - a.total);
-      keptKeys = {};
-      for (let index = 0; index < limit; index++) keptKeys[String(byValue[index].x)] = true;
+      const keep = new Set(byValue.slice(0, limit).map((entry) => String(entry.x)));
       // A category genuinely called "Other" joins the fold instead of sitting
       // beside it. A chart has one bar per label and the renderer merges points
       // by label, so two of them would not draw as two — one would quietly
@@ -354,20 +333,21 @@ function render(data, config, context) {
       // it is reachable in practice: the label is translated, so a project
       // named "Sonstige" collides for a German reader and not for an English
       // one.
-      delete keptKeys[OTHER_LABEL];
-      kept = order.filter((entry) => keptKeys[String(entry.x)]);
+      keep.delete(OTHER_LABEL);
+      kept = order.filter((entry) => keep.has(String(entry.x)));
+      keptKeys = keep;
     }
 
     return list.map((series) => {
-      const byX = new Map();
+      const byX = new Map<string, number>();
       for (const point of series.points) byX.set(String(point.x), point.y);
 
-      const points = [];
+      const points: SeriesPoint[] = [];
       for (const entry of kept) {
         const y = byX.get(String(entry.x));
         // A category this series never had stays absent rather than becoming a
         // zero it never reported; the renderer merges on x and leaves the gap.
-        if (y !== undefined) points.push({ x: entry.x, y: y });
+        if (y !== undefined) points.push({ x: entry.x, y });
       }
       if (keptKeys) {
         // Every series folds its own tail, so the "Other" bar is whole rather
@@ -375,12 +355,12 @@ function render(data, config, context) {
         // with nothing in the tail.
         let rest = 0;
         for (const point of series.points) {
-          if (!keptKeys[String(point.x)]) rest += point.y;
+          if (!keptKeys.has(String(point.x))) rest += point.y;
         }
         points.push({ x: OTHER_LABEL, y: rest });
       }
 
-      const arranged = { name: series.name, points: points };
+      const arranged: Series = { name: series.name, points };
       if (series.tone) arranged.tone = series.tone;
       return arranged;
     });
@@ -389,48 +369,60 @@ function render(data, config, context) {
   // Which columns fill this widget's slots, resolved by the host. `value` is
   // repeatable, so a statement returning several numbers draws several series
   // without the author saying so twice.
-  const slots = context?.slots || {};
-  const labelAt = (slots.label || [])[0];
-  const valueColumns = slots.value || [];
+  const slots = context.slots ?? {};
+  const labelAt = slots.label?.[0];
+  const valueColumns = slots.value ?? [];
 
-  const rows = data.rows || [];
+  const rows = data.rows ?? [];
   if (!rows.length) return empty(say("noRows"));
   if (!valueColumns.length) return empty(say("noNumeric"));
 
-  const columns = data.columns || [];
-  const nameOf = (index) => (columns[index] ? columns[index].name : say("series"));
+  const columns = data.columns ?? [];
+  const nameOf = (index: number): string => {
+    const column = columns[index];
+    return column ? column.name : say("series");
+  };
 
   // A date label is a moment in epoch milliseconds. It stays a number, and the
   // scene says which period each point is — the unit the statement rounded
   // the column to, or a day for a plain date — so the app can label it
   // "Mar 2026" or "Q1 2026" rather than printing the raw number.
-  const GRAINS = ["day", "week", "month", "quarter", "year"];
   const labelColumn = labelAt !== undefined ? columns[labelAt] : undefined;
-  const xTime =
+  const xTime: SeriesTimeUnit | undefined =
     labelColumn && labelColumn.type === "date"
-      ? GRAINS.indexOf(labelColumn.grain) >= 0
+      ? labelColumn.grain && GRAINS.includes(labelColumn.grain)
         ? labelColumn.grain
         : "day"
       : undefined;
 
-  const labelOf = (row, rowIndex) => {
+  const labelOf = (row: CellValue[], rowIndex: number): SeriesPoint["x"] => {
     if (labelAt === undefined || row[labelAt] === null) return rowIndex + 1;
-    if (xTime && typeof row[labelAt] === "number") return row[labelAt];
+    if (xTime && typeof row[labelAt] === "number") return row[labelAt] as number;
     return String(row[labelAt]);
   };
 
-  const series = valueColumns.slice(0, 12).map((index) => ({
+  const series: Series[] = valueColumns.slice(0, 12).map((index) => ({
     name: nameOf(index),
     points: rows.map((row, rowIndex) => ({
       x: labelOf(row, rowIndex),
-      y: typeof row[index] === "number" ? row[index] : 0,
+      y: typeof row[index] === "number" ? (row[index] as number) : 0,
     })),
   }));
 
-  return chart(
-    arrangeAll(series),
-    labelAt !== undefined && columns[labelAt] ? columns[labelAt].name : undefined,
-    undefined,
-    xTime
-  );
-}
+  const arranged = arrangeAll(series);
+  return {
+    kind: "series",
+    mark,
+    series: arranged,
+    stacked: stacked || undefined,
+    xLabel: labelColumn?.name || undefined,
+    xTime,
+    // A legend earns its space only once there is more than one series.
+    showLegend: arranged.length > 1,
+    labels,
+    horizontal: horizontal && mark === "bar" ? true : undefined,
+    emphasis: emphasisIndex(arranged),
+  } satisfies SeriesNode;
+};
+
+export const chart: BuiltinWidget = { meta, shape, template };

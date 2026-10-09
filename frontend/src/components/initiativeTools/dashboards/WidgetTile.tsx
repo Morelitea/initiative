@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils";
 import type { BuiltinWidget } from "@/lib/widgets/builtins/builtin";
 import type { TabularData, WidgetConfig, WidgetData } from "@/lib/widgets/dataShapes";
 import { WidgetErrorCode } from "@/lib/widgets/errors";
-import { builtinWidget, builtinWidgetSource } from "@/lib/widgets/registry";
+import { builtinWidget } from "@/lib/widgets/registry";
 import { renderWidget, type WidgetRenderOutcome } from "@/lib/widgets/runtime/host";
 
 import { SceneRenderer } from "./scene/SceneRenderer";
@@ -163,7 +163,7 @@ function ModuleTile({
     // it has already claimed "no data" for a widget whose plug-in is down.
     if (isLoading) return;
 
-    const moduleSource = source ?? builtinWidgetSource(type);
+    const moduleSource = source;
 
     if (!moduleSource) {
       setState({

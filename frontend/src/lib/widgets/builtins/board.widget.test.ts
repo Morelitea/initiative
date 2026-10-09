@@ -1,5 +1,5 @@
 /**
- * The board through the whole path it takes in production: sandboxed module,
+ * The board through the whole path it takes in production: its shape,
  * validator, scene.
  *
  * What a board groups by is the column the author mapped, not a display option
@@ -9,11 +9,10 @@
 import { describe, expect, it } from "vitest";
 
 import type { CellValue, TabularData } from "../dataShapes";
-import { builtinWidgetSource } from "../registry";
-import { renderInSandbox } from "../runtime/sandbox";
 import { SAMPLE_NOW } from "../sampleData";
 import type { BoardNode } from "../sceneSpec";
 import { validateScene } from "../validateScene";
+import { board } from "./board.widget";
 
 const DAY = 86_400_000;
 const T0 = SAMPLE_NOW;
@@ -35,16 +34,10 @@ const draw = async (
   config: Record<string, string> = {},
   slots: Record<string, number[]> = SLOTS
 ): Promise<BoardNode> => {
-  const result = await renderInSandbox({
-    source: builtinWidgetSource("board") as string,
-    data,
-    config,
-    slots,
-    now: T0,
+  const validation = validateScene({
+    v: 1,
+    scene: board.shape(data, config, { locale: "en", slots, now: T0 }),
   });
-  expect(result.ok, JSON.stringify(result)).toBe(true);
-  if (!result.ok) throw new Error("render failed");
-  const validation = validateScene(result.value);
   expect(validation.ok, JSON.stringify(validation)).toBe(true);
   if (!validation.ok) throw new Error("invalid scene");
   expect(validation.spec.scene.kind).toBe("board");
@@ -133,16 +126,10 @@ describe("cards", () => {
 
 describe("what it refuses to draw", () => {
   it("says so when it has no column to group by", async () => {
-    const result = await renderInSandbox({
-      source: builtinWidgetSource("board") as string,
-      data: work,
-      config: {},
-      slots: { card: [0] },
-      now: T0,
+    const validation = validateScene({
+      v: 1,
+      scene: board.shape(work, {}, { locale: "en", slots: { card: [0] }, now: T0 }),
     });
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    const validation = validateScene(result.value);
     expect(validation.ok).toBe(true);
     if (!validation.ok) return;
     expect(validation.spec.scene.kind).toBe("empty");

@@ -8,7 +8,8 @@
  * installed, so it has no initiative to read and must be given none — which is
  * what these pin, at the seam where it would regress.
  */
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders } from "@/__tests__/helpers/render";
@@ -86,6 +87,10 @@ describe("DashboardWidget", () => {
     // separately and the point is only that the sample's rows got here.
     await vi.waitFor(() => expect(container.textContent).toContain("100"), { timeout: 8000 });
     expect(screen.queryByText(/choose what this widget shows/i)).toBeNull();
+
+    // The same numbers as a table: the picture's own element draws its table form.
+    await userEvent.click(screen.getByRole("button", { name: /show as a table/i }));
+    expect(within(screen.getByRole("table")).getByText("100")).toBeInTheDocument();
   });
 });
 

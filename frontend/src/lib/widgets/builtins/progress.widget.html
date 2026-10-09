@@ -1,0 +1,10 @@
+<!-- A meter for each: stacked in a column, each taking an equal share. -->
+<div if="model.kind == 'list'" class="flex h-full w-full min-w-0 flex-col gap-2">
+  <div for="item in model.items" class="min-h-0 min-w-0 flex-1">
+    <progress :value="item.value" :min="item.min" :max="item.max" :label="item.label" :caption="item.caption" :tone="item.tone" :format="item.format" :target="item.target" />
+  </div>
+</div>
+<progress else-if="model.kind == 'progress'" :value="model.value" :min="model.min" :max="model.max" :label="model.label" :caption="model.caption" :tone="model.tone" :format="model.format" :target="model.target" />
+<div else class="flex h-full w-full items-center justify-center p-4 text-center">
+  <p class="text-muted-foreground text-sm">{{ model.message }}</p>
+</div>
