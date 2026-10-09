@@ -171,8 +171,6 @@ export interface PluginBlock {
   endpoint?: string;
   /** The writes its buttons and menu items run, by full endpoint id. */
   actions?: string[];
-  /** Only on tasks whose project was installed from this listing. */
-  project_listing?: string;
   strings?: Record<string, Record<string, string>>;
 }
 

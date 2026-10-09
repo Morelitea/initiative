@@ -252,7 +252,6 @@ def maximal_manifest() -> dict:
                 ),
                 "endpoint": "plugin.acme.tracker.timers",
                 "actions": ["plugin.acme.tracker.start"],
-                "project_listing": "WY4WAN93PFP3X4",
                 "strings": {"start": {"en": "Start"}},
                 "requires": {"all_of": ["other"]},
             }

@@ -6,9 +6,8 @@ may read:
 
 1. the viewer, through the ordinary resource path (a task they cannot see is
    dropped);
-2. the block is offered there: the task's project was installed from the
-   block's ``project_listing``, when it names one, and the install is placed
-   in the task's initiative with the viewer's role allowed
+2. the block is offered there: the install is placed in the task's
+   initiative with the viewer's role allowed
    (:func:`~app.services.tenant.guild_plugins.block_initiatives`);
 3. the install itself, routed as the install, so the database answers which
    of those it can read.
@@ -184,13 +183,10 @@ async def _shown_initiatives(
     )
 
 
-def _offered_on(block: Mapping[str, Any], task: Task, shown: set[int]) -> bool:
-    """Whether ``block`` is drawn on ``task`` for the viewer ``shown`` is of."""
-    project = task.project
-    if project is None or project.initiative_id not in shown:
-        return False
-    listing = block.get("project_listing")
-    return listing is None or project.listing_uid == listing
+def _offered_on(task: Task, shown: set[int]) -> bool:
+    """Whether the install's blocks are drawn on ``task`` for the viewer
+    ``shown`` is of."""
+    return task.project is not None and task.project.initiative_id in shown
 
 
 async def _live(plugin: GuildPlugin) -> RegistrationSnapshot:
@@ -238,7 +234,7 @@ async def block_rows(
     visible = [
         int(task.id or 0)
         for task in tasks
-        if _offered_on(block, task, shown) and _readable_by_viewer(task, context)
+        if _offered_on(task, shown) and _readable_by_viewer(task, context)
     ]
     readable = await install_readable(
         plugin, registration, guild_id=context.guild_id, task_ids=visible
@@ -329,7 +325,7 @@ async def run_block_action(
 
     task = await resource_access.load_child(session, Task, task_id)
     shown = await _shown_initiatives(session, plugin, context)
-    if not _offered_on(block, task, shown) or not await install_readable(
+    if not _offered_on(task, shown) or not await install_readable(
         plugin, registration, guild_id=context.guild_id, task_ids=[task_id]
     ):
         raise PluginDataError(PluginDataMessages.BLOCK_NOT_OFFERED, 403)

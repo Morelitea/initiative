@@ -936,8 +936,6 @@ class TestWidgetTypeNamespacing:
 #: A block's read and the write its button runs, both about tasks.
 BLOCK_READ = "plugin.tests.widget-co.timers"
 BLOCK_WRITE = "plugin.tests.widget-co.start"
-#: A listing uid in the catalog alphabet.
-SALES_PIPELINE = "WY4WAN93PFP3X4"
 
 
 def _with_block(
@@ -986,11 +984,10 @@ def _with_block(
 
 class TestBlocks:
     def test_a_block_is_stored_canonically(self):
-        definition = _with_block(project_listing=SALES_PIPELINE)
+        definition = _with_block()
         (block,) = definition["blocks"]
         assert block["endpoint"] == BLOCK_READ
         assert block["actions"] == [BLOCK_WRITE]
-        assert block["project_listing"] == SALES_PIPELINE
         assert block["strings"] == {"start": {"en": "Start"}}
         read, write = definition["endpoints"]
         assert (read["subject"], read["per_viewer"]) == ("task", True)
@@ -1010,7 +1007,6 @@ class TestBlocks:
             ({"areas": ["task.card.inline", "task.card.inline"]}, "an area twice"),
             ({"endpoint": BLOCK_WRITE}, "not a declared read endpoint with subject"),
             ({"actions": [BLOCK_READ]}, "not a declared write endpoint with subject"),
-            ({"project_listing": "sales"}, "project_listing"),
             ({"template": '<button action="stop">Stop</button>'}, "template:"),
             ({"template": '<open page="nowhere">Open</open>'}, "template:"),
         ],
@@ -1020,7 +1016,6 @@ class TestBlocks:
             "an area twice",
             "a read that is not about tasks",
             "an action that is not a task write",
-            "a listing that is not a uid",
             "a button naming an undeclared action",
             "an open naming an undeclared page",
         ],

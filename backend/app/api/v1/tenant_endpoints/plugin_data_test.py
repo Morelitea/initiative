@@ -1777,13 +1777,10 @@ async def test_a_viewer_too_young_for_the_plugin_reads_no_tile(
 TIMERS = f"plugin.{PUBLIC_ID}.timers"
 STATUS = f"plugin.{PUBLIC_ID}.status"
 START = f"plugin.{PUBLIC_ID}.start"
-#: The built-in Sales pipeline's listing, which one block is confined to.
-SALES_PIPELINE = "WY4WAN93PFP3X4"
 
 
 def _block_definition() -> dict:
-    """Two blocks on task reads, one per viewer with an action, one confined
-    to deals."""
+    """Two blocks on task reads: one per viewer with an action, one shared."""
     rows = [
         {"key": "task_id", "type": "int", "list": True},
         {"key": "label", "type": "string", "list": True},
@@ -1822,7 +1819,7 @@ def _block_definition() -> dict:
         ],
         "blocks": [
             block("timer", endpoint=TIMERS, actions=[START]),
-            block("deal", endpoint=STATUS, project_listing=SALES_PIPELINE),
+            block("status", endpoint=STATUS),
         ],
     }
 
@@ -1830,7 +1827,7 @@ def _block_definition() -> dict:
 async def _board(session: AsyncSession, acting_user):
     """An install placed in one initiative for its members, and tasks each side
     reads differently: ``shared`` both read, ``hidden`` only the install,
-    ``mine`` only the member, ``deal`` both and in a Sales pipeline project,
+    ``mine`` only the member, ``also`` both in a second project,
     ``elsewhere`` in an initiative the install is not placed in."""
     admin = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     member = await acting_user(
@@ -1885,9 +1882,7 @@ async def _board(session: AsyncSession, acting_user):
         "shared": await task_in(admin.initiative, admin.user, members=True),
         "hidden": await task_in(admin.initiative, admin.user, install=True),
         "mine": await task_in(admin.initiative, member.user),
-        "deal": await task_in(
-            admin.initiative, admin.user, members=True, listing_uid=SALES_PIPELINE
-        ),
+        "also": await task_in(admin.initiative, admin.user, members=True),
         "elsewhere": await task_in(other, admin.user, members=True),
     }
     return admin, member, plugin, {name: task.id for name, task in tasks.items()}
@@ -1910,7 +1905,7 @@ class TestBlockRows:
         asked for is dropped."""
         admin, member, plugin, ids = await _board(session, acting_user)
         upstream.rows = [
-            {"task_id": ids["deal"], "label": "Deal"},
+            {"task_id": ids["also"], "label": "Also"},
             {"task_id": ids["shared"], "label": "Shared"},
             {"task_id": ids["hidden"], "label": "Not asked"},
         ]
@@ -1924,40 +1919,39 @@ class TestBlockRows:
         assert response.status_code == 200, response.text
         assert response.json()["rows"] == {
             str(ids["shared"]): {"task_id": ids["shared"], "label": "Shared"},
-            str(ids["deal"]): {"task_id": ids["deal"], "label": "Deal"},
+            str(ids["also"]): {"task_id": ids["also"], "label": "Also"},
         }
         (call,) = upstream.calls
         claims = _claims(call)
         assert claims["endpoint_id"] == TIMERS
-        assert claims["task_ids"] == sorted([ids["shared"], ids["deal"]])
+        assert claims["task_ids"] == sorted([ids["shared"], ids["also"]])
         assert claims["viewer"] == await ensure_plugin_ref(
             guild_id=member.guild.id,
             plugin_install_id=plugin.id,
             user_id=member.user.id,
         )
 
-    async def test_a_block_for_one_kind_of_project_reads_only_those(
+    async def test_a_shared_read_names_nobody(
         self, client, acting_user, session, upstream
     ):
         admin, _member, plugin, ids = await _board(session, acting_user)
 
         response = await client.post(
-            admin.g(f"/plugins/{plugin.id}/blocks/deal/rows"),
+            admin.g(f"/plugins/{plugin.id}/blocks/status/rows"),
             headers=admin.headers,
-            json={"task_ids": [ids["shared"], ids["deal"], ids["elsewhere"]]},
+            json={"task_ids": [ids["shared"], ids["also"], ids["elsewhere"]]},
         )
 
         assert response.status_code == 200, response.text
         claims = _claims(upstream.calls[0])
-        assert claims["task_ids"] == [ids["deal"]]
-        # Not a per-viewer read, so nobody is named.
+        assert claims["task_ids"] == sorted([ids["shared"], ids["also"]])
         assert "viewer" not in claims
 
     async def test_a_per_viewer_answer_is_never_served_to_another_viewer(
         self, client, acting_user, session, upstream
     ):
         admin, member, plugin, ids = await _board(session, acting_user)
-        body = {"task_ids": [ids["shared"], ids["deal"]]}
+        body = {"task_ids": [ids["shared"], ids["also"]]}
 
         for actor in (admin, member, admin):
             response = await client.post(
@@ -1971,7 +1965,7 @@ class TestBlockRows:
 
         shared = [
             await client.post(
-                actor.g(f"/plugins/{plugin.id}/blocks/deal/rows"),
+                actor.g(f"/plugins/{plugin.id}/blocks/status/rows"),
                 headers=actor.headers,
                 json=body,
             )
@@ -2048,7 +2042,7 @@ class TestBlockActions:
 
     @pytest.mark.parametrize(
         ("block", "action"),
-        [("timer", "stop"), ("deal", "start"), ("absent", "start")],
+        [("timer", "stop"), ("status", "start"), ("absent", "start")],
         ids=["an action no block declares", "another block's action", "no block"],
     )
     async def test_an_undeclared_action_is_not_found(
@@ -2059,7 +2053,7 @@ class TestBlockActions:
         response = await client.post(
             admin.g(f"/plugins/{plugin.id}/blocks/{block}/actions/{action}"),
             headers=admin.headers,
-            json={"task_id": ids["deal"]},
+            json={"task_id": ids["also"]},
         )
 
         assert response.status_code == 404

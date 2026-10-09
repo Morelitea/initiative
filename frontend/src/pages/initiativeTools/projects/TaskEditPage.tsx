@@ -478,7 +478,10 @@ export const TaskEditPage = () => {
   // The same object while the task is, so the template reuses what it worked out.
   const sectionData = useMemo(() => (task ? { task } : null), [task]);
   const blockTaskIds = useMemo(() => [parsedTaskId], [parsedTaskId]);
-  const blocks = useTaskBlocks("task.page", { project, taskIds: blockTaskIds });
+  const blocks = useTaskBlocks("task.page", {
+    initiativeId: project?.initiative_id,
+    taskIds: blockTaskIds,
+  });
 
   const blocker = useBlocker({
     shouldBlockFn: () => isDirty && !bypassGuardRef.current,

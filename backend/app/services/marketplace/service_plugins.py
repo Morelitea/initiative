@@ -2265,10 +2265,6 @@ def _block(
     if actions:
         cleaned["actions"] = list(actions)
 
-    listing = block.get("project_listing")
-    if listing is not None:
-        cleaned["project_listing"] = check_uid(listing, what=f"{what} project_listing")
-
     strings = _widget_strings(block.get("strings"), what=what, cap=MAX_BLOCK_STRINGS)
     template = _template_source(block.get("template"), what=what)
     _refuse_problems(

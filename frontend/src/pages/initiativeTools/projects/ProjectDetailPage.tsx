@@ -146,7 +146,6 @@ export const ProjectDetailPage = () => {
           taskHref={taskHref}
           initialComposerOpen={searchParams.create === "true"}
           onComposerOpenChange={handleComposerOpenChange}
-          project={project}
         />
         <ToolCommentsPanel tool={Tool.project} entity={project} />
       </div>

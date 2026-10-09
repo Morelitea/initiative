@@ -4,8 +4,8 @@
     "title": "Initiative plug-in API",
     "version": "5.0.0",
     "x-initiative-source": {
-      "version": "0.74.0",
-      "commit": "0492f28bb7e586091a62a58dcc1bc768d0544416"
+      "version": "0.75.3",
+      "commit": "6d98197952b5bffc10fb4ae6d7aa0b0da8a1234a"
     }
   },
   "servers": [
@@ -16444,6 +16444,17 @@
             "type": "boolean",
             "title": "Is Template"
           },
+          "listing_uid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Listing Uid"
+          },
           "pinned_at": {
             "anyOf": [
               {
@@ -16551,6 +16562,7 @@
           "end_date",
           "owner_id",
           "is_template",
+          "listing_uid",
           "pinned_at",
           "default_view_mode",
           "owner",

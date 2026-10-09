@@ -12,7 +12,7 @@ import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import type { CommunityPluginRead, TaskListRead } from "@/api/generated/initiativeAPI.schemas";
 
-import { type ListedProject, useTaskBlocks } from "./useTaskBlocks";
+import { useTaskBlocks } from "./useTaskBlocks";
 
 let plugins: Partial<CommunityPluginRead>[] = [];
 
@@ -55,23 +55,22 @@ const timer = {
           strings: { idle: { en: "Idle" }, start: { en: "Start" } },
         }
       ),
-      block("deal", ["task.card.inline"], "<span>Deal</span>", {
-        project_listing: "WY4WAN93PFP3X4",
-      }),
       block("aside", ["task.page.aside"], "<span>Aside only</span>"),
       block("elsewhere", ["task.card.inline"], "<span>Another initiative</span>"),
     ],
   },
   block_access: [
     { block_id: "timer", openable_initiatives: [5] },
-    { block_id: "deal", openable_initiatives: [5] },
     { block_id: "aside", openable_initiatives: [5] },
     { block_id: "elsewhere", openable_initiatives: [6] },
   ],
 } as unknown as CommunityPluginRead;
 
-const Board = ({ project, tasks }: { project: ListedProject; tasks: TaskListRead[] }) => {
-  const blocks = useTaskBlocks("task.card", { project, taskIds: tasks.map((task) => task.id) });
+const Board = ({ tasks }: { tasks: TaskListRead[] }) => {
+  const blocks = useTaskBlocks("task.card", {
+    initiativeId: 5,
+    taskIds: tasks.map((task) => task.id),
+  });
   return (
     <>
       {tasks.map((task) => (
@@ -107,30 +106,20 @@ beforeEach(() => {
 });
 
 describe("useTaskBlocks", () => {
-  it("offers the area's blocks for the initiative and the project's listing, reading each once", async () => {
+  it("offers the area's blocks for the initiative, reading each once", async () => {
     const asked = answerRows();
-    renderWithProviders(<Board project={{ initiative_id: 5, listing_uid: null }} tasks={tasks} />);
+    renderWithProviders(<Board tasks={tasks} />);
 
     const first = within(screen.getByTestId("card-1"));
     expect(await first.findByText("Running")).toBeInTheDocument();
     expect(within(screen.getByTestId("card-2")).getByText("Idle")).toBeInTheDocument();
     expect(first.getByRole("group", { name: "timer, from Acme" })).toBeInTheDocument();
-    // Not confined to this project's listing, not in this area, not in this initiative,
-    // and not from a turned-off install.
-    expect(screen.queryByText("Deal")).toBeNull();
+    // Not in this area, not in this initiative, and not from a turned-off install.
     expect(screen.queryByText("Aside only")).toBeNull();
     expect(screen.queryByText("Another initiative")).toBeNull();
     expect(first.getAllByRole("group")).toHaveLength(1);
     // One call for the board, naming every task it loaded.
     expect(asked).toEqual([{ block: "timer", taskIds: [1, 2] }]);
-  });
-
-  it("offers a block confined to a listing on that listing's projects", async () => {
-    answerRows();
-    renderWithProviders(
-      <Board project={{ initiative_id: 5, listing_uid: "WY4WAN93PFP3X4" }} tasks={tasks} />
-    );
-    expect(await within(screen.getByTestId("card-1")).findByText("Deal")).toBeInTheDocument();
   });
 
   it("draws the row an action answers for its task", async () => {
@@ -146,7 +135,7 @@ describe("useTaskBlocks", () => {
         }
       )
     );
-    renderWithProviders(<Board project={{ initiative_id: 5, listing_uid: null }} tasks={tasks} />);
+    renderWithProviders(<Board tasks={tasks} />);
 
     const second = within(screen.getByTestId("card-2"));
     fireEvent.click(await second.findByRole("button", { name: "Start" }));

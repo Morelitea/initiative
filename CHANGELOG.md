@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Plug-ins can show on your tasks.** A plug-in can add a line to a task's card, a panel beside the task, or an item in its menu, and its buttons run in the plug-in. It shows only where the plug-in is placed, to the roles allowed to use it there, and can be limited to projects installed from one listing, such as the Sales pipeline. Plug-in developers add these as `blocks` in SDK 6.0.
+- **Plug-ins can show on your tasks.** A plug-in can add a line to a task's card, a panel beside the task, or an item in its menu, and its buttons run in the plug-in. It shows only where the plug-in is placed, to the roles allowed to use it there. Plug-in developers add these as `blocks` in SDK 6.0.
 - **Attach pictures and documents to a ticket or a report.** Asking for help, answering on a ticket and reporting something each take a few files, encrypted where they are kept. The places a picture was taken are removed before it is stored. The people handling a ticket or a report see pictures blurred until they choose to look, and files are deleted once the ticket has been closed long enough.
 
 ### Changed

@@ -4,8 +4,7 @@
  * A board or a task page calls this once, and hands what it returns to its
  * `<Section blocks>`: no card asks for anything of its own. A block is offered
  * where its install is enabled, the server says it opens in the tasks'
- * initiative (`block_access`), it fits one of the section's areas, and, when it
- * names a project listing, the project was installed from that listing.
+ * initiative (`block_access`), and it fits one of the section's areas.
  *
  * Each block that reads an endpoint makes one call for every task the screen
  * has loaded (in chunks of the contract's `blockSubjectIds`), not one per card.
@@ -101,31 +100,22 @@ const asBlockRows = (results: QueryObserverResult<Rows>[]): BlockRows[] =>
 
 const thisMinute = () => Math.floor(Date.now() / 60_000) * 60_000;
 
-/** The screen's project, as far as a block cares: its initiative, and the listing it was
- *  installed from. */
-export interface ListedProject {
-  initiative_id: number;
-  listing_uid?: string | null;
-}
-
 export interface TaskBlocksScope {
-  /** The project the screen's tasks are in; absent, nothing is offered. */
-  project: ListedProject | null | undefined;
+  /** The initiative the screen's tasks are in; absent, nothing is offered. */
+  initiativeId: number | null | undefined;
   /** Every task the screen has loaded. */
   taskIds: readonly number[];
 }
 
 export function useTaskBlocks<S extends "task.card" | "task.page">(
   section: S,
-  { project, taskIds }: TaskBlocksScope
+  { initiativeId, taskIds }: TaskBlocksScope
 ): SectionBlocks<S> | undefined {
   const communityId = useActiveCommunityId();
   const { t, i18n } = useTranslation("plugins");
   const width = useWidthClass();
   const queryClient = useQueryClient();
   const { data: plugins } = useCommunityPlugins();
-  const initiativeId = project?.initiative_id;
-  const projectListing = project?.listing_uid ?? null;
 
   const offered = useMemo((): OfferedBlock[] => {
     if (!initiativeId) return [];
@@ -142,7 +132,6 @@ export function useTaskBlocks<S extends "task.card" | "task.page">(
       const openPages = new Set(pluginPages(plugin, initiativeId).map((page) => page.id));
       return declaredBlocks(definition).flatMap((block): OfferedBlock[] => {
         if (!opens.has(block.id)) return [];
-        if (block.project_listing && block.project_listing !== projectListing) return [];
         const areas = block.areas.flatMap((area) =>
           area.startsWith(prefix) ? [area.slice(prefix.length)] : []
         );
@@ -169,7 +158,7 @@ export function useTaskBlocks<S extends "task.card" | "task.page">(
         ];
       });
     });
-  }, [plugins, initiativeId, projectListing, section, communityId, i18n.language, t]);
+  }, [plugins, initiativeId, section, communityId, i18n.language, t]);
 
   const ids = useMemo(
     () => [...new Set(taskIds)].filter(Number.isFinite).sort((a, b) => a - b),
