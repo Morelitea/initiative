@@ -181,7 +181,7 @@ export interface CardGridSkeletonProps {
 /** A grid of cards, each with a title, a couple of lines, and some tags. */
 export const CardGridSkeleton = ({
   count = 6,
-  className = "grid grid-cols-fill-60 gap-4",
+  className = "grid grid-cols-fill-60/3 gap-4",
   cardClassName,
 }: CardGridSkeletonProps) => (
   <div className={className}>

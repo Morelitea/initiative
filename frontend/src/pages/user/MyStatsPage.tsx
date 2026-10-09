@@ -63,7 +63,7 @@ export function MyStatsPage() {
       {/* Loading state */}
       {isLoading && (
         <SkeletonRegion label={t("page.loading")} className="space-y-6">
-          <CardGridSkeleton count={4} className="grid grid-cols-fill-48 gap-4" />
+          <CardGridSkeleton count={4} className="grid grid-cols-fill-48/4 gap-4" />
           <ContentCardSkeleton lines={3} />
         </SkeletonRegion>
       )}
@@ -79,7 +79,7 @@ export function MyStatsPage() {
       {stats && (
         <>
           {/* Top Metrics Row - 4 cards */}
-          <div className="grid grid-cols-fill-48 gap-4">
+          <div className="grid grid-cols-fill-48/4 gap-4">
             <StatsMetricCard
               icon={Flame}
               title={t("metrics.currentStreak")}

@@ -439,7 +439,7 @@ export const SettingsUsersPage = () => {
             </Button>
           </CardHeader>
           <CardContent className="space-y-4">
-            <form className="grid grid-cols-fill-48 gap-4" onSubmit={createInvite}>
+            <form className="grid grid-cols-fill-48/3 gap-4" onSubmit={createInvite}>
               <div className="space-y-2">
                 <Label htmlFor="invite-uses">{t("users.maxUsesLabel")}</Label>
                 <Input

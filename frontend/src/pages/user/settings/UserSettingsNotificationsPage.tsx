@@ -371,7 +371,7 @@ export const UserSettingsNotificationsPage = ({
         title={t("notifications.timing.title")}
         description={t("notifications.timing.description")}
       >
-        <div className="grid grid-cols-fill-48 gap-4">
+        <div className="grid grid-cols-fill-48/3 gap-4">
           <div className="space-y-2">
             <Label htmlFor="email-cadence">{t("notifications.timing.cadence.label")}</Label>
             <Select
