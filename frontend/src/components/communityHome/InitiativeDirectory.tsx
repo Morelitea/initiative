@@ -317,7 +317,7 @@ export const InitiativeDirectory = ({ entries, onCreate }: InitiativeDirectoryPr
         <h3 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
           {t(labelKey as never)}
         </h3>
-        <div className="grid grid-cols-fill-72 gap-4">{groupEntries.map(renderCard)}</div>
+        <div className="grid grid-cols-fill-72/3 gap-4">{groupEntries.map(renderCard)}</div>
       </div>
     );
 

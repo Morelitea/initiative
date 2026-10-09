@@ -162,7 +162,7 @@ function ThemePicker({
     <div
       role="radiogroup"
       aria-label={t("interface.colorTheme")}
-      className="grid grid-cols-fill-56 gap-3"
+      className="grid grid-cols-fill-56/3 gap-3"
     >
       {getThemeList().map((theme) => {
         const selected = theme.id === value;

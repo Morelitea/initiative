@@ -162,7 +162,7 @@ export function CommunitiesPage() {
           description={t("communities:community.unavailableDescription")}
         />
       ) : configLoading || directory.isLoading ? (
-        <div className="grid grid-cols-fill-72 gap-4">
+        <div className="grid grid-cols-fill-72/3 gap-4">
           {SKELETON_KEYS.map((key) => (
             <Skeleton key={key} className="h-52 w-full rounded-xl" />
           ))}
@@ -172,7 +172,7 @@ export function CommunitiesPage() {
           <p className="text-muted-foreground text-sm">
             {t("communities:community.resultCount", { count: total })}
           </p>
-          <div className="grid grid-cols-fill-72 gap-4">
+          <div className="grid grid-cols-fill-72/3 gap-4">
             {communities.map((community) => (
               <CommunityCard key={community.id} community={community} />
             ))}

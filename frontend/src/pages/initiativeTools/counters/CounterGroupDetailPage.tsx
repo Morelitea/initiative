@@ -297,7 +297,7 @@ export function CounterGroupDetailPage() {
             items={counters.map((c) => c.id.toString())}
             strategy={layout === "grid" ? rectSortingStrategy : verticalListSortingStrategy}
           >
-            <div className={layout === "grid" ? "grid grid-cols-fill-36 gap-3" : "space-y-2"}>
+            <div className={layout === "grid" ? "grid grid-cols-fill-36/5 gap-3" : "space-y-2"}>
               {counters.map((counter) => (
                 <CounterRow
                   key={counter.id}
