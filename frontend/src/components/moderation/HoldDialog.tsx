@@ -1,10 +1,13 @@
 /**
- * Holding something for the platform, from the operations case working it.
+ * Holding something for the platform.
  *
- * A platform moderator under a `moderate` grant on the community: the content
- * is kept exactly as it is, out of the whole community's sight, until they
- * release it. A community's own moderators hand a report over hidden from its
- * card instead (`SendToPlatformDialog`).
+ * The content is kept exactly as it is, out of the whole community's sight,
+ * until the platform releases it. A platform moderator under a `moderate`
+ * grant holds it from the operations case working it (`caseTaskId`); a
+ * community's own moderators hold it from its moderation menu, which opens a
+ * case of its own — and from then on they can't see it either, which the
+ * dialog says before they confirm. From a report card, they hand it over
+ * hidden instead (`SendToPlatformDialog`).
  */
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -68,6 +71,9 @@ export const HoldDialog = ({
           <DialogTitle>{t("hold.title")}</DialogTitle>
           <DialogDescription>{t("hold.description")}</DialogDescription>
         </DialogHeader>
+        {caseTaskId == null && (
+          <p className="font-medium text-destructive text-sm">{t("hold.communityWarning")}</p>
+        )}
         <HoldFields value={why} onChange={setWhy} />
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>

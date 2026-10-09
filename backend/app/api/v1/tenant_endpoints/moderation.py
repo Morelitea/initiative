@@ -16,6 +16,7 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import (
     RLSSessionDep,
@@ -25,10 +26,17 @@ from app.api.deps import (
 from app.core.messages import ModerationMessages
 from app.db.query import build_paginated_response
 from app.models.platform.user import User
+from app.models.tenant.moderation import ModerationAction
+from app.core.moderation import LegalBasis, ModerationAct, RemovalReason
 from app.schemas.tenant.moderation import (
     InitiativeSharingRead,
+    ModerationActCreate,
+    ModerationActionRead,
+    ModerationLogList,
+    ModerationPerson,
     ModerationReportList,
     ModerationReportRead,
+    ModerationRestore,
     ReportSettle,
     ReportTargetLink,
     SharedResourceRead,
@@ -37,6 +45,7 @@ from app.schemas.tenant.evidence import EvidenceRead
 from app.services.platform import evidence as evidence_service
 from app.services.platform.holds import HoldWhy
 from app.services.tenant import moderation as moderation_service
+from app.services.tenant import moderation_acts
 from app.services.tenant import sharing_overview
 
 router = APIRouter()
@@ -80,6 +89,9 @@ def _read(
             EvidenceRead.model_validate(item, from_attributes=True)
             for item in evidence or ()
         ],
+        legal_basis=LegalBasis(report.legal_basis) if report.legal_basis else None,
+        platform_notified_at=report.platform_notified_at,
+        action_id=report.action_id,
     )
 
 
@@ -145,11 +157,13 @@ async def settle_report(
 ) -> ModerationReportRead:
     """Settle a report. Every outcome closes it.
 
-    ``escalated`` also opens a platform case carrying the references — the one
-    crossing between a community's reports and the operator's, in one direction.
-    ``held`` does the same and holds the reported thing where it is, out of
-    the whole community's sight, until the platform releases it; ``hold``
-    says why.
+    ``content_removed`` takes the reported thing down, and ``member_warned``
+    tells whoever wrote it ``message``; both are written to the moderation
+    log. ``escalated`` opens a platform case carrying the references — the
+    one crossing between a community's reports and the operator's, in one
+    direction. ``held`` does the same and holds the reported thing where it
+    is, out of the whole community's sight, until the platform releases it;
+    ``hold`` says why.
     """
     report = await moderation_service.settle_report(
         session,
@@ -168,6 +182,8 @@ async def settle_report(
             if payload.hold is not None
             else None
         ),
+        removal_reason=payload.removal_reason,
+        message=(payload.message or "").strip() or None,
     )
     # The same reporter figures the list carries: a settled report is the same
     # shape as an open one, and answering zero would have the page replace what
@@ -224,4 +240,149 @@ async def read_initiative_sharing(
             )
             for item in items
         ]
+    )
+
+
+async def _people(session: AsyncSession, ids: set[int]) -> dict[int, ModerationPerson]:
+    """Who the log names, as the community knows them."""
+    from sqlmodel import select
+
+    from app.core.user_display import display_name
+    from app.models.platform.user_profile_view import MemberProfile
+
+    if not ids:
+        return {}
+    rows = (
+        await session.exec(select(MemberProfile).where(MemberProfile.id.in_(ids)))
+    ).all()
+    return {row.id: ModerationPerson(id=row.id, name=display_name(row)) for row in rows}
+
+
+def _logged(
+    entry: moderation_acts.LogEntry, people: dict[int, ModerationPerson]
+) -> ModerationActionRead:
+    action = entry.action
+    return ModerationActionRead(
+        id=int(action.id),  # type: ignore[arg-type]
+        initiative_id=action.initiative_id,
+        action=ModerationAct(action.action),
+        target_type=action.target_type,
+        target_id=action.target_id,
+        reason=RemovalReason(action.reason) if action.reason else None,
+        note=action.note,
+        snapshot=entry.snapshot,
+        actor=people.get(action.created_by) if action.created_by else None,
+        subject=(
+            people.get(action.subject_user_id) if action.subject_user_id else None
+        ),
+        report_id=action.report_id,
+        hold_id=action.hold_id,
+        created_at=action.created_at,
+        restorable=entry.restorable,
+    )
+
+
+async def _one(session: AsyncSession, action: ModerationAction) -> ModerationActionRead:
+    entry = moderation_acts.LogEntry(
+        action=action,
+        snapshot=moderation_acts.open_snapshot(action),
+        restorable=action.action == ModerationAct.remove.value,
+    )
+    ids = {i for i in (action.created_by, action.subject_user_id) if i is not None}
+    return _logged(entry, await _people(session, ids))
+
+
+@router.post(
+    "/moderation/acts",
+    response_model=ModerationActionRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def moderate(
+    payload: ModerationActCreate,
+    session: RLSSessionDep,
+    guild_context: GuildContextDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> ModerationActionRead:
+    """Act on something as a moderator of its initiative: ``remove`` it (a
+    comment to a tombstone, anything else to the trash), lock or unlock its
+    thread, clear its reactions, or ``warn`` whoever wrote it. Written to the
+    initiative's moderation log."""
+    action = await moderation_acts.act(
+        session,
+        guild_context,
+        guild_id=guild_context.guild_id,
+        actor_id=current_user.id,
+        request=moderation_acts.ActRequest(
+            act=payload.act,
+            target_type=payload.target_type,
+            target_id=payload.target_id,
+            reason=payload.reason,
+            note=payload.note,
+        ),
+    )
+    return await _one(session, action)
+
+
+@router.post(
+    "/moderation/acts/{action_id}/restore", response_model=ModerationActionRead
+)
+async def restore_removal(
+    action_id: int,
+    payload: ModerationRestore,
+    session: RLSSessionDep,
+    guild_context: GuildContextDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> ModerationActionRead:
+    """Put back what removal ``action_id`` took down: a comment's words where
+    they were, anything else out of the trash."""
+    action = await moderation_acts.restore(
+        session,
+        guild_context,
+        guild_id=guild_context.guild_id,
+        actor_id=current_user.id,
+        action_id=action_id,
+        note=payload.note,
+    )
+    read = await _one(session, action)
+    read.restorable = False
+    return read
+
+
+@router.get(
+    "/initiatives/{initiative_id}/moderation/log", response_model=ModerationLogList
+)
+async def read_moderation_log(
+    initiative_id: int,
+    session: RLSSessionDep,
+    guild_context: GuildContextDep,
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=200)] = 50,
+) -> ModerationLogList:
+    """What this initiative's moderators have done, newest first.
+
+    Read through the log's own row policy, which admits the initiative's
+    moderation set: anyone else is told so rather than shown an empty log.
+    """
+    if not moderation_acts.may_moderate(guild_context, initiative_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=ModerationMessages.NOT_A_MODERATOR,
+        )
+    entries, total, actual_page = await moderation_acts.log(
+        session, initiative_id=initiative_id, page=page, page_size=page_size
+    )
+    ids = {
+        i
+        for entry in entries
+        for i in (entry.action.created_by, entry.action.subject_user_id)
+        if i is not None
+    }
+    people = await _people(session, ids)
+    return ModerationLogList(
+        **build_paginated_response(
+            [_logged(entry, people) for entry in entries],
+            total,
+            actual_page,
+            page_size,
+        )
     )

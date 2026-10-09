@@ -369,7 +369,8 @@
       "direct_messages": "Direct messages",
       "connections": "Connections",
       "jobs": "Exports and imports",
-      "account": "Your account"
+      "account": "Your account",
+      "moderation": "Moderation"
     },
     "reminderLeadTime": {
       "label": "Remind me",
@@ -411,7 +412,8 @@
       "direct_messages": "Somebody messaged you. Who and how many, never what it says.",
       "connections": "Somebody asked to connect, or accepted.",
       "jobs": "An export or import you asked for has finished.",
-      "account": "Something was done to your account. Always shows in the bell."
+      "account": "Something was done to your account. Always shows in the bell.",
+      "moderation": "A community's moderators took down or warned you about something you wrote. Always shows in the bell."
     },
     "quietHours": {
       "title": "Quiet hours",

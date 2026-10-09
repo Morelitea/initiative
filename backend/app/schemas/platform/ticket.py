@@ -72,6 +72,9 @@ class TicketAccepted(SanitizedBaseModel):
 
     accepted: bool = True
     venue: Optional[ReportVenue] = None
+    #: For an ``illegal`` report the platform takes no cases about: where to
+    #: tell whoever runs this server, alongside the community.
+    platform_contact: Optional[str] = None
 
 
 class StreamAvailabilityRead(SanitizedBaseModel):

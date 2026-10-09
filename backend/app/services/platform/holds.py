@@ -16,8 +16,10 @@ this places and releases holds, and keeps their record.
   comment is held alone: its replies are other people's words, and stay, under
   a placeholder.
 - **Releasing** is the platform's alone, under a ``moderate`` grant:
-  ``restore`` puts it back as it was, ``remove`` sends it to the trash, and
-  ``purge`` destroys it.
+  ``restore`` puts it back as it was, ``remove`` takes it down through the
+  community's moderation log (``app.services.tenant.moderation_acts``) — a
+  comment to a tombstone, anything else to the trash — and ``purge``
+  destroys it.
 
 Each placement and release is recorded on the case and in the audit log, and
 the hourly sweep reminds the case every 30 days while a hold stays in place.
@@ -481,7 +483,7 @@ async def release(
 ) -> ContentHold:
     """End hold ``hold_id`` with ``outcome``. The platform's alone."""
     from app.services.tenant.attachments import delete_blobs
-    from app.services.tenant.soft_delete import hard_purge_entity, trash
+    from app.services.tenant.soft_delete import hard_purge_entity
 
     if not context.pam_moderate:
         raise HoldError(HoldMessages.NOT_FOUND, status.HTTP_404_NOT_FOUND)
@@ -517,9 +519,11 @@ async def release(
         ):
             # Another hold covers it: it stays as it is until that one ends.
             raise HoldError(HoldMessages.COVERED_BY_ANOTHER, status.HTTP_409_CONFLICT)
+        let_go: set[str] = set()
         if target is not None and outcome is HoldRelease.remove:
-            if getattr(target, "deleted_at", None) is None:
-                await trash(system, target, deleted_by_user_id=released_by)
+            let_go = await _remove_released(
+                system, context, hold, target, released_by=released_by
+            )
         elif target is not None and outcome is HoldRelease.purge:
             released = await hard_purge_entity(system, target)
         now = datetime.now(timezone.utc)
@@ -544,6 +548,12 @@ async def release(
         await system.refresh(hold)
     if released:
         delete_blobs(guild_id, released)
+    if let_go:
+        from app.services.tenant.attachments import release_unshown
+
+        delete_blobs(
+            guild_id, await release_unshown(guild_id, let_go, pasted_only=True)
+        )
     await _note_on_case(
         hold.case_task_id,
         case_activity.ActivityKind.hold_released,
@@ -551,6 +561,54 @@ async def release(
         f"{guild_id} released: {outcome.value}.",
     )
     return hold
+
+
+async def _remove_released(
+    system: AsyncSession,
+    context: GuildContext,
+    hold: ContentHold,
+    target: HoldMixin,
+    *,
+    released_by: int,
+) -> set[str]:
+    """Take down what a hold kept, through the community's moderation log —
+    a comment to a tombstone, anything else to the trash — and return the
+    picture addresses its words showed, to release once committed."""
+    from sqlalchemy import func
+
+    from app.core.moderation import RemovalReason
+    from app.services.tenant import moderation_acts
+
+    removed_already = getattr(target, "deleted_at", None) is not None or (
+        getattr(target, "removed_at", None) is not None
+    )
+    if removed_already:
+        return set()
+    initiative_id = (
+        await system.exec(
+            select(func.entity_initiative(hold.target_type, hold.target_id))
+        )
+    ).first()
+    if initiative_id is None:
+        # Something no initiative owns has no moderation log to be in.
+        from app.services.tenant.soft_delete import trash
+
+        await trash(system, target, deleted_by_user_id=released_by)  # type: ignore[arg-type]
+        return set()
+    removed = await moderation_acts.remove_on(
+        system,
+        target,
+        moderation_acts.Who(
+            actor_id=released_by,
+            hold_id=hold.id,
+            via_grant_id=context.grant.id if context.grant is not None else None,
+        ),
+        target_type=hold.target_type,
+        initiative_id=int(initiative_id),
+        # Held for the law, so taken down for it.
+        reason=RemovalReason.illegal,
+    )
+    return removed.let_go
 
 
 # -- Reading --------------------------------------------------------------------

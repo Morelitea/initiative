@@ -51,7 +51,9 @@
     "calendar_event": "Un événement",
     "counter": "Un compteur",
     "counter_group": "Un groupe de compteurs",
-    "dashboard": "Un tableau de bord"
+    "dashboard": "Un tableau de bord",
+    "wiki": "Un wiki",
+    "wiki_page": "Une page de wiki"
   },
   "paging": {
     "newer": "Plus récents",
@@ -68,12 +70,20 @@
     "detailPlaceholder": "Ce que vous voulez leur dire (facultatif)",
     "submit": "Envoyer le signalement",
     "thanks": "Merci — quelqu'un va regarder.",
-    "error": "Impossible d'envoyer ce signalement."
+    "error": "Impossible d'envoyer ce signalement.",
+    "basisLabel": "Quelle loi ?",
+    "basisPlaceholder": "Choisissez-en une",
+    "basisHelp": "Les responsables de ce serveur sont aussi prévenus.",
+    "detailRequiredLabel": "Décrivez ce que vous avez vu",
+    "detailRequiredPlaceholder": "Expliquez ce qui ne va pas",
+    "childSafetyHelp": "N'ajoutez rien. Indiquez où c'est : le contenu reste en place pour que la plateforme s'en occupe.",
+    "platformContact": "Vous pouvez aussi prévenir les responsables de ce serveur : {{contact}}"
   },
   "areas": {
     "reports": "Signalements",
     "members": "Membres",
-    "sharing": "Accès"
+    "sharing": "Accès",
+    "log": "Journal"
   },
   "members": {
     "description": "Qui est dans cette initiative, et ce que chacun peut faire.",
@@ -114,7 +124,8 @@
     "submit": "Retenir",
     "held": "Retenu pour la plateforme.",
     "error": "Impossible de retenir ceci.",
-    "releaseError": "Impossible de lever cette retenue."
+    "releaseError": "Impossible de lever cette retenue.",
+    "communityWarning": "Une fois conservé, vous ne pourrez plus le voir non plus."
   },
   "sendToPlatform": {
     "action": "Transmettre à la plateforme",
@@ -127,5 +138,83 @@
     "hideDescription": "Utilisez ceci si la police ou un tribunal vous a demandé de le conserver, ou s'il pourrait être illégal. Il disparaît pour tout le monde, vous compris, et personne ici ne peut le modifier ni le supprimer avant la décision de la plateforme.",
     "leaveSubmit": "Transmettre",
     "hideSubmit": "Masquer et transmettre"
-  }
+  },
+  "removalReasons": {
+    "spam": "Spam",
+    "harassment": "Harcèlement",
+    "hate": "Haine",
+    "violence": "Violence",
+    "sexual_content": "Contenu sexuel",
+    "self_harm": "Automutilation",
+    "illegal": "Raisons légales",
+    "misinformation": "Désinformation",
+    "other": "Autre chose",
+    "off_topic": "Hors sujet",
+    "community_rule": "Contraire à une règle de la communauté"
+  },
+  "actions": {
+    "dismiss": "Classer",
+    "remove": "Retirer…",
+    "warn": "Avertir…"
+  },
+  "remove": {
+    "title": "Le retirer",
+    "description": "Il va à la corbeille, et son auteur apprend pourquoi. Vous pouvez le rétablir depuis le journal.",
+    "commentDescription": "Son texte est retiré et une ligne indiquant pourquoi reste à sa place. Les réponses restent. Son auteur apprend pourquoi, et vous pouvez le rétablir depuis le journal.",
+    "reasonLabel": "Pourquoi",
+    "reasonPlaceholder": "Choisissez une raison",
+    "reasonHelp": "C'est ce qui est dit à son auteur.",
+    "noteLabel": "Note pour le journal (facultatif)",
+    "notePlaceholder": "Seuls les modérateurs la voient",
+    "submit": "Le retirer",
+    "done": "Retiré."
+  },
+  "warn": {
+    "title": "Avertir son auteur",
+    "description": "Il reçoit ce que vous écrivez ici, comme un message des modérateurs de cette communauté. Il n'est jamais dit qui l'a signalé.",
+    "messageLabel": "Ce qui lui est dit",
+    "messagePlaceholder": "Ce qui a dépassé les bornes, et ce que vous attendez à la place",
+    "submit": "Envoyer l'avertissement",
+    "done": "Avertissement envoyé."
+  },
+  "menu": {
+    "label": "Modérer",
+    "remove": "Retirer…",
+    "lock": "Verrouiller les commentaires",
+    "unlock": "Déverrouiller les commentaires",
+    "locked": "Commentaires verrouillés.",
+    "unlocked": "Commentaires déverrouillés.",
+    "clearReactions": "Effacer les réactions",
+    "clearTitle": "Effacer toutes les réactions ?",
+    "clearDescription": "Toutes les réactions sont retirées. C'est irréversible.",
+    "cleared": "Réactions effacées.",
+    "hold": "Conserver pour la plateforme…"
+  },
+  "act": {
+    "error": "Impossible de le faire."
+  },
+  "log": {
+    "title": "Ce que les modérateurs ont fait ici, du plus récent au plus ancien.",
+    "empty": "Rien n'a encore été fait.",
+    "restore": "Rétablir",
+    "restored": "Rétabli.",
+    "restoreError": "Impossible de le rétablir.",
+    "platform": "La plateforme",
+    "someone": "Un modérateur",
+    "by": "par {{name}}",
+    "whose": "de {{name}}",
+    "whatItSaid": "Ce qu'il disait",
+    "fromReport": "En traitant un signalement",
+    "afterHold": "À la fin d'une conservation",
+    "acts": {
+      "remove": "Retiré",
+      "restore": "Rétabli",
+      "lock_comments": "Commentaires verrouillés",
+      "unlock_comments": "Commentaires déverrouillés",
+      "clear_reactions": "Réactions effacées",
+      "warn": "Averti"
+    }
+  },
+  "platformNotified": "Plateforme prévenue",
+  "suggestHold": "Signalé comme illégal. Si c'est possible, masquez-le et envoyez-le à la plateforme."
 }

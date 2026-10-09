@@ -9,6 +9,7 @@ from sqlmodel import Enum as SQLEnum, Field, Relationship
 from app.core.tools import Tool
 from app.models.tenant._mixins import (
     ArchiveMixin,
+    CommentLockMixin,
     CommentsToggleMixin,
     CreatedByMixin,
     HoldMixin,
@@ -30,6 +31,7 @@ class CounterViewMode(str, Enum):
 
 class CounterGroup(
     HoldMixin,
+    CommentLockMixin,
     CommentsToggleMixin,
     CreatedByMixin,
     ArchiveMixin,

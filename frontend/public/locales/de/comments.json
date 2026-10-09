@@ -8,7 +8,7 @@
   "deleteComment": "Löschen",
   "deleteConfirmTitle": "Diesen Kommentar löschen?",
   "deleteConfirmDescription": "Er wird in den Papierkorb verschoben.",
-  "deleteConfirmWithReplies": "Er wird zusammen mit den Antworten darunter in den Papierkorb verschoben.",
+  "deleteConfirmWithReplies": "Er landet in deinem Papierkorb. Die Antworten darauf bleiben, unter einem Hinweis, dass du ihn gelöscht hast.",
   "deleteError": "Der Kommentar konnte nicht gelöscht werden.",
   "editPlaceholder": "Bearbeite deinen Kommentar...",
   "edited": "(bearbeitet)",
@@ -37,5 +37,11 @@
   "reply": "Antworten",
   "replyPlaceholder": "Eine Antwort schreiben...",
   "title": "Kommentare",
-  "unavailable": "Nicht verfügbar"
+  "unavailable": "Nicht verfügbar",
+  "removed": {
+    "byModerator": "Von einem Moderator entfernt · {{reason}}",
+    "legal": "Aus rechtlichen Gründen entfernt",
+    "byAuthor": "Von der verfassenden Person gelöscht"
+  },
+  "locked": "Ein Moderator hat die Kommentare hier gesperrt."
 }

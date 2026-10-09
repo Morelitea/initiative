@@ -251,10 +251,10 @@ class FieldSpec:
 
 #: Columns no dataset offers as a filter, by convention rather than per model.
 #:
-#: Soft-delete and purge bookkeeping, the surrogate key, the tenant key (a
-#: request is already scoped to one guild, so filtering by it narrows nothing),
-#: and the drag-ordering float. None of these means anything to somebody
-#: building a filter, and every table has them.
+#: Soft-delete, hold, moderation and purge bookkeeping, the surrogate key, the
+#: tenant key (a request is already scoped to one guild, so filtering by it
+#: narrows nothing), and the drag-ordering float. None of these means anything
+#: to somebody building a filter, and every table has them.
 HIDDEN_EVERYWHERE: frozenset[str] = frozenset(
     {
         "id",
@@ -265,6 +265,11 @@ HIDDEN_EVERYWHERE: frozenset[str] = frozenset(
         "purge_at",
         "held_at",
         "hold_id",
+        # Moderation bookkeeping: a thread a moderator locked, a tombstone.
+        "comments_locked_at",
+        "removed_at",
+        "removed_reason",
+        "removal_id",
     }
 )
 

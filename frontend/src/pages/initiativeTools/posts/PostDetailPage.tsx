@@ -1,4 +1,4 @@
-import { useBlocker, useParams } from "@tanstack/react-router";
+import { useBlocker, useNavigate, useParams } from "@tanstack/react-router";
 import type { SerializedEditorState } from "lexical";
 import { CalendarClock, Loader2, Vote } from "lucide-react";
 import { lazy, Suspense, useEffect, useState } from "react";
@@ -19,6 +19,8 @@ import {
 import { PostByline } from "@/components/initiativeTools/posts/PostByline";
 import { PostPinButton } from "@/components/initiativeTools/posts/PostPinButton";
 import { PostPoll } from "@/components/initiativeTools/posts/PostPoll";
+import { ModerationMenu } from "@/components/moderation/ModerationMenu";
+import { ReportButton } from "@/components/moderation/ReportButton";
 import { ReactionBar } from "@/components/reactions/ReactionBar";
 import { DetailHeaderSkeleton } from "@/components/skeletons/PageSkeletons";
 import { ToolAccessStatus } from "@/components/ToolAccessStatus";
@@ -81,6 +83,8 @@ export function PostDetailPage() {
 
   const initiativeQuery = useInitiative(post?.initiative_id ?? null);
   const canPin = Boolean(initiativeQuery.data?.can.manage);
+  const canModerate = Boolean(initiativeQuery.data?.can.moderate);
+  const navigate = useNavigate();
 
   const update = useUpdatePost(parsedId, {
     onSuccess: () => {
@@ -178,6 +182,22 @@ export function PostDetailPage() {
           }
           title={post.name}
           onRename={canEdit ? (name) => rename.mutateAsync({ name }) : undefined}
+          titleExtras={
+            <div className="flex items-center gap-1">
+              <ReportButton targetType="post" targetId={post.id} authorId={post.created_by} />
+              {/* Taken down or held, the notice is gone, so the reader goes
+                  back to the board. */}
+              <ModerationMenu
+                targetType="post"
+                targetId={post.id}
+                canModerate={canModerate}
+                commentsLocked={post.comments_locked_at != null}
+                reactable
+                communityId={post.community_id}
+                onGone={() => void navigate({ to: gp(toolListRoute(Tool.post, initiativeId)) })}
+              />
+            </div>
+          }
         >
           <PostByline post={post} inline />
           <PinnedBanner post={post} canPin={canPin} />

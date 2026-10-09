@@ -430,6 +430,7 @@ _NO_SINGLE_PARENT = {
     # grant left to ask about.
     "moderation_reports": "full access in the initiative, not a shared resource",
     "moderation_report_reporters": "reached through the report it belongs to",
+    "moderation_actions": "full access in the initiative: the moderation log",
     "evidence": "reached through the report or case it hangs off, whichever it names",
 }
 

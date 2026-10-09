@@ -11,6 +11,7 @@
  * from one that is.
  */
 import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { buildPost, ownerCan } from "@/__tests__/factories";
@@ -22,8 +23,18 @@ import { PostCard } from "./PostCard";
 const cardPage = (props: Parameters<typeof PostCard>[0]) => () => <PostCard {...props} />;
 
 /** One card, built from whatever this case varies. */
-const renderCard = (overrides: Parameters<typeof buildPost>[0] = {}, canPin?: boolean) =>
-  renderPage(cardPage({ post: buildPost(overrides), ...(canPin === undefined ? {} : { canPin }) }));
+const renderCard = (
+  overrides: Parameters<typeof buildPost>[0] = {},
+  canPin?: boolean,
+  canModerate?: boolean
+) =>
+  renderPage(
+    cardPage({
+      post: buildPost(overrides),
+      ...(canPin === undefined ? {} : { canPin }),
+      ...(canModerate === undefined ? {} : { canModerate }),
+    })
+  );
 
 // The body is a Lexical editor; mounting one per card is the cost the board's
 // small page size exists to bound, and none of it is what these cases are
@@ -104,6 +115,24 @@ describe("PostCard", () => {
     const flag = screen.getByRole("button", { name: /report/i });
     expect(pin.parentElement).toBe(flag.closest("button")?.parentElement);
     expect(pin.parentElement).not.toContainElement(screen.getByText(post.name));
+  });
+
+  // The board's moderators act on a notice where they read it; everybody else
+  // is offered the report flag and nothing more.
+  it("offers the moderation menu only to a moderator of the initiative", async () => {
+    const { unmount } = renderCard({ created_by: 999 }, false, false);
+    await screen.findByTestId("post-body");
+    expect(screen.queryByRole("button", { name: /moderate/i })).not.toBeInTheDocument();
+    unmount();
+
+    const user = userEvent.setup();
+    renderCard({ created_by: 999, comments_locked_at: "2026-03-01T00:00:00.000Z" }, false, true);
+    await user.click(await screen.findByRole("button", { name: /moderate/i }));
+
+    // A post has a thread and takes reactions, so both are offered; its thread
+    // is locked, so the lock offers the way back.
+    expect(await screen.findByRole("menuitem", { name: /unlock comments/i })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /clear reactions/i })).toBeInTheDocument();
   });
 
   // Reacting is a read-level gesture, so it is offered on the board itself

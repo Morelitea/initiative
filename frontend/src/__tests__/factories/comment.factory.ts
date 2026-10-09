@@ -41,6 +41,7 @@ export function buildComment(overrides: Partial<CommentRead> = {}): CommentRead 
     },
     reactions: [],
     can_remove: false,
+    removed: null,
     audience: "members",
     system_kind: null,
     ...overrides,

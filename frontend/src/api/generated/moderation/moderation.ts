@@ -24,8 +24,13 @@ import type {
   HTTPValidationError,
   InitiativeSharingRead,
   ListReportsParams,
+  ModerationActCreate,
+  ModerationActionRead,
+  ModerationLogList,
   ModerationReportList,
   ModerationReportRead,
+  ModerationRestore,
+  ReadModerationLogParams,
   ReportSettle,
 } from "../initiativeAPI.schemas";
 
@@ -208,11 +213,13 @@ export function useListReports<
 /**
  * Settle a report. Every outcome closes it.
  *
- * ``escalated`` also opens a platform case carrying the references — the one
- * crossing between a community's reports and the operator's, in one direction.
- * ``held`` does the same and holds the reported thing where it is, out of
- * the whole community's sight, until the platform releases it; ``hold``
- * says why.
+ * ``content_removed`` takes the reported thing down, and ``member_warned``
+ * tells whoever wrote it ``message``; both are written to the moderation
+ * log. ``escalated`` opens a platform case carrying the references — the
+ * one crossing between a community's reports and the operator's, in one
+ * direction. ``held`` does the same and holds the reported thing where it
+ * is, out of the whole community's sight, until the platform releases it;
+ * ``hold`` says why.
  * @summary Settle Report
  */
 export const settleReport = (
@@ -447,6 +454,348 @@ export function useReadInitiativeSharing<
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getReadInitiativeSharingQueryOptions(communityId, initiativeId, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * Act on something as a moderator of its initiative: ``remove`` it (a
+ * comment to a tombstone, anything else to the trash), lock or unlock its
+ * thread, clear its reactions, or ``warn`` whoever wrote it. Written to the
+ * initiative's moderation log.
+ * @summary Moderate
+ */
+export const moderate = (
+  communityId: number,
+  moderationActCreate: BodyType<ModerationActCreate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<ModerationActionRead>(
+    {
+      url: `/api/v1/c/${communityId}/moderation/acts`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: moderationActCreate,
+      signal,
+    },
+    options
+  );
+};
+
+export const getModerateMutationKey = () => ["moderate"] as const;
+
+export const getModerateMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof moderate>>,
+    TError,
+    ModerateMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof moderate>>,
+  TError,
+  ModerateMutationVariables,
+  TContext
+> => {
+  const mutationKey = getModerateMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof moderate>>,
+    ModerateMutationVariables
+  > = (props) => {
+    const { communityId, data } = props ?? {};
+
+    return moderate(communityId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ModerateMutationResult = NonNullable<Awaited<ReturnType<typeof moderate>>>;
+export type ModerateMutationBody = BodyType<ModerationActCreate>;
+export type ModerateMutationError = ErrorType<HTTPValidationError>;
+export type ModerateMutationVariables = {
+  communityId: number;
+  data: BodyType<ModerationActCreate>;
+};
+
+/**
+ * @summary Moderate
+ */
+export const useModerate = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof moderate>>,
+      TError,
+      ModerateMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof moderate>>,
+  TError,
+  ModerateMutationVariables,
+  TContext
+> => {
+  return useMutation(getModerateMutationOptions(options), queryClient);
+};
+/**
+ * Put back what removal ``action_id`` took down: a comment's words where
+ * they were, anything else out of the trash.
+ * @summary Restore Removal
+ */
+export const restoreRemoval = (
+  communityId: number,
+  actionId: number,
+  moderationRestore: BodyType<ModerationRestore>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<ModerationActionRead>(
+    {
+      url: `/api/v1/c/${communityId}/moderation/acts/${actionId}/restore`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: moderationRestore,
+      signal,
+    },
+    options
+  );
+};
+
+export const getRestoreRemovalMutationKey = () => ["restoreRemoval"] as const;
+
+export const getRestoreRemovalMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof restoreRemoval>>,
+    TError,
+    RestoreRemovalMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof restoreRemoval>>,
+  TError,
+  RestoreRemovalMutationVariables,
+  TContext
+> => {
+  const mutationKey = getRestoreRemovalMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof restoreRemoval>>,
+    RestoreRemovalMutationVariables
+  > = (props) => {
+    const { communityId, actionId, data } = props ?? {};
+
+    return restoreRemoval(communityId, actionId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RestoreRemovalMutationResult = NonNullable<Awaited<ReturnType<typeof restoreRemoval>>>;
+export type RestoreRemovalMutationBody = BodyType<ModerationRestore>;
+export type RestoreRemovalMutationError = ErrorType<HTTPValidationError>;
+export type RestoreRemovalMutationVariables = {
+  communityId: number;
+  actionId: number;
+  data: BodyType<ModerationRestore>;
+};
+
+/**
+ * @summary Restore Removal
+ */
+export const useRestoreRemoval = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof restoreRemoval>>,
+      TError,
+      RestoreRemovalMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof restoreRemoval>>,
+  TError,
+  RestoreRemovalMutationVariables,
+  TContext
+> => {
+  return useMutation(getRestoreRemovalMutationOptions(options), queryClient);
+};
+/**
+ * What this initiative's moderators have done, newest first.
+ *
+ * Read through the log's own row policy, which admits the initiative's
+ * moderation set: anyone else is told so rather than shown an empty log.
+ * @summary Read Moderation Log
+ */
+export const readModerationLog = (
+  communityId: number,
+  initiativeId: number,
+  params?: ReadModerationLogParams,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<ModerationLogList>(
+    {
+      url: `/api/v1/c/${communityId}/initiatives/${initiativeId}/moderation/log`,
+      method: "GET",
+      params,
+      signal,
+    },
+    options
+  );
+};
+
+export const getReadModerationLogQueryKey = (
+  communityId: number,
+  initiativeId: number,
+  params?: ReadModerationLogParams
+) => {
+  return [
+    `/api/v1/c/${communityId}/initiatives/${initiativeId}/moderation/log`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getReadModerationLogQueryOptions = <
+  TData = Awaited<ReturnType<typeof readModerationLog>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  initiativeId: number,
+  params?: ReadModerationLogParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readModerationLog>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getReadModerationLogQueryKey(communityId, initiativeId, params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof readModerationLog>>> = ({ signal }) =>
+    readModerationLog(communityId, initiativeId, params, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled:
+      communityId !== null &&
+      communityId !== undefined &&
+      initiativeId !== null &&
+      initiativeId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<Awaited<ReturnType<typeof readModerationLog>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+};
+
+export type ReadModerationLogQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readModerationLog>>
+>;
+export type ReadModerationLogQueryError = ErrorType<HTTPValidationError>;
+
+export function useReadModerationLog<
+  TData = Awaited<ReturnType<typeof readModerationLog>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  initiativeId: number,
+  params: undefined | ReadModerationLogParams,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof readModerationLog>>, TError, TData>> &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readModerationLog>>,
+          TError,
+          Awaited<ReturnType<typeof readModerationLog>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadModerationLog<
+  TData = Awaited<ReturnType<typeof readModerationLog>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  initiativeId: number,
+  params?: ReadModerationLogParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readModerationLog>>, TError, TData>> &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof readModerationLog>>,
+          TError,
+          Awaited<ReturnType<typeof readModerationLog>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useReadModerationLog<
+  TData = Awaited<ReturnType<typeof readModerationLog>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  initiativeId: number,
+  params?: ReadModerationLogParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readModerationLog>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Read Moderation Log
+ */
+
+export function useReadModerationLog<
+  TData = Awaited<ReturnType<typeof readModerationLog>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  initiativeId: number,
+  params?: ReadModerationLogParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readModerationLog>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getReadModerationLogQueryOptions(communityId, initiativeId, params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;

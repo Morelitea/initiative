@@ -5,6 +5,8 @@ import { useTranslation } from "react-i18next";
 
 import { type RSVPStatus, SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { ToolRelationsPanel } from "@/components/entities/ToolRelationsPanel";
+import { ModerationMenu } from "@/components/moderation/ModerationMenu";
+import { ReportButton } from "@/components/moderation/ReportButton";
 import { PropertyValueCell } from "@/components/properties/PropertyValueCell";
 import { iconForPropertyType } from "@/components/properties/propertyTypeIcons";
 import {
@@ -35,6 +37,7 @@ import {
   useUpdateEventRSVP,
 } from "@/hooks/useCalendarEvents";
 import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
+import { useInitiative } from "@/hooks/useInitiatives";
 import { useReadOnOpen } from "@/hooks/useNotifications";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { dateTimeFormat } from "@/lib/intl";
@@ -217,6 +220,10 @@ export function EventDetailPage() {
   // An event takes its level from its calendar; editing and deleting both ask
   // for write on it.
   const canWrite = Boolean(event?.can.edit);
+  // Moderation is of initiative content, so an event on a community-level
+  // calendar has no moderators to offer it to.
+  const initiativeQuery = useInitiative(event?.initiative_id ?? null);
+  const canModerate = event?.initiative_id != null && Boolean(initiativeQuery.data?.can.moderate);
 
   // Find current user's RSVP status
   const myAttendee = useMemo(() => {
@@ -303,6 +310,30 @@ export function EventDetailPage() {
         }
         settingsSearch={event.recurrence && occurrence ? { occurrence } : undefined}
         title={event.title}
+        titleExtras={
+          <div className="flex items-center gap-1">
+            <ReportButton
+              targetType={SearchEntityType.calendar_event}
+              targetId={event.id}
+              authorId={event.created_by}
+            />
+            <ModerationMenu
+              targetType={SearchEntityType.calendar_event}
+              targetId={event.id}
+              canModerate={canModerate}
+              communityId={event.community_id}
+              onGone={() =>
+                void navigate({
+                  to: gp(
+                    calendarId == null
+                      ? toolListRoute(Tool.calendar, initiativeId)
+                      : toolDetailRoute(Tool.calendar, initiativeId, calendarId)
+                  ),
+                })
+              }
+            />
+          </div>
+        }
       >
         {event.description && <p className="text-muted-foreground text-sm">{event.description}</p>}
         {event.all_day || canWrite ? (

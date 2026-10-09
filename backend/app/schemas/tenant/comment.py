@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from datetime import datetime
+from enum import Enum
 from typing import Optional
 
 from app.core.identity_boundary import PersonId
+from app.core.moderation import RemovalReason
 from app.core.tools import COMMENT_TARGETS
 from pydantic import (
     ConfigDict,
@@ -129,6 +131,25 @@ class CommentUpdate(CommentBase):
     pass
 
 
+class RemovedBy(str, Enum):
+    """Who took a comment out of the conversation."""
+
+    #: A moderator, with a reason.
+    moderator = "moderator"
+    #: The person who wrote it.
+    author = "author"
+
+
+class CommentRemoval(SanitizedBaseModel):
+    """What a tombstone says in place of a comment: who took it out, and,
+    for a moderator, why. Never what it said, or who wrote it."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    by: RemovedBy
+    reason: Optional[RemovalReason] = None
+
+
 class CommentRead(_CommentReadParents):
     """One comment. ``project_id`` is its own for a comment on a project and
     the task's for a task comment (filled by the service's serializer)."""
@@ -152,10 +173,14 @@ class CommentRead(_CommentReadParents):
     # row: a thread renders its chips from one list call. Empty until the
     # loader stamps them (see ``comments_service.attach_reactions``).
     reactions: list[ReactionGroup] = Field(default_factory=list)
-    # Whether the reader may delete this comment: their own, or anybody's
-    # where they administer the community or manage the initiative. Filled by
-    # the service's serializer from the same rule the delete route applies.
+    # Whether the reader may delete this comment: their own. A moderator takes
+    # others' down from the thread's moderation actions instead. Filled by the
+    # service's serializer from the same rule the delete route applies.
     can_remove: bool = False
+    # Set on a tombstone: a comment a moderator took down, or one its author
+    # deleted with replies under it. Its content is empty, and it names no
+    # author.
+    removed: Optional[CommentRemoval] = None
     # Who it is said to. ``filer`` on the part of an operations case that is
     # said to the person who filed it; ``members`` on everything else.
     audience: CommentAudience = CommentAudience.members
@@ -163,6 +188,12 @@ class CommentRead(_CommentReadParents):
     # operations case. Null on everything a person or a plug-in wrote — which
     # is how a client tells the platform's notes from a plug-in's.
     system_kind: Optional[str] = None
+
+    @field_validator("content")
+    @classmethod
+    def validate_content(cls, value: str) -> str:
+        """Read back as stored: a tombstone's is empty."""
+        return value
 
 
 class CommentListResponse(SanitizedBaseModel):
@@ -175,6 +206,12 @@ class CommentListResponse(SanitizedBaseModel):
     comments: list[CommentRead]
     #: The next page, or null at the end of the thread.
     next_cursor: Optional[str] = None
+    #: A moderator closed the thread: it reads as before, and only the
+    #: moderation set adds to it.
+    locked: bool = False
+    #: Whether the reader is in the moderation set of the thread's initiative:
+    #: they take comments down, and write in a locked thread.
+    can_moderate: bool = False
 
 
 class RecentActivityEntry(SanitizedBaseModel):

@@ -154,6 +154,9 @@ class PostSummary(PostBase, ToolSummaryBase):
     #: the API refuses to read or add one. The reactions already on it are kept,
     #: the same way turning a thread off keeps its comments.
     reactions_enabled: bool = True
+    #: When a moderator closed its comments: they still read, and only the
+    #: moderators add to them. Null while it is open.
+    comments_locked_at: Optional[datetime] = None
     #: How many comments the post has. Served with the board so a reader can
     #: see there is a conversation without opening the post to find out — and
     #: so an empty thread can invite the first one.

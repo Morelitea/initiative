@@ -369,7 +369,8 @@
       "direct_messages": "Direktnachrichten",
       "connections": "Kontakte",
       "jobs": "Exporte und Importe",
-      "account": "Dein Konto"
+      "account": "Dein Konto",
+      "moderation": "Moderation"
     },
     "reminderLeadTime": {
       "label": "Erinnere mich",
@@ -411,7 +412,8 @@
       "direct_messages": "Jemand hat dir geschrieben. Wer und wie viele, nie der Inhalt.",
       "connections": "Jemand möchte sich vernetzen oder hat angenommen.",
       "jobs": "Ein Export oder Import, den du angefordert hast, ist fertig.",
-      "account": "An deinem Konto wurde etwas geändert. Erscheint immer in der Glocke."
+      "account": "An deinem Konto wurde etwas geändert. Erscheint immer in der Glocke.",
+      "moderation": "Die Moderatoren einer Community haben etwas von dir entfernt oder dich deswegen verwarnt. Erscheint immer in der Glocke."
     },
     "quietHours": {
       "title": "Ruhezeiten",

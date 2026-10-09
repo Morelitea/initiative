@@ -137,6 +137,7 @@ async def scene(session, acting_user):
     return {
         "guild": owner.guild,
         "initiative": owner.initiative,
+        "admin": owner,
         "mod": mod,
         "member": member,
         "task": task,
@@ -490,7 +491,7 @@ async def test_escalating_with_nowhere_to_send_leaves_the_report_open(
 async def test_escalating_opens_a_platform_case(client, session, scene, operations):
     """The one crossing between the two shapes, carrying the reporters."""
     report_id = await _filed_report_id(
-        client, session, scene, reason="illegal", detail="They posted my address."
+        client, session, scene, reason="harassment", detail="They posted my address."
     )
 
     response = await client.post(
@@ -625,7 +626,7 @@ async def test_a_reported_community_is_the_cases_subject(
         scene["member"],
         target_type="guild",
         target_id=scene["guild"].id,
-        reason="illegal",
+        reason="hate",
     )
     assert response.status_code == 202, response.text
 
@@ -663,14 +664,14 @@ async def test_a_community_the_reporter_cannot_see_is_not_reportable(
         scene["member"],
         target_type="guild",
         target_id=hidden.id,
-        reason="illegal",
+        reason="hate",
     )
     missing_response = await _report(
         client,
         scene["member"],
         target_type="guild",
         target_id=999_999,
-        reason="illegal",
+        reason="hate",
     )
     assert hidden_response.status_code == missing_response.status_code == 404
     assert hidden_response.json() == missing_response.json()

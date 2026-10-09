@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { ReactionTarget } from "@/api/generated/initiativeAPI.schemas";
+import { ModerationMenu } from "@/components/moderation/ModerationMenu";
 import { ReportButton } from "@/components/moderation/ReportButton";
 import { UnreadDot } from "@/components/notifications/UnreadDot";
 import { ReactionBar } from "@/components/reactions/ReactionBar";
@@ -57,6 +58,10 @@ interface CommentThreadProps {
   isSubmitting?: boolean;
   /** False while the viewer may read the thread but not write to it. */
   canReact?: boolean;
+  /** False while nobody but the moderators adds to the thread. */
+  canReply?: boolean;
+  /** Whether the viewer moderates the initiative the thread is in. */
+  canModerate?: boolean;
   deleteError?: string | null;
   userDisplayNames?: Map<number, string>;
   /** Comments that were unread when the thread was opened. */
@@ -77,6 +82,8 @@ export const CommentThread = ({
   subject,
   isSubmitting = false,
   canReact = true,
+  canReply = true,
+  canModerate = false,
   deleteError,
   userDisplayNames = new Map(),
   unreadIds,
@@ -116,6 +123,22 @@ export const CommentThread = ({
   const isEdited = Boolean(comment.updated_at);
   const isUnread = unreadIds?.has(comment.id) ?? false;
 
+  // A tombstone: a comment a moderator took down, or one its author deleted
+  // with replies under it. It keeps its place for them and says nothing else.
+  const removal = comment.removed ?? null;
+  const tombstoneText = !removal
+    ? null
+    : removal.by === "author"
+      ? t("removed.byAuthor")
+      : removal.reason === "illegal"
+        ? t("removed.legal")
+        : t("removed.byModerator", {
+            reason: t(`moderation:removalReasons.${removal.reason ?? "other"}`),
+          });
+  // A comment still in its author's trash takes no replies; a moderator's
+  // tombstone does, since the conversation around it goes on.
+  const replyable = canReply && (!removal || removal.by === "moderator");
+
   const handleReplySubmit = (content: string) => {
     onReply(comment.id, content);
     setReplyContent("");
@@ -139,127 +162,156 @@ export const CommentThread = ({
       className={visualDepth > 0 ? "ml-4 border-l-2 pl-4" : ""}
       style={visualDepth > 0 ? { borderColor: threadLineColor(visualDepth) } : undefined}
     >
-      <div
-        data-unread={isUnread || undefined}
-        className={cn(
-          "rounded-md border border-border p-3",
-          isUnread && "border-primary/50 bg-primary/5"
-        )}
-      >
-        <div className="flex gap-3">
-          {/* The same picture component the profile and the sidebar draw, so
+      {tombstoneText !== null ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-dashed px-3 py-2">
+          <p className="text-muted-foreground text-sm italic">{tombstoneText}</p>
+          {replyable && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={() => setIsReplying(!isReplying)}
+            >
+              <Reply className="h-3.5 w-3.5" aria-hidden="true" />
+              <span className="sr-only sm:not-sr-only sm:ml-1">{t("reply")}</span>
+            </Button>
+          )}
+        </div>
+      ) : (
+        <div
+          data-unread={isUnread || undefined}
+          className={cn(
+            "rounded-md border border-border p-3",
+            isUnread && "border-primary/50 bg-primary/5"
+          )}
+        >
+          <div className="flex gap-3">
+            {/* The same picture component the profile and the sidebar draw, so
               a frame someone put on shows wherever they appear at a size it
               reads at — and the presence dot with it. An anonymized author has
               neither a picture nor a profile to have decorated. */}
-          <ProfileAvatar
-            user={
-              anonymizedAuthor || importedAuthorName
-                ? { id: null }
-                : (comment.author ?? { id: comment.created_by })
-            }
-            decorations={
-              anonymizedAuthor || importedAuthorName ? null : comment.author?.profile_decorations
-            }
-            presence={anonymizedAuthor || importedAuthorName ? undefined : comment.author?.presence}
-            className="size-9"
-          />
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-muted-foreground text-xs">
-              {/* The name is the way to the person, the same as a mention of
+            <ProfileAvatar
+              user={
+                anonymizedAuthor || importedAuthorName
+                  ? { id: null }
+                  : (comment.author ?? { id: comment.created_by })
+              }
+              decorations={
+                anonymizedAuthor || importedAuthorName ? null : comment.author?.profile_decorations
+              }
+              presence={
+                anonymizedAuthor || importedAuthorName ? undefined : comment.author?.presence
+              }
+              className="size-9"
+            />
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-muted-foreground text-xs">
+                {/* The name is the way to the person, the same as a mention of
                   them is. An imported author and an erased account are names
                   with nobody behind them, so they stay words. */}
-              <UserHoverLink
-                user={anonymizedAuthor || importedAuthorName ? null : comment.author}
-                className="font-medium text-foreground"
-              >
-                {displayName}
-              </UserHoverLink>
-              {importedAuthorName && (
-                <span className="whitespace-nowrap">{t("importedAuthor")}</span>
-              )}
-              <span className="whitespace-nowrap">
-                {relativeCreatedAt}
-                {isEdited && <span className="ml-1 text-muted-foreground">{t("edited")}</span>}
-              </span>
-              {isUnread && <UnreadDot />}
-              {!isEditing && (
-                <div className="ml-auto flex items-center gap-1">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 px-2 text-xs"
-                    onClick={() => setIsReplying(!isReplying)}
-                  >
-                    <Reply className="h-3.5 w-3.5" aria-hidden="true" />
-                    <span className="sr-only sm:not-sr-only sm:ml-1">{t("reply")}</span>
-                  </Button>
-                  {canEdit && (
-                    <Button
-                      type="button"
-                      variant="ghost"
+                <UserHoverLink
+                  user={anonymizedAuthor || importedAuthorName ? null : comment.author}
+                  className="font-medium text-foreground"
+                >
+                  {displayName}
+                </UserHoverLink>
+                {importedAuthorName && (
+                  <span className="whitespace-nowrap">{t("importedAuthor")}</span>
+                )}
+                <span className="whitespace-nowrap">
+                  {relativeCreatedAt}
+                  {isEdited && <span className="ml-1 text-muted-foreground">{t("edited")}</span>}
+                </span>
+                {isUnread && <UnreadDot />}
+                {!isEditing && (
+                  <div className="ml-auto flex items-center gap-1">
+                    {replyable && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-xs"
+                        onClick={() => setIsReplying(!isReplying)}
+                      >
+                        <Reply className="h-3.5 w-3.5" aria-hidden="true" />
+                        <span className="sr-only sm:not-sr-only sm:ml-1">{t("reply")}</span>
+                      </Button>
+                    )}
+                    {canEdit && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-xs"
+                        onClick={() => setIsEditing(true)}
+                      >
+                        <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                        <span className="sr-only sm:not-sr-only sm:ml-1">{t("common:edit")}</span>
+                      </Button>
+                    )}
+                    {canDelete && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-destructive text-xs hover:text-destructive"
+                        disabled={isSubmitting}
+                        onClick={() => setConfirmingDelete(true)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                        <span className="sr-only">{t("deleteComment")}</span>
+                      </Button>
+                    )}
+                    <ReportButton
+                      targetType="comment"
+                      targetId={comment.id}
+                      authorId={comment.created_by}
                       size="sm"
                       className="h-7 px-2 text-xs"
-                      onClick={() => setIsEditing(true)}
-                    >
-                      <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
-                      <span className="sr-only sm:not-sr-only sm:ml-1">{t("common:edit")}</span>
-                    </Button>
-                  )}
-                  {canDelete && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 px-2 text-destructive text-xs hover:text-destructive"
-                      disabled={isSubmitting}
-                      onClick={() => setConfirmingDelete(true)}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                      <span className="sr-only">{t("deleteComment")}</span>
-                    </Button>
-                  )}
-                  <ReportButton
-                    targetType="comment"
-                    targetId={comment.id}
-                    authorId={comment.created_by}
-                    size="sm"
-                    className="h-7 px-2 text-xs"
+                    />
+                    <ModerationMenu
+                      targetType="comment"
+                      targetId={comment.id}
+                      canModerate={canModerate}
+                      reactable
+                      className="h-7 w-7"
+                    />
+                  </div>
+                )}
+              </div>
+              <div className="mt-2 text-foreground text-sm">
+                {isEditing ? (
+                  <CommentInput
+                    value={editContent}
+                    onChange={setEditContent}
+                    onSubmit={handleEditSubmit}
+                    placeholder={t("editPlaceholder")}
+                    submitLabel={t("common:save")}
+                    isSubmitting={isSubmitting}
+                    initiativeId={initiativeId}
+                    subject={subject}
+                    onCancel={handleEditCancel}
+                    autoFocus
+                    compact
                   />
-                </div>
-              )}
-            </div>
-            <div className="mt-2 text-foreground text-sm">
-              {isEditing ? (
-                <CommentInput
-                  value={editContent}
-                  onChange={setEditContent}
-                  onSubmit={handleEditSubmit}
-                  placeholder={t("editPlaceholder")}
-                  submitLabel={t("common:save")}
-                  isSubmitting={isSubmitting}
-                  initiativeId={initiativeId}
-                  subject={subject}
-                  onCancel={handleEditCancel}
-                  autoFocus
-                  compact
+                ) : (
+                  <CommentContent content={comment.content} />
+                )}
+              </div>
+              {!isEditing && (
+                <ReactionBar
+                  className="mt-2"
+                  targetType={ReactionTarget.comment}
+                  targetId={comment.id}
+                  groups={comment.reactions}
+                  canReact={canReact}
                 />
-              ) : (
-                <CommentContent content={comment.content} />
               )}
             </div>
-            {!isEditing && (
-              <ReactionBar
-                className="mt-2"
-                targetType={ReactionTarget.comment}
-                targetId={comment.id}
-                groups={comment.reactions}
-                canReact={canReact}
-              />
-            )}
           </div>
         </div>
-      </div>
+      )}
 
       {/* Reply input */}
       {isReplying && (
@@ -321,6 +373,8 @@ export const CommentThread = ({
               subject={subject}
               isSubmitting={isSubmitting}
               canReact={canReact}
+              canReply={canReply}
+              canModerate={canModerate}
               deleteError={deleteError}
               userDisplayNames={userDisplayNames}
               unreadIds={unreadIds}

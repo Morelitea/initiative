@@ -51,7 +51,9 @@
     "calendar_event": "An event",
     "counter": "A counter",
     "counter_group": "A counter group",
-    "dashboard": "A dashboard"
+    "dashboard": "A dashboard",
+    "wiki": "A wiki",
+    "wiki_page": "A wiki page"
   },
   "paging": {
     "newer": "Newer",
@@ -68,12 +70,20 @@
     "detailPlaceholder": "What you want them to know (optional)",
     "submit": "Send report",
     "thanks": "Thanks — somebody will look at this.",
-    "error": "Could not send that report."
+    "error": "Could not send that report.",
+    "basisLabel": "Which law?",
+    "basisPlaceholder": "Choose one",
+    "basisHelp": "The people who run this server are told as well.",
+    "detailRequiredLabel": "Tell them what you saw",
+    "detailRequiredPlaceholder": "Say what is wrong with it",
+    "childSafetyHelp": "Don't attach anything. Say where it is, and it stays where it is for the platform to deal with.",
+    "platformContact": "You can also tell the people who run this server: {{contact}}"
   },
   "areas": {
     "reports": "Reports",
     "members": "Members",
-    "sharing": "Sharing"
+    "sharing": "Sharing",
+    "log": "Log"
   },
   "members": {
     "description": "Who is in this initiative, and what each of them may do.",
@@ -114,7 +124,8 @@
     "submit": "Hold it",
     "held": "Held for the platform.",
     "error": "Couldn't hold this.",
-    "releaseError": "Couldn't release this hold."
+    "releaseError": "Couldn't release this hold.",
+    "communityWarning": "Once it's held, you won't be able to see it either."
   },
   "sendToPlatform": {
     "action": "Send to the platform",
@@ -127,5 +138,83 @@
     "hideDescription": "Use this if the police or a court asked you to keep it, or if it may be illegal. It disappears for everyone, you included, and nobody here can change or delete it until the platform decides.",
     "leaveSubmit": "Send",
     "hideSubmit": "Hide and send"
-  }
+  },
+  "removalReasons": {
+    "spam": "Spam",
+    "harassment": "Harassment",
+    "hate": "Hate",
+    "violence": "Violence",
+    "sexual_content": "Sexual content",
+    "self_harm": "Self-harm",
+    "illegal": "Legal reasons",
+    "misinformation": "Misinformation",
+    "other": "Something else",
+    "off_topic": "Off topic",
+    "community_rule": "Against a community rule"
+  },
+  "actions": {
+    "dismiss": "Dismiss",
+    "remove": "Remove…",
+    "warn": "Warn…"
+  },
+  "remove": {
+    "title": "Take it down",
+    "description": "It goes to the trash, and whoever made it is told why. You can put it back from the log.",
+    "commentDescription": "Its words are taken out and a line saying why stays where it was. Replies to it stay. Whoever wrote it is told why, and you can put it back from the log.",
+    "reasonLabel": "Why",
+    "reasonPlaceholder": "Choose a reason",
+    "reasonHelp": "This is what its author is told.",
+    "noteLabel": "Note for the log (optional)",
+    "notePlaceholder": "Only moderators see this",
+    "submit": "Take it down",
+    "done": "Taken down."
+  },
+  "warn": {
+    "title": "Warn whoever wrote this",
+    "description": "They get what you write here, as a notice from this community's moderators. It never says who reported it.",
+    "messageLabel": "What they're told",
+    "messagePlaceholder": "What crossed a line, and what you expect instead",
+    "submit": "Send warning",
+    "done": "Warning sent."
+  },
+  "menu": {
+    "label": "Moderate",
+    "remove": "Remove…",
+    "lock": "Lock comments",
+    "unlock": "Unlock comments",
+    "locked": "Comments locked.",
+    "unlocked": "Comments unlocked.",
+    "clearReactions": "Clear reactions",
+    "clearTitle": "Clear every reaction?",
+    "clearDescription": "Every reaction on this is taken off. This can't be undone.",
+    "cleared": "Reactions cleared.",
+    "hold": "Hold for the platform…"
+  },
+  "act": {
+    "error": "Couldn't do that."
+  },
+  "log": {
+    "title": "What moderators have done here, newest first.",
+    "empty": "Nothing has been done yet.",
+    "restore": "Put back",
+    "restored": "Put back.",
+    "restoreError": "Couldn't put that back.",
+    "platform": "The platform",
+    "someone": "A moderator",
+    "by": "by {{name}}",
+    "whose": "{{name}}'s",
+    "whatItSaid": "What it said",
+    "fromReport": "Settling a report",
+    "afterHold": "After a hold ended",
+    "acts": {
+      "remove": "Removed",
+      "restore": "Put back",
+      "lock_comments": "Locked comments",
+      "unlock_comments": "Unlocked comments",
+      "clear_reactions": "Cleared reactions",
+      "warn": "Warned"
+    }
+  },
+  "platformNotified": "Platform notified",
+  "suggestHold": "Reported as illegal. If it may be, hide it and send it to the platform."
 }

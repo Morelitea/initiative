@@ -1388,6 +1388,7 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     # in the initiative, plus the guild admin — see direct_full_access.
     "moderation_reports": direct_full_access(),
     "moderation_report_reporters": via_full_access("moderation_reports", "report_id"),
+    "moderation_actions": direct_full_access(),
     # Where a stream of operations work lands. Reached by whoever can reach the
     # project it names, which is the initiative that does the work.
     "intake_bindings": via("projects", "project_id"),
@@ -1897,6 +1898,7 @@ EVENT_SOURCES: dict[str, Emit | Silent] = {
     "intake_bindings": Silent("routing config; it reports on no content"),
     "moderation_reports": Silent("who reported whom is not an automation signal"),
     "moderation_report_reporters": Silent("the reporters behind one report"),
+    "moderation_actions": Silent("the moderation log, read on its own surface"),
     "intake_cases": Silent("the key -> task map; the task is what a subscriber hears"),
     "uploads": Silent("a stored file; the content showing it is what changed"),
     "evidence": Silent("an attached file; its case or report is what changed"),

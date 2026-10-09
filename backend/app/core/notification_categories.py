@@ -72,6 +72,7 @@ class NotificationCategory(str, Enum):
     connections = "connections"
     jobs = "jobs"
     account = "account"
+    moderation = "moderation"
 
 
 #: How the settings page groups the rows. Presentation only — nothing resolves
@@ -290,6 +291,21 @@ CATEGORY_SPECS: Mapping[NotificationCategory, CategorySpec] = {
         group=CategoryGroup.account,
         personal=True,
         guild_scoped=False,
+        mutable_channels=_KEEP_IN_APP,
+    ),
+    # A community's moderators acted on something this account wrote. Like an
+    # account notice, being told is not a preference; unlike one, it belongs
+    # to a community.
+    NotificationCategory.moderation: CategorySpec(
+        types=frozenset(
+            {
+                NotificationType.moderation_removal,
+                NotificationType.moderation_warning,
+            }
+        ),
+        group=CategoryGroup.community,
+        personal=True,
+        guild_scoped=True,
         mutable_channels=_KEEP_IN_APP,
     ),
 }
