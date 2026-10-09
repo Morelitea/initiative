@@ -72,7 +72,12 @@ async def _levels(
 
     def where(model: type):
         column = model.archived_at
-        return column.is_(None) if matching is None else column == matching
+        if matching is not None:
+            return column == matching
+        # A held row is left as it is when what it sits in is archived.
+        if hasattr(model, "held_at"):
+            return column.is_(None) & model.held_at.is_(None)
+        return column.is_(None)
 
     return await subtree_levels(session, entities, tree=ARCHIVE_CHILDREN, where=where)
 

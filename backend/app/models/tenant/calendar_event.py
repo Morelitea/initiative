@@ -17,14 +17,14 @@ from sqlalchemy.dialects.postgresql import ARRAY
 from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
 
 from app.core import recurrence
-from app.models.tenant._mixins import CreatedByMixin, SoftDeleteMixin
+from app.models.tenant._mixins import CreatedByMixin, HoldMixin, SoftDeleteMixin
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.calendar import Calendar
     from app.models.platform.user_profile_view import MemberProfile
 
 
-class CalendarEvent(CreatedByMixin, SoftDeleteMixin, table=True):
+class CalendarEvent(HoldMixin, CreatedByMixin, SoftDeleteMixin, table=True):
     """Event inside a calendar (Google Calendar-like).
 
     Events carry no grants of their own: access derives entirely from the

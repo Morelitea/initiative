@@ -263,6 +263,8 @@ HIDDEN_EVERYWHERE: frozenset[str] = frozenset(
         "deleted_at",
         "deleted_by",
         "purge_at",
+        "held_at",
+        "hold_id",
     }
 )
 

@@ -34,6 +34,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.audit_events import AuditEventType
 from app.db import cohorts, post_commit
 from app.db.guild_migrations import GUILD_SCHEMA_REGEX
+from app.db.holds import refuse_while_held
 from app.db.schema_provisioning import deprovision_guild
 from app.db.session import SystemSessionLocal, set_rls_context
 from app.models.platform.guild import Guild
@@ -109,6 +110,9 @@ async def _destroy(session: AsyncSession, guild: Guild, days: int) -> None:
     purge forever.
     """
     guild_id = guild.id
+    # Held content keeps its community: the deletion waits, and the sweep
+    # tries again once the platform has released it (app.db.holds).
+    await refuse_while_held(guild_id)
     await session.exec(delete(Guild).where(Guild.id == guild_id))
     await audit_service.record(
         session,

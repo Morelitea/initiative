@@ -42,6 +42,11 @@ class CaseView:
     messages: list[Comment]
     #: What was attached to it, oldest first.
     evidence: list[Evidence]
+    #: What it is about, as its references recorded it: the community, and
+    #: the kind and id of the thing in it. ``None`` where they say nothing.
+    subject_guild_id: Optional[int] = None
+    resource_type: Optional[str] = None
+    resource_id: Optional[int] = None
 
 
 async def read_case(session: AsyncSession, task_id: int) -> Optional[CaseView]:
@@ -93,4 +98,33 @@ async def read_case(session: AsyncSession, task_id: int) -> Optional[CaseView]:
             ).all()
         ),
         evidence=attached.get(("case", int(case.id)), []),
+        **await _subject(session, task_id),
     )
+
+
+async def _subject(session: AsyncSession, task_id: int) -> dict[str, object]:
+    """The case's subject, from the references it was opened with: the task's
+    values for the case fields that name it."""
+    from app.core.intake import CaseField
+    from app.services.tenant.properties import summaries_by_id
+
+    values = {
+        summary.name: summary.value
+        for summary in (await summaries_by_id(session, "task", [task_id])).get(
+            task_id, []
+        )
+    }
+
+    def whole(name: str) -> Optional[int]:
+        value = values.get(name)
+        try:
+            return int(value) if value is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    kind = values.get(CaseField.resource_type.value)
+    return {
+        "subject_guild_id": whole(CaseField.subject_guild.value),
+        "resource_type": str(kind) if kind else None,
+        "resource_id": whole(CaseField.resource_id.value),
+    }

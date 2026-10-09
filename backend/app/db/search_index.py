@@ -548,7 +548,7 @@ def _when_clause(table: str, source: SearchSource) -> str:
     # ``published_at`` is what makes the publication worker's stamp index the
     # notice: no trigger fires on the passage of time, but the write that
     # records the publication is a write like any other.
-    watched.extend(("deleted_at", "published_at"))
+    watched.extend(("deleted_at", "published_at", "held_at"))
     columns = SQLModel.metadata.tables[table].columns
     present = [c for c in dict.fromkeys(watched) if c in columns]
     return " OR ".join(f"OLD.{c} IS DISTINCT FROM NEW.{c}" for c in present)
@@ -670,10 +670,13 @@ BEGIN
     -- A delete, or a soft delete, leaves the entity with no rows: trash is
     -- browsed through the trash surface, not found by searching. So does a row
     -- that has not been published yet — a scheduled notice is a draft, and a
-    -- draft is not something the people it will go to can find.
+    -- draft is not something the people it will go to can find. Nor is
+    -- content the platform holds (app.db.holds): it reads as absent.
     IF TG_OP = 'DELETE'
        OR (to_jsonb(v_row) ? 'deleted_at'
            AND to_jsonb(v_row) ->> 'deleted_at' IS NOT NULL)
+       OR (to_jsonb(v_row) ? 'held_at'
+           AND to_jsonb(v_row) ->> 'held_at' IS NOT NULL)
        OR (to_jsonb(v_row) ? 'published_at'
            AND to_jsonb(v_row) ->> 'published_at' IS NULL) THEN
         EXECUTE format(
@@ -744,9 +747,9 @@ $dep$;
 def _live_clause(table: str, row: str) -> str:
     """Restricts to rows that have an entry at all.
 
-    Trash is browsed through the trash surface, not found by searching; and a
-    row whose publication has not happened yet is a draft, which the people it
-    is destined for must not be able to find. Both mirror the same two tests in
+    Trash is browsed through the trash surface, not found by searching; a row
+    whose publication has not happened yet is a draft, which the people it is
+    destined for must not be able to find; and held content reads as absent. Both mirror the same two tests in
     the trigger function, so the sweep and the triggers index the same set.
     """
     columns = SQLModel.metadata.tables[table].columns
@@ -755,6 +758,8 @@ def _live_clause(table: str, row: str) -> str:
         parts.append(f" AND {row}.deleted_at IS NULL")
     if "published_at" in columns:
         parts.append(f" AND {row}.published_at IS NOT NULL")
+    if "held_at" in columns:
+        parts.append(f" AND {row}.held_at IS NULL")
     return "".join(parts)
 
 

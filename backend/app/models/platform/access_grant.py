@@ -11,6 +11,9 @@ class AccessLevel(str, Enum):
 
     read = "read"
     read_write = "read_write"
+    #: Read, including what the platform holds, for moderation work. No
+    #: edits. Requested only with ``content.moderate``, and never self-issued.
+    moderate = "moderate"
 
 
 class SettingsLevel(str, Enum):
@@ -90,11 +93,12 @@ SETTINGS_LEVELS: tuple[str, ...] = tuple(level.value for level in SettingsLevel)
 LEVEL_LABEL_KEYS: dict[str, str] = {
     "read": "accessGrant.levelRead",
     "read_write": "accessGrant.levelReadWrite",
+    "moderate": "accessGrant.levelModerate",
     "admin": "accessGrant.levelAdmin",
     "superadmin": "accessGrant.levelSuperadmin",
 }
 
-#: What ``access_level`` may say, per purpose. The CHECK in migration 0364
+#: What ``access_level`` may say, per purpose. The CHECK in migration 0472
 #: mirrors this. A billing grant has one level: what its holder may do in the
 #: billing account is the billing service's to decide.
 LEVELS_BY_PURPOSE: dict[str, tuple[str, ...]] = {

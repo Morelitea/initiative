@@ -5,13 +5,13 @@ from sqlalchemy import Column, DateTime, String
 from sqlmodel import Field
 from pydantic import ConfigDict
 
-from app.models.tenant._mixins import CreatedByMixin, SoftDeleteMixin
+from app.models.tenant._mixins import CreatedByMixin, HoldMixin, SoftDeleteMixin
 
 if TYPE_CHECKING:  # pragma: no cover
     pass
 
 
-class Tag(CreatedByMixin, SoftDeleteMixin, table=True):
+class Tag(HoldMixin, CreatedByMixin, SoftDeleteMixin, table=True):
     """Guild-scoped tag for categorizing tasks, projects, and files.
 
     Supports nested tag naming via "/" convention (e.g., "books/fiction").

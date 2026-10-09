@@ -609,6 +609,25 @@ class ModerationMessages:
     NOT_A_MODERATOR = "MODERATION_NOT_A_MODERATOR"
 
 
+class HoldMessages:
+    """Holding content for the platform, and releasing a hold."""
+
+    #: There is nothing to hold there, or nothing the reader may hold.
+    TARGET_NOT_FOUND = "HOLD_TARGET_NOT_FOUND"
+    #: Holding is for the community's moderators and the platform's.
+    NOT_ALLOWED = "HOLD_NOT_ALLOWED"
+    #: It is held already.
+    ALREADY_HELD = "HOLD_ALREADY_HELD"
+    #: A hold for illegal content names the law it falls under.
+    LEGAL_BASIS_REQUIRED = "HOLD_LEGAL_BASIS_REQUIRED"
+    #: The platform takes no moderation cases here, so nobody would see it.
+    NOWHERE_TO_SEND = "HOLD_NOWHERE_TO_SEND"
+    NOT_FOUND = "HOLD_NOT_FOUND"
+    ALREADY_RELEASED = "HOLD_ALREADY_RELEASED"
+    #: The case named isn't one the platform is working.
+    CASE_NOT_FOUND = "HOLD_CASE_NOT_FOUND"
+
+
 class SupportMessages:
     """Asking whoever runs this deployment for help."""
 
@@ -675,6 +694,8 @@ class AccessGrantMessages:
     #: Approving asks whether the requester may still request access: an
     #: active account whose role holds ``access.request``.
     GRANTEE_INELIGIBLE = "ACCESS_GRANT_GRANTEE_INELIGIBLE"
+    #: A ``moderate`` grant is for those who hold ``content.moderate``.
+    MODERATE_NOT_HELD = "ACCESS_GRANT_MODERATE_NOT_HELD"
     #: A settings rung reads; changing what it reaches takes a read_write
     #: content grant beside it.
     WRITE_GRANT_REQUIRED = "ACCESS_GRANT_WRITE_REQUIRED"

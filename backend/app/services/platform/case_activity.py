@@ -29,6 +29,12 @@ class ActivityKind(str, Enum):
 
     #: The source of an open case was seen again.
     repeat = "repeat"
+    #: Content was held for the platform on this case.
+    hold_placed = "hold_placed"
+    #: A hold on this case was released.
+    hold_released = "hold_released"
+    #: A hold on this case is still in place.
+    hold_reminder = "hold_reminder"
 
 
 def repeat_text(*, occurrences: int, detail: str | None) -> str:

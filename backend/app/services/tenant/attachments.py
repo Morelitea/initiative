@@ -332,6 +332,8 @@ async def _drop_upload_rows(session, filenames: Set[str]) -> Set[str]:
     result = await session.exec(
         sa_delete(Upload)
         .where(ids_in(Upload.filename, filenames))
+        # A held upload stays, whatever stops showing it (app.db.holds).
+        .where(Upload.held_at.is_(None))  # type: ignore[union-attr]
         .returning(Upload.filename)
     )
     return set(result.scalars().all())
@@ -778,6 +780,7 @@ async def purge_initiative_uploads(session, initiative_ids: Iterable[int]) -> Se
     result = await session.exec(
         sa_delete(Upload)
         .where(ids_in(Upload.initiative_id, initiative_ids))
+        .where(Upload.held_at.is_(None))  # type: ignore[union-attr]
         .returning(Upload.filename)
     )
     return set(result.scalars().all())

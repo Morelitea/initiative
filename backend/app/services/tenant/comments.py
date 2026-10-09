@@ -24,7 +24,7 @@ from collections.abc import Mapping, Sequence
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Optional, cast
 
-from sqlalchemy import ColumnElement, and_, func, or_, tuple_
+from sqlalchemy import ColumnElement, and_, exists, func, or_, tuple_
 from sqlalchemy.orm import aliased, selectinload
 from sqlmodel import SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -985,9 +985,15 @@ async def list_comments(
         user=user,
         access="read",
     )
+    # A reply whose parent the reader can't see — held for the platform, say
+    # (app.db.holds) — starts a conversation of its own, under a placeholder.
+    parent = aliased(Comment)
     roots = select(Comment.id, Comment.created_at).where(
         getattr(Comment, column) == ctx.entity_id,
-        Comment.parent_comment_id.is_(None),
+        or_(
+            Comment.parent_comment_id.is_(None),
+            ~exists().where(parent.id == Comment.parent_comment_id),
+        ),
         in_thread(),
     )
     position = keyset_cursor.decode(cursor)

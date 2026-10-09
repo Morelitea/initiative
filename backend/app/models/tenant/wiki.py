@@ -21,11 +21,12 @@ from sqlmodel import Field, Relationship
 from app.core.tools import Tool
 from app.models.tenant._mixins import (
     ArchiveMixin,
-    attach_actions,
     CommentsToggleMixin,
     CreatedByMixin,
+    HoldMixin,
     ListingProvenanceMixin,
     SoftDeleteMixin,
+    attach_actions,
 )
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -61,6 +62,7 @@ class WikiReadingWidth(str, Enum):
 
 
 class Wiki(
+    HoldMixin,
     CommentsToggleMixin,
     CreatedByMixin,
     ArchiveMixin,
@@ -223,7 +225,7 @@ class Wiki(
     )
 
 
-class WikiPage(CreatedByMixin, SoftDeleteMixin, table=True):
+class WikiPage(HoldMixin, CreatedByMixin, SoftDeleteMixin, table=True):
     """One page of a wiki.
 
     A page is a Lexical body, the same editor a native file carries, and it

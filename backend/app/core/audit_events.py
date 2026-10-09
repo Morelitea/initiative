@@ -88,6 +88,10 @@ class AuditEventType(str, Enum):
         False,
     )
     USER_SIGN_IN_LOCK_LIFTED = "user.sign_in_lock_lifted", AuditCategory.MODERATION
+    #: Content was held for the platform, and a hold was released: what was
+    #: kept from the community, by whom, and how it ended.
+    HOLD_PLACED = "hold.placed", AuditCategory.MODERATION, 1
+    HOLD_RELEASED = "hold.released", AuditCategory.MODERATION, 1
 
     # The platform ladder. Granting a rung is an operator's job (``roles.assign``),
     # not a moderator's, so it is recorded apart from the account actions above:

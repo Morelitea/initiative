@@ -5,9 +5,9 @@ from __future__ import annotations
 from datetime import datetime
 from typing import List, Optional
 
-from pydantic import Field as PydanticField
+from pydantic import Field as PydanticField, model_validator
 
-from app.core.moderation import ReportOutcome, ReportReason
+from app.core.moderation import HoldReason, LegalBasis, ReportOutcome, ReportReason
 from app.core.search import SearchEntityType
 from app.core.tools import Tool
 from app.schemas.base import SanitizedBaseModel
@@ -81,11 +81,30 @@ class ModerationReportList(PageMeta):
     items: List[ModerationReportRead]
 
 
+class ReportHold(SanitizedBaseModel):
+    """Why a report's target is being held for the platform."""
+
+    reason: HoldReason
+    #: Required for ``illegal_content``.
+    legal_basis: Optional[LegalBasis] = None
+    #: Who asked, a reference number. Read only by the platform.
+    note: Optional[str] = PydanticField(default=None, max_length=2000)
+
+
 class ReportSettle(SanitizedBaseModel):
     """Settling a report. Every outcome closes it."""
 
     outcome: ReportOutcome
     note: Optional[str] = PydanticField(default=None, max_length=4000)
+    #: For ``held``: why the reported thing is held. Required then, and
+    #: refused with any other outcome.
+    hold: Optional[ReportHold] = None
+
+    @model_validator(mode="after")
+    def _hold_goes_with_held(self) -> "ReportSettle":
+        if (self.outcome == ReportOutcome.held) != (self.hold is not None):
+            raise ValueError("a hold goes with the held outcome, and only with it")
+        return self
 
 
 class SharedResourceRead(SanitizedBaseModel):

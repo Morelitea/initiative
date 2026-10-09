@@ -95,8 +95,12 @@ FILER_TABLE_ACCESS: dict[str, tuple[str, ...]] = {
 #: so a policy can be evaluated, not so a filer can read them: their rows
 #: answer no.
 POLICY_READS: dict[str, tuple[str, ...]] = {
-    "projects": ("id", "initiative_id"),
+    "projects": ("id", "initiative_id", "held_at"),
     "moderation_reports": ("id", "initiative_id"),
+    # Every holdable table's ``held_restrict`` reads ``held_at``
+    # (``app.db.holds``), whoever is reading.
+    "tasks": ("held_at",),
+    "comments": ("held_at",),
 }
 
 #: The row each granted table admits a filer to, as SQL over that table, with
@@ -154,7 +158,12 @@ def _grant_statements(schema: str, role: str) -> list[str]:
         # in public; no table there is granted.
         f'GRANT USAGE ON SCHEMA public TO "{role}"',
     ]
-    for table, columns in sorted({**POLICY_READS, **FILER_TABLE_ACCESS}.items()):
+    readable: dict[str, tuple[str, ...]] = {}
+    for source in (FILER_TABLE_ACCESS, POLICY_READS):
+        for table, columns in source.items():
+            seen = readable.get(table, ())
+            readable[table] = seen + tuple(c for c in columns if c not in seen)
+    for table, columns in sorted(readable.items()):
         cols = ", ".join(f'"{c}"' for c in columns)
         stmts.append(f'GRANT SELECT ({cols}) ON "{schema}"."{table}" TO "{role}"')
     stmts.append(f'GRANT "{role}" TO "{APP_LOGIN_ROLE}" WITH INHERIT FALSE')

@@ -158,6 +158,11 @@ GUILD_LEVEL_TABLES: frozenset[str] = frozenset(
         # own_row_* policies. A member token's standing reads the member's own
         # row for its install.
         "plugin_member_consents",
+        # The platform's record of what it holds in the community: why, by
+        # whom, under which case. Read by the system engine and a ``moderate``
+        # grantee alone, never by the community — its policies are rendered
+        # from ``app.db.holds``, with no admin leg.
+        "content_holds",
     }
 )
 
@@ -301,6 +306,9 @@ CREATED_BY_EXEMPT_TABLES: frozenset[str] = frozenset(
         # question.
         "moderation_reports",
         "moderation_report_reporters",
+        # A hold names who placed it in ``placed_by``, and may be placed by a
+        # moderator of another community entirely: the platform's.
+        "content_holds",
     }
 )
 
