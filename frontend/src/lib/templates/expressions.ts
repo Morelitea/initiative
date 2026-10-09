@@ -16,7 +16,14 @@
 
 import { parse } from "@bufbuild/cel";
 
-import { fieldShape, itemShape, resolveShape, type Shape } from "./shapes.ts";
+import {
+  fieldShape,
+  itemShape,
+  resolveShape,
+  SCHEMA_SHAPES,
+  type Shape,
+  type ShapeTable,
+} from "./shapes.ts";
 
 export const MAX_EXPRESSION_LENGTH = 400;
 export const MAX_EXPRESSION_NODES = 200;
@@ -147,7 +154,11 @@ interface CelComprehension {
  * The walk returns what each part holds, so `task.priority` is checked against
  * the task, and a comprehension's variable holds one item of the list it walks.
  */
-export function checkExpression(source: string, scope: ExpressionScope): ExpressionCheck {
+export function checkExpression(
+  source: string,
+  scope: ExpressionScope,
+  table: ShapeTable = SCHEMA_SHAPES
+): ExpressionCheck {
   if (source.length > MAX_EXPRESSION_LENGTH) {
     return {
       problems: [`Expressions are at most ${MAX_EXPRESSION_LENGTH} characters long`],
@@ -189,7 +200,7 @@ export function checkExpression(source: string, scope: ExpressionScope): Express
       case "selectExpr": {
         const select = value as CelSelect;
         const operand = walk(select.operand, names, depth);
-        const shape = fieldShape(operand, select.field);
+        const shape = fieldShape(operand, select.field, table);
         if (shape === undefined) {
           problems.push(`There is no field ${select.field} here`);
           return "any";
@@ -204,7 +215,7 @@ export function checkExpression(source: string, scope: ExpressionScope): Express
         walk(call.target, names, depth);
         const args = call.args.map((argument) => walk(argument, names, depth));
         if (call.function === "_[_]") {
-          const indexed = resolveShape(args[0] ?? "any");
+          const indexed = resolveShape(args[0] ?? "any", table);
           if (typeof indexed === "object" && "list" in indexed) return indexed.list;
           if (typeof indexed === "object" && "map" in indexed) return indexed.map;
         }
@@ -217,7 +228,7 @@ export function checkExpression(source: string, scope: ExpressionScope): Express
         }
         const range = walk(comprehension.iterRange, names, depth);
         const inner = new Map(names);
-        inner.set(comprehension.iterVar, itemShape(range));
+        inner.set(comprehension.iterVar, itemShape(range, table));
         if (comprehension.iterVar2) inner.set(comprehension.iterVar2, "any");
         inner.set(comprehension.accuVar, "any");
         walk(comprehension.accuInit, names, depth + 1);

@@ -29,7 +29,7 @@ import {
   type TemplateNode,
 } from "./parse.ts";
 import type { SectionDefinition } from "./sections.ts";
-import { itemShape, type Shape, schemaShape } from "./shapes.ts";
+import { itemShape, SCHEMA_SHAPES, type Shape, type ShapeTable } from "./shapes.ts";
 
 export type CompiledNode =
   | {
@@ -101,6 +101,8 @@ const FOR_PATTERN = /^\s*([a-z_][A-Za-z0-9_]*)\s+in\s+([\s\S]+)$/;
 export interface CompileOptions {
   name: string;
   section: SectionDefinition;
+  /** The schemas the section's data is checked against; the generated ones unless a test gives its own. */
+  shapes?: ShapeTable;
 }
 
 export interface CompileResult {
@@ -122,9 +124,10 @@ export function compileTemplate(source: string, options: CompileOptions): Compil
     throw error;
   }
 
+  const shapes = options.shapes ?? SCHEMA_SHAPES;
   const rootScope = new Map<string, Shape>();
   for (const [name, schema] of Object.entries(options.section.data)) {
-    const shape = schemaShape(schema);
+    const shape = shapes[schema];
     if (shape === undefined) {
       report(`Section data ${name} names ${schema}, which the API does not have`, {
         line: 1,
@@ -141,7 +144,7 @@ export function compileTemplate(source: string, options: CompileOptions): Compil
     scope: ExpressionScope,
     at: SourcePosition
   ): { index: number; shape: Shape } => {
-    const { problems, shape } = checkExpression(source, scope);
+    const { problems, shape } = checkExpression(source, scope, shapes);
     for (const problem of problems) report(`${problem}: ${source}`, at);
     let index = exprIndex.get(source);
     if (index === undefined) {
@@ -306,7 +309,7 @@ export function compileTemplate(source: string, options: CompileOptions): Compil
           continue;
         }
         const inner = new Map(scope);
-        inner.set(item, itemShape(list.shape));
+        inner.set(item, itemShape(list.shape, shapes));
         const body = compileElement(node, inner, { conditional: true, loops: placement.loops + 1 });
         if (body) compiled.push({ t: "for", item, list: list.index, node: body });
         continue;

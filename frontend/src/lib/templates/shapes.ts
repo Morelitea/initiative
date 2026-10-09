@@ -20,19 +20,18 @@ export type Shape =
   | { fields: Record<string, Shape> }
   | { enum: Array<string | number | boolean> };
 
-const SCHEMAS = schemaShapes as unknown as Record<string, Shape>;
+/** Schemas by name. */
+export type ShapeTable = Readonly<Record<string, Shape>>;
 
-/** A schema by name, or undefined when the spec has no such schema. */
-export function schemaShape(name: string): Shape | undefined {
-  return SCHEMAS[name];
-}
+/** The schemas the sections read, and everything they reference. */
+export const SCHEMA_SHAPES = schemaShapes as unknown as ShapeTable;
 
 /** Follow references until the shape says what it holds. */
-export function resolveShape(shape: Shape): Shape {
+export function resolveShape(shape: Shape, table: ShapeTable = SCHEMA_SHAPES): Shape {
   let current = shape;
   for (let hops = 0; typeof current === "object" && "ref" in current; hops++) {
     if (hops > 32) return "any";
-    current = SCHEMAS[current.ref] ?? "any";
+    current = table[current.ref] ?? "any";
   }
   return current;
 }
@@ -41,8 +40,12 @@ export function resolveShape(shape: Shape): Shape {
  * The shape of `field` on a value of `shape`: a shape, "any" when the value is
  * a map or not known, or undefined when it is a record with no such field.
  */
-export function fieldShape(shape: Shape, field: string): Shape | undefined {
-  const resolved = resolveShape(shape);
+export function fieldShape(
+  shape: Shape,
+  field: string,
+  table: ShapeTable = SCHEMA_SHAPES
+): Shape | undefined {
+  const resolved = resolveShape(shape, table);
   if (resolved === "any") return "any";
   if (typeof resolved !== "object") return undefined;
   if ("fields" in resolved) return resolved.fields[field];
@@ -51,8 +54,8 @@ export function fieldShape(shape: Shape, field: string): Shape | undefined {
 }
 
 /** The shape of one item of a list, or "any" when it is not known to be a list. */
-export function itemShape(shape: Shape): Shape {
-  const resolved = resolveShape(shape);
+export function itemShape(shape: Shape, table: ShapeTable = SCHEMA_SHAPES): Shape {
+  const resolved = resolveShape(shape, table);
   if (typeof resolved === "object" && "list" in resolved) return resolved.list;
   return "any";
 }

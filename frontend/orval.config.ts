@@ -2,6 +2,12 @@ import { defineConfig } from "orval";
 
 export default defineConfig({
   initiative: {
+    hooks: {
+      // The template compiler's view of the same spec: the schemas the sections
+      // read, written beside the types so they regenerate together.
+      afterAllFilesWrite:
+        "node --experimental-strip-types scripts/build-schema-shapes.mjs openapi.json",
+    },
     input: {
       target: "./openapi.json",
     },

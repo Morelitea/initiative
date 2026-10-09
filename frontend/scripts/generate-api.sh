@@ -51,7 +51,6 @@ fi
 echo "Generating TypeScript types and React Query hooks..."
 cd "$FRONTEND_DIR"
 pnpm orval
-node scripts/build-schema-shapes.mjs "${FRONTEND_DIR}/openapi.json"
 pnpm format:api
 
 echo "Done! Generated files in src/api/generated/"

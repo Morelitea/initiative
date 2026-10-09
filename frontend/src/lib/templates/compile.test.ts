@@ -1,17 +1,11 @@
-import type { TaskRead } from "@/api/generated/initiativeAPI.schemas";
+import { TASK_SHAPES, taskCardSection } from "@/__tests__/helpers/templates";
 
 import { compileTemplate } from "./compile";
 import { checkExpression, MAX_EXPRESSION_LENGTH } from "./expressions";
 import { parseTemplate } from "./parse";
-import { defineSection } from "./sections";
-import { schemaShape } from "./shapes";
 
-const section = defineSection<{ task: TaskRead }>()({
-  data: { task: "TaskRead" },
-  parts: { title: { required: true }, checklist: {} },
-});
-
-const compile = (source: string) => compileTemplate(source, { name: "test.card", section });
+const compile = (source: string) =>
+  compileTemplate(source, { name: "test.card", section: taskCardSection, shapes: TASK_SHAPES });
 const errorsOf = (source: string) => compile(source).errors.map((error) => error.message);
 
 describe("parseTemplate", () => {
@@ -62,51 +56,39 @@ describe("parseTemplate", () => {
 });
 
 describe("checkExpression", () => {
-  const scope = new Map([["task", schemaShape("TaskRead") ?? "any"]]);
+  const scope = new Map([["task", { ref: "TaskListRead" } as const]]);
+  const check = (source: string) => checkExpression(source, scope, TASK_SHAPES);
 
   it("checks names, fields and functions against what the section reads", () => {
-    expect(checkExpression("task.title.lowerAscii() == 'x'", scope).problems).toEqual([]);
-    expect(checkExpression("has(task.due_date)", scope).problems).toEqual([]);
-    expect(checkExpression("task.nope", scope).problems).toEqual(["There is no field nope here"]);
-    expect(checkExpression("project.name", scope).problems).toEqual([
-      "Nothing is called project here",
-    ]);
-    expect(checkExpression("fetch(task.title)", scope).problems).toEqual([
+    expect(check("task.title.lowerAscii() == 'x'").problems).toEqual([]);
+    expect(check("has(task.due_date)").problems).toEqual([]);
+    expect(check("task.nope").problems).toEqual(["There is no field nope here"]);
+    expect(check("project.name").problems).toEqual(["Nothing is called project here"]);
+    expect(check("fetch(task.title)").problems).toEqual([
       "fetch() is not a function templates may use",
     ]);
-    expect(checkExpression("task.title ==", scope).problems[0]).toMatch(/^Does not parse/);
+    expect(check("task.title ==").problems[0]).toMatch(/^Does not parse/);
     // A map's keys are expressions too: an unquoted one is a name, and checked as one.
-    expect(checkExpression("{ color: 1 }", scope).problems).toEqual([
-      "Nothing is called color here",
-    ]);
+    expect(check("{ color: 1 }").problems).toEqual(["Nothing is called color here"]);
     // What a list holds survives indexing and filtering, so its fields are still checked.
-    expect(checkExpression("task.assignees[0].nope", scope).problems).toEqual([
+    expect(check("task.assignees[0].nope").problems).toEqual(["There is no field nope here"]);
+    expect(check("task.assignees.filter(a, true).exists(b, b.nope)").problems).toEqual([
       "There is no field nope here",
     ]);
-    expect(
-      checkExpression("task.assignees.filter(a, true).exists(b, b.nope)", scope).problems
-    ).toEqual(["There is no field nope here"]);
   });
 
   it("holds comprehension nesting, node count and length to their limits", () => {
     const list = "task.assignees";
+    expect(check(`${list}.map(a, ${list}.filter(b, b.id == a.id))`).problems).toEqual([]);
     expect(
-      checkExpression(`${list}.map(a, ${list}.filter(b, b.id == a.id))`, scope).problems
-    ).toEqual([]);
-    expect(
-      checkExpression(`${list}.map(a, ${list}.map(b, ${list}.filter(c, c.id == b.id)))`, scope)
-        .problems
+      check(`${list}.map(a, ${list}.map(b, ${list}.filter(c, c.id == b.id)))`).problems
     ).toEqual(["map, filter, all and exists nest at most 2 deep"]);
-    expect(checkExpression(`${"1+".repeat(110)}1`, scope).problems).toEqual([
-      "Expressions are at most 200 parts",
-    ]);
-    expect(checkExpression("x".repeat(MAX_EXPRESSION_LENGTH + 1), scope).problems).toEqual([
+    expect(check(`${"1+".repeat(110)}1`).problems).toEqual(["Expressions are at most 200 parts"]);
+    expect(check("x".repeat(MAX_EXPRESSION_LENGTH + 1)).problems).toEqual([
       `Expressions are at most ${MAX_EXPRESSION_LENGTH} characters long`,
     ]);
     // A comprehension's variable holds one item of the list, so its fields are checked too.
-    expect(checkExpression(`${list}.exists(a, a.nope)`, scope).problems).toEqual([
-      "There is no field nope here",
-    ]);
+    expect(check(`${list}.exists(a, a.nope)`).problems).toEqual(["There is no field nope here"]);
   });
 });
 

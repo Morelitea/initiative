@@ -9,12 +9,21 @@
  * beside the types, so the codegen check holds it to the backend as it holds
  * them.
  *
- *   node scripts/build-schema-shapes.mjs openapi.json
+ * Only the schemas a section reads are written, with everything they
+ * reference: the registry (src/lib/templates/sections.ts) names them, so a
+ * schema no template can reach never appears here or changes it.
+ *
+ * Orval runs it after writing the client (`afterAllFilesWrite` in
+ * orval.config.ts), so `pnpm generate:api` and the codegen check regenerate it
+ * with the types. The flag lets Node 22 read the registry's TypeScript; Node 24
+ * needs none.
  */
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { SECTIONS } from "../src/lib/templates/sections.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const specPath = process.argv[2] ?? join(here, "..", "openapi.json");
@@ -59,7 +68,27 @@ function fieldsOf(node) {
   return fields;
 }
 
-const shapes = {};
-for (const name of Object.keys(schemas).sort()) shapes[name] = shapeOf(schemas[name]);
+/** Every schema `shape` names, at any depth. */
+function referencesOf(shape, found = []) {
+  if (shape && typeof shape === "object") {
+    if (shape.ref) found.push(shape.ref);
+    for (const inner of Object.values(shape)) referencesOf(inner, found);
+  }
+  return found;
+}
 
-writeFileSync(outPath, `${JSON.stringify(shapes)}\n`);
+const shapes = {};
+const pending = Object.values(SECTIONS).flatMap((section) => Object.values(section.data));
+while (pending.length > 0) {
+  const name = pending.pop();
+  if (name in shapes || !(name in schemas)) continue;
+  shapes[name] = shapeOf(schemas[name]);
+  pending.push(...referencesOf(shapes[name]));
+}
+const sorted = Object.fromEntries(
+  Object.keys(shapes)
+    .sort()
+    .map((name) => [name, shapes[name]])
+);
+
+writeFileSync(outPath, `${JSON.stringify(sorted)}\n`);
