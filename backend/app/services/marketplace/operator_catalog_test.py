@@ -111,7 +111,6 @@ def _bundled_dashboard(uid=BUNDLED_DASH_UID, public_id="acme.tracker-overview") 
                 "type": "open-items",
                 "title": "Open",
                 "grid": {"x": 0, "y": 0, "w": 4, "h": 3},
-                "binding": {"endpoint_id": OPEN_ITEMS},
             }
         ],
     }

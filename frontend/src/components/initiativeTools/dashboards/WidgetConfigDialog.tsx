@@ -182,19 +182,16 @@ export function WidgetConfigDialog({
   const descriptor = sourceDescriptor(source);
 
   /**
-   * Which of the plug-in's reads this widget may be pointed at.
+   * The plug-in read this widget draws.
    *
-   * A plug-in's widget draws the one endpoint it names, because its template
-   * was checked against that endpoint's returns. One of ours pointed at a
-   * plug-in is offered every read the plug-in has.
+   * A plug-in's widget draws the one endpoint it declares, because its template
+   * was checked against that endpoint's returns, so there is nothing to pick.
+   * One of ours pointed at a plug-in is offered every read the plug-in has.
    */
-  const pluginEndpoints = useMemo((): PluginEndpointRead[] => {
-    const all = plugin?.entry.endpoints ?? [];
-    const drawn = plugin?.widget?.endpoint;
-    return drawn ? all.filter((candidate) => candidate.id === drawn) : all;
-  }, [plugin]);
-
-  const pluginEndpoint = pluginEndpoints.find((candidate) => candidate.id === binding.endpoint_id);
+  const pluginEndpoints: PluginEndpointRead[] = plugin?.entry.endpoints ?? [];
+  const pluginEndpoint = pluginEndpoints.find(
+    (candidate) => candidate.id === (isPlugin ? plugin?.widget?.endpoint : binding.endpoint_id)
+  );
   const pluginParams = (binding.params ?? {}) as Record<string, unknown>;
 
   // Which lists this source's controls need. Enabled only while the control is
@@ -290,17 +287,15 @@ export function WidgetConfigDialog({
     setBinding((current) => ({ ...current, endpoint_id: endpointId, params: undefined }));
 
   /**
-   * A plug-in binding without a read is one the server refuses.
+   * A plug-in binding the server would refuse: one naming no plug-in, or one of
+   * ours naming no read.
    *
-   * `endpoint_id` is required where a dashboard definition is normalized, so
-   * saving a freshly added plug-in widget that has not been pointed at anything
-   * comes back a 422 — after the dialog has already closed, which is the worst
-   * place to find out. The control that fills it is right there, so the answer
-   * is to not offer the save rather than to explain the failure afterwards.
+   * Saving it comes back a 422 after the dialog has already closed, which is
+   * the worst place to find out. The controls that fill both are right there,
+   * so the answer is to not offer the save rather than to explain the failure
+   * afterwards.
    */
-  // A plug-in binding without a read is one the server refuses, whichever kind of
-  // widget carries it — and one of ours has a plug-in to name as well.
-  const incomplete = readsPlugin && (!binding.endpoint_id || !binding.plugin_uid);
+  const incomplete = readsPlugin && (!binding.plugin_uid || (!isPlugin && !binding.endpoint_id));
 
   /**
    * The same, for a statement the server would refuse.
@@ -386,10 +381,9 @@ export function WidgetConfigDialog({
               )}
             </section>
 
-            {/* A plug-in widget's own controls replace these. The registry's two
-                slots for it are `plugin_uid` and `endpoint_id`, and neither is a
-                thing to type: one comes from the widget's type, the other is a
-                choice among the reads the plug-in declares. */}
+            {/* A plug-in's own controls replace these. Its install comes from the
+                widget's type or a choice among the installed plug-ins, and its
+                read from the widget or a choice among the plug-in's reads. */}
             {(readsPlugin ? [] : params).map((param) => (
               <ParamControl
                 key={param.key as string}
@@ -431,26 +425,30 @@ export function WidgetConfigDialog({
                     </Select>
                   </div>
                 )}
-                <div className="space-y-2">
-                  <Label htmlFor="plugin-endpoint">{t("dashboards:config.pluginEndpoint")}</Label>
-                  <Select value={binding.endpoint_id ?? ""} onValueChange={setPluginEndpoint}>
-                    <SelectTrigger id="plugin-endpoint">
-                      <SelectValue placeholder={t("dashboards:config.pluginEndpointPlaceholder")} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {pluginEndpoints.map((candidate) => (
-                        <SelectItem key={candidate.id} value={candidate.id}>
-                          {candidate.id}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {!pluginCatalog.isLoading && !plugin && (
-                    <p className="text-muted-foreground text-xs">
-                      {t("dashboards:config.pluginNotInstalled")}
-                    </p>
-                  )}
-                </div>
+                {!isPlugin && (
+                  <div className="space-y-2">
+                    <Label htmlFor="plugin-endpoint">{t("dashboards:config.pluginEndpoint")}</Label>
+                    <Select value={binding.endpoint_id ?? ""} onValueChange={setPluginEndpoint}>
+                      <SelectTrigger id="plugin-endpoint">
+                        <SelectValue
+                          placeholder={t("dashboards:config.pluginEndpointPlaceholder")}
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {pluginEndpoints.map((candidate) => (
+                          <SelectItem key={candidate.id} value={candidate.id}>
+                            {candidate.id}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                {!pluginCatalog.isLoading && !plugin && (
+                  <p className="text-muted-foreground text-xs">
+                    {t("dashboards:config.pluginNotInstalled")}
+                  </p>
+                )}
 
                 {/* The endpoint's own parameters. Which values each permits is
                     the plug-in's to answer — a repository, a label, a board are all
@@ -884,7 +882,7 @@ function BindingPreview({
   plugin?: PluginWidgetDrawing;
 }) {
   const { t } = useTranslation("dashboards");
-  const live = useWidgetData(binding, initiativeId, dashboardId);
+  const live = useWidgetData(binding, initiativeId, dashboardId, undefined, widget.type);
 
   // Which columns fill the widget's slots. Resolved here for the same reason
   // the canvas resolves it there — a widget is handed ordinals, never column

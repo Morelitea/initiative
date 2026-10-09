@@ -27,6 +27,7 @@ import type {
   PluginWidgetCatalogResponse,
   PluginWidgetRead,
 } from "@/api/generated/initiativeAPI.schemas";
+import { isPluginWidgetType } from "@/lib/widgets/definition";
 import type { PluginWidgetDrawing } from "@/lib/widgets/pluginTemplate";
 
 export type {
@@ -121,19 +122,43 @@ export const getPluginParamOptions = ({
     )
     .then((r) => r.data);
 
-/** Find the install backing a binding's `plugin_uid`, and the widget/endpoint it
- *  names. Returns `undefined` for a plug-in that is not installed here, which is
- *  what an imported definition referencing a plug-in this community does not have
- *  looks like. */
+/**
+ * The install a plug-in binding reads, which of its reads, and the parameters
+ * to send. `undefined` for a plug-in that is not installed here, which is what an
+ * imported definition referencing a plug-in this community does not have looks
+ * like, or a read its pinned version does not offer.
+ *
+ * A plug-in's own widget reads the endpoint it declares, whatever its stored
+ * binding names, and sends only the parameters that endpoint declares: a tile
+ * placed under an earlier release reads what the widget reads now. One of ours
+ * reads the endpoint its binding names.
+ */
 export const resolvePluginBinding = (
   catalog: PluginWidgetCatalogResponse | undefined,
-  pluginUid: string | null | undefined,
-  endpointId: string | null | undefined
-): { entry: PluginWidgetCatalogEntry; source: PluginEndpointRead } | undefined => {
-  if (!pluginUid || !endpointId) return undefined;
-  const entry = (catalog?.items ?? []).find((item) => item.plugin_uid === pluginUid);
-  const source = (entry?.endpoints ?? []).find((candidate) => candidate.id === endpointId);
-  return entry && source ? { entry, source } : undefined;
+  binding: {
+    plugin_uid?: string | null;
+    endpoint_id?: string | null;
+    params?: Record<string, unknown> | null;
+  },
+  widgetType: string | undefined
+):
+  | {
+      entry: PluginWidgetCatalogEntry;
+      source: PluginEndpointRead;
+      params: Record<string, unknown> | undefined;
+    }
+  | undefined => {
+  const entry = (catalog?.items ?? []).find((item) => item.plugin_uid === binding.plugin_uid);
+  if (!entry) return undefined;
+  const endpointId =
+    widgetType && isPluginWidgetType(widgetType)
+      ? (entry.widgets ?? []).find((widget) => widget.type === widgetType)?.endpoint
+      : binding.endpoint_id;
+  const source = (entry.endpoints ?? []).find((candidate) => candidate.id === endpointId);
+  if (!source) return undefined;
+  const declared = new Set((source.params ?? []).map((param) => param.key));
+  const kept = Object.entries(binding.params ?? {}).filter(([key]) => declared.has(key));
+  return { entry, source, params: kept.length ? Object.fromEntries(kept) : undefined };
 };
 
 /** The install a namespaced widget type belongs to, and that widget's own entry.

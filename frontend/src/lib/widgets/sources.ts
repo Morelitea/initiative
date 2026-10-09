@@ -82,10 +82,8 @@ export const SOURCES: Record<WidgetSource, SourceDescriptor> = {
   },
   plugin: {
     rowNoun: "row",
-    params: [
-      { kind: "text", key: "plugin_uid", required: true },
-      { kind: "text", key: "endpoint_id", required: true },
-    ],
+    // The read is the widget's own, or one of ours names it beside its statement.
+    params: [{ kind: "text", key: "plugin_uid", required: true }],
   },
 };
 

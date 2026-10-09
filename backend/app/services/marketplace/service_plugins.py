@@ -2127,7 +2127,7 @@ def _widget_strings(raw: Any, *, what: str) -> dict[str, dict[str, str]]:
     return strings
 
 
-def _bundled_dashboard(raw: Any, *, widget_endpoints: dict[str, str]) -> dict[str, Any]:
+def _bundled_dashboard(raw: Any, *, widget_ids: set[str]) -> dict[str, Any]:
     """One dashboard a plug-in ships with itself.
 
     A publisher who declares widgets otherwise leaves every guild to arrange
@@ -2144,8 +2144,8 @@ def _bundled_dashboard(raw: Any, *, widget_endpoints: dict[str, str]) -> dict[st
       ``plugin:<uid>:<widget id>`` at publish, exactly as
       :func:`plugin_widget_type` already does for the palette. The publisher never
       writes a uid into a widget type, so the two cannot disagree.
-    * **It can only reference this manifest.** Every widget and every bound
-      source is checked against what the same document declares, so a bundled
+    * **It can only reference this manifest.** Every widget is checked against
+      what the same document declares, so a bundled
       dashboard cannot name a widget the plug-in does not have — the failure a
       separately published dashboard can only hit at install, and silently.
 
@@ -2170,7 +2170,7 @@ def _bundled_dashboard(raw: Any, *, widget_endpoints: dict[str, str]) -> dict[st
     )
 
     widgets = [
-        _bundled_dashboard_widget(widget, widget_endpoints=widget_endpoints, what=what)
+        _bundled_dashboard_widget(widget, widget_ids=widget_ids, what=what)
         for widget in require_list(
             entry.get("widgets"), f"{what} widgets", MAX_DASHBOARD_WIDGETS
         )
@@ -2207,30 +2207,25 @@ def _bundled_dashboard(raw: Any, *, widget_endpoints: dict[str, str]) -> dict[st
 
 
 def _bundled_dashboard_widget(
-    raw: Any, *, widget_endpoints: dict[str, str], what: str
+    raw: Any, *, widget_ids: set[str], what: str
 ) -> dict[str, Any]:
-    """One tile, naming one of this plug-in's widgets and the endpoint it draws.
+    """One tile, naming one of this plug-in's widgets and the parameters it reads with.
 
-    ``widget_endpoints`` maps each widget to its endpoint. A tile binds that one,
-    because the widget's template was checked against that endpoint's returns.
+    The widget reads the endpoint it declares, so a tile's binding holds only
+    the values for that endpoint's parameters.
     """
     widget = require_mapping(raw, f"{what} widget")
     widget_type = check_identifier(widget.get("type"), what=f"{what} widget type")
-    if widget_type not in widget_endpoints:
+    if widget_type not in widget_ids:
         fail(f"{what}: names unknown widget {widget_type!r}")
 
-    binding = require_mapping(widget.get("binding"), f"{what} widget binding")
-    endpoint_id = binding.get("endpoint_id")
-    if endpoint_id != widget_endpoints[widget_type]:
-        fail(
-            f"{what}: binds {endpoint_id!r}, but widget {widget_type!r} draws "
-            f"{widget_endpoints[widget_type]!r}"
+    bound: dict[str, Any] = {}
+    if widget.get("binding") is not None:
+        params = require_mapping(widget["binding"], f"{what} widget binding").get(
+            "params"
         )
-
-    bound: dict[str, Any] = {"endpoint_id": endpoint_id}
-    params = binding.get("params")
-    if params is not None:
-        bound["params"] = _bundled_binding_params(params, what=what)
+        if params is not None:
+            bound["params"] = _bundled_binding_params(params, what=what)
 
     cleaned: dict[str, Any] = {
         # Defaulted from the widget it draws, so a publisher who ships one tile
@@ -2747,14 +2742,11 @@ def normalize_service_plugin_definition(
     if pages:
         cleaned["pages"] = pages
 
-    # After the widgets and endpoints it can name, because every tile is checked
-    # against them — the whole point of bundling rather than publishing
-    # separately is that this cross-check is possible at all.
+    # After the widgets it can name, because every tile is checked against
+    # them — the whole point of bundling rather than publishing separately is
+    # that this cross-check is possible at all.
     dashboards = [
-        _bundled_dashboard(
-            entry,
-            widget_endpoints={widget["id"]: widget["endpoint"] for widget in widgets},
-        )
+        _bundled_dashboard(entry, widget_ids={widget["id"] for widget in widgets})
         for entry in require_list(
             body.get("dashboards"),
             "service plug-in: dashboards",

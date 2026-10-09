@@ -48,7 +48,6 @@ def _dashboard(uid=DASH_UID, public_id="tests.tracker-overview", **overrides):
                 "type": "open-items",
                 "title": "Open",
                 "grid": {"x": 0, "y": 0, "w": 4, "h": 3},
-                "binding": {"endpoint_id": OPEN_ITEMS},
             }
         ],
     }
@@ -135,11 +134,7 @@ class TestPublishing:
         # publisher writes a bare widget id and never a uid, so the two cannot
         # disagree.
         assert widget["type"] == f"plugin:{PLUGIN_UID}:open-items"
-        assert widget["binding"] == {
-            "source": "plugin",
-            "plugin_uid": PLUGIN_UID,
-            "endpoint_id": OPEN_ITEMS,
-        }
+        assert widget["binding"] == {"source": "plugin", "plugin_uid": PLUGIN_UID}
 
     async def test_a_bundled_tile_may_fix_several_values_for_one_parameter(
         self, session
@@ -153,7 +148,6 @@ class TestPublishing:
         """
         entry = _dashboard()
         entry["widgets"][0]["binding"] = {
-            "endpoint_id": OPEN_ITEMS,
             "params": {"labels": ["bug", "regression"], "state": "open"},
         }
         await service.upsert_listing(
@@ -174,10 +168,7 @@ class TestPublishing:
         self, session
     ):
         entry = _dashboard()
-        entry["widgets"][0]["binding"] = {
-            "endpoint_id": OPEN_ITEMS,
-            "params": {"labels": [{"nested": "object"}]},
-        }
+        entry["widgets"][0]["binding"] = {"params": {"labels": [{"nested": "object"}]}}
         with pytest.raises(CatalogError):
             await service.upsert_listing(
                 session, _plugin_manifest([entry]), source="operator"

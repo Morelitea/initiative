@@ -17,8 +17,9 @@ widget sits on, and that is what makes the gates run **before** anything else:
 * the dashboard is loaded through the ordinary resource path, so a member of the
   guild who is not in the dashboard's initiative gets the same answer they would
   get for the dashboard itself — nothing;
-* the dashboard has to actually bind this endpoint, so holding one dashboard is
-  not a key to every endpoint a plug-in offers;
+* the dashboard has to actually display this endpoint — a plug-in widget the
+  one it declares, one of ours the one its binding names — so holding one
+  dashboard is not a key to every endpoint a plug-in offers;
 * an endpoint marked ``admin_only`` is then read by the guild's admins alone.
 
 Only after all of that does the service layer look at the response cache, which
@@ -71,7 +72,11 @@ from app.schemas.tenant.plugin_data import (
     PluginWidgetRead,
 )
 from app.services.marketplace import plugin_data as plugin_data_service
-from app.services.marketplace.service_plugins import plugin_widget_type, is_admin_only
+from app.services.marketplace.service_plugins import (
+    PLUGIN_WIDGET_TYPE_PREFIX,
+    is_admin_only,
+    plugin_widget_type,
+)
 from app.services.tenant import plugin_age
 
 
@@ -95,7 +100,7 @@ def _bound_bindings(
     definition: dict[str, Any] | None,
     config: dict[str, Any] | None,
     *,
-    plugin_uid: str,
+    plugin: GuildPlugin,
     endpoint_id: str,
 ) -> dict[str, dict[str, Any]]:
     """The widgets of this dashboard that display this endpoint, by widget id.
@@ -103,10 +108,21 @@ def _bound_bindings(
     The instance config layers over the definition's binding exactly as the
     canvas resolves it, so a slot a listing left open and the guild filled in
     counts the same as one the definition named outright.
+
+    A plug-in's own widget displays the endpoint it declares in the install's
+    pinned definition, whatever an older definition stored beside its binding,
+    so it carries no statement. One of ours displays the endpoint its binding
+    names.
     """
     widgets = (definition or {}).get("widgets")
     if not isinstance(widgets, list):
         return {}
+    own_prefix = f"{PLUGIN_WIDGET_TYPE_PREFIX}{plugin.listing_uid}:"
+    declared = {
+        widget.get("id"): widget.get("endpoint")
+        for widget in (plugin.definition or {}).get("widgets") or []
+        if isinstance(widget, dict)
+    }
     stored = config if isinstance(config, dict) else {}
     overrides = stored.get("widgets") or {}
     bound: dict[str, dict[str, Any]] = {}
@@ -119,10 +135,19 @@ def _bound_bindings(
         override = overrides.get(widget.get("id"))
         effective = {**binding, **(override if isinstance(override, dict) else {})}
         if (
-            effective.get("source") == "plugin"
-            and effective.get("plugin_uid") == plugin_uid
-            and effective.get("endpoint_id") == endpoint_id
+            effective.get("source") != "plugin"
+            or effective.get("plugin_uid") != plugin.listing_uid
         ):
+            continue
+        widget_type = widget.get("type")
+        if isinstance(widget_type, str) and widget_type.startswith(own_prefix):
+            if declared.get(widget_type[len(own_prefix) :]) == endpoint_id:
+                bound[str(widget.get("id"))] = {
+                    key: value
+                    for key, value in effective.items()
+                    if key not in ("endpoint_id", "sql")
+                }
+        elif effective.get("endpoint_id") == endpoint_id:
             bound[str(widget.get("id"))] = effective
     return bound
 
@@ -276,7 +301,7 @@ async def read_plugin_data(
     bound = _bound_bindings(
         dashboard.definition,
         dashboard.config,
-        plugin_uid=plugin.listing_uid,
+        plugin=plugin,
         endpoint_id=endpoint_id,
     )
     if not bound:

@@ -1215,8 +1215,7 @@
     "bundledDashboardWidget": {
       "type": "object",
       "required": [
-        "type",
-        "binding"
+        "type"
       ],
       "properties": {
         "id": {
@@ -1255,14 +1254,8 @@
         },
         "binding": {
           "type": "object",
-          "required": [
-            "endpoint_id"
-          ],
+          "description": "The values this tile reads its widget's endpoint with. The widget names the endpoint.",
           "properties": {
-            "endpoint_id": {
-              "$ref": "#/$defs/namespacedId",
-              "description": "One of this manifest's own read endpoint ids. Only a read answers with something to draw."
-            },
             "params": {
               "type": "object",
               "maxProperties": 12,

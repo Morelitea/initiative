@@ -252,10 +252,7 @@ def maximal_manifest() -> dict:
                         "type": "tile",
                         "title": "Tile",
                         "grid": {"x": 0, "y": 0, "w": 3, "h": 2},
-                        "binding": {
-                            "endpoint_id": READ_ENDPOINT,
-                            "params": {"choice": "a"},
-                        },
+                        "binding": {"params": {"choice": "a"}},
                     }
                 ],
             }

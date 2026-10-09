@@ -79,7 +79,6 @@ def _tracker_manifest(with_dashboard: bool = True) -> dict:
                     {
                         "type": "open-items",
                         "title": "Open",
-                        "binding": {"endpoint_id": OPEN_ITEMS},
                     }
                 ],
             }

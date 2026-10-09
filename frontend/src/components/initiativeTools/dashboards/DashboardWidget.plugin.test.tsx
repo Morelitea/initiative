@@ -39,11 +39,7 @@ const PLUGIN_UID = "SHOPAPP0000001";
 const WIDGET_TYPE = `plugin:${PLUGIN_UID}:summary`;
 const TEMPLATE = '<metric :value="values.total" :label="strings.total" />';
 
-const binding: WidgetBinding = {
-  source: "plugin",
-  plugin_uid: PLUGIN_UID,
-  endpoint_id: "plugin.acme.shop.orders-summary",
-};
+const binding: WidgetBinding = { source: "plugin", plugin_uid: PLUGIN_UID };
 const widget: DefinitionWidget = {
   id: "w1",
   type: WIDGET_TYPE,
@@ -92,11 +88,13 @@ beforeEach(() => {
   apiGet.mockReset();
 });
 
-const mount = (props: { sampleData?: boolean; dashboardId?: number } = {}) =>
+const mount = (
+  props: { sampleData?: boolean; dashboardId?: number; binding?: WidgetBinding } = {}
+) =>
   renderWithProviders(
     <DashboardWidget
       widget={widget}
-      binding={binding}
+      binding={props.binding ?? binding}
       initiativeId={props.sampleData ? undefined : 7}
       dashboardId={props.dashboardId}
       canEdit={false}
@@ -130,14 +128,19 @@ describe("DashboardWidget with a plug-in source", () => {
     expect(screen.getByText("9")).toBeInTheDocument();
   });
 
-  it("asks the proxy for the dashboard the widget sits on", async () => {
+  it("asks the proxy for the widget's own read, on the dashboard it sits on", async () => {
     apiGet.mockImplementation((url: string) =>
       Promise.resolve({
         data: catalogUrl(url) ? CATALOG : { rows: [], values: {}, fetched_at: "", cached: false },
       })
     );
 
-    mount({ dashboardId: 11 });
+    // Saved under an earlier release, when the widget read another endpoint
+    // with a parameter this one does not declare.
+    mount({
+      dashboardId: 11,
+      binding: { ...binding, endpoint_id: "plugin.acme.shop.orders", params: { state: "open" } },
+    });
 
     await waitFor(() => expect(apiGet.mock.calls.some(([url]) => dataUrl(url))).toBe(true));
     const [url, config] = apiGet.mock.calls.find(([u]) => dataUrl(u)) as [
@@ -146,6 +149,7 @@ describe("DashboardWidget with a plug-in source", () => {
     ];
     expect(url).toBe("/c/2/plugins/3/endpoints/plugin.acme.shop.orders-summary");
     expect(config.params.dashboard_id).toBe(11);
+    expect(config.params.params).toBeUndefined();
   });
 
   it("draws an error tile when the plug-in is not answering", async () => {

@@ -230,26 +230,49 @@ def _definition() -> dict:
                 # returns — the catalog reads it the way the proxy reads a live
                 # answer.
                 "sample_data": {"days": ["mon"], "totals": [4], "total": 4},
-            }
+            },
+            # One widget for each other read a tile here displays: a plug-in
+            # widget reads the endpoint it declares.
+            *(
+                {
+                    "id": _widget_id(endpoint),
+                    "meta": {"name": {"en": "Shop"}},
+                    "endpoint": endpoint,
+                    "template": "<p>{{ size(rows) }}</p>",
+                }
+                for endpoint in (REVENUE, LEGACY_REPORT, MY_PRS)
+            ),
         ],
     }
 
 
+def _widget_id(endpoint_id: str) -> str:
+    """The test plug-in's widget for one of its reads."""
+    return "summary" if endpoint_id == ORDERS_SUMMARY else endpoint_id.rsplit(".", 1)[1]
+
+
 def _dashboard_definition(*endpoint_ids: str, sql: str | None = None) -> dict:
+    """A dashboard displaying each endpoint: through the plug-in's widget for it,
+    or, with a statement, through one of ours asking the statement of its rows."""
+
+    def tile(index: int, endpoint_id: str) -> dict:
+        binding = {"source": "plugin", "plugin_uid": PLUGIN_UID}
+        if sql:
+            return {
+                "id": f"w{index + 1}",
+                "type": "table",
+                "binding": {**binding, "endpoint_id": endpoint_id, "sql": sql},
+            }
+        return {
+            "id": f"w{index + 1}",
+            "type": f"plugin:{PLUGIN_UID}:{_widget_id(endpoint_id)}",
+            "binding": binding,
+        }
+
     return normalize_dashboard_definition(
         {
             "widgets": [
-                {
-                    "id": f"w{index + 1}",
-                    "type": f"plugin:{PLUGIN_UID}:summary",
-                    "binding": {
-                        "source": "plugin",
-                        "plugin_uid": PLUGIN_UID,
-                        "endpoint_id": endpoint_id,
-                        **({"sql": sql} if sql else {}),
-                    },
-                }
-                for index, endpoint_id in enumerate(endpoint_ids)
+                tile(index, endpoint) for index, endpoint in enumerate(endpoint_ids)
             ]
         }
     )
@@ -433,10 +456,32 @@ class TestGates:
         assert response.json()["detail"] == PluginDataMessages.ENDPOINT_NOT_FOUND
         assert upstream.count == 0
 
+    async def test_a_plugin_widget_reads_the_endpoint_it_declares(
+        self, client, acting_user, session, upstream
+    ):
+        """Whatever a stored binding still names: a tile saved before the widget
+        moved to another endpoint reads the one it declares now, and the old one
+        is not reachable through it."""
+        a, plugin, _ = await _workspace(session, acting_user)
+        stored = _dashboard_definition(ORDERS_SUMMARY)
+        stored["widgets"][0]["binding"]["endpoint_id"] = REVENUE
+        dashboard = await create_dashboard(
+            session, a.initiative, a.user, definition=stored
+        )
+
+        drawn = await client.get(
+            _url(a, plugin, ORDERS_SUMMARY, dashboard), headers=a.headers
+        )
+        assert drawn.status_code == 200, drawn.text
+        stale = await client.get(_url(a, plugin, REVENUE, dashboard), headers=a.headers)
+        assert stale.status_code == 404
+
     async def test_a_source_the_plugin_does_not_declare_is_refused(
         self, client, acting_user, session, upstream
     ):
-        a, plugin, dashboard = await _workspace(session, acting_user, "made_up")
+        a, plugin, dashboard = await _workspace(
+            session, acting_user, "made_up", sql="SELECT days FROM rows"
+        )
 
         response = await client.get(
             _url(a, plugin, "made_up", dashboard), headers=a.headers
@@ -1485,7 +1530,17 @@ class TestDeclarative:
             session,
             a.guild,
             a.user,
-            definition=declarative_plugin("acme.issues"),
+            definition={
+                **declarative_plugin("acme.issues"),
+                "widgets": [
+                    {
+                        "id": "issues",
+                        "meta": {"name": {"en": "Issues"}},
+                        "endpoint": self.ISSUES,
+                        "template": "<p>{{ size(rows) }}</p>",
+                    }
+                ],
+            },
             listing_uid=PLUGIN_UID,
             name="Issues",
             config={"workspace": config},

@@ -413,7 +413,6 @@ ACCEPTED = [
                             "title": "One",
                             "grid": {"x": 0, "y": 0, "w": 4, "h": 3},
                             "binding": {
-                                "endpoint_id": "plugin.acme.tracker.s",
                                 "params": {"label": "bug", "limit": 5, "open": True},
                             },
                         }
@@ -442,12 +441,7 @@ ACCEPTED = [
                     "name": "Overview",
                     # No description, layout, widget id or grid: a publisher who
                     # wants one tile per widget writes almost nothing.
-                    "widgets": [
-                        {
-                            "type": "w",
-                            "binding": {"endpoint_id": "plugin.acme.tracker.s"},
-                        }
-                    ],
+                    "widgets": [{"type": "w"}],
                 }
             ],
         ),

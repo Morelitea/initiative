@@ -336,15 +336,16 @@ TABULAR_SOURCES: frozenset[str] = frozenset({QUERY_SOURCE, SHEET_SOURCE})
 #
 # * a plug-in widget's type is namespaced ``plugin:<listing_uid>:<widget_id>``, so it
 #   can never resolve to a built-in renderer, and a built-in can never resolve
-#   to a plug-in's module;
-# * ``plugin`` is the only source a plug-in widget binds, and no built-in binds it —
-#   a plug-in's rows are opaque here, so nothing in this build could draw them.
+#   to a plug-in's template;
+# * ``plugin`` is the only source a plug-in widget binds. A built-in binds it
+#   only with a statement, which describes the rows it draws.
 #
-# The binding names a listing and a source; it never names an address, and there
-# is still nowhere in a definition to put one. What that source *is* — its
-# parameters, its credentials, its freshness — lives in the installed plug-in's
-# pinned definition and is enforced when the data is fetched, under the caller's
-# own session.
+# A plug-in widget's binding names its listing and its parameters; the endpoint
+# it reads is the one the widget declares in the installed plug-in's pinned
+# definition. It never names an address, and there is nowhere in a definition
+# to put one. What the endpoint *is* — its parameters, its credentials, its
+# freshness — lives in that definition and is enforced when the data is
+# fetched, under the caller's own session.
 #
 # The check here is deliberately shape, not an install lookup: a well-formed
 # ``plugin:<uid>:<widget>`` stores whether or not that plug-in is installed, so a
@@ -356,9 +357,9 @@ TABULAR_SOURCES: frozenset[str] = frozenset({QUERY_SOURCE, SHEET_SOURCE})
 PLUGIN_BINDING_SOURCE = "plugin"
 
 #: Size floors for a plug-in widget. Uniform, because this build cannot know what
-#: a vendor's module draws; the floor is simply "big enough to read". It
+#: a vendor's template draws; the floor is simply "big enough to read". It
 #: declares no shape: a plug-in's rows are its own, described in its manifest, and
-#: the module that draws them ships alongside — there is nothing here to map.
+#: the template that draws them ships alongside — there is nothing here to map.
 PLUGIN_WIDGET_SPEC = WidgetSpec(min_w=2, min_h=2, default_w=6, default_h=4)
 
 #: What one plug-in binding may carry, mirroring the manifest's per-source cap.
@@ -440,20 +441,26 @@ def _normalize_plugin_binding(
     binding: dict[str, Any],
     listing_uid: str,
     endpoint_columns: "Optional[EndpointColumns]" = None,
+    *,
+    statement: bool,
 ) -> dict[str, Any]:
-    """A ``plugin`` binding: which installed plug-in, which source, which parameters.
+    """A ``plugin`` binding: which installed plug-in, and the parameters it reads with.
 
     ``plugin_uid`` has to be the plug-in the widget came from. A widget is one plug-in's
-    module and its endpoints are that plug-in's, so letting a definition point one
+    template and its endpoints are that plug-in's, so letting a definition point one
     plug-in's widget at another plug-in's data would be a definition choosing what
     crosses between two vendors.
+
+    A plug-in's own widget reads the one endpoint it declares, so its binding
+    names nothing more; an endpoint or statement an older definition stored
+    beside it is dropped. One of ours reading a plug-in (``statement``) names the
+    read and the statement it asks of the rows.
     """
     declared_uid = _check_uid(
         binding.get("plugin_uid"), DashboardMessages.BINDING_INVALID
     )
     if declared_uid != listing_uid:
         _fail(DashboardMessages.BINDING_INVALID)
-    endpoint_id = _check_endpoint_id(binding.get("endpoint_id"))
 
     raw_params = binding.get("params")
     params: dict[str, Any] = {}
@@ -469,15 +476,18 @@ def _normalize_plugin_binding(
     cleaned: dict[str, Any] = {
         "source": PLUGIN_BINDING_SOURCE,
         "plugin_uid": listing_uid,
-        "endpoint_id": endpoint_id,
     }
     if params:
         cleaned["params"] = params
-    statement = _checked_row_statement(
+    if not statement:
+        return cleaned
+    endpoint_id = _check_endpoint_id(binding.get("endpoint_id"))
+    cleaned["endpoint_id"] = endpoint_id
+    checked = _checked_row_statement(
         binding.get("sql"), listing_uid, endpoint_id, endpoint_columns
     )
-    if statement is not None:
-        cleaned["sql"] = statement
+    if checked is not None:
+        cleaned["sql"] = checked
     return cleaned
 
 
@@ -667,17 +677,17 @@ def _normalize_binding(
         # total branch rather than an extra allowed value.
         if source != PLUGIN_BINDING_SOURCE:
             _fail(DashboardMessages.BINDING_SOURCE_NOT_ALLOWED)
-        return _normalize_plugin_binding(binding, plugin_listing_uid, endpoint_columns)
+        return _normalize_plugin_binding(binding, plugin_listing_uid, statement=False)
 
     if source == PLUGIN_BINDING_SOURCE:
         # A widget of this build's own — a chart, a table, a total — reading an
         # plug-in, which is possible exactly as far as the rows are described. A
         # statement makes them so: it names the columns it returns, and the
         # endpoint declared the ones it reads. Without one they are the plug-in's
-        # own shape, which only the plug-in's own module knows how to draw.
+        # own shape, which only the plug-in's own template knows how to draw.
         if not str(binding.get("sql") or "").strip():
             _fail(DashboardMessages.BINDING_SOURCE_NOT_ALLOWED)
-        # It has no module of its own to be one plug-in's, so it names the plug-in it
+        # It has no template of its own to be one plug-in's, so it names the plug-in it
         # reads rather than inheriting one. What it may see is decided exactly
         # where a plug-in widget's is: the dashboard's gates and the binding the
         # definition stores.
@@ -685,6 +695,7 @@ def _normalize_binding(
             binding,
             _check_uid(binding.get("plugin_uid"), DashboardMessages.BINDING_INVALID),
             endpoint_columns,
+            statement=True,
         )
 
     if not isinstance(source, str) or source not in TABULAR_SOURCES:
@@ -797,7 +808,7 @@ def _normalize_widget(
     if not isinstance(declared, str):
         _fail(DashboardMessages.WIDGET_TYPE_UNKNOWN)
 
-    # A plug-in's widget keeps its namespaced type verbatim: the module that draws
+    # A plug-in's widget keeps its namespaced type verbatim: the template that draws
     # it lives in the installed plug-in's pinned definition, and this build resolves
     # it there rather than in the built-in registry.
     plugin_parts = plugin_widget_parts(declared)

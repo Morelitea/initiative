@@ -433,11 +433,7 @@ def _plugin_widget(**overrides) -> dict:
     return {
         "id": "w1",
         "type": f"plugin:{PLUGIN_UID}:summary",
-        "binding": {
-            "source": "plugin",
-            "plugin_uid": PLUGIN_UID,
-            "endpoint_id": "plugin.acme.shop.orders-summary",
-        },
+        "binding": {"source": "plugin", "plugin_uid": PLUGIN_UID},
         **overrides,
     }
 
@@ -446,11 +442,7 @@ def test_a_plugin_widget_keeps_its_namespaced_type():
     result = normalize_dashboard_definition(_definition(_plugin_widget()))
     widget = result["widgets"][0]
     assert widget["type"] == f"plugin:{PLUGIN_UID}:summary"
-    assert widget["binding"] == {
-        "source": "plugin",
-        "plugin_uid": PLUGIN_UID,
-        "endpoint_id": "plugin.acme.shop.orders-summary",
-    }
+    assert widget["binding"] == {"source": "plugin", "plugin_uid": PLUGIN_UID}
     # It still gets a grid, from the plugin-widget floor rather than a primitive's.
     assert widget["grid"]["w"] >= 2 and widget["grid"]["h"] >= 2
 
@@ -641,30 +633,14 @@ def test_a_malformed_plugin_widget_type_is_refused(widget_type):
 @pytest.mark.parametrize(
     "binding",
     [
-        {
-            "source": "plugin",
-            "endpoint_id": "plugin.acme.shop.orders",
-        },  # no plug-in named
-        {"source": "plugin", "plugin_uid": PLUGIN_UID},  # no source named
-        {"source": "plugin", "plugin_uid": PLUGIN_UID, "endpoint_id": "Orders!"},
+        {"source": "plugin"},  # no plug-in named
+        {"source": "plugin", "plugin_uid": PLUGIN_UID, "params": []},
         {
             "source": "plugin",
             "plugin_uid": PLUGIN_UID,
-            "endpoint_id": "plugin.acme.shop.orders",
-            "params": [],
-        },
-        {
-            "source": "plugin",
-            "plugin_uid": PLUGIN_UID,
-            "endpoint_id": "plugin.acme.shop.orders",
             "params": {"range": {"nested": 1}},
         },
-        {
-            "source": "plugin",
-            "plugin_uid": PLUGIN_UID,
-            "endpoint_id": "plugin.acme.shop.orders",
-            "params": {"bad key": "x"},
-        },
+        {"source": "plugin", "plugin_uid": PLUGIN_UID, "params": {"bad key": "x"}},
     ],
 )
 def test_a_malformed_plugin_binding_is_refused(binding):
@@ -674,7 +650,9 @@ def test_a_malformed_plugin_binding_is_refused(binding):
 
 def test_a_plugin_binding_still_has_nowhere_to_put_an_address():
     """The rule that makes a stored definition safe: it names capabilities, not
-    hosts. Where the plug-in lives comes from the deployment's registration."""
+    hosts. Where the plug-in lives comes from the deployment's registration, and
+    which endpoint its widget reads from the widget itself, so an endpoint or a
+    statement an older definition stored is dropped too."""
     result = normalize_dashboard_definition(
         _definition(
             _plugin_widget(
@@ -682,14 +660,15 @@ def test_a_plugin_binding_still_has_nowhere_to_put_an_address():
                     "source": "plugin",
                     "plugin_uid": PLUGIN_UID,
                     "endpoint_id": "plugin.acme.shop.orders",
-                    "url": "https://evil.test/steal",
-                    "base_url": "https://evil.test",
+                    "sql": "SELECT shop FROM rows",
+                    "url": "https://example.test/rows",
+                    "base_url": "https://example.test",
                 }
             )
         )
     )
     binding = result["widgets"][0]["binding"]
-    assert set(binding) == {"source", "plugin_uid", "endpoint_id"}
+    assert set(binding) == {"source", "plugin_uid"}
 
 
 def test_a_statement_is_read_before_it_is_stored():

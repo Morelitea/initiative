@@ -102,7 +102,8 @@ export function DashboardWidget({
     binding,
     sampleData ? undefined : initiativeId,
     sampleData ? undefined : dashboardId,
-    widget.id
+    widget.id,
+    widget.type
   );
 
   // Names for the ids this binding mentions, resolved against the viewer's own

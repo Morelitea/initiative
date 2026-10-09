@@ -104,14 +104,11 @@ const widget: DefinitionWidget = {
   id: "w1",
   type: WIDGET_TYPE,
   grid: { x: 0, y: 0, w: 6, h: 4 },
-  binding: { source: "plugin", plugin_uid: PLUGIN_UID, endpoint_id: ORDERS },
-};
-
-/** As the picker adds one: a plug-in widget with nothing chosen yet. */
-const unpointed: DefinitionWidget = {
-  ...widget,
   binding: { source: "plugin", plugin_uid: PLUGIN_UID },
 };
+
+/** One of ours, a table, pointed at the plug-in with no read chosen yet. */
+const ours: DefinitionWidget = { ...widget, type: "table" };
 
 const isCatalog = (url: string) => url.endsWith("/plugins/widget-catalog");
 const isOptions = (url: string) => url.includes("/options");
@@ -159,16 +156,14 @@ describe("configuring a plug-in widget", () => {
     expect(within(source).getByText("Plug-in data")).toBeInTheDocument();
   });
 
-  it("offers the one read the widget draws, and no others", async () => {
+  it("asks only for the parameters of the read the widget declares", async () => {
     // Its template was checked against that read's returns when the plug-in
-    // was published, so no other read could fill it.
+    // was published, so there is no read to pick.
     serve();
-    const user = userEvent.setup();
     mount();
 
-    await user.click(await screen.findByRole("combobox", { name: /what it reads/i }));
-    expect(await screen.findByRole("option", { name: ORDERS })).toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: REVENUE })).toBeNull();
+    expect(await screen.findByLabelText(/shop/i)).toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: /what it reads/i })).toBeNull();
   });
 
   it("draws a menu for a parameter whose plug-in said where its values come from", async () => {
@@ -237,7 +232,7 @@ describe("configuring a plug-in widget", () => {
     // our widgets pointed at a plug-in is offered every read it has.
     serve({ menu: [{ value: "north", label: null }] });
     const user = userEvent.setup();
-    mount({ ...widget, type: "table" });
+    mount({ ...ours, binding: { ...ours.binding, endpoint_id: ORDERS } });
 
     await user.click(await screen.findByRole("combobox", { name: /shop/i }));
     await user.click(await screen.findByRole("option", { name: "north" }));
@@ -253,12 +248,12 @@ describe("configuring a plug-in widget", () => {
 });
 
 describe("what a form must not be able to save", () => {
-  it("will not save a plug-in widget that names no read", async () => {
-    // `endpoint_id` is required where a definition is normalized, so this
-    // would come back 422 — after the dialog had closed, which is the worst
-    // place to learn it. The control that fills it is right there.
+  it("will not save one of ours reading a plug-in that names no read", async () => {
+    // The server refuses it, so this would come back 422 — after the dialog
+    // had closed, which is the worst place to learn it. The control that fills
+    // it is right there.
     serve();
-    mount(unpointed);
+    mount(ours);
 
     await screen.findByRole("combobox", { name: /what it reads/i });
     expect(screen.getByRole("button", { name: /save/i })).toBeDisabled();
@@ -267,7 +262,7 @@ describe("what a form must not be able to save", () => {
   it("saves once a read is chosen", async () => {
     serve();
     const user = userEvent.setup();
-    mount(unpointed);
+    mount(ours);
 
     await user.click(await screen.findByRole("combobox", { name: /what it reads/i }));
     await user.click(await screen.findByRole("option", { name: ORDERS }));

@@ -46,10 +46,11 @@ export interface WidgetBinding {
   file_id?: number | null;
   sheet?: string | null;
   range?: string | null;
-  /** `plugin`: which installed plug-in, which of its sources, and the arguments the
-   *  source declared. The binding names a listing and a source id — never an
-   *  address. Where the plug-in lives comes from the deployment's registration, and
-   *  only the server ever reads it. */
+  /** `plugin`: which installed plug-in, and the arguments its source declared. A
+   *  plug-in's own widget reads the endpoint it declares; one of ours names it
+   *  here, beside its statement. The binding never names an address. Where the
+   *  plug-in lives comes from the deployment's registration, and only the server
+   *  ever reads it. */
   plugin_uid?: string | null;
   endpoint_id?: string | null;
   params?: Record<string, unknown> | null;
@@ -103,13 +104,15 @@ export interface WidgetDataResult {
  * `dashboardId` is the row the widget sits on, and only the `plugin` source needs
  * it: a plug-in's data is community-level, so the proxy is told which
  * initiative-scoped surface is asking and decides the read against *that* row's
- * gates.
+ * gates. `widgetType` says which widget draws it: a plug-in's own widget reads
+ * the endpoint it declares rather than one its binding names.
  */
 export function useWidgetData(
   binding: WidgetBinding,
   initiativeId: number | undefined,
   dashboardId?: number,
-  widgetId?: string
+  widgetId?: string,
+  widgetType?: string
 ): WidgetDataResult {
   const source = binding.source;
   const scoped = typeof initiativeId === "number" && Number.isFinite(initiativeId);
@@ -157,16 +160,24 @@ export function useWidgetData(
   // us what freshness the source asks for.
   const isPlugin = source === "plugin";
   const pluginCatalogQuery = usePluginWidgetCatalog(scoped && isPlugin);
-  const pluginBinding = resolvePluginBinding(
-    pluginCatalogQuery.data,
-    binding.plugin_uid,
-    binding.endpoint_id
+  const pluginBinding = useMemo(
+    () =>
+      resolvePluginBinding(
+        pluginCatalogQuery.data,
+        {
+          plugin_uid: binding.plugin_uid,
+          endpoint_id: binding.endpoint_id,
+          params: binding.params,
+        },
+        widgetType
+      ),
+    [pluginCatalogQuery.data, binding.plugin_uid, binding.endpoint_id, binding.params, widgetType]
   );
   const pluginQuery = usePluginData({
     pluginId: pluginBinding?.entry.plugin_id,
-    endpointId: binding.endpoint_id ?? undefined,
+    endpointId: pluginBinding?.source.id,
     dashboardId,
-    params: binding.params ?? undefined,
+    params: pluginBinding?.params,
     widgetId,
     cacheTtlSeconds: pluginBinding?.source.cache_ttl_seconds,
     enabled: scoped && isPlugin,
@@ -258,7 +269,7 @@ export function useWidgetData(
       case "plugin": {
         // A definition that never had the plug-in filled in, or a canvas with no
         // dashboard behind it (a preview). Neither is an error.
-        if (!binding.plugin_uid || !binding.endpoint_id || typeof dashboardId !== "number") {
+        if (!binding.plugin_uid || typeof dashboardId !== "number") {
           return unbound();
         }
         if (pluginCatalogQuery.isLoading) {
@@ -374,7 +385,6 @@ export function useWidgetData(
     scoped,
     dashboardId,
     binding.plugin_uid,
-    binding.endpoint_id,
     pluginBinding,
     pluginCatalogQuery.data,
     pluginCatalogQuery.isLoading,

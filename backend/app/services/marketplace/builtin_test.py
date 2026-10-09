@@ -339,12 +339,7 @@ class TestWithdrawingWhatIsNoLongerShipped:
                         "uid": dash_uid,
                         "public_id": f"{public_id}-overview",
                         "name": "Overview",
-                        "widgets": [
-                            {
-                                "type": "open-items",
-                                "binding": {"endpoint_id": endpoint},
-                            }
-                        ],
+                        "widgets": [{"type": "open-items"}],
                     }
                 ],
             },
