@@ -24,9 +24,10 @@ import { strings } from "@bufbuild/cel/ext";
 import i18n from "i18next";
 
 import { formatDate, formatDateTime } from "@/lib/formatDate";
+import { numberFormat } from "@/lib/intl";
 
 const number = (value: number | bigint) =>
-  new Intl.NumberFormat(i18n.language).format(typeof value === "bigint" ? Number(value) : value);
+  numberFormat(i18n.language).format(typeof value === "bigint" ? Number(value) : value);
 
 /** The display functions templates call (DISPLAY_FUNCTIONS in expressions.ts). */
 const DISPLAY = [

@@ -2,6 +2,7 @@ import { ChevronRight } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { dateTimeFormat } from "@/lib/intl";
 import { cn } from "@/lib/utils";
 import { formatValue } from "@/lib/widgets/format";
 import type { SceneNode, TimelineSpan } from "@/lib/widgets/sceneSpec";
@@ -153,20 +154,20 @@ export function TimelineNode({ node }: { node: Node }) {
     const when = new Date(tick.at);
     switch (tick.unit) {
       case "day":
-        return new Intl.DateTimeFormat(locale, { day: "numeric" }).format(when);
+        return dateTimeFormat(locale, { day: "numeric" }).format(when);
       case "month":
-        return new Intl.DateTimeFormat(locale, { month: "short" }).format(when);
+        return dateTimeFormat(locale, { month: "short" }).format(when);
       case "quarter":
         return t("timeline.quarter", { quarter: Math.floor(when.getMonth() / 3) + 1 });
       case "year":
-        return new Intl.DateTimeFormat(locale, { year: "numeric" }).format(when);
+        return dateTimeFormat(locale, { year: "numeric" }).format(when);
       default:
-        return new Intl.DateTimeFormat(locale, { month: "short", day: "numeric" }).format(when);
+        return dateTimeFormat(locale, { month: "short", day: "numeric" }).format(when);
     }
   };
 
   const segmentLabel = (segment: AxisSegment): string =>
-    new Intl.DateTimeFormat(
+    dateTimeFormat(
       locale,
       major.unit === "year" ? { year: "numeric" } : { month: "long", year: "numeric" }
     ).format(new Date(segment.at));

@@ -4,6 +4,7 @@
  */
 
 import type { GalleryImageRead, TagSummary } from "@/api/generated/initiativeAPI.schemas";
+import { dateTimeFormat } from "@/lib/intl";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
 
 /**
@@ -136,7 +137,7 @@ export const formatDay = (day: string): string => {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day);
   if (!match) return day;
   const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
-  return new Intl.DateTimeFormat(undefined, {
+  return dateTimeFormat(undefined, {
     weekday: "long",
     day: "numeric",
     month: "long",

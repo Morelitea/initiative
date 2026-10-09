@@ -26,6 +26,7 @@ import type { PropertySummary, TagSummary } from "@/api/generated/initiativeAPI.
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { dateTimeFormat } from "@/lib/intl";
 import { cn } from "@/lib/utils";
 
 import { DayView } from "./views/DayView";
@@ -295,32 +296,28 @@ function usePeriodLabel(
     const locale = i18n.language;
     switch (viewMode) {
       case "day":
-        return focusDate.toLocaleDateString(locale, {
+        return dateTimeFormat(locale, {
           weekday: "long",
           month: "long",
           day: "numeric",
           year: "numeric",
-        });
+        }).format(focusDate);
       case "week": {
         const weekStart = startOfWeek(focusDate, { weekStartsOn });
         const weekEnd = addDays(weekStart, 6);
-        const startStr = weekStart.toLocaleDateString(locale, {
-          month: "short",
-          day: "numeric",
-        });
-        const endStr = weekEnd.toLocaleDateString(locale, {
+        const startStr = dateTimeFormat(locale, { month: "short", day: "numeric" }).format(
+          weekStart
+        );
+        const endStr = dateTimeFormat(locale, {
           month: "short",
           day: "numeric",
           year: "numeric",
-        });
+        }).format(weekEnd);
         return `${startStr} – ${endStr}`;
       }
       case "month":
       case "list":
-        return focusDate.toLocaleDateString(locale, {
-          month: "long",
-          year: "numeric",
-        });
+        return dateTimeFormat(locale, { month: "long", year: "numeric" }).format(focusDate);
       case "year":
         return focusDate.getFullYear().toString();
     }

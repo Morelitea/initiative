@@ -16,6 +16,8 @@
 
 import type { CSSProperties } from "react";
 
+import { numberFormat } from "@/lib/intl";
+
 import type { CellValue } from "./coords";
 
 export type CellAlign = "left" | "center" | "right";
@@ -437,7 +439,7 @@ export const formatCellValue = (raw: CellValue, fmt: NumberFormat | undefined): 
   let body: string;
   if (fmt.type === "currency") {
     try {
-      body = new Intl.NumberFormat(undefined, {
+      body = numberFormat(undefined, {
         style: "currency",
         currency: fmt.currency,
         minimumFractionDigits: fmt.decimals,
@@ -450,7 +452,7 @@ export const formatCellValue = (raw: CellValue, fmt: NumberFormat | undefined): 
       body = abs.toFixed(fmt.decimals);
     }
   } else {
-    body = new Intl.NumberFormat(undefined, {
+    body = numberFormat(undefined, {
       minimumFractionDigits: fmt.decimals,
       maximumFractionDigits: fmt.decimals,
       useGrouping: grouped,

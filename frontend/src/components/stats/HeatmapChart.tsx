@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import type { HeatmapDayData } from "@/api/generated/initiativeAPI.schemas";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { dateTimeFormat } from "@/lib/intl";
 import { cn } from "@/lib/utils";
 
 interface HeatmapChartProps {
@@ -59,10 +60,10 @@ export function HeatmapChart({ data }: HeatmapChartProps) {
               <div key={`week-${week[0]?.date}`} className="flex flex-col gap-1">
                 {week.map((day) => {
                   const date = parseISO(day.date);
-                  const dateStr = date.toLocaleDateString("en-US", {
+                  const dateStr = dateTimeFormat("en-US", {
                     month: "short",
                     day: "numeric",
-                  });
+                  }).format(date);
 
                   return (
                     <div
