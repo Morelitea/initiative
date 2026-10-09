@@ -38,16 +38,9 @@ import { useCommunityPlugins } from "@/hooks/useCommunityPlugins";
 import { pluginBlockRowsKey } from "@/hooks/usePluginData";
 import { useWidthClass } from "@/hooks/useWidthClass";
 import { compileBlock } from "@/lib/blocks/blockTemplate";
-import { communityPath } from "@/lib/communityUrl";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { toast } from "@/lib/mascotToast";
-import {
-  declaredBlocks,
-  endpointKey,
-  initiativePluginPath,
-  type PluginBlock,
-  pluginPages,
-} from "@/lib/pluginSurfaces";
+import { declaredBlocks, endpointKey, type PluginBlock } from "@/lib/pluginSurfaces";
 import type { CompileResult } from "@/lib/templates/compile";
 import { type BlockAreaKind, SECTIONS, type SectionBlocks } from "@/lib/templates/sections";
 import { BLOCK_SUBJECT_IDS } from "@/lib/templates/vocabulary";
@@ -67,15 +60,10 @@ const compiled = (block: PluginBlock, definition: Record<string, unknown>): Comp
   const returns = endpoints.find((endpoint) => endpoint.id === block.endpoint)?.returns ?? [];
   const strings = Object.keys(block.strings ?? {});
   const actions = (block.actions ?? []).map((id) => endpointKey(definition, id));
-  const pages = Array.isArray(definition.pages)
-    ? (definition.pages as { id?: unknown }[]).flatMap((page) =>
-        typeof page.id === "string" ? [page.id] : []
-      )
-    : [];
-  const key = JSON.stringify([block.template, returns, strings, actions, pages]);
+  const key = JSON.stringify([block.template, returns, strings, actions]);
   let result = compiledBlocks.get(key);
   if (!result) {
-    result = compileBlock(block.template, returns, strings, actions, pages);
+    result = compileBlock(block.template, returns, strings, actions);
     compiledBlocks.set(key, result);
   }
   return result;
@@ -128,8 +116,6 @@ export function useTaskBlocks<S extends "task.card" | "task.page">(
           .filter((access) => access.openable_initiatives.includes(initiativeId))
           .map((access) => access.block_id)
       );
-      const pluginPath = initiativePluginPath(plugin, initiativeId);
-      const openPages = new Set(pluginPages(plugin, initiativeId).map((page) => page.id));
       return declaredBlocks(definition).flatMap((block): OfferedBlock[] => {
         if (!opens.has(block.id)) return [];
         const areas = block.areas.flatMap((area) =>
@@ -151,8 +137,6 @@ export function useTaskBlocks<S extends "task.card" | "task.page">(
               ])
             ),
             compiled: compiled(block, definition),
-            pagePath: (pageId) =>
-              pluginPath && openPages.has(pageId) ? communityPath(communityId, pluginPath) : null,
             reads: Boolean(block.endpoint),
           },
         ];

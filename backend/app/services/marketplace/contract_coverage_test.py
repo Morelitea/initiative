@@ -248,7 +248,7 @@ def maximal_manifest() -> dict:
                 "name": {"en": "Timer"},
                 "template": (
                     '<button action="start">{{ strings.start }}</button>'
-                    '<open page="panel">{{ task.title }}</open>'
+                    "<span>{{ task.title }}</span>"
                 ),
                 "endpoint": "plugin.acme.tracker.timers",
                 "actions": ["plugin.acme.tracker.start"],

@@ -317,10 +317,6 @@
   "blocks": {
     "label": "{{block}}, von {{plugin}}",
     "menu": "Plug-in-Aktionen",
-    "copy": "Kopieren",
-    "copied": "Kopiert",
-    "copyFailed": "Kopieren fehlgeschlagen",
-    "unavailable": "Gerade nicht verfügbar",
     "actionFailed": "Das Plug-in konnte das nicht ausführen. Versuche es gleich noch einmal."
   }
 }

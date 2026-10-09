@@ -27,22 +27,20 @@ function checkWidget(source: string, returns: string, stringKeys: string): strin
   );
 }
 
-/** A block's template, with its endpoint's returns, its string keys, its action
- *  keys (each id after `plugin.<public id>.`) and the plug-in's page ids. */
+/** A block's template, with its endpoint's returns, its string keys and its
+ *  action keys (each id after `plugin.<public id>.`). */
 function checkBlock(
   source: string,
   returns: string,
   stringKeys: string,
-  actionKeys: string,
-  pageIds: string
+  actionKeys: string
 ): string {
   return problems(
     compileBlock(
       source,
       JSON.parse(returns) as EndpointReturn[],
       JSON.parse(stringKeys) as string[],
-      JSON.parse(actionKeys) as string[],
-      JSON.parse(pageIds) as string[]
+      JSON.parse(actionKeys) as string[]
     )
   );
 }

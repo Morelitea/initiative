@@ -2192,7 +2192,6 @@ def _block(
     *,
     endpoints: dict[str, dict[str, Any]],
     endpoint_prefix: str,
-    page_ids: set[str],
     connection_ids: set[str],
 ) -> dict[str, Any]:
     """One block: a template drawn on a task, the read it draws, and the writes
@@ -2269,7 +2268,7 @@ def _block(
     template = _template_source(block.get("template"), what=what)
     _refuse_problems(
         lambda: template_engine.check_block(
-            template, returns, list(strings), action_keys, sorted(page_ids)
+            template, returns, list(strings), action_keys
         ),
         what=what,
     )
@@ -2879,7 +2878,6 @@ def normalize_service_plugin_definition(
             entry,
             endpoints={endpoint["id"]: endpoint for endpoint in endpoints},
             endpoint_prefix=f"{ENDPOINT_ID_PREFIX}{plugin_public_id}.",
-            page_ids=page_ids,
             connection_ids=connection_ids,
         )
         for entry in require_list(

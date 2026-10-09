@@ -8,7 +8,7 @@ imports the standard library and ``mini-racer`` and nothing of Initiative.
 
 A request is ``{"template": <source>, "returns": [<declared return>],
 "strings": [<key>]}`` for a widget, and for a block also carries ``"kind":
-"block"``, ``"actions": [<key>]`` and ``"pages": [<id>]``. It is answered
+"block"`` and ``"actions": [<key>]``. It is answered
 ``{"problems": [<message>]}``, empty when the template compiles. One the engine cannot run is answered ``{"error"}``; one
 that runs out of heap also carries ``"replace": true``, and the worker exits.
 """
@@ -32,7 +32,7 @@ def answer(engine: MiniRacer, request: dict[str, Any]) -> dict[str, Any]:
     check = "serverTemplates.checkWidget"
     if request.get("kind") == "block":
         check = "serverTemplates.checkBlock"
-        arguments += [json.dumps(request["actions"]), json.dumps(request["pages"])]
+        arguments.append(json.dumps(request["actions"]))
     try:
         problems = engine.call(check, *arguments)
         return {"problems": json.loads(problems)}

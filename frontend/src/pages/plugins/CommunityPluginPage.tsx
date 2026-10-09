@@ -67,11 +67,9 @@ export interface CommunityPluginPageProps {
    * plug-in can scope what it shows without asking a second question.
    */
   initiativeId?: number;
-  /** The page to open first, such as the one a task's block links to. */
-  pageId?: string;
 }
 
-export function CommunityPluginPage({ pluginId, initiativeId, pageId }: CommunityPluginPageProps) {
+export function CommunityPluginPage({ pluginId, initiativeId }: CommunityPluginPageProps) {
   const { t, i18n } = useTranslation(["plugins", "common"]);
   const communityId = useActiveCommunityId();
   const detail = useCommunityPluginDetail(pluginId);
@@ -79,7 +77,7 @@ export function CommunityPluginPage({ pluginId, initiativeId, pageId }: Communit
 
   // Only the surfaces the server says this reader opens here.
   const pages = useMemo(() => pluginPages(plugin, initiativeId), [plugin, initiativeId]);
-  const [surfaceId, setSurfaceId] = useState<string | null>(pageId ?? null);
+  const [surfaceId, setSurfaceId] = useState<string | null>(null);
   const active = pages.find((page) => page.id === surfaceId) ?? pages[0] ?? null;
   // The surface as a plain id, so a refetch that hands back an equal-but-new
   // definition does not read as a surface change and mint a token nobody asked

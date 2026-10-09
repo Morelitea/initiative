@@ -1,27 +1,19 @@
 /**
- * Plug-in blocks: a plug-in's template drawn in one of a section's block areas.
+ * Plug-in blocks: a plug-in's template inserted into one of a section's block
+ * areas, as it is.
  *
- * A block area draws the blocks offered there, each by its kind: an inline
- * block is a span on the card's badge row, a panel a section of its own, and a
- * menu block a group of items under one menu. A block carries its plug-in's
- * name in an accessible label, and a block that cannot be drawn hides (inline,
- * menu) or says it is unavailable (panel); the task around it never waits.
+ * Initiative draws nothing of a block's own: its template is the whole of it,
+ * inside a group naming its plug-in for assistive technology. A menu area
+ * hosts its blocks' items in a menu of its own. Until a block's read has
+ * answered, and when it could not, the block draws nothing; the task around
+ * it never waits.
  *
  * Everything a block needs that the screen could ask for once, the screen asks
  * for (`useTaskBlocks`) and hands down in `BlockShared`.
  */
 
-import { Link } from "@tanstack/react-router";
-import { Copy, Puzzle } from "lucide-react";
-import {
-  createContext,
-  createElement,
-  type ReactNode,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { Puzzle } from "lucide-react";
+import { createContext, type ReactNode, useContext, useMemo, useState } from "react";
 
 import type { TaskListRead } from "@/api/generated/initiativeAPI.schemas";
 import type { PluginBlockRequest } from "@/api/pluginData";
@@ -31,12 +23,9 @@ import {
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Skeleton } from "@/components/ui/skeleton";
 import type { WidthClass } from "@/hooks/useWidthClass";
-import { toast } from "@/lib/mascotToast";
 import type { CompileResult } from "@/lib/templates/compile";
 import { renderTemplate } from "@/lib/templates/render";
 import type { BlockAreaKind } from "@/lib/templates/sections";
@@ -57,8 +46,6 @@ export interface OfferedBlock {
   compiled: CompileResult;
   /** It reads an endpoint, so it waits for its rows. */
   reads: boolean;
-  /** Where `<open page>` leads in the tasks' initiative, or null where it cannot open. */
-  pagePath: (pageId: string) => string | null;
 }
 
 /** One block's rows: by task id, as its read answered them. */
@@ -93,58 +80,6 @@ const usePlace = (): BlockPlace => {
   if (!place) throw new Error("A block element is drawn only inside a block");
   return place;
 };
-
-const pad = (value: number) => String(value).padStart(2, "0");
-
-/** Elapsed time as `h:mm:ss`. */
-const elapsed = (milliseconds: number): string => {
-  const seconds = Math.max(0, Math.floor(milliseconds / 1000));
-  return `${Math.floor(seconds / 3600)}:${pad(Math.floor(seconds / 60) % 60)}:${pad(seconds % 60)}`;
-};
-
-/** Time since a moment, ticked here each second rather than by drawing the template again. */
-function Timer({ props }: { props: Record<string, unknown> }) {
-  const since = typeof props.since === "string" ? props.since : null;
-  const start = since ? Date.parse(since) : Number.NaN;
-  const [now, setNow] = useState(Date.now);
-  useEffect(() => {
-    if (!Number.isFinite(start)) return;
-    const timer = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(timer);
-  }, [start]);
-  if (!since || !Number.isFinite(start)) return null;
-  return (
-    <time dateTime={since} className="tabular-nums">
-      {elapsed(now - start)}
-    </time>
-  );
-}
-
-function CopyValue({ props }: { props: Record<string, unknown> }) {
-  const { shared } = usePlace();
-  const value = props.value;
-  if (typeof value !== "string" && typeof value !== "number") return null;
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(String(value));
-      toast.success(shared.t("blocks.copied"));
-    } catch {
-      toast.error(shared.t("blocks.copyFailed"));
-    }
-  };
-  return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon-sm"
-      className="size-6"
-      aria-label={shared.t("blocks.copy")}
-      onClick={() => void copy()}
-    >
-      <Copy className="h-3.5 w-3.5" />
-    </Button>
-  );
-}
 
 /** Runs one of the block's actions, and says whether it is under way. */
 const useAction = (action: unknown): [boolean, () => void] => {
@@ -195,30 +130,10 @@ function ActionMenuItem(element: { props: Record<string, unknown>; children?: Re
   );
 }
 
-function OpenPage({ props, children }: { props: Record<string, unknown>; children?: ReactNode }) {
-  const { block } = usePlace();
-  const page = typeof props.page === "string" ? props.page : null;
-  const path = page ? block.pagePath(page) : null;
-  if (!path) return null;
-  // The path is built at run time, so the router cannot type it.
-  return createElement(
-    Link,
-    {
-      to: path,
-      search: { page },
-      className: "font-medium text-primary underline-offset-4 hover:underline",
-    } as never,
-    children
-  );
-}
-
 /** The block elements as components, by the names a block's template writes. */
 const BLOCK_ELEMENT_COMPONENTS = {
-  timer: Timer,
-  copy: CopyValue,
   button: ActionButton,
   "menu-item": ActionMenuItem,
-  open: OpenPage,
 };
 
 interface PluginBlockProps {
@@ -250,57 +165,25 @@ function PluginBlock({ block, task, rows, kind, className, shared }: PluginBlock
   );
 
   const template = block.compiled.template;
-  const failed = !template || rows?.failed;
-  if (kind === "menu") {
-    if (failed || rows?.pending) return null;
-  } else if (kind === "inline") {
-    if (failed) return null;
-    if (rows?.pending) {
-      return <Skeleton aria-hidden className={cn("h-5 w-12", className)} />;
-    }
-  }
-
-  const body =
-    failed || !template ? (
-      <p className="text-muted-foreground text-sm">{shared.t("blocks.unavailable")}</p>
-    ) : rows?.pending ? (
-      <Skeleton className="h-12 w-full" />
-    ) : (
-      renderTemplate(template, {
-        data,
-        context: undefined,
-        parts: {},
-        communityId: block.request.communityId,
-        elements: BLOCK_ELEMENT_COMPONENTS,
-        classes: PLUGIN_CLASSES,
-      })
-    );
+  if (!template || rows?.pending || rows?.failed) return null;
+  const body = renderTemplate(template, {
+    data,
+    context: undefined,
+    parts: {},
+    communityId: block.request.communityId,
+    elements: BLOCK_ELEMENT_COMPONENTS,
+    classes: PLUGIN_CLASSES,
+  });
 
   return (
     <Place.Provider value={place}>
-      {kind === "inline" ? (
-        // biome-ignore lint/a11y/useSemanticElements: a fieldset belongs to a form; this names one plug-in's block on a line of badges.
-        <span
-          role="group"
-          aria-label={block.label}
-          className={cn("inline-flex min-w-0 max-w-full items-center gap-1 text-xs", className)}
-        >
+      {kind === "menu" ? (
+        <DropdownMenuGroup aria-label={block.label}>{body}</DropdownMenuGroup>
+      ) : (
+        // biome-ignore lint/a11y/useSemanticElements: a fieldset belongs to a form; this names the plug-in a block came from.
+        <span role="group" aria-label={block.label} className={cn("contents", className)}>
           {body}
         </span>
-      ) : kind === "panel" ? (
-        <section
-          aria-label={block.label}
-          aria-busy={rows?.pending}
-          className={cn("space-y-2 rounded-xl border bg-card p-4 text-card-foreground", className)}
-        >
-          <h3 className="font-medium text-sm">{block.name}</h3>
-          {body}
-        </section>
-      ) : (
-        <DropdownMenuGroup aria-label={block.label}>
-          <DropdownMenuLabel>{block.name}</DropdownMenuLabel>
-          {body}
-        </DropdownMenuGroup>
       )}
     </Place.Provider>
   );

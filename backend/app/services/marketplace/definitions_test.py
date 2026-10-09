@@ -941,7 +941,7 @@ BLOCK_WRITE = "plugin.tests.widget-co.start"
 def _with_block(
     *, read: dict | None = None, write: dict | None = None, **block_overrides
 ) -> dict:
-    """A plug-in with a task read, a task write, a page, and one block on them."""
+    """A plug-in with a task read, a task write, and one block on them."""
     block = {
         "id": "timer",
         "areas": ["task.card.inline", "task.page.aside"],
@@ -951,13 +951,13 @@ def _with_block(
         "template": (
             '<span if="answer != null">{{ answer.running_since }}</span>'
             '<button action="start">{{ strings.start }}</button>'
-            '<open page="panel">{{ task.title }}</open>'
+            "<span>{{ task.title }}</span>"
         ),
         "strings": {"start": {"en": "Start"}},
     }
     block.update(block_overrides)
     return _normalize(
-        features=["blocks", "endpoints", "pages"],
+        features=["blocks", "endpoints"],
         endpoints=[
             {
                 "id": BLOCK_READ,
@@ -977,7 +977,6 @@ def _with_block(
                 **(write or {}),
             },
         ],
-        pages=[{"id": "panel", "path": "/panel", "name": _label()}],
         blocks=[block],
     )
 
@@ -1008,7 +1007,6 @@ class TestBlocks:
             ({"endpoint": BLOCK_WRITE}, "not a declared read endpoint with subject"),
             ({"actions": [BLOCK_READ]}, "not a declared write endpoint with subject"),
             ({"template": '<button action="stop">Stop</button>'}, "template:"),
-            ({"template": '<open page="nowhere">Open</open>'}, "template:"),
         ],
         ids=[
             "no area",
@@ -1017,7 +1015,6 @@ class TestBlocks:
             "a read that is not about tasks",
             "an action that is not a task write",
             "a button naming an undeclared action",
-            "an open naming an undeclared page",
         ],
     )
     def test_what_a_block_names_must_exist(self, overrides, problem):

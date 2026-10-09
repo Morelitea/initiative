@@ -99,14 +99,13 @@ def check_block(
     returns: list[dict[str, Any]],
     string_keys: list[str],
     action_keys: list[str],
-    page_ids: list[str],
 ) -> list[str]:
     """Every problem with a plug-in block's template, or none.
 
     As :func:`check_widget`, with ``returns`` those of the read the block
-    draws (none for a block drawn from the task alone), ``action_keys`` its
-    actions by key (the endpoint id after ``plugin.<public id>.``) and
-    ``page_ids`` the manifest's pages, which its buttons and ``<open>`` name.
+    draws (none for a block drawn from the task alone) and ``action_keys`` its
+    actions by key (the endpoint id after ``plugin.<public id>.``), which its
+    buttons and menu items name.
     """
     return _ask(
         {
@@ -115,7 +114,6 @@ def check_block(
             "returns": returns,
             "strings": string_keys,
             "actions": action_keys,
-            "pages": page_ids,
         }
     )
 

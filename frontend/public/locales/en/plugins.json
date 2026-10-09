@@ -317,10 +317,6 @@
   "blocks": {
     "label": "{{block}}, from {{plugin}}",
     "menu": "Plug-in actions",
-    "copy": "Copy",
-    "copied": "Copied",
-    "copyFailed": "Could not copy",
-    "unavailable": "Unavailable right now",
     "actionFailed": "The plug-in could not do that. Try again in a moment."
   }
 }

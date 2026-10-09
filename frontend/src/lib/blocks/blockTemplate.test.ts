@@ -8,22 +8,20 @@ const errorsOf = (source: string) =>
       { key: "running_since", type: "datetime", list: true },
     ],
     ["start"],
-    ["timers.start", "timers.stop"],
-    ["timesheet"]
+    ["timers.start", "timers.stop"]
   ).errors.map((error) => error.message);
 
 describe("compileBlock", () => {
   it("compiles a block that reads its task, its row and its words, with its elements", () => {
     const { template, errors } = compileBlock(
       `<span class="flex gap-1" if="answer != null && answer.running_since != null">
-         <timer :since="answer.running_since" /><button action="timers.stop">{{ task.title }}</button>
+         <button action="timers.stop">{{ task.title }}</button>
        </span>
        <button else action="timers.start">{{ strings.start }}</button>
-       <open page="timesheet">{{ area }} {{ width }}</open><copy :value="string(now)" />`,
+       <span>{{ area }} {{ width }} {{ string(now) }}</span>`,
       [{ key: "running_since", type: "datetime", list: true }],
       ["start"],
-      ["timers.start", "timers.stop"],
-      ["timesheet"]
+      ["timers.start", "timers.stop"]
     );
     expect(errors).toEqual([]);
     const button = template?.root.find((node) => node.t === "if");
@@ -35,18 +33,12 @@ describe("compileBlock", () => {
     });
   });
 
-  it("names only declared actions and pages, as written", () => {
+  it("names only declared actions, as written", () => {
     expect(errorsOf(`<button action="timers.reset">Reset</button>`)[0]).toMatch(
       /<button> names action timers.reset, which is not declared/
     );
     expect(errorsOf(`<button :action="strings.start">Go</button>`)[0]).toMatch(
       /<button> needs action, given as it is/
-    );
-    expect(errorsOf(`<open page="settings">Open</open>`)[0]).toMatch(
-      /<open> names page settings, which is not declared/
-    );
-    expect(errorsOf(`<timer :since="answer.running_since">1</timer>`)[0]).toMatch(
-      /<timer> holds nothing/
     );
   });
 
