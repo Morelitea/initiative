@@ -60,6 +60,17 @@ import type { QueryOpts } from "@/types/query";
 
 // ── Queries ─────────────────────────────────────────────────────────────────
 
+/** What a task's fields with a save in flight show meanwhile, by community and
+ *  task, so a response or a refresh that lands first does not take them back. */
+const savingFields = new Map<string, Map<string, { value: unknown; save: object }>>();
+
+/** The task, with each field still being saved as it will be. */
+const withSavingFields = (communityId: number, task: TaskRead): TaskRead => {
+  const fields = savingFields.get(`${communityId}:${task.id}`);
+  if (!fields?.size) return task;
+  return { ...task, ...Object.fromEntries([...fields].map(([name, { value }]) => [name, value])) };
+};
+
 // Returns the full ``TaskRead`` (the detail endpoint's shape) — a superset of
 // the list row that additionally carries the ``creator`` summary the edit page
 // renders. The list hooks stay on ``TaskListRead``.
@@ -68,7 +79,7 @@ export const useTask = (taskId: number | null, options?: QueryOpts<TaskRead>) =>
   const { enabled: userEnabled = true, ...rest } = options ?? {};
   return useQuery<TaskRead>({
     queryKey: getReadTaskQueryKey(communityId, taskId!),
-    queryFn: () => readTask(communityId, taskId!),
+    queryFn: async () => withSavingFields(communityId, await readTask(communityId, taskId!)),
     enabled: taskId !== null && Number.isFinite(taskId) && userEnabled,
     ...rest,
   });
@@ -241,6 +252,10 @@ const SAVED_SHOWN_MS = 2_000;
  *
  * Given `undo`, the edit that puts it back, the confirmation offers Undo: for
  * a status move, or a cleared value.
+ *
+ * Fields share the one cached task. A save's answer, or a refresh, sets only
+ * the fields no other save is still sending, so one field's save never takes
+ * back another's.
  */
 export const useTaskFieldSave = (
   task: TaskRead,
@@ -249,7 +264,9 @@ export const useTaskFieldSave = (
   askScope: (
     action: "edit",
     question: { tool: "tasks"; count: number }
-  ) => Promise<TaskUpdateScope | null>
+  ) => Promise<TaskUpdateScope | null>,
+  /** Runs when an edit is saved, by Save or by Retry. */
+  onSaved?: (edit: TaskEdit) => void
 ) => {
   const { t } = useTranslation("common");
   const communityId = useActiveCommunityId();
@@ -270,6 +287,16 @@ export const useTaskFieldSave = (
     const key = getReadTaskQueryKey(communityId, task.id);
     const before = queryClient.getQueryData<TaskRead>(key) ?? task;
     const shown = Object.keys(edit.shows) as (keyof TaskRead)[];
+    const fieldsId = `${communityId}:${task.id}`;
+    const sending = savingFields.get(fieldsId) ?? new Map();
+    savingFields.set(fieldsId, sending);
+    // Marks this save's fields, which a later save of the same field takes over.
+    const mark = {};
+    for (const name of shown) sending.set(name, { value: edit.shows[name], save: mark });
+    const settle = () => {
+      for (const name of shown) if (sending.get(name)?.save === mark) sending.delete(name);
+      if (sending.size === 0) savingFields.delete(fieldsId);
+    };
     last.current = { edit, undo };
     pending.current += 1;
     setState("saving");
@@ -294,7 +321,11 @@ export const useTaskFieldSave = (
               }),
             };
       if (!("patch" in edit)) void invalidate(q.propertyHolder(PropertyTarget.task));
-      queryClient.setQueryData<TaskRead>(key, (current) => current && { ...current, ...written });
+      settle();
+      queryClient.setQueryData<TaskRead>(
+        key,
+        (current) => current && withSavingFields(communityId, { ...current, ...written })
+      );
       saved = true;
       if (undo) {
         toast.success(
@@ -316,12 +347,15 @@ export const useTaskFieldSave = (
       }
     } catch (failed) {
       setError(failed);
+      settle();
+      // A field a later save is still sending keeps what that save shows.
+      const back = shown.filter((name) => !sending.has(name));
       queryClient.setQueryData<TaskRead>(
         key,
         (current) =>
           current && {
             ...current,
-            ...Object.fromEntries(shown.map((name) => [name, before[name]])),
+            ...Object.fromEntries(back.map((name) => [name, before[name]])),
           }
       );
       // Refused as out of date: what it is now is the next thing to show.
@@ -329,6 +363,7 @@ export const useTaskFieldSave = (
     }
     pending.current -= 1;
     if (pending.current === 0) setState(saved ? "saved" : "error");
+    if (saved) onSaved?.(edit);
     return saved;
   };
 

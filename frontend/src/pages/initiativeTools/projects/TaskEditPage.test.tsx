@@ -19,6 +19,7 @@ import {
   buildProjectTaskStatus,
   buildPropertySummary,
   buildTask,
+  buildUser,
 } from "@/__tests__/factories";
 import { readerCan } from "@/__tests__/factories/can";
 import { communityHttp } from "@/__tests__/helpers/communityHttp";
@@ -30,6 +31,8 @@ import {
   PropertyType,
   type TaskStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
+import { getReadTaskQueryKey } from "@/api/generated/tasks/tasks";
+import { clearStoredServerUrl, setStoredServerUrl } from "@/lib/serverStorage";
 
 import { TaskEditPage } from "./TaskEditPage";
 
@@ -63,6 +66,7 @@ const renderTaskPage = ({
   dueDate = null,
   canEdit = true,
   refuse,
+  userId,
 }: {
   taskProjectId?: number;
   /** Other projects the person may move the task into. */
@@ -76,8 +80,11 @@ const renderTaskPage = ({
   description?: string | null;
   dueDate?: string | null;
   canEdit?: boolean;
-  /** An answer to an update in place of saving it, when it returns one. */
-  refuse?: (body: Record<string, unknown>) => Response | undefined;
+  /** An answer to an update in place of saving it, when it returns one; it
+   *  may hold the update until it settles. */
+  refuse?: (body: Record<string, unknown>) => Response | undefined | Promise<Response | undefined>;
+  /** Who is signed in. */
+  userId?: number;
 } = {}) => {
   let gone = false;
   const task = {
@@ -109,7 +116,7 @@ const renderTaskPage = ({
     communityHttp.patch("/tasks/:taskId", async ({ request }) => {
       const body = (await request.json()) as Record<string, unknown>;
       sent.push(body);
-      const refused = refuse?.(body);
+      const refused = await refuse?.(body);
       if (refused) return refused;
       for (const field of ["title", "description", "priority", "start_date", "due_date"]) {
         if (field in body) Object.assign(task, { [field]: body[field] });
@@ -142,7 +149,8 @@ const renderTaskPage = ({
     })
   );
 
-  const { router, unmount } = renderPage(TaskEditPage, {
+  const { router, unmount, queryClient } = renderPage(TaskEditPage, {
+    ...(userId ? { auth: { user: buildUser({ id: userId }) } } : {}),
     initialRoute: TASK_ROUTE,
     routeParams: {
       communityId: String(COMMUNITY_ID),
@@ -152,7 +160,7 @@ const renderTaskPage = ({
     },
   });
 
-  return { router, unmount, deleted, task, sent };
+  return { router, unmount, queryClient, deleted, task, sent };
 };
 
 /** A field on the page, by its label. */
@@ -161,6 +169,12 @@ const fieldNamed = (name: RegExp) => screen.findByRole("group", { name });
 const choose = async (field: RegExp, option: RegExp) => {
   await userEvent.click(within(await fieldNamed(field)).getByRole("combobox"));
   await userEvent.click(await screen.findByRole("option", { name: option }));
+};
+
+/** Wait for a field to say its save went through. */
+const expectSaved = async (field: RegExp) => {
+  const frame = await fieldNamed(field);
+  await waitFor(() => expect(within(frame).getByRole("status")).toHaveTextContent(/saved/i));
 };
 
 const openDescription = async () =>
@@ -234,17 +248,29 @@ describe("TaskEditPage", () => {
   });
 
   it("writes a description in its own mode, keeps the draft, and saves it over what it read", async () => {
-    const first = renderTaskPage({ description: "Old words" });
+    const first = renderTaskPage({ description: "Old words", userId: 41 });
 
     await openDescription();
     const editor = await screen.findByRole("textbox", { name: /^description$/i });
     await userEvent.clear(editor);
     await userEvent.type(editor, "New words");
     expect(first.sent).toHaveLength(0);
+    first.unmount();
+
+    // The draft is the account's own, on its own server.
+    const other = renderTaskPage({ description: "Old words", userId: 42 });
+    expect(await screen.findByText("Old words")).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: /^description$/i })).not.toBeInTheDocument();
+    other.unmount();
+    setStoredServerUrl("https://elsewhere.example/api/v1");
+    const elsewhere = renderTaskPage({ description: "Old words", userId: 41 });
+    expect(await screen.findByText("Old words")).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: /^description$/i })).not.toBeInTheDocument();
+    elsewhere.unmount();
+    clearStoredServerUrl();
 
     // Coming back finds the draft where it was left.
-    first.unmount();
-    const { sent } = renderTaskPage({ description: "Old words" });
+    const { sent } = renderTaskPage({ description: "Old words", userId: 41 });
     const restored = await screen.findByRole("textbox", { name: /^description$/i });
     expect(restored).toHaveValue("New words");
 
@@ -253,6 +279,85 @@ describe("TaskEditPage", () => {
     await waitFor(() => expect(sent).toHaveLength(1));
     expect(sent[0]).toMatchObject({ description: "New words", description_base: "Old words" });
     expect(await screen.findByText("New words")).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: /^description$/i })).not.toBeInTheDocument();
+  });
+
+  it("keeps what is typed while the description saves, as a draft over the saved text", async () => {
+    let release = () => {};
+    const held = new Promise<undefined>((resolve) => {
+      release = () => resolve(undefined);
+    });
+    const { sent } = renderTaskPage({
+      description: "Old words",
+      refuse: (body) => (sent.length === 1 ? held : undefined),
+    });
+
+    await openDescription();
+    const editor = await screen.findByRole("textbox", { name: /^description$/i });
+    await userEvent.type(editor, " one");
+    await userEvent.click(screen.getByRole("button", { name: /^save$/i }));
+    await waitFor(() => expect(sent).toHaveLength(1));
+    await userEvent.type(editor, " two");
+    release();
+
+    await expectSaved(/^description$/i);
+    expect(screen.getByRole("textbox", { name: /^description$/i })).toHaveValue(
+      "Old words one two"
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /^save$/i }));
+    await waitFor(() => expect(sent).toHaveLength(2));
+    expect(sent[1]).toMatchObject({
+      description: "Old words one two",
+      description_base: "Old words one",
+    });
+  });
+
+  it("closes the description's draft when Retry saves it", async () => {
+    let failing = true;
+    const { sent } = renderTaskPage({
+      description: "Old words",
+      refuse: () => (failing ? new HttpResponse(null, { status: 500 }) : undefined),
+    });
+
+    await openDescription();
+    await userEvent.type(await screen.findByRole("textbox", { name: /^description$/i }), " more");
+    await userEvent.click(screen.getByRole("button", { name: /^save$/i }));
+    const description = await fieldNamed(/^description$/i);
+    expect(await within(description).findByRole("alert")).toHaveTextContent(/couldn't save/i);
+
+    failing = false;
+    await userEvent.click(within(description).getByRole("button", { name: /try again/i }));
+
+    await waitFor(() => expect(sent).toHaveLength(2));
+    expect(await screen.findByText("Old words more")).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: /^description$/i })).not.toBeInTheDocument();
+  });
+
+  it("starts another task's page afresh, without this one's open editor", async () => {
+    const { router, queryClient } = renderTaskPage({ description: "Old words" });
+    const other = {
+      ...buildTask({ id: TASK_ID + 1, project_id: PROJECT_ID }),
+      description: "Its words",
+    };
+    server.use(
+      communityHttp.get("/tasks/:taskId", ({ params }) =>
+        params.taskId === String(other.id) ? HttpResponse.json(other) : undefined
+      )
+    );
+    // The other task is already read, so its page draws at once.
+    const otherKey = getReadTaskQueryKey(COMMUNITY_ID, other.id);
+    queryClient.setQueryDefaults(otherKey, { gcTime: Number.POSITIVE_INFINITY });
+    queryClient.setQueryData(otherKey, other);
+
+    await openDescription();
+    expect(await screen.findByRole("textbox", { name: /^description$/i })).toHaveValue("Old words");
+
+    await router.navigate({
+      to: `/c/${COMMUNITY_ID}/i/${INITIATIVE_ID}/projects/${PROJECT_ID}/tasks/${other.id}`,
+    });
+
+    expect(await screen.findByText("Its words")).toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: /^description$/i })).not.toBeInTheDocument();
   });
 
@@ -348,6 +453,75 @@ describe("TaskEditPage", () => {
     await waitFor(() => expect(sent).toHaveLength(2));
     expect(sent[1]).toMatchObject({ priority: "high" });
     await waitFor(() => expect(within(priority).queryByRole("alert")).not.toBeInTheDocument());
+  });
+
+  it("keeps a field's pending change when another field's save comes back first", async () => {
+    let release = () => {};
+    const held = new Promise<undefined>((resolve) => {
+      release = () => resolve(undefined);
+    });
+    const { sent } = renderTaskPage({
+      refuse: (body) => ("priority" in body ? held : undefined),
+    });
+
+    await choose(/^priority$/i, /^high$/i);
+    await waitFor(() => expect(sent).toHaveLength(1));
+    // The title's answer still has the old priority, as that save has not landed.
+    const title = await screen.findByDisplayValue("Wire the doorbell");
+    await userEvent.type(title, " now{Enter}");
+    await expectSaved(/^task$/i);
+
+    expect(within(await fieldNamed(/^priority$/i)).getByRole("combobox")).toHaveTextContent(
+      /high/i
+    );
+    release();
+    await expectSaved(/^priority$/i);
+  });
+
+  it("keeps a failed property removal's error on the property, with Retry", async () => {
+    let failing = true;
+    let refuse = () => {};
+    const refused = new Promise<void>((resolve) => {
+      refuse = resolve;
+    });
+    const { task } = renderTaskPage({
+      properties: [
+        buildPropertySummary({
+          property_id: 6,
+          name: "Notes",
+          type: PropertyType.text,
+          value: "x",
+        }),
+      ],
+    });
+    const written: { removed?: number[] }[] = [];
+    server.use(
+      communityHttp.put("/properties/:target/:entityId", async ({ request }) => {
+        const body = (await request.json()) as { removed?: number[] };
+        written.push(body);
+        if (failing) {
+          await refused;
+          return new HttpResponse(null, { status: 500 });
+        }
+        task.properties = task.properties.filter((p) => !body.removed?.includes(p.property_id));
+        return HttpResponse.json(task.properties);
+      })
+    );
+
+    const notes = await fieldNamed(/^notes$/i);
+    await userEvent.click(within(notes).getByRole("button", { name: /remove/i }));
+    await waitFor(() => expect(written).toHaveLength(1));
+    refuse();
+
+    expect(await within(notes).findByRole("alert")).toHaveTextContent(/couldn't save/i);
+    failing = false;
+    await userEvent.click(within(notes).getByRole("button", { name: /try again/i }));
+
+    await waitFor(() => expect(written).toHaveLength(2));
+    expect(written[1]).toMatchObject({ removed: [6] });
+    await waitFor(() =>
+      expect(screen.queryByRole("group", { name: /^notes$/i })).not.toBeInTheDocument()
+    );
   });
 
   it("saves one property on its own, sending only that one", async () => {

@@ -69,6 +69,7 @@ import { useCommunityPath } from "@/lib/communityUrl";
 import { dateRangeBounds } from "@/lib/dateRange";
 import { getHttpStatus } from "@/lib/errorMessage";
 import { toast } from "@/lib/mascotToast";
+import { currentServerKey } from "@/lib/offlineSession";
 import { fromStored, type RecurrenceRule, rulePayload } from "@/lib/recurrence";
 import { referenceRef } from "@/lib/smartChips";
 import { PRIORITY_ORDER } from "@/lib/sorting";
@@ -157,8 +158,9 @@ interface DescriptionDraft {
   base: string | null;
 }
 
-const descriptionDraftKey = (communityId: number, taskId: number) =>
-  `task-description-draft:${communityId}:${taskId}`;
+/** Each account on each server keeps its own drafts on a shared device. */
+const descriptionDraftKey = (userId: number | undefined, communityId: number, taskId: number) =>
+  `task-description-draft:${userId}@${currentServerKey()}:${communityId}:${taskId}`;
 
 const readDescriptionDraft = (key: string): DescriptionDraft | null => {
   try {
@@ -178,12 +180,18 @@ const readDescriptionDraft = (key: string): DescriptionDraft | null => {
  */
 const DescriptionEditor = ({ task, label }: EditorProps) => {
   const { t } = useTranslation(["tasks", "common"]);
-  const { readOnly, initiativeId, leaving, askScope } = useTaskPage();
+  const { readOnly, initiativeId, currentUserId, leaving, askScope } = useTaskPage();
   const communityId = useActiveCommunityId();
   const uploadImage = usePastedImages();
   const { isEnabled: aiEnabled } = useAIEnabled();
-  const save = useTaskFieldSave(task, label, askScope);
-  const key = descriptionDraftKey(communityId, task.id);
+  // Saved by Save or by Retry. What was typed while it saved stays the draft,
+  // now written over the description just saved.
+  const save = useTaskFieldSave(task, label, askScope, ({ shows }) => {
+    const now = latest.current;
+    const saved = shows.description ?? null;
+    if (now) setDraft(now.text === (saved ?? "") ? null : { ...now, base: saved });
+  });
+  const key = descriptionDraftKey(currentUserId, communityId, task.id);
   const [draft, setDraftState] = useState(() => readDescriptionDraft(key));
   const [discarding, setDiscarding] = useState(false);
   // Read by the description written for the reader, which lands later.
@@ -213,14 +221,10 @@ const DescriptionEditor = ({ task, label }: EditorProps) => {
     withResolver: true,
   });
 
-  const submit = async (base: string | null) => {
+  const submit = (base: string | null) => {
     if (!draft) return;
     const description = draft.text || null;
-    if (
-      await save.save({ patch: { description, description_base: base }, shows: { description } })
-    ) {
-      setDraft(null);
-    }
+    void save.save({ patch: { description, description_base: base }, shows: { description } });
   };
   const cancel = () => (dirty ? setDiscarding(true) : setDraft(null));
 
@@ -230,7 +234,9 @@ const DescriptionEditor = ({ task, label }: EditorProps) => {
       htmlFor="task-description"
       // The conflict below says what went wrong, and Retry would only repeat it.
       save={conflict ? { ...save, state: "idle" } : save}
-      changed={draft !== null && !conflict && current !== (draft.base ?? "")}
+      changed={
+        draft !== null && !conflict && save.state !== "saving" && current !== (draft.base ?? "")
+      }
       action={
         draft === null && !readOnly ? (
           <Button
@@ -268,7 +274,7 @@ const DescriptionEditor = ({ task, label }: EditorProps) => {
             onKeyDown={(event) => {
               if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
                 event.preventDefault();
-                void submit(draft.base);
+                submit(draft.base);
               } else if (event.key === "Escape") {
                 event.preventDefault();
                 cancel();
@@ -304,7 +310,7 @@ const DescriptionEditor = ({ task, label }: EditorProps) => {
                 <TaskDescription content={current} />
               </div>
               <div className="flex flex-wrap gap-2">
-                <Button type="button" size="sm" onClick={() => void submit(task.description)}>
+                <Button type="button" size="sm" onClick={() => submit(task.description)}>
                   {t("common:fieldSave.overwrite")}
                 </Button>
                 <Button
@@ -326,7 +332,7 @@ const DescriptionEditor = ({ task, label }: EditorProps) => {
                 type="button"
                 size="sm"
                 disabled={save.state === "saving"}
-                onClick={() => void submit(draft.base)}
+                onClick={() => submit(draft.base)}
               >
                 {t("common:save")}
               </Button>
@@ -661,13 +667,11 @@ const PropertyEditor = ({ task, property }: { task: TaskRead; property: Property
       ),
     sameJson
   );
+  // The property stays until it is gone, so a failed removal says so here.
   const remove = () => {
     draft.restore();
     void save.save(
-      {
-        properties: { values: [], removed: [property.property_id] },
-        shows: { properties: task.properties.filter((p) => p !== property) },
-      },
+      { properties: { values: [], removed: [property.property_id] }, shows: {} },
       { ...edit(saved), shows: { properties: task.properties } }
     );
   };
@@ -877,6 +881,7 @@ const PAGE_FIELDS = taskFields([]);
 
 /** A task's page, drawn from its item layout. */
 export const TaskPageView = ({ task, page }: { task: TaskRead; page: TaskPageContext }) => {
+  const communityId = useActiveCommunityId();
   const gp = useCommunityPath();
   const taskHref = useCallback(
     (taskId: number) => gp(taskRoute(page.initiativeId, task.project_id, taskId)),
@@ -888,7 +893,8 @@ export const TaskPageView = ({ task, page }: { task: TaskRead; page: TaskPageCon
     [env]
   );
   return (
-    <PageContext.Provider value={page}>
+    // Another task's page starts afresh, with none of this one's drafts.
+    <PageContext.Provider key={`${communityId}:${task.id}`} value={page}>
       {renderNode(TASK_PAGE, task, view, TASK_PAGE_PARTS)}
     </PageContext.Provider>
   );
