@@ -7809,16 +7809,6 @@ export interface ProjectCreate {
   grants?: ResourceGrantSchema[];
 }
 
-export type ProjectReadDefaultViewMode =
-  | (typeof ProjectReadDefaultViewMode)[keyof typeof ProjectReadDefaultViewMode]
-  | null;
-
-export const ProjectReadDefaultViewMode = {
-  table: "table",
-  kanban: "kanban",
-  calendar: "calendar",
-} as const;
-
 export interface ProjectTaskSummary {
   total: number;
   completed: number;
@@ -7845,7 +7835,6 @@ export interface ProjectRead {
   owner_id: number | null;
   is_template: boolean;
   pinned_at: string | null;
-  default_view_mode: ProjectReadDefaultViewMode;
   owner: UserPublic | null;
   owner_plugin: OwnerPluginSummary | null;
   initiative: InitiativeSummary | null;
@@ -7868,23 +7857,12 @@ export interface ProjectReorderRequest {
   project_ids?: number[];
 }
 
-export type ProjectUpdateDefaultViewMode =
-  | (typeof ProjectUpdateDefaultViewMode)[keyof typeof ProjectUpdateDefaultViewMode]
-  | null;
-
-export const ProjectUpdateDefaultViewMode = {
-  table: "table",
-  kanban: "kanban",
-  calendar: "calendar",
-} as const;
-
 export interface ProjectUpdate {
   name?: string | null;
   description?: string | null;
   icon?: string | null;
   is_template?: boolean | null;
   pinned?: boolean | null;
-  default_view_mode?: ProjectUpdateDefaultViewMode;
   start_date?: string | null;
   end_date?: string | null;
 }

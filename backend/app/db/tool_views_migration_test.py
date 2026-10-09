@@ -1,4 +1,5 @@
-"""Migration 20261009_0477 turns a project's filter presets into its views.
+"""Migration 20261009_0477 turns a project's filter presets into its views, and
+20261009_0478 drops the default view mode they no longer need.
 Loaded by path and run on a guild the test builds, the way
 ``file_versions_by_pointer_migration_test`` runs its revision: down to the old
 shape, rows written as an older release wrote them, up, and down again."""
@@ -15,16 +16,12 @@ from sqlalchemy import text
 
 from app.testing import create_guild, create_initiative, create_project, create_user
 
-_MIGRATION = (
-    Path(__file__).resolve().parents[2]
-    / "alembic"
-    / "versions"
-    / "20261009_0477_tool_views.py"
-)
+_VERSIONS = Path(__file__).resolve().parents[2] / "alembic" / "versions"
 
 
-def _load():
-    spec = importlib.util.spec_from_file_location(_MIGRATION.stem, _MIGRATION)
+def _load(name: str):
+    path = _VERSIONS / f"{name}.py"
+    spec = importlib.util.spec_from_file_location(path.stem, path)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -79,7 +76,8 @@ async def test_presets_become_views_and_come_back(session) -> None:
         name: (await create_project(session, initiative, user, name=name)).id
         for name in names
     }
-    migration = _load()
+    migration = _load("20261009_0477_tool_views")
+    drop_mode = _load("20261009_0478_a_project_opens_on_its_default_view")
 
     def run(step):
         def apply(sync_session) -> None:
@@ -119,6 +117,7 @@ async def test_presets_become_views_and_come_back(session) -> None:
             p=projects[project],
         )
 
+    await session.run_sync(run(drop_mode._apply_downgrade))
     await session.run_sync(run(migration._apply_downgrade))
     await sql(f"DELETE FROM {schema}.project_filter_presets")
     # Listed out of order: the order of a project's presets is no change.
@@ -230,6 +229,22 @@ async def test_presets_become_views_and_come_back(session) -> None:
         ],
     }
 
+    # 0478 drops the mode; its downgrade reads it back off each default view.
+    await session.run_sync(run(drop_mode._apply_upgrade))
+    column = await sql(
+        "SELECT 1 FROM information_schema.columns WHERE table_schema = :s"
+        " AND table_name = 'projects' AND column_name = 'default_view_mode'",
+        s=schema,
+    )
+    assert column.first() is None
+    await session.run_sync(run(drop_mode._apply_downgrade))
+    refilled = dict(
+        (await sql(f"SELECT id, default_view_mode FROM {schema}.projects")).all()
+    )
+    assert refilled[projects["Kanban"]] == "kanban"
+    assert refilled[projects["Custom"]] == "calendar"
+    assert refilled[projects["Seeded"]] is None
+
     await session.run_sync(run(migration._apply_downgrade))
     back = (
         await sql(
@@ -261,3 +276,4 @@ async def test_presets_become_views_and_come_back(session) -> None:
     assert modes[projects["Kanban"]] == "kanban"
 
     await session.run_sync(run(migration._apply_upgrade))
+    await session.run_sync(run(drop_mode._apply_upgrade))

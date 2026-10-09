@@ -18,8 +18,8 @@ renamed or refiltered, it is one more preset. The default is the default
 preset's view, or, where that was All as seeded, the layout view of the
 project's default view mode. A preset keeps its slug; where it holds
 ``table``, ``board`` or ``calendar``, the shipped layout view is suffixed.
-``project_filter_presets`` goes; ``projects.default_view_mode`` stays, as the
-plug-in API still serves it.
+``project_filter_presets`` goes; ``projects.default_view_mode`` goes in the
+next revision.
 
 The downgrade puts the presets back: one for each of a project's views that
 holds filters and nothing else, and the four seeds for a project that stored
