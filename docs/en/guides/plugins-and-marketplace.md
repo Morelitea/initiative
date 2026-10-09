@@ -182,7 +182,7 @@ Every listing shows **who published it** — on the card, on its page, and in th
 Two things hold whatever you install:
 
 - **Your access rules still apply.** A dashboard shows *you* only the data you could already reach — same community, initiative, role and sharing checks as everywhere else. Two people on the same dashboard can correctly see different numbers.
-- **Widgets run in a sandbox.** Marketplace widgets run in an isolated runtime that can only hand back something to draw. If one misbehaves, that tile shows an error and the rest of the page carries on.
+- **Initiative draws every widget.** A plug-in supplies the data and a layout; the drawing is Initiative's, and nothing the plug-in wrote runs in your browser. If a widget can't draw, that tile shows an error and the rest of the page carries on.
 
 ### Reporting a listing or a plug-in
 

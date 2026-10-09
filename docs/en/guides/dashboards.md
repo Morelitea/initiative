@@ -92,7 +92,7 @@ Like everything else here it only displays. There's nothing to drag a card onto 
 
 ### Widgets from the marketplace
 
-Some marketplace tiles are custom **widgets**. They run in an isolated sandbox and can only hand back something to draw — so a widget that misbehaves shows an error in its own tile while the rest of the page carries on as though nothing happened.
+Some marketplace tiles are custom **widgets**. A plug-in's widget is a layout for one of its answers, and Initiative does the drawing with the same pieces the built-in tiles use — so it looks like it belongs here, and a widget that can't draw shows an error in its own tile while the rest of the page carries on as though nothing happened.
 
 ## Where they show up
 
