@@ -225,7 +225,6 @@
     "taskColumn": "Task",
     "tagGroup": "Tag",
     "untagged": "Untagged",
-    "commentsColumn": "Comments",
     "statusColumn": "Status",
     "filterPlaceholder": "Filter tasks...",
     "reorderTask": "Reorder task",

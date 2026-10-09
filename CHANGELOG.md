@@ -26,6 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The project task table keeps its rows current.** A task's checklist progress, a swapped assignee and its blocker count now update in the table as they change, as they already did on the board.
+- **The task tables' Columns menu names its columns** ("Start date", "Comments") instead of showing their internal names.
 - **A "New device signed in" prompt about a device that is gone can be cleared.** When the device it named had signed out or been removed, Verify and Not mine both failed with "That device is not set up for encrypted messages" and the prompt stayed. It now goes away on its own, and either button closes it.
 - **Encrypted messages set themselves up after a reload during setup.** Reloading or opening a second tab while a browser was first setting up messages could leave it showing "Encrypted messages could not be set up on this device" until reloaded again. It now picks up where the other tab left off, and the message has a Try again button.
 - **One notification when a new device asks for your message history.** Each of your other devices was notified once for every device the new one asked, so an account with four devices got four at once.

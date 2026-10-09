@@ -24,7 +24,7 @@ const draw = (
     env: {
       t: i18n.getFixedT(null, ["projects", "dates", "relations"]) as TranslateFn,
       communityPath: (path) => path,
-      taskHref: (taskId) => `/tasks/${taskId}`,
+      taskHref: (task) => `/tasks/${task.id}`,
     },
   };
   return renderWithProviders(<ViewTree node={node} item={task} view={view} />);

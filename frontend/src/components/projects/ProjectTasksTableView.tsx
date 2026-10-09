@@ -9,17 +9,12 @@ import {
 } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Link } from "@tanstack/react-router";
-import { GripVertical, MessageSquare } from "lucide-react";
+import { GripVertical } from "lucide-react";
 import type React from "react";
 import { createContext, memo, useCallback, useContext, useMemo } from "react";
 import { Trans, useTranslation } from "react-i18next";
 
 import type { TaskListRead, TaskStatusRead } from "@/api/generated/initiativeAPI.schemas";
-import { UnreadDot } from "@/components/notifications/UnreadDot";
-import { TaskAssigneeList } from "@/components/projects/TaskAssigneeList";
-import { TaskBlockersHoverCard } from "@/components/projects/TaskBlockersHoverCard";
-import { TaskDescriptionHoverCard } from "@/components/projects/TaskDescriptionHoverCard";
 import {
   collectTagsByName,
   fanOutTasksByTag,
@@ -28,11 +23,10 @@ import {
   tagRowId,
   uniqueTasksFromRows,
 } from "@/components/projects/taskTagGrouping";
-import { buildPropertyColumns, propertyColumnIds } from "@/components/properties/propertyColumns";
+import { propertyColumnIds } from "@/components/properties/propertyColumns";
 import { SortHeader } from "@/components/SortIcon";
 import { TagBadge } from "@/components/tags/TagBadge";
 import { sharedTaskColumns } from "@/components/tasks/globalTaskColumns";
-import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress";
 import { statusTriggerStyle, TaskStatusOption } from "@/components/tasks/TaskStatusOption";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -42,13 +36,10 @@ import { TableRow } from "@/components/ui/table";
 import { usePersistedColumnVisibility } from "@/hooks/usePersistedColumnVisibility";
 import { projectTaskTableKey, type useProjectTaskTableState } from "@/hooks/useProjectTaskView";
 import { useProperties } from "@/hooks/useProperties";
-import { useUnreadTree } from "@/hooks/useUnreadTree";
-import { useCommunityPath } from "@/lib/communityUrl";
-import { summarizeStored } from "@/lib/recurrence";
 import type { AppColumnDef } from "@/lib/table";
-import { truncateText } from "@/lib/text";
 import { cn } from "@/lib/utils";
-import type { TranslateFn } from "@/types/i18n";
+import { useProjectViewEnv } from "@/lib/views/fields";
+import { taskFields } from "@/lib/views/tasks";
 
 type ProjectTasksListViewProps = {
   projectId: number;
@@ -197,15 +188,12 @@ const ProjectTasksTableViewComponent = ({
 }: ProjectTasksListViewProps) => {
   const { t } = useTranslation(["projects", "comments", "tasks"]);
   const statusDisabled = !canEditTaskDetails || taskActionsDisabled;
-  const gp = useCommunityPath();
+  const env = useProjectViewEnv(taskHref);
 
-  // Programmatic property columns (hidden by default, persist visibility).
+  // Property columns are hidden by default, and persist their visibility.
   // Scoped to the project's initiative so the column list stays focused.
   const { data: propertyDefinitions = [] } = useProperties({ initiativeId });
-  const propertyColumns = useMemo(
-    () => buildPropertyColumns<TaskTagRow>(propertyDefinitions, (row) => row.properties),
-    [propertyDefinitions]
-  );
+  const fields = useMemo(() => taskFields(propertyDefinitions), [propertyDefinitions]);
   const propertyHiddenIds = useMemo(
     () => propertyColumnIds(propertyDefinitions),
     [propertyDefinitions]
@@ -243,8 +231,8 @@ const ProjectTasksTableViewComponent = ({
 
   const columns = useMemo<AppColumnDef<TaskTagRow>[]>(() => {
     const shared = sharedTaskColumns<TaskTagRow>({
-      t: t as TranslateFn,
-      tagHref: (_task, tagId) => gp(`/tags/${tagId}`),
+      fields,
+      env,
       isPriorityDisabled: () => statusDisabled,
     });
     return [
@@ -314,13 +302,7 @@ const ProjectTasksTableViewComponent = ({
         enableHiding: false,
       },
       {
-        id: "title",
-        accessorKey: "title",
-        header: ({ column }) => <SortHeader column={column} label={t("table.taskColumn")} />,
-        cell: ({ row }) => <MemoizedTaskCell task={row.original} taskHref={taskHref} />,
-        enableSorting: true,
-        sortFn: "alphanumeric",
-        enableHiding: false,
+        ...shared.title,
         // The widest column, so it takes the largest share of whatever space
         // the others leave over.
         size: 360,
@@ -329,23 +311,8 @@ const ProjectTasksTableViewComponent = ({
       shared.dueDate,
       shared.priority,
       shared.tags,
-      ...propertyColumns,
-      {
-        id: "comments",
-        header: () => <span className="font-medium">{t("table.commentsColumn")}</span>,
-        cell: ({ row }) => {
-          const count = row.original.comment_count ?? 0;
-          return count > 0 ? (
-            <span className="inline-flex items-center gap-1 text-sm">
-              <MessageSquare className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
-              {count}
-            </span>
-          ) : (
-            <span className="text-muted-foreground text-sm">0</span>
-          );
-        },
-        size: 90,
-      },
+      ...shared.properties,
+      shared.comments,
       {
         id: "status",
         // Board order, read from the statuses this view holds so a column
@@ -398,16 +365,15 @@ const ProjectTasksTableViewComponent = ({
       },
     ];
   }, [
-    gp,
+    fields,
+    env,
     onStatusChange,
-    taskHref,
     statusDisabled,
     tagsByName,
     taskStatuses,
     statusLookup,
     t,
     untaggedLabel,
-    propertyColumns,
   ]);
   const groupingOptions = useMemo(
     () => [
@@ -566,76 +532,3 @@ const DragHandleCell = () => {
     </button>
   );
 };
-
-type TaskCellProps = {
-  task: TaskListRead;
-  taskHref: (taskId: number) => string;
-};
-
-const TaskCell = ({ task, taskHref }: TaskCellProps) => {
-  const { t } = useTranslation(["projects", "dates", "comments"]);
-  const unreadDot = useUnreadTree().hasSubject(task.community_id, "task", task.id) ? (
-    <UnreadDot />
-  ) : null;
-  // Memoize expensive recurrence computation
-  const recurrenceText = useMemo(() => {
-    if (!task.recurrence) return null;
-    const summary = summarizeStored(
-      task.recurrence,
-      task.due_date || task.start_date,
-      { strategy: task.recurrence_strategy, shift: task.recurrence_shift },
-      t as TranslateFn
-    );
-    return summary ? truncateText(summary, 100) : null;
-  }, [
-    task.recurrence,
-    task.recurrence_shift,
-    task.start_date,
-    task.due_date,
-    task.recurrence_strategy,
-    t,
-  ]);
-
-  return (
-    <div className="flex items-center gap-2">
-      <div className="flex w-full min-w-60 flex-col items-start text-left">
-        <Link
-          to={taskHref(task.id)}
-          draggable={false}
-          className="flex items-center gap-2 rounded-sm font-medium underline-offset-4 outline-none hover:underline focus-visible:ring-1 focus-visible:ring-ring"
-        >
-          {task.title}
-          {unreadDot}
-        </Link>
-        <div className="space-y-1 text-muted-foreground text-xs">
-          {task.assignees.length > 0 ? (
-            <TaskAssigneeList assignees={task.assignees} className="text-xs" />
-          ) : null}
-          {recurrenceText ? <p>{recurrenceText}</p> : null}
-        </div>
-        <TaskChecklistProgress progress={task.checklist_progress} className="mt-2 max-w-[200px]" />
-      </div>
-      <TaskBlockersHoverCard task={task} />
-      <TaskDescriptionHoverCard task={task} />
-    </div>
-  );
-};
-
-// Memoize the entire TaskCell to prevent unnecessary re-renders
-const MemoizedTaskCell = memo(TaskCell, (prevProps, nextProps) => {
-  return (
-    prevProps.task.id === nextProps.task.id &&
-    prevProps.task.title === nextProps.task.title &&
-    prevProps.task.has_description === nextProps.task.has_description &&
-    prevProps.task.description_excerpt === nextProps.task.description_excerpt &&
-    prevProps.task.recurrence === nextProps.task.recurrence &&
-    prevProps.task.recurrence_shift === nextProps.task.recurrence_shift &&
-    prevProps.task.recurrence_strategy === nextProps.task.recurrence_strategy &&
-    prevProps.task.start_date === nextProps.task.start_date &&
-    prevProps.task.due_date === nextProps.task.due_date &&
-    prevProps.task.assignees.length === nextProps.task.assignees.length &&
-    prevProps.taskHref === nextProps.taskHref
-  );
-});
-
-MemoizedTaskCell.displayName = "MemoizedTaskCell";

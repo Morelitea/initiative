@@ -225,7 +225,6 @@
     "taskColumn": "Tâche",
     "tagGroup": "Étiquette",
     "untagged": "Sans étiquette",
-    "commentsColumn": "Commentaires",
     "statusColumn": "Statut",
     "filterPlaceholder": "Filtrer les tâches…",
     "reorderTask": "Réorganiser la tâche",

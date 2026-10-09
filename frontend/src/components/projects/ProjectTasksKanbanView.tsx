@@ -29,13 +29,11 @@ import { MentionText } from "@/components/user/MentionText";
 import { MentionedPeopleScope, ReportMentionedPeople } from "@/hooks/useMentionedPeople";
 import { usePersistedColumnVisibility } from "@/hooks/usePersistedColumnVisibility";
 import { useProperties } from "@/hooks/useProperties";
-import { useCommunityPath } from "@/lib/communityUrl";
 import { formatDateTime } from "@/lib/formatDate";
 import { cn } from "@/lib/utils";
-import type { ViewEnv } from "@/lib/views/fields";
+import { useProjectViewEnv } from "@/lib/views/fields";
 import { taskFields } from "@/lib/views/tasks";
 import type { ViewContext } from "@/lib/views/tree";
-import type { TranslateFn } from "@/types/i18n";
 
 import { TaskAssigneeList } from "./TaskAssigneeList";
 
@@ -106,12 +104,7 @@ export const ProjectTasksKanbanView = ({
   // the memoized cards skip re-rendering on an unrelated parent pass. What the
   // renderers share is held apart, so a change of fields redraws the cards but
   // not the values on them.
-  const { t } = useTranslation(["projects", "dates", "relations"]);
-  const communityPath = useCommunityPath();
-  const env = useMemo<ViewEnv>(
-    () => ({ t: t as TranslateFn, communityPath, taskHref }),
-    [t, communityPath, taskHref]
-  );
+  const env = useProjectViewEnv(taskHref);
   const fields = useMemo(() => taskFields(propertyDefinitions), [propertyDefinitions]);
   const view = useMemo<ViewContext>(
     () => ({

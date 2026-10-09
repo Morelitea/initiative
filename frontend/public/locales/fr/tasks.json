@@ -27,15 +27,10 @@
   },
   "columns": {
     "done": "Terminé",
-    "task": "Tâche",
     "project": "Projet",
-    "startDate": "Date de début",
-    "dueDate": "Date d'échéance",
     "dateWindow": "Période",
     "community": "Communauté",
     "projectPath": "Chemin du projet",
-    "priority": "Priorité",
-    "tags": "Étiquettes",
     "status": "Statut"
   },
   "checkbox": {

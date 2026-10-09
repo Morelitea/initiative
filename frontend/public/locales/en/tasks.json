@@ -27,15 +27,10 @@
   },
   "columns": {
     "done": "Done",
-    "task": "Task",
     "project": "Project",
-    "startDate": "Start Date",
-    "dueDate": "Due Date",
     "dateWindow": "Date window",
     "community": "Community",
     "projectPath": "Project Path",
-    "priority": "Priority",
-    "tags": "Tags",
     "status": "Status"
   },
   "checkbox": {
