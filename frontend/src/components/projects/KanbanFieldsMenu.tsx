@@ -1,11 +1,9 @@
 import { ChevronDown, SlidersHorizontal } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import type { PropertyDefinitionRead } from "@/api/generated/initiativeAPI.schemas";
 import {
   isKanbanFieldVisible,
   type KanbanFieldVisibility,
-  kanbanFieldOptions,
 } from "@/components/projects/kanbanFields";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,9 +15,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import type { FieldDef } from "@/lib/views/fields";
 
 interface KanbanFieldsMenuProps {
-  propertyDefinitions: PropertyDefinitionRead[];
+  fields: ReadonlyMap<string, FieldDef>;
   visibility: KanbanFieldVisibility;
   onChange: (
     updater: KanbanFieldVisibility | ((prev: KanbanFieldVisibility) => KanbanFieldVisibility)
@@ -31,13 +30,9 @@ interface KanbanFieldsMenuProps {
  * because a board's columns are its statuses and reusing the word here would
  * read as an offer to hide those.
  */
-export const KanbanFieldsMenu = ({
-  propertyDefinitions,
-  visibility,
-  onChange,
-}: KanbanFieldsMenuProps) => {
+export const KanbanFieldsMenu = ({ fields, visibility, onChange }: KanbanFieldsMenuProps) => {
   const { t } = useTranslation("projects");
-  const options = kanbanFieldOptions(propertyDefinitions, (key) => t(key as never));
+  const options = [...fields.values()].filter((field) => field.hideable);
   const hiddenCount = options.filter(
     (option) => !isKanbanFieldVisible(visibility, option.id)
   ).length;
@@ -70,7 +65,7 @@ export const KanbanFieldsMenu = ({
               onChange((prev) => ({ ...prev, [option.id]: Boolean(checked) }))
             }
           >
-            {option.label}
+            {option.source === "builtin" ? t(option.label as never) : option.label}
           </DropdownMenuCheckboxItem>
         ))}
         {hiddenCount > 0 ? (

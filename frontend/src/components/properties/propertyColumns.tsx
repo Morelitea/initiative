@@ -90,6 +90,25 @@ const isDefinitionAmbiguous = (
 };
 
 /**
+ * Each definition with its column id and label, two that share a name told
+ * apart. A board's Fields menu names properties through this too, so a
+ * property reads the same in both menus.
+ */
+export const namePropertyColumns = (
+  definitions: PropertyDefinitionRead[]
+): { definition: PropertyDefinitionRead; id: string; label: string }[] => {
+  const ambiguousNames = buildAmbiguousNameSet(definitions);
+  return definitions.map((definition) => {
+    const ambiguous = isDefinitionAmbiguous(definition, ambiguousNames);
+    return {
+      definition,
+      id: propertyColumnId(definition, ambiguous),
+      label: propertyColumnLabel(definition, ambiguous),
+    };
+  });
+};
+
+/**
  * Build a TanStack ``ColumnDef`` per property definition. Each column is
  * hidden by default (callers are expected to seed ``columnVisibility``);
  * ``enableSorting`` is off because sort across heterogeneous typed columns
@@ -142,9 +161,5 @@ export function buildPropertyColumns<T extends RowData>(
  * ``columnVisibility`` map so the default-hidden toggle keys match the
  * column ids actually rendered.
  */
-export const propertyColumnIds = (definitions: PropertyDefinitionRead[]): string[] => {
-  const ambiguousNames = buildAmbiguousNameSet(definitions);
-  return definitions.map((definition) =>
-    propertyColumnId(definition, isDefinitionAmbiguous(definition, ambiguousNames))
-  );
-};
+export const propertyColumnIds = (definitions: PropertyDefinitionRead[]): string[] =>
+  namePropertyColumns(definitions).map(({ id }) => id);

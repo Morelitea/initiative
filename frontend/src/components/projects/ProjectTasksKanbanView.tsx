@@ -17,25 +17,25 @@ import { useTranslation } from "react-i18next";
 import type {
   PropertyDefinitionRead,
   TaskListRead,
-  TaskPriority,
   TaskStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import { KanbanColumn } from "@/components/projects/KanbanColumn";
 import { KanbanFieldsMenu } from "@/components/projects/KanbanFieldsMenu";
-import {
-  buildKanbanCardFields,
-  type KanbanCardFields,
-  kanbanFieldsStorageKey,
-} from "@/components/projects/kanbanFields";
-import type { PriorityBadgeVariant } from "@/components/projects/projectTasksConfig";
+import { isKanbanFieldVisible, kanbanFieldsStorageKey } from "@/components/projects/kanbanFields";
+import { priorityVariant } from "@/components/projects/projectTasksConfig";
 import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress";
 import { Badge } from "@/components/ui/badge";
 import { MentionText } from "@/components/user/MentionText";
 import { MentionedPeopleScope, ReportMentionedPeople } from "@/hooks/useMentionedPeople";
 import { usePersistedColumnVisibility } from "@/hooks/usePersistedColumnVisibility";
 import { useProperties } from "@/hooks/useProperties";
+import { useCommunityPath } from "@/lib/communityUrl";
 import { formatDateTime } from "@/lib/formatDate";
 import { cn } from "@/lib/utils";
+import type { ViewEnv } from "@/lib/views/fields";
+import { taskFields } from "@/lib/views/tasks";
+import type { ViewContext } from "@/lib/views/tree";
+import type { TranslateFn } from "@/types/i18n";
 
 import { TaskAssigneeList } from "./TaskAssigneeList";
 
@@ -47,7 +47,6 @@ type ProjectTasksKanbanViewProps = {
   collapsedStatusIds: Set<number>;
   canReorderTasks: boolean;
   taskHref: (taskId: number) => string;
-  priorityVariant: Record<TaskPriority, PriorityBadgeVariant>;
   sensors: DndContextProps["sensors"];
   activeTask: TaskListRead | null;
   onDragStart: (event: DragStartEvent) => void;
@@ -62,6 +61,10 @@ type ProjectTasksKanbanViewProps = {
   propertyDefinitions?: PropertyDefinitionRead[];
 };
 
+// One empty list while the definitions load, so the fields aren't rebuilt on
+// every pass until they arrive.
+const NO_DEFINITIONS: PropertyDefinitionRead[] = [];
+
 export const ProjectTasksKanbanView = ({
   projectId,
   initiativeId,
@@ -70,7 +73,6 @@ export const ProjectTasksKanbanView = ({
   collapsedStatusIds,
   canReorderTasks,
   taskHref,
-  priorityVariant,
   sensors,
   activeTask,
   onDragStart,
@@ -89,7 +91,7 @@ export const ProjectTasksKanbanView = ({
   // the table's property columns, so the menu lists the properties a task
   // here can actually carry. No default-hidden ids: a board that has never
   // been configured shows everything, as it did before the menu existed.
-  const { data: fetchedDefinitions = [] } = useProperties({
+  const { data: fetchedDefinitions = NO_DEFINITIONS } = useProperties({
     initiativeId,
     enabled: !givenDefinitions,
   });
@@ -101,21 +103,35 @@ export const ProjectTasksKanbanView = ({
     EMPTY_DEFAULT_HIDDEN
   );
   // Built once per change rather than once per card, and stable in between so
-  // the memoized cards skip re-rendering on an unrelated parent pass.
-  const visibleFields = useMemo(
-    () => buildKanbanCardFields(fieldVisibility, propertyDefinitions),
-    [fieldVisibility, propertyDefinitions]
+  // the memoized cards skip re-rendering on an unrelated parent pass. What the
+  // renderers share is held apart, so a change of fields redraws the cards but
+  // not the values on them.
+  const { t } = useTranslation(["projects", "dates", "relations"]);
+  const communityPath = useCommunityPath();
+  const env = useMemo<ViewEnv>(
+    () => ({ t: t as TranslateFn, communityPath, taskHref }),
+    [t, communityPath, taskHref]
+  );
+  const fields = useMemo(() => taskFields(propertyDefinitions), [propertyDefinitions]);
+  const view = useMemo<ViewContext>(
+    () => ({
+      fields,
+      variant: "card",
+      isHidden: (fieldId) => !isKanbanFieldVisible(fieldVisibility, fieldId),
+      env,
+    }),
+    [fields, fieldVisibility, env]
   );
 
   // The people the cards' excerpts mention, asked about once for the board.
   const excerpts = useMemo(
     () =>
-      visibleFields.shows("description")
+      !view.isHidden("description")
         ? Object.values(groupedTasks).flatMap((tasks) =>
             tasks.flatMap((task) => task.description_excerpt ?? [])
           )
         : [],
-    [groupedTasks, visibleFields]
+    [groupedTasks, view]
   );
 
   const taskStatusesLength = taskStatuses.length;
@@ -138,7 +154,7 @@ export const ProjectTasksKanbanView = ({
       >
         <div className="mb-3 flex justify-end">
           <KanbanFieldsMenu
-            propertyDefinitions={propertyDefinitions}
+            fields={view.fields}
             visibility={fieldVisibility}
             onChange={setFieldVisibility}
           />
@@ -157,9 +173,7 @@ export const ProjectTasksKanbanView = ({
                   status={status}
                   tasks={groupedTasks[status.id] ?? []}
                   canWrite={canReorderTasks}
-                  priorityVariant={priorityVariant}
-                  visibleFields={visibleFields}
-                  taskHref={taskHref}
+                  view={view}
                   collapsed={isCollapsed}
                   onToggleCollapse={onToggleCollapse}
                   taskCount={groupedTasks[status.id]?.length ?? 0}
@@ -175,13 +189,7 @@ export const ProjectTasksKanbanView = ({
           </div>
         </div>
         <DragOverlay>
-          {activeTask ? (
-            <TaskDragOverlay
-              task={activeTask}
-              priorityVariant={priorityVariant}
-              visibleFields={visibleFields}
-            />
-          ) : null}
+          {activeTask ? <TaskDragOverlay task={activeTask} isHidden={view.isHidden} /> : null}
         </DragOverlay>
       </DndContext>
     </MentionedPeopleScope>
@@ -219,17 +227,15 @@ const getDroppableType = (
 
 const TaskDragOverlay = ({
   task,
-  priorityVariant,
-  visibleFields,
+  isHidden,
 }: {
   task: TaskListRead;
-  priorityVariant: Record<TaskPriority, PriorityBadgeVariant>;
-  visibleFields: KanbanCardFields;
+  isHidden: ViewContext["isHidden"];
 }) => {
   const { t } = useTranslation("projects");
   // The thing being dragged is the card, so it drops the same fields the card
   // dropped — otherwise picking one up puts back what you just turned off.
-  const { shows } = visibleFields;
+  const shows = (fieldId: string) => !isHidden(fieldId);
   return (
     <div className="w-64 space-y-3 rounded-lg border bg-card p-3 shadow-lg">
       <div className="space-y-1">
