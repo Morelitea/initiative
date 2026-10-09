@@ -914,6 +914,32 @@ describe("history between this account's own devices", () => {
     expect(asked?.[1]).toMatchObject({ silent: true, wake_own_devices: true });
   });
 
+  it("wakes the account's devices once, however many it asks", async () => {
+    // The push reaches every other device the account has, so one per device
+    // asked rang each phone once per device on the account.
+    const tablet = { id: "device-3", identity_key: "tablet", created_at: "2026-08-15T00:00:00Z" };
+    await forgetDevice();
+    await deviceId.set(OURS.id);
+    await accountPickle.set("account");
+    api.listDevices.mockResolvedValue({
+      devices: [ownDevice(OURS), ownDevice(OUR_PHONE), ownDevice(tablet)],
+    });
+    api.claimOwnSessionKeys.mockResolvedValue({
+      user_id: 1,
+      devices: [keyFor(OUR_PHONE), keyFor(tablet)],
+    });
+
+    await collect({ receipts: false });
+
+    const asks = api.sendMessages.mock.calls.filter(([, body]) =>
+      body.messages.some(
+        (message) => JSON.parse(JSON.parse(message.payload).body).kind === "history-request"
+      )
+    );
+    expect(asks).toHaveLength(2);
+    expect(asks.filter(([, body]) => body.wake_own_devices)).toHaveLength(1);
+  });
+
   it("does not wake anything for an ordinary own-device envelope", async () => {
     // A client reporting that it collected something is a client talking to
     // itself. Waking a phone for it would train somebody to ignore the one that

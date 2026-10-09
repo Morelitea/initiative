@@ -124,8 +124,10 @@ export async function requestHistory(ctx: Context): Promise<boolean> {
         deviceId: ctx.device,
         fingerprint: me.fingerprintKey,
       },
-      // The one ask that has to reach a device nobody is looking at.
-      true
+      // The one ask that has to reach a device nobody is looking at. Once:
+      // the push wakes every other device the account has, so a second would
+      // only ring the same phones again for the same ask.
+      asked.length === 0
     );
     if (sent) asked.push(device.id);
   }
