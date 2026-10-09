@@ -22,10 +22,10 @@ import type {
 import { KanbanColumn, TaskCard } from "@/components/projects/KanbanColumn";
 import { KanbanFieldsMenu } from "@/components/projects/KanbanFieldsMenu";
 import { buildKanbanCardFields, kanbanFieldsStorageKey } from "@/components/projects/kanbanFields";
+import type { TaskCardContext } from "@/components/tasks/parts";
 import { MentionedPeopleScope, ReportMentionedPeople } from "@/hooks/useMentionedPeople";
 import { usePersistedColumnVisibility } from "@/hooks/usePersistedColumnVisibility";
 import { useProperties } from "@/hooks/useProperties";
-import type { TaskCardContext } from "@/lib/templates/sections";
 import { cn } from "@/lib/utils";
 import type { TranslateFn } from "@/types/i18n";
 

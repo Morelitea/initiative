@@ -12,8 +12,8 @@ import {
 import { dateRangeBounds } from "@/lib/dateRange";
 
 interface ProjectTaskComposerProps {
-  /** Controlled field set forwarded to the shared TaskForm (layout is fixed). */
-  form: Omit<TaskFormProps, "layout">;
+  /** Controlled field set forwarded to the shared TaskForm. */
+  form: TaskFormProps;
   canWrite: boolean;
   isArchived: boolean;
   isSubmitting: boolean;
@@ -62,7 +62,7 @@ export const ProjectTaskComposer = ({
           <p className="text-muted-foreground text-sm">{t("taskComposer.archivedMessage")}</p>
         ) : canWrite ? (
           <form className="space-y-4" onSubmit={handleSubmit}>
-            <TaskForm {...form} layout="dialog" />
+            <TaskForm {...form} />
             <div className="flex flex-wrap gap-2">
               <Button type="submit" disabled={isSubmitting || datesInverted}>
                 {isSubmitting ? t("taskComposer.saving") : t("taskComposer.createTask")}

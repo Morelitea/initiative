@@ -40,13 +40,15 @@ import { usePastedImages } from "@/hooks/usePastedImages";
 import { dateRangeBounds } from "@/lib/dateRange";
 import type { RecurrenceRule } from "@/lib/recurrence";
 import { PRIORITY_ORDER } from "@/lib/sorting";
+import { cn } from "@/lib/utils";
 
-/** The full editable state of a task form, owned by the parent so it can
- *  build a create/update payload, compare against a snapshot for dirty
- *  tracking, and reset on success. TaskForm mutates it only via ``onChange``. */
 /** A description's preview reads the way the saved one will. */
 const renderDescription = (draft: string) => <TaskDescription content={draft} />;
 
+/** The full editable state of a task form, owned by the parent so it can
+ *  build a create/update payload, compare against a snapshot for dirty
+ *  tracking, and reset on success. The fields change it only through
+ *  ``onChange``. */
 export interface TaskFormValue {
   title: string;
   description: string;
@@ -110,10 +112,9 @@ export const emptyTaskFormValue = (overrides: Partial<TaskFormValue> = {}): Task
 });
 
 /**
- * The form's sections, in render order, and the ``TaskFormValue`` keys each
- * one owns. Every layout is a projection over this — the dialog collapses
- * all but the first, the page lays them out flat — so a field cannot reach
- * one surface and be forgotten on the other.
+ * The create dialog's sections, in render order, and the ``TaskFormValue``
+ * keys each one owns: the dialog shows the first and collapses the rest. (The
+ * task page lays the same fields out in Tavern's ``task.page`` template.)
  *
  * ``taskForm.sections`` in ``TaskForm.test.tsx`` asserts these keys cover
  * ``TaskFormValue`` exactly, so adding a field to the value without giving
@@ -130,6 +131,291 @@ export const TASK_FORM_SECTIONS = [
   keys: readonly (keyof TaskFormValue)[];
 }[];
 
+/** What every field of the task form takes. */
+export interface TaskFieldProps {
+  value: TaskFormValue;
+  onChange: (patch: Partial<TaskFormValue>) => void;
+  disabled?: boolean;
+  /** For the field's outermost element, as a template places it. */
+  className?: string;
+}
+
+/** For a field whose typed inputs may sit outside their form. */
+interface TaskFormInputProps {
+  /** The form its typed inputs submit with, when the field sits outside that
+   *  form (`<input form>`): Enter in one submits it, and the browser's own
+   *  checks on the value hold it back. */
+  form?: string;
+}
+
+export const TaskTitleField = ({
+  value,
+  onChange,
+  disabled,
+  className,
+  form,
+  autoFocus,
+  inputClassName,
+}: TaskFieldProps &
+  TaskFormInputProps & {
+    autoFocus?: boolean;
+    inputClassName?: string;
+  }) => {
+  const { t } = useTranslation("tasks");
+  return (
+    <div className={cn("space-y-2", className)}>
+      <Label htmlFor="task-title">{t("taskForm.titleLabel")}</Label>
+      <Input
+        id="task-title"
+        form={form}
+        value={value.title}
+        onChange={(event) => onChange({ title: event.target.value })}
+        placeholder={t("taskForm.titlePlaceholder")}
+        required
+        disabled={disabled}
+        autoFocus={autoFocus}
+        className={inputClassName}
+      />
+    </div>
+  );
+};
+
+export const TaskStatusField = ({
+  value,
+  onChange,
+  disabled,
+  className,
+  statuses,
+}: TaskFieldProps & { statuses: TaskStatusRead[] }) => {
+  const { t } = useTranslation("tasks");
+  const current = value.statusId
+    ? (statuses.find((status) => status.id === value.statusId) ?? null)
+    : null;
+  return (
+    <div className={cn("space-y-2", className)}>
+      <Label>{t("taskForm.statusLabel")}</Label>
+      <Select
+        value={value.statusId ? String(value.statusId) : undefined}
+        onValueChange={(selected) => {
+          const parsed = Number(selected);
+          if (Number.isFinite(parsed)) {
+            onChange({ statusId: parsed });
+          }
+        }}
+        disabled={disabled || statuses.length === 0}
+      >
+        <SelectTrigger
+          className="border-2"
+          style={current ? statusTriggerStyle(current) : undefined}
+          disabled={disabled || statuses.length === 0}
+        >
+          {current ? (
+            <TaskStatusOption status={current} />
+          ) : (
+            <SelectValue placeholder={t("taskForm.selectStatus")} />
+          )}
+        </SelectTrigger>
+        <SelectContent>
+          {statuses.map((status) => (
+            <SelectItem key={status.id} value={String(status.id)}>
+              <TaskStatusOption status={status} />
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+};
+
+export const TaskPriorityField = ({ value, onChange, disabled, className }: TaskFieldProps) => {
+  const { t } = useTranslation("tasks");
+  return (
+    <div className={cn("space-y-2", className)}>
+      <Label>{t("taskForm.priorityLabel")}</Label>
+      <Select
+        value={value.priority}
+        onValueChange={(selected) => onChange({ priority: selected as TaskPriority })}
+        disabled={disabled}
+      >
+        <SelectTrigger disabled={disabled}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {PRIORITY_ORDER.map((option) => (
+            <SelectItem key={option} value={option}>
+              <TaskPriorityOption priority={option} label={t(`priority.${option}` as never)} />
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+};
+
+/** The start and due dates, and a warning when they are the wrong way round. */
+export const TaskDatesField = ({ value, onChange, disabled, className }: TaskFieldProps) => {
+  const { t } = useTranslation(["tasks", "dates", "common"]);
+  const range = dateRangeBounds(value.startDate, value.dueDate);
+  return (
+    <div className={cn("space-y-2", className)}>
+      <div className="grid grid-cols-pair gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="task-start-date">{t("taskForm.startDateLabel")}</Label>
+          <DateTimePicker
+            id="task-start-date"
+            value={value.startDate}
+            onChange={(next) => onChange({ startDate: next })}
+            disabled={disabled}
+            placeholder={t("common:optional")}
+            calendarProps={range.startCalendarProps}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="task-due-date">{t("taskForm.dueDateLabel")}</Label>
+          <DateTimePicker
+            id="task-due-date"
+            value={value.dueDate}
+            onChange={(next) => onChange({ dueDate: next })}
+            disabled={disabled}
+            placeholder={t("common:optional")}
+            calendarProps={range.endCalendarProps}
+          />
+        </div>
+      </div>
+      {range.isInverted ? (
+        <p className="text-destructive text-sm" role="alert">
+          {t("dates:invalidRange")}
+        </p>
+      ) : null}
+    </div>
+  );
+};
+
+export const TaskRecurrenceField = ({
+  value,
+  onChange,
+  disabled,
+  className,
+  form,
+  referenceDate,
+  stored,
+}: TaskFieldProps &
+  TaskFormInputProps & {
+    /** Reference date for the "occurs on" preview. */
+    referenceDate?: string | null;
+    /** The stored repeat and its shift, previewed while it is kept as custom. */
+    stored?: { rule: string; shift: number } | null;
+  }) => (
+  <RecurrenceEditor
+    kind="task"
+    className={className}
+    form={form}
+    value={value.recurrence}
+    onChange={(recurrence) => onChange({ recurrence })}
+    strategy={value.recurrenceStrategy}
+    onStrategyChange={(recurrenceStrategy) => onChange({ recurrenceStrategy })}
+    disabled={disabled}
+    referenceDate={referenceDate ?? value.dueDate ?? value.startDate}
+    stored={stored}
+  />
+);
+
+export const TaskAssigneesField = ({
+  value,
+  onChange,
+  disabled,
+  className,
+  projectId,
+  currentUserId,
+  selectedAssignees,
+}: TaskFieldProps & {
+  projectId: number | null;
+  currentUserId?: number;
+  /** Pre-known assignee users so the picker renders names without a search. */
+  selectedAssignees?: MemberLike[];
+}) => {
+  const { t } = useTranslation("tasks");
+  return (
+    <div className={cn("space-y-2", className)}>
+      <Label>{t("taskForm.assigneesLabel")}</Label>
+      <MemberMultiSelect
+        scope={{ type: "canOpen", tool: Tool.project, id: projectId ?? null }}
+        selectedIds={value.assigneeIds}
+        selectedUsers={selectedAssignees}
+        onChange={(ids) => onChange({ assigneeIds: ids })}
+        disabled={disabled}
+        emptyMessage={t("taskForm.assigneesEmptyMessage")}
+        currentUserId={currentUserId}
+      />
+    </div>
+  );
+};
+
+export const TaskTagsField = ({ value, onChange, disabled, className }: TaskFieldProps) => {
+  const { t } = useTranslation("tasks");
+  return (
+    <div className={cn("space-y-2", className)}>
+      <Label>{t("taskForm.tagsLabel")}</Label>
+      <TagPicker
+        selectedTags={value.tags}
+        onChange={(tags) => onChange({ tags })}
+        disabled={disabled}
+        placeholder={t("taskForm.tagsPlaceholder")}
+      />
+    </div>
+  );
+};
+
+/** The task's custom properties: adding, editing and removing them. */
+export const TaskPropertiesField = ({
+  value,
+  onChange,
+  disabled,
+  className,
+  form,
+  projectId,
+  initiativeId,
+}: TaskFieldProps &
+  TaskFormInputProps & { projectId: number | null; initiativeId: number | null }) => {
+  const handleAdd = (definition: PropertyDefinitionRead) => {
+    if (value.properties.some((p) => p.property_id === definition.id)) return;
+    onChange({
+      properties: [...value.properties, propertyStubFromDefinition(definition)],
+      propertyValues: { ...value.propertyValues, [definition.id]: null },
+    });
+  };
+  const handleRemove = (propertyId: number) => {
+    const nextValues = { ...value.propertyValues };
+    delete nextValues[propertyId];
+    onChange({
+      properties: value.properties.filter((p) => p.property_id !== propertyId),
+      propertyValues: nextValues,
+    });
+  };
+  return (
+    <div className={cn("space-y-2", className)}>
+      <PropertyFields
+        properties={value.properties}
+        values={value.propertyValues}
+        onChange={(propertyId, next) =>
+          onChange({ propertyValues: { ...value.propertyValues, [propertyId]: next } })
+        }
+        onRemove={handleRemove}
+        disabled={disabled}
+        initiativeId={initiativeId}
+        canOpen={{ tool: Tool.project, id: projectId }}
+        form={form}
+      />
+      <AddPropertyButton
+        initiativeId={initiativeId ?? 0}
+        currentPropertyIds={value.properties.map((property) => property.property_id)}
+        onAdd={handleAdd}
+        disabled={disabled || !initiativeId}
+      />
+    </div>
+  );
+};
+
 export interface TaskFormProps {
   value: TaskFormValue;
   onChange: (value: TaskFormValue) => void;
@@ -141,26 +427,13 @@ export interface TaskFormProps {
   /** Pre-known assignee users so the picker renders names without a search. */
   selectedAssignees?: MemberLike[];
   disabled?: boolean;
-
-  /** Override the plain description textarea (e.g. the editor's markdown/AI block). */
-  descriptionSlot?: ReactNode;
-  /** Reference date for the recurrence "occurs on" preview. */
-  recurrenceReferenceDate?: string | null;
-  /** The stored repeat and its shift, previewed while it is kept as custom. */
-  storedRecurrence?: { rule: string; shift: number } | null;
-
-  /** ``dialog`` tucks everything but the title into a collapsible section;
-   *  ``page`` renders every field flat. */
-  layout?: "dialog" | "page";
   autoFocusTitle?: boolean;
 }
 
 /**
- * Shared task field set used by both the create dialog and the edit page. The
- * parent owns the ``value`` (for submit / dirty-tracking / reset); TaskForm
- * owns the interaction logic — including adding, editing, and removing tags and
- * custom properties — and reports every change through a single ``onChange``.
- * It renders no ``<form>``, submit buttons, or surrounding chrome.
+ * The create dialog's field set: the title and description, with everything
+ * else in a collapsible section. The parent owns the ``value`` (for submit,
+ * dirty tracking and reset) and the ``<form>`` around it.
  */
 export const TaskForm = ({
   value,
@@ -171,254 +444,67 @@ export const TaskForm = ({
   currentUserId,
   selectedAssignees,
   disabled = false,
-  descriptionSlot,
-  recurrenceReferenceDate,
-  storedRecurrence,
-  layout = "page",
   autoFocusTitle = false,
 }: TaskFormProps) => {
-  const { t } = useTranslation(["tasks", "properties", "dates", "common"]);
+  const { t } = useTranslation(["tasks", "properties"]);
   const uploadImage = usePastedImages();
-
-  const set = (patch: Partial<TaskFormValue>) => onChange({ ...value, ...patch });
-
-  const currentStatus = value.statusId
-    ? (statuses.find((status) => status.id === value.statusId) ?? null)
-    : null;
-  const currentPropertyIds = value.properties.map((property) => property.property_id);
-
-  const handlePropertyAdd = (definition: PropertyDefinitionRead) => {
-    if (value.properties.some((p) => p.property_id === definition.id)) return;
-    set({
-      properties: [...value.properties, propertyStubFromDefinition(definition)],
-      propertyValues: { ...value.propertyValues, [definition.id]: null },
-    });
+  const field = {
+    value,
+    onChange: (patch: Partial<TaskFormValue>) => onChange({ ...value, ...patch }),
+    disabled,
   };
-
-  const handlePropertyChange = (propertyId: number, next: unknown) => {
-    set({ propertyValues: { ...value.propertyValues, [propertyId]: next } });
-  };
-
-  const handlePropertyRemove = (propertyId: number) => {
-    const nextValues = { ...value.propertyValues };
-    delete nextValues[propertyId];
-    set({
-      properties: value.properties.filter((p) => p.property_id !== propertyId),
-      propertyValues: nextValues,
-    });
-  };
-
-  const statusPriority = (
-    <div className="grid grid-cols-pair gap-4">
-      <div className="space-y-2">
-        <Label>{t("taskForm.statusLabel")}</Label>
-        <Select
-          value={value.statusId ? String(value.statusId) : undefined}
-          onValueChange={(selected) => {
-            const parsed = Number(selected);
-            if (Number.isFinite(parsed)) {
-              set({ statusId: parsed });
-            }
-          }}
-          disabled={disabled || statuses.length === 0}
-        >
-          <SelectTrigger
-            className="border-2"
-            style={currentStatus ? statusTriggerStyle(currentStatus) : undefined}
-            disabled={disabled || statuses.length === 0}
-          >
-            {currentStatus ? (
-              <TaskStatusOption status={currentStatus} />
-            ) : (
-              <SelectValue placeholder={t("taskForm.selectStatus")} />
-            )}
-          </SelectTrigger>
-          <SelectContent>
-            {statuses.map((status) => (
-              <SelectItem key={status.id} value={String(status.id)}>
-                <TaskStatusOption status={status} />
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="space-y-2">
-        <Label>{t("taskForm.priorityLabel")}</Label>
-        <Select
-          value={value.priority}
-          onValueChange={(selected) => set({ priority: selected as TaskPriority })}
-          disabled={disabled}
-        >
-          <SelectTrigger disabled={disabled}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {PRIORITY_ORDER.map((option) => (
-              <SelectItem key={option} value={option}>
-                <TaskPriorityOption priority={option} label={t(`priority.${option}` as never)} />
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-    </div>
-  );
-
-  const dateRange = dateRangeBounds(value.startDate, value.dueDate);
-
-  const dates = (
-    <div className="space-y-2">
-      <div className="grid grid-cols-pair gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="task-start-date">{t("taskForm.startDateLabel")}</Label>
-          <DateTimePicker
-            id="task-start-date"
-            value={value.startDate}
-            onChange={(next) => set({ startDate: next })}
-            disabled={disabled}
-            placeholder={t("common:optional")}
-            calendarProps={dateRange.startCalendarProps}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="task-due-date">{t("taskForm.dueDateLabel")}</Label>
-          <DateTimePicker
-            id="task-due-date"
-            value={value.dueDate}
-            onChange={(next) => set({ dueDate: next })}
-            disabled={disabled}
-            placeholder={t("common:optional")}
-            calendarProps={dateRange.endCalendarProps}
-          />
-        </div>
-      </div>
-      {dateRange.isInverted ? (
-        <p className="text-destructive text-sm" role="alert">
-          {t("dates:invalidRange")}
-        </p>
-      ) : null}
-    </div>
-  );
-
-  const assigneesTags = (
-    <div className="grid grid-cols-pair gap-4">
-      <div className="space-y-2">
-        <Label>{t("taskForm.assigneesLabel")}</Label>
-        <MemberMultiSelect
-          scope={{ type: "canOpen", tool: Tool.project, id: projectId ?? null }}
-          selectedIds={value.assigneeIds}
-          selectedUsers={selectedAssignees}
-          onChange={(ids) => set({ assigneeIds: ids })}
-          disabled={disabled}
-          emptyMessage={t("taskForm.assigneesEmptyMessage")}
-          currentUserId={currentUserId}
-        />
-      </div>
-      <div className="space-y-2">
-        <Label>{t("taskForm.tagsLabel")}</Label>
-        <TagPicker
-          selectedTags={value.tags}
-          onChange={(tags) => set({ tags })}
-          disabled={disabled}
-          placeholder={t("taskForm.tagsPlaceholder")}
-        />
-      </div>
-    </div>
-  );
-
-  const recurrenceField = (
-    <RecurrenceEditor
-      kind="task"
-      value={value.recurrence}
-      onChange={(recurrence) => set({ recurrence })}
-      strategy={value.recurrenceStrategy}
-      onStrategyChange={(recurrenceStrategy) => set({ recurrenceStrategy })}
-      disabled={disabled}
-      referenceDate={recurrenceReferenceDate ?? value.dueDate ?? value.startDate}
-      stored={storedRecurrence}
-    />
-  );
-
-  const propertiesField = (
-    <div className="space-y-2">
-      <PropertyFields
-        properties={value.properties}
-        values={value.propertyValues}
-        onChange={handlePropertyChange}
-        onRemove={handlePropertyRemove}
-        disabled={disabled}
-        initiativeId={initiativeId}
-        canOpen={{ tool: Tool.project, id: projectId }}
-      />
-      <AddPropertyButton
-        initiativeId={initiativeId ?? 0}
-        currentPropertyIds={currentPropertyIds}
-        onAdd={handlePropertyAdd}
-        disabled={disabled || !initiativeId}
-      />
-    </div>
-  );
-
-  const descriptionField = descriptionSlot ?? (
-    <div className="space-y-2">
-      <Label htmlFor="task-description">{t("taskForm.descriptionLabel")}</Label>
-      <MentionComposer
-        id="task-description"
-        rows={3}
-        compact
-        value={value.description}
-        onChange={(description) => set({ description })}
-        initiativeId={initiativeId ?? 0}
-        renderPreview={renderDescription}
-        onUploadImage={uploadImage}
-        placeholder={t("taskForm.descriptionPlaceholder")}
-        disabled={disabled}
-      />
-    </div>
-  );
-
-  // On the page the title IS the heading — the editor used to render it twice,
-  // once as an <h1> and once as this field, both bound to the same state.
-  const titleField = (
-    <div className="space-y-2">
-      <Label htmlFor="task-title">{t("taskForm.titleLabel")}</Label>
-      <Input
-        id="task-title"
-        value={value.title}
-        onChange={(event) => set({ title: event.target.value })}
-        placeholder={t("taskForm.titlePlaceholder")}
-        required
-        disabled={disabled}
-        autoFocus={autoFocusTitle}
-        className={
-          layout === "page"
-            ? "h-auto font-semibold text-3xl tracking-tight shadow-none focus-visible:ring-0 sm:text-3xl"
-            : undefined
-        }
-      />
-    </div>
-  );
 
   const sectionContent: Record<(typeof TASK_FORM_SECTIONS)[number]["id"], ReactNode> = {
     details: (
       <>
-        {titleField}
-        {descriptionField}
+        <TaskTitleField {...field} autoFocus={autoFocusTitle} />
+        <div className="space-y-2">
+          <Label htmlFor="task-description">{t("taskForm.descriptionLabel")}</Label>
+          <MentionComposer
+            id="task-description"
+            rows={3}
+            compact
+            value={value.description}
+            onChange={(description) => field.onChange({ description })}
+            initiativeId={initiativeId ?? 0}
+            renderPreview={renderDescription}
+            onUploadImage={uploadImage}
+            placeholder={t("taskForm.descriptionPlaceholder")}
+            disabled={disabled}
+          />
+        </div>
       </>
     ),
-    tracking: statusPriority,
+    tracking: (
+      <div className="grid grid-cols-pair gap-4">
+        <TaskStatusField {...field} statuses={statuses} />
+        <TaskPriorityField {...field} />
+      </div>
+    ),
     schedule: (
       <>
-        {dates}
-        {recurrenceField}
+        <TaskDatesField {...field} />
+        <TaskRecurrenceField {...field} />
       </>
     ),
-    people: assigneesTags,
-    properties: propertiesField,
+    people: (
+      <div className="grid grid-cols-pair gap-4">
+        <TaskAssigneesField
+          {...field}
+          projectId={projectId}
+          currentUserId={currentUserId}
+          selectedAssignees={selectedAssignees}
+        />
+        <TaskTagsField {...field} />
+      </div>
+    ),
+    properties: (
+      <TaskPropertiesField {...field} projectId={projectId} initiativeId={initiativeId} />
+    ),
   };
 
   // The leading section needs no heading: a title and a description under the
-  // form's own heading announce themselves.
+  // dialog's own heading announce themselves.
   const sectionHeading: Record<(typeof TASK_FORM_SECTIONS)[number]["id"], string | null> = {
     details: null,
     tracking: t("taskForm.sections.tracking"),
@@ -440,21 +526,17 @@ export const TaskForm = ({
 
   const [leadSection, ...detailSections] = TASK_FORM_SECTIONS;
 
-  if (layout === "dialog") {
-    return (
-      <div className="space-y-4">
-        {renderSection(leadSection)}
-        <Accordion type="single" collapsible>
-          <AccordionItem value="advanced">
-            <AccordionTrigger>{t("taskForm.advancedDetails")}</AccordionTrigger>
-            <AccordionContent className="space-y-6">
-              {detailSections.map(renderSection)}
-            </AccordionContent>
-          </AccordionItem>
-        </Accordion>
-      </div>
-    );
-  }
-
-  return <div className="space-y-6">{TASK_FORM_SECTIONS.map(renderSection)}</div>;
+  return (
+    <div className="space-y-4">
+      {renderSection(leadSection)}
+      <Accordion type="single" collapsible>
+        <AccordionItem value="advanced">
+          <AccordionTrigger>{t("taskForm.advancedDetails")}</AccordionTrigger>
+          <AccordionContent className="space-y-6">
+            {detailSections.map(renderSection)}
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
+    </div>
+  );
 };

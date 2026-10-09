@@ -9,11 +9,11 @@ import { useTranslation } from "react-i18next";
 
 import type { TaskListRead, TaskStatusRead } from "@/api/generated/initiativeAPI.schemas";
 import type { KanbanCardFields } from "@/components/projects/kanbanFields";
+import type { TaskCardContext } from "@/components/tasks/parts";
 import { taskCardParts } from "@/components/tasks/parts";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon-picker";
 import { Section } from "@/lib/templates/Section";
-import type { TaskCardContext } from "@/lib/templates/sections";
 import { cn } from "@/lib/utils";
 
 const VIRTUALIZE_THRESHOLD = 20;

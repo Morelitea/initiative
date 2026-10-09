@@ -17,6 +17,7 @@
 import type { ComponentType } from "react";
 
 import type { TaskListRead, TaskRead } from "../../api/generated/initiativeAPI.schemas.ts";
+import type { TaskCardContext, TaskPageContext } from "../../components/tasks/parts.tsx";
 
 export interface PartDefinition {
   /** A screen that cannot work without it, so no template may leave it out. */
@@ -41,16 +42,6 @@ export const defineSection =
     // The context sits in a tuple so that a section with none still reads as undefined.
     definition as Definition & { readonly __data?: Data; readonly __context?: [Context] };
 
-/** What a board shares with each of its cards. */
-export interface TaskCardContext {
-  /** Where a card's title leads; null on the card being dragged, which leads nowhere. */
-  taskHref: ((taskId: number) => string) | null;
-  /** Whether the reader shows a property on cards, by the property's id. */
-  showsProperty: (propertyId: number) => boolean;
-  /** The board's translations (projects, dates, relations), so no card asks for its own. */
-  t: (key: string, options?: Record<string, unknown>) => string;
-}
-
 export const SECTIONS = {
   /**
    * A task on a board. Its parts are named as the board's Fields menu names
@@ -74,12 +65,14 @@ export const SECTIONS = {
     },
   }),
   /** The whole task page, one field per part so a theme can hide any one. */
-  "task.page": defineSection<{ task: TaskRead }>()({
+  "task.page": defineSection<{ task: TaskRead }, TaskPageContext>()({
     data: { task: "TaskRead" },
     parts: {
       title: { required: true },
       actions: { required: true },
+      breadcrumb: {},
       byline: {},
+      notice: {},
       description: {},
       status: {},
       priority: {},
