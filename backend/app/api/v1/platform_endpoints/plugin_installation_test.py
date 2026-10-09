@@ -797,6 +797,28 @@ class TestMetadata:
         assert response.json()["detail"] == detail
         assert await _stored(session, installed.guild.id) == []
 
+    async def test_a_write_that_replaces_a_full_item_is_measured_after(
+        self, client: AsyncClient, session: AsyncSession, acting_user, role_session
+    ):
+        installed, task_id = await _with_task(
+            client, session, acting_user, role_session
+        )
+        headers = install_headers(installed, ["projects:read"])
+        full = {f"k{i}": i for i in range(32)}
+
+        async def put(values: dict):
+            return await client.put(
+                f"{BASE}/metadata",
+                headers=headers,
+                json={"entity_type": "task", "entity_id": task_id, "values": values},
+            )
+
+        assert (await put(full)).status_code == 200
+        replaced = await put({**dict.fromkeys(full), "fresh": 1})
+
+        assert replaced.status_code == 200, replaced.text
+        assert replaced.json()["values"] == {"fresh": 1}
+
     async def test_an_item_out_of_reach_is_refused_and_left_out(
         self, client: AsyncClient, session: AsyncSession, acting_user, role_session
     ):

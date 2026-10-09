@@ -173,7 +173,9 @@ async def write(
             )
         max_keys, max_bytes = ITEM_KEYS, ITEM_BYTES
 
-    if len(values) > max_keys:
+    # The keys an item ends up with are counted below; a write may remove every
+    # key it holds and set as many again, and no more.
+    if len(values) > 2 * max_keys:
         raise PluginChannelError(
             PluginChannelMessages.METADATA_LIMIT_REACHED, status_code=409
         )
