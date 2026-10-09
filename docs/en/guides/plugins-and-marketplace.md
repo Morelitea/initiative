@@ -60,7 +60,7 @@ What lands is an ordinary project of your own. Rename the columns, delete the ex
 
 ### Adding a plug-in
 
-A **plug-in** adds something to the community as a whole rather than one effort: a page of its own, extra dashboard widgets, or a link to a service your group already uses. Because it affects everyone, **only your community's [superadmin](communities.md#why-superadmin-is-separate) can add or remove one**. Everybody else can browse, read the listing, and go and ask them nicely.
+A **plug-in** adds something to the community as a whole rather than one effort: a page of its own, extra dashboard widgets, a button or a status on your tasks, or a link to a service your group already uses. Because it affects everyone, **only your community's [superadmin](communities.md#why-superadmin-is-separate) can add or remove one**. Everybody else can browse, read the listing, and go and ask them nicely.
 
 1. Switch the marketplace to the **Plug-ins** shelf and open a listing.
 2. **Add to community**, and name it.
@@ -103,6 +103,10 @@ Some plug-ins can do more if you let them, and ask for it in two lines that star
 - **Act as an admin across your whole community.** Everything a community admin reaches, including initiatives it isn't placed in.
 
 Ticking either lets the plug-in ask for that standing; it doesn't use it everywhere at once. An automations plug-in, for example, uses it only for an automation somebody holding that role set up to run that way. Either way, it still reaches only the kinds of thing ticked above. An admin-standing plug-in that may read projects reads every project, and still no files.
+
+### On your tasks
+
+Some plug-ins put a small piece of themselves on tasks: a line on the card, a panel beside the task, an item in its menu. Each one says which plug-in drew it, and it shows only in initiatives the plug-in is placed in, to the roles allowed to use it there. Pressing one of its buttons hands the job to the plug-in, which decides what happens. If a plug-in is slow or down, its piece goes quiet and the task carries on without it.
 
 ### Updates
 

@@ -166,12 +166,14 @@ function ActionButton({
   children?: ReactNode;
 }) {
   const [running, run] = useAction(props.action);
+  // On a card's badge row, the height of the badges beside it.
+  const inline = usePlace().kind === "inline";
   return (
     <Button
       type="button"
       variant="outline"
       size="sm"
-      className="h-7"
+      className={inline ? "h-6 px-2 text-xs" : "h-7"}
       disabled={running}
       aria-busy={running}
       onClick={run}
