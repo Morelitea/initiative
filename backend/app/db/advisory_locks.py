@@ -107,6 +107,8 @@ class LockNamespace(IntEnum):
     API_KEY_RESOURCE = _tag(b"KEYR")
     #: Provisioning an account for one address, keyed by the normalized address.
     ACCOUNT_ADDRESS = _tag(b"ADDR")
+    #: Sign-ins from one app install, keyed by the account and the install.
+    APP_INSTALL = _tag(b"INST")
 
 
 def _text_key(text: str) -> int:
