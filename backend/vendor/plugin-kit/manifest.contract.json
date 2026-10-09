@@ -200,7 +200,7 @@
     "accessHintScopes": 24,
     "requiresTerms": 10,
     "widgets": 12,
-    "widgetEndpoints": 8,
+    "widgetStrings": 64,
     "endpoints": 64,
     "paramsPerEndpoint": 12,
     "returnsPerEndpoint": 24,
@@ -223,7 +223,6 @@
     "textLength": 120,
     "locales": 40,
     "cacheTtlSeconds": 86400,
-    "moduleSourceBytes": 65536,
     "sampleDataBytes": 32768,
     "serviceDefinitionBytes": 524288,
     "versionLength": 32,
@@ -258,7 +257,260 @@
     "expressionDepth": 500,
     "expressionOutputBytes": 1048576,
     "minimumAgeRegions": 64,
-    "minimumAgeYears": 21
+    "minimumAgeYears": 21,
+    "templateBytes": 16384,
+    "templateExpressionLength": 400,
+    "templateExpressionNodes": 200,
+    "templateComprehensionDepth": 2,
+    "templateLoopDepth": 2,
+    "templateRenderedNodes": 2000
+  },
+  "templates": {
+    "$comment": "What a plug-in's template may contain: the template language's vocabulary, as data. A template is HTML whose directives and bindings are CEL expressions. Initiative's compiler reads this block, and checks every template against it when a plug-in is published; the SDK checks a template against it before publishing. Limits are caps: templateBytes, templateExpressionLength, templateExpressionNodes, templateComprehensionDepth, templateLoopDepth, templateRenderedNodes.",
+    "elements": {
+      "div": [],
+      "span": [],
+      "p": [],
+      "h1": [],
+      "h2": [],
+      "h3": [],
+      "h4": [],
+      "h5": [],
+      "h6": [],
+      "section": [],
+      "header": [],
+      "footer": [],
+      "article": [],
+      "ul": [],
+      "ol": [],
+      "li": [],
+      "strong": [],
+      "em": [],
+      "small": [],
+      "time": [
+        "datetime"
+      ],
+      "figure": [],
+      "hr": [],
+      "br": [],
+      "img": [
+        "src",
+        "alt"
+      ],
+      "a": [
+        "href"
+      ]
+    },
+    "globalAttributes": [
+      "class",
+      "title"
+    ],
+    "attributePrefixes": [
+      "aria-",
+      "data-"
+    ],
+    "reservedAttributes": [
+      "data-section",
+      "data-part",
+      "data-node"
+    ],
+    "boundOnlyAttributes": [
+      "style"
+    ],
+    "directives": [
+      "if",
+      "else-if",
+      "else",
+      "for"
+    ],
+    "functions": [
+      "size",
+      "contains",
+      "startsWith",
+      "endsWith",
+      "matches",
+      "int",
+      "uint",
+      "double",
+      "string",
+      "bool",
+      "type",
+      "dyn",
+      "timestamp",
+      "duration",
+      "getFullYear",
+      "getMonth",
+      "getDate",
+      "getDayOfMonth",
+      "getDayOfWeek",
+      "getDayOfYear",
+      "getHours",
+      "getMinutes",
+      "getSeconds",
+      "getMilliseconds",
+      "charAt",
+      "format",
+      "indexOf",
+      "join",
+      "lastIndexOf",
+      "lowerAscii",
+      "replace",
+      "split",
+      "substring",
+      "trim",
+      "upperAscii",
+      "format_date",
+      "format_number"
+    ],
+    "widgetElements": {
+      "metric": [
+        "value",
+        "label",
+        "format",
+        "delta",
+        "delta-good",
+        "caption",
+        "tone"
+      ],
+      "chart": [
+        "mark",
+        "series",
+        "stacked",
+        "format",
+        "x-label",
+        "y-label",
+        "x-time",
+        "show-legend",
+        "labels",
+        "target",
+        "target-label",
+        "emphasis",
+        "horizontal"
+      ],
+      "timeline": [
+        "lanes",
+        "start",
+        "end",
+        "scale",
+        "now"
+      ],
+      "funnel": [
+        "stages",
+        "format"
+      ],
+      "progress": [
+        "value",
+        "min",
+        "max",
+        "label",
+        "caption",
+        "tone",
+        "format",
+        "target"
+      ],
+      "heatmap": [
+        "cells",
+        "max",
+        "x-labels",
+        "y-labels",
+        "tone"
+      ],
+      "data-table": [
+        "columns",
+        "rows"
+      ],
+      "board": [
+        "columns"
+      ]
+    },
+    "classes": [
+      "flex",
+      "inline-flex",
+      "grid",
+      "block",
+      "hidden",
+      "contents",
+      "flex-row",
+      "flex-col",
+      "flex-wrap",
+      "flex-1",
+      "shrink-0",
+      "grow",
+      "items-start",
+      "items-center",
+      "items-end",
+      "items-baseline",
+      "justify-start",
+      "justify-center",
+      "justify-end",
+      "justify-between",
+      "grid-cols-2",
+      "grid-cols-3",
+      "grid-cols-4",
+      "gap-1",
+      "gap-2",
+      "gap-3",
+      "gap-4",
+      "space-y-1",
+      "space-y-2",
+      "space-y-3",
+      "p-1",
+      "p-2",
+      "p-3",
+      "p-4",
+      "px-1",
+      "px-2",
+      "px-3",
+      "py-0.5",
+      "py-1",
+      "py-2",
+      "w-full",
+      "h-full",
+      "min-w-0",
+      "min-h-0",
+      "overflow-hidden",
+      "truncate",
+      "line-clamp-1",
+      "line-clamp-2",
+      "line-clamp-3",
+      "break-words",
+      "whitespace-nowrap",
+      "text-left",
+      "text-center",
+      "text-right",
+      "text-xs",
+      "text-sm",
+      "text-base",
+      "text-lg",
+      "text-xl",
+      "text-2xl",
+      "font-normal",
+      "font-medium",
+      "font-semibold",
+      "font-bold",
+      "tabular-nums",
+      "uppercase",
+      "tracking-wide",
+      "italic",
+      "text-foreground",
+      "text-muted-foreground",
+      "text-primary",
+      "text-success",
+      "text-warning",
+      "text-destructive",
+      "bg-muted",
+      "bg-card",
+      "bg-primary/10",
+      "bg-success/10",
+      "bg-warning/10",
+      "bg-destructive/10",
+      "border",
+      "border-t",
+      "border-b",
+      "rounded",
+      "rounded-md",
+      "rounded-full"
+    ]
   },
   "defs": {
     "identifier": {
@@ -1086,7 +1338,8 @@
       "required": [
         "id",
         "meta",
-        "module_source"
+        "template",
+        "endpoint"
       ],
       "properties": {
         "id": {
@@ -1096,22 +1349,30 @@
           "type": "object",
           "description": "The widget's own name and description, as the picker shows them. Must name the widget in at least one language."
         },
-        "module_source": {
+        "template": {
           "type": "string",
           "minLength": 1,
-          "description": "The widget's browser-side module. Stored as an opaque string and executed only inside the sandbox; the platform never parses it. Capped in UTF-8 bytes, which this schema cannot express."
+          "description": "The widget's template: HTML with CEL directives and bindings, in the vocabulary the contract's `templates` block lists. It reads `rows` and `values` (the endpoint's answer), `strings` (this widget's words in the reader's language) and `now`. Compiled and checked when the plug-in is published, and refused if it does not compile. Capped at {templateBytes} UTF-8 bytes, which this schema cannot express."
         },
-        "endpoints": {
-          "type": "array",
-          "maxItems": "widgetEndpoints",
-          "items": {
-            "ref": "namespacedId"
+        "endpoint": {
+          "ref": "namespacedId",
+          "description": "The read endpoint this widget draws, one this manifest declares. Its answer is what the template reads, and its `returns` are what the template's fields are checked against."
+        },
+        "strings": {
+          "type": "object",
+          "maxProperties": "widgetStrings",
+          "propertyNames": {
+            "patternFrom": "identifier",
+            "patternForm": "plus"
           },
-          "description": "Read endpoint ids this manifest also declares. Only a read answers with something to draw."
+          "additionalProperties": {
+            "ref": "localizedText"
+          },
+          "description": "This widget's own words, keyed, each in the languages it supports. The template reads one as `strings.<key>`, in the reader's language."
         },
         "sample_data": {
           "type": "object",
-          "description": "What each endpoint would answer with, keyed by declared read endpoint id, so a preview renders with no network call. Written in the endpoint's own returns and read through them exactly as a live answer is. Keys naming an undeclared endpoint are dropped."
+          "description": "What the endpoint would answer with, written in its own returns and read through them exactly as a live answer is, so a preview renders with no network call."
         },
         "requires": {
           "ref": "requires"

@@ -5,14 +5,16 @@
  *
  *   <chart :mark="model.mark" :series="model.series" />
  *
- * The compiler checks the prop names against this list. The values are checked
- * when the widget draws, because they are data the compiler never saw.
+ * Their names and props are the plug-in contract's (`templates.widgetElements`).
+ * The compiler checks the prop names against them. The values are checked when
+ * the widget draws, because they are data the compiler never saw.
  *
  * Kept free of the browser and of `@/` imports: the Vite plugin reads it in
  * Node to compile the built-in widgets' templates.
  */
 
 import type { Shape } from "../templates/shapes.ts";
+import { WIDGET_ELEMENT_PROPS } from "../templates/vocabulary.ts";
 
 /**
  * What a widget template reads: the model its code worked out from the data,
@@ -33,47 +35,29 @@ export interface WidgetElementDefinition {
   props: Readonly<Record<string, string>>;
 }
 
-/** `xLabel` as a template writes it: `x-label`. */
-const attribute = (prop: string) => prop.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
-
-const define = (
-  kind: WidgetElementDefinition["kind"],
-  props: readonly string[]
-): WidgetElementDefinition => ({
-  kind,
-  props: Object.fromEntries(props.map((prop) => [attribute(prop), prop])),
-});
-
-export const WIDGET_ELEMENTS: Readonly<Record<string, WidgetElementDefinition>> = {
-  metric: define("metric", ["value", "label", "format", "delta", "deltaGood", "caption", "tone"]),
-  chart: define("series", [
-    "mark",
-    "series",
-    "stacked",
-    "format",
-    "xLabel",
-    "yLabel",
-    "xTime",
-    "showLegend",
-    "labels",
-    "target",
-    "targetLabel",
-    "emphasis",
-    "horizontal",
-  ]),
-  timeline: define("timeline", ["lanes", "start", "end", "scale", "now"]),
-  funnel: define("funnel", ["stages", "format"]),
-  progress: define("progress", [
-    "value",
-    "min",
-    "max",
-    "label",
-    "caption",
-    "tone",
-    "format",
-    "target",
-  ]),
-  heatmap: define("matrix", ["cells", "max", "xLabels", "yLabels", "tone"]),
-  "data-table": define("table", ["columns", "rows"]),
-  board: define("board", ["columns"]),
+/** What each element the contract names is drawn as, by the drawing components. */
+const KINDS: Readonly<Record<string, WidgetElementDefinition["kind"]>> = {
+  metric: "metric",
+  chart: "series",
+  timeline: "timeline",
+  funnel: "funnel",
+  progress: "progress",
+  heatmap: "matrix",
+  "data-table": "table",
+  board: "board",
 };
+
+/** `x-label` as the component takes it: `xLabel`. */
+const camel = (attribute: string) =>
+  attribute.replace(/-([a-z])/g, (_, letter: string) => letter.toUpperCase());
+
+/** The contract's widget elements, each with the component that draws it. */
+export const WIDGET_ELEMENTS: Readonly<Record<string, WidgetElementDefinition>> =
+  Object.fromEntries(
+    Object.entries(WIDGET_ELEMENT_PROPS).flatMap(([name, props]) => {
+      const kind = KINDS[name];
+      return kind
+        ? [[name, { kind, props: Object.fromEntries(props.map((prop) => [prop, camel(prop)])) }]]
+        : [];
+    })
+  );

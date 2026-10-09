@@ -26,6 +26,7 @@ import { resolveUploadUrl } from "@/lib/uploadUrl";
 
 import type { CompiledNode, CompiledTemplate } from "./compile";
 import { bindings, evaluate } from "./runtime";
+import { LIMITS } from "./vocabulary";
 
 export interface RenderInput {
   /** The section's data, by the names its template reads. */
@@ -39,6 +40,8 @@ export interface RenderInput {
   hidden?: ReadonlySet<string>;
   /** The components a template may place, such as a widget's charts, by element name. */
   elements?: Readonly<Record<string, ComponentType<{ props: Record<string, unknown> }>>>;
+  /** For a plug-in's template: the only classes a bound `:class` may add. */
+  classes?: ReadonlySet<string>;
 }
 
 type Scope = Record<string, unknown>;
@@ -48,7 +51,7 @@ const STYLE_VALUE = /^(-?\d+(\.\d+)?(px|rem|em|%|ch)?|#[0-9a-f]{3,8}|[a-z][a-z-]
 
 const REACT_NAMES: Record<string, string> = { class: "className", datetime: "dateTime" };
 
-export const MAX_RENDERED_NODES = 2000;
+export const MAX_RENDERED_NODES = LIMITS.renderedNodes;
 
 /**
  * Each template's answers outside any loop, by the data they were worked out
@@ -139,7 +142,11 @@ export function renderTemplate(template: CompiledTemplate, input: RenderInput): 
     for (const [name, index] of Object.entries(bind)) {
       const bound = value(index, scope);
       if (name === "class") {
-        out.className = [attrs.class, classes(bound)].filter(Boolean).join(" ");
+        const added = classes(bound)
+          .split(" ")
+          .filter((name) => name && (!input.classes || input.classes.has(name)))
+          .join(" ");
+        out.className = [attrs.class, added].filter(Boolean).join(" ");
       } else if (name === "style") {
         out.style = style(bound);
       } else {

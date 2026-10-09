@@ -31,6 +31,16 @@ import {
 } from "./parse.ts";
 import type { SectionDefinition } from "./sections.ts";
 import { itemShape, type Shape, schemaShape } from "./shapes.ts";
+import {
+  ATTRIBUTE_PREFIXES,
+  BOUND_ONLY,
+  DIRECTIVES,
+  ELEMENT_ATTRIBUTES,
+  GLOBAL_ATTRIBUTES,
+  LIMITS,
+  PLUGIN_CLASSES,
+  RESERVED_ATTRIBUTES,
+} from "./vocabulary.ts";
 
 export type CompiledNode =
   | {
@@ -60,50 +70,8 @@ export interface CompiledTemplate {
   root: CompiledNode[];
 }
 
-/** Structure and text, and nothing that runs, submits or frames. */
-const ELEMENTS = new Set([
-  "div",
-  "span",
-  "p",
-  "h1",
-  "h2",
-  "h3",
-  "h4",
-  "h5",
-  "h6",
-  "section",
-  "header",
-  "footer",
-  "article",
-  "ul",
-  "ol",
-  "li",
-  "strong",
-  "em",
-  "small",
-  "time",
-  "figure",
-  "hr",
-  "br",
-  "img",
-  "a",
-]);
-
-/** Attributes any element may carry, as given or bound. */
-const GLOBAL_ATTRIBUTES = new Set(["class", "title"]);
-const ELEMENT_ATTRIBUTES: Record<string, Set<string>> = {
-  img: new Set(["src", "alt"]),
-  a: new Set(["href"]),
-  time: new Set(["datetime"]),
-};
-/** Only ever bound: a map of custom properties, typed when rendered. */
-const BOUND_ONLY = new Set(["style"]);
-/** Initiative's own, for marking sections and parts; a template never sets them. */
-const RESERVED_DATA = new Set(["data-section", "data-part", "data-node"]);
-
-const DIRECTIVES = new Set(["if", "else-if", "else", "for"]);
 /** `for` inside `for`, at most this deep: each level repeats everything inside it. */
-export const MAX_LOOP_DEPTH = 2;
+export const MAX_LOOP_DEPTH = LIMITS.loopDepth;
 const FOR_PATTERN = /^\s*([a-z_][A-Za-z0-9_]*)\s+in\s+([\s\S]+)$/;
 
 export interface CompileOptions {
@@ -114,6 +82,8 @@ export interface CompileOptions {
   scope?: Readonly<Record<string, Shape>>;
   /** Components it may place, such as a widget's charts, by element name. */
   elements?: Readonly<Record<string, WidgetElementDefinition>>;
+  /** A plug-in's template: only the contract's classes, and no `t()`. */
+  plugin?: boolean;
 }
 
 export interface CompileResult {
@@ -155,7 +125,7 @@ export function compileTemplate(source: string, options: CompileOptions): Compil
     scope: ExpressionScope,
     at: SourcePosition
   ): { index: number; shape: Shape } => {
-    const check = checkExpression(source, scope);
+    const check = checkExpression(source, scope, { own: !options.plugin });
     for (const problem of check.problems) report(`${problem}: ${source}`, at);
     let index = exprIndex.get(source);
     if (index === undefined) {
@@ -180,7 +150,7 @@ export function compileTemplate(source: string, options: CompileOptions): Compil
       if (DIRECTIVES.has(attribute.name)) continue;
       const bound = attribute.name.startsWith(":");
       const name = bound ? attribute.name.slice(1) : attribute.name;
-      if (RESERVED_DATA.has(name)) {
+      if (RESERVED_ATTRIBUTES.has(name)) {
         report(`${name} is Initiative's own and cannot be set`, attribute);
         continue;
       }
@@ -197,6 +167,13 @@ export function compileTemplate(source: string, options: CompileOptions): Compil
       } else if (BOUND_ONLY.has(name)) {
         report(`Use :${name}="{ '--name': value }" to pass values to CSS`, attribute);
       } else {
+        if (name === "class" && options.plugin) {
+          for (const token of attribute.value.split(/\s+/)) {
+            if (token && !PLUGIN_CLASSES.has(token)) {
+              report(`The class ${token} is not one a plug-in's template may use`, attribute);
+            }
+          }
+        }
         attrs[name] = attribute.value;
       }
     }
@@ -206,9 +183,8 @@ export function compileTemplate(source: string, options: CompileOptions): Compil
   const elementAllows = (tag: string) => (name: string) =>
     GLOBAL_ATTRIBUTES.has(name) ||
     BOUND_ONLY.has(name) ||
-    name.startsWith("aria-") ||
-    name.startsWith("data-") ||
-    (ELEMENT_ATTRIBUTES[tag]?.has(name) ?? false);
+    ATTRIBUTE_PREFIXES.some((prefix) => name.startsWith(prefix)) ||
+    (ELEMENT_ATTRIBUTES.get(tag)?.has(name) ?? false);
 
   const directive = (element: TemplateElement, name: string): TemplateAttribute | undefined =>
     element.attributes.find((attribute) => attribute.name === name);
@@ -272,7 +248,7 @@ export function compileTemplate(source: string, options: CompileOptions): Compil
         bind: rename(bind) as Record<string, number>,
       };
     }
-    if (!ELEMENTS.has(element.name)) {
+    if (!ELEMENT_ATTRIBUTES.has(element.name)) {
       report(`<${element.name}> is not an element templates may use`, element);
       return null;
     }

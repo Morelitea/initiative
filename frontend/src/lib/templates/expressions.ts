@@ -17,10 +17,11 @@
 import { parse } from "@bufbuild/cel";
 
 import { fieldShape, itemShape, resolveShape, type Shape } from "./shapes.ts";
+import { FUNCTIONS, LIMITS } from "./vocabulary.ts";
 
-export const MAX_EXPRESSION_LENGTH = 400;
-export const MAX_EXPRESSION_NODES = 200;
-export const MAX_COMPREHENSION_DEPTH = 2;
+export const MAX_EXPRESSION_LENGTH = LIMITS.expressionLength;
+export const MAX_EXPRESSION_NODES = LIMITS.expressionNodes;
+export const MAX_COMPREHENSION_DEPTH = LIMITS.comprehensionDepth;
 
 /** The operators, as CEL's parser names them, and the macros' own helpers. */
 const OPERATORS = new Set([
@@ -45,59 +46,16 @@ const OPERATORS = new Set([
   "@not_strictly_false",
 ]);
 
-/** CEL's standard functions a template may call. */
-const STANDARD_FUNCTIONS = [
-  "size",
-  "contains",
-  "startsWith",
-  "endsWith",
-  "matches",
-  "int",
-  "uint",
-  "double",
-  "string",
-  "bool",
-  "type",
-  "dyn",
-  "timestamp",
-  "duration",
-  "getFullYear",
-  "getMonth",
-  "getDate",
-  "getDayOfMonth",
-  "getDayOfWeek",
-  "getDayOfYear",
-  "getHours",
-  "getMinutes",
-  "getSeconds",
-  "getMilliseconds",
-];
-
-/** The `strings` extension, as `@bufbuild/cel/ext` ships it. */
-const STRING_FUNCTIONS = [
-  "charAt",
-  "format",
-  "indexOf",
-  "join",
-  "lastIndexOf",
-  "lowerAscii",
-  "replace",
-  "split",
-  "substring",
-  "trim",
-  "upperAscii",
-];
-
-/** Ours, defined in runtime.ts: text a member reads in their own language. */
+/**
+ * Ours, defined in runtime.ts: text a member reads in their own language. The
+ * contract lists `format_date` and `format_number` with CEL's own functions;
+ * `t()` reads Initiative's catalogue, so only Initiative's own templates call it.
+ */
 export const DISPLAY_FUNCTIONS = ["format_date", "format_number", "t"] as const;
 
 const DISPLAY = new Set<string>(DISPLAY_FUNCTIONS);
 
-const FUNCTIONS = new Set<string>([
-  ...STANDARD_FUNCTIONS,
-  ...STRING_FUNCTIONS,
-  ...DISPLAY_FUNCTIONS,
-]);
+const OWN_FUNCTIONS = new Set<string>([...FUNCTIONS, "t"]);
 
 /** The names an expression may read, and what each holds. */
 export type ExpressionScope = ReadonlyMap<string, Shape>;
@@ -151,7 +109,12 @@ interface CelComprehension {
  * The walk returns what each part holds, so `task.priority` is checked against
  * the task, and a comprehension's variable holds one item of the list it walks.
  */
-export function checkExpression(source: string, scope: ExpressionScope): ExpressionCheck {
+export function checkExpression(
+  source: string,
+  scope: ExpressionScope,
+  { own = true }: { own?: boolean } = {}
+): ExpressionCheck {
+  const functions = own ? OWN_FUNCTIONS : FUNCTIONS;
   if (source.length > MAX_EXPRESSION_LENGTH) {
     return {
       problems: [`Expressions are at most ${MAX_EXPRESSION_LENGTH} characters long`],
@@ -205,7 +168,7 @@ export function checkExpression(source: string, scope: ExpressionScope): Express
       }
       case "callExpr": {
         const call = value as CelCall;
-        if (!OPERATORS.has(call.function) && !FUNCTIONS.has(call.function)) {
+        if (!OPERATORS.has(call.function) && !functions.has(call.function)) {
           problems.push(`${call.function}() is not a function templates may use`);
         }
         if (DISPLAY.has(call.function)) display = true;

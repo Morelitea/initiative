@@ -2,6 +2,8 @@
 @import "@fontsource-variable/outfit";
 
 @import "tailwindcss";
+/* The classes a plug-in's template may use (the contract's `templates.classes`). */
+@source "./contract/manifest.contract.json";
 
 @plugin "tailwindcss-animate";
 

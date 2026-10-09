@@ -164,6 +164,28 @@ describe("compileTemplate", () => {
     ).toEqual([]);
   });
 
+  it("holds a plug-in's template to the contract's classes, and gives it no t()", () => {
+    const plugin = (source: string) =>
+      compileTemplate(source, {
+        name: "task.card",
+        section: SECTIONS["task.card"],
+        plugin: true,
+      }).errors.map((error) => error.message);
+    expect(plugin(`<part name="title" /><p class="text-sm text-muted-foreground">x</p>`)).toEqual(
+      []
+    );
+    expect(plugin(`<part name="title" /><p class="text-sm bg-red-500">x</p>`)[0]).toMatch(
+      /The class bg-red-500 is not one a plug-in's template may use/
+    );
+    expect(plugin(`<part name="title" /><p>{{ t('common:loading') }}</p>`)[0]).toMatch(
+      /t\(\) is not a function templates may use/
+    );
+    // Initiative's own templates use the app's classes and its catalogue.
+    expect(
+      errorsOf(`<part name="title" /><p class="bg-red-500">{{ t('common:loading') }}</p>`)
+    ).toEqual([]);
+  });
+
   it("refuses directives that do not make sense together", () => {
     expect(errorsOf(`<part name="title" /><span else>x</span>`)[0]).toMatch(
       /else must follow an if/
