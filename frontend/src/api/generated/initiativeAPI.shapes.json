@@ -1,0 +1,147 @@
+{
+  "ChecklistItem": { "fields": { "id": "string", "text": "string", "done": "boolean" } },
+  "ChecklistProgress": { "fields": { "completed": "number", "total": "number" } },
+  "InitiativeSummary": { "fields": { "id": "number", "name": "string", "color": "string" } },
+  "PropertyOption": { "fields": { "value": "string", "label": "string", "color": "string" } },
+  "PropertySummary": {
+    "fields": {
+      "property_id": "number",
+      "name": "string",
+      "type": { "ref": "PropertyType" },
+      "options": { "list": { "ref": "PropertyOption" } },
+      "value": "any"
+    }
+  },
+  "PropertyType": {
+    "enum": [
+      "text",
+      "number",
+      "checkbox",
+      "date",
+      "datetime",
+      "url",
+      "select",
+      "multi_select",
+      "user_reference"
+    ]
+  },
+  "TagSummary": { "fields": { "id": "number", "name": "string", "color": "string" } },
+  "TaskAssigneeSummary": {
+    "fields": {
+      "id": "number",
+      "username": "string",
+      "discriminator": "number",
+      "display_name": "string",
+      "avatar_url": "string",
+      "status": { "ref": "UserStatus" }
+    }
+  },
+  "TaskListRead": {
+    "fields": {
+      "title": "string",
+      "priority": { "ref": "TaskPriority" },
+      "start_date": "string",
+      "due_date": "string",
+      "recurrence": "string",
+      "recurrence_strategy": { "enum": ["fixed", "rolling"] },
+      "description_excerpt": "string",
+      "has_description": "boolean",
+      "id": "number",
+      "project_id": "number",
+      "task_status_id": "number",
+      "task_status": { "ref": "TaskStatusRead" },
+      "created_at": "string",
+      "updated_at": "string",
+      "completed_at": "string",
+      "position": "number",
+      "archived_at": "string",
+      "created_by": "number",
+      "assignees": { "list": { "ref": "TaskAssigneeSummary" } },
+      "recurrence_occurrence_count": "number",
+      "recurrence_shift": "number",
+      "recurrence_until": "string",
+      "comment_count": "number",
+      "blocked_by_open_count": "number",
+      "community_id": "number",
+      "community_name": "string",
+      "project_name": "string",
+      "initiative_id": "number",
+      "initiative_name": "string",
+      "initiative_color": "string",
+      "checklist_progress": { "ref": "ChecklistProgress" },
+      "tags": { "list": { "ref": "TagSummary" } },
+      "properties": { "list": { "ref": "PropertySummary" } }
+    }
+  },
+  "TaskPriority": { "enum": ["low", "medium", "high", "urgent"] },
+  "TaskProjectSummary": {
+    "fields": {
+      "id": "number",
+      "name": "string",
+      "icon": "string",
+      "initiative_id": "number",
+      "initiative": { "ref": "InitiativeSummary" },
+      "archived_at": "string",
+      "is_template": "boolean"
+    }
+  },
+  "TaskRead": {
+    "fields": {
+      "title": "string",
+      "priority": { "ref": "TaskPriority" },
+      "start_date": "string",
+      "due_date": "string",
+      "recurrence": "string",
+      "recurrence_strategy": { "enum": ["fixed", "rolling"] },
+      "description": "string",
+      "id": "number",
+      "project_id": "number",
+      "task_status_id": "number",
+      "task_status": { "ref": "TaskStatusRead" },
+      "created_at": "string",
+      "updated_at": "string",
+      "completed_at": "string",
+      "position": "number",
+      "archived_at": "string",
+      "created_by": "number",
+      "creator": { "ref": "UserPublic" },
+      "assignees": { "list": { "ref": "UserPublic" } },
+      "recurrence_occurrence_count": "number",
+      "recurrence_shift": "number",
+      "recurrence_until": "string",
+      "series_id": "number",
+      "series_size": "number",
+      "comment_count": "number",
+      "blocked_by_open_count": "number",
+      "project": { "ref": "TaskProjectSummary" },
+      "checklist": { "list": { "ref": "ChecklistItem" } },
+      "checklist_progress": { "ref": "ChecklistProgress" },
+      "tags": { "list": { "ref": "TagSummary" } },
+      "properties": { "list": { "ref": "PropertySummary" } }
+    }
+  },
+  "TaskStatusCategory": { "enum": ["backlog", "todo", "in_progress", "done"] },
+  "TaskStatusRead": {
+    "fields": {
+      "name": "string",
+      "category": { "ref": "TaskStatusCategory" },
+      "position": "number",
+      "is_default": "boolean",
+      "color": "string",
+      "icon": "string",
+      "id": "number",
+      "project_id": "number"
+    }
+  },
+  "UserPublic": {
+    "fields": {
+      "id": "number",
+      "username": "string",
+      "discriminator": "number",
+      "avatar_url": "string",
+      "status": { "ref": "UserStatus" },
+      "display_name": "string"
+    }
+  },
+  "UserStatus": { "enum": ["active", "suspended", "deactivated", "anonymized", "deleted"] }
+}
