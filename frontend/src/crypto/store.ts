@@ -1014,20 +1014,30 @@ export const peerKeyChanges = {
    * lists. A device that signed out, or was removed, has nothing left to
    * verify, and a prompt about it could never be answered.
    *
-   * Its remembered keys go with the hold rather than staying behind as the
-   * baseline. `listed` may be older than a hold another tab has just raised
-   * for a device that arrived since, and that device must still be asked
-   * about: forgotten, it is a new sighting again the next time it is read,
-   * and held again before anything can address it.
+   * Only holds raised before the listing was asked for (`listedSince`, epoch
+   * milliseconds). Another tab may have held a device that arrived after this
+   * listing, and is about to read that hold to decide what it may send to: a
+   * device absent from a listing asked for after it was held is one that left,
+   * while one held since may only be too new to be listed. A device id is
+   * never reissued, so a device that left does not come back under it.
    */
-  withdrawUnlisted: async (userId: number, listed: string[]): Promise<void> => {
+  withdrawUnlisted: async (
+    userId: number,
+    listed: string[],
+    listedSince: number
+  ): Promise<void> => {
     const present = new Set(listed);
     await updatePair<Record<string, StoredPeerKey>, PeerKeyChange[]>(
       PEER_KEYS_PREFIX + userId,
       PEER_CHANGES,
       (known, held) => {
         const gone = (held ?? [])
-          .filter((change) => change.userId === userId && !present.has(change.deviceId))
+          .filter(
+            (change) =>
+              change.userId === userId &&
+              !present.has(change.deviceId) &&
+              Date.parse(change.at) < listedSince
+          )
           .map((change) => change.deviceId);
         if (gone.length === 0) return {};
         const keys = { ...(known ?? {}) };

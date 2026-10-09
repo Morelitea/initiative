@@ -754,10 +754,13 @@ describe("the list of changes waiting to be seen", () => {
     expect(await peerKeyChanges.all()).toEqual([]);
   });
 
+  /** A listing asked for after every hold so far was raised. */
+  const later = () => Date.now() + 1_000;
+
   it("lets go of a device the account no longer lists", async () => {
     await hold(7, "a", "b");
 
-    await peerKeyChanges.withdrawUnlisted(7, ["known", "b"]);
+    await peerKeyChanges.withdrawUnlisted(7, ["known", "b"], later());
 
     expect((await peerKeyChanges.all()).map((entry) => entry.deviceId)).toEqual(["b"]);
   });
@@ -766,15 +769,32 @@ describe("the list of changes waiting to be seen", () => {
     await hold(7, "a");
     await hold(8, "c");
 
-    await peerKeyChanges.withdrawUnlisted(7, ["known"]);
+    await peerKeyChanges.withdrawUnlisted(7, ["known"], later());
 
     expect((await peerKeyChanges.all()).map((entry) => entry.deviceId)).toEqual(["c"]);
   });
 
-  it("asks again about a device withdrawn on a listing older than it", async () => {
-    // Another tab held it from a newer listing than the one this tab read.
+  it("keeps a hold raised after the listing was asked for", async () => {
+    // Another tab held a device too new for this tab's listing, and is about
+    // to read that hold to decide what it may send to.
+    const asked = Date.now() - 1_000;
     await hold(7, "a");
-    await peerKeyChanges.withdrawUnlisted(7, ["known"]);
+
+    await peerKeyChanges.withdrawUnlisted(7, ["known"], asked);
+
+    expect((await peerKeyChanges.all()).map((entry) => entry.deviceId)).toEqual(["a"]);
+    expect(
+      await peerDeviceKeys.reconcile(
+        7,
+        [{ deviceId: "a", fingerprint: "fp-a", identityKey: "id-a" }],
+        { hold: true }
+      )
+    ).toEqual([]);
+  });
+
+  it("asks again about a withdrawn device that is listed after all", async () => {
+    await hold(7, "a");
+    await peerKeyChanges.withdrawUnlisted(7, ["known"], later());
 
     const changes = await peerDeviceKeys.reconcile(
       7,

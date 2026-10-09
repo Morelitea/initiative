@@ -51,7 +51,22 @@ export interface Context {
   directory: (userId: number) => Promise<PeerDirectory>;
 }
 
-async function contextFor(self: number, device: string, listed: DmDeviceRead[]): Promise<Context> {
+/**
+ * The account's devices as the server listed them, and when they were asked
+ * for. A hold raised after `since` is about a device this listing may simply
+ * be too old to include, so it is not read as gone.
+ */
+interface Listing {
+  devices: DmDeviceRead[];
+  since: number;
+}
+
+async function listOwn(): Promise<Listing> {
+  const since = Date.now();
+  return { devices: (await listDevices()).devices, since };
+}
+
+async function contextFor(self: number, device: string, listing: Listing): Promise<Context> {
   let conversations: Promise<DmConversationRead[]> | undefined;
   const directories = new Map<number, Promise<PeerDirectory>>();
   return {
@@ -59,7 +74,8 @@ async function contextFor(self: number, device: string, listed: DmDeviceRead[]):
     device,
     own: await ingestDirectory(
       self,
-      listed.map(({ id, ...entry }) => ({ ...entry, device_id: id }))
+      listing.devices.map(({ id, ...entry }) => ({ ...entry, device_id: id })),
+      { listedSince: listing.since }
     ),
     conversations: () =>
       (conversations ??= listConversations().then((response) => response.conversations)),
@@ -147,15 +163,17 @@ export async function ensureDeviceContext(): Promise<Context> {
     // A device the server no longer knows about — removed from the account, or
     // the account erased — has to be registered again rather than used, and
     // what it held goes with it.
-    const devices = (await listDevices()).devices;
-    const known = devices.find((device) => device.id === existing);
+    const listing = await listOwn();
+    const known = listing.devices.find((device) => device.id === existing);
     if (known) {
       const self = await owner();
       if (!known.signature) {
-        return contextFor(self, existing, (await signItself(self, existing)) ?? devices);
+        // Signing answers with a newer list; the earlier time still holds for it.
+        const signed = await signItself(self, existing);
+        return contextFor(self, existing, signed ? { ...listing, devices: signed } : listing);
       }
       await replenish(existing, known.one_time_key_count);
-      return contextFor(self, existing, devices);
+      return contextFor(self, existing, listing);
     }
     // The dead device is named, so only a claim still recording it reopens: a
     // second tab reaching the same conclusion waits for the first instead.
@@ -170,7 +188,7 @@ export async function ensureDeviceContext(): Promise<Context> {
   let turn = await deviceClaim.take();
   for (let waits = 0; turn === null; waits += 1) {
     const id = await waitForRegistration(existing);
-    if (id !== null) return contextFor(await owner(), id, (await listDevices()).devices);
+    if (id !== null) return contextFor(await owner(), id, await listOwn());
     // The tab that held the turn gave it back or went quiet -- a reload
     // mid-registration leaves exactly that -- so this one takes it rather
     // than failing for want of an answer nobody is going to give.
@@ -187,6 +205,7 @@ export async function ensureDeviceContext(): Promise<Context> {
     if (keys.fallback_key === null) {
       throw new Error("the ratchet published no fallback key");
     }
+    const registeredSince = Date.now();
     const response = await registerDevice({
       identity_key: account.identity_key,
       fingerprint_key: account.fingerprint_key,
@@ -205,7 +224,7 @@ export async function ensureDeviceContext(): Promise<Context> {
       await removeDevice(created).catch(() => undefined);
       const id = await waitForRegistration(existing);
       if (id === null) throw new Error("another tab took over setting up encrypted messages");
-      return contextFor(self, id, (await listDevices()).devices);
+      return contextFor(self, id, await listOwn());
     }
     // Whether this device may ask the account for its history is settled here,
     // on the one fact that can settle it: what this browser held at the moment
@@ -218,7 +237,7 @@ export async function ensureDeviceContext(): Promise<Context> {
     } else {
       await historyAsk.eligible();
     }
-    return contextFor(self, created, response.devices);
+    return contextFor(self, created, { devices: response.devices, since: registeredSince });
   } catch (error) {
     // Hand the turn back, or the next attempt waits out the stale window for
     // a tab that has already given up.

@@ -233,8 +233,15 @@ export async function startVerification(
   const peer = [...ctx.own.held, ...ctx.own.devices].find(
     (device) => device.id === change.deviceId
   );
-  // Reading the account's devices has already let go of its hold.
-  if (!peer) throw new DeviceGoneError();
+  if (!peer) {
+    // Reading the account's devices lets go of the hold on one that left. A
+    // hold still standing is a device still listed whose keys do not verify,
+    // which is a failure to compare rather than nothing to compare with.
+    const stillHeld = (await peerKeyChanges.all()).some(
+      (held) => held.deviceId === change.deviceId
+    );
+    throw stillHeld ? new Error("that device's keys do not verify") : new DeviceGoneError();
+  }
   const release = await takeLock();
   if (!release) {
     show({ phase: "failed", device: peer, reason: "elsewhere" });

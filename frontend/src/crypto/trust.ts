@@ -107,7 +107,8 @@ async function trust(
  */
 export async function ingestDirectory(
   userId: number,
-  entries: DirectoryEntry[]
+  entries: DirectoryEntry[],
+  { listedSince }: { listedSince?: number } = {}
 ): Promise<PeerDirectory> {
   const graceOver = Date.now() > (await signingSince.mark()) + UNSIGNED_GRACE_MS;
   const own = userId === (await deviceOwner.get());
@@ -146,10 +147,13 @@ export async function ingestDirectory(
   // A device that has left the account since it was held is no longer a
   // question. Read against everything listed, not only what verified: a
   // device whose signature fails is still there, just not addressable.
-  await peerKeyChanges.withdrawUnlisted(
-    userId,
-    entries.map((entry) => entry.device_id)
-  );
+  if (listedSince !== undefined) {
+    await peerKeyChanges.withdrawUnlisted(
+      userId,
+      entries.map((entry) => entry.device_id),
+      listedSince
+    );
+  }
 
   // Held on every read until acknowledged, not only the one that noticed it.
   const held = new Set(
