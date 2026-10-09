@@ -943,6 +943,7 @@
     "nothingAsked": "Choisissez l'accès au contenu, aux réglages, ou les deux.",
     "levelRead": "Lecture seule",
     "levelReadWrite": "Lecture et écriture",
+    "levelModerate": "Modérer",
     "purposeContent": "Accès au contenu",
     "purposeSettings": "Accès aux réglages",
     "purposeContentHelp": "Lire, ou modifier, ce qui se trouve dans la communauté.",

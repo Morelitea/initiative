@@ -786,5 +786,16 @@
   "PLUGIN_CHANNEL_CONNECTION_NO_TOKEN": "Diese Verbindung hält kein Token, das ausgegeben werden kann.",
   "PLUGIN_CHANNEL_TOKEN_UNAVAILABLE": "Der Anbieter hat kein Token ausgegeben. Versuche es gleich noch einmal.",
   "DASHBOARD_VIEW_MODE_NOT_ALLOWED": "Deine Rolle darf Dashboards nicht als Initiative ausführen. Frag eine Initiativleitung.",
-  "DASHBOARD_VIEW_MODE_EDIT_NOT_ALLOWED": "Dieses Dashboard läuft als Initiative, daher brauchst du zum Ändern der Widgets die Berechtigung, Dashboards als Initiative auszuführen. Stelle „Dashboard ausführen als“ auf Einzelperson, um zu bearbeiten."
+  "DASHBOARD_VIEW_MODE_EDIT_NOT_ALLOWED": "Dieses Dashboard läuft als Initiative, daher brauchst du zum Ändern der Widgets die Berechtigung, Dashboards als Initiative auszuführen. Stelle „Dashboard ausführen als“ auf Einzelperson, um zu bearbeiten.",
+  "ACCESS_GRANT_MODERATE_NOT_HELD": "Moderationszugriff ist für Personen, die Inhalte moderieren, und kann nie selbst erteilt werden.",
+  "HOLD_TARGET_NOT_FOUND": "Hier gibt es nichts zurückzuhalten.",
+  "HOLD_NOT_ALLOWED": "Nur die Moderation dieser Community kann Inhalte für die Plattform zurückhalten.",
+  "HOLD_ALREADY_HELD": "Das wird bereits für die Plattform zurückgehalten.",
+  "HOLD_LEGAL_BASIS_REQUIRED": "Wähle das Gesetz, gegen das dieser Inhalt verstoßen könnte.",
+  "HOLD_NOWHERE_TO_SEND": "Die Plattform nimmt hier keine Moderationsfälle an, daher kann nichts zurückgehalten werden. Wende dich an die Betreiber dieses Servers.",
+  "HOLD_NOT_FOUND": "Diese Zurückhaltung gibt es nicht.",
+  "HOLD_ALREADY_RELEASED": "Diese Zurückhaltung wurde bereits aufgehoben.",
+  "HOLD_CASE_NOT_FOUND": "Dieser Fall wird von der Plattform nicht bearbeitet.",
+  "HOLD_COMMUNITY_GONE": "Diese Community wird endgültig gelöscht, daher kann darin nichts mehr zurückgehalten werden.",
+  "HOLD_COVERED_BY_ANOTHER": "Eine andere Zurückhaltung deckt das noch ab. Hebe zuerst diese auf oder stelle das hier wieder her."
 }

@@ -26,6 +26,7 @@ from app.services.tenant.attachments import (
 )
 from app.services.tenant.lifecycle_tree import parents_first
 from app.services.tenant.soft_delete import hard_purge_entities
+from app.services.tenant.held import holds_under
 
 
 logger = logging.getLogger(__name__)
@@ -72,6 +73,9 @@ async def _run_purge_pass(
             .with_for_update(skip_locked=True)
         )
         rows = list((await session.exec(stmt)).all())
+        # What holds something the platform holds waits for its release, and
+        # is tried again on the next pass (app.db.holds).
+        rows = [row for row in rows if not await holds_under(session, [row])]
         if rows:
             released |= await hard_purge_entities(session, rows)
             purged[_entity_type(model)] = len(rows)

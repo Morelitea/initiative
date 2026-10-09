@@ -786,5 +786,16 @@
   "PLUGIN_CHANNEL_CONNECTION_NO_TOKEN": "That connection holds no token to give.",
   "PLUGIN_CHANNEL_TOKEN_UNAVAILABLE": "The vendor didn't give a token. Try again shortly.",
   "DASHBOARD_VIEW_MODE_NOT_ALLOWED": "Your role can't run dashboards as Initiative. Ask an initiative manager.",
-  "DASHBOARD_VIEW_MODE_EDIT_NOT_ALLOWED": "This dashboard runs as its initiative, so changing its widgets needs permission to run dashboards as Initiative. Switch “Run dashboard as” to Individual to edit."
+  "DASHBOARD_VIEW_MODE_EDIT_NOT_ALLOWED": "This dashboard runs as its initiative, so changing its widgets needs permission to run dashboards as Initiative. Switch “Run dashboard as” to Individual to edit.",
+  "ACCESS_GRANT_MODERATE_NOT_HELD": "Moderation access is for people who moderate content, and is never self-issued.",
+  "HOLD_TARGET_NOT_FOUND": "There's nothing there to hold.",
+  "HOLD_NOT_ALLOWED": "Only this community's moderators can hold content for the platform.",
+  "HOLD_ALREADY_HELD": "This is already held for the platform.",
+  "HOLD_LEGAL_BASIS_REQUIRED": "Choose the law this content may break.",
+  "HOLD_NOWHERE_TO_SEND": "The platform isn't taking moderation cases here, so a hold can't be placed. Contact whoever runs this server.",
+  "HOLD_NOT_FOUND": "That hold doesn't exist.",
+  "HOLD_ALREADY_RELEASED": "That hold has already been released.",
+  "HOLD_CASE_NOT_FOUND": "That case isn't one the platform is working.",
+  "HOLD_COMMUNITY_GONE": "This community is being deleted for good, so nothing more can be held in it.",
+  "HOLD_COVERED_BY_ANOTHER": "Another hold still covers this. Release that one first, or restore this one."
 }

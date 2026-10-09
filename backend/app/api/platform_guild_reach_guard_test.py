@@ -75,6 +75,14 @@ _SERVICES = "app/services/platform"
 
 #: Functions that route into whichever community their caller names.
 _WRAPPERS: dict[tuple[str, str], str] = {
+    (f"{_SERVICES}/holds.py", "place"): (
+        "holds: writes a hold, as the platform, in the community whose own "
+        "session the caller just read the target on"
+    ),
+    (f"{_SERVICES}/holds.py", "release"): (
+        "holds: releases a hold, as the platform, in the community a moderate "
+        "grantee's request was routed into"
+    ),
     (f"{_SERVICES}/intake.py", "add_filer_reply"): (
         "writes a filer's answer in the operations community its caller read "
         "the case in"
@@ -149,6 +157,13 @@ _ALLOWED: dict[tuple[str, str], str] = {
     (f"{_SERVICES}/tickets.py", "reply"): (
         "tickets: writes a filer's answer in the operations community the "
         "filer role just read their case in"
+    ),
+    (f"{_SERVICES}/holds.py", "_require_case"): (
+        "holds: checks the case a platform moderator names is one the "
+        "operations community is working"
+    ),
+    (f"{_SERVICES}/holds.py", "_note_on_case"): (
+        "holds: notes a placement, release or reminder on its operations case"
     ),
     (f"{_SERVICES}/evidence.py", "carry_report"): (
         "evidence: carries an escalated report's files into the operations case"

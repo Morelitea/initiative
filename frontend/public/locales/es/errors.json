@@ -786,5 +786,16 @@
   "PLUGIN_CHANNEL_CONNECTION_NO_TOKEN": "Esa conexión no tiene ningún token que entregar.",
   "PLUGIN_CHANNEL_TOKEN_UNAVAILABLE": "El proveedor no entregó un token. Inténtalo de nuevo en un momento.",
   "DASHBOARD_VIEW_MODE_NOT_ALLOWED": "Tu rol no puede ejecutar paneles como Iniciativa. Pídelo a quien gestiona la iniciativa.",
-  "DASHBOARD_VIEW_MODE_EDIT_NOT_ALLOWED": "Este panel se ejecuta como su iniciativa, así que cambiar sus widgets requiere permiso para ejecutar paneles como Iniciativa. Cambia «Ejecutar el panel como» a Individual para editar."
+  "DASHBOARD_VIEW_MODE_EDIT_NOT_ALLOWED": "Este panel se ejecuta como su iniciativa, así que cambiar sus widgets requiere permiso para ejecutar paneles como Iniciativa. Cambia «Ejecutar el panel como» a Individual para editar.",
+  "ACCESS_GRANT_MODERATE_NOT_HELD": "El acceso de moderación es para quienes moderan contenido y nunca se concede a uno mismo.",
+  "HOLD_TARGET_NOT_FOUND": "Aquí no hay nada que retener.",
+  "HOLD_NOT_ALLOWED": "Solo la moderación de esta comunidad puede retener contenido para la plataforma.",
+  "HOLD_ALREADY_HELD": "Esto ya está retenido para la plataforma.",
+  "HOLD_LEGAL_BASIS_REQUIRED": "Elige la ley que este contenido podría infringir.",
+  "HOLD_NOWHERE_TO_SEND": "La plataforma no acepta casos de moderación aquí, así que no se puede retener. Ponte en contacto con quien gestiona este servidor.",
+  "HOLD_NOT_FOUND": "Esa retención no existe.",
+  "HOLD_ALREADY_RELEASED": "Esa retención ya se levantó.",
+  "HOLD_CASE_NOT_FOUND": "Ese caso no es uno que la plataforma esté tramitando.",
+  "HOLD_COMMUNITY_GONE": "Esta comunidad se está eliminando para siempre, así que ya no se puede retener nada en ella.",
+  "HOLD_COVERED_BY_ANOTHER": "Otra retención todavía lo cubre. Levanta esa primero o restaura esta."
 }

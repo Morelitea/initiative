@@ -135,9 +135,20 @@ Moderators and community admins see one more entry at the top of the initiative 
 | **Members** | Who's in, and what each of them may do. |
 | **Sharing** | How widely each thing here is shared. Open one to change it. |
 
-Open the reported thing to see it where it lives, then come back and settle it: **Dismiss**, **Content removed**, **Member warned**, or **Escalate**, with a note on why if you like. Settling records your decision. It doesn't do the deed — if something needs taking down, take it down first.
+Open the reported thing to see it where it lives, then come back and settle it: **Dismiss**, **Content removed**, **Member warned**, or **Send to the platform**, with a note on why if you like. Settling records your decision. It doesn't do the deed — if something needs taking down, take it down first.
 
-**Escalate** is for the report that isn't this community's to settle. It goes to whoever runs the server, carrying what the reporters wrote.
+**Send to the platform** is for the report that isn't this community's to settle. It goes to whoever runs the server, carrying what the reporters wrote and attached, and asks one question: while they look, should the reported thing stay up?
+
+- **Leave it up while they look** — everyone can still see it until they decide.
+- **Hide it now, and keep it exactly as it is** — for when the police or a court asked you to keep it, or it may be illegal. Say why, and if you like leave a note for whoever runs the server, such as who asked and a reference number. A report of something illegal starts with this one chosen.
+
+Hidden content is **held for the platform**:
+
+- Nobody in the community can see it, community admins and you included. Anything inside it is held too, like a project's tasks or a wiki's pages, and so are the pictures and files it shows.
+- Nobody here can change it or delete it. Deleting what it's inside leaves it in place, and the bin can't empty it.
+- Replies to a held comment stay, under an **Unavailable** placeholder.
+- Only whoever runs the server can release it: putting it back as it was, moving it to the bin, or deleting it for good.
+- Nobody is told. To its author it simply isn't there.
 
 ## Initiative settings
 

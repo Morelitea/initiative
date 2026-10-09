@@ -35,6 +35,7 @@ from app.schemas.tenant.moderation import (
 )
 from app.schemas.tenant.evidence import EvidenceRead
 from app.services.platform import evidence as evidence_service
+from app.services.platform.holds import HoldWhy
 from app.services.tenant import moderation as moderation_service
 from app.services.tenant import sharing_overview
 
@@ -146,6 +147,9 @@ async def settle_report(
 
     ``escalated`` also opens a platform case carrying the references — the one
     crossing between a community's reports and the operator's, in one direction.
+    ``held`` does the same and holds the reported thing where it is, out of
+    the whole community's sight, until the platform releases it; ``hold``
+    says why.
     """
     report = await moderation_service.settle_report(
         session,
@@ -154,6 +158,16 @@ async def settle_report(
         note=payload.note,
         decided_by=current_user.id,
         guild_id=guild_context.guild_id,
+        context=guild_context,
+        hold=(
+            HoldWhy(
+                reason=payload.hold.reason,
+                legal_basis=payload.hold.legal_basis,
+                note=payload.hold.note,
+            )
+            if payload.hold is not None
+            else None
+        ),
     )
     # The same reporter figures the list carries: a settled report is the same
     # shape as an open one, and answering zero would have the page replace what

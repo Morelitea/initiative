@@ -26,7 +26,7 @@ from sqlmodel import SQLModel, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.intake import IntakeStream
-from app.core.messages import ModerationMessages
+from app.core.messages import HoldMessages, ModerationMessages
 from app.core.moderation import (
     PLATFORM_TARGET_RELATION,
     PlatformReportTarget,
@@ -51,7 +51,9 @@ from app.services.platform.intake import CaseOutcome, CaseRefs, open_case
 from app.db.request_context import SystemGuild
 
 if TYPE_CHECKING:
+    from app.db.guild_standing import GuildContext
     from app.services.platform.evidence import PreparedEvidence
+    from app.services.platform.holds import HoldWhy
 
 logger = logging.getLogger(__name__)
 
@@ -451,11 +453,18 @@ async def settle_report(
     decided_by: int,
     guild_id: int,
     now: Optional[datetime] = None,
+    context: Optional["GuildContext"] = None,
+    hold: Optional["HoldWhy"] = None,
 ) -> ModerationReport:
     """Close a community report. Every outcome closes it.
 
     The session must already be routed into the guild; RLS is what decides
     whether this reader may see the row at all.
+
+    ``escalated`` and ``held`` both hand the report to the platform as a
+    case. ``held`` also holds the reported thing where it is, worked on that
+    case (``app.services.platform.holds``): ``hold`` says why, and ``context``
+    is the reader's standing, which decides whether they may.
     """
     moment = now or datetime.now(timezone.utc)
     # Locked before it is read, so two moderators deciding at once resolve in
@@ -480,7 +489,7 @@ async def settle_report(
             detail=ModerationMessages.REPORT_ALREADY_SETTLED,
         )
 
-    if outcome is ReportOutcome.escalated:
+    if outcome in (ReportOutcome.escalated, ReportOutcome.held):
         # The one crossing between the two shapes, and one direction only.
         #
         # The case is opened before the report closes, and on its own
@@ -527,6 +536,38 @@ async def settle_report(
             report_id=report.id,
             case_id=opened.case_id,
         )
+        if outcome is ReportOutcome.held:
+            from app.services.platform import holds as holds_service
+
+            if hold is None or context is None:  # pragma: no cover - the schema refuses
+                raise ValueError(
+                    "a held outcome needs a hold and the reader's standing"
+                )
+            try:
+                await holds_service.place(
+                    session,
+                    context,
+                    guild_id=guild_id,
+                    placed_by=decided_by,
+                    request=holds_service.HoldRequest(
+                        target_type=report.target_type,
+                        target_id=report.target_id,
+                        reason=hold.reason,
+                        legal_basis=hold.legal_basis,
+                        note=hold.note,
+                    ),
+                    opened_case_task_id=opened.task_id,
+                )
+            except holds_service.HoldError as exc:
+                # Held already — an earlier attempt to settle it got that far
+                # before the report itself failed to close — or gone from the
+                # moderator's sight since. Either way there is nothing left
+                # for them to hold, and the case has it.
+                if exc.code not in (
+                    HoldMessages.ALREADY_HELD,
+                    HoldMessages.TARGET_NOT_FOUND,
+                ):
+                    raise
 
     report.outcome = outcome
     report.note = note

@@ -139,7 +139,41 @@
     "replyAndWait": "Envoyer et attendre sa réponse",
     "fromTeam": "L'équipe ({{name}})",
     "someone": "Quelqu'un",
-    "conversationLabel": "Conversation avec {{name}}"
+    "conversationLabel": "Conversation avec {{name}}",
+    "holds": {
+      "title": "Retenues",
+      "none": "Rien n'est retenu dans ce dossier.",
+      "needGrant": "Pour voir et libérer ce qui est retenu dans la communauté {{community}}, demandez-y un accès de modération.",
+      "requestAccess": "Demander l'accès",
+      "holdReported": "Retenir le contenu signalé",
+      "target": "{{type}} {{id}}",
+      "via": {
+        "community": "Retenu par la communauté",
+        "platform": "Retenu par la plateforme"
+      },
+      "reasons": {
+        "legal_request": "Demande légale",
+        "illegal_content": "Peut-être illégal"
+      },
+      "bases": {
+        "child_safety": "Protection de l'enfance",
+        "terrorism": "Terrorisme",
+        "intellectual_property": "Propriété intellectuelle",
+        "fraud": "Fraude",
+        "privacy": "Vie privée",
+        "other": "Autre"
+      },
+      "restore": "Restaurer",
+      "remove": "Retirer",
+      "purge": "Purger",
+      "purgeTitle": "Purger ce contenu ?",
+      "purgeDescription": "Cela le détruit définitivement, avec tout ce qui est retenu avec lui. C'est irréversible.",
+      "released": {
+        "restore": "Libéré : restauré",
+        "remove": "Libéré : retiré",
+        "purge": "Libéré : purgé"
+      }
+    }
   },
   "evidence": {
     "attach": "Joindre des fichiers",

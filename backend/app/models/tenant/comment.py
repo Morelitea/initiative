@@ -14,7 +14,7 @@ from sqlalchemy import (
 from sqlmodel import Field, Relationship
 
 from app.core.tools import COMMENT_TARGETS
-from app.models.tenant._mixins import CreatedByMixin, SoftDeleteMixin
+from app.models.tenant._mixins import CreatedByMixin, HoldMixin, SoftDeleteMixin
 from app.models.platform.user_profile_view import MemberProfile
 
 
@@ -46,7 +46,7 @@ _AUDIENCE_SQL = ", ".join(f"'{a.value}'" for a in CommentAudience)
 SYSTEM_KIND_LENGTH = 32
 
 
-class Comment(CreatedByMixin, SoftDeleteMixin, table=True):
+class Comment(HoldMixin, CreatedByMixin, SoftDeleteMixin, table=True):
     __tablename__ = "comments"
     _display_field = "content"
     __table_args__ = (

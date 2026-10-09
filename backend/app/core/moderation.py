@@ -105,6 +105,51 @@ class ReportOutcome(str, Enum):
     member_warned = "member_warned"
     #: Not this community's to settle — opens a platform case.
     escalated = "escalated"
+    #: Handed to the platform hidden: a platform case, and the reported thing
+    #: held where it is until the platform releases it (``app.db.holds``).
+    held = "held"
+
+
+class LegalBasis(str, Enum):
+    """The law something is held, or reported, under. Closed, so cases can be
+    counted by it."""
+
+    child_safety = "child_safety"
+    terrorism = "terrorism"
+    intellectual_property = "intellectual_property"
+    fraud = "fraud"
+    privacy = "privacy"
+    other = "other"
+
+
+class HoldReason(str, Enum):
+    """Why content is held."""
+
+    #: Someone with the standing to ask — a court, a regulator, the police —
+    #: asked for it to be kept.
+    legal_request = "legal_request"
+    #: It is, or may be, unlawful. A hold for this names its legal basis.
+    illegal_content = "illegal_content"
+
+
+class HoldVia(str, Enum):
+    """Who placed a hold."""
+
+    #: A moderator of the community the content is in.
+    community = "community"
+    #: A platform moderator, under a ``moderate`` grant on the community.
+    platform = "platform"
+
+
+class HoldRelease(str, Enum):
+    """How a hold ended. Only the platform releases one."""
+
+    #: Back as it was.
+    restore = "restore"
+    #: Taken down: to the trash.
+    remove = "remove"
+    #: Destroyed. The one path that deletes held content.
+    purge = "purge"
 
 
 def target_table(target: SearchEntityType) -> str:

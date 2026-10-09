@@ -234,6 +234,9 @@ INSTALL_READ = Guc("app.install_read", Kind.NAMES, standing=True)
 INSTALL_WRITE = Guc("app.install_write", Kind.NAMES, standing=True)
 #: The community's content is on hold (``read_only``) for this reader.
 CONTENT_HOLD = Guc("app.content_hold", Kind.BOOL, standing=True)
+#: A live content grant at ``moderate`` covers the request: it may read what
+#: the platform holds (``app.db.holds``). Never set by membership.
+PAM_MODERATE = Guc("app.pam_moderate", Kind.BOOL, standing=True)
 
 # --- Somebody who filed a case ------------------------------------------------
 #: The tasks of the cases the routed account filed, read by the filer seam

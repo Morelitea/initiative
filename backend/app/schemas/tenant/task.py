@@ -328,3 +328,8 @@ class TaskCaseRead(SanitizedBaseModel):
     messages: List[CaseMessageRead] = Field(default_factory=list)
     #: What was attached to the case, oldest first.
     evidence: List[CaseEvidenceRead] = Field(default_factory=list)
+    #: What the case is about, as it was opened with: the community, and the
+    #: kind and id of the thing in it, where it names them.
+    subject_community_id: Optional[int] = None
+    resource_type: Optional[str] = None
+    resource_id: Optional[int] = None

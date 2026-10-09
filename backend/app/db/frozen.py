@@ -279,7 +279,13 @@ def ancestor_is_frozen(row: Any) -> bool:
 _ANCESTOR_POLICY_PREFIX = "frozen_ancestor_"
 
 #: The constraint names the guards raise under.
-_FROZEN_CONSTRAINTS = frozenset({FROZEN_CONSTRAINT, FROZEN_PARENT_CONSTRAINT})
+#: The constraint the hold guard raises under (``app.db.holds``): held content
+#: is preserved as it is, and refuses a write the way frozen content does.
+HELD_CONSTRAINT = "held_guard"
+
+_FROZEN_CONSTRAINTS = frozenset(
+    {FROZEN_CONSTRAINT, FROZEN_PARENT_CONSTRAINT, HELD_CONSTRAINT}
+)
 
 
 def frozen_refusal(exc: DBAPIError) -> str | None:

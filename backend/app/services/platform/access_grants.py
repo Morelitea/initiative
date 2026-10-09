@@ -226,6 +226,18 @@ async def _tell(
     await notice_outbox.enqueue(session, rows)
 
 
+def _may_hold(role: str, purpose: str, level: str) -> bool:
+    """Whether someone at ``role`` may hold a grant at ``level``. A
+    ``moderate`` content grant reads what the platform holds, so it is for
+    those who moderate, asked for and approved like any grant."""
+    if (
+        purpose == AccessGrantPurpose.content.value
+        and level == AccessLevel.moderate.value
+    ):
+        return Capability.CONTENT_MODERATE in capabilities_for(role)
+    return True
+
+
 async def request_grants(
     session: AsyncSession,
     *,
@@ -257,7 +269,11 @@ async def request_grants(
     duration = _capped_duration(payload.requested_duration_minutes, requester.role)
 
     # Validate the complete request before creating any row.
-    for purpose, _level in asks:
+    for purpose, level in asks:
+        if not _may_hold(requester.role, purpose, level):
+            raise AccessGrantError(
+                AccessGrantMessages.MODERATE_NOT_HELD, status.HTTP_403_FORBIDDEN
+            )
         existing = await session.exec(
             select(AccessGrant).where(
                 AccessGrant.user_id == requester.id,
@@ -387,7 +403,12 @@ async def break_glass(
     ``allow_member`` goes with a non-content purpose, which membership does not
     already confer.
 
+    A ``moderate`` grant is never self-issued: someone else approves it.
     """
+    if level == AccessLevel.moderate.value:
+        raise AccessGrantError(
+            AccessGrantMessages.MODERATE_NOT_HELD, status.HTTP_403_FORBIDDEN
+        )
     guild = await guilds_service.get_guild(session, guild_id=payload.community_id)
     if guild is None:
         raise AccessGrantError(
@@ -537,6 +558,7 @@ async def approve(
         grantee is None
         or grantee.status != UserStatus.active
         or Capability.ACCESS_REQUEST not in capabilities_for(grantee.role)
+        or not _may_hold(grantee.role, grant.purpose, grant.access_level)
     ):
         raise AccessGrantError(
             AccessGrantMessages.GRANTEE_INELIGIBLE, status.HTTP_409_CONFLICT

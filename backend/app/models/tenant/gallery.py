@@ -16,11 +16,12 @@ from sqlmodel import Field, Relationship
 from app.core.tools import Tool
 from app.models.tenant._mixins import (
     ArchiveMixin,
-    attach_actions,
     CommentsToggleMixin,
     CreatedByMixin,
+    HoldMixin,
     ListingProvenanceMixin,
     SoftDeleteMixin,
+    attach_actions,
 )
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -30,6 +31,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 class Gallery(
+    HoldMixin,
     CommentsToggleMixin,
     CreatedByMixin,
     ArchiveMixin,
@@ -129,7 +131,7 @@ class Gallery(
     )
 
 
-class GalleryImage(CreatedByMixin, SoftDeleteMixin, table=True):
+class GalleryImage(HoldMixin, CreatedByMixin, SoftDeleteMixin, table=True):
     """One picture in a gallery.
 
     ``current_version_id`` names the version the picture shows — its file,

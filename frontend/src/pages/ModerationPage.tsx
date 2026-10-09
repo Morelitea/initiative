@@ -18,6 +18,7 @@ import { useTranslation } from "react-i18next";
 
 import type { ModerationReportRead, ReportOutcome } from "@/api/generated/initiativeAPI.schemas";
 import { ReportOutcome as Outcome } from "@/api/generated/initiativeAPI.schemas";
+import { SendToPlatformDialog } from "@/components/moderation/SendToPlatformDialog";
 import { communityEvidenceUrl, EvidenceList } from "@/components/tickets/Evidence";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { MentionText } from "@/components/user/MentionText";
 import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
+import { refreshAfterHolding } from "@/hooks/useHolds";
 import { useInitiativeRoster } from "@/hooks/useInitiatives";
 import { MentionedPeopleScope, ReportMentionedPeople } from "@/hooks/useMentionedPeople";
 import { useInitiativeSharing, useModerationReports, useSettleReport } from "@/hooks/useModeration";
@@ -42,7 +44,6 @@ const OUTCOMES: ReportOutcome[] = [
   Outcome.dismissed,
   Outcome.content_removed,
   Outcome.member_warned,
-  Outcome.escalated,
 ];
 
 export const ModerationPage = () => {
@@ -175,6 +176,7 @@ interface ReportCardProps {
 const ReportCard = ({ report, communityId, initiativeId }: ReportCardProps) => {
   const { t } = useTranslation("moderation");
   const [note, setNote] = useState("");
+  const [sending, setSending] = useState(false);
 
   const settle = useSettleReport(communityId, initiativeId, {
     onSuccess: () => toast.success(t("settledToast")),
@@ -280,7 +282,7 @@ const ReportCard = ({ report, communityId, initiativeId }: ReportCardProps) => {
               {OUTCOMES.map((outcome) => (
                 <Button
                   key={outcome}
-                  variant={outcome === Outcome.escalated ? "destructive" : "outline"}
+                  variant="outline"
                   size="sm"
                   disabled={settle.isPending}
                   onClick={() =>
@@ -293,7 +295,36 @@ const ReportCard = ({ report, communityId, initiativeId }: ReportCardProps) => {
                   {t(`outcomes.${outcome}`)}
                 </Button>
               ))}
+              {/* Not this community's to settle: whoever runs the server takes
+                  it, with the content left up or hidden while they look. */}
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={settle.isPending}
+                onClick={() => setSending(true)}
+              >
+                {t("sendToPlatform.action")}
+              </Button>
             </div>
+            <SendToPlatformDialog
+              open={sending}
+              onOpenChange={setSending}
+              report={report}
+              note={note}
+              sending={settle.isPending}
+              onSend={(body) =>
+                settle.mutate(
+                  { reportId: report.id, body },
+                  {
+                    onSuccess: () => {
+                      setSending(false);
+                      // What was hidden is gone from every view of it.
+                      if (body.outcome === Outcome.held) void refreshAfterHolding();
+                    },
+                  }
+                )
+              }
+            />
           </div>
         ) : (
           <div className="space-y-1 border-t pt-4 text-muted-foreground text-sm">

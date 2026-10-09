@@ -107,6 +107,7 @@
   "accessGrant": {
     "levelRead": "en lecture seule",
     "levelReadWrite": "en lecture-écriture",
+    "levelModerate": "de modération",
     "levelAdmin": "aux réglages de la communauté (admin)",
     "levelSuperadmin": "aux réglages de la communauté (superadmin)",
     "requested": {

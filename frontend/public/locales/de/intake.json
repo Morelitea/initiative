@@ -139,7 +139,41 @@
     "replyAndWait": "Senden und auf Antwort warten",
     "fromTeam": "Das Team ({{name}})",
     "someone": "Jemand",
-    "conversationLabel": "Gespräch mit {{name}}"
+    "conversationLabel": "Gespräch mit {{name}}",
+    "holds": {
+      "title": "Zurückhaltungen",
+      "none": "In diesem Fall wird nichts zurückgehalten.",
+      "needGrant": "Um zu sehen und freizugeben, was in Community {{community}} zurückgehalten wird, beantrage Moderationszugriff darauf.",
+      "requestAccess": "Zugriff beantragen",
+      "holdReported": "Gemeldeten Inhalt zurückhalten",
+      "target": "{{type}} {{id}}",
+      "via": {
+        "community": "Von der Community zurückgehalten",
+        "platform": "Von der Plattform zurückgehalten"
+      },
+      "reasons": {
+        "legal_request": "Rechtliche Aufforderung",
+        "illegal_content": "Möglicherweise rechtswidrig"
+      },
+      "bases": {
+        "child_safety": "Kinderschutz",
+        "terrorism": "Terrorismus",
+        "intellectual_property": "Geistiges Eigentum",
+        "fraud": "Betrug",
+        "privacy": "Datenschutz",
+        "other": "Sonstiges"
+      },
+      "restore": "Wiederherstellen",
+      "remove": "Entfernen",
+      "purge": "Endgültig löschen",
+      "purgeTitle": "Diesen Inhalt endgültig löschen?",
+      "purgeDescription": "Damit wird er mit allem, was mit ihm zurückgehalten wird, für immer gelöscht. Das lässt sich nicht rückgängig machen.",
+      "released": {
+        "restore": "Freigegeben: wiederhergestellt",
+        "remove": "Freigegeben: entfernt",
+        "purge": "Freigegeben: endgültig gelöscht"
+      }
+    }
   },
   "evidence": {
     "attach": "Dateien anhängen",
