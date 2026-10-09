@@ -18,7 +18,13 @@
 
 import { toBase64 } from "@/lib/base64";
 
+/**
+ * The first account's store, from before each account had its own. It stays
+ * that account's; every other account on this device gets a store of its own.
+ */
 const DB_NAME = "initiative-dm";
+/** The device's key material, which every account's store is protected by. */
+const KEYS_DB = "initiative-dm-keys";
 const DB_VERSION = 1;
 const STORE = "keys";
 const WRAP_KEY = "wrap-key";
@@ -33,21 +39,25 @@ const DEVICE_SERVER = "device-server";
 /** Where a wipe of this store is announced to every other realm. */
 const DROPPED = "initiative-dm-dropped";
 
-let connection: Promise<IDBDatabase> | null = null;
+/** One connection per database, opened once per realm. */
+const connections = new Map<string, Promise<IDBDatabase>>();
 
-/** Settled once the store holds nothing of an account but the one signed in. */
+/** The store of the account signed in here. */
+let databaseName = DB_NAME;
+
+/** Settled once the signed-in account's store is the one being read. */
 let ownerSettled: Promise<void> = Promise.resolve();
 let settledFor: string | null = null;
 /** The server the signed-in account is on, written beside the owner whenever it is. */
 let servedServer: string | null = null;
 
 /**
- * The account signed in here, on this server, which is the only one this store
- * may serve. An account id names somebody only on its own server.
+ * The account signed in here, on this server, which is the only one this realm
+ * reads and writes. An account id names somebody only on its own server.
  *
- * A device keeps its store when its session lapses, so the next account to sign
- * in may not be the one that wrote it. Anybody else's store is wiped before
- * anything reads or writes it: every call through `open` waits for this. A
+ * Each account on this device keeps its own store, so signing in as somebody
+ * else and back again finds the first account's messages where it left them.
+ * The store from before that keeps serving the account that wrote it, and a
  * store from before the server was recorded takes the first one it is served on.
  */
 export function serveAccount(server: string, userId: number): void {
@@ -56,22 +66,16 @@ export function serveAccount(server: string, userId: number): void {
   if (settledFor === account) return;
   settledFor = account;
   ownerSettled = (async () => {
-    const db = await connect();
-    const [owner, ownerServer] = await Promise.all([
-      get<number>(db, DEVICE_OWNER),
-      get<string>(db, DEVICE_SERVER),
-    ]);
-    const someoneElse =
-      (owner !== undefined && owner !== userId) ||
-      (ownerServer !== undefined && ownerServer !== server);
-    if (someoneElse) await clear(db);
+    databaseName = await databaseFor(server, userId);
+    const db = await connect(databaseName);
     await new Promise<void>((resolve, reject) => {
-      const request = db
-        .transaction(STORE, "readwrite")
-        .objectStore(STORE)
-        .put(server, DEVICE_SERVER);
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
+      const transaction = db.transaction(STORE, "readwrite");
+      const store = transaction.objectStore(STORE);
+      store.put(userId, DEVICE_OWNER);
+      store.put(server, DEVICE_SERVER);
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error);
     });
   })().catch((error: unknown) => {
     // Asked again at the next sign-in; until then nothing reads the store.
@@ -79,6 +83,19 @@ export function serveAccount(server: string, userId: number): void {
     throw error;
   });
   ownerSettled.catch(() => undefined);
+}
+
+/** The first store if it is this account's or nobody's yet, else the account's own. */
+async function databaseFor(server: string, userId: number): Promise<string> {
+  const first = await connect(DB_NAME);
+  const [owner, ownerServer] = await Promise.all([
+    get<number>(first, DEVICE_OWNER),
+    get<string>(first, DEVICE_SERVER),
+  ]);
+  const someoneElse =
+    (owner !== undefined && owner !== userId) ||
+    (ownerServer !== undefined && ownerServer !== server);
+  return someoneElse ? `${DB_NAME}:${userId}@${server}` : DB_NAME;
 }
 
 function get<T>(db: IDBDatabase, key: string): Promise<T | undefined> {
@@ -89,22 +106,34 @@ function get<T>(db: IDBDatabase, key: string): Promise<T | undefined> {
   });
 }
 
-/** The database, once it is known to hold only the signed-in account's store. */
+function put(db: IDBDatabase, key: string, value: unknown): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const request = db.transaction(STORE, "readwrite").objectStore(STORE).put(value, key);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}
+
+/** The signed-in account's store, once it is the one being read. */
 async function open(): Promise<IDBDatabase> {
   await ownerSettled;
-  return connect();
+  return connect(databaseName);
 }
 
 /**
- * The database, opened once per realm rather than on every read and write.
+ * A database, opened once per realm rather than on every read and write.
  * IndexedDB serialises overlapping `readwrite` transactions whichever
  * connection they are on. The connection is let go when another needs the
  * database to itself, or the browser closes it, and the next call reopens.
  */
-function connect(): Promise<IDBDatabase> {
-  if (connection !== null) return connection;
+function connect(name: string): Promise<IDBDatabase> {
+  const existing = connections.get(name);
+  if (existing !== undefined) return existing;
+  const release = () => {
+    if (connections.get(name) === opening) connections.delete(name);
+  };
   const opening = new Promise<IDBDatabase>((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    const request = indexedDB.open(name, DB_VERSION);
     request.onupgradeneeded = () => {
       const db = request.result;
       if (!db.objectStoreNames.contains(STORE)) {
@@ -113,9 +142,6 @@ function connect(): Promise<IDBDatabase> {
     };
     request.onsuccess = () => {
       const db = request.result;
-      const release = () => {
-        if (connection === opening) connection = null;
-      };
       db.onversionchange = () => {
         db.close();
         release();
@@ -124,11 +150,11 @@ function connect(): Promise<IDBDatabase> {
       resolve(db);
     };
     request.onerror = () => {
-      if (connection === opening) connection = null;
+      release();
       reject(request.error);
     };
   });
-  connection = opening;
+  connections.set(name, opening);
   return opening;
 }
 
@@ -137,12 +163,7 @@ async function read<T>(key: string): Promise<T | undefined> {
 }
 
 async function write(key: string, value: unknown): Promise<void> {
-  const db = await open();
-  await new Promise<void>((resolve, reject) => {
-    const request = db.transaction(STORE, "readwrite").objectStore(STORE).put(value, key);
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error);
-  });
+  await put(await open(), key, value);
 }
 
 /**
@@ -218,18 +239,18 @@ async function update<T>(
   });
 }
 
+/** Empty the account's store and the device's keys, and tell every other realm. */
 async function drop(): Promise<void> {
-  await clear(await open());
+  await Promise.all([clear(await open()), clear(await connect(KEYS_DB))]);
+  announceDropped();
 }
 
-/** Empty the store and tell every other realm, which drops what it read from it. */
-async function clear(db: IDBDatabase): Promise<void> {
-  await new Promise<void>((resolve, reject) => {
+function clear(db: IDBDatabase): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
     const request = db.transaction(STORE, "readwrite").objectStore(STORE).clear();
     request.onsuccess = () => resolve();
     request.onerror = () => reject(request.error);
   });
-  announceDropped();
 }
 
 /** Tell every other realm the store was emptied, so it drops what it read. */
@@ -252,8 +273,22 @@ export function whenDropped(listener: () => void): boolean {
   return true;
 }
 
+/**
+ * The device's keys, kept apart from every account's store so that one pickle
+ * key opens all of them. The worker reads them without knowing whose store is
+ * open. A device from before keeps the keys its first store already held.
+ */
+async function deviceKey<T>(key: string): Promise<T | undefined> {
+  const keys = await connect(KEYS_DB);
+  const held = await get<T>(keys, key);
+  if (held !== undefined) return held;
+  const earlier = await get<T>(await connect(DB_NAME), key);
+  if (earlier !== undefined) await put(keys, key, earlier);
+  return earlier;
+}
+
 async function wrappingKey(): Promise<CryptoKey> {
-  const existing = await read<CryptoKey>(WRAP_KEY);
+  const existing = await deviceKey<CryptoKey>(WRAP_KEY);
   if (existing) return existing;
   // Not extractable: the bytes never reach JavaScript. What is stored is the
   // handle, and using it means asking the browser to decrypt with it.
@@ -261,7 +296,7 @@ async function wrappingKey(): Promise<CryptoKey> {
     "encrypt",
     "decrypt",
   ]);
-  await write(WRAP_KEY, key);
+  await put(await connect(KEYS_DB), WRAP_KEY, key);
   return key;
 }
 
@@ -275,7 +310,7 @@ export async function pickleKey(): Promise<string> {
   // Both halves are stored as plain ArrayBuffers: structured clone keeps them
   // exactly, and reading them back as a fresh view avoids the SharedArrayBuffer
   // widening that `Uint8Array` alone carries in the DOM types.
-  const stored = await read<{ iv: ArrayBuffer; data: ArrayBuffer }>(PICKLE_KEY);
+  const stored = await deviceKey<{ iv: ArrayBuffer; data: ArrayBuffer }>(PICKLE_KEY);
   if (stored) {
     const raw = await crypto.subtle.decrypt(
       { name: "AES-GCM", iv: new Uint8Array(stored.iv) },
@@ -287,7 +322,7 @@ export async function pickleKey(): Promise<string> {
   const raw = crypto.getRandomValues(new Uint8Array(32));
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const data = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, raw);
-  await write(PICKLE_KEY, { iv: iv.buffer, data });
+  await put(await connect(KEYS_DB), PICKLE_KEY, { iv: iv.buffer, data });
   return toBase64(raw);
 }
 

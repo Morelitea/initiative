@@ -233,21 +233,31 @@ describe("useAuth identity ordering", () => {
     expect(auth.user).toBeNull();
   });
 
-  it("takes the messages on this device with it when signing out", async () => {
-    // A decrypted conversation must not outlive the session that read it, and
-    // the sign-out itself must not depend on that going through.
-    forgetMessages.mockRejectedValueOnce(new Error("offline"));
-    get.mockResolvedValueOnce({ data: buildUser({ username: "Signed in" }) });
-    renderAuth();
-    await waitFor(() => expect(auth.user).not.toBeNull());
+  it.each([
+    { where: "a browser", native: false, forgets: true },
+    { where: "the phone or desktop app", native: true, forgets: false },
+  ])(
+    "signs out of $where, taking its messages only from a browser",
+    async ({ native, forgets }) => {
+      // A browser may be shared, so a decrypted conversation must not outlive the
+      // session that read it, and the sign-out must not depend on that going
+      // through. A device keeps them, so signing back in reads them straight away.
+      platform.native = native;
+      forgetMessages.mockClear();
+      forgetMessages.mockRejectedValueOnce(new Error("offline"));
+      get.mockResolvedValueOnce({ data: buildUser({ username: "Signed in" }) });
+      renderAuth();
+      await waitFor(() => expect(auth.user).not.toBeNull());
 
-    await act(async () => {
-      await auth.logout();
-    });
+      await act(async () => {
+        await auth.logout();
+      });
 
-    expect(forgetMessages).toHaveBeenCalled();
-    expect(auth.user).toBeNull();
-  });
+      expect(forgetMessages).toHaveBeenCalledTimes(forgets ? 1 : 0);
+      expect(auth.user).toBeNull();
+      platform.native = false;
+    }
+  );
 
   it("names the session it is ending so the server revokes only that one", async () => {
     // A native client's refresh token is the only thing that tells the server

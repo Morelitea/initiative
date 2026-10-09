@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.auth_session import AuthSession
+from app.models.platform.dm_device import DmDevice
 from app.services.auth import sessions as session_service
 from app.services.auth.sessions import RefreshOutcome
 from app.testing import create_user
@@ -64,7 +65,7 @@ async def test_create_session_persists_hash_and_returns_raw(session):
     assert stored.revoked_at is None
     assert stored.parent_id is None
     # A browser's session: the deployment's 30-day window.
-    assert stored.device is False
+    assert stored.install_id is None
     assert stored.expires_at == _at(days=30)
     assert str(stored.ip) == "203.0.113.9"
 
@@ -78,7 +79,7 @@ async def test_rotate_spends_parent_and_carries_context(session):
         satisfied_providers=[3],
         provider_auth={"3": {"auth_time": 1757600000, "amr": ["mfa"]}},
         device_name="Pixel",
-        device=True,
+        install_id=uuid.uuid4(),
         now=_at(),
     )
     # A device's session stands 90 days unused, where a browser's stands 30.
@@ -96,7 +97,7 @@ async def test_rotate_spends_parent_and_carries_context(session):
         "3": {"auth_time": 1757600000, "amr": ["mfa"]}
     }
     assert second.session.device_name == "Pixel"
-    assert second.session.device is True
+    assert second.session.install_id == first.session.install_id
     # Sliding window: the child expires 90d from the rotation, not from creation.
     assert second.session.expires_at == _at(days=90, minutes=5)
 
@@ -344,7 +345,10 @@ async def test_revoke_chain_missing_id_is_noop(session):
 async def test_purge_removes_dead_sessions_and_keeps_live_ones(session):
     """The sweep takes what can no longer be used and is past the window: a
     long-expired row and a long-revoked one. A live session, a session that
-    expired only yesterday, and one revoked only yesterday all stay."""
+    expired only yesterday, and one revoked only yesterday all stay.
+
+    A browser's key store goes once its sign-in has ended; a device's stays
+    through it, and so does a live browser's."""
     user = await create_user(session)
     now = _at(days=100)
 
@@ -376,10 +380,34 @@ async def test_purge_removes_dead_sessions_and_keeps_live_ones(session):
     await session_service.revoke_session(
         session, session_id=long_revoked.session.id, now=now - timedelta(days=40)
     )
-    await session_service.revoke_session(
-        session, session_id=just_revoked.session.id, now=now - timedelta(days=1)
+    signed_out_device = await session_service.create_session(
+        session,
+        user_id=user.id,
+        amr=["pwd"],
+        satisfied_providers=[],
+        install_id=uuid.uuid4(),
+        now=now,
     )
+    for ended in (just_revoked, signed_out_device):
+        await session_service.revoke_session(
+            session, session_id=ended.session.id, now=now - timedelta(days=1)
+        )
+    stores = {
+        name: DmDevice(
+            user_id=user.id,
+            identity_key=b"i",
+            fingerprint_key=b"f",
+            session_id=issued.session.id,
+        )
+        for name, issued in {
+            "live_browser": live,
+            "ended_browser": just_revoked,
+            "signed_out_device": signed_out_device,
+        }.items()
+    }
+    session.add_all(stores.values())
     await session.commit()
+    store_ids = {name: store.id for name, store in stores.items()}
     # Plain values before the sweep: the rows are expired afterwards, and an
     # ORM attribute read then would lazy-load.
     ids = {
@@ -402,6 +430,9 @@ async def test_purge_removes_dead_sessions_and_keeps_live_ones(session):
     assert await session.get(AuthSession, ids["just_revoked"]) is not None
     assert await session.get(AuthSession, ids["long_expired"]) is None
     assert await session.get(AuthSession, ids["long_revoked"]) is None
+    assert await session.get(DmDevice, store_ids["live_browser"]) is not None
+    assert await session.get(DmDevice, store_ids["ended_browser"]) is None
+    assert await session.get(DmDevice, store_ids["signed_out_device"]) is not None
 
 
 async def test_delete_all_for_user_leaves_other_accounts_alone(session):

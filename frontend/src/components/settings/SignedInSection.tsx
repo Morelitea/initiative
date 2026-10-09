@@ -1,9 +1,10 @@
 /**
- * Where the account is signed in, one row per device.
+ * Where the account is signed in: the devices, then the browsers.
  *
- * A row is a session (`auth_sessions`) with the message device collecting under
- * it, or a message device with no sign-in. A browser names itself by what its
- * user agent says it is, and the app by the name it signed in with.
+ * A device is the phone or desktop app, one row for each copy installed: its
+ * sign-in with the message device collecting under it, or a message device with
+ * no sign-in. A browser is its session. A browser names itself by what its user
+ * agent says it is, and the app by the name it signed in with.
  *
  * A phone or desktop app, and a device with no sign-in, are removed: signed out
  * and their messages withdrawn. A browser is signed out, which withdraws its
@@ -78,7 +79,9 @@ const SignedInRow = ({
           <p className="flex flex-wrap items-center gap-2 font-medium">
             {session.label ?? t("security.unknownDevice")}
             {session.is_current ? (
-              <Badge variant="secondary">{t("security.thisDevice")}</Badge>
+              <Badge variant="secondary">
+                {isRemoved(session) ? t("security.thisDevice") : t("security.thisBrowser")}
+              </Badge>
             ) : null}
           </p>
           <p className="text-muted-foreground text-sm">{detail}</p>
@@ -123,6 +126,13 @@ export const SignedInSection = () => {
     [sessionsQuery.data]
   );
 
+  const groups = [
+    { heading: t("security.devicesHeading"), rows: sessions.filter(isRemoved) },
+    {
+      heading: t("security.browsersHeading"),
+      rows: sessions.filter((session) => !isRemoved(session)),
+    },
+  ].filter((group) => group.rows.length > 0);
   const endable = sessions.filter((session) => session.id !== null && !session.is_current);
   const removing = pendingEnd !== null && isRemoved(pendingEnd);
 
@@ -144,14 +154,19 @@ export const SignedInSection = () => {
           </div>
         </div>
       ) : (
-        <div className="space-y-3">
-          {sessions.map((session) => (
-            <SignedInRow
-              key={session.id ?? session.message_device_id}
-              session={session}
-              busy={endSignedIn.isPending}
-              onEnd={() => setPendingEnd(session)}
-            />
+        <div className="space-y-6">
+          {groups.map((group) => (
+            <section key={group.heading} className="space-y-3">
+              <h3 className="font-medium text-muted-foreground text-sm">{group.heading}</h3>
+              {group.rows.map((session) => (
+                <SignedInRow
+                  key={session.id ?? session.message_device_id}
+                  session={session}
+                  busy={endSignedIn.isPending}
+                  onEnd={() => setPendingEnd(session)}
+                />
+              ))}
+            </section>
           ))}
 
           {endable.length > 0 ? (

@@ -1,5 +1,6 @@
 """The absolute limit on staying signed in, and the standard a community sets."""
 
+import uuid
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
@@ -48,13 +49,13 @@ async def test_the_deployments_own_figure_ends_the_chain(session):
     await _set_platform_hours(session, 48)
 
     # A device's session too, though it otherwise stands longer.
-    for device in (False, True):
+    for install in (None, uuid.uuid4()):
         issued = await session_service.create_session(
             session,
             user_id=user.id,
             amr=["pwd"],
             satisfied_providers=[],
-            device=device,
+            install_id=install,
             now=_AT,
         )
         assert issued.session.chain_expires_at == _AT + timedelta(hours=48)
@@ -183,13 +184,13 @@ async def test_a_community_holds_its_members_to_an_idle_window(session):
     await _hold_to_the_standard(session, guild)
 
     # A device's session is held to it as a browser's is.
-    for device in (False, True):
+    for install in (None, uuid.uuid4()):
         issued = await session_service.create_session(
             session,
             user_id=user.id,
             amr=["pwd"],
             satisfied_providers=[],
-            device=device,
+            install_id=install,
             now=_AT,
         )
 

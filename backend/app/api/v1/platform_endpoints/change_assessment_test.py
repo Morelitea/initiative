@@ -5,6 +5,7 @@ unless the change is one of a run. A step-up proves the person again without
 starting their time here over.
 """
 
+import uuid
 from datetime import datetime, timedelta, timezone
 
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -30,7 +31,11 @@ async def _session(
     device: bool = False,
 ) -> AuthSession:
     issued = await session_service.create_session(
-        session, user_id=user.id, amr=list(amr), satisfied_providers=[], device=device
+        session,
+        user_id=user.id,
+        amr=list(amr),
+        satisfied_providers=[],
+        install_id=uuid.uuid4() if device else None,
     )
     issued.session.created_at = datetime.now(timezone.utc) - timedelta(hours=hours_ago)
     session.add(issued.session)

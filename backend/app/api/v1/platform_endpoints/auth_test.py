@@ -10,6 +10,7 @@ Tests the auth API endpoints including:
 """
 
 import secrets
+import uuid
 from datetime import date, timedelta
 from urllib.parse import parse_qs, urlsplit
 
@@ -2370,7 +2371,7 @@ async def test_oidc_callback_mobile_flow_hands_back_a_code(
     auth_session = (await session.exec(select(AuthSession))).one()
     assert auth_session.satisfied_providers == [provider.id]
     assert auth_session.device_name == "Pixel"
-    assert auth_session.device is True
+    assert auth_session.install_id is not None
 
     legacy = await _run_oidc_flow(
         client,
@@ -2565,7 +2566,11 @@ async def test_password_reset_revokes_sessions_on_every_device(
     user = await create_user(session, email="reset-revoke@example.com")
     old_jwt = get_auth_token(user)
     phone = await session_service.create_session(
-        session, user_id=user.id, amr=["pwd"], satisfied_providers=[], device=True
+        session,
+        user_id=user.id,
+        amr=["pwd"],
+        satisfied_providers=[],
+        install_id=uuid.uuid4(),
     )
     phone_id = phone.session.id
     reset_token = await user_tokens.create_token(

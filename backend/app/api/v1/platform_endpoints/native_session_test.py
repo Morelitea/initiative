@@ -15,6 +15,7 @@ from datetime import timedelta
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.config import INSTALL_HEADER
 from app.core.security import decode_session_token
 from app.models.platform.auth_session import AuthSession
 from app.testing import create_user
@@ -24,11 +25,13 @@ PASSWORD = "testpassword123"
 APP_ORIGIN = {"Origin": "https://studio.beyonders.initiative"}
 
 
-async def _sign_in_native(client: AsyncClient, email: str) -> dict:
+async def _sign_in_native(
+    client: AsyncClient, email: str, *, install: uuid.UUID | None = None
+) -> dict:
     response = await client.post(
         "/api/v1/auth/token",
         data={"username": email, "password": PASSWORD, "device_name": "test-phone"},
-        headers=APP_ORIGIN,
+        headers=APP_ORIGIN | ({INSTALL_HEADER: str(install)} if install else {}),
     )
     assert response.status_code == 200, response.text
     return response.json()
@@ -38,18 +41,38 @@ async def test_a_native_sign_in_opens_a_device_session(
     client: AsyncClient, session: AsyncSession
 ):
     """The app's origin marks the session as a device's and hands the refresh
-    token back in the body; a browser's sign-in gets neither."""
+    token back in the body; a browser's sign-in gets neither. Signing in again
+    from the same install continues it rather than adding a device."""
     await create_user(session, email="native-signin@example.com")
+    install = uuid.uuid4()
 
-    body = await _sign_in_native(client, "native-signin@example.com")
+    body = await _sign_in_native(client, "native-signin@example.com", install=install)
 
     assert body["refresh_token"]
     # The access token names the account and the session it belongs to.
     claims = decode_session_token(body["access_token"])
     device = await session.get(AuthSession, uuid.UUID(claims["sid"]))
     assert device is not None
-    assert device.device is True
+    assert device.install_id == install
     assert device.device_name == "test-phone"
+
+    again = await _sign_in_native(client, "native-signin@example.com", install=install)
+    replaced = await session.get(
+        AuthSession, uuid.UUID(decode_session_token(again["access_token"])["sid"])
+    )
+    await session.refresh(device)
+    assert replaced is not None and replaced.install_id == install
+    assert device.revoked_at is not None
+    # A sign-in is not a step-up: it starts its own time here.
+    assert replaced.continues_since is None
+
+    # An app too old to name its install is one of its own.
+    older = await _sign_in_native(client, "native-signin@example.com")
+    unnamed = await session.get(
+        AuthSession, uuid.UUID(decode_session_token(older["access_token"])["sid"])
+    )
+    assert unnamed is not None
+    assert unnamed.install_id not in (None, install)
 
     browser = await client.post(
         "/api/v1/auth/token",
@@ -58,13 +81,14 @@ async def test_a_native_sign_in_opens_a_device_session(
             "password": PASSWORD,
             "device_name": "not-a-device",
         },
+        headers={INSTALL_HEADER: str(install)},
     )
     assert browser.status_code == 200, browser.text
     assert not browser.json().get("refresh_token")
     sid = decode_session_token(browser.json()["access_token"])["sid"]
     opened = await session.get(AuthSession, uuid.UUID(sid))
     assert opened is not None
-    assert opened.device is False
+    assert opened.install_id is None
     # The label is a device's; a browser's session is named by its user agent.
     assert opened.device_name is None
 

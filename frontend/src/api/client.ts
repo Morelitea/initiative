@@ -2,6 +2,7 @@ import { Capacitor } from "@capacitor/core";
 import axios, { type AxiosRequestConfig, type AxiosResponse } from "axios";
 
 import { readRefreshToken, storeRefreshToken } from "@/lib/nativeSession";
+import { getStoredServerUrl } from "@/lib/serverStorage";
 import { getItem, removeItem, setItem } from "@/lib/storage";
 
 const DEFAULT_API_BASE_URL = "/api/v1";
@@ -162,10 +163,28 @@ export const apiClient = axios.create({
   },
 });
 
+/**
+ * What this copy of the app is called on the server it talks to: made once per
+ * server, so no two servers hear the same name, and kept through sign-out. A
+ * sign-in from the app carries it, and the server continues this install's
+ * session rather than counting another device.
+ */
+const installId = (): string => {
+  const key = `initiative-install:${getStoredServerUrl() ?? "default"}`;
+  const held = getItem(key);
+  if (held) return held;
+  const made = crypto.randomUUID();
+  void setItem(key, made);
+  return made;
+};
+
 apiClient.interceptors.request.use((config) => {
+  config.headers = config.headers ?? {};
   if (authToken) {
-    config.headers = config.headers ?? {};
     config.headers.Authorization = `Bearer ${authToken}`;
+  }
+  if (Capacitor.isNativePlatform()) {
+    config.headers["X-Initiative-Install"] = installId();
   }
   return config;
 });

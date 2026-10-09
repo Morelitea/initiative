@@ -8,6 +8,8 @@ Tests the user API endpoints at /api/v1/users including:
 - User deletion
 """
 
+import uuid
+
 import pytest
 from sqlalchemy import text, update
 from sqlmodel import select
@@ -613,7 +615,11 @@ async def test_self_service_password_change_revokes_sessions_on_every_device(
     a = await acting_user()
     old_jwt = get_auth_token(a.user)
     phone = await session_service.create_session(
-        session, user_id=a.user.id, amr=["pwd"], satisfied_providers=[], device=True
+        session,
+        user_id=a.user.id,
+        amr=["pwd"],
+        satisfied_providers=[],
+        install_id=uuid.uuid4(),
     )
     phone_id = phone.session.id
     await session.commit()

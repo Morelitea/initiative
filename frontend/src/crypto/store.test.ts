@@ -27,6 +27,7 @@ import {
   peerDeviceChanges,
   peerDeviceKeys,
   peerKeyChanges,
+  pickleKey,
   serveAccount,
   sessionForDevice,
   sessionOrigin,
@@ -310,36 +311,30 @@ describe("the account", () => {
     expect(results.filter(Boolean)).toHaveLength(1);
   });
 
-  it("serves the account that wrote it and is wiped for any other", async () => {
-    // A device keeps its store through a lapse, so whoever signs in next may be
-    // somebody else: another account, or the same id on another server.
-    const keep = async () => {
-      await deviceOwner.set(1);
-      await messageLog.append("conv", { id: "a", body: "kept", at: "", mine: true });
-    };
+  it("keeps each account's store, so signing back in finds its messages", async () => {
+    // A device keeps its store through a sign-out, so whoever signs in next may
+    // be somebody else: another account, or the same id on another server.
+    // Neither reads the first account's store, and neither empties it.
     const held = async () => (await messageLog.get("conv")).map((entry) => entry.body);
 
-    await keep();
     serveAccount("https://one.example", 1);
-    expect(await held()).toEqual(["kept"]);
+    await messageLog.append("conv", { id: "a", body: "kept", at: "", mine: true });
+    const key = await pickleKey();
 
     serveAccount("https://one.example", 2);
     expect(await held()).toEqual([]);
-    expect(await deviceOwner.get()).toBeUndefined();
+    expect(await deviceOwner.get()).toBe(2);
+    await messageLog.append("conv", { id: "b", body: "theirs", at: "", mine: true });
 
-    await keep();
-    serveAccount("https://one.example", 1);
     serveAccount("https://two.example", 1);
     expect(await held()).toEqual([]);
 
-    // Signed out and back in on the same server: the owner it records next
-    // carries the server, so another server is still somebody else.
     serveAccount("https://one.example", 1);
-    await forgetDevice();
-    serveAccount("https://one.example", 1);
-    await keep();
-    serveAccount("https://two.example", 1);
-    expect(await held()).toEqual([]);
+    expect(await held()).toEqual(["kept"]);
+    // One device key opens every account's store.
+    expect(await pickleKey()).toBe(key);
+    serveAccount("https://one.example", 2);
+    expect(await held()).toEqual(["theirs"]);
   });
 });
 

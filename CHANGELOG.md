@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Dates and numbers format faster** on every screen that shows them. Building a formatter was most of what a large board spent redrawing.
 - **Escalate is now Send to the platform** on a report card, and a settled report says "Sent to the platform".
 - **API: filing a ticket and answering one take `multipart/form-data`.** `POST /api/v1/me/tickets` takes the ticket as JSON in a `payload` field, and `POST /api/v1/me/tickets/{task_id}/replies` takes the answer in a `body` field, each beside any `files`.
+- **Signing out of the phone or desktop app keeps your encrypted messages.** Sign back in with the same account and they are all there, with nothing to sync, along with anything sent while you were away. Signing in to another account on the same app keeps each account's messages apart instead of deleting the first one's. A browser still clears its messages when you sign out.
 
 ### Fixed
 
@@ -28,6 +29,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Encrypted messages set themselves up after a reload during setup.** Reloading or opening a second tab while a browser was first setting up messages could leave it showing "Encrypted messages could not be set up on this device" until reloaded again. It now picks up where the other tab left off, and the message has a Try again button.
 - **One notification when a new device asks for your message history.** Each of your other devices was notified once for every device the new one asked, so an account with four devices got four at once.
 - **New devices are named in words.** The "New device signed in" prompt says "Chrome on Windows" rather than the browser's full user-agent string.
+- **The phone and desktop apps each show as one device.** Every new sign-in from the app added another entry under Settings › Security, and could leave its messages behind. Signing in again now continues the same device. Entries left by earlier sign-ins stay until you remove them or they expire. The list now shows your devices first, then your browsers.
+- **A browser whose sign-in ran out leaves the list.** It no longer stays under Settings › Security as "not signed in".
 
 ## [0.75.3] - 2026-10-08
 
