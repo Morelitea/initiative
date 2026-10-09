@@ -673,7 +673,9 @@ const ToolIndexBody = ({ tool, entry, fixedInitiativeId, canCreate }: ToolIndexB
 
   const ToolIcon = TOOL_ICONS[tool];
   const cardGrid = entry.tiles
-    ? "grid grid-cols-fill-36/5 gap-4"
+    ? layout === "tags"
+      ? "grid grid-cols-fill-36/4 gap-4"
+      : "grid grid-cols-fill-36/5 gap-4"
     : "grid grid-cols-fill-60/3 gap-4";
   const cardOf = (row: ToolIndexRow) => (
     <div className="relative">
