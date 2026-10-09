@@ -77,7 +77,7 @@ print('One Alembic head:', ScriptDirectory.from_config(Config('alembic.ini')).ge
 }
 
 check_codegen() {
-  local spec generated=(env-contract.json frontend/src/api/generated)
+  local spec spec_dir generated=(env-contract.json frontend/src/api/generated)
   # Regenerating writes over these files, so they must hold nothing that is
   # not committed yet. (CI always starts from a clean checkout.)
   if [[ -n "$(git status --porcelain -- "${generated[@]}")" ]]; then
@@ -87,10 +87,12 @@ check_codegen() {
     return 1
   fi
   (cd backend && uv run --no-sync python ../scripts/build_env_contract.py)
-  spec=$(mktemp --suffix=.json)
+  # A directory, not `mktemp --suffix`: macOS's mktemp has no suffix option.
+  spec_dir=$(mktemp -d)
+  spec="$spec_dir/openapi.json"
   backend python scripts/export_openapi.py "$spec"
   frontend/scripts/generate-api.sh --from-spec "$spec" >/dev/null
-  rm -f "$spec"
+  rm -rf "$spec_dir"
   if [[ -n "$(git status --porcelain -- "${generated[@]}")" ]]; then
     git status --short -- "${generated[@]}"
     if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
@@ -169,7 +171,7 @@ fi
 CHECKS=()
 for arg in "$@"; do
   for name in $(expand "$arg"); do
-    [[ " ${CHECKS[*]} " == *" $name "* ]] || CHECKS+=("$name")
+    [[ " ${CHECKS[*]-} " == *" $name "* ]] || CHECKS+=("$name")
   done
 done
 
