@@ -36,7 +36,7 @@ export const NotificationsInboxPage = () => {
   // phone's store has said.
   useStoreSellingAnswer();
   // "exports" is loaded alongside for a finished export's download toasts.
-  const { t } = useTranslation(["communities", "common", "exports"]);
+  const { t } = useTranslation(["communities", "common", "exports", "moderation"]);
   const { user } = useAuth();
   const router = useRouter();
   const [filter, setFilter] = useState<Filter>("all");

@@ -51,7 +51,9 @@
     "calendar_event": "Ein Termin",
     "counter": "Ein Zähler",
     "counter_group": "Eine Zählergruppe",
-    "dashboard": "Ein Dashboard"
+    "dashboard": "Ein Dashboard",
+    "wiki": "Ein Wiki",
+    "wiki_page": "Eine Wiki-Seite"
   },
   "paging": {
     "newer": "Neuer",
@@ -68,12 +70,20 @@
     "detailPlaceholder": "Was sie wissen sollten (optional)",
     "submit": "Meldung senden",
     "thanks": "Danke — jemand sieht sich das an.",
-    "error": "Die Meldung konnte nicht gesendet werden."
+    "error": "Die Meldung konnte nicht gesendet werden.",
+    "basisLabel": "Welches Gesetz?",
+    "basisPlaceholder": "Eins wählen",
+    "basisHelp": "Die Betreiber dieses Servers werden ebenfalls informiert.",
+    "detailRequiredLabel": "Beschreibe, was du gesehen hast",
+    "detailRequiredPlaceholder": "Beschreibe, was daran nicht stimmt",
+    "childSafetyHelp": "Hänge nichts an. Beschreibe, wo es ist – es bleibt dort, damit die Plattform sich darum kümmert.",
+    "platformContact": "Du kannst dich auch an die Betreiber dieses Servers wenden: {{contact}}"
   },
   "areas": {
     "reports": "Meldungen",
     "members": "Mitglieder",
-    "sharing": "Freigaben"
+    "sharing": "Freigaben",
+    "log": "Protokoll"
   },
   "members": {
     "description": "Wer in dieser Initiative ist und was die einzelnen dürfen.",
@@ -114,7 +124,8 @@
     "submit": "Zurückhalten",
     "held": "Für die Plattform zurückgehalten.",
     "error": "Das konnte nicht zurückgehalten werden.",
-    "releaseError": "Die Zurückhaltung konnte nicht aufgehoben werden."
+    "releaseError": "Die Zurückhaltung konnte nicht aufgehoben werden.",
+    "communityWarning": "Sobald es gesichert ist, kannst auch du es nicht mehr sehen."
   },
   "sendToPlatform": {
     "action": "An die Plattform übergeben",
@@ -127,5 +138,83 @@
     "hideDescription": "Nutze das, wenn die Polizei oder ein Gericht dich gebeten hat, es aufzubewahren, oder wenn es rechtswidrig sein könnte. Es verschwindet für alle, auch für dich, und niemand hier kann es ändern oder löschen, bis die Plattform entscheidet.",
     "leaveSubmit": "Übergeben",
     "hideSubmit": "Ausblenden und übergeben"
-  }
+  },
+  "removalReasons": {
+    "spam": "Spam",
+    "harassment": "Belästigung",
+    "hate": "Hass",
+    "violence": "Gewalt",
+    "sexual_content": "Sexuelle Inhalte",
+    "self_harm": "Selbstverletzung",
+    "illegal": "Rechtliche Gründe",
+    "misinformation": "Falschinformation",
+    "other": "Etwas anderes",
+    "off_topic": "Am Thema vorbei",
+    "community_rule": "Gegen eine Community-Regel"
+  },
+  "actions": {
+    "dismiss": "Verwerfen",
+    "remove": "Entfernen…",
+    "warn": "Verwarnen…"
+  },
+  "remove": {
+    "title": "Entfernen",
+    "description": "Es landet im Papierkorb, und wer es erstellt hat, erfährt den Grund. Du kannst es über das Protokoll wiederherstellen.",
+    "commentDescription": "Der Text wird entfernt und an seiner Stelle steht, warum. Antworten darauf bleiben. Wer ihn geschrieben hat, erfährt den Grund, und du kannst ihn über das Protokoll wiederherstellen.",
+    "reasonLabel": "Warum",
+    "reasonPlaceholder": "Grund wählen",
+    "reasonHelp": "Das erfährt die Person, die es geschrieben hat.",
+    "noteLabel": "Notiz für das Protokoll (optional)",
+    "notePlaceholder": "Nur Moderatoren sehen das",
+    "submit": "Entfernen",
+    "done": "Entfernt."
+  },
+  "warn": {
+    "title": "Die verfassende Person verwarnen",
+    "description": "Sie erhält deinen Text als Nachricht der Moderatoren dieser Community. Wer es gemeldet hat, wird nie genannt.",
+    "messageLabel": "Was ihr mitgeteilt wird",
+    "messagePlaceholder": "Was eine Grenze überschritten hat und was du stattdessen erwartest",
+    "submit": "Verwarnung senden",
+    "done": "Verwarnung gesendet."
+  },
+  "menu": {
+    "label": "Moderieren",
+    "remove": "Entfernen…",
+    "lock": "Kommentare sperren",
+    "unlock": "Kommentare entsperren",
+    "locked": "Kommentare gesperrt.",
+    "unlocked": "Kommentare entsperrt.",
+    "clearReactions": "Reaktionen entfernen",
+    "clearTitle": "Alle Reaktionen entfernen?",
+    "clearDescription": "Alle Reaktionen hierauf werden entfernt. Das lässt sich nicht rückgängig machen.",
+    "cleared": "Reaktionen entfernt.",
+    "hold": "Für die Plattform sichern…"
+  },
+  "act": {
+    "error": "Das hat nicht geklappt."
+  },
+  "log": {
+    "title": "Was die Moderatoren hier getan haben, das Neueste zuerst.",
+    "empty": "Bisher wurde nichts getan.",
+    "restore": "Wiederherstellen",
+    "restored": "Wiederhergestellt.",
+    "restoreError": "Das ließ sich nicht wiederherstellen.",
+    "platform": "Die Plattform",
+    "someone": "Ein Moderator",
+    "by": "von {{name}}",
+    "whose": "von {{name}}",
+    "whatItSaid": "Was dort stand",
+    "fromReport": "Beim Erledigen einer Meldung",
+    "afterHold": "Nach dem Ende einer Sicherung",
+    "acts": {
+      "remove": "Entfernt",
+      "restore": "Wiederhergestellt",
+      "lock_comments": "Kommentare gesperrt",
+      "unlock_comments": "Kommentare entsperrt",
+      "clear_reactions": "Reaktionen entfernt",
+      "warn": "Verwarnt"
+    }
+  },
+  "platformNotified": "Plattform informiert",
+  "suggestHold": "Als illegal gemeldet. Wenn es das sein könnte, verberge es und schicke es an die Plattform."
 }

@@ -12,6 +12,9 @@ import { useQuery } from "@tanstack/react-query";
 
 import type {
   InitiativeSharingRead,
+  ModerationActCreate,
+  ModerationActionRead,
+  ModerationLogList,
   ModerationReportList,
   ModerationReportRead,
   ReportSettle,
@@ -19,12 +22,16 @@ import type {
 import {
   getListReportsQueryKey,
   getReadInitiativeSharingQueryKey,
+  getReadModerationLogQueryKey,
   listReports,
+  moderate,
   readInitiativeSharing,
+  readModerationLog,
+  restoreRemoval,
   settleReport,
 } from "@/api/generated/moderation/moderation";
-import { invalidate, q } from "@/api/query-keys";
 import { useApiMutation } from "@/hooks/useApiMutation";
+import { refreshAfterHolding } from "@/hooks/useHolds";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
 
@@ -59,14 +66,16 @@ export const useModerationReports = (
 
 export const useSettleReport = (
   communityId: number,
-  initiativeId: number,
+  _initiativeId: number,
   options?: MutationOpts<ModerationReportRead, { reportId: number; body: ReportSettle }>
 ) =>
   useApiMutation<ModerationReportRead, { reportId: number; body: ReportSettle }>(
     {
       mutationFn: ({ reportId, body }) => settleReport(communityId, reportId, body),
       // Both lists move: the report leaves the open one and joins the settled.
-      invalidate: () => invalidate(q.moderationReports(initiativeId)),
+      // Settling may also have taken the reported thing down, wherever it
+      // was shown, and written the log.
+      invalidate: refreshAfterHolding,
     },
     options
   );
@@ -85,5 +94,58 @@ export const useInitiativeSharing = (
   useQuery<InitiativeSharingRead>({
     queryKey: getReadInitiativeSharingQueryKey(communityId, initiativeId),
     queryFn: () => readInitiativeSharing(communityId, initiativeId),
+    ...options,
+  });
+
+/**
+ * A moderator acting on something directly: taking it down, locking its
+ * thread, clearing its reactions, warning whoever wrote it.
+ */
+export const useModerate = (
+  communityId: number,
+  options?: MutationOpts<ModerationActionRead, ModerationActCreate>
+) =>
+  useApiMutation<ModerationActionRead, ModerationActCreate>(
+    {
+      mutationFn: (body) => moderate(communityId, body),
+      // What was taken down, locked or cleared changes wherever it is shown.
+      invalidate: refreshAfterHolding,
+      errorKey: "moderation:act.error",
+    },
+    options
+  );
+
+/** Putting back what a removal took down. */
+export const useRestoreRemoval = (
+  communityId: number,
+  options?: MutationOpts<ModerationActionRead, number>
+) =>
+  useApiMutation<ModerationActionRead, number>(
+    {
+      mutationFn: (actionId) => restoreRemoval(communityId, actionId, {}),
+      invalidate: refreshAfterHolding,
+      errorKey: "moderation:log.restoreError",
+    },
+    options
+  );
+
+/** How many log rows one page holds. */
+export const LOG_PAGE_SIZE = 50;
+
+/** What an initiative's moderators have done, newest first. */
+export const useModerationLog = (
+  {
+    communityId,
+    initiativeId,
+    page = 1,
+  }: { communityId: number; initiativeId: number; page?: number },
+  options?: QueryOpts<ModerationLogList>
+) =>
+  useQuery<ModerationLogList>({
+    queryKey: getReadModerationLogQueryKey(communityId, initiativeId, {
+      page,
+      page_size: LOG_PAGE_SIZE,
+    }),
+    queryFn: () => readModerationLog(communityId, initiativeId, { page, page_size: LOG_PAGE_SIZE }),
     ...options,
   });

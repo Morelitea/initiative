@@ -8,6 +8,7 @@ import {
   PropertyTarget,
   SearchEntityType,
   Tool,
+  WikiPageKind,
   WikiReadingWidth,
 } from "@/api/generated/initiativeAPI.schemas";
 import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
@@ -17,6 +18,8 @@ import {
   WikiPageConnections,
 } from "@/components/initiativeTools/wikis/WikiPageConnections";
 import { WikiPageNav } from "@/components/initiativeTools/wikis/WikiPageNav";
+import { ModerationMenu } from "@/components/moderation/ModerationMenu";
+import { ReportButton } from "@/components/moderation/ReportButton";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { PropertyPanel } from "@/components/properties";
 import { Button } from "@/components/ui/button";
@@ -27,13 +30,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCollaboration } from "@/hooks/useCollaboration";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useInitiative } from "@/hooks/useInitiatives";
 import { useReadOnOpen } from "@/hooks/useNotifications";
 import { useRecordRecentView } from "@/hooks/useRecents";
 import { atLeast, useRegionWidthClass } from "@/hooks/useWidthClass";
 import { useAddWikiPage, useUpdateWikiPage, useWiki, useWikiPage } from "@/hooks/useWikis";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { toast } from "@/lib/mascotToast";
-import { toolRouteSegment, wikiPageRoute } from "@/lib/tools";
+import { toolDetailRoute, toolRouteSegment, wikiPageRoute } from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
 /**
@@ -102,6 +106,8 @@ export const WikiPageView = () => {
   const { mutate: savePage } = useUpdateWikiPage(wikiId, pageId);
 
   const canWrite = Boolean(wikiQuery.data?.can.edit);
+  const initiativeQuery = useInitiative(wikiQuery.data?.initiative_id ?? null);
+  const canModerate = Boolean(initiativeQuery.data?.can.moderate);
   // Editing needs both the right and the intent — somebody who may write is
   // still reading until they say otherwise.
   const isEditing = canWrite && editWanted;
@@ -390,22 +396,49 @@ export const WikiPageView = () => {
           }}
           connectionsOpen={connectionsShown}
           trailing={
-            offersProperties ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
+            <>
+              {offersProperties ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-8"
+                      onClick={() => setPropertiesOpen(true)}
+                      aria-label={t("properties:title")}
+                    >
+                      <SlidersHorizontal className="size-4" aria-hidden />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{t("properties:title")}</TooltipContent>
+                </Tooltip>
+              ) : null}
+              {page && page.id === pageId && page.kind === WikiPageKind.page ? (
+                <>
+                  <ReportButton
+                    targetType={SearchEntityType.wiki_page}
+                    targetId={page.id}
+                    authorId={page.created_by}
                     className="size-8"
-                    onClick={() => setPropertiesOpen(true)}
-                    aria-label={t("properties:title")}
-                  >
-                    <SlidersHorizontal className="size-4" aria-hidden />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{t("properties:title")}</TooltipContent>
-              </Tooltip>
-            ) : undefined
+                  />
+                  {/* Taken down or held, the page is gone, so the reader is
+                      put back at the wiki's front page. */}
+                  <ModerationMenu
+                    targetType={SearchEntityType.wiki_page}
+                    targetId={page.id}
+                    canModerate={canModerate}
+                    commentsLocked={page.comments_locked_at != null}
+                    communityId={page.community_id}
+                    className="size-8"
+                    onGone={() =>
+                      void navigate({
+                        to: gp(toolDetailRoute(Tool.wiki, wiki.initiative_id, wikiId)),
+                      })
+                    }
+                  />
+                </>
+              ) : null}
+            </>
           }
         />
 

@@ -233,7 +233,7 @@ Admins can set or clear a member's from the row menu under **Community settings 
 
 ## Reporting something
 
-Something here that shouldn't be? Comments, notices, pictures, profiles and directory listings all carry a small flag: **Report**. Say what's wrong, add a line if you like, and **Send report**. It isn't offered on your own things, because you can already edit or delete those.
+Something here that shouldn't be? Comments, notices, pictures, wiki pages, queue items, events, profiles and directory listings all carry a small flag: **Report**. Say what's wrong, add a line if you like, and **Send report**. It isn't offered on your own things, because you can already edit or delete those. **Illegal** and **Other** need a line saying what's wrong.
 
 | What you report | Who looks at it |
 |---|---|
@@ -241,6 +241,8 @@ Something here that shouldn't be? Comments, notices, pictures, profiles and dire
 | A profile, or a community's directory listing | Whoever runs the server |
 
 The people who look see what you wrote. The thing you reported isn't touched until one of them decides it should be.
+
+Reporting something **illegal** asks which law it breaks, and goes to the community's moderators and to whoever runs the server at once. You can follow it in **My Tickets**. Where the server takes no reports, the thank-you tells you who to contact instead. A child-safety report takes no attachments: say where it is, and it stays where it is for them to deal with.
 
 ## Asking for help
 

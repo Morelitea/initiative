@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Attach pictures and documents to a ticket or a report.** Asking for help, answering on a ticket and reporting something each take a few files, encrypted where they are kept. The places a picture was taken are removed before it is stored. The people handling a ticket or a report see pictures blurred until they choose to look, and files are deleted once the ticket has been closed long enough.
 - **Hide reported content while the platform looks at it.** Sending a report to the platform now asks whether to leave the reported thing up or hide it. Hide it when the police or a court asked for it to be kept, or it may be illegal: it disappears for everyone in the community, admins and the moderator included, and nobody there can change or delete it until the platform puts it back, moves it to the trash, or deletes it for good. A report of something illegal is hidden by default. A comment's replies stay visible under an "Unavailable" placeholder, and a community with hidden content isn't deleted for good until the platform has dealt with it.
 - **Moderation access.** Platform moderators can request a new access level, Moderate, which reads everything in a community, including what is held, and changes nothing. Releasing a hold needs it, and it is never self-issued.
+- **Moderators act on what they're shown.** A shield menu on comments, posts, pictures, wiki pages, queue items and events lets a community's moderators remove it with a reason, lock its comments, clear its reactions or hold it for the platform. A removed comment leaves a line saying why where it was, and its replies stay. Whoever wrote it is told why, never by whom. Settling a report as removed or warned now does it, and a warning sends the member the moderator's own words.
+- **A moderation log.** The moderation page's new **Log** tab lists what moderators have done, with the words a removed comment said, and puts back a removal.
+- **Reporting something illegal tells the platform too.** A report names the law it falls under, and goes to the community's moderators and to whoever runs the server at once; the reporter follows it under their tickets. Where the server takes no reports, the reporter is told who to contact. A child-safety report takes no attachments.
+- **Report wiki pages, queue items and events.**
 
 ### Changed
 
@@ -22,6 +26,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Dates and numbers format faster** on every screen that shows them. Building a formatter was most of what a large board spent redrawing.
 - **Large boards draw faster.** A 300-card board appears about a fifth sooner, and switching a field on or off in its Fields menu redraws it about five times faster.
 - **Escalate is now Send to the platform** on a report card, and a settled report says "Sent to the platform".
+- **Only moderators take down other people's comments.** Delete is for your own comments; project managers no longer delete anyone else's. Community admins and roles with Full access remove them instead, with a reason. Community admins see a notice about it after upgrading.
+- **Deleting your comment leaves its replies.** It goes to your trash as before, and the replies under it stay, under a line saying you deleted it.
+- **A report of something illegal, or of "Other", says what is wrong.**
+- **API: `DELETE /comments/{id}` is the author's alone**, and the comment list says whether the thread is locked and whether the reader moderates it.
 - **API: filing a ticket and answering one take `multipart/form-data`.** `POST /api/v1/me/tickets` takes the ticket as JSON in a `payload` field, and `POST /api/v1/me/tickets/{task_id}/replies` takes the answer in a `body` field, each beside any `files`.
 - **Signing out of the phone or desktop app keeps your encrypted messages.** Sign back in with the same account and they are all there, with nothing to sync, along with anything sent while you were away. Signing in to another account on the same app keeps each account's messages apart instead of deleting the first one's. A browser still clears its messages when you sign out.
 

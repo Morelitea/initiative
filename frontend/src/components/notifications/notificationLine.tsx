@@ -502,6 +502,19 @@ export const notificationText = (
           : "notifications.communityTrialEnded",
         { community: typeof data.community === "string" ? data.community : "" }
       );
+    // Never names the moderator, or who reported it.
+    case "moderation_removal": {
+      const reason = typeof data.reason === "string" ? data.reason : "";
+      return reason === "illegal"
+        ? t("notifications.moderationRemovedLegal")
+        : t("notifications.moderationRemoved", {
+            reason: t(`moderation:removalReasons.${reason}`, { defaultValue: reason }),
+          });
+    }
+    case "moderation_warning":
+      return t("notifications.moderationWarned", {
+        message: typeof data.message === "string" ? data.message : "",
+      });
     case "ticket_updated": {
       const subject = typeof data.subject === "string" && data.subject ? data.subject : null;
       const state = typeof data.state === "string" ? data.state : "";

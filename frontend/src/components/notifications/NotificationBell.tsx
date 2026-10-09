@@ -38,7 +38,7 @@ export const NotificationBell = () => {
   const { user } = useAuth();
   // "exports" is loaded alongside so the export download's cross-namespace
   // toast keys (exports:export.*) are available when clicked from the bell.
-  const { t } = useTranslation(["communities", "exports"]);
+  const { t } = useTranslation(["communities", "exports", "moderation"]);
   const isEnabled = Boolean(user);
   const streamConnected = useNotificationStreamConnected();
 

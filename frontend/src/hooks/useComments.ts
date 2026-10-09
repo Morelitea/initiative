@@ -90,6 +90,26 @@ export const useComments = (params: CommentThreadParams, options?: { enabled?: b
   });
 };
 
+/**
+ * What a thread says about writing in it: whether a moderator locked it, and
+ * whether this reader moderates the initiative it is in. Read off the same
+ * query as the thread itself, so it costs nothing more.
+ */
+export const useCommentThreadState = (
+  params: CommentThreadParams,
+  options?: { enabled?: boolean }
+) => {
+  const communityId = useActiveCommunityId();
+  return useInfiniteQuery({
+    ...commentThreadQueryOptions(communityId, params),
+    select: (data: CommentThreadData) => ({
+      locked: data.pages[0]?.locked ?? false,
+      canModerate: data.pages[0]?.can_moderate ?? false,
+    }),
+    enabled: options?.enabled,
+  });
+};
+
 export const useRecentComments = (
   params?: RecentCommentsParams,
   options?: QueryOpts<RecentActivityEntry[]>
@@ -133,18 +153,14 @@ const placeComment = (data: CommentThreadData, comment: CommentRead): CommentThr
   );
 };
 
-/** Take a comment out, with every reply under it — they go to the trash with it. */
-const dropComment = (data: CommentThreadData, commentId: number): CommentThreadData => {
-  const gone = new Set([commentId]);
-  // A conversation sits on one page in the order it was written, so a reply
-  // is always reached after the comment it answers.
-  return mapPages(data, (comments) =>
-    comments.filter((c) => {
-      if (c.parent_comment_id != null && gone.has(c.parent_comment_id)) gone.add(c.id);
-      return !gone.has(c.id);
-    })
-  );
-};
+/**
+ * Take a comment out of the thread, and only it: its replies are other
+ * people's words and stay, under the thread's placeholder until the server
+ * says what stands in its place — the line saying its author deleted it, or
+ * nothing it may say.
+ */
+const dropComment = (data: CommentThreadData, commentId: number): CommentThreadData =>
+  mapPages(data, (comments) => comments.filter((c) => c.id !== commentId));
 
 export const useCommentsCache = (params: CommentThreadParams) => {
   const communityId = useActiveCommunityId();
@@ -332,7 +348,9 @@ export const useDeleteComment = (options?: MutationOpts<void, number>) =>
   useCommunityMutation<void, number>(
     {
       mutationFn: (communityId, commentId) => deleteComment(communityId, commentId),
-      invalidate: () => invalidate(q.recentComments(), q.relationships()),
+      // The thread reads again: a comment with replies under it comes back as
+      // the line saying its author deleted it.
+      invalidate: () => invalidate(q.allComments(), q.relationships()),
       errorKey: "common:error",
     },
     options

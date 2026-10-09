@@ -59,7 +59,7 @@ import { useAIEnabled } from "@/hooks/useAIEnabled";
 import { useArchiveEntity, useUnarchiveEntity } from "@/hooks/useArchive";
 import { useAuth } from "@/hooks/useAuth";
 import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
-import { useComments, useCommentsCache } from "@/hooks/useComments";
+import { useComments, useCommentsCache, useCommentThreadState } from "@/hooks/useComments";
 import { useCommunities } from "@/hooks/useCommunities";
 import { useDateLocale } from "@/hooks/useDateLocale";
 import { useInitiative } from "@/hooks/useInitiatives";
@@ -219,6 +219,9 @@ export const TaskEditPage = () => {
     enabled: Number.isFinite(parsedTaskId),
   });
   const commentsCache = useCommentsCache(commentsQueryParams);
+  const commentThread = useCommentThreadState(commentsQueryParams, {
+    enabled: Number.isFinite(parsedTaskId),
+  });
 
   // Aliased early so handleSubmit / effective* derivations both see it.
   // The duplicate declaration further down was kept until this fix; the
@@ -862,6 +865,8 @@ export const TaskEditPage = () => {
         onCommentDeleted={commentsCache.removeComment}
         onCommentUpdated={commentsCache.putComment}
         initiativeId={projectQuery.data?.initiative_id ?? 0}
+        locked={commentThread.data?.locked ?? false}
+        canModerate={commentThread.data?.canModerate ?? false}
       />
 
       <MoveTaskDialog

@@ -1,4 +1,4 @@
-import { HelpCircle, MessageSquarePlus } from "lucide-react";
+import { HelpCircle, Lock, MessageSquarePlus } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -44,6 +44,11 @@ interface CommentSectionProps {
   isLoadingOlder?: boolean;
   onLoadOlder?: () => void;
   initiativeId: number;
+  /** A moderator closed the thread: it reads as before, and only the
+   *  moderators add to it. */
+  locked?: boolean;
+  /** Whether this reader moderates the initiative the thread is in. */
+  canModerate?: boolean;
 }
 
 /** Later first; the id breaks a tie, since it only ever grows. */
@@ -121,6 +126,8 @@ export const CommentSection = ({
   isLoadingOlder = false,
   onLoadOlder,
   initiativeId,
+  locked = false,
+  canModerate = false,
 }: CommentSectionProps) => {
   const { t } = useTranslation("comments");
   const { activeCommunityReadOnly } = useCommunities();
@@ -295,9 +302,15 @@ export const CommentSection = ({
         </CardHeader>
 
         <CardContent>
+          {locked && (
+            <p className="mb-3 flex items-center gap-2 text-muted-foreground text-sm">
+              <Lock className="h-4 w-4" aria-hidden="true" />
+              {t("locked")}
+            </p>
+          )}
           {activeCommunityReadOnly ? (
             <p className="text-muted-foreground text-sm">{t("readOnlyNote")}</p>
-          ) : (
+          ) : locked && !canModerate ? null : (
             <CommentInput
               value={content}
               onChange={setContent}
@@ -332,6 +345,8 @@ export const CommentSection = ({
                       createComment.isPending || deleteComment.isPending || updateComment.isPending
                     }
                     canReact={!activeCommunityReadOnly}
+                    canReply={!activeCommunityReadOnly && (!locked || canModerate)}
+                    canModerate={canModerate}
                     deleteError={deleteComment.variables === comment.id ? deleteError : null}
                     userDisplayNames={userDisplayNames}
                     unreadIds={unreadIds}

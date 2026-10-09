@@ -21,6 +21,7 @@ import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 
 const settleMutate = vi.fn();
+const restoreMutate = vi.fn();
 
 const state = vi.hoisted(() => ({
   items: [] as Array<Record<string, unknown>>,
@@ -28,6 +29,7 @@ const state = vi.hoisted(() => ({
   sharingFailed: false,
   page: 1,
   hasNext: false,
+  log: [] as Array<Record<string, unknown>>,
 }));
 
 const report = (overrides: Record<string, unknown> = {}) => ({
@@ -71,7 +73,32 @@ vi.mock("@/hooks/useModeration", async (importOriginal) => {
       };
     },
     useSettleReport: () => ({ mutate: settleMutate, isPending: false }),
+    useModerationLog: () => ({
+      data: { items: state.log, page: 1, has_next: false, has_prev: false },
+      isLoading: false,
+      isError: false,
+    }),
+    useRestoreRemoval: () => ({ mutate: restoreMutate, isPending: false }),
   };
+});
+
+/** One row of the moderation log. */
+const logged = (overrides: Record<string, unknown> = {}) => ({
+  id: 9,
+  initiative_id: 7,
+  action: "remove",
+  target_type: "comment",
+  target_id: 42,
+  reason: "harassment",
+  note: "Second time.",
+  snapshot: "Say that again and see.",
+  actor: { id: 2, name: "Mo Derator" },
+  subject: { id: 5, name: "Sam Poster" },
+  report_id: null,
+  hold_id: null,
+  created_at: "2026-09-16T10:00:00Z",
+  restorable: true,
+  ...overrides,
 });
 
 /** One thing the community has shared, as the Sharing tab reads it. */
@@ -108,6 +135,8 @@ const openSharing = async () => {
 describe("ModerationPage", () => {
   beforeEach(() => {
     settleMutate.mockClear();
+    restoreMutate.mockClear();
+    state.log = [];
     state.items = [];
     state.sharing = [];
     state.sharingFailed = false;
@@ -204,7 +233,7 @@ describe("ModerationPage", () => {
     const user = userEvent.setup();
 
     const card = await screen.findByRole("region", { name: "A comment" });
-    for (const label of ["Dismiss", "Content removed", "Member warned", "Send to the platform"]) {
+    for (const label of ["Dismiss", "Remove…", "Warn…", "Send to the platform"]) {
       expect(within(card).getByRole("button", { name: label })).toBeInTheDocument();
     }
 
@@ -222,12 +251,93 @@ describe("ModerationPage", () => {
 
     const card = await screen.findByRole("region", { name: "A comment" });
     await user.type(within(card).getByRole("textbox"), "Checked it.");
-    await user.click(within(card).getByRole("button", { name: "Member warned" }));
+    await user.click(within(card).getByRole("button", { name: "Dismiss" }));
 
     expect(settleMutate).toHaveBeenCalledWith({
       reportId: 1,
-      body: { outcome: "member_warned", note: "Checked it." },
+      body: { outcome: "dismissed", note: "Checked it." },
     });
+  });
+
+  it("takes it down for the reason it was reported for, unless the moderator says otherwise", async () => {
+    state.items = [report()];
+    render();
+    const user = userEvent.setup();
+
+    const card = await screen.findByRole("region", { name: "A comment" });
+    await user.type(within(card).getByRole("textbox"), "Seen it before.");
+    await user.click(within(card).getByRole("button", { name: "Remove…" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Take it down" });
+    // Starts from the report: its reason, and the note typed on the card.
+    expect(within(dialog).getByRole("combobox")).toHaveTextContent("Harassment");
+    expect(within(dialog).getByRole("textbox")).toHaveValue("Seen it before.");
+    await user.click(within(dialog).getByRole("button", { name: "Take it down" }));
+
+    expect(settleMutate).toHaveBeenCalledWith(
+      {
+        reportId: 1,
+        body: { outcome: "content_removed", note: "Seen it before.", removal_reason: null },
+      },
+      expect.anything()
+    );
+  });
+
+  it("warns whoever wrote it in the moderator's words, and needs some", async () => {
+    state.items = [report()];
+    render();
+    const user = userEvent.setup();
+
+    const card = await screen.findByRole("region", { name: "A comment" });
+    await user.click(within(card).getByRole("button", { name: "Warn…" }));
+    const dialog = await screen.findByRole("dialog", { name: "Warn whoever wrote this" });
+    const send = within(dialog).getByRole("button", { name: "Send warning" });
+    expect(send).toBeDisabled();
+
+    await user.type(within(dialog).getByRole("textbox"), "Keep it civil.");
+    await user.click(send);
+    expect(settleMutate).toHaveBeenCalledWith(
+      {
+        reportId: 1,
+        body: { outcome: "member_warned", note: null, message: "Keep it civil." },
+      },
+      expect.anything()
+    );
+  });
+
+  it("says when the platform was told as well, and which law", async () => {
+    state.items = [
+      report({
+        reason: "illegal",
+        legal_basis: "privacy",
+        platform_notified_at: "2026-09-15T10:00:01Z",
+      }),
+    ];
+    render();
+
+    const card = await screen.findByRole("region", { name: "A comment" });
+    expect(within(card).getByText("Platform notified")).toBeInTheDocument();
+    expect(within(card).getByText(/Illegal \(Privacy\)/)).toBeInTheDocument();
+    expect(within(card).getByText(/hide it and send it to the platform/)).toBeInTheDocument();
+  });
+
+  it("reads the log back, with the words a removal took down, and puts it back", async () => {
+    state.log = [
+      logged(),
+      logged({ id: 8, action: "warn", reason: null, snapshot: null, restorable: false }),
+    ];
+    render();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("tab", { name: "Log" }));
+
+    expect(await screen.findByText("Say that again and see.")).toBeInTheDocument();
+    expect(screen.getByText("Removed")).toBeInTheDocument();
+    expect(screen.getByText("Warned")).toBeInTheDocument();
+    // Only a removal still standing can be put back.
+    const restore = screen.getAllByRole("button", { name: "Put back" });
+    expect(restore).toHaveLength(1);
+    await user.click(restore[0]);
+    expect(restoreMutate).toHaveBeenCalledWith(9);
   });
 
   it("a settled report shows what was decided and offers no outcomes", async () => {
@@ -343,7 +453,7 @@ describe("ModerationPage", () => {
 
   it("gathers what a moderator acts with beside what they act on", async () => {
     render();
-    for (const area of ["Reports", "Members", "Sharing"]) {
+    for (const area of ["Reports", "Members", "Sharing", "Log"]) {
       expect(await screen.findByRole("tab", { name: area })).toBeInTheDocument();
     }
   });
