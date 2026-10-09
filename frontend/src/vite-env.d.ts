@@ -20,6 +20,12 @@ declare module "*.wav" {
   export default src;
 }
 
+// A template, compiled when it is imported (scripts/vite-plugin-templates.mjs).
+declare module "*.html?template" {
+  const template: import("@/lib/templates/compile").CompiledTemplate;
+  export default template;
+}
+
 // Type declarations for Yjs-related packages
 declare module "y-protocols/awareness" {
   import { Doc } from "yjs";

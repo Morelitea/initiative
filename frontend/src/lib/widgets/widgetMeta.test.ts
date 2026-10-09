@@ -8,7 +8,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { BUILTIN_WIDGET_TYPES, builtinWidgetSource } from "./registry";
+import { BUILTIN_WIDGET_TYPES, builtinWidget, builtinWidgetSource } from "./registry";
 import { readMetaInSandbox } from "./runtime/sandbox";
 import { localized, META_LIMITS, validateWidgetMeta, widgetDisplayName } from "./widgetMeta";
 
@@ -94,9 +94,16 @@ describe("localized", () => {
   });
 });
 
+/** A built-in's meta, held to the rules a plug-in's is. */
+const metaOf = async (type: string) => {
+  const widget = builtinWidget(type);
+  if (widget) return { ok: true as const, value: widget.meta };
+  return readMetaInSandbox(builtinWidgetSource(type) as string);
+};
+
 describe("the built-ins name themselves", () => {
   it.each(BUILTIN_WIDGET_TYPES)("%s declares valid meta", async (type) => {
-    const result = await readMetaInSandbox(builtinWidgetSource(type) as string);
+    const result = await metaOf(type);
     expect(result.ok, `meta read failed: ${JSON.stringify(result)}`).toBe(true);
     if (!result.ok) return;
 
@@ -111,7 +118,7 @@ describe("the built-ins name themselves", () => {
   });
 
   it.each(BUILTIN_WIDGET_TYPES)("%s labels each of its own options", async (type) => {
-    const result = await readMetaInSandbox(builtinWidgetSource(type) as string);
+    const result = await metaOf(type);
     if (!result.ok) throw new Error("meta read failed");
     const meta = validateWidgetMeta(result.value);
 

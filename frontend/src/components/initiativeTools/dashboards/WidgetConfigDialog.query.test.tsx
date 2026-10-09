@@ -7,6 +7,7 @@ import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import type { WidgetBinding } from "@/hooks/useWidgetData";
+import { stat } from "@/lib/widgets/builtins/stat.widget";
 import type { DefinitionWidget } from "@/lib/widgets/definition";
 
 const renderWidget = vi.hoisted(() => vi.fn());
@@ -352,11 +353,16 @@ describe("a statement the server refuses", () => {
 });
 
 describe("the preview", () => {
-  /** What the pane last handed the widget to draw. */
-  const drawnWith = () =>
-    renderWidget.mock.calls.at(-1)?.[0] as
-      | { slots?: Record<string, number[]>; data?: { rows?: unknown[] } }
-      | undefined;
+  /** What the pane last handed the stat widget's own code. */
+  const drawnWith = () => {
+    const call = shape.mock.calls.at(-1);
+    return call && { data: call[0], slots: call[2].slots };
+  };
+  // Made per test: the suite puts every spy back when a test ends.
+  let shape: ReturnType<typeof vi.spyOn<typeof stat, "shape">>;
+  beforeEach(() => {
+    shape = vi.spyOn(stat, "shape");
+  });
 
   it("tells the widget which columns fill its slots", async () => {
     // Without this every slot reads as unfilled, and a widget that draws

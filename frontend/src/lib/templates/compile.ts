@@ -19,6 +19,7 @@
  * `.ts` files: the Vite plugin runs it in Node.
  */
 
+import type { WidgetElementDefinition } from "../widgets/elements.ts";
 import { checkExpression, type ExpressionScope } from "./expressions.ts";
 import {
   parseTemplate,
@@ -42,6 +43,8 @@ export type CompiledNode =
     }
   | { t: "text"; parts: Array<string | number> }
   | { t: "part"; name: string; attrs: Record<string, string>; bind: Record<string, number> }
+  /** One of our components, drawn from the props the template gives it. */
+  | { t: "component"; name: string; attrs: Record<string, string>; bind: Record<string, number> }
   | { t: "if"; branches: Array<{ when: number | null; node: CompiledNode }> }
   | { t: "for"; item: string; list: number; node: CompiledNode };
 
@@ -106,6 +109,11 @@ const FOR_PATTERN = /^\s*([a-z_][A-Za-z0-9_]*)\s+in\s+([\s\S]+)$/;
 export interface CompileOptions {
   name: string;
   section: SectionDefinition;
+  /** What the template may read, when it is not a section's API data: a
+   *  widget's model, worked out by code the compiler does not read. */
+  scope?: Readonly<Record<string, Shape>>;
+  /** Components it may place, such as a widget's charts, by element name. */
+  elements?: Readonly<Record<string, WidgetElementDefinition>>;
 }
 
 export interface CompileResult {
@@ -127,7 +135,7 @@ export function compileTemplate(source: string, options: CompileOptions): Compil
     throw error;
   }
 
-  const rootScope = new Map<string, Shape>();
+  const rootScope = new Map<string, Shape>(Object.entries(options.scope ?? {}));
   for (const [name, schema] of Object.entries(options.section.data)) {
     const shape = schemaShape(schema);
     if (shape === undefined) {
@@ -243,6 +251,26 @@ export function compileTemplate(source: string, options: CompileOptions): Compil
         (attribute) => attribute === "class"
       );
       return { t: "part", name, attrs, bind };
+    }
+    const component = options.elements?.[element.name];
+    if (component) {
+      if (element.children.length > 0) {
+        report(`<${element.name}> holds nothing: close it with />`, element);
+      }
+      const { attrs, bind } = attributesOf(element, scope, (name) =>
+        Object.hasOwn(component.props, name)
+      );
+      // Keyed by the names the component takes, so the renderer passes them on as they are.
+      const rename = (from: Record<string, string | number>) =>
+        Object.fromEntries(
+          Object.entries(from).map(([name, value]) => [component.props[name] as string, value])
+        );
+      return {
+        t: "component",
+        name: element.name,
+        attrs: rename(attrs) as Record<string, string>,
+        bind: rename(bind) as Record<string, number>,
+      };
     }
     if (!ELEMENTS.has(element.name)) {
       report(`<${element.name}> is not an element templates may use`, element);

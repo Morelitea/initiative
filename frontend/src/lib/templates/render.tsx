@@ -37,6 +37,8 @@ export interface RenderInput {
   communityId: number;
   /** Parts the member has turned off, drawn as nothing wherever the template places them. */
   hidden?: ReadonlySet<string>;
+  /** The components a template may place, such as a widget's charts, by element name. */
+  elements?: Readonly<Record<string, ComponentType<{ props: Record<string, unknown> }>>>;
 }
 
 type Scope = Record<string, unknown>;
@@ -160,7 +162,9 @@ export function renderTemplate(template: CompiledTemplate, input: RenderInput): 
   let drawn = 0;
 
   const draw = (node: CompiledNode, scope: Scope, key: string | number): ReactNode => {
-    if (node.t === "text" || node.t === "el" || node.t === "part") drawn++;
+    if (node.t === "text" || node.t === "el" || node.t === "part" || node.t === "component") {
+      drawn++;
+    }
     switch (node.t) {
       case "text":
         return node.parts.map((part) =>
@@ -191,6 +195,14 @@ export function renderTemplate(template: CompiledTemplate, input: RenderInput): 
           context: input.context,
           className,
         } as never);
+      }
+      case "component": {
+        const Component = input.elements?.[node.name];
+        if (!Component) return null;
+        // As the template gave them: a bound value goes on as data, not as text.
+        const values: Record<string, unknown> = { ...node.attrs };
+        for (const [name, index] of Object.entries(node.bind)) values[name] = value(index, scope);
+        return createElement(Component, { key, props: values });
       }
       case "if": {
         for (const branch of node.branches) {

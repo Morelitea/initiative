@@ -1,0 +1,13 @@
+<!-- The number above its own history: the number leads, the line is context under it. -->
+<div if="model.kind == 'metric' && has(model.sparkline)" class="flex h-full w-full min-w-0 flex-col gap-2">
+  <div class="min-h-0 min-w-0 flex-[2]">
+    <metric :value="model.value" :label="model.label" :format="model.format" :delta="model.delta" :delta-good="model.deltaGood" :caption="model.caption" :tone="model.tone" />
+  </div>
+  <div class="min-h-0 min-w-0 flex-[1]">
+    <chart mark="line" :show-legend="false" :series="model.sparkline" />
+  </div>
+</div>
+<metric else-if="model.kind == 'metric'" :value="model.value" :label="model.label" :format="model.format" :delta="model.delta" :delta-good="model.deltaGood" :caption="model.caption" :tone="model.tone" />
+<div else class="flex h-full w-full items-center justify-center p-4 text-center">
+  <p class="text-muted-foreground text-sm">{{ model.message }}</p>
+</div>

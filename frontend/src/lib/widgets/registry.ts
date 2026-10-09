@@ -14,12 +14,13 @@
  */
 
 import boardSource from "./builtins/board.widget.js?raw";
+import type { BuiltinWidget } from "./builtins/builtin";
 import chartSource from "./builtins/chart.widget.js?raw";
-import funnelSource from "./builtins/funnel.widget.js?raw";
+import { funnel } from "./builtins/funnel.widget";
 import ganttSource from "./builtins/gantt.widget.js?raw";
 import heatmapSource from "./builtins/heatmap.widget.js?raw";
 import progressSource from "./builtins/progress.widget.js?raw";
-import statSource from "./builtins/stat.widget.js?raw";
+import { stat } from "./builtins/stat.widget";
 import tableSource from "./builtins/table.widget.js?raw";
 
 /**
@@ -30,16 +31,21 @@ import tableSource from "./builtins/table.widget.js?raw";
  */
 export const BUILTIN_WIDGETS: Record<string, string> = {
   gantt: ganttSource,
-  stat: statSource,
   chart: chartSource,
-  funnel: funnelSource,
   progress: progressSource,
   heatmap: heatmapSource,
   table: tableSource,
   board: boardSource,
 };
 
-export const BUILTIN_WIDGET_TYPES = Object.keys(BUILTIN_WIDGETS);
+/** The built-ins drawn as our own code and template. */
+const BUILTINS: Record<string, BuiltinWidget> = { funnel, stat };
+
+export const BUILTIN_WIDGET_TYPES = [...Object.keys(BUILTIN_WIDGETS), ...Object.keys(BUILTINS)];
+
+/** A built-in by type, or `undefined` for a type this build does not have. */
+export const builtinWidget = (type: string): BuiltinWidget | undefined =>
+  Object.hasOwn(BUILTINS, type) ? BUILTINS[type] : undefined;
 
 /** A widget module by type, or `undefined` for a type this build has no
  *  renderer for — which is how an installed listing naming a newer primitive
