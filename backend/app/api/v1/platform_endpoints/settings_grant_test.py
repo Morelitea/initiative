@@ -459,6 +459,8 @@ async def test_the_admin_rung_runs_the_community_without_entering_it(
         "configure": False,
         "administer_content": False,
         "seat": False,
+        # A grant is never reached with a personal API key.
+        "use_api": False,
     }
 
     renamed = await client.patch(
@@ -531,6 +533,8 @@ async def test_the_admin_rung_writes_beside_a_read_write_grant(
         "configure": True,
         "administer_content": False,
         "seat": False,
+        # A grant is never reached with a personal API key.
+        "use_api": False,
     }
 
     content = await client.get(f"/api/v1/c/{guild.id}/initiatives/", headers=headers)
@@ -728,6 +732,7 @@ async def test_a_members_guild_list_says_whether_they_change_its_settings(
             "administer_content": administers,
             # The creator is seated as its superadmin.
             "seat": administers,
+            "use_api": True,
         }
 
 

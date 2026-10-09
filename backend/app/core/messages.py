@@ -728,6 +728,11 @@ class UserMessages:
     API_KEY_NOT_FOUND = "USER_API_KEY_NOT_FOUND"
     API_KEY_READ_ONLY = "USER_API_KEY_READ_ONLY"
     API_KEY_GUILD_FORBIDDEN = "USER_API_KEY_COMMUNITY_FORBIDDEN"
+    #: A key may name one resource of a tool that has a feed, in the community
+    #: it is limited to.
+    API_KEY_RESOURCE_INVALID = "USER_API_KEY_RESOURCE_INVALID"
+    #: A key that names one resource reads that resource's feed and nothing else.
+    API_KEY_RESOURCE_ONLY = "USER_API_KEY_RESOURCE_ONLY"
     USERNAME_ALREADY_CHOSEN = "USERNAME_ALREADY_CHOSEN"
     #: The date given puts this account under the minimum age for the parts of
     #: the platform that are open to people they have not met.

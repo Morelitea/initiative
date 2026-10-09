@@ -125,5 +125,21 @@
     "addDate": "Termin hinzufügen",
     "added": "Termin hinzugefügt.",
     "openAlone": "Nur diesen Termin ändern"
+  },
+  "subscribe": {
+    "menu": "Abonnieren",
+    "title": "{{name}} abonnieren",
+    "titleMany": "Kalender abonnieren",
+    "description": "Füge einen Kalender zu Google Kalender, Apple Kalender oder Outlook hinzu. Jeder Kalender bekommt einen eigenen Link, bleibt dort ein eigener Kalender und hält sich selbst aktuell.",
+    "secret": "Jeder mit diesem Link kann die Termine des Kalenders sehen, also behalte ihn für dich. Termine, die eine andere App bereits übernommen hat, bleiben dort, auch wenn du den Link entfernst.",
+    "replaces": "Du hast bereits einen Link für diesen Kalender. Ein neuer Link setzt den alten außer Kraft.",
+    "getLink": "Link erstellen",
+    "getNewLink": "Neuen Link erstellen",
+    "copy": "Link kopieren",
+    "copied": "Link kopiert.",
+    "open": "In Kalender-App öffnen",
+    "manage": "Du kannst diesen Link unter Einstellungen › Sicherheit entfernen.",
+    "keyName": "Kalender: {{name}}",
+    "error": "Der Abo-Link konnte nicht erstellt werden."
   }
 }

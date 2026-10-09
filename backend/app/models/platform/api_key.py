@@ -1,12 +1,35 @@
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer
+from sqlalchemy import CheckConstraint, Column, DateTime, ForeignKey, Index, Integer
+from sqlalchemy import String, text
 from sqlmodel import Field, Relationship, SQLModel
+
+from app.core.tools import Tool
 
 
 class UserApiKey(SQLModel, table=True):
     __tablename__ = "user_api_keys"
+    __table_args__ = (
+        # A key limited to one tool resource is limited to its community and
+        # reads only.
+        CheckConstraint(
+            "(resource_type IS NULL AND resource_id IS NULL) OR "
+            "(resource_type IS NOT NULL AND resource_id IS NOT NULL "
+            "AND guild_id IS NOT NULL AND read_only)",
+            name="user_api_keys_resource_scope",
+        ),
+        # One per person per resource: making another replaces it.
+        Index(
+            "ix_user_api_keys_one_per_resource",
+            "user_id",
+            "guild_id",
+            "resource_type",
+            "resource_id",
+            unique=True,
+            postgresql_where=text("resource_type IS NOT NULL"),
+        ),
+    )
 
     id: Optional[int] = Field(default=None, primary_key=True)
     user_id: int = Field(
@@ -29,6 +52,15 @@ class UserApiKey(SQLModel, table=True):
             nullable=True,
             index=True,
         ),
+    )
+    # The one tool resource a key reads, named as ``resource_grants`` names
+    # it: that resource's feed, for a tool in ``FEED_TOOLS``, and no other
+    # route. No FK — the row lives in the guild's schema.
+    resource_type: Optional[Tool] = Field(
+        default=None, sa_column=Column(String(length=32), nullable=True)
+    )
+    resource_id: Optional[int] = Field(
+        default=None, sa_column=Column(Integer, nullable=True)
     )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),

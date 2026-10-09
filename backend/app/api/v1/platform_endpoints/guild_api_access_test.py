@@ -14,9 +14,11 @@ from app.models.platform.guild import CommunityRole
 from app.models.platform.user import UserRole
 from app.testing.factories import (
     create_access_grant,
+    create_calendar,
     create_guild,
     create_guild_membership,
     create_initiative,
+    create_initiative_member,
     create_project,
     create_user,
     get_auth_headers,
@@ -199,6 +201,59 @@ async def test_a_key_minted_before_access_is_revoked_stops_reaching_the_guild(
     assert (
         await client.get(f"/api/v1/c/{guild.id}/initiatives/", headers=headers)
     ).status_code == 200
+
+
+async def test_a_calendar_feed_is_refused_to_a_member_whose_api_access_is_off(
+    client: AsyncClient, session: AsyncSession
+):
+    """A subscription link is a key, so the community's answer reaches it at
+    the mint and on every fetch."""
+    seat = await create_user(session)
+    member = await create_user(session)
+    guild = await create_guild(session, creator=seat)
+    await create_guild_membership(
+        session, user=seat, guild=guild, role=CommunityRole.superadmin
+    )
+    await create_guild_membership(session, user=member, guild=guild)
+    await guild_administration(session, guild, auth_options=["restrictions"])
+    initiative = await create_initiative(session, guild, seat)
+    await create_initiative_member(session, initiative, member)
+    calendar = await create_calendar(session, initiative, seat)
+    headers = get_auth_headers(member)
+    link = {
+        "name": "k",
+        "community_id": guild.id,
+        "resource_type": "calendar",
+        "resource_id": calendar.id,
+    }
+    created = await client.post("/api/v1/me/api-keys", headers=headers, json=link)
+    assert created.status_code == 201, created.text
+    feed = (
+        f"/api/v1/c/{guild.id}/calendars/{calendar.id}/feed.ics"
+        f"?token={created.json()['secret']}"
+    )
+    assert (await client.get(feed)).status_code == 200
+
+    async def use_api() -> bool:
+        """What the member's community list says, which Subscribe reads."""
+        listed = await client.get("/api/v1/communities/", headers=headers)
+        return next(c for c in listed.json() if c["id"] == guild.id)["can"]["use_api"]
+
+    assert await use_api() is True
+
+    revoked = await client.put(
+        _api_access(guild.id, member.id),
+        headers=get_auth_headers(seat),
+        json={"api_keys_allowed": False},
+    )
+    assert revoked.status_code == 204, revoked.text
+    assert await use_api() is False
+    refused = await client.get(feed)
+    assert refused.status_code == 403
+    assert refused.json()["detail"] == "COMMUNITY_API_KEYS_REFUSED"
+    minted = await client.post("/api/v1/me/api-keys", headers=headers, json=link)
+    assert minted.status_code == 403
+    assert minted.json()["detail"] == "COMMUNITY_API_KEYS_REFUSED"
 
 
 async def test_a_grant_is_never_reached_with_a_key(

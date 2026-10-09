@@ -203,6 +203,11 @@ NON_EXPORTABLE_TOOLS: frozenset[Tool] = frozenset()
 # mirrors this as TOOL_REGISTRY's ``bulkExport`` flag.
 BULK_EXPORT_TOOLS = tuple(t for t in Tool if t not in NON_EXPORTABLE_TOOLS)
 
+# Tools a person can subscribe to from another app: a personal API key limited
+# to one of them (``user_api_keys.resource_type``/``resource_id``) reads that
+# one's feed and nothing else. Each serves its feed from its own router.
+FEED_TOOLS: frozenset[Tool] = frozenset({Tool.calendar})
+
 
 # Comment surfaces: EVERY tool carries a thread, plus these content-level
 # extras — sub-resources with a conversation of their own. A task holds one

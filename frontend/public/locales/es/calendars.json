@@ -125,5 +125,21 @@
     "addDate": "Añadir una fecha",
     "added": "Fecha añadida.",
     "openAlone": "Cambiar solo esta ocurrencia"
+  },
+  "subscribe": {
+    "menu": "Suscribirse",
+    "title": "Suscribirse a {{name}}",
+    "titleMany": "Suscribirse a calendarios",
+    "description": "Añade un calendario a Google Calendar, Apple Calendar u Outlook. Cada calendario tiene su propio enlace, así que allí sigue siendo un calendario aparte y se mantiene actualizado solo.",
+    "secret": "Cualquiera con este enlace puede ver los eventos del calendario, así que guárdalo para ti. Los eventos que otra aplicación ya haya copiado se quedan allí aunque quites el enlace.",
+    "replaces": "Ya tienes un enlace para este calendario. Si pides uno nuevo, el anterior deja de funcionar.",
+    "getLink": "Obtener enlace",
+    "getNewLink": "Obtener un enlace nuevo",
+    "copy": "Copiar enlace",
+    "copied": "Enlace copiado.",
+    "open": "Abrir en la aplicación de calendario",
+    "manage": "Puedes quitar este enlace en Ajustes › Seguridad.",
+    "keyName": "Calendario: {{name}}",
+    "error": "No se pudo crear el enlace de suscripción."
   }
 }

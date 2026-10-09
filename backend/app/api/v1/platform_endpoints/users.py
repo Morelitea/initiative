@@ -30,7 +30,6 @@ from app.api.deps import (
     SessionDep,
     UserSessionDep,
     get_current_active_user,
-    refuses_api_keys,
     require_first_party_session,
     SystemSessionDep,
     GuildAdminContext,
@@ -141,6 +140,7 @@ from app.services.tenant import initiatives as initiatives_service
 from app.services.tenant import named_people
 from app.services.tenant import ownership as ownership_service
 from app.services.platform import cookie_consent as cookie_consent_service
+from app.services.platform import guild_entitlements
 from app.services.platform import guilds as guilds_service
 from app.services.platform import guild_images as images_service
 from app.services.platform import legal as legal_service
@@ -1668,7 +1668,7 @@ async def create_my_api_key(
         # And the guild has to accept this member's keys at all. Asked here as
         # well as at the gate so a key that could never be used is never handed
         # over.
-        if await refuses_api_keys(session, membership):
+        if await guild_entitlements.refuses_api_keys(session, membership):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=GuildMessages.COMMUNITY_API_KEYS_REFUSED,
@@ -1680,6 +1680,8 @@ async def create_my_api_key(
         expires_at=payload.expires_at,
         read_only=payload.read_only,
         guild_id=payload.community_id,
+        resource_type=payload.resource_type,
+        resource_id=payload.resource_id,
     )
     return ApiKeyCreateResponse(api_key=api_key, secret=secret)
 

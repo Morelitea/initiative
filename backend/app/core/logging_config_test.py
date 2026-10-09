@@ -73,3 +73,27 @@ def test_applying_the_wiring_twice_installs_one_handler():
     configure_logging()
     assert len(logging.getLogger(AUDIT_LOGGER_NAME).handlers) == 1
     assert len(logging.getLogger().handlers) == 1
+
+
+def test_the_access_log_masks_a_url_token():
+    """Uvicorn's access line carries the path with its query; a ``token``
+    parameter's value does not reach the stream."""
+    access = logging.getLogger("uvicorn.access")
+    record = access.makeRecord(
+        access.name,
+        logging.INFO,
+        __file__,
+        0,
+        '%s - "%s %s HTTP/%s" %d',
+        (
+            "1.2.3.4",
+            "GET",
+            "/c/1/calendars/2/feed.ics?token=ppk_secret&x=1",
+            "1.1",
+            200,
+        ),
+        None,
+    )
+    assert all(f.filter(record) for f in access.filters)
+    assert "ppk_secret" not in record.getMessage()
+    assert "token=***&x=1" in record.getMessage()

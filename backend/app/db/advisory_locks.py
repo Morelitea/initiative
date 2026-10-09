@@ -100,6 +100,8 @@ class LockNamespace(IntEnum):
     NOTIFICATION_LINE = _tag(b"NOTE")
     #: One person's reaction toggle on one target.
     REACTION_TOGGLE = _tag(b"REAC")
+    #: Replacing one account's key for one tool resource.
+    API_KEY_RESOURCE = _tag(b"KEYR")
     #: Provisioning an account for one address, keyed by the normalized address.
     ACCOUNT_ADDRESS = _tag(b"ADDR")
 

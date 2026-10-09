@@ -13,10 +13,8 @@ cut from their merge.
 
 from typing import Any, Awaitable, Callable, Optional, Sequence, TypeVar
 
-from sqlalchemy import or_
 from sqlmodel import select
 
-from app.core.guild_auth_options import CommunityAuthOption
 from app.services.platform import guild_entitlements
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -83,11 +81,8 @@ async def member_guild_ids(
     recorded = auth_context.current()
     if recorded.api_key_credential:
         conditions.append(
-            or_(
-                GuildMembership.api_keys_allowed.is_(True),
-                ~guild_entitlements.holds_option(
-                    Guild.id, CommunityAuthOption.restrictions
-                ),
+            guild_entitlements.accepts_api_keys(
+                Guild.id, GuildMembership.api_keys_allowed
             )
         )
     pinned = recorded.api_key_guild_id

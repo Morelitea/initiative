@@ -189,6 +189,8 @@
   "USER_API_KEY_NOT_FOUND": "Clave API no encontrada",
   "USER_API_KEY_READ_ONLY": "Esta clave API es de solo lectura y no puede realizar cambios.",
   "USER_API_KEY_COMMUNITY_FORBIDDEN": "Solo puedes limitar una clave a una comunidad al que perteneces.",
+  "USER_API_KEY_RESOURCE_INVALID": "Solo un calendario de la comunidad a la que se limita la clave puede tener un enlace de suscripción.",
+  "USER_API_KEY_RESOURCE_ONLY": "Esta clave es un enlace de suscripción. Solo funciona para el calendario para el que se creó.",
   "USER_INVALID_WEEK_START": "El inicio de semana debe estar entre 0 (domingo) y 6 (sábado)",
   "USER_INVALID_TIME_FORMAT": "El formato de hora debe ser system, 12 o 24",
   "USER_INVALID_REMINDER_MINUTES": "Tiempo de recordatorio no válido",

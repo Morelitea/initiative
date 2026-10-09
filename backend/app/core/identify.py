@@ -53,8 +53,11 @@ class CredentialKind(str, Enum):
 #: What an ``Authorization: Bearer`` header or the session cookie may carry.
 HEADER_CREDENTIALS = frozenset({CredentialKind.session, CredentialKind.api_key})
 #: What may ride in a URL: only the narrow token minted to travel this way; a
-#: session token or an API key never does.
+#: session token never does, and an API key only in a feed's (below).
 URL_CREDENTIALS = frozenset({CredentialKind.upload_token})
+#: What a subscription feed's URL may carry: a personal API key, which the
+#: route admits only when it names the one resource that route serves.
+FEED_URL_CREDENTIALS = frozenset({CredentialKind.api_key})
 #: What a realtime socket's first frame may carry.
 SOCKET_CREDENTIALS = frozenset({CredentialKind.session})
 
@@ -213,12 +216,19 @@ def bearer_plugin_token(
     return identified.plugin_token if identified is not None else None
 
 
-def identify_url_token(connection: HTTPConnection) -> Identified | None:
-    """The credential a request's ``?token=`` carries, as what a URL may
-    carry, read once. ``None`` when there is none."""
-    if hasattr(connection.state, "identified_url"):
-        return connection.state.identified_url
-    token = connection.query_params.get("token")
-    identified = identify_token(token, URL_CREDENTIALS) if token else None
-    connection.state.identified_url = identified
-    return identified
+def identify_url_token(
+    connection: HTTPConnection, allow: frozenset[CredentialKind] = URL_CREDENTIALS
+) -> Identified | None:
+    """The credential a request's ``?token=`` carries, as one of ``allow``,
+    read once for each. ``None`` when there is none.
+
+    ``allow`` is what a URL may carry unless a route says otherwise: a
+    subscription feed passes :data:`FEED_URL_CREDENTIALS`."""
+    read: dict[frozenset[CredentialKind], Identified | None] = getattr(
+        connection.state, "identified_url", {}
+    )
+    if allow not in read:
+        token = connection.query_params.get("token")
+        read[allow] = identify_token(token, allow) if token else None
+        connection.state.identified_url = read
+    return read[allow]

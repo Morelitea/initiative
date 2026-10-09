@@ -154,11 +154,13 @@ const NewApiKeyDialog = ({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">{t("security.communityAllCommunities")}</SelectItem>
-                  {communities.map((community) => (
-                    <SelectItem key={community.id} value={String(community.id)}>
-                      {community.name}
-                    </SelectItem>
-                  ))}
+                  {communities
+                    .filter((community) => community.can.use_api)
+                    .map((community) => (
+                      <SelectItem key={community.id} value={String(community.id)}>
+                        {community.name}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
               <p className="text-muted-foreground text-xs">{t("security.communityHelp")}</p>
@@ -291,6 +293,9 @@ export const UserSettingsSecurityPage = () => {
                               community: communityName(key.community_id),
                             })}
                           </Badge>
+                        ) : null}
+                        {key.resource_type != null ? (
+                          <Badge variant="outline">{t("security.scopeSubscription")}</Badge>
                         ) : null}
                         {!key.read_only && key.community_id == null ? (
                           <Badge variant="outline">{t("security.scopeFull")}</Badge>

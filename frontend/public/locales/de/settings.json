@@ -150,6 +150,7 @@
     "scopeReadOnly": "Nur Lesen",
     "scopeCommunity": "Community: {{community}}",
     "scopeFull": "Voller Zugriff",
+    "scopeSubscription": "Abo-Link",
     "deleteButton": "Löschen",
     "deleting": "Wird entfernt…",
     "deleteSuccess": "API-Schlüssel gelöscht",

@@ -1,6 +1,6 @@
 import { useParams, useRouter, useSearch } from "@tanstack/react-router";
 import { format } from "date-fns";
-import { FileDown, Loader2, Plus, Upload } from "lucide-react";
+import { FileDown, Loader2, Plus, Rss, Upload } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -39,6 +39,7 @@ import {
   type ProjectTaskCalendar,
   ProjectTaskToggles,
 } from "@/components/initiativeTools/events/CalendarListPanel";
+import { CalendarSubscribeDialog } from "@/components/initiativeTools/events/CalendarSubscribeDialog";
 import { CreateCalendarDialog } from "@/components/initiativeTools/events/CreateCalendarDialog";
 import {
   CreateEventDialog,
@@ -472,6 +473,14 @@ export const CalendarsView = ({
   });
   const [createCalendarOpen, setCreateCalendarOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [subscribeOpen, setSubscribeOpen] = useState(false);
+  // What can be subscribed to, a link per calendar: the calendars this page
+  // lists, an initiative's or the community's own. Not while the initiative
+  // keeps its content in, nor where the community does not take this member's
+  // API keys.
+  const subscribeCalendars = communityOnly || initiativeId ? calendars : [];
+  const subscribable =
+    subscribeCalendars.length > 0 && !keepsContentIn && Boolean(activeCommunity?.can.use_api);
   const [createDefaultDate, setCreateDefaultDate] = useState<Date | null>(null);
 
   // Drive the app-wide bottom-nav add button for this route. Creating an
@@ -688,6 +697,12 @@ export const CalendarsView = ({
                   : `${t("exports:export.button")} · ${t("exports:export.formatIcs")}`}
               </DropdownMenuItem>
             ) : null}
+            {subscribable ? (
+              <DropdownMenuItem onSelect={() => setSubscribeOpen(true)}>
+                <Rss className="h-4 w-4" />
+                {t("subscribe.menu")}
+              </DropdownMenuItem>
+            ) : null}
             {canCreateEvents ? (
               <DropdownMenuItem onSelect={() => setImportDialogOpen(true)}>
                 <Upload className="h-4 w-4" />
@@ -834,6 +849,14 @@ export const CalendarsView = ({
       />
 
       <ICalImportDialog open={importDialogOpen} onOpenChange={setImportDialogOpen} />
+      {subscribable ? (
+        <CalendarSubscribeDialog
+          open={subscribeOpen}
+          onOpenChange={setSubscribeOpen}
+          communityId={communityId}
+          calendars={subscribeCalendars}
+        />
+      ) : null}
     </div>
   );
 };
