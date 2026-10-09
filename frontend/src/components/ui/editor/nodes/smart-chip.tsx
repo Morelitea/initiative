@@ -9,6 +9,7 @@ import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useChipState } from "@/hooks/useSmartChips";
 import { communityPath } from "@/lib/communityUrl";
 import { entityRefTypeFor } from "@/lib/entityResolver";
+import { dateTimeFormat } from "@/lib/intl";
 import { hitIcon } from "@/lib/searchResults";
 import { chipAspect, chipDisplay, chipEntityType, chipRef } from "@/lib/smartChips";
 import { entityRefRoute } from "@/lib/tools";
@@ -56,7 +57,8 @@ function ReadingChip({ chipKind, entityId, fallback }: SmartChipProps) {
   const display = chipDisplay(
     fallback,
     state,
-    (iso) => new Date(iso).toLocaleDateString(i18n.language, { month: "short", day: "numeric" }),
+    (iso) =>
+      dateTimeFormat(i18n.language, { month: "short", day: "numeric" }).format(new Date(iso)),
     t("smartChips.none")
   );
 

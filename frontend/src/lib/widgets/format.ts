@@ -8,6 +8,8 @@
  * correctly happen.
  */
 
+import { dateTimeFormat, numberFormat } from "@/lib/intl";
+
 import type { NumberFormat, SeriesTimeUnit } from "./sceneSpec";
 
 const DURATION_UNITS: [number, string][] = [
@@ -51,20 +53,20 @@ export function formatValue(
 
   switch (format) {
     case "percent":
-      return new Intl.NumberFormat(locale, {
+      return numberFormat(locale, {
         style: "percent",
         maximumFractionDigits: 1,
       }).format(value);
 
     case "currency":
-      return new Intl.NumberFormat(locale, {
+      return numberFormat(locale, {
         style: "currency",
         currency: options.currency ?? "USD",
         maximumFractionDigits: 0,
       }).format(value);
 
     case "compact":
-      return new Intl.NumberFormat(locale, {
+      return numberFormat(locale, {
         notation: "compact",
         maximumFractionDigits: 1,
       }).format(value);
@@ -73,14 +75,14 @@ export function formatValue(
       return formatDuration(value);
 
     case "date":
-      return new Intl.DateTimeFormat(locale, {
+      return dateTimeFormat(locale, {
         month: "short",
         day: "numeric",
         year: "numeric",
       }).format(new Date(value));
 
     default:
-      return new Intl.NumberFormat(locale, {
+      return numberFormat(locale, {
         maximumFractionDigits: 2,
       }).format(value);
   }
@@ -94,7 +96,7 @@ export const formatAxisValue = (
 ): string => {
   if (typeof value === "string") return value;
   if (format === "date") {
-    return new Intl.DateTimeFormat(options.locale, {
+    return dateTimeFormat(options.locale, {
       month: "short",
       day: "numeric",
     }).format(new Date(value));
@@ -122,13 +124,13 @@ export const formatTimeBucket = (
     case "quarter":
       return `Q${Math.floor(date.getUTCMonth() / 3) + 1} ${date.getUTCFullYear()}`;
     case "month":
-      return new Intl.DateTimeFormat(options.locale, {
+      return dateTimeFormat(options.locale, {
         ...utc,
         month: "short",
         year: "numeric",
       }).format(date);
     default:
-      return new Intl.DateTimeFormat(options.locale, {
+      return dateTimeFormat(options.locale, {
         ...utc,
         month: "short",
         day: "numeric",

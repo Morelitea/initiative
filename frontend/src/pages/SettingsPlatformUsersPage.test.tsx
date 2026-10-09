@@ -17,6 +17,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { buildPage, buildUser } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
 import type { OperatorUserRead, UserRead, UserRole } from "@/api/generated/initiativeAPI.schemas";
+import { dateTimeFormat } from "@/lib/intl";
 
 // The roster the mocked hook serves. Each test sets it, so no test depends on
 // what another left behind.
@@ -310,11 +311,11 @@ describe("an account on its way out", () => {
     expect(await screen.findByText("Deleted")).toBeInTheDocument();
     // An instant, not a calendar day, so it is drawn in the reader's own
     // timezone — computed here the same way rather than written out.
-    const expected = new Date("2026-10-20T12:00:00Z").toLocaleDateString("en", {
+    const expected = dateTimeFormat("en", {
       year: "numeric",
       month: "short",
       day: "numeric",
-    });
+    }).format(new Date("2026-10-20T12:00:00Z"));
     expect(screen.getByText(`Erased ${expected}`)).toBeInTheDocument();
   });
 

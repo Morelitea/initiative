@@ -14,12 +14,13 @@ import { useCommunities } from "@/hooks/useCommunities";
 import { useCommunityBillingSummary } from "@/hooks/useCommunityBillingSummary";
 import { holdsBillingSeat, trialDaysLeft } from "@/lib/billingSummary";
 import { parseDateValue } from "@/lib/formatDate";
+import { dateTimeFormat, numberFormat } from "@/lib/intl";
 
 /** A charge in minor units as the currency writes it, or null when the
  *  browser does not know the currency. */
 const formatCharge = (charge: CommunityBillingChargeRead, lang: string): string | null => {
   try {
-    const format = new Intl.NumberFormat(lang, { style: "currency", currency: charge.currency });
+    const format = numberFormat(lang, { style: "currency", currency: charge.currency });
     const digits = format.resolvedOptions().maximumFractionDigits ?? 2;
     return format.format(charge.total / 10 ** digits);
   } catch {
@@ -45,7 +46,7 @@ const planStatus = (
 ): PlanStatus | null => {
   const formatDay = (value: string | null | undefined): string | null => {
     const date = parseDateValue(value);
-    return date ? new Intl.DateTimeFormat(lang, { dateStyle: "long" }).format(date) : null;
+    return date ? dateTimeFormat(lang, { dateStyle: "long" }).format(date) : null;
   };
 
   if (summary.payment_failed) {

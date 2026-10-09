@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { buildCommunity, communityCan } from "@/__tests__/factories";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import type { CommunityBillingSummaryRead } from "@/api/generated/initiativeAPI.schemas";
+import { dateTimeFormat } from "@/lib/intl";
 
 // Mutable state the mocked hooks read, so each test can vary billing config,
 // the active community, and what the summary route answered.
@@ -58,7 +59,7 @@ const dayFromToday = (days: number): string => {
 
 const longDate = (value: string): string => {
   const [y, m, d] = value.split("-").map(Number);
-  return new Intl.DateTimeFormat("en", { dateStyle: "long" }).format(new Date(y, m - 1, d));
+  return dateTimeFormat("en", { dateStyle: "long" }).format(new Date(y, m - 1, d));
 };
 
 describe("CommunityBillingPanel", () => {

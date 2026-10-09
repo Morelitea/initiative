@@ -12,6 +12,7 @@
  * `useTimeFormat`; everything else just reads it at format time.
  */
 
+import { dateTimeFormat } from "@/lib/intl";
 import { getItem, setItem } from "@/lib/storage";
 
 export type TimeFormatPreference = "system" | "12" | "24";
@@ -107,9 +108,7 @@ export const isHour12 = (): boolean => {
 
 const systemPrefersHour12 = (): boolean => {
   try {
-    const resolved = new Intl.DateTimeFormat(undefined, {
-      hour: "numeric",
-    }).resolvedOptions();
+    const resolved = dateTimeFormat(undefined, { hour: "numeric" }).resolvedOptions();
     // `hour12` is the direct answer where a runtime reports it; `hourCycle`
     // is the one every modern engine gives, and h11/h12 are the 12-hour ones.
     if (typeof resolved.hour12 === "boolean") return resolved.hour12;

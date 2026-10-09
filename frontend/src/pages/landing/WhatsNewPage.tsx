@@ -16,6 +16,7 @@ import type { ChangelogEntry } from "@/api/generated/initiativeAPI.schemas";
 import { Markdown } from "@/components/Markdown";
 import { Button } from "@/components/ui/button";
 import { useChangelog } from "@/hooks/useSettings";
+import { dateTimeFormat } from "@/lib/intl";
 import { DOCS_URL, REPO_URL } from "@/lib/links";
 
 import { DarkBand } from "./DarkBand";
@@ -56,7 +57,7 @@ const useReleaseDate = () => {
     const parsed = new Date(`${date}T12:00:00Z`);
     return Number.isNaN(parsed.getTime())
       ? date
-      : parsed.toLocaleDateString(i18n.language, { dateStyle: "long", timeZone: "UTC" });
+      : dateTimeFormat(i18n.language, { dateStyle: "long", timeZone: "UTC" }).format(parsed);
   };
 };
 

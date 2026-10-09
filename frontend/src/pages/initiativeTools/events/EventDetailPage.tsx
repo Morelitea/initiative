@@ -37,6 +37,7 @@ import {
 import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useReadOnOpen } from "@/hooks/useNotifications";
 import { useCommunityPath } from "@/lib/communityUrl";
+import { dateTimeFormat } from "@/lib/intl";
 import { toast } from "@/lib/mascotToast";
 import { summarizeStored } from "@/lib/recurrence";
 import { hour12Option } from "@/lib/timeFormat";
@@ -65,16 +66,16 @@ const formatDateTime = (dateStr: string, allDay: boolean): string => {
 
   if (allDay) {
     // An all-day event's date is its UTC date, the same for every viewer.
-    return date.toLocaleDateString(undefined, {
+    return dateTimeFormat(undefined, {
       weekday: "long",
       year: "numeric",
       month: "long",
       day: "numeric",
       timeZone: "UTC",
-    });
+    }).format(date);
   }
 
-  return date.toLocaleString(undefined, {
+  return dateTimeFormat(undefined, {
     weekday: "long",
     year: "numeric",
     month: "long",
@@ -82,7 +83,7 @@ const formatDateTime = (dateStr: string, allDay: boolean): string => {
     hour: "numeric",
     minute: "2-digit",
     hour12: hour12Option(),
-  });
+  }).format(date);
 };
 
 /**
@@ -105,22 +106,22 @@ const formatDateRange = (startStr: string, endStr: string, allDay: boolean): str
     start.getDate() === end.getDate();
 
   if (sameDay) {
-    const dayPart = start.toLocaleDateString(undefined, {
+    const dayPart = dateTimeFormat(undefined, {
       weekday: "long",
       year: "numeric",
       month: "long",
       day: "numeric",
-    });
-    const startTime = start.toLocaleTimeString(undefined, {
+    }).format(start);
+    const startTime = dateTimeFormat(undefined, {
       hour: "numeric",
       minute: "2-digit",
       hour12: hour12Option(),
-    });
-    const endTime = end.toLocaleTimeString(undefined, {
+    }).format(start);
+    const endTime = dateTimeFormat(undefined, {
       hour: "numeric",
       minute: "2-digit",
       hour12: hour12Option(),
-    });
+    }).format(end);
     return `${dayPart}, ${startTime} - ${endTime}`;
   }
 

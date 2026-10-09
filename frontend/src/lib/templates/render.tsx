@@ -25,7 +25,7 @@ import { type ComponentType, createElement, Fragment, type ReactNode } from "rea
 import { resolveUploadUrl } from "@/lib/uploadUrl";
 
 import type { CompiledNode, CompiledTemplate } from "./compile";
-import { evaluate } from "./runtime";
+import { bindings, evaluate } from "./runtime";
 
 export interface RenderInput {
   /** The section's data, by the names its template reads. */
@@ -35,6 +35,8 @@ export interface RenderInput {
   parts: Readonly<Record<string, ComponentType<{ data: never; context: never }>>>;
   /** The community the screen belongs to: links and pictures stay inside it. */
   communityId: number;
+  /** Parts the member has turned off, drawn as nothing wherever the template places them. */
+  hidden?: ReadonlySet<string>;
 }
 
 type Scope = Record<string, unknown>;
@@ -45,6 +47,14 @@ const STYLE_VALUE = /^(-?\d+(\.\d+)?(px|rem|em|%|ch)?|#[0-9a-f]{3,8}|[a-z][a-z-]
 const REACT_NAMES: Record<string, string> = { class: "className", datetime: "dateTime" };
 
 export const MAX_RENDERED_NODES = 2000;
+
+/**
+ * Each template's answers outside any loop, by the data they were worked out
+ * from. A route's data does not change in place (a changed row is a new
+ * object), so while it passes the same data object, a render reuses them. An
+ * answer from a display function is never kept: it depends on the reader too.
+ */
+const answers = new WeakMap<CompiledTemplate, WeakMap<object, unknown[]>>();
 
 /** Any address resolves against this, so only a path on our own origin comes back out. */
 const ORIGIN = "https://community.invalid";
@@ -103,7 +113,19 @@ export function renderTemplate(template: CompiledTemplate, input: RenderInput): 
   const linkPrefix = `/c/${input.communityId}/`;
   const uploadPrefix = `/uploads/${input.communityId}/`;
 
-  const value = (index: number, scope: Scope) => evaluate(template.exprs[index] as string, scope);
+  const root = bindings(input.data);
+  const byData = answers.get(template) ?? new WeakMap<object, unknown[]>();
+  answers.set(template, byData);
+  const kept = byData.get(input.data) ?? [];
+  byData.set(input.data, kept);
+
+  const value = (index: number, scope: Scope) => {
+    if (scope !== root || template.display.includes(index)) {
+      return evaluate(template.exprs[index] as string, scope);
+    }
+    if (!(index in kept)) kept[index] = evaluate(template.exprs[index] as string, scope);
+    return kept[index];
+  };
 
   const props = (
     attrs: Record<string, string>,
@@ -160,12 +182,15 @@ export function renderTemplate(template: CompiledTemplate, input: RenderInput): 
       }
       case "part": {
         const Part = input.parts[node.name];
-        if (!Part) return null;
-        return createElement(
-          "div",
-          { ...props(node.attrs, node.bind, scope), key, "data-part": node.name },
-          createElement(Part, { data: input.data, context: input.context } as never)
-        );
+        if (!Part || input.hidden?.has(node.name)) return null;
+        // No element of its own: the template's classes go to the part's.
+        const { className } = props(node.attrs, node.bind, scope);
+        return createElement(Part, {
+          key,
+          data: input.data,
+          context: input.context,
+          className,
+        } as never);
       }
       case "if": {
         for (const branch of node.branches) {
@@ -190,5 +215,5 @@ export function renderTemplate(template: CompiledTemplate, input: RenderInput): 
     }
   };
 
-  return template.root.map((node, index) => draw(node, input.data, index));
+  return template.root.map((node, index) => draw(node, root, index));
 }

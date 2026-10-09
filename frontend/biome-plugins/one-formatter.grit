@@ -1,0 +1,23 @@
+// Each Intl formatter is built once per locale and options, in src/lib/intl.ts.
+// Building one costs far more than using it, so a formatter built inside a
+// render or a loop is refused, as are the methods that build one on every
+// call: toLocaleString, toLocaleDateString, toLocaleTimeString, and
+// localeCompare given a locale or options.
+language js
+
+or {
+  `new Intl.$kind($args)` where {
+    $kind <: or { `DateTimeFormat`, `NumberFormat`, `ListFormat`, `Collator`, `RelativeTimeFormat`, `PluralRules` }
+  },
+  `$value.toLocaleString($args)`,
+  `$value.toLocaleDateString($args)`,
+  `$value.toLocaleTimeString($args)`,
+  `$value.localeCompare($other, $locale, $options)`,
+  `$value.localeCompare($other, $locale)`
+} as $call where {
+  register_diagnostic(
+    span=$call,
+    message="Format through src/lib/intl.ts (dateTimeFormat, numberFormat, listFormat, collator), which builds each formatter once. Building one here repeats that work on every call.",
+    severity="error"
+  )
+}

@@ -12,6 +12,7 @@
  * applied by the editor inside a single collaborative transaction.
  */
 
+import { collator } from "@/lib/intl";
 import { type CellValue, keyOf, parseKey } from "@/lib/spreadsheet/coords";
 import type { CellFmt, RowFmt } from "@/lib/spreadsheet/styles";
 
@@ -27,7 +28,7 @@ const isBlank = (v: CellValue | undefined): boolean => v === undefined || v === 
 // sort still runs synchronously on the main thread, which is fine for the
 // typical hundreds-to-low-thousands of rows; a sheet near MAX_ROWS
 // (100k) with mostly text would be the case to revisit (e.g. a Worker).
-const textCollator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
+const textCollator = collator(undefined, { numeric: true, sensitivity: "base" });
 
 /**
  * Cross-type ordering (ascending): numbers, then text, then booleans —

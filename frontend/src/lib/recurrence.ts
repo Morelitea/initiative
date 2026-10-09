@@ -1,4 +1,5 @@
 import type { TaskListReadRecurrenceStrategy } from "@/api/generated/initiativeAPI.schemas";
+import { dateTimeFormat, listFormat } from "@/lib/intl";
 import { browserTimezone } from "@/lib/timezones";
 import type { TranslateFn } from "@/types/i18n";
 
@@ -228,7 +229,7 @@ const formatList = (labels: string[], type: "conjunction" | "disjunction" = "con
     return labels[0] ?? "";
   }
   try {
-    return new Intl.ListFormat(undefined, { style: "long", type }).format(labels);
+    return listFormat(undefined, { style: "long", type }).format(labels);
   } catch {
     if (labels.length === 2) {
       return `${labels[0]} and ${labels[1]}`;
@@ -245,7 +246,7 @@ const formatEnding = (rule: RecurrenceRule, t: TranslateFn) => {
       ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
       : new Date(rule.end_date);
     if (!Number.isNaN(date.getTime())) {
-      return t("dates:recurrenceSummary.untilDate", { date: date.toLocaleDateString() });
+      return t("dates:recurrenceSummary.untilDate", { date: dateTimeFormat().format(date) });
     }
   }
   if (rule.ends === "after_occurrences" && typeof rule.end_after_occurrences === "number") {

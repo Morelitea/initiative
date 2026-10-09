@@ -5,6 +5,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useDateLocale } from "@/hooks/useDateLocale";
 import { useLiveClockValue } from "@/hooks/useRelativeTime";
 import { useTimeFormat } from "@/hooks/useTimeFormat";
+import { dateTimeFormat } from "@/lib/intl";
 import { hour12Option } from "@/lib/timeFormat";
 
 type DateCellProps = {
@@ -45,7 +46,7 @@ export const DateCell = memo(({ date, isPastVariant, isDone }: DateCellProps) =>
   const formattedDate = useMemo(
     () =>
       time != null
-        ? new Date(time).toLocaleString(dateLocale.code, {
+        ? dateTimeFormat(dateLocale.code, {
             weekday: "long",
             year: "numeric",
             month: "long",
@@ -53,7 +54,7 @@ export const DateCell = memo(({ date, isPastVariant, isDone }: DateCellProps) =>
             hour: "numeric",
             minute: "2-digit",
             hour12: hour12Option(),
-          })
+          }).format(new Date(time))
         : null,
     [time, dateLocale, timeFormat]
   );

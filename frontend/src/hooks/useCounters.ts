@@ -33,6 +33,7 @@ import {
 } from "@/lib/counter-math";
 import { fireCounterStepFeedback } from "@/lib/counterStepFeedback";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { collator } from "@/lib/intl";
 import { toast } from "@/lib/mascotToast";
 import type { MutationOpts } from "@/types/mutation";
 
@@ -189,9 +190,9 @@ const compareCounters =
     let cmp: number;
     if (field === "count") {
       cmp = Number(a.count) - Number(b.count);
-      if (cmp === 0) cmp = a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+      if (cmp === 0) cmp = collator(undefined, { sensitivity: "base" }).compare(a.name, b.name);
     } else {
-      cmp = a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+      cmp = collator(undefined, { sensitivity: "base" }).compare(a.name, b.name);
     }
     if (cmp === 0) cmp = a.id - b.id;
     return direction === "desc" ? -cmp : cmp;

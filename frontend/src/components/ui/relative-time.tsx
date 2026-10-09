@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import { useDateLocale } from "@/hooks/useDateLocale";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
 import { useTimeFormat } from "@/hooks/useTimeFormat";
+import { dateTimeFormat } from "@/lib/intl";
 import { hour12Option } from "@/lib/timeFormat";
 
 type RelativeTimeProps = {
@@ -45,7 +46,7 @@ export const RelativeTime = ({
     const parsed = typeof date === "object" ? date : new Date(date);
     return Number.isNaN(parsed.getTime())
       ? undefined
-      : parsed.toLocaleString(locale.code, {
+      : dateTimeFormat(locale.code, {
           weekday: "long",
           year: "numeric",
           month: "long",
@@ -53,7 +54,7 @@ export const RelativeTime = ({
           hour: "numeric",
           minute: "2-digit",
           hour12: hour12Option(),
-        });
+        }).format(parsed);
   }, [showTitle, date, locale, timeFormat]);
 
   if (text == null) {

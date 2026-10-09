@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useAuth } from "@/hooks/useAuth";
+import { dateTimeFormat } from "@/lib/intl";
 
 /** A span of calendar days in the viewer's zone. Either end may be open. */
 export interface LocalDateRange {
@@ -49,7 +50,7 @@ export const dateRangeParams = (
   };
 };
 
-const dayFormat = () => new Intl.DateTimeFormat(undefined, { dateStyle: "medium" });
+const dayFormat = () => dateTimeFormat(undefined, { dateStyle: "medium" });
 
 /** Reads a range out loud: "Jul 1 – Sep 30, 2026", "From Jul 1, 2026", or
  *  "" when neither end is set. */
