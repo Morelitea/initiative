@@ -3,6 +3,7 @@ import { Ban, MessageSquare } from "lucide-react";
 import type { PropertyDefinitionRead } from "@/api/generated/initiativeAPI.schemas";
 import { namePropertyColumns } from "@/components/properties/propertyColumns";
 import { isEmptyPropertyValue } from "@/components/properties/propertyHelpers";
+import { iconForPropertyType } from "@/components/properties/propertyTypeIcons";
 
 import type { FieldDef } from "./fields";
 import type { ViewNode } from "./tree";
@@ -27,7 +28,8 @@ export const taskFields = (definitions: PropertyDefinitionRead[]): Map<string, F
     builtin({
       id: "title",
       kind: "title",
-      label: "tasks:taskForm.titleLabel",
+      // What a table's column has always been called.
+      label: "table.taskColumn",
       hideable: false,
       value: (task) => task.title,
     }),
@@ -37,9 +39,16 @@ export const taskFields = (definitions: PropertyDefinitionRead[]): Map<string, F
       id: "startDate",
       kind: "date",
       phrase: "kanban.starts",
+      past: "primary",
       value: (task) => task.start_date,
     }),
-    builtin({ id: "dueDate", kind: "date", phrase: "kanban.due", value: (task) => task.due_date }),
+    builtin({
+      id: "dueDate",
+      kind: "date",
+      phrase: "kanban.due",
+      past: "destructive",
+      value: (task) => task.due_date,
+    }),
     builtin({ id: "recurrence", kind: "recurrence", value: (task) => task.recurrence }),
     builtin({ id: "checklist", kind: "checklist", value: (task) => task.checklist_progress }),
     builtin({
@@ -74,6 +83,7 @@ export const taskFields = (definitions: PropertyDefinitionRead[]): Map<string, F
         label,
         hideable: true,
         propertyId: definition.id,
+        icon: iconForPropertyType(definition.type),
         value: (task) => {
           const summary = task.properties?.find((s) => s.property_id === definition.id);
           return summary && !isEmptyPropertyValue(summary.value) ? summary : null;

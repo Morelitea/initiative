@@ -17,7 +17,7 @@ import {
   type ToolViewOption,
 } from "@/components/initiativeTools/shared/ToolListToolbar";
 import { PullToRefresh } from "@/components/PullToRefresh";
-import { buildPropertyColumns, propertyColumnIds } from "@/components/properties/propertyColumns";
+import { propertyColumnIds } from "@/components/properties/propertyColumns";
 import { SkeletonRegion, TableSkeleton } from "@/components/skeletons/PageSkeletons";
 import { FocusSummary } from "@/components/tasks/FocusSummary";
 import { GlobalTaskFilters } from "@/components/tasks/GlobalTaskFilters";
@@ -34,6 +34,8 @@ import { useViewPreference } from "@/hooks/useViewPreference";
 import { communityPath, useCommunityPath } from "@/lib/communityUrl";
 import { getProjectColor } from "@/lib/projectColor";
 import { entityRefRoute, taskRoute } from "@/lib/tools";
+import { VIEW_NAMESPACES, type ViewEnv } from "@/lib/views/fields";
+import { taskFields } from "@/lib/views/tasks";
 import type { TranslateFn } from "@/types/i18n";
 
 export const MyTasksPage = () => {
@@ -64,10 +66,27 @@ export const MyTasksPage = () => {
   }, []);
 
   const { data: allPropertyDefinitions = [] } = useProperties();
-  const propertyColumns = useMemo(
-    () => buildPropertyColumns<TaskListRead>(allPropertyDefinitions, (row) => row.properties),
-    [allPropertyDefinitions]
-  );
+  const fields = useMemo(() => taskFields(allPropertyDefinitions), [allPropertyDefinitions]);
+  // Rows come from every community: each one's links go to its own.
+  const { t: viewT } = useTranslation(VIEW_NAMESPACES);
+  const env = useMemo<ViewEnv>(() => {
+    const path = (to: string, task: TaskListRead) => {
+      const communityId = task.community_id ?? table.activeCommunityId;
+      return communityId ? communityPath(communityId, to) : to;
+    };
+    return {
+      t: viewT as TranslateFn,
+      communityPath: path,
+      // A row without an initiative resolves through /go.
+      taskHref: (task) =>
+        path(
+          task.initiative_id != null
+            ? taskRoute(task.initiative_id, task.project_id, task.id)
+            : entityRefRoute("task", task.id),
+          task
+        ),
+    };
+  }, [viewT, table.activeCommunityId]);
   const propertyHiddenIds = useMemo(
     () => propertyColumnIds(allPropertyDefinitions),
     [allPropertyDefinitions]
@@ -104,7 +123,8 @@ export const MyTasksPage = () => {
         t: t as TranslateFn,
         isPinned: focus.isPinned,
         togglePin: focus.togglePin,
-        propertyColumns,
+        fields,
+        env,
       }),
     [
       table.activeCommunityId,
@@ -114,7 +134,8 @@ export const MyTasksPage = () => {
       table.fetchProjectStatuses,
       table.projectStatusCache,
       t,
-      propertyColumns,
+      fields,
+      env,
       focus.isPinned,
       focus.togglePin,
     ]

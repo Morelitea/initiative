@@ -18,6 +18,7 @@ import {
   buildDefaultFilterPresets,
   buildDefaultTaskStatuses,
   buildTag,
+  buildTagSummary,
   buildTask,
   buildTaskListResponse,
 } from "@/__tests__/factories";
@@ -585,5 +586,49 @@ describe("ProjectTasksSection ticking tasks off", () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
 
     expect(await doneBox("Chore 1")).not.toBeChecked();
+  });
+});
+
+describe("ProjectTasksSection table", () => {
+  beforeEach(() => {
+    // The table is virtualized, and jsdom gives every element a zero height,
+    // which windows it down to no rows at all.
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(800);
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(1200);
+  });
+
+  it("draws a row from the task's fields, as the board's card does", async () => {
+    const task = buildTask({
+      id: 4,
+      title: "Chore 4",
+      comment_count: 2,
+      tags: [buildTagSummary({ id: 7, name: "Urgent" })],
+    });
+    server.use(
+      communityHttp.get("/tasks/", () => HttpResponse.json(buildTaskListResponse([task])))
+    );
+    section({ routerSearch: { view: "table" } });
+
+    const row = (await screen.findByRole("link", { name: "Chore 4" })).closest("tr");
+    if (!row) throw new Error("no row for Chore 4");
+    expect(within(row).getByRole("link", { name: "Chore 4" })).toHaveAttribute("href", "/tasks/4");
+    expect(within(row).getByRole("link", { name: "Urgent" })).toHaveAttribute(
+      "href",
+      "/c/1/tags/7"
+    );
+    expect(within(row).getByText("2")).toBeInTheDocument();
+  });
+
+  it("names the fields in the Columns menu by their labels", async () => {
+    server.use(
+      communityHttp.get("/tasks/", () => HttpResponse.json(buildTaskListResponse([buildTask()])))
+    );
+    section({ routerSearch: { view: "table" } });
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole("button", { name: /^columns$/i }));
+
+    expect(await screen.findByRole("menuitemcheckbox", { name: "Due date" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitemcheckbox", { name: "Comments" })).toBeInTheDocument();
   });
 });

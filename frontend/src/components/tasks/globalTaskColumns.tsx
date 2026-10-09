@@ -10,20 +10,19 @@ import {
 import { TaskBlockersHoverCard } from "@/components/projects/TaskBlockersHoverCard";
 import { TaskDescriptionHoverCard } from "@/components/projects/TaskDescriptionHoverCard";
 import { SortHeader } from "@/components/SortIcon";
-import { TagBadgeList } from "@/components/tags/TagBadge";
 import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress";
-import { DateCell } from "@/components/tasks/TaskDateCell";
 import { TaskPrioritySelector } from "@/components/tasks/TaskPrioritySelector";
 import { TaskStatusSelector } from "@/components/tasks/TaskStatusSelector";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { communityPath } from "@/lib/communityUrl";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { summarizeStored } from "@/lib/recurrence";
 import { dateSortingFn, firstTagName, prioritySortingFn, textSortingFn } from "@/lib/sorting";
 import type { AppColumnDef } from "@/lib/table";
 import { getTaskDateStatus, getTaskDateStatusLabel } from "@/lib/taskDateStatus";
-import { entityRefRoute, initiativeRoute, taskRoute, toolDetailRoute } from "@/lib/tools";
+import { entityRefRoute, initiativeRoute, toolDetailRoute } from "@/lib/tools";
+import { type FieldColumnOptions, fieldColumn } from "@/lib/views/columns";
+import type { FieldDef, ViewEnv } from "@/lib/views/fields";
 import type { TranslateFn } from "@/types/i18n";
 
 interface GlobalTaskColumnsOptions {
@@ -47,88 +46,66 @@ interface GlobalTaskColumnsOptions {
    */
   isPinned?: (task: TaskListRead) => boolean;
   togglePin?: (task: TaskListRead) => void;
-  /** Custom property columns, placed after the tags. */
-  propertyColumns: AppColumnDef<TaskListRead>[];
+  /** The page's fields, from `taskFields`. */
+  fields: ReadonlyMap<string, FieldDef>;
+  env: ViewEnv;
 }
 
 interface SharedTaskColumnsOptions<T extends TaskListRead> {
-  t: TranslateFn;
-  /** Where one of the row's tag badges links. */
-  tagHref: (task: T, tagId: number) => string;
+  /** The table's fields, from `taskFields`. */
+  fields: ReadonlyMap<string, FieldDef>;
+  env: ViewEnv;
   isPriorityDisabled: (task: T) => boolean;
 }
 
 /**
  * The columns every task table renders alike, keyed so each table places them
- * in its own order.
+ * in its own order. Each but the date window draws a field, as the board's
+ * card does; the properties follow the tags.
  */
 export function sharedTaskColumns<T extends TaskListRead>({
-  t,
-  tagHref,
+  fields,
+  env,
   isPriorityDisabled,
-}: SharedTaskColumnsOptions<T>): Record<
-  "dateGroup" | "startDate" | "dueDate" | "priority" | "tags",
-  AppColumnDef<T>
-> {
+}: SharedTaskColumnsOptions<T>) {
+  // `taskFields` holds every built-in.
+  const column = (id: string, options: FieldColumnOptions<T>) =>
+    fieldColumn<T>(fields.get(id) as FieldDef, env, options);
+  const dateGroup: AppColumnDef<T> = {
+    id: "date group",
+    accessorFn: (task) => getTaskDateStatus(task.start_date, task.due_date),
+    header: ({ column }) => (
+      <SortHeader column={column} label={env.t("tasks:columns.dateWindow")} />
+    ),
+    cell: ({ getValue }) => (
+      <span className="font-medium text-base">
+        {getTaskDateStatusLabel(getValue<string>(), env.t)}
+      </span>
+    ),
+    sortFn: "alphanumeric",
+  };
   return {
-    dateGroup: {
-      id: "date group",
-      accessorFn: (task) => getTaskDateStatus(task.start_date, task.due_date),
-      header: ({ column }) => <SortHeader column={column} label={t("tasks:columns.dateWindow")} />,
-      cell: ({ getValue }) => (
-        <span className="font-medium text-base">
-          {getTaskDateStatusLabel(getValue<string>(), t)}
-        </span>
-      ),
-      sortFn: "alphanumeric",
-    },
-    startDate: {
-      id: "start date",
-      accessorFn: (task) => task.start_date,
-      header: ({ column }) => (
-        <SortHeader column={column} label={t("tasks:columns.startDate")} className="min-w-30" />
-      ),
-      cell: ({ row }) => <DateCell date={row.original.start_date} isPastVariant="primary" />,
-      sortFn: dateSortingFn,
-    },
-    dueDate: {
-      id: "due date",
-      accessorFn: (task) => task.due_date,
-      header: ({ column }) => (
-        <SortHeader column={column} label={t("tasks:columns.dueDate")} className="min-w-30" />
-      ),
-      cell: ({ row }) => (
-        <DateCell
-          date={row.original.due_date}
-          isPastVariant="destructive"
-          isDone={row.original.task_status?.category === "done"}
-        />
-      ),
-      sortFn: dateSortingFn,
-    },
-    priority: {
-      id: "priority",
-      accessorFn: (task) => task.priority,
-      header: ({ column }) => <SortHeader column={column} label={t("tasks:columns.priority")} />,
+    dateGroup,
+    title: column("title", { sortFn: "alphanumeric" }),
+    startDate: column("startDate", { id: "start date", sortFn: dateSortingFn }),
+    dueDate: column("dueDate", { id: "due date", sortFn: dateSortingFn }),
+    // Picking a priority here is the table's own, until fields edit.
+    priority: column("priority", {
+      sortFn: prioritySortingFn,
+      size: 140,
       cell: ({ row }) => (
         <TaskPrioritySelector task={row.original} disabled={isPriorityDisabled(row.original)} />
       ),
-      sortFn: prioritySortingFn,
-      size: 140,
-    },
-    tags: {
-      id: "tags",
-      accessorFn: (task) => firstTagName(task.tags),
-      header: ({ column }) => <SortHeader column={column} label={t("tasks:columns.tags")} />,
+    }),
+    tags: column("tags", {
+      sortBy: (task) => firstTagName(task.tags),
       sortFn: textSortingFn,
       sortUndefined: "last",
-      cell: ({ row }) =>
-        row.original.tags.length === 0 ? (
-          <span className="text-muted-foreground text-sm">&mdash;</span>
-        ) : (
-          <TagBadgeList tags={row.original.tags} tagHref={(tag) => tagHref(row.original, tag.id)} />
-        ),
-    },
+    }),
+    comments: column("comments", { size: 90 }),
+    properties: [...fields.values()]
+      .filter((field) => field.source === "property")
+      .map((field) => fieldColumn<T>(field, env, { size: 160 })),
   };
 }
 
@@ -142,19 +119,16 @@ export function globalTaskColumns({
   t,
   isPinned,
   togglePin,
-  propertyColumns,
+  fields,
+  env,
 }: GlobalTaskColumnsOptions): AppColumnDef<TaskListRead>[] {
   const communityDefaultLabel = t("myTasks.noCommunity");
   const getCommunityGroupLabel = (task: TaskListRead) =>
     task.community_name ?? communityDefaultLabel;
 
-  const taskCommunityPath = (task: TaskListRead, path: string) => {
-    const communityId = task.community_id ?? activeCommunityId;
-    return communityId ? communityPath(communityId, path) : path;
-  };
   const shared = sharedTaskColumns<TaskListRead>({
-    t,
-    tagHref: (task, tagId) => taskCommunityPath(task, `/tags/${tagId}`),
+    fields,
+    env,
     isPriorityDisabled: isUpdatingTask,
   });
 
@@ -228,8 +202,8 @@ export function globalTaskColumns({
         ]
       : []),
     {
-      accessorKey: "title",
-      header: ({ column }) => <SortHeader column={column} label={t("columns.task")} />,
+      ...shared.title,
+      // Its own cell: these rows come from every community, and are all yours.
       cell: ({ row }) => {
         const task = row.original;
         const recurrenceSummary = task.recurrence
@@ -244,13 +218,7 @@ export function globalTaskColumns({
           <div className="flex min-w-60 flex-col text-left">
             <div className="flex">
               <Link
-                to={taskCommunityPath(
-                  task,
-                  // Cross-community rows without an initiative resolve through /go.
-                  task.initiative_id != null
-                    ? taskRoute(task.initiative_id, task.project_id, task.id)
-                    : entityRefRoute("task", task.id)
-                )}
+                to={env.taskHref(task)}
                 className="flex w-full items-center gap-2 font-medium text-foreground hover:underline"
               >
                 {task.title}
@@ -268,8 +236,6 @@ export function globalTaskColumns({
           </div>
         );
       },
-      sortFn: "alphanumeric",
-      enableHiding: false,
     },
     shared.startDate,
     shared.dueDate,
@@ -298,7 +264,7 @@ export function globalTaskColumns({
               {initiativeId && initiativeName ? (
                 <>
                   <Link
-                    to={taskCommunityPath(task, initiativeRoute(initiativeId))}
+                    to={env.communityPath(initiativeRoute(initiativeId), task)}
                     className="flex items-center gap-2 text-muted-foreground text-sm"
                   >
                     <InitiativeColorDot color={initiativeColor ?? undefined} />
@@ -311,11 +277,11 @@ export function globalTaskColumns({
                 </>
               ) : null}
               <Link
-                to={taskCommunityPath(
-                  task,
+                to={env.communityPath(
                   initiativeId != null
                     ? toolDetailRoute(Tool.project, initiativeId, projectIdentifier)
-                    : entityRefRoute(Tool.project, projectIdentifier)
+                    : entityRefRoute(Tool.project, projectIdentifier),
+                  task
                 )}
                 className="font-medium text-primary text-sm hover:underline"
               >
@@ -328,7 +294,7 @@ export function globalTaskColumns({
     },
     shared.priority,
     shared.tags,
-    ...propertyColumns,
+    ...shared.properties,
     {
       id: "status",
       // Board order: a status's position in its project.

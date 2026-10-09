@@ -225,7 +225,6 @@
     "taskColumn": "Aufgabe",
     "tagGroup": "Tag",
     "untagged": "Ohne Tag",
-    "commentsColumn": "Kommentare",
     "statusColumn": "Status",
     "filterPlaceholder": "Aufgaben filtern...",
     "reorderTask": "Aufgabe neu anordnen",

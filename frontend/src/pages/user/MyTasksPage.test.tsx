@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { delay, HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
 
-import { buildProjectTaskStatus, buildTask } from "@/__tests__/factories";
+import { buildProjectTaskStatus, buildTagSummary, buildTask } from "@/__tests__/factories";
 import { server } from "@/__tests__/helpers/msw-server";
 import { createTestQueryClient, renderPage } from "@/__tests__/helpers/render";
 import { VIEW_PREFERENCES_QUERY_KEY } from "@/hooks/useViewPreference";
@@ -235,5 +235,41 @@ describe("MyTasksPage priority", () => {
     await user.click(await screen.findByRole("menuitemradio", { name: "High" }));
 
     await waitFor(() => expect(patched).toEqual(["3/101"]));
+  });
+});
+
+describe("MyTasksPage links", () => {
+  it("takes each row into its own community", async () => {
+    const task = buildTask({
+      id: 101,
+      title: "Write the thing",
+      community_id: 3,
+      initiative_id: 2,
+      project_id: 5,
+      tags: [buildTagSummary({ id: 7, name: "Urgent" })],
+    });
+    server.use(
+      http.get("/api/v1/me/tasks", ({ request }) => {
+        const forTable = new URL(request.url).searchParams.get("page_size") === "20";
+        return HttpResponse.json({
+          items: forTable ? [task] : [],
+          total_count: forTable ? 1 : 0,
+          page: 1,
+          page_size: 20,
+          has_next: false,
+        });
+      })
+    );
+    renderMyTasks();
+
+    const table = await screen.findByRole("table");
+    expect(await within(table).findByRole("link", { name: "Write the thing" })).toHaveAttribute(
+      "href",
+      "/c/3/i/2/projects/5/tasks/101"
+    );
+    expect(within(table).getByRole("link", { name: "Urgent" })).toHaveAttribute(
+      "href",
+      "/c/3/tags/7"
+    );
   });
 });
