@@ -250,6 +250,7 @@ export const projectListingBoard = (
       // A tag chip opens the community's own tag, and a listing's has none yet.
       tags: [],
       properties: task.properties.flatMap(summaryOf),
+      plugin_values: [],
     });
   });
   for (const tasks of Object.values(groupedTasks)) tasks.sort((a, b) => a.position - b.position);

@@ -10,9 +10,13 @@ uninstalling removes everything it kept.
 ``lookup`` is the value as text when the value is a JSON string, number or
 boolean short enough to look up by, and ``NULL`` otherwise.
 
+``shown`` says the install's pinned definition declares the key as a field on
+the item's kind. It is set on every write and again whenever the install moves
+to another version; the install's own values are never shown.
+
 Read and written by the install that owns the row, on an item it can read,
-with the read scope of the item's tool (``app.db.initiative_rls`` and
-``app.db.guild_ddl``).
+with the read scope of the item's tool; a shown row is also read by whoever
+can read its item (``app.db.initiative_rls`` and ``app.db.guild_ddl``).
 """
 
 from __future__ import annotations
@@ -22,6 +26,7 @@ from typing import Any, Optional
 
 from sqlalchemy import (
     CheckConstraint,
+    Boolean,
     Column,
     DateTime,
     ForeignKey,
@@ -55,6 +60,7 @@ class PluginMetadata(SQLModel, table=True):
             "lookup",
             postgresql_where=text("lookup IS NOT NULL"),
         ),
+        Index("ix_plugin_metadata_entity", "entity_type", "entity_id"),
     )
 
     #: The install that keeps the value. Its rows go with it.
@@ -71,6 +77,11 @@ class PluginMetadata(SQLModel, table=True):
     value: Any = Field(sa_column=Column(JSONB, nullable=False))
     lookup: Optional[str] = Field(
         default=None, sa_column=Column(String(LOOKUP_LENGTH), nullable=True)
+    )
+    #: Declared as a field on the item's kind by the install's pinned version.
+    shown: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default=text("false")),
     )
     updated_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),

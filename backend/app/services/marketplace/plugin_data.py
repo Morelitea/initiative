@@ -852,9 +852,14 @@ async def _call_plugin(
     transport: httpx.AsyncBaseTransport | None,
     read: Callable[[httpx.Request | Answered], Awaitable[T]],
     caller: Optional[CallingPlugin] = None,
+    viewer: Optional[str] = None,
+    subject: Optional[Mapping[str, Any]] = None,
 ) -> T:
     """One upstream call, under this worker's in-flight cap for the plug-in, and
     what ``read`` made of its answer. Sent once: nothing here retries.
+
+    ``viewer`` and ``subject`` are an action's: the reader who ran it, by this
+    install's reference for them, and the item it was run on.
 
     A declarative plug-in is called by Initiative itself
     (:func:`~app.services.marketplace.declarative.call_endpoint`), with no
@@ -909,6 +914,8 @@ async def _call_plugin(
                 actor=caller.actor if caller is not None else None,
                 member=caller.member_ref if caller is not None else None,
                 initiative_id=caller.initiative_id if caller is not None else None,
+                viewer=viewer,
+                subject=subject,
             )
         except PluginPlatformSigningNotConfiguredError as exc:
             raise PluginDataError(

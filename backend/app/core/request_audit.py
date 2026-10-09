@@ -38,11 +38,13 @@ import time
 from typing import Any, Awaitable, Callable
 
 from starlette.datastructures import Headers, MutableHeaders
+from starlette.requests import HTTPConnection
 
 from app.core import audit_context, metrics
 from app.core.audit_events import AuditEventType
 from app.core.config import settings
 from app.services import audit as audit_service
+from app.services.tenant import plugin_age
 
 logger = logging.getLogger(__name__)
 
@@ -158,6 +160,7 @@ class RequestAuditMiddleware:
             request_id=_incoming_request_id(headers) or audit_context.new_request_id(),
             source_ip=(scope.get("client") or (None,))[0],
             user_agent=headers.get("user-agent"),
+            country=plugin_age.request_country(HTTPConnection(scope)),
         )
         _note_ignored_forwarded_header(headers, context.source_ip)
         if kind == "websocket":

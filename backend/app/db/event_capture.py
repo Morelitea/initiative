@@ -594,12 +594,9 @@ def _trigger_block(spec: CaptureSpec) -> str:
     # write path of every other table.
     type_expr = spec.resource_type_expr
     static_type = "" if type_expr is not None else spec.static_resource_type
-    return "\n".join(
+    call = "\n".join(
         [
-            f"DROP TRIGGER IF EXISTS {spec.trigger_name} ON {spec.table};",
-            f"CREATE TRIGGER {spec.trigger_name}",
-            f"  AFTER INSERT OR UPDATE OR DELETE ON {spec.table}",
-            f"  FOR EACH ROW EXECUTE FUNCTION {CAPTURE_FUNCTION}(",
+            f"  EXECUTE FUNCTION {CAPTURE_FUNCTION}(",
             f"    {_quoted(spec.initiative_expr or initiative_locator(spec.table)(ROW))},",
             f"    '{static_type}',",
             f"    {_quoted(spec.resource_id_expr)},",
@@ -614,6 +611,30 @@ def _trigger_block(spec: CaptureSpec) -> str:
             "  );",
         ]
     )
+    name = spec.trigger_name
+    when = source.when
+    if when is None:
+        triggers = [(name, "INSERT OR UPDATE OR DELETE", None)]
+    else:
+        # A WHEN may name only the rows its events have, so a condition takes
+        # one trigger per event: the row after an insert, the row before a
+        # delete, and either side of an update.
+        triggers = [
+            (name, "UPDATE", f"{when('OLD')} OR {when('NEW')}"),
+            (f"{name}_insert", "INSERT", when("NEW")),
+            (f"{name}_delete", "DELETE", when("OLD")),
+        ]
+    blocks = []
+    for trigger, events, condition in triggers:
+        blocks += [
+            f"DROP TRIGGER IF EXISTS {trigger} ON {spec.table};",
+            f"CREATE TRIGGER {trigger}",
+            f"  AFTER {events} ON {spec.table}",
+            "  FOR EACH ROW",
+            *([f"  WHEN ({condition})"] if condition is not None else []),
+            call,
+        ]
+    return "\n".join(blocks)
 
 
 _HEADER = """\

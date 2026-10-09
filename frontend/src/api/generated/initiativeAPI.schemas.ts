@@ -1358,6 +1358,16 @@ export interface ChecklistProgress {
 }
 
 /**
+ * One value an installed plug-in shows on an item: a key its pinned
+ * version declares as a field there.
+ */
+export interface PluginValueSummary {
+  plugin_id: number;
+  key: string;
+  value: unknown;
+}
+
+/**
  * Lightweight schema for task list endpoints - excludes heavy nested data
  */
 export interface TaskListRead {
@@ -1394,6 +1404,7 @@ export interface TaskListRead {
   checklist_progress: ChecklistProgress | null;
   tags: TagSummary[];
   properties: PropertySummary[];
+  plugin_values: PluginValueSummary[];
 }
 
 export interface CalendarEntriesResponse {
@@ -5769,6 +5780,20 @@ export interface InterfaceSettingsUpdate {
 }
 
 /**
+ * A kind of item a plug-in's fields and actions are offered on.
+ */
+export type ItemKind = (typeof ItemKind)[keyof typeof ItemKind];
+
+export const ItemKind = {
+  task: "task",
+  queue_item: "queue_item",
+  calendar_event: "calendar_event",
+  counter: "counter",
+  gallery_image: "gallery_image",
+  post: "post",
+} as const;
+
+/**
  * An item's page, in three regions. A field placed in none of them is
  * drawn in a "More fields" section.
  */
@@ -7196,6 +7221,23 @@ export interface PluginAccessTokenResponse {
   token_type?: string;
   expires_in: number;
   scope: string;
+}
+
+export type PluginActionResultValues = { [key: string]: unknown };
+
+/**
+ * The values the plug-in shows on the item after its action, by key.
+ */
+export interface PluginActionResult {
+  values: PluginActionResultValues;
+}
+
+/**
+ * The item to run an action on.
+ */
+export interface PluginActionRun {
+  entity_type: ItemKind;
+  entity_id: number;
 }
 
 /**
@@ -9372,6 +9414,7 @@ export interface TaskRead {
   checklist_progress: ChecklistProgress | null;
   tags: TagSummary[];
   properties: PropertySummary[];
+  plugin_values: PluginValueSummary[];
 }
 
 export interface TaskReorderItem {

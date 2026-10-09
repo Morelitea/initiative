@@ -54,6 +54,9 @@ class RequestContext:
     request_id: str
     source_ip: Optional[str] = None
     user_agent: Optional[str] = None
+    #: The country the trusted proxy says the request came from, for the
+    #: decisions that depend on where somebody is. Never written to a line.
+    country: Optional[str] = None
     #: The account the request is being served as, once it has authenticated.
     actor_user_id: Optional[int] = None
     #: The community a grant reaches, and the grant that reaches it.
@@ -146,6 +149,7 @@ def begin(
     request_id: str,
     source_ip: Optional[str] = None,
     user_agent: Optional[str] = None,
+    country: Optional[str] = None,
 ) -> tuple[RequestContext, contextvars.Token]:
     """Open a request's context and return it with the token that closes it.
 
@@ -157,6 +161,7 @@ def begin(
         request_id=request_id,
         source_ip=_inet(source_ip),
         user_agent=(user_agent or None) and user_agent[:MAX_USER_AGENT],
+        country=country,
     )
     return context, _request.set(context)
 
@@ -229,3 +234,10 @@ def envelope_context(*, caller: bool) -> Optional[dict[str, Any]]:
     """The ``context`` block for a line written now, or ``None``."""
     context = _request.get()
     return context.as_envelope(caller=caller) if context is not None else None
+
+
+def client_country() -> Optional[str]:
+    """The country this request came from, as the trusted proxy says;
+    ``None`` outside a request or when it is not known."""
+    context = _request.get()
+    return context.country if context is not None else None

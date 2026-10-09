@@ -19,6 +19,7 @@ from app.schemas.recurrence import OccurrenceScope, TaskRule
 
 from app.schemas.platform.user import PersonShape, UserPublic
 from app.schemas.tenant.evidence import EvidenceRead
+from app.schemas.tenant.plugin_data import PluginValueSummary
 from app.schemas.tenant.initiative import InitiativeSummary
 from app.schemas.tenant.task_status import TaskStatusRead
 from app.schemas.tenant.tag import TagSummary
@@ -221,6 +222,9 @@ class TaskRead(TaskBase):
     checklist_progress: Optional[ChecklistProgress] = None
     tags: List[TagSummary] = []
     properties: List[PropertySummary] = []
+    #: The values installed plug-ins show on the task, from the installs on
+    #: and placed in its initiative.
+    plugin_values: List[PluginValueSummary] = []
 
 
 class TaskListRead(TaskBase):
@@ -268,6 +272,9 @@ class TaskListRead(TaskBase):
     checklist_progress: Optional[ChecklistProgress] = None
     tags: List[TagSummary] = []
     properties: List[PropertySummary] = []
+    #: The values installed plug-ins show on the task, from the installs on
+    #: and placed in its initiative.
+    plugin_values: List[PluginValueSummary] = []
 
 
 class TaskListResponse(PageMeta):

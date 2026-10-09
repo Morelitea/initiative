@@ -65,6 +65,19 @@ def request_country(connection: HTTPConnection) -> str | None:
 
 async def viewer_for(connection: HTTPConnection, user_id: int) -> AgeViewer:
     """The age and country of the person making this request."""
+    return await viewer_of(user_id, request_country(connection))
+
+
+async def current_viewer(user_id: int) -> AgeViewer:
+    """The same, for a caller that holds no request: the country from the
+    request being served (``audit_context.client_country``)."""
+    from app.core import audit_context
+
+    return await viewer_of(user_id, audit_context.client_country())
+
+
+async def viewer_of(user_id: int, country: str | None) -> AgeViewer:
+    """The age of ``user_id``, in ``country``."""
     # Imported here so this module stays importable from ``app.api.deps``.
     from app.db.session import SystemSessionLocal
     from app.services.platform import app_settings as app_settings_service
@@ -76,7 +89,7 @@ async def viewer_for(connection: HTTPConnection, user_id: int) -> AgeViewer:
         birthdate = await users_service.birthdate_of(system_session, user_id=user_id)
     return AgeViewer(
         age=None if birthdate is None else users_service.years_old(birthdate),
-        country=request_country(connection),
+        country=country,
     )
 
 

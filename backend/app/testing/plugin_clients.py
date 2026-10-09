@@ -13,7 +13,7 @@ import json
 import secrets
 import time
 from dataclasses import dataclass
-from typing import Any, Optional, Sequence
+from typing import Any, Mapping, Optional, Sequence
 
 import jwt
 from cryptography.hazmat.primitives.asymmetric import ec, rsa
@@ -139,13 +139,15 @@ async def install_plugin(
     register: bool = True,
     enabled: bool = True,
     requested: Optional[Sequence[str]] = None,
+    declares: Optional[Mapping[str, Any]] = None,
 ) -> InstalledPlugin:
     """An install of ``client_id``'s listing, placed in one of two
     initiatives and granted ``granted`` by the community's seat, with the
     operator's registration publishing :func:`client_jwks`.
 
     The pinned manifest requests ``requested``, every scope by default, so
-    the grant is what decides what a token carries."""
+    the grant is what decides what a token carries. ``declares`` adds to it,
+    such as its ``fields``."""
     seat = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
     unplaced = await create_initiative(session, seat.guild, seat.user, name="B")
     plugin = await create_guild_plugin(
@@ -159,6 +161,7 @@ async def install_plugin(
                 "protocol": 1,
                 "scopes": list(ALL_SCOPES if requested is None else requested),
             },
+            **(declares or {}),
         },
         listing_uid=listing_uid,
     )

@@ -13,14 +13,21 @@ anything: which installed plug-ins offer widgets, which sources each widget draw
 and the module the browser will run in its sandbox. It is read off each
 install's **pinned** definition, so a canvas is authored against the version the
 guild chose rather than whatever the catalog says today.
+
+:class:`PluginValueSummary` is one value a plug-in shows on an item, which
+comes back with the item; :class:`PluginActionRun` runs one of a plug-in's
+actions on an item, and :class:`PluginActionResult` is the item's values for
+that plug-in afterwards.
 """
 
 from datetime import datetime
+from enum import Enum
 from typing import Any, Dict, List, Optional
 
 
-from pydantic import Field
+from pydantic import ConfigDict, Field
 
+from app.core.tools import ITEM_KINDS
 from app.schemas.base import RawTextStr, SanitizedBaseModel
 from app.schemas.sql_query import QueryColumnDescription
 
@@ -225,3 +232,32 @@ class PluginParamOptionsResponse(SanitizedBaseModel):
     options: List[PluginParamOption] = []
     #: ``no-source``, ``needs-sibling`` or ``unresolved``.
     unavailable: Optional[str] = None
+
+
+class PluginValueSummary(SanitizedBaseModel):
+    """One value an installed plug-in shows on an item: a key its pinned
+    version declares as a field there."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    #: The install, as the community's plug-in routes name it.
+    plugin_id: int
+    key: str
+    value: Any
+
+
+ItemKind = Enum("ItemKind", {name: name for name in ITEM_KINDS}, type=str)
+ItemKind.__doc__ = "A kind of item a plug-in's fields and actions are offered on."
+
+
+class PluginActionRun(SanitizedBaseModel):
+    """The item to run an action on."""
+
+    entity_type: ItemKind
+    entity_id: int
+
+
+class PluginActionResult(SanitizedBaseModel):
+    """The values the plug-in shows on the item after its action, by key."""
+
+    values: Dict[str, Any]

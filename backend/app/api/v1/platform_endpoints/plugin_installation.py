@@ -32,7 +32,7 @@ so the table's policies decide which rows it reaches
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Annotated, List, Optional
+from typing import Annotated, Any, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -345,9 +345,12 @@ async def write_installation_metadata(
     payload: PluginMetadataWrite,
     installation: RoutedInstallationDep,
     session: SessionDep,
+    system: SystemSessionDep,
 ) -> PluginMetadataValues:
     """Write some of this install's values on one item, or on itself; a
-    ``null`` removes its key. Answers every value it keeps there now.
+    ``null`` removes its key. Answers every value it keeps there now. A value
+    on an item whose key the pinned version declares as a field there is shown
+    to whoever can read the item.
 
     On an item, the install needs the read scope of the item's tool (403) and
     to be able to read the item (404). A key is a lowercase letter, then
@@ -355,12 +358,17 @@ async def write_installation_metadata(
     value at most 8192 bytes as JSON (413); an item at most 32 keys and 65536
     bytes, and the install itself 256 keys and 1048576 bytes (409).
     """
+
+    async def pinned() -> Any:
+        return (await _load(system, installation)).definition
+
     values = await metadata_service.write(
         session,
         installation.context,
         payload.entity_type.value,
         payload.entity_id,
         payload.values,
+        pinned,
     )
     return PluginMetadataValues(values=values)
 

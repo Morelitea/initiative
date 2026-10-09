@@ -255,6 +255,10 @@ class AuditEventType(str, Enum):
     #: It records the reach, as ``pam.request`` does; what the plug-in called then
     #: changed is its own.
     PLUGIN_HUB_CALL = "plugin_hub.call", AuditCategory.AUTHORIZATION, 2, False
+    #: A member ran one of an installed plug-in's actions on an item: which
+    #: install, which action, the item, and how it ended. Like a hub call it
+    #: records the reach; what the plug-in then changed is its own.
+    PLUGIN_ACTION = "plugin.action", AuditCategory.AUTHORIZATION, 2, False
 
     # Configuration. The record says which fields moved; a value is copied in
     # only where its type rules out a secret (see ``audit.changed_fields``).

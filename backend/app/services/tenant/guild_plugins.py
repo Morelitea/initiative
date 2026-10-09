@@ -1170,6 +1170,11 @@ def surface_renders_in(page: dict[str, Any], scope: str) -> bool:
     return scope in scopes if isinstance(scopes, list) else scope == "community"
 
 
+#: What a plug-in adds to an item — its values, its actions — taken as a
+#: surface rendered inside the item's initiative, so the same people reach it.
+ITEM_SURFACE: dict[str, Any] = {"scopes": ["initiative"]}
+
+
 def surface_access(
     page: dict[str, Any],
     *,

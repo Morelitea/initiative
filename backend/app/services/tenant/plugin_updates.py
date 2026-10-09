@@ -57,7 +57,7 @@ from app.services.marketplace.installs import (
 from app.services.tenant import plugin_config as plugin_config_service
 from app.services.tenant import plugin_connections as connections_service
 from app.services.tenant import plugin_revocation as revocation_service
-from app.services.tenant import plugin_schedules
+from app.services.tenant import plugin_metadata, plugin_schedules
 from app.services.tenant import guild_plugins as guild_plugins_service
 from app.db.request_context import Unattributed
 
@@ -72,6 +72,7 @@ __all__ = [
     "apply_version",
     "decline_version",
     "notify_pending_updates",
+    "reconcile_repinned",
     "update_offer",
     "update_version",
     "upgrade_asks",
@@ -285,6 +286,20 @@ async def apply_version(
     return plugin
 
 
+async def reconcile_repinned(
+    guild_id: int, plugin: GuildPlugin, *, session: Optional[AsyncSession] = None
+) -> None:
+    """Bring what follows an install's pinned definition into line with it
+    once it has moved: its schedules, and which of its values are shown.
+
+    ``session`` is the community's system session, routed, whose caller
+    commits; without one each is written on a system session of its own."""
+    await plugin_schedules.reconcile(
+        guild_id, plugin.id, plugin.definition, session=session
+    )
+    await plugin_metadata.reconcile_shown(guild_id, plugin.id, session=session)
+
+
 def decline_version(plugin: GuildPlugin, version: str) -> None:
     """Keep the pinned version, and stop asking about ``version``.
 
@@ -417,9 +432,7 @@ async def _update_guild(
                 guild_id=guild_id,
                 add_scopes=offer.asks.added_scopes,
             )
-            await plugin_schedules.reconcile(
-                guild_id, plugin.id, plugin.definition, session=session
-            )
+            await reconcile_repinned(guild_id, plugin, session=session)
             applied += 1
             logger.info(
                 "plug-in auto-update: guild=%s plug-in=%s listing=%s required, %s -> %s",
@@ -453,9 +466,7 @@ async def _update_guild(
             continue
         from_version = plugin.listing_version
         await apply_version(session, plugin, pending, guild_id=guild_id)
-        await plugin_schedules.reconcile(
-            guild_id, plugin.id, plugin.definition, session=session
-        )
+        await reconcile_repinned(guild_id, plugin, session=session)
         applied += 1
         logger.info(
             "plug-in auto-update: guild=%s plug-in=%s listing=%s %s -> %s",

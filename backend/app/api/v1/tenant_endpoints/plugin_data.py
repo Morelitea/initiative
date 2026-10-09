@@ -31,6 +31,10 @@ on the settings rung, so the list is not the content-gated install list. The cal
 is read comes from the pinned definition — and it is the settings rung that
 decides who may ask, the same as the storage figure beside it.
 
+``/plugins/{plugin_id}/actions/{action_id}`` runs one of a plug-in's actions on
+one item for the caller. What it checks before the plug-in is called is
+:mod:`app.services.marketplace.plugin_actions`'s.
+
 ``/plugins/{plugin_id}/endpoints/{endpoint_id}/options`` fills a menu. It is the one
 read here with no dashboard on it, because it exists to fill in a form for a
 widget nobody has placed yet — and what stands in for that gate is that the
@@ -52,12 +56,16 @@ from app.api.deps import (
     SettingsAdminContextDep,
     SettingsRLSSessionDep,
 )
+from app.core.audit_events import AuditEventType
 from app.core.messages import GuildPluginMessages, PluginDataMessages
+from app.core.rate_limit import PLUGIN_ACTIONS_PER_MEMBER, take_allowance
 from app.core.tools import Tool
 from app.models.tenant.guild_plugin import GuildPlugin
 from app.schemas.sql_query import QueryColumnDescription
 from app.services.query import rows as rows_query
 from app.schemas.tenant.plugin_data import (
+    PluginActionResult,
+    PluginActionRun,
     PluginDataTable,
     PluginDataResponse,
     PluginEndpointRead,
@@ -70,7 +78,10 @@ from app.schemas.tenant.plugin_data import (
     PluginWidgetCatalogResponse,
     PluginWidgetRead,
 )
+from app.services import audit as audit_service
+from app.services.marketplace import plugin_actions
 from app.services.marketplace import plugin_data as plugin_data_service
+from app.services.marketplace.plugin_data import PluginDataError
 from app.services.marketplace.service_plugins import plugin_widget_type, is_admin_only
 from app.services.tenant import plugin_age
 
@@ -496,3 +507,85 @@ async def read_plugin_param_options(
         options=[PluginParamOption(**option) for option in options],
         unavailable=unavailable,
     )
+
+
+#: The counter namespace for actions' allowance.
+_ACTION_LIMIT_NAMESPACE = "plugin-action"
+#: How an action ended, in the audit line, when the plug-in answered.
+_ACTION_OK = "ok"
+
+
+@router.post("/{plugin_id}/actions/{action_id}", response_model=PluginActionResult)
+async def run_plugin_action(
+    plugin_id: int,
+    action_id: str,
+    payload: PluginActionRun,
+    session: RLSSessionDep,
+    current_user: CurrentUser,
+    guild_context: GuildContextDep,
+    viewer: AgeViewerDep,
+) -> PluginActionResult:
+    """Run one of a plug-in's actions on one item.
+
+    The plug-in does the work, called as its installation with the caller and
+    the item named; Initiative changes nothing itself. The answer is the values
+    the plug-in shows on the item afterwards. Refused with
+    ``PLUGIN_ACTION_NOT_FOUND`` when the install declares no such action on
+    this kind of item, ``PLUGIN_ACTION_NOT_OFFERED`` when it is not offered on
+    this item for the caller, the item's own refusal when the caller cannot
+    read it, and 429 past the allowance.
+    """
+    plugin = (
+        await session.exec(select(GuildPlugin).where(GuildPlugin.id == plugin_id))
+    ).first()
+    if plugin is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=PluginDataMessages.ACTION_NOT_FOUND,
+        )
+    kind = payload.entity_type.value
+
+    def audit(outcome: str) -> None:
+        audit_service.emit(
+            event_type=AuditEventType.PLUGIN_ACTION,
+            actor_user_id=current_user.id,
+            guild_id=guild_context.guild_id,
+            target_type=kind,
+            target_id=payload.entity_id,
+            detail={
+                "install_id": plugin.id,
+                "listing_uid": plugin.listing_uid,
+                "action": action_id,
+                "outcome": outcome,
+            },
+        )
+
+    if not await take_allowance(
+        PLUGIN_ACTIONS_PER_MEMBER,
+        _ACTION_LIMIT_NAMESPACE,
+        f"{guild_context.guild_id}:{plugin.id}:{current_user.id}",
+    ):
+        audit(PluginDataMessages.RATE_LIMITED)
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=PluginDataMessages.RATE_LIMITED,
+        )
+    try:
+        values = await plugin_actions.run_action(
+            session,
+            plugin=plugin,
+            action_id=action_id,
+            kind=kind,
+            entity_id=payload.entity_id,
+            context=guild_context,
+            user_id=current_user.id,
+            age_allows=plugin_age.age_allows(plugin.definition, viewer),
+        )
+    except PluginDataError as exc:
+        audit(exc.code)
+        raise
+    except HTTPException as exc:
+        audit(str(exc.detail))
+        raise
+    audit(_ACTION_OK)
+    return PluginActionResult(values=values)
