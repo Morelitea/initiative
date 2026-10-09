@@ -29,10 +29,14 @@ from app.core.intake import IntakeStream
 from app.core.messages import HoldMessages, ModerationMessages
 from app.core.moderation import (
     PLATFORM_TARGET_RELATION,
+    LegalBasis,
+    ModerationAct,
     PlatformReportTarget,
+    RemovalReason,
     ReportOutcome,
     ReportReason,
     ReportVenue,
+    removal_reason_for,
     target_table,
     venue_for,
 )
@@ -47,7 +51,7 @@ from app.models.platform.user import User
 from app.models.tenant.moderation import ModerationReport, ModerationReportReporter
 from app.models.tenant.search_entry import SearchEntry
 from app.services.platform import evidence as evidence_service
-from app.services.platform.intake import CaseOutcome, CaseRefs, open_case
+from app.services.platform.intake import CaseFiler, CaseOutcome, CaseRefs, open_case
 from app.db.request_context import SystemGuild
 
 if TYPE_CHECKING:
@@ -59,12 +63,45 @@ logger = logging.getLogger(__name__)
 
 
 class ReportFiled:
-    """What filing a report did. Deliberately tells the reporter nothing else."""
+    """What filing a report did. Deliberately tells the reporter nothing else
+    — but, for an ``illegal`` report the platform takes no cases about, where
+    to tell whoever runs this server themselves."""
 
-    __slots__ = ("venue",)
+    __slots__ = ("venue", "platform_contact")
 
-    def __init__(self, venue: ReportVenue) -> None:
+    def __init__(
+        self, venue: ReportVenue, platform_contact: Optional[str] = None
+    ) -> None:
         self.venue = venue
+        self.platform_contact = platform_contact
+
+
+def _refuse(code: str) -> HTTPException:
+    return HTTPException(status_code=http_status.HTTP_400_BAD_REQUEST, detail=code)
+
+
+def check_report(
+    *,
+    reason: ReportReason,
+    detail: Optional[str],
+    legal_basis: Optional[LegalBasis],
+    attached: int,
+) -> None:
+    """What a report must say for its reason. An ``illegal`` one names the
+    law and says what is wrong, and an ``other`` one says what is wrong. A
+    child-safety one names where the material is and carries none of it."""
+    said = bool((detail or "").strip())
+    if reason is ReportReason.illegal:
+        if legal_basis is None:
+            raise _refuse(ModerationMessages.LEGAL_BASIS_REQUIRED)
+        if not said:
+            raise _refuse(ModerationMessages.DETAIL_REQUIRED)
+        if legal_basis is LegalBasis.child_safety and attached:
+            raise _refuse(ModerationMessages.NO_ATTACHMENTS)
+    elif legal_basis is not None:
+        raise _refuse(ModerationMessages.LEGAL_BASIS_NOT_TAKEN)
+    if reason is ReportReason.other and not said:
+        raise _refuse(ModerationMessages.DETAIL_REQUIRED)
 
 
 def public_relation(name: str) -> Table:
@@ -128,6 +165,7 @@ async def file_report(
     guild_id: Optional[int] = None,
     evidence: Sequence["PreparedEvidence"] = (),
     now: Optional[datetime] = None,
+    legal_basis: Optional[LegalBasis] = None,
 ) -> ReportFiled:
     """Route one report to whoever handles that kind of thing.
 
@@ -139,7 +177,15 @@ async def file_report(
     standing in; it is validated as theirs before it is used, and it decides
     nothing about the venue. ``evidence`` is stored with the report wherever
     it lands: on the community's report, or on the operations case.
+
+    An ``illegal`` report about community content goes to **both**: the
+    community's moderators get it as any report, and the platform opens a case
+    of its own, which the reporter follows from their tickets. Where the
+    platform takes no moderation cases, the reply says who to tell instead.
     """
+    check_report(
+        reason=reason, detail=detail, legal_basis=legal_basis, attached=len(evidence)
+    )
     moment = now or datetime.now(timezone.utc)
     venue = venue_for(target)
 
@@ -152,7 +198,7 @@ async def file_report(
             guild_id=guild_id,
         )
         if located is not None:
-            await _place_in_initiative(
+            report_id = await _place_in_initiative(
                 guild_id=located[0],
                 initiative_id=located[1],
                 reporter_id=reporter.id,
@@ -162,8 +208,23 @@ async def file_report(
                 detail=detail,
                 moment=moment,
                 evidence=evidence,
+                legal_basis=legal_basis,
             )
-            return ReportFiled(ReportVenue.initiative)
+            contact = None
+            if reason is ReportReason.illegal:
+                contact = await _tell_the_platform(
+                    reporter_session,
+                    guild_id=located[0],
+                    report_id=report_id,
+                    reporter_id=reporter.id,
+                    target=target,
+                    target_id=target_id,
+                    detail=detail,
+                    legal_basis=legal_basis,
+                    moment=moment,
+                    evidence=evidence,
+                )
+            return ReportFiled(ReportVenue.initiative, platform_contact=contact)
         # Nothing in the community answers to that id for this reader, and a
         # report names only something its reporter can see.
         raise HTTPException(
@@ -195,6 +256,7 @@ async def file_report(
         ),
         evidence=evidence,
         evidence_by=reporter.id,
+        legal_basis=legal_basis,
     )
     if opened is None:
         # Nothing is bound to receive it. Say so rather than answering 202 to
@@ -217,8 +279,10 @@ async def _place_in_initiative(
     detail: Optional[str],
     moment: datetime,
     evidence: Sequence["PreparedEvidence"] = (),
-) -> None:
-    """Open or join the community's report for this target.
+    legal_basis: Optional[LegalBasis] = None,
+) -> int:
+    """Open or join the community's report for this target, and return its
+    id.
 
     Its own system session from the community's cohort, routed as the guild
     admin: the row belongs to the initiative's moderators, and the reporter
@@ -254,6 +318,7 @@ async def _place_in_initiative(
                 target_id=target_id,
                 reason=reason,
                 reported_at=moment,
+                legal_basis=legal_basis.value if legal_basis else None,
             )
             session.add(existing)
             await session.flush()
@@ -274,15 +339,93 @@ async def _place_in_initiative(
                     detail=detail,
                 )
             )
+        report_id = int(existing.id)  # type: ignore[arg-type]
         with evidence_service.Sealing(guild_id) as sealing:
             sealing.store(
                 session,
                 prepared=evidence,
                 created_by=reporter_id,
-                report_id=existing.id,
+                report_id=report_id,
             )
             await session.commit()
             sealing.keep()
+    return report_id
+
+
+async def _tell_the_platform(
+    reporter_session: AsyncSession,
+    *,
+    guild_id: int,
+    report_id: int,
+    reporter_id: int,
+    target: SearchEntityType,
+    target_id: int,
+    detail: Optional[str],
+    legal_basis: Optional[LegalBasis],
+    moment: datetime,
+    evidence: Sequence["PreparedEvidence"],
+) -> Optional[str]:
+    """Open the platform's case about an ``illegal`` report beside the
+    community's, with the reporter following it, and mark the community's
+    report as one the platform was told about. Returns the address to tell
+    the platform at instead, where it takes no moderation cases.
+
+    A child-safety case opens asking for a hold: the material is kept where
+    it is, never copied, and only the platform under a grant may hold it if
+    the community has not.
+    """
+    from app.core.intake import IntakeStream as _Stream
+    from app.services.platform import case_activity
+    from app.services.platform.intake import configured_operations_guild_id
+    from app.services.platform.intake import contact_for
+
+    opened = await _open_platform_case(
+        target=target,
+        target_id=target_id,
+        reason=ReportReason.illegal,
+        detail=detail,
+        moment=moment,
+        guild_id=guild_id,
+        evidence=evidence,
+        evidence_by=reporter_id,
+        legal_basis=legal_basis,
+        filer=CaseFiler(user_id=reporter_id, subject=None, words=detail or ""),
+    )
+    if opened is None:
+        return await contact_for(reporter_session, _Stream.moderation)
+
+    async with cohorts.system_session(guild_id) as session:
+        await set_rls_context(session, SystemGuild(guild_id))
+        report = (
+            await session.exec(
+                select(ModerationReport)
+                .where(ModerationReport.id == report_id)
+                .with_for_update()
+            )
+        ).one()
+        if report.platform_case_id is None:
+            report.platform_case_id = opened.task_id
+            report.platform_notified_at = moment
+            session.add(report)
+            await session.commit()
+
+    if opened.opened and legal_basis is LegalBasis.child_safety:
+        operations = await configured_operations_guild_id()
+        if operations is not None:
+            async with cohorts.system_session(operations) as ops:
+                await set_rls_context(ops, SystemGuild(operations))
+                await case_activity.post(
+                    ops,
+                    task_id=opened.task_id,
+                    kind=case_activity.ActivityKind.hold_requested,
+                    text=(
+                        f"Child safety: hold {target.value} {target_id} in community "
+                        f"{guild_id} where it is, under a moderate grant, unless "
+                        "the community has held it already. Never copy it."
+                    ),
+                )
+                await ops.commit()
+    return None
 
 
 #: Identity targets whose id names an account. For these the case's subject is
@@ -392,6 +535,8 @@ async def _open_platform_case(
     guild_id: Optional[int] = None,
     evidence: Sequence["PreparedEvidence"] = (),
     evidence_by: Optional[int] = None,
+    legal_basis: Optional[LegalBasis] = None,
+    filer: Optional[CaseFiler] = None,
 ) -> Optional[CaseOutcome]:
     """File the report as an intake case in the operations guild.
 
@@ -430,6 +575,7 @@ async def _open_platform_case(
             resource_id=target_id,
             reported_at=moment,
             severity=reason.value,
+            legal_basis=legal_basis.value if legal_basis else None,
         ),
         # Content ids are numbered per community, so its community is part
         # of what names it.
@@ -440,6 +586,7 @@ async def _open_platform_case(
         ),
         evidence=evidence,
         evidence_by=evidence_by,
+        filer=filer,
     )
     return outcome
 
@@ -455,26 +602,37 @@ async def settle_report(
     now: Optional[datetime] = None,
     context: Optional["GuildContext"] = None,
     hold: Optional["HoldWhy"] = None,
+    removal_reason: Optional[RemovalReason] = None,
+    message: Optional[str] = None,
 ) -> ModerationReport:
-    """Close a community report. Every outcome closes it.
+    """Close a community report. Every outcome closes it, and the ones that
+    say something was done do it.
 
     The session must already be routed into the guild; RLS is what decides
-    whether this reader may see the row at all.
+    whether this reader may see the row at all. ``context`` is the reader's
+    standing, which decides whether they may act on the reported thing.
 
-    ``escalated`` and ``held`` both hand the report to the platform as a
-    case. ``held`` also holds the reported thing where it is, worked on that
-    case (``app.services.platform.holds``): ``hold`` says why, and ``context``
-    is the reader's standing, which decides whether they may.
+    - ``content_removed`` takes it down (``moderation_acts``), for
+      ``removal_reason`` or else the reason it was reported for.
+    - ``member_warned`` tells whoever wrote it ``message``. Never who
+      reported it, or how many did.
+    - ``escalated`` and ``held`` both hand the report to the platform as a
+      case. ``held`` also holds the reported thing where it is, worked on that
+      case (``app.services.platform.holds``): ``hold`` says why.
+
+    A report the platform was told about as well notes on the platform's case
+    how the community settled it.
     """
     moment = now or datetime.now(timezone.utc)
     # Locked before it is read, so two moderators deciding at once resolve in
     # order: the second finds it settled rather than overwriting the first's
-    # outcome, note and name.
+    # outcome, note and name. Not a key lock: the log row an act writes names
+    # this report, from a transaction of its own.
     report = (
         await session.exec(
             select(ModerationReport)
             .where(ModerationReport.id == report_id)
-            .with_for_update()
+            .with_for_update(key_share=True)
             .execution_options(populate_existing=True)
         )
     ).one_or_none()
@@ -569,6 +727,19 @@ async def settle_report(
                 ):
                     raise
 
+    if outcome in (ReportOutcome.content_removed, ReportOutcome.member_warned):
+        report.action_id = await _act_on_report(
+            session,
+            context,
+            report=report,
+            outcome=outcome,
+            decided_by=decided_by,
+            guild_id=guild_id,
+            note=note,
+            removal_reason=removal_reason,
+            message=message,
+        )
+
     report.outcome = outcome
     report.note = note
     report.decided_by = decided_by
@@ -576,7 +747,102 @@ async def settle_report(
     session.add(report)
     await session.commit()
     await session.refresh(report)
+    if report.platform_case_id is not None:
+        await _note_settled(report, guild_id)
     return report
+
+
+async def _act_on_report(
+    session: AsyncSession,
+    context: Optional["GuildContext"],
+    *,
+    report: ModerationReport,
+    outcome: ReportOutcome,
+    decided_by: int,
+    guild_id: int,
+    note: Optional[str],
+    removal_reason: Optional[RemovalReason],
+    message: Optional[str],
+) -> Optional[int]:
+    """Do what settling ``report`` as ``outcome`` says was done, and return
+    the log row it wrote.
+
+    The act commits on its own, before the report closes. If closing then
+    fails, the report stays open, and settling it again finds the thing
+    already taken down and closes on the removal it made.
+    """
+    from app.services.tenant import moderation_acts
+
+    if context is None:  # pragma: no cover - the endpoint always passes one
+        raise ValueError("acting on a report needs the reader's standing")
+    removing = outcome is ReportOutcome.content_removed
+    request = moderation_acts.ActRequest(
+        act=ModerationAct.remove if removing else ModerationAct.warn,
+        target_type=report.target_type,
+        target_id=report.target_id,
+        reason=(
+            (removal_reason or removal_reason_for(ReportReason(report.reason)))
+            if removing
+            else None
+        ),
+        note=note if removing else message,
+    )
+    try:
+        action = await moderation_acts.act(
+            session,
+            context,
+            guild_id=guild_id,
+            actor_id=decided_by,
+            request=request,
+            report_id=report.id,
+        )
+    except moderation_acts.ActError as exc:
+        if not removing or exc.code not in (
+            ModerationMessages.ALREADY_REMOVED,
+            ModerationMessages.TARGET_NOT_FOUND,
+        ):
+            raise
+        # Taken down already — by an earlier attempt at this, or by someone
+        # else — or gone. Either way it is down, which is what the report
+        # says.
+        from app.models.tenant.moderation import ModerationAction
+
+        return (
+            await session.exec(
+                select(ModerationAction.id)
+                .where(ModerationAction.report_id == report.id)
+                .where(ModerationAction.action == ModerationAct.remove.value)
+                .order_by(ModerationAction.id.desc())  # type: ignore[union-attr]
+            )
+        ).first()
+    return action.id
+
+
+async def _note_settled(report: ModerationReport, guild_id: int) -> None:
+    """Tell the platform's case how the community settled its half. Best
+    effort: the report is settled whether or not the case hears of it."""
+    from app.services.platform import case_activity
+    from app.services.platform.intake import configured_operations_guild_id
+
+    operations = await configured_operations_guild_id()
+    if operations is None or report.platform_case_id is None:
+        return
+    try:
+        async with cohorts.system_session(operations) as ops:
+            await set_rls_context(ops, SystemGuild(operations))
+            await case_activity.post(
+                ops,
+                task_id=report.platform_case_id,
+                kind=case_activity.ActivityKind.community_settled,
+                text=(
+                    f"Community {guild_id} settled its report of "
+                    f"{report.target_type} {report.target_id}: "
+                    f"{getattr(report.outcome, 'value', report.outcome)}."
+                ),
+            )
+            await ops.commit()
+    except Exception:  # pragma: no cover - logged; the settlement stands
+        logger.exception("moderation: could not note a settlement on its case")
 
 
 async def reporters_for(

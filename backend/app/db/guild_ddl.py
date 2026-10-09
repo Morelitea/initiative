@@ -1141,6 +1141,7 @@ def render_retired_functions_ddl() -> str:
 
 def render_guild_rls_ddl() -> str:
     from app.db.holds import render_holds_ddl
+    from app.db.moderation_log import render_moderation_log_ddl
 
     blocks = [_table_block(t, INITIATIVE_PATHS[t]) for t in sorted(INITIATIVE_PATHS)]
     # Shared, and written before the policies that call it. Re-rendered on every
@@ -1191,6 +1192,7 @@ def render_guild_rls_ddl() -> str:
     out += "\n\n" + _SHARING_SECTION + "\n\n" + _sharing_block()
     out += "\n\n" + _DRAFT_SECTION + "\n\n" + _draft_block()
     out += "\n\n" + render_holds_ddl()
+    out += "\n\n" + render_moderation_log_ddl()
     out += (
         "\n\n"
         + _DEPARTURE_SECTION

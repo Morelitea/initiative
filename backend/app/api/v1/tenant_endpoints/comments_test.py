@@ -521,7 +521,8 @@ class TestToolCommentSwitch:
             a.g("/comments/"), headers=a.headers, params={"wiki_id": wiki.id}
         )
         assert wiki_thread.status_code == 200
-        assert wiki_thread.json() == {"comments": [], "next_cursor": None}
+        assert wiki_thread.json()["comments"] == []
+        assert wiki_thread.json()["next_cursor"] is None
 
         # The feed names the page, not the wiki it is filed in.
         recent = await client.get(a.g("/comments/recent"), headers=a.headers)
@@ -763,9 +764,10 @@ class TestRemovingAComment:
     """Who may delete a comment, and the thread saying so up front.
 
     The thread reports ``can_remove`` per comment from the same rule the delete
-    route applies — the author, a community admin, or a manager of the
-    initiative — so the client offers Delete exactly where it would go
-    through. Write access to the thing commented on is not part of the rule.
+    route applies — its author, and nobody else — so the client offers Delete
+    exactly where it would go through. Taking somebody else's words down is
+    moderation (``moderation_acts``): the thread says who may, in
+    ``can_moderate``, and a manager of the initiative is not among them.
     """
 
     @pytest.fixture
@@ -784,6 +786,7 @@ class TestRemovingAComment:
                 ("author", "member"),
                 ("writer", "member"),
                 ("manager", "project_manager"),
+                ("moderator", "moderator"),
             )
         }
         await create_resource_grant(
@@ -797,16 +800,17 @@ class TestRemovingAComment:
         return {"admin": owner, **joined, "task": task, "comment": comment}
 
     @pytest.mark.parametrize(
-        "reader,removes",
+        "reader,removes,moderates",
         [
-            pytest.param("author", True, id="its-author"),
-            pytest.param("admin", True, id="a-community-admin"),
-            pytest.param("manager", True, id="a-manager-of-the-initiative"),
-            pytest.param("writer", False, id="somebody-who-can-only-write"),
+            pytest.param("author", True, False, id="its-author"),
+            pytest.param("admin", False, True, id="a-community-admin"),
+            pytest.param("moderator", False, True, id="full-access-in-the-initiative"),
+            pytest.param("manager", False, False, id="a-manager-of-the-initiative"),
+            pytest.param("writer", False, False, id="somebody-who-can-only-write"),
         ],
     )
     async def test_the_thread_says_who_may_delete_and_the_route_agrees(
-        self, client, thread, reader, removes
+        self, client, thread, reader, removes, moderates
     ):
         actor = thread[reader]
         listed = await client.get(
@@ -817,6 +821,7 @@ class TestRemovingAComment:
         assert listed.status_code == 200, listed.text
         (shown,) = listed.json()["comments"]
         assert shown["can_remove"] is removes
+        assert listed.json()["can_moderate"] is moderates
 
         deleted = await client.delete(
             actor.g(f"/comments/{thread['comment'].id}"), headers=actor.headers

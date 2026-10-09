@@ -224,6 +224,24 @@ class CommentsToggleMixin(SQLModel):
     )
 
 
+class CommentLockMixin(SQLModel):
+    """Mixin that lets a moderator close a thread to new comments.
+
+    On everything a thread hangs off — every tool, and the content-level
+    extras with threads of their own. While ``comments_locked_at`` is set the
+    thread still reads, but only the community's moderators add to it, and
+    only they lift the lock: it is not the owner's comment switch
+    (``CommentsToggleMixin``), which hides the thread altogether and is
+    theirs to flip.
+    """
+
+    comments_locked_at: Optional[datetime] = Field(
+        default=None,
+        sa_type=DateTime(timezone=True),
+        nullable=True,
+    )
+
+
 def _mapped_subclasses(base: type[_M]) -> dict[str, type[_M]]:
     """Every mapped table model under ``base``, however indirectly, by table."""
     found: dict[str, type[_M]] = {}
@@ -263,6 +281,12 @@ def hold_models() -> list[type[HoldMixin]]:
     """Every mapped model carrying :class:`HoldMixin`, by table name. The
     single source for which tables can be held."""
     found = _mapped_subclasses(HoldMixin)
+    return [found[name] for name in sorted(found)]
+
+
+def comment_lock_models() -> list[type[CommentLockMixin]]:
+    """Every mapped model carrying :class:`CommentLockMixin`, by table name."""
+    found = _mapped_subclasses(CommentLockMixin)
     return [found[name] for name in sorted(found)]
 
 

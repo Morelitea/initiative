@@ -12,13 +12,16 @@ intake cases (tasks) in the operations guild, triaged and assigned by staff.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
+from enum import Enum
 from typing import Optional
 
 from sqlalchemy import (
+    CheckConstraint,
     Column,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
@@ -26,7 +29,9 @@ from sqlalchemy import (
 )
 from sqlmodel import Field, SQLModel
 
-from app.core.moderation import ReportOutcome, ReportReason
+from app.core.encryption import FERNET_SALT, SALT_MODERATION_SNAPSHOT
+from app.core.moderation import ModerationAct, ReportOutcome, ReportReason
+from app.models.tenant._mixins import CreatedByMixin
 
 #: Longest a target-type value can be. A ``SearchEntityType`` or a
 #: ``PlatformReportTarget``, stored as its string.
@@ -78,6 +83,23 @@ class ModerationReport(SQLModel, table=True):
     decided_at: Optional[datetime] = Field(
         default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
     )
+    #: The law the first ``illegal`` report named. Null for every other reason.
+    legal_basis: Optional[str] = Field(
+        default=None, sa_column=Column(String(length=32), nullable=True)
+    )
+    #: The platform's case about the same target, when the platform was told
+    #: as well: an ``illegal`` report goes to both at once. A weak reference;
+    #: the case is in the operations community.
+    platform_case_id: Optional[int] = Field(
+        default=None, sa_column=Column(Integer, nullable=True)
+    )
+    platform_notified_at: Optional[datetime] = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
+    #: What settling it did to the target, in the moderation log.
+    action_id: Optional[int] = Field(
+        default=None, sa_column=Column(Integer, nullable=True)
+    )
 
 
 class ModerationReportReporter(SQLModel, table=True):
@@ -114,3 +136,85 @@ class ModerationReportReporter(SQLModel, table=True):
     )
     #: This reporter's own words.
     detail: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
+
+
+def _values(enum: type[Enum]) -> str:
+    return ", ".join(f"'{member.value}'" for member in enum)
+
+
+class ModerationAction(CreatedByMixin, table=True):
+    """One thing a community's moderators did, in its moderation log.
+
+    Append-only: a removal is undone by a ``restore`` row naming the same
+    target, never by changing this one. It is the only place the words a
+    moderator took down are kept (``snapshot``, sealed), so the log is what a
+    removal is put back from. ``created_by`` is the moderator, or empty for
+    the platform acting on a hold it released.
+    """
+
+    __tablename__ = "moderation_actions"
+    __table_args__ = (
+        CheckConstraint(
+            f"action IN ({_values(ModerationAct)})",
+            name="ck_moderation_actions_action",
+        ),
+        # The log, an initiative's newest first.
+        Index("ix_moderation_actions_log", "initiative_id", "created_at"),
+        # What was done to one thing, for a restore and a lock.
+        Index("ix_moderation_actions_target", "target_type", "target_id"),
+    )
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    initiative_id: int = Field(
+        sa_column=Column(
+            Integer,
+            ForeignKey("initiatives.id", ondelete="CASCADE"),
+            nullable=False,
+        )
+    )
+    action: str = Field(sa_column=Column(String(length=32), nullable=False))
+    #: What it was done to: a ``SearchEntityType`` and its id. A weak
+    #: reference, so the row outlives what it names.
+    target_type: str = Field(
+        sa_column=Column(String(length=TARGET_TYPE_LENGTH), nullable=False)
+    )
+    target_id: int = Field(sa_column=Column(Integer, nullable=False))
+    #: Whose work it was, where it was somebody's.
+    subject_user_id: Optional[int] = Field(
+        default=None, sa_column=Column(Integer, nullable=True)
+    )
+    #: A ``RemovalReason``, for a removal.
+    reason: Optional[str] = Field(
+        default=None, sa_column=Column(String(length=32), nullable=True)
+    )
+    #: The moderator's own words: why, for the log; for a warning, what the
+    #: member was told.
+    note: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
+    #: The words a comment's removal took down, sealed.
+    snapshot: Optional[str] = Field(
+        default=None,
+        sa_column=Column(
+            Text, nullable=True, info={FERNET_SALT: SALT_MODERATION_SNAPSHOT}
+        ),
+    )
+    #: The report it settled, when it settled one.
+    report_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            Integer,
+            ForeignKey("moderation_reports.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
+    )
+    #: The hold it ended, when the platform removed something it had held.
+    hold_id: Optional[int] = Field(
+        default=None, sa_column=Column(Integer, nullable=True)
+    )
+    #: The access grant it was done under, when a platform moderator did it.
+    via_grant_id: Optional[int] = Field(
+        default=None, sa_column=Column(Integer, nullable=True)
+    )
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )

@@ -68,6 +68,12 @@ class NotificationType(str, Enum):
     #: waiting on them, in progress or closed. Names the case and its state,
     #: never what was said.
     ticket_updated = "ticket_updated"
+    #: A community's moderators took down something the recipient wrote.
+    #: Names the kind and the reason, never what it said or who reported it.
+    moderation_removal = "moderation_removal"
+    #: A community's moderators warned the recipient about something they
+    #: wrote, in the moderator's own words. Never names or counts reporters.
+    moderation_warning = "moderation_warning"
 
 
 class Notification(SQLModel, table=True):

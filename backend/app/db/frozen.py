@@ -283,8 +283,18 @@ _ANCESTOR_POLICY_PREFIX = "frozen_ancestor_"
 #: is preserved as it is, and refuses a write the way frozen content does.
 HELD_CONSTRAINT = "held_guard"
 
+#: The moderation log's and a tombstone's (``app.db.moderation_log``).
+LOG_CONSTRAINT = "moderation_log_guard"
+TOMBSTONE_CONSTRAINT = "tombstone_guard"
+
 _FROZEN_CONSTRAINTS = frozenset(
-    {FROZEN_CONSTRAINT, FROZEN_PARENT_CONSTRAINT, HELD_CONSTRAINT}
+    {
+        FROZEN_CONSTRAINT,
+        FROZEN_PARENT_CONSTRAINT,
+        HELD_CONSTRAINT,
+        LOG_CONSTRAINT,
+        TOMBSTONE_CONSTRAINT,
+    }
 )
 
 

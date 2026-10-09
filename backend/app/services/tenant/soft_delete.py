@@ -302,6 +302,81 @@ _PURGE_LOADS: dict[type, tuple] = {
 }
 
 
+async def _answered(session: AsyncSession, comments: list[Comment]) -> set[int]:
+    """Which of these comments have a reply under them, at any depth, that is
+    not in the trash. Asked as the platform when ``session`` is a person's: a
+    reply held for the platform reads as absent to them, and is still there.
+    """
+    from sqlalchemy.orm import aliased
+
+    from app.db import cohorts
+    from app.db.request_context import SystemGuild
+    from app.db.session import guild_context, set_rls_context
+
+    ids = [int(c.id) for c in comments if c.id is not None]
+    if not ids:
+        return set()
+    reply = aliased(Comment)
+    tree = select_including_deleted(
+        Comment.id.label("id"),  # type: ignore[union-attr]
+        Comment.parent_comment_id.label("root"),
+        Comment.deleted_at.label("gone"),
+    ).where(ids_in(Comment.parent_comment_id, ids))
+    walk = tree.cte("answers", recursive=True)
+    walk = walk.union_all(
+        select_including_deleted(reply.id, walk.c.root, reply.deleted_at).where(
+            reply.parent_comment_id == walk.c.id
+        )
+    )
+    query = (
+        select_including_deleted(walk.c.root).where(walk.c.gone.is_(None)).distinct()
+    )
+    context = guild_context(session)
+    if context is None:
+        return {int(r) for r in (await session.exec(query)).all()}
+    async with cohorts.system_session(context.guild_id) as system:
+        await set_rls_context(system, SystemGuild(context.guild_id, read_only=True))
+        found = {int(r) for r in (await system.exec(query)).all()}
+        await system.rollback()
+    return found
+
+
+async def _leave_tombstones(session: AsyncSession, ids: set[int]) -> set[str]:
+    """Turn these trashed comments into tombstones their authors left, and
+    return the stored names of the pictures pasted into them that nothing
+    else shows. Their words, reactions and links go as a purge's would."""
+    from app.core.reactions import ReactionTarget
+    from app.services.tenant import content_references
+    from app.services.tenant.attachments import purge_pasted_images
+    from app.services.tenant.reactions import purge_reactions_for
+
+    comments = list(
+        (
+            await session.exec(
+                select_including_deleted(Comment).where(ids_in(Comment.id, ids))
+            )
+        ).all()
+    )
+    released = await purge_pasted_images(session, comments)
+    await purge_reactions_for(
+        session, target=ReactionTarget.comment, target_ids=sorted(ids)
+    )
+    now = utcnow()
+    for comment in comments:
+        comment.content = ""
+        comment.removed_at = now
+        comment.removed_reason = None
+        comment.removal_id = None
+        comment.deleted_at = None
+        comment.deleted_by = None
+        comment.purge_at = None
+        session.add(comment)
+    await session.flush()
+    for comment in comments:
+        await content_references.sync_for_comment(session, comment)
+    return released
+
+
 async def hard_purge_entity(
     session: AsyncSession,
     entity: SoftDeleteMixin,
@@ -351,6 +426,16 @@ async def hard_purge_entities(
     # themselves in the trash. Transaction-local (see app.db.gucs.PURGING).
     await raise_flag(session, gucs.PURGING)
 
+    # A comment its author deleted with replies still under it keeps its
+    # place for them: the trash lets go of its words, not of it.
+    released: set[str] = set()
+    kept = await _answered(session, [r for r in roots if isinstance(r, Comment)])
+    if kept:
+        released |= await _leave_tombstones(session, kept)
+        roots = [r for r in roots if not (isinstance(r, Comment) and r.id in kept)]
+        if not roots:
+            return released
+
     levels = await subtree_levels(session, roots)
     doomed: Level = {}
     for level in levels:
@@ -375,7 +460,6 @@ async def hard_purge_entities(
 
     # A picture's blobs — every version and its thumbnail — go with it, the
     # way an uploaded file's do.
-    released: set[str] = set()
     if loaded.get(GalleryImage):
         released |= await purge_gallery_image_uploads(session, loaded[GalleryImage])
 

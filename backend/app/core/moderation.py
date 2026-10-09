@@ -122,6 +122,48 @@ class LegalBasis(str, Enum):
     other = "other"
 
 
+class RemovalReason(str, Enum):
+    """Why a moderator took something down. Every reason a report can give,
+    and two that only a community's own rules give."""
+
+    spam = "spam"
+    harassment = "harassment"
+    hate = "hate"
+    violence = "violence"
+    sexual_content = "sexual_content"
+    self_harm = "self_harm"
+    illegal = "illegal"
+    misinformation = "misinformation"
+    other = "other"
+    #: Fine in itself, in the wrong place.
+    off_topic = "off_topic"
+    #: Against a rule this community set for itself.
+    community_rule = "community_rule"
+
+
+class ModerationAct(str, Enum):
+    """What a moderator did, as the moderation log records it."""
+
+    #: Took something down: a comment to a tombstone, anything else to the
+    #: trash.
+    remove = "remove"
+    #: Put back what a removal took down.
+    restore = "restore"
+    #: Closed a thread to new comments. Its owner can't reopen it.
+    lock_comments = "lock_comments"
+    unlock_comments = "unlock_comments"
+    #: Took every reaction off something.
+    clear_reactions = "clear_reactions"
+    #: Told whoever wrote something that it crossed a line.
+    warn = "warn"
+
+
+#: The acts a moderator starts directly; a restore names the removal it undoes.
+DIRECT_ACTS: frozenset[ModerationAct] = frozenset(ModerationAct) - {
+    ModerationAct.restore
+}
+
+
 class HoldReason(str, Enum):
     """Why content is held."""
 
@@ -150,6 +192,11 @@ class HoldRelease(str, Enum):
     remove = "remove"
     #: Destroyed. The one path that deletes held content.
     purge = "purge"
+
+
+def removal_reason_for(reason: ReportReason) -> RemovalReason:
+    """The removal reason a report's own reason becomes."""
+    return RemovalReason(reason.value)
 
 
 def target_table(target: SearchEntityType) -> str:

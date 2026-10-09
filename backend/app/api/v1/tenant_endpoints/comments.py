@@ -107,7 +107,7 @@ async def list_comments(
 ) -> CommentListResponse:
     """One page of a thread: ``limit`` conversations, newest first, each with
     every reply under it. Follow ``next_cursor`` for older conversations."""
-    comments, next_cursor = await comments_service.list_comments(
+    page = await comments_service.list_comments(
         session,
         user=current_user,
         guild_id=guild_context.guild_id,
@@ -119,9 +119,11 @@ async def list_comments(
     return CommentListResponse(
         comments=[
             comments_service.serialize_comment(comment, viewer_id=guild_context.user_id)
-            for comment in comments
+            for comment in page.comments
         ],
-        next_cursor=next_cursor,
+        next_cursor=page.next_cursor,
+        locked=page.locked,
+        can_moderate=page.can_moderate,
     )
 
 

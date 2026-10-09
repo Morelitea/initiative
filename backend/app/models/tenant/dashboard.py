@@ -18,6 +18,7 @@ from sqlmodel import Field, Relationship
 from app.core.tools import Tool
 from app.models.tenant._mixins import (
     ArchiveMixin,
+    CommentLockMixin,
     CommentsToggleMixin,
     CreatedByMixin,
     HoldMixin,
@@ -43,6 +44,7 @@ class DashboardViewMode(str, Enum):
 
 class Dashboard(
     HoldMixin,
+    CommentLockMixin,
     CommentsToggleMixin,
     CreatedByMixin,
     ArchiveMixin,

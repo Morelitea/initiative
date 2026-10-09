@@ -236,8 +236,9 @@ async def _report(
         detail=payload.detail,
         guild_id=payload.community_id,
         evidence=attached,
+        legal_basis=payload.legal_basis,
     )
-    return TicketAccepted(venue=filed.venue)
+    return TicketAccepted(venue=filed.venue, platform_contact=filed.platform_contact)
 
 
 def _filed(ticket: tickets_service.FiledTicket) -> FiledTicketRead:
