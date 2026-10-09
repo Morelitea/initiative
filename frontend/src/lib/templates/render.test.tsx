@@ -93,12 +93,14 @@ describe("renderTemplate", () => {
     expect(screen.getByTestId("hidden")).toHaveAttribute("aria-hidden", "true");
   });
 
-  it("stops drawing at its budget, however long the list", async () => {
+  it("stops a loop at its budget, and draws everything outside loops", async () => {
     draw(
-      `<part name="title" /><ul><li for="word in task.title.split(' ')">{{ word }}</li></ul>`,
+      `<ul><li for="word in task.title.split(' ')">{{ word }}</li></ul><part name="title" />`,
       buildTask({ title: "x ".repeat(MAX_RENDERED_NODES) })
     );
     await screen.findByRole("list");
     expect(screen.getAllByRole("listitem").length).toBeLessThan(MAX_RENDERED_NODES);
+    // The required part comes after the loop and is still there.
+    expect(screen.getByRole("heading")).toBeInTheDocument();
   });
 });

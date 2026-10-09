@@ -14,8 +14,9 @@
  * - a `:style` sets custom properties only, each a number, a length, a colour
  *   or a keyword, so nothing from a row is ever read as CSS.
  *
- * One render draws at most MAX_RENDERED_NODES elements and text runs, however
- * long the lists it walks.
+ * A `for` stops repeating once one render has drawn MAX_RENDERED_NODES
+ * elements and text runs, however long its list. Nothing outside a loop is
+ * ever cut.
  */
 
 import { Link } from "@tanstack/react-router";
@@ -137,10 +138,7 @@ export function renderTemplate(template: CompiledTemplate, input: RenderInput): 
   let drawn = 0;
 
   const draw = (node: CompiledNode, scope: Scope, key: string | number): ReactNode => {
-    if (node.t === "text" || node.t === "el" || node.t === "part") {
-      drawn++;
-      if (drawn > MAX_RENDERED_NODES) return null;
-    }
+    if (node.t === "text" || node.t === "el" || node.t === "part") drawn++;
     switch (node.t) {
       case "text":
         return node.parts.map((part) =>
@@ -180,11 +178,14 @@ export function renderTemplate(template: CompiledTemplate, input: RenderInput): 
       case "for": {
         const list = value(node.list, scope);
         if (!Array.isArray(list)) return null;
-        return createElement(
-          Fragment,
-          { key },
-          list.map((item, index) => draw(node.node, { ...scope, [node.item]: item }, index))
-        );
+        // Only a loop's repeats are cut short. Everything outside loops always
+        // draws, required parts included, since none may sit inside a for.
+        const items: ReactNode[] = [];
+        for (const [index, item] of list.entries()) {
+          if (drawn >= MAX_RENDERED_NODES) break;
+          items.push(draw(node.node, { ...scope, [node.item]: item }, index));
+        }
+        return createElement(Fragment, { key }, items);
       }
     }
   };

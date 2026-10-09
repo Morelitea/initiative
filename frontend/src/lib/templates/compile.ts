@@ -260,10 +260,15 @@ export function compileTemplate(source: string, options: CompileOptions): Compil
     const compiled: CompiledNode[] = [];
     let chain: Extract<CompiledNode, { t: "if" }> | null = null;
     const branch = { ...placement, conditional: true };
-    for (const node of list) {
+    for (const [position, node] of list.entries()) {
       if (node.kind === "text") {
-        // A space between an if and its else belongs to neither branch.
-        if (chain && node.parts.length === 1 && node.parts[0] === " ") continue;
+        // A space between an if and the else-if or else that continues it
+        // belongs to neither branch. Anywhere else it is a space.
+        const next = list[position + 1];
+        const continues =
+          next?.kind === "element" &&
+          next.attributes.some((a) => a.name === "else-if" || a.name === "else");
+        if (chain && continues && node.parts.length === 1 && node.parts[0] === " ") continue;
         chain = null;
         compiled.push({
           t: "text",

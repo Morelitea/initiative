@@ -195,5 +195,11 @@ describe("compileTemplate", () => {
     expect(errorsOf(`<part name="title" /><strong if="true">a</strong> <em else>b</em>`)).toEqual(
       []
     );
+    // After a chain ends, a space is a space again.
+    const { template } = compile(
+      `<p><part name="title" /><strong if="true">Due</strong> <em>today</em></p>`
+    );
+    const p = template?.root[0];
+    expect(p?.t === "el" && p.kids.map((kid) => kid.t)).toEqual(["part", "if", "text", "el"]);
   });
 });
