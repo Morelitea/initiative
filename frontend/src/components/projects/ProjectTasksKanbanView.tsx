@@ -17,27 +17,17 @@ import { useTranslation } from "react-i18next";
 import type {
   PropertyDefinitionRead,
   TaskListRead,
-  TaskPriority,
   TaskStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
-import { KanbanColumn } from "@/components/projects/KanbanColumn";
+import { KanbanColumn, TaskCard } from "@/components/projects/KanbanColumn";
 import { KanbanFieldsMenu } from "@/components/projects/KanbanFieldsMenu";
-import {
-  buildKanbanCardFields,
-  type KanbanCardFields,
-  kanbanFieldsStorageKey,
-} from "@/components/projects/kanbanFields";
-import type { PriorityBadgeVariant } from "@/components/projects/projectTasksConfig";
-import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress";
-import { Badge } from "@/components/ui/badge";
-import { MentionText } from "@/components/user/MentionText";
+import { buildKanbanCardFields, kanbanFieldsStorageKey } from "@/components/projects/kanbanFields";
 import { MentionedPeopleScope, ReportMentionedPeople } from "@/hooks/useMentionedPeople";
 import { usePersistedColumnVisibility } from "@/hooks/usePersistedColumnVisibility";
 import { useProperties } from "@/hooks/useProperties";
-import { formatDateTime } from "@/lib/formatDate";
+import type { TaskCardContext } from "@/lib/templates/sections";
 import { cn } from "@/lib/utils";
-
-import { TaskAssigneeList } from "./TaskAssigneeList";
+import type { TranslateFn } from "@/types/i18n";
 
 type ProjectTasksKanbanViewProps = {
   projectId: number;
@@ -47,7 +37,6 @@ type ProjectTasksKanbanViewProps = {
   collapsedStatusIds: Set<number>;
   canReorderTasks: boolean;
   taskHref: (taskId: number) => string;
-  priorityVariant: Record<TaskPriority, PriorityBadgeVariant>;
   sensors: DndContextProps["sensors"];
   activeTask: TaskListRead | null;
   onDragStart: (event: DragStartEvent) => void;
@@ -70,7 +59,6 @@ export const ProjectTasksKanbanView = ({
   collapsedStatusIds,
   canReorderTasks,
   taskHref,
-  priorityVariant,
   sensors,
   activeTask,
   onDragStart,
@@ -105,6 +93,17 @@ export const ProjectTasksKanbanView = ({
   const visibleFields = useMemo(
     () => buildKanbanCardFields(fieldVisibility, propertyDefinitions),
     [fieldVisibility, propertyDefinitions]
+  );
+
+  // Asked for once here, for every card on the board.
+  const { t } = useTranslation(["projects", "dates", "relations"]);
+  const cardContext = useMemo<TaskCardContext>(
+    () => ({ taskHref, showsProperty: visibleFields.showsProperty, t: t as TranslateFn }),
+    [taskHref, visibleFields, t]
+  );
+  const dragContext = useMemo<TaskCardContext>(
+    () => ({ ...cardContext, taskHref: null }),
+    [cardContext]
   );
 
   // The people the cards' excerpts mention, asked about once for the board.
@@ -157,9 +156,8 @@ export const ProjectTasksKanbanView = ({
                   status={status}
                   tasks={groupedTasks[status.id] ?? []}
                   canWrite={canReorderTasks}
-                  priorityVariant={priorityVariant}
+                  cardContext={cardContext}
                   visibleFields={visibleFields}
-                  taskHref={taskHref}
                   collapsed={isCollapsed}
                   onToggleCollapse={onToggleCollapse}
                   taskCount={groupedTasks[status.id]?.length ?? 0}
@@ -176,11 +174,10 @@ export const ProjectTasksKanbanView = ({
         </div>
         <DragOverlay>
           {activeTask ? (
-            <TaskDragOverlay
-              task={activeTask}
-              priorityVariant={priorityVariant}
-              visibleFields={visibleFields}
-            />
+            // The card itself, held up: it leads nowhere while it is moving.
+            <div className="w-64 rounded-lg shadow-lg">
+              <TaskCard task={activeTask} context={dragContext} visibleFields={visibleFields} />
+            </div>
           ) : null}
         </DragOverlay>
       </DndContext>
@@ -216,47 +213,6 @@ const getDroppableType = (
   containers: DroppableContainer[],
   id: UniqueIdentifier
 ): string | undefined => containers.find((container) => container.id === id)?.data.current?.type;
-
-const TaskDragOverlay = ({
-  task,
-  priorityVariant,
-  visibleFields,
-}: {
-  task: TaskListRead;
-  priorityVariant: Record<TaskPriority, PriorityBadgeVariant>;
-  visibleFields: KanbanCardFields;
-}) => {
-  const { t } = useTranslation("projects");
-  // The thing being dragged is the card, so it drops the same fields the card
-  // dropped — otherwise picking one up puts back what you just turned off.
-  const { shows } = visibleFields;
-  return (
-    <div className="w-64 space-y-3 rounded-lg border bg-card p-3 shadow-lg">
-      <div className="space-y-1">
-        <p className="font-medium">{task.title}</p>
-        {shows("description") && task.description_excerpt ? (
-          <p className="line-clamp-2 text-muted-foreground text-xs">
-            <MentionText text={task.description_excerpt} disableLink />
-          </p>
-        ) : null}
-      </div>
-      <div className="space-y-1 text-muted-foreground text-xs">
-        {shows("assignees") && task.assignees.length > 0 ? (
-          <TaskAssigneeList assignees={task.assignees} className="text-xs" />
-        ) : null}
-        {shows("dueDate") && task.due_date ? (
-          <p>{t("kanban.due", { date: formatDateTime(task.due_date) })}</p>
-        ) : null}
-      </div>
-      {shows("checklist") ? <TaskChecklistProgress progress={task.checklist_progress} /> : null}
-      {shows("priority") ? (
-        <Badge variant={priorityVariant[task.priority]}>
-          {t("kanban.priority", { priority: task.priority.replace("_", " ") })}
-        </Badge>
-      ) : null}
-    </div>
-  );
-};
 
 // Module-level so its identity is stable; the hook re-seeds defaults whenever
 // this array's contents change.

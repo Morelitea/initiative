@@ -38,19 +38,34 @@ export const defineSection =
   <const Definition extends SectionDefinition & { data: { [K in keyof Data]: string } }>(
     definition: Definition
   ) =>
-    definition as Definition & { readonly __data?: Data; readonly __context?: Context };
+    // The context sits in a tuple so that a section with none still reads as undefined.
+    definition as Definition & { readonly __data?: Data; readonly __context?: [Context] };
+
+/** What a board shares with each of its cards. */
+export interface TaskCardContext {
+  /** Where a card's title leads; null on the card being dragged, which leads nowhere. */
+  taskHref: ((taskId: number) => string) | null;
+  /** Whether the reader shows a property on cards, by the property's id. */
+  showsProperty: (propertyId: number) => boolean;
+  /** The board's translations (projects, dates, relations), so no card asks for its own. */
+  t: (key: string, options?: Record<string, unknown>) => string;
+}
 
 export const SECTIONS = {
-  /** A task on a board. */
-  "task.card": defineSection<{ task: TaskListRead }>()({
+  /**
+   * A task on a board. Its parts are named as the board's Fields menu names
+   * them, so the fields a reader turns off are the parts it hides.
+   */
+  "task.card": defineSection<{ task: TaskListRead }, TaskCardContext>()({
     data: { task: "TaskListRead" },
     parts: {
       title: { required: true },
-      excerpt: {},
+      description: {},
       assignees: {},
-      dates: {},
+      startDate: {},
+      dueDate: {},
       recurrence: {},
-      progress: {},
+      checklist: {},
       priority: {},
       comments: {},
       blockers: {},
@@ -86,12 +101,20 @@ export type SectionName = keyof typeof SECTIONS;
 type DefinitionOf<S extends SectionName> = (typeof SECTIONS)[S];
 
 export type SectionData<S extends SectionName> = NonNullable<DefinitionOf<S>["__data"]>;
-export type SectionContext<S extends SectionName> = DefinitionOf<S>["__context"];
+export type SectionContext<S extends SectionName> = NonNullable<DefinitionOf<S>["__context"]>[0];
+
+export type PartName<S extends SectionName> = keyof DefinitionOf<S>["parts"] & string;
 
 /** What a part receives: the section's data, and whatever its route shares. */
 export interface PartProps<S extends SectionName> {
   data: SectionData<S>;
   context: SectionContext<S>;
+  /**
+   * The classes the template gives the part, for its outermost element: a part
+   * has no wrapper. One that draws a list of elements, such as chips, has no
+   * single element to give them to and leaves them off.
+   */
+  className?: string;
 }
 
 /** Every part of a section, each a component; `tsc` fails on a missing or extra one. */

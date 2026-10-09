@@ -12,6 +12,8 @@ import {
   type CelValue,
   celEnv,
   celFunc,
+  celList,
+  celMap,
   isCelError,
   isCelList,
   isCelMap,
@@ -72,6 +74,32 @@ export function toPlain(value: unknown): unknown {
     );
   }
   return value;
+}
+
+/** Each object CEL has read, as CEL reads it: the data a route passes does not change. */
+const wrappedObjects = new WeakMap<object, unknown>();
+
+const wrap = (value: unknown): unknown => {
+  if (value === null || typeof value !== "object") return value;
+  let wrapped = wrappedObjects.get(value);
+  if (wrapped === undefined) {
+    if (Array.isArray(value)) wrapped = celList(value);
+    else if (value.constructor === Object) wrapped = celMap(new Map(Object.entries(value)));
+    else return value;
+    wrappedObjects.set(value, wrapped);
+  }
+  return wrapped;
+};
+
+/**
+ * A section's data as CEL reads it. CEL wraps a plain object in a map each time
+ * an expression reads it, so each object is wrapped once, for every expression
+ * and every render that reads it.
+ */
+export function bindings(data: Record<string, unknown>): Record<string, unknown> {
+  const wrapped: Record<string, unknown> = {};
+  for (const [name, value] of Object.entries(data)) wrapped[name] = wrap(value);
+  return wrapped;
 }
 
 export function evaluate(source: string, bindings: Record<string, unknown>): unknown {
