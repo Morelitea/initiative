@@ -1127,6 +1127,248 @@ class TestEmissions:
             )
 
 
+#: The write an action runs, spelled once.
+WRITE_ID = "plugin.tests.widget-co.create-link"
+
+
+def _nested(depth: int) -> dict:
+    """A field node inside sections, ``depth`` nodes deep."""
+    node: dict = {"type": "field", "props": {"field": "demo.link"}}
+    for _ in range(depth - 1):
+        node = {"type": "section", "children": [node]}
+    return node
+
+
+def _items(change=None) -> dict:
+    """A plug-in with a field, an action and a part on tasks, and the write the
+    action runs. ``change`` edits the manifest before it is published."""
+    body = _service(
+        features=["endpoints", "fields", "parts", "actions"],
+        endpoints=[
+            {"id": WRITE_ID, "direction": "write"},
+            {"id": READ_ID, "direction": "read"},
+        ],
+        fields=[
+            {"key": "demo.link", "name": _label("Demo"), "kind": "link", "on": ["task"]}
+        ],
+        actions=[
+            {
+                "id": "new-link",
+                "name": _label("New link"),
+                "endpoint": WRITE_ID,
+                "on": ["task"],
+            }
+        ],
+        parts=[
+            {
+                "id": "demo",
+                "name": _label("Demo"),
+                "on": ["task"],
+                "tree": {
+                    "type": "section",
+                    "children": [
+                        {"type": "field", "props": {"field": "demo.link"}},
+                        {"type": "button", "props": {"action": "new-link"}},
+                    ],
+                },
+            }
+        ],
+    )
+    if change is not None:
+        change(body)
+    return normalize_listing_definition("plugin", body)
+
+
+class TestFieldsPartsAndActions:
+    """What a plug-in adds to items, re-checked as the SDK's validator checks
+    it: each declared once, every part a tree Initiative can draw on every kind
+    it is offered on, and every action a write."""
+
+    def test_they_are_stored_canonically(self):
+        definition = _items(lambda b: b["fields"][0].update(on=["task", "post"]))
+        assert definition["fields"] == [
+            {
+                "key": "demo.link",
+                "name": {"en": "Demo"},
+                "kind": "link",
+                "on": ["post", "task"],
+            }
+        ]
+        assert definition["actions"] == [
+            {
+                "id": "new-link",
+                "name": {"en": "New link"},
+                "endpoint": WRITE_ID,
+                "on": ["task"],
+                "menu": False,
+            }
+        ]
+        assert definition["parts"] == [
+            {
+                "id": "demo",
+                "name": {"en": "Demo"},
+                "on": ["task"],
+                "tree": {
+                    "type": "section",
+                    "children": [
+                        {"type": "field", "props": {"field": "demo.link"}},
+                        {"type": "button", "props": {"action": "new-link"}},
+                    ],
+                },
+            }
+        ]
+
+    def test_a_tree_at_its_bounds_is_kept(self):
+        widest = {
+            "type": "section",
+            "children": [
+                {"type": "value", "props": {"field": "demo.link"}}
+                for _ in range(service_plugins.MAX_PART_NODES - 1)
+            ],
+        }
+        for tree in (widest, _nested(service_plugins.MAX_PART_DEPTH)):
+            assert (
+                _items(lambda b: b["parts"][0].update(tree=tree))["parts"][0]["tree"]
+                == tree
+            )
+
+    @pytest.mark.parametrize(
+        ("change", "problem"),
+        [
+            (lambda b: b["fields"].append(b["fields"][0]), "two fields share the key"),
+            (lambda b: b["parts"].append(b["parts"][0]), "two parts share the id"),
+            (
+                lambda b: b["actions"].append(b["actions"][0]),
+                "two actions share the id",
+            ),
+            (lambda b: b["fields"][0].update(key="Demo"), "lowercase letter"),
+            (lambda b: b["fields"][0].update(key="1demo"), "lowercase letter"),
+            (lambda b: b["fields"][0].update(kind="colour"), "kind must be one of"),
+            (lambda b: b["fields"][0].update(on=["wiki_page"]), "not an item kind"),
+            (lambda b: b["fields"][0].update(on=[]), "names no item kind"),
+            (lambda b: b["actions"][0].update(on=["task", "task"]), "twice"),
+            (lambda b: b["actions"][0].update(endpoint=READ_ID), "a read endpoint"),
+            (
+                lambda b: b["actions"][0].update(
+                    endpoint="plugin.tests.widget-co.missing"
+                ),
+                "does not declare",
+            ),
+            (lambda b: b["actions"][0].update(menu="yes"), "true or false"),
+            (
+                lambda b: b["parts"][0].update(tree={"type": "image"}),
+                "type must be one of",
+            ),
+            (
+                lambda b: b["parts"][0]["tree"].update(style="bold"),
+                "not a term of the contract",
+            ),
+            (
+                lambda b: b["parts"][0]["tree"].update(props={"colour": "red"}),
+                "not a prop of a section",
+            ),
+            (
+                lambda b: b["parts"][0].update(
+                    tree={"type": "stack", "props": {"direction": "diagonal"}}
+                ),
+                "direction must be one of",
+            ),
+            (
+                lambda b: b["parts"][0].update(
+                    tree={"type": "text", "props": {"text": _label(), "tone": "loud"}}
+                ),
+                "tone must be one of",
+            ),
+            (
+                lambda b: b["parts"][0].update(
+                    tree={"type": "value", "props": {"field": "demo.other"}}
+                ),
+                "not one of this manifest's fields",
+            ),
+            (
+                lambda b: b["parts"][0].update(
+                    tree={"type": "button", "props": {"action": "other"}}
+                ),
+                "not one of this manifest's actions",
+            ),
+            (
+                lambda b: b["parts"][0].update(on=["post", "task"]),
+                "'demo.link' is not offered on post",
+            ),
+            (
+                lambda b: (
+                    b["fields"][0].update(on=["post", "task"]),
+                    b["parts"][0].update(on=["post", "task"]),
+                ),
+                "'new-link' is not offered on post",
+            ),
+            (
+                lambda b: b["parts"][0].update(
+                    tree=_nested(service_plugins.MAX_PART_DEPTH + 1)
+                ),
+                "nested deeper than",
+            ),
+            (
+                lambda b: b["parts"][0]["tree"].update(
+                    children=[
+                        {"type": "value", "props": {"field": "demo.link"}}
+                        for _ in range(service_plugins.MAX_PART_NODES)
+                    ]
+                ),
+                f"more than {service_plugins.MAX_PART_NODES} nodes",
+            ),
+            (
+                lambda b: b.update(
+                    fields=[
+                        {
+                            "key": f"k{index}",
+                            "name": _label(),
+                            "kind": "text",
+                            "on": ["task"],
+                        }
+                        for index in range(service_plugins.MAX_FIELDS + 1)
+                    ]
+                ),
+                "holds more than",
+            ),
+            (
+                lambda b: b.update(features=["endpoints", "fields", "actions"]),
+                "parts is present",
+            ),
+        ],
+        ids=[
+            "field-twice",
+            "part-twice",
+            "action-twice",
+            "key-not-lowercase",
+            "key-not-letter-first",
+            "unknown-field-kind",
+            "unknown-item-kind",
+            "offered-nowhere",
+            "item-kind-twice",
+            "action-runs-a-read",
+            "action-runs-nothing-declared",
+            "menu-not-a-boolean",
+            "unknown-component",
+            "unknown-node-term",
+            "unknown-prop",
+            "unknown-direction",
+            "unknown-tone",
+            "node-names-no-field",
+            "node-names-no-action",
+            "field-not-where-the-part-is",
+            "action-not-where-the-part-is",
+            "too-deep",
+            "too-many-nodes",
+            "too-many-fields",
+            "block-without-its-feature",
+        ],
+    )
+    def test_what_the_sdk_refuses_is_refused_here(self, change, problem):
+        with pytest.raises(ListingDefinitionError, match=problem):
+            _items(change)
+
+
 class TestCanonicalShape:
     def test_unknown_keys_are_dropped(self):
         definition = _normalize(

@@ -21,6 +21,7 @@ host is trustworthy.
 from __future__ import annotations
 
 import json
+import string
 from typing import Any, NoReturn
 
 from app.models.platform.marketplace import UID_ALPHABET, UID_LENGTH
@@ -35,12 +36,14 @@ __all__ = [
     "MAX_HINT_LENGTH",
     "MAX_IDENTIFIER_LENGTH",
     "MAX_LABEL_LENGTH",
+    "MAX_METADATA_KEY_LENGTH",
     "MAX_NAME_LENGTH",
     "MAX_PATH_LENGTH",
     "MAX_PUBLIC_ID_LENGTH",
     "MAX_URL_LENGTH",
     "check_identifier",
     "check_json_size",
+    "check_metadata_key",
     "check_path",
     "check_public_id",
     "check_single_line",
@@ -48,6 +51,7 @@ __all__ = [
     "check_url",
     "clean_text",
     "fail",
+    "is_metadata_key",
     "require_list",
     "require_mapping",
     "utf8_bytes",
@@ -87,6 +91,12 @@ MAX_HINT_LENGTH = contract.cap("hintLength")
 #: What an id inside a manifest may use: connection, widget, data source, page.
 #: Lowercase only, so two ids cannot differ by case alone.
 IDENTIFIER_CHARS = contract.charset("identifier")
+
+#: A key a plug-in keeps a value under, on an item or on its install: a
+#: lowercase letter, then any of the metadata key characters. The same rule
+#: holds a manifest's field and a value the install writes.
+METADATA_KEY_CHARS = contract.charset("metadataKey")
+MAX_METADATA_KEY_LENGTH = contract.cap("metadataKeyLength")
 
 #: What a `<publisher>.<slug>` id may use. Matches the catalog's own rule.
 PUBLIC_ID_CHARS = contract.charset("publicId")
@@ -175,6 +185,26 @@ def check_identifier(value: Any, *, what: str) -> str:
     for character in value:
         if character not in IDENTIFIER_CHARS:
             fail(f"{what} contains {character!r}, which is not allowed")
+    return value
+
+
+def is_metadata_key(value: Any) -> bool:
+    """Whether ``value`` is a key a plug-in may keep a value under."""
+    return (
+        isinstance(value, str)
+        and 0 < len(value) <= MAX_METADATA_KEY_LENGTH
+        and value[0] in string.ascii_lowercase
+        and all(character in METADATA_KEY_CHARS for character in value)
+    )
+
+
+def check_metadata_key(value: Any, *, what: str) -> str:
+    """A metadata key, named by a manifest."""
+    if not is_metadata_key(value):
+        fail(
+            f"{what} must be a lowercase letter, then lowercase letters, digits, "
+            f"'_' and '.', at most {MAX_METADATA_KEY_LENGTH} characters"
+        )
     return value
 
 

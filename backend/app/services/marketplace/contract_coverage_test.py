@@ -25,7 +25,7 @@ added to the contract and to nothing else fails here.
 
 import pytest
 
-from app.services.marketplace import contract
+from app.services.marketplace import contract, service_plugins
 from app.services.marketplace.definitions import normalize_listing_definition
 
 pytestmark = pytest.mark.always
@@ -51,7 +51,15 @@ def maximal_manifest() -> dict:
             "protocol": 1,
             "scopes": ["projects:write", "comments:read", "plugins:acme.github"],
         },
-        "features": ["endpoints", "widgets", "pages", "dashboards"],
+        "features": [
+            "endpoints",
+            "widgets",
+            "pages",
+            "dashboards",
+            "fields",
+            "parts",
+            "actions",
+        ],
         "default_name": "Acme Tracker",
         "minimum_age": {"default": 16, "US": 13},
         "min_plugin_api": "4.2",
@@ -232,6 +240,63 @@ def maximal_manifest() -> dict:
                 "admin_only": True,
                 "capabilities": ["camera"],
                 "requires": {"all_of": ["other"]},
+            }
+        ],
+        "fields": [
+            {
+                "key": "demo.link",
+                "name": {"en": "Demo"},
+                "kind": "badge",
+                "on": ["task", "queue_item"],
+                "description": {"en": "The item's demo"},
+                "tone": "accent",
+                "requires": {"all_of": ["vendor"]},
+            }
+        ],
+        "actions": [
+            {
+                "id": "new-link",
+                "name": {"en": "New link"},
+                "endpoint": "plugin.acme.tracker.written",
+                "on": ["task"],
+                "confirm": {"en": "Make a new link?"},
+                "menu": True,
+                "requires": {"any_of": ["vendor"]},
+            }
+        ],
+        # Every component once, each with every prop it takes.
+        "parts": [
+            {
+                "id": "demo",
+                "name": {"en": "Demo"},
+                "on": ["task"],
+                "description": {"en": "The task's demo"},
+                "requires": {"all_of": ["other"]},
+                "tree": {
+                    "type": "section",
+                    "props": {"title": {"en": "Demo"}, "collapsed": True},
+                    "children": [
+                        {"type": "field", "props": {"field": "demo.link"}},
+                        {
+                            "type": "stack",
+                            "props": {"direction": "row", "gap": "small", "wrap": True},
+                            "children": [
+                                {"type": "value", "props": {"field": "demo.link"}},
+                                {
+                                    "type": "text",
+                                    "props": {
+                                        "text": {"en": "opened"},
+                                        "tone": "muted",
+                                    },
+                                },
+                            ],
+                        },
+                        {
+                            "type": "button",
+                            "props": {"action": "new-link", "variant": "primary"},
+                        },
+                    ],
+                },
             }
         ],
         "dashboards": [
@@ -509,6 +574,10 @@ def _nodes(published: dict, declarative: dict) -> list[tuple[str, dict]]:
     listed, searched, labelled, _opened = declarative["endpoints"]
     current, setting = labelled["steps"]
     hooks = declarative["webhooks"]
+    part = published["parts"][0]
+    section = part["tree"]
+    field_node, stack, button = section["children"]
+    value_node, text = stack["children"]
     return [
         ("manifest", {**published, **declarative}),
         ("connection", {**connection, **workspace}),
@@ -561,6 +630,15 @@ def _nodes(published: dict, declarative: dict) -> list[tuple[str, dict]]:
         ("healthState", workspace["health"]["states"][0]),
         ("webhookEvent", hooks["events"][0]),
         ("webhookStatus", hooks["status"][0]),
+        ("field", published["fields"][0]),
+        ("action", published["actions"][0]),
+        ("part", part),
+        ("sectionNode", section),
+        ("stackNode", stack),
+        ("fieldNode", field_node),
+        ("valueNode", value_node),
+        ("textNode", text),
+        ("buttonNode", button),
         ("other", other),
     ]
 
@@ -595,6 +673,22 @@ def test_every_service_field_survives_a_publish(published):
         "plugins:acme.github",
         "projects:write",
     ]
+
+
+def test_every_node_prop_survives_a_publish(published):
+    """A node's props are written inline, so the inventory above does not reach
+    them; they are measured here, for every component the contract offers."""
+    section = published["parts"][0]["tree"]
+    stack = section["children"][1]
+    stored = {
+        node["type"]: node.get("props", {})
+        for node in (section, *section["children"], *stack["children"])
+    }
+    assert set(stored) == set(service_plugins.PART_NODES)
+    for node_type, props in stored.items():
+        name = service_plugins.PART_NODES[node_type]
+        declared = contract.objects()[name]["properties"]["props"]["properties"]
+        assert set(props) == set(declared), node_type
 
 
 def test_the_maximal_manifests_really_are_maximal(nodes):
@@ -640,6 +734,20 @@ def test_the_uid_shape_matches_the_contract():
 
     assert UID_LENGTH == contract.cap("uidLength")
     assert frozenset(UID_ALPHABET) == contract.charset("uid")
+
+
+def test_the_metadata_columns_match_the_contract():
+    """A plug-in's metadata key and look-up text are column widths, and the
+    items it keeps values on are the table's CHECK, so each is checked against
+    the contract rather than read from it, as the uid is."""
+    from app.core.tools import ITEM_KINDS
+    from app.models.tenant.plugin_metadata import LOOKUP_LENGTH, PluginMetadata
+
+    assert PluginMetadata.__table__.c.key.type.length == contract.cap(
+        "metadataKeyLength"
+    )
+    assert LOOKUP_LENGTH == contract.cap("metadataLookupLength")
+    assert frozenset(ITEM_KINDS) == contract.enum("itemKind")
 
 
 # --- what the registrar reports -------------------------------------------
@@ -802,6 +910,16 @@ def _with(build, change):
             maximal_declarative_manifest,
             lambda b: b.update(schedules=[{"id": "sync", "every": "15m"}]),
         ),
+        # Declared as features too, so the kind is the only thing wrong.
+        *(
+            _with(
+                maximal_declarative_manifest,
+                lambda b, block=block: b.update(
+                    {block: maximal_manifest()[block], "features": ["endpoints", block]}
+                ),
+            )
+            for block in ("fields", "parts", "actions")
+        ),
         _with(
             maximal_declarative_manifest,
             lambda b: b["connections"][0]["flow"].update(after_connect=True),
@@ -848,6 +966,9 @@ def _with(build, change):
         "container-map",
         "container-after-connect-request",
         "declarative-schedules",
+        "declarative-fields",
+        "declarative-parts",
+        "declarative-actions",
         "declarative-after-connect-hook",
         "declarative-no-hosts",
         "declarative-no-request",
