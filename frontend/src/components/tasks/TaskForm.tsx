@@ -41,12 +41,12 @@ import { dateRangeBounds } from "@/lib/dateRange";
 import type { RecurrenceRule } from "@/lib/recurrence";
 import { PRIORITY_ORDER } from "@/lib/sorting";
 
-/** The full editable state of a task form, owned by the parent so it can
- *  build a create/update payload, compare against a snapshot for dirty
- *  tracking, and reset on success. TaskForm mutates it only via ``onChange``. */
 /** A description's preview reads the way the saved one will. */
 const renderDescription = (draft: string) => <TaskDescription content={draft} />;
 
+/** The full editable state of a task form, owned by the parent so it can
+ *  build a create payload, compare against a snapshot for dirty tracking, and
+ *  reset on success. TaskForm mutates it only via ``onChange``. */
 export interface TaskFormValue {
   title: string;
   description: string;
@@ -110,10 +110,9 @@ export const emptyTaskFormValue = (overrides: Partial<TaskFormValue> = {}): Task
 });
 
 /**
- * The form's sections, in render order, and the ``TaskFormValue`` keys each
- * one owns. Every layout is a projection over this — the dialog collapses
- * all but the first, the page lays them out flat — so a field cannot reach
- * one surface and be forgotten on the other.
+ * The create dialog's sections, in render order, and the ``TaskFormValue``
+ * keys each one owns: the dialog shows the first and collapses the rest. (A
+ * task's page saves each field on its own, from ``lib/views/taskPage.tsx``.)
  *
  * ``taskForm.sections`` in ``TaskForm.test.tsx`` asserts these keys cover
  * ``TaskFormValue`` exactly, so adding a field to the value without giving
@@ -141,26 +140,16 @@ export interface TaskFormProps {
   /** Pre-known assignee users so the picker renders names without a search. */
   selectedAssignees?: MemberLike[];
   disabled?: boolean;
-
-  /** Override the plain description textarea (e.g. the editor's markdown/AI block). */
-  descriptionSlot?: ReactNode;
-  /** Reference date for the recurrence "occurs on" preview. */
-  recurrenceReferenceDate?: string | null;
-  /** The stored repeat and its shift, previewed while it is kept as custom. */
-  storedRecurrence?: { rule: string; shift: number } | null;
-
-  /** ``dialog`` tucks everything but the title into a collapsible section;
-   *  ``page`` renders every field flat. */
-  layout?: "dialog" | "page";
   autoFocusTitle?: boolean;
 }
 
 /**
- * Shared task field set used by both the create dialog and the edit page. The
- * parent owns the ``value`` (for submit / dirty-tracking / reset); TaskForm
- * owns the interaction logic — including adding, editing, and removing tags and
- * custom properties — and reports every change through a single ``onChange``.
- * It renders no ``<form>``, submit buttons, or surrounding chrome.
+ * The create dialog's field set: the title and description, with everything
+ * else in a collapsible section. The parent owns the ``value`` (for submit,
+ * dirty tracking and reset); TaskForm owns the interaction logic — including
+ * adding, editing, and removing tags and custom properties — and reports every
+ * change through a single ``onChange``. It renders no ``<form>``, submit
+ * buttons, or surrounding chrome.
  */
 export const TaskForm = ({
   value,
@@ -171,10 +160,6 @@ export const TaskForm = ({
   currentUserId,
   selectedAssignees,
   disabled = false,
-  descriptionSlot,
-  recurrenceReferenceDate,
-  storedRecurrence,
-  layout = "page",
   autoFocusTitle = false,
 }: TaskFormProps) => {
   const { t } = useTranslation(["tasks", "properties", "dates", "common"]);
@@ -334,8 +319,7 @@ export const TaskForm = ({
       strategy={value.recurrenceStrategy}
       onStrategyChange={(recurrenceStrategy) => set({ recurrenceStrategy })}
       disabled={disabled}
-      referenceDate={recurrenceReferenceDate ?? value.dueDate ?? value.startDate}
-      stored={storedRecurrence}
+      referenceDate={value.dueDate || value.startDate}
     />
   );
 
@@ -359,7 +343,7 @@ export const TaskForm = ({
     </div>
   );
 
-  const descriptionField = descriptionSlot ?? (
+  const descriptionField = (
     <div className="space-y-2">
       <Label htmlFor="task-description">{t("taskForm.descriptionLabel")}</Label>
       <MentionComposer
@@ -377,8 +361,6 @@ export const TaskForm = ({
     </div>
   );
 
-  // On the page the title IS the heading — the editor used to render it twice,
-  // once as an <h1> and once as this field, both bound to the same state.
   const titleField = (
     <div className="space-y-2">
       <Label htmlFor="task-title">{t("taskForm.titleLabel")}</Label>
@@ -390,11 +372,6 @@ export const TaskForm = ({
         required
         disabled={disabled}
         autoFocus={autoFocusTitle}
-        className={
-          layout === "page"
-            ? "h-auto font-semibold text-3xl tracking-tight shadow-none focus-visible:ring-0 sm:text-3xl"
-            : undefined
-        }
       />
     </div>
   );
@@ -440,21 +417,17 @@ export const TaskForm = ({
 
   const [leadSection, ...detailSections] = TASK_FORM_SECTIONS;
 
-  if (layout === "dialog") {
-    return (
-      <div className="space-y-4">
-        {renderSection(leadSection)}
-        <Accordion type="single" collapsible>
-          <AccordionItem value="advanced">
-            <AccordionTrigger>{t("taskForm.advancedDetails")}</AccordionTrigger>
-            <AccordionContent className="space-y-6">
-              {detailSections.map(renderSection)}
-            </AccordionContent>
-          </AccordionItem>
-        </Accordion>
-      </div>
-    );
-  }
-
-  return <div className="space-y-6">{TASK_FORM_SECTIONS.map(renderSection)}</div>;
+  return (
+    <div className="space-y-4">
+      {renderSection(leadSection)}
+      <Accordion type="single" collapsible>
+        <AccordionItem value="advanced">
+          <AccordionTrigger>{t("taskForm.advancedDetails")}</AccordionTrigger>
+          <AccordionContent className="space-y-6">
+            {detailSections.map(renderSection)}
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
+    </div>
+  );
 };

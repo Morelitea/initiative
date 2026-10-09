@@ -346,5 +346,17 @@
   "days": {
     "today": "Heute",
     "yesterday": "Gestern"
+  },
+  "fieldSave": {
+    "saving": "Wird gespeichert…",
+    "saved": "Gespeichert",
+    "failed": "Nicht gespeichert",
+    "changed": "Das wurde geändert, während du es bearbeitet hast",
+    "overwrite": "Überschreiben",
+    "keepEditing": "Weiter bearbeiten",
+    "discard": "Verwerfen",
+    "undo": "Rückgängig",
+    "moved": "Verschoben nach {{status}}",
+    "cleared": "{{field}}: Wert entfernt"
   }
 }

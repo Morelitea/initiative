@@ -150,12 +150,23 @@ class PropertyValueInput(SanitizedBaseModel):
 
 
 class PropertyValuesSetRequest(SanitizedBaseModel):
-    """Replace-all payload for ``PUT /properties/{target}/{entity_id}``.
+    """Payload for ``PUT /properties/{target}/{entity_id}``: replace-all, or
+    with ``merge`` only the properties it names.
 
-    An empty list clears every property value on the entity.
+    Replacing, an empty list clears every property value on the entity.
     """
 
     values: List[PropertyValueInput] = Field(default_factory=list)
+    #: Write only the properties ``values`` names, and take off the ones
+    #: ``removed`` names, leaving every other value on the entity as it is.
+    merge: bool = False
+    removed: List[int] = Field(default_factory=list, max_length=100)
+
+    @model_validator(mode="after")
+    def removal_merges(self) -> "PropertyValuesSetRequest":
+        if self.removed and not self.merge:
+            raise ValueError("removed needs merge")
+        return self
 
 
 class PropertiesOnCreate(SanitizedBaseModel):

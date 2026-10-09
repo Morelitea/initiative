@@ -127,3 +127,53 @@ export const TASK_CARD: ViewNode = {
     },
   ],
 };
+
+/**
+ * A task's page as shipped: the title, who made it and what else can be done
+ * with it across the top; what the task is in the main column; and the fields
+ * that place it beside them.
+ */
+export const TASK_PAGE: ViewNode = {
+  type: "page",
+  children: [
+    {
+      type: "header",
+      children: [
+        {
+          type: "stack",
+          props: { direction: "row", gap: "sm", align: "start" },
+          children: [field("title"), { type: "actions" }],
+        },
+        { type: "byline" },
+        { type: "notice" },
+      ],
+    },
+    {
+      type: "main",
+      children: [
+        { type: "section", children: [field("description")] },
+        field("checklist"),
+        { type: "case" },
+        { type: "comments" },
+      ],
+    },
+    {
+      type: "side",
+      children: [
+        {
+          type: "section",
+          children: [
+            { type: "status" },
+            field("priority"),
+            field("assignees"),
+            { type: "dates" },
+            field("recurrence"),
+            field("tags"),
+            { type: "properties" },
+          ],
+        },
+        { type: "relations" },
+      ],
+    },
+  ],
+};

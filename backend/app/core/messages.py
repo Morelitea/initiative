@@ -345,6 +345,8 @@ class TaskMessages:
     DUPLICATE_NOT_FOUND = "TASK_DUPLICATE_NOT_FOUND"
     NOT_REPEATING = "TASK_NOT_REPEATING"
     NO_LATER_OCCURRENCE = "TASK_NO_LATER_OCCURRENCE"
+    #: An update named a description that is no longer the stored one.
+    DESCRIPTION_CHANGED = "TASK_DESCRIPTION_CHANGED"
 
 
 class ChecklistMessages:

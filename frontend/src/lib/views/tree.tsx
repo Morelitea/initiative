@@ -31,19 +31,34 @@ export type ViewContext = {
 };
 
 /**
- * A part turns its node into elements. Parts call no hooks — they run inside
- * `ViewTree`'s render — so anything that needs one is a component a part
- * returns, as the field renderers are.
+ * A part turns its node into elements, drawing its children with the parts it
+ * was drawn with. Parts call no hooks — they run inside the tree's render — so
+ * anything that needs one is a component a part returns, as the field
+ * renderers are.
  */
-type Part = (node: ViewNode, item: ViewItem, view: ViewContext) => ReactNode;
+type Part<I> = (node: ViewNode, item: I, view: ViewContext, parts: Parts<I>) => ReactNode;
 
-const renderNode = (node: ViewNode, item: ViewItem, view: ViewContext): ReactNode =>
-  Object.hasOwn(PARTS, node.type) ? PARTS[node.type](node, item, view) : null;
+/** The parts a tree of one kind of item can hold, by node type. */
+export type Parts<I> = Readonly<Record<string, Part<I>>>;
 
-const renderChildren = (node: ViewNode, item: ViewItem, view: ViewContext): ReactNode =>
+/** Draws one item through a tree. Unknown parts and fields draw nothing. */
+export const renderNode = <I,>(
+  node: ViewNode,
+  item: I,
+  view: ViewContext,
+  parts: Parts<I>
+): ReactNode =>
+  Object.hasOwn(parts, node.type) ? parts[node.type](node, item, view, parts) : null;
+
+const renderChildren = <I,>(
+  node: ViewNode,
+  item: I,
+  view: ViewContext,
+  parts: Parts<I>
+): ReactNode =>
   node.children?.map((child, index) => (
     // biome-ignore lint/suspicious/noArrayIndexKey: a tree is fixed for the life of a view
-    <Fragment key={index}>{renderNode(child, item, view)}</Fragment>
+    <Fragment key={index}>{renderNode(child, item, view, parts)}</Fragment>
   ));
 
 const renderField = (
@@ -100,7 +115,8 @@ type StackProps = {
   direction?: "column" | "row";
   gap?: "xs" | "sm";
   wrap?: boolean;
-  /** Items keep their own width rather than filling the column. */
+  /** In a column, items keep their own width rather than filling it; in a
+   *  row, they keep their own height. */
   align?: "start";
   tone?: "muted";
 };
@@ -110,22 +126,57 @@ const SPACE = { xs: "space-y-1", sm: "space-y-2" };
 const TONE = { muted: "wrap-break-word text-muted-foreground text-xs" };
 
 const stackClassName = ({ direction, gap = "xs", wrap, align, tone }: StackProps): string => {
-  if (direction === "row") return cn("flex min-w-0", wrap && "flex-wrap", GAP[gap]);
+  if (direction === "row") {
+    return cn("flex min-w-0", wrap && "flex-wrap", align === "start" && "items-start", GAP[gap]);
+  }
   // A column whose items fill it is a plain block, spaced line by line.
   return align === "start"
     ? cn("flex w-full min-w-0 flex-col items-start text-left", GAP[gap], tone && TONE[tone])
     : cn("w-full min-w-0", SPACE[gap], tone && TONE[tone]);
 };
 
-const PARTS: Record<string, Part> = {
-  // The board draws the card's frame, which carries the drag and the measuring;
-  // the card lays out what is inside it.
-  card: (node, item, view) => renderChildren(node, item, view),
-  stack: (node, item, view) => (
+// A region of an item's page: it draws its parts in a column, and places
+// itself on the page's grid. The side column sits above the main one until
+// there is room beside it.
+const region =
+  (className: string) =>
+  <I,>(node: ViewNode, item: I, view: ViewContext, parts: Parts<I>) => (
+    <div className={cn("min-w-0", className)}>{renderChildren(node, item, view, parts)}</div>
+  );
+
+/** Arrangement, for a tree of any kind of item. */
+export const LAYOUT_PARTS = {
+  stack: <I,>(node: ViewNode, item: I, view: ViewContext, parts: Parts<I>) => (
     <div className={stackClassName((node.props ?? {}) as StackProps)}>
-      {renderChildren(node, item, view)}
+      {renderChildren(node, item, view, parts)}
     </div>
   ),
+  /** An item's own page, which holds its header, main and side regions. */
+  page: <I,>(node: ViewNode, item: I, view: ViewContext, parts: Parts<I>) => (
+    <div className="grid canvas-md:grid-cols-[minmax(0,1fr)_20rem] gap-6">
+      {renderChildren(node, item, view, parts)}
+    </div>
+  ),
+  header: region("space-y-2 canvas-md:col-span-2"),
+  main: region(
+    "order-2 space-y-6 canvas-md:order-none canvas-md:col-start-1 canvas-md:row-start-2"
+  ),
+  side: region(
+    "order-1 space-y-4 canvas-md:order-none canvas-md:col-start-2 canvas-md:row-start-2"
+  ),
+  /** A bordered group of parts. */
+  section: <I,>(node: ViewNode, item: I, view: ViewContext, parts: Parts<I>) => (
+    <section className="space-y-4 rounded-lg border bg-card p-4 text-card-foreground shadow-sm">
+      {renderChildren(node, item, view, parts)}
+    </section>
+  ),
+};
+
+const PARTS: Parts<ViewItem> = {
+  ...LAYOUT_PARTS,
+  // The board draws the card's frame, which carries the drag and the measuring;
+  // the card lays out what is inside it.
+  card: (node, item, view, parts) => renderChildren(node, item, view, parts),
   field: (node, item, view) => {
     const field = view.fields.get(String(node.props?.field));
     return field ? renderField(field, field.value(item), item, view) : null;
@@ -144,7 +195,7 @@ const PARTS: Record<string, Part> = {
     ),
 };
 
-/** Draws one item through a tree. Unknown parts and fields draw nothing. */
+/** Draws one item of a collection through a tree. */
 export const ViewTree = memo(function ViewTree({
   node,
   item,
@@ -154,5 +205,5 @@ export const ViewTree = memo(function ViewTree({
   item: ViewItem;
   view: ViewContext;
 }) {
-  return renderNode(node, item, view);
+  return renderNode(node, item, view, PARTS);
 });

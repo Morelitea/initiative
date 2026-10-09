@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { archiveEntity } from "@/api/generated/archive/archive";
@@ -10,14 +10,18 @@ import type {
   GenerateChecklistResponse,
   GenerateDescriptionResponse,
   ListTasksParams,
+  PropertyValueInput,
   TaskListRead,
   TaskListResponse,
   TaskRead,
   TaskReorderRequest,
   TaskStatusCategory,
   TaskStatusRead,
+  TaskUpdate,
   TaskUpdateScope,
 } from "@/api/generated/initiativeAPI.schemas";
+import { PropertyTarget } from "@/api/generated/initiativeAPI.schemas";
+import { setProperties } from "@/api/generated/properties/properties";
 import { getReadSmartChipsQueryKey } from "@/api/generated/smart-chips/smart-chips";
 import {
   getListTaskStatusesQueryKey,
@@ -44,12 +48,13 @@ import { invalidate, q } from "@/api/query-keys";
 import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useCommunityMutation } from "@/hooks/useApiMutation";
 import { useAuth } from "@/hooks/useAuth";
-import { getErrorMessage } from "@/lib/errorMessage";
+import { getErrorMessage, getHttpStatus } from "@/lib/errorMessage";
 import { fetchAllPages } from "@/lib/fetchAllPages";
 import { toast } from "@/lib/mascotToast";
 import { withZone } from "@/lib/recurrence";
 import { fireTaskCompletionFeedback } from "@/lib/taskCompletionFeedback";
 import { statusForCategory } from "@/lib/taskStatusDefaults";
+import type { FieldSave, FieldSaveState } from "@/lib/views/editing";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
 
@@ -151,8 +156,8 @@ export interface UpdateTaskVariables {
 export const useUpdateTask = (
   options?: MutationOpts<TaskRead, UpdateTaskVariables>,
   /** What a failure says. Defaults to the status-change wording, which is what
-   *  most callers of this are doing. */
-  errorKey = "tasks:errors.statusUpdate"
+   *  most callers of this are doing; null when the caller says it itself. */
+  errorKey: string | null = "tasks:errors.statusUpdate"
 ) => {
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
   const queryClient = useQueryClient();
@@ -200,11 +205,157 @@ export const useUpdateTask = (
       onSuccess?.(...args);
     },
     onError: (...args) => {
-      toast.error(getErrorMessage(args[0], errorKey));
+      if (errorKey) toast.error(getErrorMessage(args[0], errorKey));
       onError?.(...args);
     },
     onSettled,
   });
+};
+
+/** A change to some of a task's fields: what is sent, and how the task reads
+ *  once it is saved. A change to its properties names only those it sets or
+ *  takes off, so one person's leaves another's standing. */
+export type TaskEdit = { shows: Partial<TaskRead> } & (
+  | { patch: TaskUpdate }
+  | { properties: { values: PropertyValueInput[]; removed?: number[] } }
+);
+
+// The fields an edit of one task of a repeating series may keep from the rest
+// of it, so changing one asks which tasks it is for.
+const SERIES_FIELDS: (keyof TaskUpdate)[] = [
+  "title",
+  "description",
+  "priority",
+  "assignee_ids",
+  "start_date",
+  "due_date",
+  "tag_ids",
+];
+
+const SAVED_SHOWN_MS = 2_000;
+
+/**
+ * The one way a task's page saves a field: the fields it names, shown at once
+ * and taken back if it fails. A change to a repeating task's series fields
+ * asks which tasks it is for first.
+ *
+ * Given `undo`, the edit that puts it back, the confirmation offers Undo: for
+ * a status move, or a cleared value.
+ */
+export const useTaskFieldSave = (
+  task: TaskRead,
+  label: string,
+  /** Asks which tasks of a series a change is for; null when it is closed. */
+  askScope: (
+    action: "edit",
+    question: { tool: "tasks"; count: number }
+  ) => Promise<TaskUpdateScope | null>
+) => {
+  const { t } = useTranslation("common");
+  const communityId = useActiveCommunityId();
+  const queryClient = useQueryClient();
+  const { mutateAsync } = useUpdateTask(undefined, null);
+  const [state, setState] = useState<FieldSaveState>("idle");
+  const [error, setError] = useState<unknown>(null);
+  const pending = useRef(0);
+  const last = useRef<{ edit: TaskEdit; undo?: TaskEdit } | null>(null);
+
+  useEffect(() => {
+    if (state !== "saved") return;
+    const timer = setTimeout(() => setState("idle"), SAVED_SHOWN_MS);
+    return () => clearTimeout(timer);
+  }, [state]);
+
+  const send = async (edit: TaskEdit, undo?: TaskEdit): Promise<boolean> => {
+    const key = getReadTaskQueryKey(communityId, task.id);
+    const before = queryClient.getQueryData<TaskRead>(key) ?? task;
+    const shown = Object.keys(edit.shows) as (keyof TaskRead)[];
+    last.current = { edit, undo };
+    pending.current += 1;
+    setState("saving");
+    setError(null);
+    queryClient.setQueryData<TaskRead>(key, (current) => current && { ...current, ...edit.shows });
+    const moved = edit.shows.task_status;
+    let saved = false;
+    try {
+      const written: Partial<TaskRead> =
+        "patch" in edit
+          ? await mutateAsync({
+              taskId: task.id,
+              data: edit.patch,
+              statusChange: moved
+                ? { from: before.task_status.category, to: moved.category }
+                : undefined,
+            })
+          : {
+              properties: await setProperties(communityId, PropertyTarget.task, task.id, {
+                ...edit.properties,
+                merge: true,
+              }),
+            };
+      if (!("patch" in edit)) void invalidate(q.propertyHolder(PropertyTarget.task));
+      queryClient.setQueryData<TaskRead>(key, (current) => current && { ...current, ...written });
+      saved = true;
+      if (undo) {
+        toast.success(
+          moved
+            ? t("fieldSave.moved", { status: moved.name })
+            : t("fieldSave.cleared", { field: label }),
+          {
+            action: {
+              label: t("fieldSave.undo"),
+              onClick: () =>
+                void send(
+                  "patch" in undo && "patch" in edit
+                    ? { ...undo, patch: { ...undo.patch, scope: edit.patch.scope } }
+                    : undo
+                ),
+            },
+          }
+        );
+      }
+    } catch (failed) {
+      setError(failed);
+      queryClient.setQueryData<TaskRead>(
+        key,
+        (current) =>
+          current && {
+            ...current,
+            ...Object.fromEntries(shown.map((name) => [name, before[name]])),
+          }
+      );
+      // Refused as out of date: what it is now is the next thing to show.
+      if (getHttpStatus(failed) === 409) void queryClient.invalidateQueries({ queryKey: key });
+    }
+    pending.current -= 1;
+    if (pending.current === 0) setState(saved ? "saved" : "error");
+    return saved;
+  };
+
+  const save = async (edit: TaskEdit, undo?: TaskEdit): Promise<boolean> => {
+    if (task.recurrence && "patch" in edit && SERIES_FIELDS.some((name) => name in edit.patch)) {
+      const scope = await askScope("edit", { tool: "tasks", count: task.series_size });
+      if (scope === null) return false;
+      return send({ ...edit, patch: { ...edit.patch, scope } }, undo);
+    }
+    return send(edit, undo);
+  };
+
+  const field: FieldSave = {
+    state,
+    retry: () => {
+      if (last.current) void send(last.current.edit, last.current.undo);
+    },
+  };
+  return {
+    ...field,
+    save,
+    error,
+    reset: () => {
+      setError(null);
+      setState("idle");
+    },
+  };
 };
 
 /**

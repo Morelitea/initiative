@@ -1,11 +1,9 @@
 /**
- * The one thing that keeps creating and editing a task from drifting apart.
+ * The create dialog places every field it holds.
  *
- * Both surfaces render the same `TaskForm`, but each used to compose its own
- * field list by hand, so a field could reach one and be forgotten on the
- * other. Every layout is now a projection over `TASK_FORM_SECTIONS`, and this
- * asserts that definition covers `TaskFormValue` exactly — add a field to the
- * value without giving it a section and this fails.
+ * The dialog shows its fields by `TASK_FORM_SECTIONS`, and this asserts that
+ * definition covers `TaskFormValue` exactly — add a field to the value without
+ * giving it a section and this fails.
  */
 import { describe, expect, it } from "vitest";
 
