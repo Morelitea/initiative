@@ -52,7 +52,9 @@ async def risky_session(
     if carries_passkey(row.amr):
         return False
     since = await signed_in_since(system_session, session_id=row.id)
-    established = row.device or (since is not None and since <= now - ESTABLISHED_AFTER)
+    established = row.install_id is not None or (
+        since is not None and since <= now - ESTABLISHED_AFTER
+    )
     if not established:
         return True
     return await _in_a_run(system_session, user_id=row.user_id, now=now)

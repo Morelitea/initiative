@@ -42,7 +42,7 @@ from app.api.v1.platform_endpoints.session_cookies import (
     set_session_cookie,
 )
 from app.core.audit_events import AuditEventType
-from app.core.config import is_device, settings
+from app.core.config import install_id, is_device, settings
 from app.core.login_methods import LoginMethod
 from app.core.messages import AuthMessages, SettingsMessages
 from app.core import audit_context
@@ -612,7 +612,7 @@ async def issue_session(
     satisfied_providers: Sequence[int] = (),
     provider_auth: dict[str, Any] | None = None,
     device_name: str | None = None,
-    device: bool = False,
+    install: uuid.UUID | None = None,
     replaces: uuid.UUID | None = None,
 ) -> OpenedSession:
     """Stage a session and mint the access token for it.
@@ -625,7 +625,34 @@ async def issue_session(
     the same transaction, since a refresh can have left descendants the new
     session also replaces. The new session is a fresh chain root, so the walk
     never reaches it.
+
+    ``install`` makes it a device's session. A sign-in from an install that has
+    signed in before continues that install, live or not: its last session's
+    chain is revoked and its key store and push registration move here, so the
+    device keeps its messages and is still one device. It is a new sign-in, so
+    it starts its own chain and its own limits.
     """
+    previous: uuid.UUID | None = None
+    if install is not None:
+        # Two sign-ins from one install take turns, so the second continues the
+        # first rather than meeting it in the one-live-session index.
+        await system_session.execute(
+            text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
+            {"key": f"install:{user_id}:{install}"},
+        )
+        if replaces is None:
+            previous = await session_service.latest_of_install(
+                system_session, user_id=user_id, install_id=install
+            )
+    since = (
+        await signed_in_since(system_session, session_id=replaces)
+        if replaces is not None
+        else None
+    )
+    # Revoked before the new row is written: an install holds one live session.
+    for ended in (replaces, previous):
+        if ended is not None:
+            await session_service.revoke_chain(system_session, session_id=ended)
     issued = await session_service.create_session(
         system_session,
         user_id=user_id,
@@ -635,16 +662,14 @@ async def issue_session(
         user_agent=audit_context.client_user_agent(),
         ip=audit_context.client_ip(),
         device_name=device_name,
-        device=device,
+        install_id=install,
     )
-    if replaces is not None:
-        issued.session.continues_since = await signed_in_since(
-            system_session, session_id=replaces
-        )
-        await session_service.revoke_chain(system_session, session_id=replaces)
-        await session_service.follow_devices(
-            system_session, from_id=replaces, to_id=issued.session.id
-        )
+    issued.session.continues_since = since
+    for ended in (replaces, previous):
+        if ended is not None:
+            await session_service.follow_devices(
+                system_session, from_id=ended, to_id=issued.session.id
+            )
     # The name the token will carry, in the same transaction as the session.
     subject = await subject_service.subject_for_user(system_session, user_id=user_id)
     return mint_for(issued, subject=subject, token_version=token_version)
@@ -675,7 +700,9 @@ async def open_session(
     A device's sign-in opens a device session and is handed the refresh token
     in the body too, since the app keeps its own; ``device_name`` labels it.
     ``device`` is read from the request (:func:`is_device`) unless the caller
-    already knows the answer.
+    already knows the answer, and the install it names
+    (:func:`~app.core.config.install_id`) is the one it continues. An app too
+    old to name one is an install of its own.
 
     Anything the caller staged in ``system_session`` — a credential's counter,
     a spent challenge — commits with the session, or goes with it.
@@ -700,7 +727,7 @@ async def open_session(
             satisfied_providers=satisfied_providers,
             provider_auth=provider_auth,
             device_name=device_name if device else None,
-            device=device,
+            install=(install_id(request) or uuid.uuid4()) if device else None,
         )
     issued.set_cookies(response)
     return issued.to_token(include_refresh=device)
@@ -814,7 +841,13 @@ async def set_password(
                 amr=amr,
                 satisfied_providers=providers,
                 provider_auth=provider_auth,
-                device=is_device(request),
+                install=(
+                    prior.install_id
+                    if prior is not None
+                    else (install_id(request) or uuid.uuid4())
+                    if is_device(request)
+                    else None
+                ),
             )
             if prior is not None:
                 await session_service.follow_devices(
@@ -895,7 +928,7 @@ async def upgrade_session(
             provider_auth=(
                 provider_auth if provider_auth is not None else prior.provider_auth
             ),
-            device=prior.device,
+            install=prior.install_id,
             replaces=prior.id,
         )
     issued.set_cookies(response)

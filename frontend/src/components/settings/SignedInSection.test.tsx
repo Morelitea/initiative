@@ -1,10 +1,10 @@
 /**
  * Where the account is signed in.
  *
- * The person reading the page is owed one ordered list, one row per device,
- * where the row they are sitting at is obvious and is not offered a button that
- * would sign them out of the page they are on. A device is removed; a browser
- * is signed out.
+ * The person reading the page is owed the devices, one row each, then the
+ * browsers, where the row they are sitting at is obvious and is not offered a
+ * button that would sign them out of the page they are on. A device is
+ * removed; a browser is signed out.
  */
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -93,13 +93,16 @@ beforeEach(() => {
 });
 
 describe("SignedInSection", () => {
-  it("shows browsers, the app and a device that is not signed in, in one list", () => {
+  it("shows the app and a device that is not signed in, then the browsers", () => {
     renderWithProviders(<SignedInSection />);
 
     expect(screen.getByText("Chrome on macOS")).toBeInTheDocument();
     expect(screen.getByText("Firefox on Windows")).toBeInTheDocument();
     expect(screen.getByText("Lee's iPhone")).toBeInTheDocument();
     expect(within(row("Android")).getByText(/not signed in/)).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("heading", { level: 3 }).map((heading) => heading.textContent)
+    ).toEqual(["Devices", "Browsers"]);
   });
 
   it("marks the session doing the reading and offers it no way out", () => {
@@ -108,7 +111,7 @@ describe("SignedInSection", () => {
     renderWithProviders(<SignedInSection />);
 
     const current = row("Chrome on macOS");
-    expect(within(current).getByText("This device")).toBeInTheDocument();
+    expect(within(current).getByText("This browser")).toBeInTheDocument();
     expect(within(current).queryByRole("button")).toBeNull();
 
     // Every other row keeps one: a browser is signed out, a device removed.
@@ -116,13 +119,13 @@ describe("SignedInSection", () => {
     expect(screen.getAllByRole("button", { name: "Remove device" })).toHaveLength(2);
   });
 
-  it("puts the current session first, then the most recently active", () => {
+  it("puts the current session first in its group, then the most recently active", () => {
     renderWithProviders(<SignedInSection />);
 
     const labels = screen
       .getAllByText(/Chrome on macOS|Firefox on Windows|Lee's iPhone|Android/)
-      .map((node) => node.textContent?.replace("This device", "").trim());
-    expect(labels).toEqual(["Chrome on macOS", "Firefox on Windows", "Lee's iPhone", "Android"]);
+      .map((node) => node.textContent?.replace("This browser", "").trim());
+    expect(labels).toEqual(["Lee's iPhone", "Android", "Chrome on macOS", "Firefox on Windows"]);
   });
 
   it("signs a browser out and removes a device, each by its own row", async () => {

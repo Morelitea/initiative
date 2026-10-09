@@ -448,6 +448,30 @@ async def withdraw_signed_in(
     )
 
 
+#: How long after a browser's sign-in ends its key store is kept. A renewal
+#: that read the session just before it ran out still moves the store to the
+#: session it opens, and finishes well inside this.
+ENDED_BROWSER_GRACE = timedelta(hours=1)
+
+
+async def withdraw_ended_browsers(session: AsyncSession, *, now: datetime) -> None:
+    """Drop the key stores of browsers whose sign-in has ended.
+
+    A browser's keys go with its session, and one that lapsed has already wiped
+    them, without the credential to withdraw its row itself. A device's store
+    names a session that has an install and outlasts it on purpose. Does not
+    commit.
+    """
+    await session.exec(
+        text(
+            "DELETE FROM dm_devices d USING auth_sessions s "
+            "WHERE d.session_id = s.id AND s.install_id IS NULL "
+            "AND (s.revoked_at <= :ended OR s.expires_at <= :ended)"
+        ),
+        params={"ended": now - ENDED_BROWSER_GRACE},
+    )
+
+
 def _session_key(
     device: DmDevice, one_time_key: DmOneTimeKeyUpload | None
 ) -> DmSessionKey:

@@ -603,14 +603,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // same handler.
     setHasActiveSession(false);
     clearJustSignedIn();
-    try {
-      // Before the session goes: a decrypted conversation must not outlive it,
-      // and withdrawing this browser's device stops anything more being sent to
-      // a key store that is about to be erased. It needs the token, so it goes
-      // ahead of the sign-out itself.
-      await forgetMessagesOnThisDevice();
-    } catch {
-      // Never a reason to stay signed in.
+    // A browser may be a shared computer, so its messages go before the session
+    // does: a decrypted conversation must not outlive it, and withdrawing its
+    // device needs the token. The phone and desktop apps keep theirs, as through
+    // a lapse, so signing back in reads them straight away.
+    if (!Capacitor.isNativePlatform()) {
+      try {
+        await forgetMessagesOnThisDevice();
+      } catch {
+        // Never a reason to stay signed in.
+      }
     }
     try {
       // The same for this device's notifications: withdrawn while the

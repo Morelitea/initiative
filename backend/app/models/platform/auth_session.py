@@ -4,7 +4,6 @@ from typing import Any, Optional
 
 from sqlalchemy import (
     ARRAY,
-    Boolean,
     CheckConstraint,
     Column,
     DateTime,
@@ -59,6 +58,14 @@ class AuthSession(SQLModel, table=True):
         # The chain walks go from a row to its children: revoking a chain, and
         # finding the live row a chain has reached.
         Index("ix_auth_sessions_parent_id", "parent_id"),
+        # One installed copy of the app holds one live sign-in.
+        Index(
+            "uq_auth_sessions_live_install",
+            "user_id",
+            "install_id",
+            unique=True,
+            postgresql_where=text("revoked_at IS NULL"),
+        ),
     )
 
     id: uuid.UUID = Field(
@@ -142,11 +149,12 @@ class AuthSession(SQLModel, table=True):
     device_name: Optional[str] = Field(
         default=None, sa_column=Column(Text, nullable=True)
     )
-    #: Opened by the phone or desktop app, which stays signed in for longer
-    #: than a browser does. Carried across every renewal and step-up.
-    device: bool = Field(
-        default=False,
-        sa_column=Column(Boolean, nullable=False, server_default=text("false")),
+    #: The installed copy of the phone or desktop app that opened it; NULL for a
+    #: browser. A device stays signed in for longer than a browser does, and a
+    #: new sign-in from the same install continues this one. Carried across
+    #: every renewal and step-up.
+    install_id: Optional[uuid.UUID] = Field(
+        default=None, sa_column=Column(Uuid, nullable=True)
     )
     #: When the sign-in this session continues began, where it took the place
     #: of another (a step-up, a replacement). Its own chain starts afresh, so

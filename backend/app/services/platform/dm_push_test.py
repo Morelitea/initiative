@@ -256,7 +256,7 @@ class TestDelivery:
             user_id=b.user.id,
             amr=["pwd"],
             satisfied_providers=[],
-            device=True,
+            install_id=uuid.uuid4(),
         )
         headers = {
             "Authorization": f"Bearer {get_auth_token(b.user, session_id=issued.session.id)}"

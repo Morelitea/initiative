@@ -22,7 +22,12 @@ import {
  * returned so a test can assert on it; `answer` is how the refresh replies.
  */
 function stubRenewal(answer: () => Response = () => HttpResponse.json({ access_token: "fresh" })) {
-  const seen = { calls: 0, body: null as string | null, renewed: false };
+  const seen = {
+    calls: 0,
+    body: null as string | null,
+    install: null as string | null,
+    renewed: false,
+  };
   server.use(
     http.get("/api/v1/me", () =>
       seen.renewed ? HttpResponse.json({ id: 1 }) : new HttpResponse(null, { status: 401 })
@@ -30,6 +35,7 @@ function stubRenewal(answer: () => Response = () => HttpResponse.json({ access_t
     http.post("/api/v1/auth/refresh", async ({ request }) => {
       seen.calls += 1;
       seen.body = await request.text();
+      seen.install = request.headers.get("X-Initiative-Install");
       seen.renewed = true;
       return answer();
     })
@@ -104,6 +110,8 @@ describe("renewal for a client that holds its own refresh token", () => {
     await apiClient.get("/me");
 
     expect(JSON.parse(seen.body ?? "null")).toEqual({ refresh_token: "rt-old" });
+    // A browser is not an install; only the app names one.
+    expect(seen.install).toBeNull();
     // Spent on use, so the one held has to be the replacement.
     const { readRefreshToken } = await import("@/lib/nativeSession");
     expect(readRefreshToken()).toBe("rt-new");
@@ -117,12 +125,21 @@ describe("renewal for a client that holds its own refresh token", () => {
     storeRefreshToken("rt-native");
     setHasActiveSession(true);
     const signedOut = watch(AUTH_UNAUTHORIZED_EVENT);
-    stubRenewal(() => HttpResponse.json({ access_token: "fresh", refresh_token: "rt-next" }));
+    const seen = stubRenewal(() =>
+      HttpResponse.json({ access_token: "fresh", refresh_token: "rt-next" })
+    );
 
     const response = await apiClient.get("/me");
 
     expect(response.data).toEqual({ id: 1 });
     expect(signedOut).not.toHaveBeenCalled();
+    // The app names its install on every request, the same one each time.
+    expect(seen.install).toMatch(/^[0-9a-f-]{36}$/);
+    clearRefreshToken();
+    const again = stubRenewal();
+    storeRefreshToken("rt-again");
+    await apiClient.get("/me");
+    expect(again.install).toBe(seen.install);
     native.mockRestore();
   });
 

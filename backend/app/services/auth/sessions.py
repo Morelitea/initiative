@@ -29,7 +29,7 @@ from enum import Enum
 from typing import Any, Collection
 
 from sqlalchemy import text
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
@@ -54,6 +54,7 @@ __all__ = [
     "revoke_all_for_user",
     "delete_all_for_user",
     "follow_devices",
+    "latest_of_install",
     "purge_dead_sessions",
     "process_dead_session_purge",
     "SESSION_PURGE_POLL_SECONDS",
@@ -207,7 +208,7 @@ async def create_session(
     user_agent: str | None = None,
     ip: str | None = None,
     device_name: str | None = None,
-    device: bool = False,
+    install_id: uuid.UUID | None = None,
     refresh_ttl: timedelta | None = None,
     now: datetime | None = None,
 ) -> IssuedSession:
@@ -229,7 +230,10 @@ async def create_session(
     """
     issued = now or utcnow()
     ttl = await _narrowed_ttl(
-        session, user_id=user_id, requested=refresh_ttl, device=device
+        session,
+        user_id=user_id,
+        requested=refresh_ttl,
+        device=install_id is not None,
     )
     # The end of the whole chain, read once here and carried forward from now
     # on. ``expires_at`` is the idle window and never outlives it.
@@ -249,7 +253,7 @@ async def create_session(
         user_agent=user_agent,
         ip=ip,
         device_name=device_name,
-        device=device,
+        install_id=install_id,
     )
     session.add(row)
     await session.flush()
@@ -328,7 +332,10 @@ async def rotate_session(
     # presented, so the window it may stand for is worked out now rather than
     # by a caller that could not have known.
     ttl = await _narrowed_ttl(
-        session, user_id=row.user_id, requested=refresh_ttl, device=row.device
+        session,
+        user_id=row.user_id,
+        requested=refresh_ttl,
+        device=row.install_id is not None,
     )
     if idle >= ttl:
         # Nobody has been here for the whole window. Ended rather than left to
@@ -377,7 +384,7 @@ async def rotate_session(
         user_agent=user_agent if user_agent is not None else row.user_agent,
         ip=ip if ip is not None else row.ip,
         device_name=device_name if device_name is not None else row.device_name,
-        device=row.device,
+        install_id=row.install_id,
         continues_since=row.continues_since,
     )
     session.add(child)
@@ -405,6 +412,24 @@ async def follow_devices(
 
     await push_tokens.follow_session(session, from_id=from_id, to_id=to_id)
     await dm_transport.follow_session(session, from_id=from_id, to_id=to_id)
+
+
+async def latest_of_install(
+    session: AsyncSession, *, user_id: int, install_id: uuid.UUID
+) -> uuid.UUID | None:
+    """The newest session one installed copy of the app holds for this account,
+    live or not: where its key store and push registration were last left."""
+    return (
+        await session.exec(
+            select(AuthSession.id)
+            .where(
+                AuthSession.user_id == user_id,
+                AuthSession.install_id == install_id,
+            )
+            .order_by(col(AuthSession.created_at).desc())
+            .limit(1)
+        )
+    ).first()
 
 
 async def get_live_session_by_refresh_token(
@@ -446,7 +471,7 @@ _LIVE_SESSIONS_SQL = text(
     WITH RECURSIVE live AS (
         SELECT
             id, parent_id, created_at, last_used_at, user_agent, ip, device_name,
-            device
+            install_id
         FROM auth_sessions
         WHERE user_id = :uid AND revoked_at IS NULL AND expires_at > :now
     ),
@@ -466,7 +491,7 @@ _LIVE_SESSIONS_SQL = text(
         live.user_agent,
         host(live.ip) AS ip,
         live.device_name,
-        live.device
+        live.install_id IS NOT NULL AS device
     FROM live JOIN roots ON roots.tip = live.id
     ORDER BY COALESCE(live.last_used_at, roots.started_at) DESC
     """
@@ -640,7 +665,7 @@ async def revoke_all_for_user(
         kept + "UPDATE auth_sessions SET revoked_at = :now "
         "WHERE user_id = :uid AND revoked_at IS NULL"
         + (" AND id NOT IN (SELECT id FROM kept)" if kept else "")
-        + " RETURNING id, device"
+        + " RETURNING id, install_id IS NOT NULL AS device"
     )
     rows = await _revoke_until_settled(session, statement, params)
     return {row.id: row.device for row in rows}
@@ -673,14 +698,20 @@ async def purge_dead_sessions(
     now: datetime | None = None,
 ) -> int:
     """Remove sessions that can no longer be used and are past the retention
-    window. Returns the number removed.
+    window, and the key stores of browsers whose sign-in has ended. Returns the
+    number of sessions removed.
 
     A row qualifies once it is expired, or was revoked, longer ago than
     ``retention_days``. A live session matches neither. ``parent_id`` is a
     plain uuid rather than a self-reference, so removing one end of a rotation
     chain leaves the rest intact.
     """
-    horizon = (now or utcnow()) - timedelta(days=retention_days)
+    from app.services.platform import dm_transport
+
+    current = now or utcnow()
+    # Read before the rows that say whose they were are gone.
+    await dm_transport.withdraw_ended_browsers(session, now=current)
+    horizon = current - timedelta(days=retention_days)
     result = await session.exec(
         text(
             "DELETE FROM auth_sessions "

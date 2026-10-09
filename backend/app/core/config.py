@@ -3,6 +3,7 @@ import hmac
 import json
 import logging
 import re
+import uuid
 from collections.abc import Sequence
 from enum import Enum
 from functools import lru_cache
@@ -50,6 +51,26 @@ def is_device(request: Request) -> bool:
     longer than a browser.
     """
     return request.headers.get("origin") in CAPACITOR_NATIVE_ORIGINS
+
+
+#: Where the app names the copy of itself a request comes from.
+INSTALL_HEADER = "X-Initiative-Install"
+
+
+def install_id(request: Request) -> uuid.UUID | None:
+    """The installed copy of the app a request names, read beside
+    :func:`is_device` and only where it holds.
+
+    The app makes the name once per server and keeps it through sign-out, so a
+    device signing in again continues its own session rather than counting as
+    another device. ``None`` for a browser, or an app too old to send one.
+    """
+    if not is_device(request):
+        return None
+    try:
+        return uuid.UUID(request.headers.get(INSTALL_HEADER, ""))
+    except ValueError:
+        return None
 
 
 # Third-party origins the built SPA legitimately embeds in iframes, used to build
