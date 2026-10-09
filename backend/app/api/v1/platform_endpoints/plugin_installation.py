@@ -16,20 +16,25 @@ and is refused.
   configuration it was handed.
 * ``POST /installation/events`` — an event the plug-in emits, kept for the outbox
   poller to deliver to the community's subscriptions.
+* ``GET`` / ``PUT /installation/metadata`` and ``GET /installation/metadata/lookup``
+  — the values the plug-in keeps on items and on its install.
 
 The token is checked by the install seam (``establish_install_access``),
 whose standing statement admits the install only while it may act: the
 community is in use, the install is on, and its registration is live. The
-work itself runs on the system engine, routed into the community one install
-at a time (:mod:`app.services.tenant.plugin_channels`).
+configuration and event work runs on the system engine, routed into the
+community one install at a time (:mod:`app.services.tenant.plugin_channels`).
+The metadata routes run as the install itself, on the session the seam routed,
+so the table's policies decide which rows it reaches
+(:mod:`app.services.tenant.plugin_metadata`).
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Annotated, Optional
+from typing import Annotated, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import (
@@ -46,20 +51,27 @@ from app.core.body_limit import max_body
 from app.core.plugin_access_token import InstallAccessToken
 from app.core.identify import bearer_plugin_token
 from app.core.messages import AuthMessages, PluginChannelMessages
+from app.db.guild_standing import InstallContext
 from app.db.session import clear_rls_context
 from app.models.tenant.guild_plugin import GuildPlugin
 from app.schemas.tenant.plugin_channel import (
+    MetadataTarget,
     PluginConnectionRead,
     PluginConnectionsResponse,
     PluginConnectionToken,
     PluginInstallConfigRead,
     PluginInstallationEvent,
+    PluginMetadataItem,
+    PluginMetadataItems,
+    PluginMetadataValues,
+    PluginMetadataWrite,
     PluginStatusRead,
     PluginStatusReport,
 )
 from app.services.marketplace import registration_lookup
 from app.services.marketplace.registration_lookup import RegistrationSnapshot
 from app.services.tenant import plugin_channels as channels_service
+from app.services.tenant import plugin_metadata as metadata_service
 
 # Not part of the OpenAPI document: only plug-in containers call these, never the
 # SPA, so the generated frontend client carries none of them.
@@ -71,6 +83,13 @@ router = APIRouter(prefix="/installation", include_in_schema=False)
 MAX_REQUEST_BYTES = channels_service.MAX_EVENT_PAYLOAD_BYTES + 8 * 1024
 
 _bounded = max_body(lambda: MAX_REQUEST_BYTES, PluginChannelMessages.EVENT_TOO_LARGE)
+
+#: The most one metadata write may carry: everything an install may keep on
+#: itself, and its envelope. The per-value and per-item caps still apply after.
+_metadata_bounded = max_body(
+    lambda: metadata_service.INSTALL_BYTES + 64 * 1024,
+    PluginChannelMessages.METADATA_LIMIT_REACHED,
+)
 
 
 def _refuse() -> HTTPException:
@@ -88,21 +107,20 @@ class Installation:
     guild_id: int
     install_id: int
     registration: RegistrationSnapshot
+    #: What the seam computed: the install's standing in its community.
+    context: InstallContext
     #: The initiative the token is narrowed to, when it is.
     initiative_id: Optional[int] = None
 
 
-async def installation_caller(
-    request: Request,
-    session: SessionDep,
-    # Declares the scheme for the API description; read by ``bearer_plugin_token``.
-    bearer: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
+async def _admit(
+    request: Request, session: AsyncSession, *, routed: bool
 ) -> Installation:
     """The install the request's installation token names, or 401.
 
     The token is unsealed locally, then the seam computes the install's
-    standing, which is what says it may act now. The request's own session is
-    left unrouted afterwards: the work runs on the system engine.
+    standing, which is what says it may act now. ``routed`` keeps the request's
+    session routed as the install; otherwise it is left unrouted.
     """
     token = bearer_plugin_token(request)
     if not isinstance(token, InstallAccessToken) or token.user_id is not None:
@@ -120,8 +138,9 @@ async def installation_caller(
         )
     except InstallAccessError as exc:
         raise _refuse() from exc
-    clear_rls_context(session)
-    await session.rollback()
+    if not routed:
+        clear_rls_context(session)
+        await session.rollback()
 
     registration = (await registration_lookup.load_registrations()).get(
         context.client_id
@@ -145,11 +164,34 @@ async def installation_caller(
         guild_id=context.guild_id,
         install_id=context.install_id,
         registration=registration,
+        context=context,
         initiative_id=context.scope_initiative_id,
     )
 
 
+async def installation_caller(
+    request: Request,
+    session: SessionDep,
+    # Declares the scheme for the API description; read by ``bearer_plugin_token``.
+    bearer: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
+) -> Installation:
+    """The install the token names, with the request's session left unrouted:
+    the work runs on the system engine."""
+    return await _admit(request, session, routed=False)
+
+
+async def routed_installation_caller(
+    request: Request,
+    session: SessionDep,
+    bearer: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
+) -> Installation:
+    """The install the token names, with the request's session routed as it:
+    the route reads and writes as the install, under its policies."""
+    return await _admit(request, session, routed=True)
+
+
 InstallationDep = Annotated[Installation, Depends(installation_caller)]
+RoutedInstallationDep = Annotated[Installation, Depends(routed_installation_caller)]
 
 
 async def _load(
@@ -265,3 +307,73 @@ async def ingest_installation_event(
         token_initiative_id=installation.initiative_id,
     )
     return {"status": "accepted"}
+
+
+def _items(
+    found: list[tuple[str, int, dict]],
+) -> PluginMetadataItems:
+    return PluginMetadataItems(
+        items=[
+            PluginMetadataItem(entity_type=kind, entity_id=entity_id, values=values)
+            for kind, entity_id, values in found
+        ]
+    )
+
+
+@router.get("/metadata", response_model=PluginMetadataItems)
+async def read_installation_metadata(
+    installation: RoutedInstallationDep,
+    session: SessionDep,
+    entity_type: MetadataTarget,
+    entity_ids: Annotated[List[int], Query()] = [],
+) -> PluginMetadataItems:
+    """The values this install keeps on each named item, or on itself with
+    ``entity_type=plugin`` (``entity_ids`` is then not read).
+
+    An item holding none, one the install cannot read, and an id that names
+    nothing are all left out.
+    """
+    found = await metadata_service.read(
+        session, installation.context, entity_type.value, entity_ids
+    )
+    return _items(found)
+
+
+@router.put("/metadata", response_model=PluginMetadataValues)
+@_metadata_bounded
+async def write_installation_metadata(
+    payload: PluginMetadataWrite,
+    installation: RoutedInstallationDep,
+    session: SessionDep,
+) -> PluginMetadataValues:
+    """Write some of this install's values on one item, or on itself; a
+    ``null`` removes its key. Answers every value it keeps there now.
+
+    On an item, the install needs the read scope of the item's tool (403) and
+    to be able to read the item (404). A key is a lowercase letter, then
+    lowercase letters, digits, ``_`` and ``.``, at most 64 characters (400); a
+    value at most 8192 bytes as JSON (413); an item at most 32 keys and 65536
+    bytes, and the install itself 256 keys and 1048576 bytes (409).
+    """
+    values = await metadata_service.write(
+        session,
+        installation.context,
+        payload.entity_type.value,
+        payload.entity_id,
+        payload.values,
+    )
+    return PluginMetadataValues(values=values)
+
+
+@router.get("/metadata/lookup", response_model=PluginMetadataItems)
+async def find_installation_metadata(
+    installation: RoutedInstallationDep,
+    session: SessionDep,
+    key: str,
+    value: str,
+) -> PluginMetadataItems:
+    """The items this install can read that hold ``value`` under ``key``, with
+    every value it keeps on each: at most 100, in kind and id order. A value
+    is found by its text, a number or a boolean as JSON writes it."""
+    found = await metadata_service.find(session, installation.context, key, value)
+    return _items(found)

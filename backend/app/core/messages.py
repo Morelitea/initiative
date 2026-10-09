@@ -1527,6 +1527,18 @@ class PluginChannelMessages:
     #: A config state outside what a plug-in may report.
     INVALID_CONFIG_STATE = "PLUGIN_CHANNEL_INVALID_CONFIG_STATE"
 
+    # --- metadata ---
+    #: A metadata key that is not a lowercase letter followed by lowercase
+    #: letters, digits, ``_`` and ``.``, or is longer than the cap.
+    METADATA_KEY_INVALID = "PLUGIN_CHANNEL_METADATA_KEY_INVALID"
+    #: One value is larger, as JSON, than a value may be.
+    METADATA_VALUE_TOO_LARGE = "PLUGIN_CHANNEL_METADATA_VALUE_TOO_LARGE"
+    #: The write would leave more keys, or more bytes, on the item or the
+    #: install than it may hold.
+    METADATA_LIMIT_REACHED = "PLUGIN_CHANNEL_METADATA_LIMIT_REACHED"
+    #: No item of that kind and id that the install can read.
+    METADATA_ITEM_NOT_FOUND = "PLUGIN_CHANNEL_METADATA_ITEM_NOT_FOUND"
+
 
 class WebhookSubscriptionMessages:
     INVALID_TARGET_URL = "WEBHOOK_INVALID_TARGET_URL"

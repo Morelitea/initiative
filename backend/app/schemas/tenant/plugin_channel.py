@@ -22,19 +22,26 @@ service layer validates against.
 """
 
 from datetime import datetime
+from enum import Enum
 from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import ConfigDict, Field
 
+from app.core.tools import METADATA_TARGETS
 from app.schemas.base import SanitizedBaseModel
 
 __all__ = [
+    "MetadataTarget",
     "PluginConnectionRead",
     "PluginConnectionsResponse",
     "PluginConnectionToken",
     "PluginInstallConfigRead",
     "PluginInstallationEvent",
     "PluginMemberConfigRead",
+    "PluginMetadataItem",
+    "PluginMetadataItems",
+    "PluginMetadataValues",
+    "PluginMetadataWrite",
     "PluginStatusReport",
     "PluginStatusRead",
 ]
@@ -148,3 +155,45 @@ class PluginInstallationEvent(SanitizedBaseModel):
     event_type: str = Field(max_length=200)
     payload: Dict[str, Any] = {}
     initiative_id: Optional[int] = None
+
+
+MetadataTarget = Enum(
+    "MetadataTarget", {name: name for name in METADATA_TARGETS}, type=str
+)
+MetadataTarget.__doc__ = (
+    "What a plug-in keeps values on: an item, or ``plugin``, its own install."
+)
+
+
+class PluginMetadataItem(SanitizedBaseModel):
+    """The values one install keeps on one item, by key."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    entity_type: str
+    entity_id: int
+    values: Dict[str, Any] = {}
+
+
+class PluginMetadataItems(SanitizedBaseModel):
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    items: List[PluginMetadataItem] = []
+
+
+class PluginMetadataWrite(SanitizedBaseModel):
+    """Some of one item's values, or of the install's own: a ``null`` removes
+    its key. ``entity_id`` names the item; the install's own values need
+    none."""
+
+    entity_type: MetadataTarget
+    entity_id: Optional[int] = None
+    values: Dict[str, Any]
+
+
+class PluginMetadataValues(SanitizedBaseModel):
+    """Every value the install keeps on the item, after a write."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    values: Dict[str, Any] = {}

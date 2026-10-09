@@ -411,6 +411,7 @@ _NO_SINGLE_PARENT = {
     "reaction_digest_items": "gated exactly like the reaction it describes",
     "recent_views": "one of eight tools, per row",
     "property_values": "any tool or sub-tool, per row: read through its own table, written through entity_access",
+    "plugin_metadata": "any item, per row, read through its own table, or the install itself",
     "search_entries": "names its tool in dac_tool",
     # One tool, two parents: a link must clear the gate on BOTH files, so
     # there is no single row to authorize against.

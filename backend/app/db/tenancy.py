@@ -285,6 +285,8 @@ CREATED_BY_EXEMPT_TABLES: frozenset[str] = frozenset(
         "recent_views",
         # A property value belongs to the initiative, not to whoever set it.
         "property_values",
+        # A plug-in's own values: ``install_id`` names who keeps them.
+        "plugin_metadata",
         # Machinery. Written by a trigger, a poller or a scheduler rather than
         # by a person; each already records the actor it needs (the outbox
         # carries ``actor_user_id``) or has none to record.

@@ -259,6 +259,20 @@ ARCHIVE_TARGETS: tuple[str, ...] = tuple(t.value for t in Tool) + ARCHIVABLE_EXT
 PROPERTY_EXTRAS: tuple[str, ...] = CHILD_KINDS
 PROPERTY_TARGETS: tuple[str, ...] = tuple(t.value for t in Tool) + PROPERTY_EXTRAS
 
+# Items: the rows a tool lists one by one — every kind that lives inside a tool
+# but the wiki page, which is a document — and the post, which is the feed's
+# own item. The plug-in kit's contract names the same set (``itemKind``).
+ITEM_KINDS: tuple[str, ...] = tuple(k for k in CHILD_KINDS if k != "wiki_page") + (
+    Tool.post.value,
+)
+
+# Metadata surfaces: what an installed plug-in keeps its own values on. Every
+# item, and the install itself, whose values are on ``(plugin, <install id>)``.
+# The value table's CHECK, its policies and the installation routes derive
+# from METADATA_TARGETS.
+INSTALL_METADATA_KIND = "plugin"
+METADATA_TARGETS: tuple[str, ...] = ITEM_KINDS + (INSTALL_METADATA_KIND,)
+
 
 def tool_export_source(tool: Tool) -> str:
     """The export adapter registry key for a tool."""

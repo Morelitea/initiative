@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Callable
+from typing import Callable, Iterable
 
 from app.db import gucs
 from app.core.plugin_scopes import tool_resource
@@ -37,7 +37,13 @@ from app.core.relationships import (
     Provenance,
     RelationshipType,
 )
-from app.core.tools import DEFAULT_ENABLED_TOOLS, PROPERTY_TARGETS, Tool
+from app.core.tools import (
+    DEFAULT_ENABLED_TOOLS,
+    INSTALL_METADATA_KIND,
+    ITEM_KINDS,
+    PROPERTY_TARGETS,
+    Tool,
+)
 from app.db.authorization import (
     IN_POLICY,
     STANDING,
@@ -1017,9 +1023,10 @@ $entity_initiative$;
 """
 
 
-def _property_value_readable(t: str) -> str:
-    """A value is read by whoever can see the thing it is on: one ``EXISTS``
-    into that thing's own table, whose SELECT policies decide it.
+def _entity_readable(t: str, kinds: Iterable[str]) -> str:
+    """A row on a ``(entity_type, entity_id)`` pair is read by whoever can see
+    the thing it is on: one ``EXISTS`` into that thing's own table, whose
+    SELECT policies decide it. A kind outside ``kinds`` reads as nothing.
 
     The same lookup :data:`ENTITY_ACCESS_FN` makes for a read, written inline
     so the planner sees it. A filter reads thousands of values; inline, a scan
@@ -1029,7 +1036,7 @@ def _property_value_readable(t: str) -> str:
     arms = " ".join(
         f"WHEN '{kind}' THEN EXISTS (SELECT 1 FROM {tables[kind]} re "  # noqa: S608
         f"WHERE re.id = {t}.entity_id)"
-        for kind in PROPERTY_TARGETS
+        for kind in kinds
     )
     return f"(CASE {t}.entity_type {arms} ELSE false END)"
 
@@ -1039,7 +1046,7 @@ def property_values_path() -> InitiativePath:
     written by whoever can edit that thing.
 
     Polymorphic over ``(entity_type, entity_id)``. A read is one ``EXISTS`` per
-    kind (:func:`_property_value_readable`); a write is one
+    kind (:func:`_entity_readable`); a write is one
     :data:`ENTITY_ACCESS_FN` call, since a write touches a row at a time. A write also asks that the definition belongs to the thing's own
     initiative: definitions are initiative-level, so a value from another
     initiative's definition — or on a thing that belongs to none — is refused.
@@ -1047,12 +1054,40 @@ def property_values_path() -> InitiativePath:
 
     def build(t: str, w: bool) -> str:
         if not w:
-            return _property_value_readable(t)
+            return _entity_readable(t, PROPERTY_TARGETS)
         reach = _entity_call(f"{t}.entity_type", f"{t}.entity_id", w, w)
         return (
             f"({_P.system} OR ({reach} AND EXISTS (SELECT 1 FROM property_definitions pd "  # noqa: S608
             f"WHERE pd.id = {t}.property_id AND pd.initiative_id = "
             f"{ENTITY_INITIATIVE_FN}({t}.entity_type, {t}.entity_id))))"
+        )
+
+    return InitiativePath(
+        predicate=build,
+        initiative_expr=lambda r: (
+            f"{ENTITY_INITIATIVE_FN}({r}.entity_type, {r}.entity_id)"
+        ),
+    )
+
+
+def plugin_metadata_path() -> InitiativePath:
+    """An install's values are reached by the install that keeps them, and on
+    an item by the community's admin too, in each case only while the item
+    itself can be read. The install's own values (``entity_type = 'plugin'``)
+    belong to no initiative and are reached by that install alone. The system
+    engine reaches both.
+
+    Reading and writing ask the same: writing a value changes nothing on the
+    item. What an install also needs, the read scope of the item's tool, is
+    its ``plugin_scope_*`` policies (``app.db.guild_ddl``).
+    """
+
+    def build(t: str, _w: bool) -> str:
+        own = f"({t}.install_id = {_P.install_id} AND {_P.this_guild} AND {_P.auth_ok})"
+        return (
+            f"({_P.system} OR (CASE WHEN {t}.entity_type = '{INSTALL_METADATA_KIND}'"
+            f" THEN ({own} AND {t}.entity_id = {t}.install_id)"
+            f" ELSE (({own} OR {_P.admin}) AND {_entity_readable(t, ITEM_KINDS)}) END))"
         )
 
     return InitiativePath(
@@ -1396,6 +1431,9 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     "calendar_event_answers": via_event_calendar("calendar_event_id"),
     # Every tool and sub-tool's custom property values, by (entity_type, entity_id)
     "property_values": property_values_path(),
+    # What an installed plug-in keeps on items and on itself, by (entity_type,
+    # entity_id).
+    "plugin_metadata": plugin_metadata_path(),
     "comments": comments_path(),
     # Polymorphic over what it is on; gated by that thing's own path.
     "reactions": reactions_path(),
@@ -1862,6 +1900,7 @@ EVENT_SOURCES: dict[str, Emit | Silent] = {
     "intake_cases": Silent("the key -> task map; the task is what a subscriber hears"),
     "uploads": Silent("a stored file; the content showing it is what changed"),
     "evidence": Silent("an attached file; its case or report is what changed"),
+    "plugin_metadata": Silent("a plug-in's own values, which no reader is shown"),
     # -- Guild-level tables that emit ---------------------------------------
     # The structural initiative tables are deliberately exempt from
     # initiative-member RLS (a membership table gated by the membership check it

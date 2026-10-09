@@ -27,26 +27,34 @@ from datetime import datetime, timezone
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import update
+from sqlalchemy.exc import DBAPIError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.plugin_access_token import seal_install_token
 from app.core.encryption import SALT_PLUGIN_CONFIG, encrypt_field
-from app.core.messages import PluginChannelMessages
+from app.core.messages import PluginChannelMessages, PluginMessages
 from app.models.platform.plugin_service_registration import PluginServiceRegistration
 from app.models.platform.publisher import Publisher
 from app.models.tenant.plugin_event_outbox import PluginEventOutbox
 from app.models.tenant.guild_plugin import GuildPlugin
 from app.models.tenant.guild_plugin_user_connection import GuildPluginUserConnection
+from app.models.tenant.plugin_metadata import PluginMetadata
 from app.services.marketplace.registration_lookup import invalidate_registrations
 from app.services.tenant import plugin_channels as channels_service
 from app.testing import (
     create_plugin_service_registration,
     create_guild,
     create_guild_plugin,
+    create_project,
+    create_task,
     create_user,
+    guild_url,
+    route_as_install,
     route_session_to_guild,
 )
+from app.testing.plugin_clients import CLIENT, install_headers, install_plugin
 
 
 BASE = "/api/v1/plugin-platform/installation"
@@ -609,3 +617,362 @@ class TestEvents:
         assert response.status_code == 400
         assert response.json()["detail"] == PluginChannelMessages.UNKNOWN_EVENT_TYPE
         assert await _kept(session, guild.id) == []
+
+
+# ---------------------------------------------------------------------------
+# Metadata
+# ---------------------------------------------------------------------------
+
+PROJECTS = ["projects:read", "projects:write"]
+
+
+async def _with_task(
+    client: AsyncClient, session: AsyncSession, acting_user, role_session
+):
+    """An install placed in one initiative, holding the projects scopes, and a
+    task it made there."""
+    installed = await install_plugin(
+        session, acting_user, role_session, granted=PROJECTS
+    )
+    headers = install_headers(installed, PROJECTS)
+    project = await client.post(
+        guild_url(installed.guild.id, "/projects/"),
+        headers=headers,
+        json={"name": "The plug-in's", "initiative_id": installed.placed.id},
+    )
+    assert project.status_code == 201, project.text
+    task = await client.post(
+        guild_url(installed.guild.id, "/tasks/"),
+        headers=headers,
+        json={"project_id": project.json()["id"], "title": "The plug-in's"},
+    )
+    assert task.status_code == 201, task.text
+    return installed, task.json()["id"]
+
+
+async def _stored(session: AsyncSession, guild_id: int) -> list[PluginMetadata]:
+    await route_session_to_guild(session, guild_id)
+    session.expunge_all()
+    return list(await session.exec(select(PluginMetadata)))
+
+
+class TestMetadata:
+    async def test_values_are_written_read_and_removed_with_the_read_scope(
+        self, client: AsyncClient, session: AsyncSession, acting_user, role_session
+    ):
+        """Keeping values changes nothing on the item, so the tool's read
+        scope is enough to write them."""
+        installed, task_id = await _with_task(
+            client, session, acting_user, role_session
+        )
+        headers = install_headers(installed, ["projects:read"])
+
+        written = await client.put(
+            f"{BASE}/metadata",
+            headers=headers,
+            json={
+                "entity_type": "task",
+                "entity_id": task_id,
+                "values": {"github.issue": 123, "state": {"open": True}},
+            },
+        )
+        assert written.status_code == 200, written.text
+        assert written.json() == {
+            "values": {"github.issue": 123, "state": {"open": True}}
+        }
+
+        removed = await client.put(
+            f"{BASE}/metadata",
+            headers=headers,
+            json={
+                "entity_type": "task",
+                "entity_id": task_id,
+                "values": {"state": None},
+            },
+        )
+        assert removed.json() == {"values": {"github.issue": 123}}
+
+        read = await client.get(
+            f"{BASE}/metadata",
+            headers=headers,
+            params={"entity_type": "task", "entity_ids": [task_id, 987654]},
+        )
+        assert read.status_code == 200, read.text
+        assert read.json() == {
+            "items": [
+                {
+                    "entity_type": "task",
+                    "entity_id": task_id,
+                    "values": {"github.issue": 123},
+                }
+            ]
+        }
+
+    async def test_an_item_is_found_by_a_value(
+        self, client: AsyncClient, session: AsyncSession, acting_user, role_session
+    ):
+        installed, task_id = await _with_task(
+            client, session, acting_user, role_session
+        )
+        headers = install_headers(installed, ["projects:read"])
+        await client.put(
+            f"{BASE}/metadata",
+            headers=headers,
+            json={
+                "entity_type": "task",
+                "entity_id": task_id,
+                "values": {"github.issue": 123, "repo": "acme/web"},
+            },
+        )
+
+        async def find(key: str, value: str) -> list:
+            response = await client.get(
+                f"{BASE}/metadata/lookup",
+                headers=headers,
+                params={"key": key, "value": value},
+            )
+            assert response.status_code == 200, response.text
+            return response.json()["items"]
+
+        assert await find("github.issue", "123") == [
+            {
+                "entity_type": "task",
+                "entity_id": task_id,
+                "values": {"github.issue": 123, "repo": "acme/web"},
+            }
+        ]
+        assert [i["entity_id"] for i in await find("repo", "acme/web")] == [task_id]
+        assert await find("github.issue", "124") == []
+
+    @pytest.mark.parametrize(
+        ("values", "status", "detail"),
+        [
+            ({"Github": 1}, 400, PluginChannelMessages.METADATA_KEY_INVALID),
+            ({"1st": 1}, 400, PluginChannelMessages.METADATA_KEY_INVALID),
+            ({"a-b": 1}, 400, PluginChannelMessages.METADATA_KEY_INVALID),
+            ({"a" * 65: 1}, 400, PluginChannelMessages.METADATA_KEY_INVALID),
+            ({"note": "x" * 8200}, 413, PluginChannelMessages.METADATA_VALUE_TOO_LARGE),
+            (
+                {f"k{i}": i for i in range(33)},
+                409,
+                PluginChannelMessages.METADATA_LIMIT_REACHED,
+            ),
+            (
+                {f"k{i}": "x" * 8000 for i in range(9)},
+                409,
+                PluginChannelMessages.METADATA_LIMIT_REACHED,
+            ),
+        ],
+        ids=[
+            "uppercase",
+            "leading-digit",
+            "dash",
+            "long-key",
+            "large-value",
+            "too-many-keys",
+            "too-many-bytes",
+        ],
+    )
+    async def test_a_write_past_the_caps_is_refused(
+        self,
+        client: AsyncClient,
+        session: AsyncSession,
+        acting_user,
+        role_session,
+        values: dict,
+        status: int,
+        detail: str,
+    ):
+        installed, task_id = await _with_task(
+            client, session, acting_user, role_session
+        )
+
+        response = await client.put(
+            f"{BASE}/metadata",
+            headers=install_headers(installed, ["projects:read"]),
+            json={"entity_type": "task", "entity_id": task_id, "values": values},
+        )
+
+        assert response.status_code == status, response.text
+        assert response.json()["detail"] == detail
+        assert await _stored(session, installed.guild.id) == []
+
+    async def test_a_write_that_replaces_a_full_item_is_measured_after(
+        self, client: AsyncClient, session: AsyncSession, acting_user, role_session
+    ):
+        installed, task_id = await _with_task(
+            client, session, acting_user, role_session
+        )
+        headers = install_headers(installed, ["projects:read"])
+        full = {f"k{i}": i for i in range(32)}
+
+        async def put(values: dict):
+            return await client.put(
+                f"{BASE}/metadata",
+                headers=headers,
+                json={"entity_type": "task", "entity_id": task_id, "values": values},
+            )
+
+        assert (await put(full)).status_code == 200
+        replaced = await put({**dict.fromkeys(full), "fresh": 1})
+
+        assert replaced.status_code == 200, replaced.text
+        assert replaced.json()["values"] == {"fresh": 1}
+
+    async def test_an_item_out_of_reach_is_refused_and_left_out(
+        self, client: AsyncClient, session: AsyncSession, acting_user, role_session
+    ):
+        """An item in an initiative the install is not placed in, and an item
+        of a tool whose scope the token does not carry."""
+        installed, task_id = await _with_task(
+            client, session, acting_user, role_session
+        )
+        project = await create_project(session, installed.unplaced, installed.seat.user)
+        elsewhere = await create_task(session, project)
+
+        async def put(task: int, scopes: list[str]):
+            return await client.put(
+                f"{BASE}/metadata",
+                headers=install_headers(installed, scopes),
+                json={"entity_type": "task", "entity_id": task, "values": {"k": 1}},
+            )
+
+        unplaced = await put(elsewhere.id, ["projects:read"])
+        assert unplaced.status_code == 404, unplaced.text
+        assert (
+            unplaced.json()["detail"] == PluginChannelMessages.METADATA_ITEM_NOT_FOUND
+        )
+        unscoped = await put(task_id, [])
+        assert unscoped.status_code == 403, unscoped.text
+        assert unscoped.json()["detail"] == PluginMessages.SCOPE_REQUIRED
+        assert await _stored(session, installed.guild.id) == []
+
+        # Kept while the scope was held, and out of sight without it.
+        assert (await put(task_id, ["projects:read"])).status_code == 200
+        read = await client.get(
+            f"{BASE}/metadata",
+            headers=install_headers(installed, []),
+            params={"entity_type": "task", "entity_ids": [task_id]},
+        )
+        assert read.json() == {"items": []}
+
+    async def test_another_install_neither_reads_nor_writes_the_rows(
+        self, client: AsyncClient, session: AsyncSession, acting_user, role_session
+    ):
+        """Held by the table's policies, not by the routes: routed as one
+        install, another install's rows on the same item are out of reach."""
+        installed, task_id = await _with_task(
+            client, session, acting_user, role_session
+        )
+        other = await create_guild_plugin(
+            session,
+            installed.guild,
+            installed.seat.user,
+            definition={
+                "plugin_kind": "service",
+                "service": {"public_id": "tests.other"},
+            },
+            listing_uid="OTHERLISTING01",
+        )
+        await route_session_to_guild(session, installed.guild.id)
+        session.add_all(
+            PluginMetadata(
+                install_id=install_id,
+                entity_type="task",
+                entity_id=task_id,
+                key="k",
+                value=1,
+            )
+            for install_id in (installed.plugin.id, other.id)
+        )
+        await session.commit()
+
+        s = await role_session("app_user")
+        await route_as_install(
+            s,
+            guild_id=installed.guild.id,
+            install_id=installed.plugin.id,
+            client_id=CLIENT,
+            scopes=["projects:read"],
+        )
+        seen = await s.exec(select(PluginMetadata.install_id))
+        assert seen.all() == [installed.plugin.id]
+        moved = await s.exec(
+            update(PluginMetadata)
+            .where(PluginMetadata.install_id == other.id)
+            .values(value=2)
+        )
+        assert moved.rowcount == 0
+        s.add(
+            PluginMetadata(
+                install_id=other.id,
+                entity_type="task",
+                entity_id=task_id,
+                key="j",
+                value=1,
+            )
+        )
+        with pytest.raises(DBAPIError, match="row-level security"):
+            await s.commit()
+        await s.rollback()
+
+        theirs = [
+            (row.key, row.value)
+            for row in await _stored(session, installed.guild.id)
+            if row.install_id == other.id
+        ]
+        assert theirs == [("k", 1)]
+
+    async def test_the_install_keeps_values_of_its_own(
+        self, client: AsyncClient, session: AsyncSession, acting_user, role_session
+    ):
+        """On the install itself, with no scope, on a token narrowed to an
+        initiative too; and gone with the install."""
+        installed = await install_plugin(session, acting_user, role_session, granted=[])
+        headers = install_headers(installed, [], initiative_id=installed.placed.id)
+
+        written = await client.put(
+            f"{BASE}/metadata",
+            headers=headers,
+            json={"entity_type": "plugin", "values": {"sync.cursor": "abc"}},
+        )
+        assert written.status_code == 200, written.text
+        read = await client.get(
+            f"{BASE}/metadata", headers=headers, params={"entity_type": "plugin"}
+        )
+        assert read.json() == {
+            "items": [
+                {
+                    "entity_type": "plugin",
+                    "entity_id": installed.plugin.id,
+                    "values": {"sync.cursor": "abc"},
+                }
+            ]
+        }
+
+        await route_session_to_guild(session, installed.guild.id)
+        await session.delete(await session.get(GuildPlugin, installed.plugin.id))
+        await session.commit()
+        assert await _stored(session, installed.guild.id) == []
+
+    async def test_purging_an_item_takes_its_values(
+        self, client: AsyncClient, session: AsyncSession, acting_user, role_session
+    ):
+        installed, task_id = await _with_task(
+            client, session, acting_user, role_session
+        )
+        await client.put(
+            f"{BASE}/metadata",
+            headers=install_headers(installed, ["projects:read"]),
+            json={"entity_type": "task", "entity_id": task_id, "values": {"k": 1}},
+        )
+        seat = installed.seat
+
+        trashed = await client.delete(seat.g(f"/tasks/{task_id}"), headers=seat.headers)
+        assert trashed.status_code == 204, trashed.text
+        assert len(await _stored(session, installed.guild.id)) == 1
+        purged = await client.delete(
+            seat.g(f"/trash/task/{task_id}/purge"), headers=seat.headers
+        )
+        assert purged.status_code == 204, purged.text
+        assert await _stored(session, installed.guild.id) == []
