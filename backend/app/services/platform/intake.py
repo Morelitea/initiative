@@ -30,7 +30,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import TYPE_CHECKING, Optional, Sequence
 
 from sqlalchemy import func
 from sqlmodel import select
@@ -60,6 +60,9 @@ from app.services.tenant import task_creation as task_creation_service
 from app.db.request_context import SystemGuild
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from app.services.platform.evidence import PreparedEvidence
 
 #: How long a repeat is folded into the open case before the writer says so
 #: again. A case still being worked should not fill with one comment per event.
@@ -121,6 +124,8 @@ class CaseOutcome:
     task_id: int
     #: False when a repeat landed in a case that was already open.
     opened: bool
+    #: The case's own row.
+    case_id: int = 0
 
 
 async def operations_guild_id(session: AsyncSession) -> Optional[int]:
@@ -408,6 +413,8 @@ async def open_case(
     now: Optional[datetime] = None,
     filer: Optional[CaseFiler] = None,
     detail: Optional[str] = None,
+    evidence: Sequence["PreparedEvidence"] = (),
+    evidence_by: Optional[int] = None,
 ) -> Optional[CaseOutcome]:
     """File ``stream``'s work as a task in the project bound to it.
 
@@ -427,7 +434,19 @@ async def open_case(
     reporter's words. A repeat notes it every time; a repeat bringing nothing
     is noted once per window. An automatic case passes none, so its unchanged
     description is never taken for news.
+
+    ``evidence`` is what was attached, already held to the stream's policy
+    (``app.services.platform.evidence.prepare``). It is stored with the case,
+    in the same transaction, beside the opening words when there are some, and
+    as ``evidence_by``'s — the filer's when there is one.
     """
+    from app.services.platform import evidence as evidence_service
+
+    attached_by = (
+        evidence_by
+        if evidence_by is not None
+        else (filer.user_id if filer is not None else None)
+    )
     moment = now or datetime.now(timezone.utc)
     if dedupe_key is not None and len(dedupe_key) > DEDUPE_KEY_LENGTH:
         raise ValueError("dedupe_key is longer than the column that stores it")
@@ -499,8 +518,18 @@ async def open_case(
                             occurrences=existing.occurrences, detail=news
                         ),
                     )
-                await session.commit()
-                return CaseOutcome(task_id=existing.task_id, opened=False)
+                with evidence_service.Sealing(guild_id) as sealing:
+                    sealing.store(
+                        session,
+                        prepared=evidence,
+                        created_by=attached_by,
+                        case_id=existing.id,
+                    )
+                    await session.commit()
+                    sealing.keep()
+                return CaseOutcome(
+                    task_id=existing.task_id, opened=False, case_id=int(existing.id)
+                )
 
         cap = meta(stream).max_open_per_filer
         if filer is not None and cap is not None:
@@ -536,40 +565,49 @@ async def open_case(
             )
         # Every case gets a row, keyed or not, so "when did this stream last
         # open one" is read rather than inferred from the project's tasks.
-        session.add(
-            IntakeCase(
-                stream=stream,
-                task_id=task.id,
-                dedupe_key=dedupe_key,
-                opened_at=moment,
-                last_seen_at=moment,
-                noted_at=moment,
-                occurrences=1,
-                filer_user_id=filer.user_id if filer is not None else None,
-                filer_subject=filer.subject if filer is not None else None,
-                # Where its filer starts, so the first move after it is news
-                # to them however soon it comes.
-                filer_notified_state=(
-                    await _starting_state(session, stream, binding, task.task_status_id)
-                    if filer is not None
-                    else None
-                ),
-            )
+        case = IntakeCase(
+            stream=stream,
+            task_id=task.id,
+            dedupe_key=dedupe_key,
+            opened_at=moment,
+            last_seen_at=moment,
+            noted_at=moment,
+            occurrences=1,
+            filer_user_id=filer.user_id if filer is not None else None,
+            filer_subject=filer.subject if filer is not None else None,
+            # Where its filer starts, so the first move after it is news
+            # to them however soon it comes.
+            filer_notified_state=(
+                await _starting_state(session, stream, binding, task.task_status_id)
+                if filer is not None
+                else None
+            ),
         )
+        session.add(case)
+        opening: Optional[Comment] = None
         if filer is not None:
             # Their words open the conversation with them, under their name.
             # Named explicitly: the routing carries no user, so the trigger
             # would otherwise leave the author empty.
-            session.add(
-                Comment(
-                    task_id=task.id,
-                    content=filer.words,
-                    created_by=filer.user_id,
-                    audience=CommentAudience.filer,
-                )
+            opening = Comment(
+                task_id=task.id,
+                content=filer.words,
+                created_by=filer.user_id,
+                audience=CommentAudience.filer,
             )
-        await session.commit()
-        return CaseOutcome(task_id=task.id, opened=True)
+            session.add(opening)
+        await session.flush()
+        with evidence_service.Sealing(guild_id) as sealing:
+            sealing.store(
+                session,
+                prepared=evidence,
+                created_by=attached_by,
+                case_id=case.id,
+                comment_id=opening.id if opening is not None else None,
+            )
+            await session.commit()
+            sealing.keep()
+        return CaseOutcome(task_id=task.id, opened=True, case_id=int(case.id))
 
 
 async def add_filer_reply(
@@ -579,6 +617,7 @@ async def add_filer_reply(
     filer: User,
     words: str,
     stream: IntakeStream,
+    evidence: Sequence["PreparedEvidence"] = (),
 ) -> bool:
     """Write a filer's answer on their case, said to them like the rest of the
     conversation, and move a case that is waiting on them. Returns whether it
@@ -591,16 +630,18 @@ async def add_filer_reply(
     the page was read. Written on the writer's session, routed by ``guild_id``
     alone; the author is named explicitly, since the routing carries no user.
     The task's assignees hear of it as they would of any comment on the task.
+    ``evidence`` is stored with the answer, in the same transaction.
     """
+    from app.services.platform import evidence as evidence_service
     from app.services.platform import ticket_stream
     from app.services.platform.tickets import FilerState, derive_state
     from app.services.tenant.comments import notify_task_assignees
 
     async with cohorts.system_session(guild_id) as session:
         await set_rls_context(session, SystemGuild(guild_id))
-        task = (
+        found = (
             await session.exec(
-                select(Task)
+                select(Task, IntakeCase.id)
                 .join(IntakeCase, IntakeCase.task_id == Task.id)
                 .where(Task.id == task_id)
                 .where(IntakeCase.filer_user_id == filer.id)
@@ -608,8 +649,9 @@ async def add_filer_reply(
                 .execution_options(populate_existing=True)
             )
         ).one_or_none()
-        if task is None:
+        if found is None:
             return False
+        task, case_id = found
         category = (
             await session.exec(
                 select(TaskStatus.category).where(TaskStatus.id == task.task_status_id)
@@ -635,22 +677,33 @@ async def add_filer_reply(
         )
         session.add(comment)
         await session.flush()
-        await notify_task_assignees(session, comment=comment, author=filer, task=task)
-        # Their other tabs follow the same conversation.
-        ticket_stream.queue_ticket_signal(session, filer.id)
-        active = binding.active_status_id if binding is not None else None
-        if state is FilerState.waiting_on_you and active is not None:
-            # Checked against the task's own project: a case moved elsewhere
-            # keeps its status rather than borrowing one.
-            belongs = (
-                await session.exec(
-                    select(TaskStatus.id)
-                    .where(TaskStatus.id == active)
-                    .where(TaskStatus.project_id == task.project_id)
-                )
-            ).first()
-            if belongs is not None:
-                task.task_status_id = active
-                session.add(task)
-        await session.commit()
+        with evidence_service.Sealing(guild_id) as sealing:
+            sealing.store(
+                session,
+                prepared=evidence,
+                created_by=filer.id,
+                case_id=case_id,
+                comment_id=comment.id,
+            )
+            await notify_task_assignees(
+                session, comment=comment, author=filer, task=task
+            )
+            # Their other tabs follow the same conversation.
+            ticket_stream.queue_ticket_signal(session, filer.id)
+            active = binding.active_status_id if binding is not None else None
+            if state is FilerState.waiting_on_you and active is not None:
+                # Checked against the task's own project: a case moved elsewhere
+                # keeps its status rather than borrowing one.
+                belongs = (
+                    await session.exec(
+                        select(TaskStatus.id)
+                        .where(TaskStatus.id == active)
+                        .where(TaskStatus.project_id == task.project_id)
+                    )
+                ).first()
+                if belongs is not None:
+                    task.task_status_id = active
+                    session.add(task)
+            await session.commit()
+            sealing.keep()
     return True

@@ -13,7 +13,7 @@ in the ``support`` stream, and the binding says which project that is.
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Optional
+from typing import TYPE_CHECKING, Optional, Sequence
 
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -23,6 +23,9 @@ from app.models.platform.guild_administration import GuildAdministration
 from app.models.platform.user import User
 from app.db import cohorts
 from app.services.platform.intake import CaseFiler, CaseRefs, open_case
+
+if TYPE_CHECKING:
+    from app.services.platform.evidence import PreparedEvidence
 
 #: Longest a request's summary and its body may be. The case is a task, whose
 #: title is a line; the body is a description somebody reads, not a log.
@@ -78,6 +81,7 @@ async def request_help(
     requester: User,
     subject: str,
     body: str,
+    evidence: Sequence["PreparedEvidence"] = (),
     now: Optional[datetime] = None,
 ) -> int:
     """File one help request as a support case. Returns the case's task id.
@@ -85,7 +89,8 @@ async def request_help(
     The case names who asked and which community they asked from, as the weak
     refs every case carries, and records them as its filer: their subject and
     their words open the case, said to them, so the conversation starts where
-    they started it. The description is the platform's summary.
+    they started it. The description is the platform's summary. What they
+    attached is stored with it.
     """
     if not await entitled(requester, guild_id):
         raise SupportUnavailable
@@ -104,6 +109,7 @@ async def request_help(
         ),
         now=moment,
         filer=CaseFiler(user_id=requester.id, subject=subject, words=body),
+        evidence=evidence,
     )
     if outcome is None:
         # Nothing is bound to receive it. Said plainly rather than answering

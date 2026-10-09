@@ -478,3 +478,38 @@ def test_dualread_copy_cross_store(tmp_path):
     obj = client.objects[("bucket", "guild_7/dst.png")]
     # Content-type recovered from the extension so it isn't served as octet-stream.
     assert obj["extra"] == {"ContentType": "image/png"}
+
+
+# --- copy_between_guilds -----------------------------------------------------
+
+
+def test_evidence_copies_between_communities_on_s3(monkeypatch):
+    client = FakeS3Client()
+    monkeypatch.setattr(storage_module.settings, "STORAGE_BACKEND", "s3")
+    monkeypatch.setattr(storage_module.settings, "S3_BUCKET", "bucket")
+    monkeypatch.setattr(storage_module, "_get_s3_client", lambda: client)
+    get_guild_storage(3).write("evidence-abc.iev", b"sealed")
+
+    assert storage_module.copy_between_guilds(3, 9, "evidence-abc.iev") is True
+    # A server-side copy into the other community's namespace, bytes as they were.
+    assert client.objects[("bucket", "guild_9/evidence-abc.iev")]["Body"] == b"sealed"
+    assert storage_module.copy_between_guilds(3, 9, "evidence-gone.iev") is False
+
+
+def test_evidence_copies_between_communities_locally(tmp_path, monkeypatch):
+    monkeypatch.setattr(storage_module.settings, "UPLOADS_DIR", str(tmp_path))
+    get_guild_storage(3).write("evidence-abc.iev", b"sealed")
+
+    assert storage_module.copy_between_guilds(3, 9, "evidence-abc.iev") is True
+    assert (tmp_path / "guild_9" / "evidence-abc.iev").read_bytes() == b"sealed"
+
+
+@pytest.mark.parametrize("key", ["photo.png", "../evidence-x.iev", "dir/evidence-x"])
+def test_nothing_but_evidence_crosses(key):
+    with pytest.raises(ValueError):
+        storage_module.copy_between_guilds(3, 9, key)
+
+
+def test_evidence_does_not_copy_onto_itself():
+    with pytest.raises(ValueError):
+        storage_module.copy_between_guilds(3, 3, "evidence-abc.iev")

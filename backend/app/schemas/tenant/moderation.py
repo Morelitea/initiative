@@ -11,6 +11,7 @@ from app.core.moderation import ReportOutcome, ReportReason
 from app.core.search import SearchEntityType
 from app.core.tools import Tool
 from app.schemas.base import SanitizedBaseModel
+from app.schemas.tenant.evidence import EvidenceRead
 from app.schemas.query import PageMeta
 
 
@@ -71,6 +72,9 @@ class ModerationReportRead(SanitizedBaseModel):
     target_excerpt: Optional[str] = None
     #: Where to go and read it. None for the same reasons the excerpt is.
     target_link: Optional["ReportTargetLink"] = None
+    #: What the reporters attached, oldest first. Who attached which is not
+    #: said, as who reported is not.
+    evidence: List[EvidenceRead] = PydanticField(default_factory=list)
 
 
 class ModerationReportList(PageMeta):

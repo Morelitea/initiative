@@ -13,6 +13,7 @@
   "reportedCount_other": "Signalé par {{count}} personnes",
   "targetUnavailable": "Ce contenu n'est plus là, ou ne vous est pas accessible.",
   "whatTheySaid": "Ce qu'ils ont dit",
+  "attached": "Ce qu'ils ont envoyé",
   "reviewElsewhere": "Ouvrez l'élément signalé pour le voir en contexte, puis décidez ici.",
   "notePlaceholder": "Ce que vous avez constaté et pourquoi vous avez décidé ainsi (facultatif)",
   "settledAt": "Traité le {{when}}.",

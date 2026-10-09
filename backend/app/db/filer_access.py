@@ -72,6 +72,19 @@ FILER_TABLE_ACCESS: dict[str, tuple[str, ...]] = {
         "deleted_at",
         "deleted_by",
     ),
+    # Their own attachments: what they are and when they sent them. Never the
+    # stored key or the wrapped key: serving reads those on its own session
+    # once this read has shown the file is theirs.
+    "evidence": (
+        "id",
+        "case_id",
+        "comment_id",
+        "display_name",
+        "content_type",
+        "size_bytes",
+        "created_by",
+        "created_at",
+    ),
 }
 
 #: Columns the community's own row policies read while deciding a filer's
@@ -83,6 +96,7 @@ FILER_TABLE_ACCESS: dict[str, tuple[str, ...]] = {
 #: answer no.
 POLICY_READS: dict[str, tuple[str, ...]] = {
     "projects": ("id", "initiative_id"),
+    "moderation_reports": ("id", "initiative_id"),
 }
 
 #: The row each granted table admits a filer to, as SQL over that table, with
@@ -105,6 +119,10 @@ FILER_ROWS: dict[str, str] = {
         " WHERE c.stream = intake_bindings.stream)"
     ),
     "comments": f"audience = 'filer' AND task_id = ANY ({_CASES})",
+    "evidence": (
+        f'created_by = {_UID} AND EXISTS (SELECT 1 FROM "{{s}}".intake_cases c'
+        f" WHERE c.id = evidence.case_id AND c.task_id = ANY ({_CASES}))"
+    ),
 }
 
 #: The policies that hold a filer to those rows, on each table: one

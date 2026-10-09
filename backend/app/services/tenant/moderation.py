@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
-from typing import Optional
+from typing import TYPE_CHECKING, Optional, Sequence
 
 from fastapi import HTTPException, status as http_status
 from sqlalchemy import Table, select as sa_select, text, tuple_
@@ -46,8 +46,12 @@ from app.models.platform import user_profile_view
 from app.models.platform.user import User
 from app.models.tenant.moderation import ModerationReport, ModerationReportReporter
 from app.models.tenant.search_entry import SearchEntry
-from app.services.platform.intake import CaseRefs, open_case
+from app.services.platform import evidence as evidence_service
+from app.services.platform.intake import CaseOutcome, CaseRefs, open_case
 from app.db.request_context import SystemGuild
+
+if TYPE_CHECKING:
+    from app.services.platform.evidence import PreparedEvidence
 
 logger = logging.getLogger(__name__)
 
@@ -120,6 +124,7 @@ async def file_report(
     reason: ReportReason,
     detail: Optional[str],
     guild_id: Optional[int] = None,
+    evidence: Sequence["PreparedEvidence"] = (),
     now: Optional[datetime] = None,
 ) -> ReportFiled:
     """Route one report to whoever handles that kind of thing.
@@ -130,7 +135,8 @@ async def file_report(
     report something they can already see, and the database is what decides
     that rather than a check here. ``guild_id`` says which community they were
     standing in; it is validated as theirs before it is used, and it decides
-    nothing about the venue.
+    nothing about the venue. ``evidence`` is stored with the report wherever
+    it lands: on the community's report, or on the operations case.
     """
     moment = now or datetime.now(timezone.utc)
     venue = venue_for(target)
@@ -153,6 +159,7 @@ async def file_report(
                 reason=reason,
                 detail=detail,
                 moment=moment,
+                evidence=evidence,
             )
             return ReportFiled(ReportVenue.initiative)
         # Nothing in the community answers to that id for this reader, and a
@@ -184,8 +191,10 @@ async def file_report(
             if target is PlatformReportTarget.marketplace_listing
             else None
         ),
+        evidence=evidence,
+        evidence_by=reporter.id,
     )
-    if not opened:
+    if opened is None:
         # Nothing is bound to receive it. Say so rather than answering 202 to
         # a report that reached nobody.
         raise HTTPException(
@@ -205,6 +214,7 @@ async def _place_in_initiative(
     reason: ReportReason,
     detail: Optional[str],
     moment: datetime,
+    evidence: Sequence["PreparedEvidence"] = (),
 ) -> None:
     """Open or join the community's report for this target.
 
@@ -262,7 +272,15 @@ async def _place_in_initiative(
                     detail=detail,
                 )
             )
-        await session.commit()
+        with evidence_service.Sealing(guild_id) as sealing:
+            sealing.store(
+                session,
+                prepared=evidence,
+                created_by=reporter_id,
+                report_id=existing.id,
+            )
+            await session.commit()
+            sealing.keep()
 
 
 #: Identity targets whose id names an account. For these the case's subject is
@@ -370,10 +388,12 @@ async def _open_platform_case(
     note: Optional[str] = None,
     reporters: tuple[tuple[int, Optional[str]], ...] = (),
     guild_id: Optional[int] = None,
-) -> bool:
+    evidence: Sequence["PreparedEvidence"] = (),
+    evidence_by: Optional[int] = None,
+) -> Optional[CaseOutcome]:
     """File the report as an intake case in the operations guild.
 
-    Returns whether a case actually opened. ``open_case`` answers ``None`` on
+    Returns the case, or ``None`` where none opened. ``open_case`` answers ``None`` on
     a deployment that has bound no moderation project — which is every fresh
     install — and a report that opened nothing has not been received.
 
@@ -416,8 +436,10 @@ async def _open_platform_case(
             if guild_id is not None
             else f"report:{target.value}:{target_id}"
         ),
+        evidence=evidence,
+        evidence_by=evidence_by,
     )
-    return outcome is not None
+    return outcome
 
 
 async def settle_report(
@@ -489,7 +511,7 @@ async def settle_report(
             reporters=tuple((reporter_id, words) for reporter_id, words in reporters),
             guild_id=guild_id,
         )
-        if not opened:
+        if opened is None:
             # Nothing is bound to receive it, so the report stays open and the
             # moderator is told. Closing it as escalated would record a handover
             # that never happened.
@@ -497,6 +519,14 @@ async def settle_report(
                 status_code=http_status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail=ModerationMessages.NOWHERE_TO_SEND,
             )
+        # What the reporters attached goes with it: the stored bytes copied
+        # as they are, their keys wrapped for the operations community.
+        await evidence_service.carry_report(
+            session,
+            source_guild_id=guild_id,
+            report_id=report.id,
+            case_id=opened.case_id,
+        )
 
     report.outcome = outcome
     report.note = note

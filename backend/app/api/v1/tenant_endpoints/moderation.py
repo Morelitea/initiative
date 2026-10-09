@@ -33,6 +33,8 @@ from app.schemas.tenant.moderation import (
     ReportTargetLink,
     SharedResourceRead,
 )
+from app.schemas.tenant.evidence import EvidenceRead
+from app.services.platform import evidence as evidence_service
 from app.services.tenant import moderation as moderation_service
 from app.services.tenant import sharing_overview
 
@@ -44,6 +46,7 @@ def _read(
     reporter_count: int,
     details: list[str],
     preview: moderation_service.TargetPreview | None = None,
+    evidence: list | None = None,
 ) -> ModerationReportRead:
     return ModerationReportRead(
         id=report.id,
@@ -72,6 +75,10 @@ def _read(
             if preview and preview.location
             else None
         ),
+        evidence=[
+            EvidenceRead.model_validate(item, from_attributes=True)
+            for item in evidence or ()
+        ],
     )
 
 
@@ -105,10 +112,19 @@ async def list_reports(
         session,
         [report for report, _, _ in rows],
     )
+    attached = await evidence_service.listed(
+        session, report_ids=[report.id for report, _, _ in rows]
+    )
     return ModerationReportList(
         **build_paginated_response(
             [
-                _read(report, count, details, previews.get(report.id))
+                _read(
+                    report,
+                    count,
+                    details,
+                    previews.get(report.id),
+                    attached.get(("report", report.id)),
+                )
                 for report, count, details in rows
             ],
             total_count,
@@ -147,11 +163,13 @@ async def settle_report(
         session,
         [report],
     )
+    attached = await evidence_service.listed(session, report_ids=[report.id])
     return _read(
         report,
         counts.get(report.id, 0),
         details.get(report.id, []),
         previews.get(report.id),
+        attached.get(("report", report.id)),
     )
 
 

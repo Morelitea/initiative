@@ -10,6 +10,7 @@ from pydantic import AfterValidator, ConfigDict, Field as PydanticField
 from app.core.intake import Conversation, IntakeStream
 from app.core.moderation import ReportVenue
 from app.schemas.base import RichTextStr, SanitizedBaseModel
+from app.schemas.tenant.evidence import EvidencePolicyRead, EvidenceRead
 from app.schemas.tenant.moderation import ReportCreate
 from app.services.platform.tickets import FilerState, TicketMode
 from app.services.tenant.support import BODY_LENGTH, SUBJECT_LENGTH
@@ -81,6 +82,8 @@ class StreamAvailabilityRead(SanitizedBaseModel):
     mode: TicketMode
     #: Who to write to about it, whatever the mode.
     contact: Optional[str] = None
+    #: What may be attached to a filing or an answer in this stream.
+    evidence: EvidencePolicyRead
 
 
 class TicketAvailability(SanitizedBaseModel):
@@ -124,6 +127,8 @@ class TicketMessageRead(SanitizedBaseModel):
     #: Kept as written, like any comment body.
     content: RichTextStr
     created_at: datetime
+    #: The files that came with it. Only the reader's own: what they sent.
+    attachments: List[EvidenceRead] = PydanticField(default_factory=list)
 
 
 class FiledTicketDetailRead(FiledTicketRead):
@@ -133,6 +138,8 @@ class FiledTicketDetailRead(FiledTicketRead):
     #: Whether the reader may answer now: the kind of case allows it, it is
     #: not closed, and where the people handling it speak first, they have.
     can_reply: bool
+    #: What an answer may carry with it, for this kind of case.
+    evidence: EvidencePolicyRead
     messages: List[TicketMessageRead]
 
 

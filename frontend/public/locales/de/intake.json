@@ -140,5 +140,19 @@
     "fromTeam": "Das Team ({{name}})",
     "someone": "Jemand",
     "conversationLabel": "Gespräch mit {{name}}"
+  },
+  "evidence": {
+    "attach": "Dateien anhängen",
+    "limits_one": "Bis zu {{count}} Datei, höchstens {{size}}.",
+    "limits_other": "Bis zu {{count}} Dateien, je höchstens {{size}}.",
+    "remove": "{{name}} entfernen",
+    "tooMany_one": "Du kannst {{count}} Datei anhängen.",
+    "tooMany_other": "Du kannst bis zu {{count}} Dateien anhängen.",
+    "tooLarge": "{{name}} ist größer als {{size}}.",
+    "notAllowed": "Dateien wie {{name}} werden hier nicht angenommen.",
+    "heading": "Angehängt",
+    "reveal": "{{name}} anzeigen",
+    "view": "{{name}} ansehen",
+    "open": "{{name}} öffnen"
   }
 }

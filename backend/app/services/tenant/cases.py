@@ -23,6 +23,7 @@ from sqlalchemy.orm import selectinload
 from app.core.intake import Conversation, IntakeStream, meta
 from app.models.platform.user_profile_view import MemberProfile
 from app.models.tenant.comment import Comment, CommentAudience
+from app.models.tenant.evidence import Evidence
 from app.models.tenant.intake import IntakeBinding, IntakeCase
 
 
@@ -39,6 +40,8 @@ class CaseView:
     #: The conversation with whoever filed it, oldest first: their words and
     #: what the team said to them. Not part of the task's thread.
     messages: list[Comment]
+    #: What was attached to it, oldest first.
+    evidence: list[Evidence]
 
 
 async def read_case(session: AsyncSession, task_id: int) -> Optional[CaseView]:
@@ -63,6 +66,9 @@ async def read_case(session: AsyncSession, task_id: int) -> Optional[CaseView]:
                 select(MemberProfile).where(MemberProfile.id == case.filer_user_id)
             )
         ).first()
+    from app.services.platform import evidence as evidence_service
+
+    attached = await evidence_service.listed(session, case_ids=[int(case.id)])
     return CaseView(
         stream=stream,
         opened_at=case.opened_at,
@@ -86,4 +92,5 @@ async def read_case(session: AsyncSession, task_id: int) -> Optional[CaseView]:
                 )
             ).all()
         ),
+        evidence=attached.get(("case", int(case.id)), []),
     )

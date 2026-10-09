@@ -194,7 +194,7 @@ async def test_someone_elses_ticket_reads_as_missing(client, acting_user, desk):
     for response in (
         await client.get(f"{TICKETS}/{theirs}", headers=filer.headers),
         await client.post(
-            f"{TICKETS}/{theirs}/replies", json={"body": "Hi"}, headers=filer.headers
+            f"{TICKETS}/{theirs}/replies", data={"body": "Hi"}, headers=filer.headers
         ),
     ):
         assert response.status_code == 404
@@ -213,7 +213,7 @@ async def test_answering_a_case_that_waits_on_you_moves_it_back(
 
     response = await client.post(
         f"{TICKETS}/{task_id}/replies",
-        json={"body": "It was in my other bag."},
+        data={"body": "It was in my other bag."},
         headers=filer.headers,
     )
     assert response.status_code == 201, response.text
@@ -248,7 +248,7 @@ async def test_a_closed_case_takes_no_answer(client, session, acting_user, desk)
     assert detail["state"] == "closed"
     assert detail["can_reply"] is False
     response = await client.post(
-        f"{TICKETS}/{task_id}/replies", json={"body": "Hello?"}, headers=filer.headers
+        f"{TICKETS}/{task_id}/replies", data={"body": "Hello?"}, headers=filer.headers
     )
     assert response.status_code == 409
     assert response.json()["detail"] == TicketMessages.REPLY_NOT_TAKEN
@@ -262,7 +262,7 @@ async def test_feedback_waits_for_the_team_to_speak_first(client, acting_user, d
     assert detail["conversation"] == "staff_first"
     assert detail["can_reply"] is False
     refused = await client.post(
-        f"{TICKETS}/{task_id}/replies", json={"body": "Also..."}, headers=filer.headers
+        f"{TICKETS}/{task_id}/replies", data={"body": "Also..."}, headers=filer.headers
     )
     assert refused.status_code == 409
 
@@ -398,7 +398,7 @@ async def test_the_cases_assignees_hear_when_the_filer_answers(
 
     response = await client.post(
         f"{TICKETS}/{task_id}/replies",
-        json={"body": "It was in my other bag."},
+        data={"body": "It was in my other bag."},
         headers=filer.headers,
     )
     assert response.status_code == 201, response.text
@@ -417,7 +417,7 @@ async def test_an_unassigned_case_tells_nobody_of_the_answer(
 
     response = await client.post(
         f"{TICKETS}/{task_id}/replies",
-        json={"body": "Anyone there?"},
+        data={"body": "Anyone there?"},
         headers=filer.headers,
     )
     assert response.status_code == 201, response.text
@@ -478,7 +478,7 @@ async def test_the_requesters_other_tabs_hear_their_own_answer(
 
     response = await client.post(
         f"{TICKETS}/{task_id}/replies",
-        json={"body": "It was in my other bag."},
+        data={"body": "It was in my other bag."},
         headers=filer.headers,
     )
     assert response.status_code == 201, response.text

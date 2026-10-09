@@ -2,7 +2,7 @@
  * The team's side of a case: who filed it, and a way to answer them that
  * reaches only them.
  */
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -137,5 +137,66 @@ describe("CasePanel", () => {
     state.found = supportCase({ stream: "feedback", conversation: "staff_first", messages: [] });
     renderPanel();
     expect(await screen.findByText(/once the team has said something/)).toBeInTheDocument();
+  });
+
+  describe("what they sent", () => {
+    const now = new Date().toISOString();
+    const picture = {
+      id: 9,
+      display_name: "screen.png",
+      content_type: "image/png",
+      size_bytes: 1024,
+      created_at: now,
+      from_requester: true,
+    };
+
+    it("shows a picture beside the words it came with, blurred until asked for", async () => {
+      state.found = supportCase({
+        messages: [
+          { id: 5, from_requester: true, content: "Here.", created_at: now, author: null },
+        ],
+        evidence: [
+          { ...picture, comment_id: 5 },
+          { ...picture, id: 11, display_name: "second.png", comment_id: 5 },
+        ],
+      });
+      const user = userEvent.setup();
+      renderPanel();
+      const reveal = await screen.findByRole("button", { name: "Show screen.png" });
+      expect(screen.queryByRole("img", { name: "screen.png" })).toBeNull();
+      expect(screen.queryByText("Attached")).toBeNull();
+
+      // Looking opens it full size, in the lightbox.
+      await user.click(reveal);
+      const lightbox = await screen.findByRole("dialog");
+      const shown = within(lightbox).getByRole("img", { name: "screen.png" });
+      expect(shown.getAttribute("src")).toMatch(/\/evidence\/9$/);
+      expect(within(lightbox).getByRole("link", { name: "Open screen.png" })).toBeInTheDocument();
+
+      // Paging to the next is looking at it too; both stay unblurred after.
+      await user.keyboard("{ArrowRight}");
+      expect(within(lightbox).getByRole("img", { name: "second.png" })).toBeInTheDocument();
+      await user.keyboard("{Escape}");
+      expect(await screen.findByRole("button", { name: "View screen.png" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "View second.png" })).toBeInTheDocument();
+    });
+
+    it("keeps files that came with no message where they can still be found", async () => {
+      state.found = supportCase({
+        filer: null,
+        evidence: [
+          {
+            ...picture,
+            id: 10,
+            display_name: "report.pdf",
+            content_type: "application/pdf",
+            comment_id: null,
+          },
+        ],
+      });
+      renderPanel();
+      expect(await screen.findByText("Attached")).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Open report.pdf" })).toBeInTheDocument();
+    });
   });
 });

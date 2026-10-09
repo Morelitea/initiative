@@ -61,6 +61,31 @@ class Conversation(str, Enum):
     open = "open"
 
 
+#: Pictures a person may attach, by the type their bytes say they are.
+IMAGE_TYPES = frozenset({"image/png", "image/jpeg", "image/gif", "image/webp"})
+#: Documents a person may attach beside pictures.
+DOCUMENT_TYPES = frozenset({"application/pdf", "text/plain"})
+
+_MB = 1024 * 1024
+
+
+@dataclass(frozen=True)
+class EvidencePolicy:
+    """What a person may attach when filing into a stream, or answering on a
+    case in it."""
+
+    #: Files on one filing or one answer. 0 takes none.
+    max_files: int
+    #: The largest one file may be.
+    max_bytes: int
+    #: The types a file may be, read from its bytes rather than its name.
+    types: frozenset[str]
+
+
+#: Nothing attached.
+NO_EVIDENCE = EvidencePolicy(max_files=0, max_bytes=0, types=frozenset())
+
+
 @dataclass(frozen=True)
 class IntakeStreamMeta:
     """What a stream is fed by, how people file into it, and the blueprint
@@ -79,6 +104,10 @@ class IntakeStreamMeta:
     #: cap — where every filing is about something different, a cap would turn
     #: away the second thing somebody saw.
     max_open_per_filer: int | None
+    #: What a person may attach to a case.
+    evidence: EvidencePolicy
+    #: How long a case's evidence is kept once the case is closed.
+    retention_days: int
     #: Whether the stream's cases keep an initiative to themselves. Membership
     #: of an initiative is what lets staff read a case, so a stream whose
     #: cases name people at risk binds where no other stream's staff work.
@@ -95,6 +124,8 @@ STREAMS: dict[IntakeStream, IntakeStreamMeta] = {
         conversation=Conversation.open,
         filing_rate="5/day",
         max_open_per_filer=10,
+        evidence=EvidencePolicy(5, 10 * _MB, IMAGE_TYPES | DOCUMENT_TYPES),
+        retention_days=365,
         isolated=True,
     ),
     IntakeStream.moderation: IntakeStreamMeta(
@@ -104,6 +135,8 @@ STREAMS: dict[IntakeStream, IntakeStreamMeta] = {
         conversation=Conversation.none,
         filing_rate="30/hour",
         max_open_per_filer=None,
+        evidence=EvidencePolicy(5, 10 * _MB, IMAGE_TYPES | DOCUMENT_TYPES),
+        retention_days=90,
         isolated=True,
     ),
     IntakeStream.support: IntakeStreamMeta(
@@ -115,6 +148,8 @@ STREAMS: dict[IntakeStream, IntakeStreamMeta] = {
         conversation=Conversation.open,
         filing_rate="10/hour",
         max_open_per_filer=5,
+        evidence=EvidencePolicy(5, 10 * _MB, IMAGE_TYPES | DOCUMENT_TYPES),
+        retention_days=90,
     ),
     IntakeStream.feedback: IntakeStreamMeta(
         sources=frozenset({Source.submitted, Source.manual}),
@@ -123,6 +158,8 @@ STREAMS: dict[IntakeStream, IntakeStreamMeta] = {
         conversation=Conversation.staff_first,
         filing_rate="5/day",
         max_open_per_filer=None,
+        evidence=EvidencePolicy(3, 10 * _MB, IMAGE_TYPES),
+        retention_days=30,
     ),
 }
 

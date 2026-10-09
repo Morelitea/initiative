@@ -133,7 +133,8 @@ async def slow_pass() -> None:
 
 async def hourly_pass() -> None:
     """Retention and upkeep: trash, expired exports and imports, delivered
-    webhook history, spent digest items, and plug-in auto-updates.
+    webhook history, spent digest items, evidence past its keeping, and
+    plug-in auto-updates.
 
     Trash is purged and plug-ins updated in active communities only: a read-only
     or suspended one is frozen until it returns. Exports and imports expire
@@ -143,6 +144,7 @@ async def hourly_pass() -> None:
     from app.services.export import worker as export_worker
     from app.services.guild_sweeps import Scope, each_guild
     from app.services.import_engine import worker as import_worker
+    from app.services.platform import evidence
     from app.services.tenant import plugin_updates, outbox_poller, trash_purge
 
     await each_guild(
@@ -151,6 +153,7 @@ async def hourly_pass() -> None:
             (Scope.PROVISIONED, export_worker.expire_artifacts),
             (Scope.PROVISIONED, import_worker.expire_payloads),
             (Scope.ACTIVE, outbox_poller.expire_history),
+            (Scope.ACTIVE, evidence.purge_due),
             (Scope.ACTIVE, plugin_updates.update_guild),
         ],
         name="hourly",

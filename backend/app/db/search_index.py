@@ -483,6 +483,7 @@ NOT_SEARCHABLE: dict[str, str] = {
     "moderation_reports": "moderation work, reached from its own surface",
     "moderation_report_reporters": "who reported a thing; never a search result",
     "intake_cases": "the key -> task map; the task it names is what is indexed",
+    "evidence": "files attached to a report or a case, opened only through it",
     "recent_views": "one member's own viewing state",
     "project_filter_presets": "one member's saved filters",
     "task_statuses": "column names, reached from the project",

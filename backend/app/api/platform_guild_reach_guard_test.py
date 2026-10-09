@@ -150,6 +150,12 @@ _ALLOWED: dict[tuple[str, str], str] = {
         "tickets: writes a filer's answer in the operations community the "
         "filer role just read their case in"
     ),
+    (f"{_SERVICES}/evidence.py", "carry_report"): (
+        "evidence: carries an escalated report's files into the operations case"
+    ),
+    (f"{_ENDPOINTS}/tickets.py", "read_filed_evidence"): (
+        "tickets: opens a file the filer role has just shown is the reader's own"
+    ),
     (f"{_SERVICES}/ticket_notices.py", "notify_filers"): (
         "the scheduled sweep that tells filers their case moved"
     ),

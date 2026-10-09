@@ -18,6 +18,7 @@ from app.schemas.query import PageMeta
 from app.schemas.recurrence import OccurrenceScope, TaskRule
 
 from app.schemas.platform.user import PersonShape, UserPublic
+from app.schemas.tenant.evidence import EvidenceRead
 from app.schemas.tenant.initiative import InitiativeSummary
 from app.schemas.tenant.task_status import TaskStatusRead
 from app.schemas.tenant.tag import TagSummary
@@ -297,6 +298,15 @@ class CaseMessageRead(SanitizedBaseModel):
     created_at: datetime
 
 
+class CaseEvidenceRead(EvidenceRead):
+    """A file attached to a case, and where in the conversation it came."""
+
+    #: The message it came with, where it came with one.
+    comment_id: Optional[int] = None
+    #: Sent by whoever filed the case.
+    from_requester: bool = False
+
+
 class TaskCaseRead(SanitizedBaseModel):
     """How an operations case was filed, for the people working it."""
 
@@ -316,3 +326,5 @@ class TaskCaseRead(SanitizedBaseModel):
     #: The conversation with the requester, oldest first. Kept apart from the
     #: task's comments: it is what they read, and only that.
     messages: List[CaseMessageRead] = Field(default_factory=list)
+    #: What was attached to the case, oldest first.
+    evidence: List[CaseEvidenceRead] = Field(default_factory=list)

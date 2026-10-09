@@ -42,6 +42,18 @@ export const FAQ_URL = docsUrl("faq/");
 /** One filing, told apart by its stream. */
 export type TicketCreate = SupportTicketCreate | ModerationTicketCreate;
 
+/** A filing and the files sent with it. */
+export interface TicketFiling {
+  ticket: TicketCreate;
+  files: File[];
+}
+
+/** An answer and the files sent with it. */
+export interface TicketAnswer {
+  body: string;
+  files: File[];
+}
+
 /**
  * What every kind of ticket offers the reader, standing in `communityId`.
  *
@@ -62,10 +74,11 @@ export const useTicketAvailability = (
   });
 };
 
-export const useFileTicket = (options?: MutationOpts<TicketAccepted, TicketCreate>) =>
-  useApiMutation<TicketAccepted, TicketCreate>(
+export const useFileTicket = (options?: MutationOpts<TicketAccepted, TicketFiling>) =>
+  useApiMutation<TicketAccepted, TicketFiling>(
     {
-      mutationFn: (body) => fileTicket(body),
+      // The ticket travels as JSON beside the files: one multipart body.
+      mutationFn: ({ ticket, files }) => fileTicket({ payload: JSON.stringify(ticket), files }),
       // A filing with somebody to answer it joins the reader's own tickets.
       invalidate: () => invalidate(q.filedTickets()),
     },
@@ -91,11 +104,11 @@ export const useFiledTicket = (taskId: number, options?: QueryOpts<FiledTicketDe
 /** Answer on a ticket the reader filed. The answer comes back as the ticket. */
 export const useReplyToTicket = (
   taskId: number,
-  options?: MutationOpts<FiledTicketDetailRead, string>
+  options?: MutationOpts<FiledTicketDetailRead, TicketAnswer>
 ) =>
-  useApiMutation<FiledTicketDetailRead, string>(
+  useApiMutation<FiledTicketDetailRead, TicketAnswer>(
     {
-      mutationFn: (body) => replyToFiledTicket(taskId, { body }),
+      mutationFn: ({ body, files }) => replyToFiledTicket(taskId, { body, files }),
       invalidate: (ticket) => {
         queryClient.setQueryData(getReadFiledTicketQueryKey(taskId), ticket);
         return invalidate(q.filedTickets());

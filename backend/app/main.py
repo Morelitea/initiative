@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.openapi.utils import get_openapi
 from pydantic import TypeAdapter
+from pydantic.json_schema import models_json_schema
 from fastapi.responses import FileResponse, JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
@@ -50,6 +51,7 @@ from app.core.request_audit import RequestAuditMiddleware
 from app.core.routing import MOUNTED, route_endpoint
 from app.core.version import __version__
 from app.core.smart_chips import SmartChipKind
+from app.schemas.platform.ticket import ModerationTicketCreate, SupportTicketCreate
 from app.db.errors import INSUFFICIENT_PRIVILEGE_SQLSTATE, dbapi_sqlstate
 from app.db.frozen import FROZEN_PARENT_CONSTRAINT, frozen_refusal
 from app.db.session import SystemSessionLocal
@@ -707,6 +709,15 @@ def custom_openapi() -> dict:
     components.setdefault("schemas", {})["SmartChipKind"] = TypeAdapter(
         SmartChipKind
     ).json_schema()
+
+    # What a filing's ``payload`` part holds. The route takes it as a JSON
+    # string beside the files, so the shapes are published here instead.
+    _, ticket_schemas = models_json_schema(
+        [(SupportTicketCreate, "validation"), (ModerationTicketCreate, "validation")],
+        ref_template="#/components/schemas/{model}",
+    )
+    for name, schema in ticket_schemas.get("$defs", {}).items():
+        components["schemas"].setdefault(name, schema)
 
     for path_item in openapi_schema.get("paths", {}).values():
         for operation in path_item.values():
