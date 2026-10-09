@@ -47,6 +47,7 @@ from app.core.login_methods import LoginMethod
 from app.core.messages import AuthMessages, SettingsMessages
 from app.core import audit_context
 from app.core.rate_limit import SIGN_IN_FAILURES
+from app.db.advisory_locks import LockNamespace, advisory_lock
 from app.core.security import (
     REFRESH_COOKIE_NAME,
     get_password_hash,
@@ -636,9 +637,8 @@ async def issue_session(
     if install is not None:
         # Two sign-ins from one install take turns, so the second continues the
         # first rather than meeting it in the one-live-session index.
-        await system_session.execute(
-            text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
-            {"key": f"install:{user_id}:{install}"},
+        await advisory_lock(
+            system_session, LockNamespace.APP_INSTALL, f"{user_id}:{install}"
         )
         if replaces is None:
             previous = await session_service.latest_of_install(
