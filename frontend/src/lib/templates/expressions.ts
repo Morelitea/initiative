@@ -91,8 +91,6 @@ const STRING_FUNCTIONS = [
 /** Ours, defined in runtime.ts: text a member reads in their own language. */
 export const DISPLAY_FUNCTIONS = ["format_date", "format_number", "t"] as const;
 
-const DISPLAY = new Set<string>(DISPLAY_FUNCTIONS);
-
 const FUNCTIONS = new Set<string>([
   ...STANDARD_FUNCTIONS,
   ...STRING_FUNCTIONS,
@@ -109,8 +107,6 @@ export interface ExpressionCheck {
   problems: ExpressionProblem[];
   /** What the expression yields, as far as the walk can tell. */
   shape: Shape;
-  /** It calls a display function, so its answer depends on the reader as well as the data. */
-  display: boolean;
 }
 
 // The parser's tree, read structurally: only the fields this walk uses.
@@ -156,7 +152,6 @@ export function checkExpression(source: string, scope: ExpressionScope): Express
     return {
       problems: [`Expressions are at most ${MAX_EXPRESSION_LENGTH} characters long`],
       shape: "any",
-      display: false,
     };
   }
   let root: CelNode;
@@ -171,13 +166,11 @@ export function checkExpression(source: string, scope: ExpressionScope): Express
     return {
       problems: [`Does not parse: ${error instanceof Error ? error.message : String(error)}`],
       shape: "any",
-      display: false,
     };
   }
 
   const problems: ExpressionProblem[] = [];
   let nodes = 0;
-  let display = false;
 
   const walk = (node: CelNode | undefined, names: ExpressionScope, depth: number): Shape => {
     if (!node) return "any";
@@ -208,7 +201,6 @@ export function checkExpression(source: string, scope: ExpressionScope): Express
         if (!OPERATORS.has(call.function) && !FUNCTIONS.has(call.function)) {
           problems.push(`${call.function}() is not a function templates may use`);
         }
-        if (DISPLAY.has(call.function)) display = true;
         walk(call.target, names, depth);
         const args = call.args.map((argument) => walk(argument, names, depth));
         if (call.function === "_[_]") {
@@ -269,5 +261,5 @@ export function checkExpression(source: string, scope: ExpressionScope): Express
   if (nodes > MAX_EXPRESSION_NODES) {
     problems.push(`Expressions are at most ${MAX_EXPRESSION_NODES} parts`);
   }
-  return { problems: [...new Set(problems)], shape, display };
+  return { problems: [...new Set(problems)], shape };
 }

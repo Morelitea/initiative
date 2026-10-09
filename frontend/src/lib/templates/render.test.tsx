@@ -14,9 +14,7 @@ const draw = (source: string, task: TaskListRead) => {
     section: SECTIONS["task.card"],
   });
   expect(errors).toEqual([]);
-  const Title = ({ data, className }: { data: { task: TaskListRead }; className?: string }) => (
-    <h2 className={className}>{data.task.title}</h2>
-  );
+  const Title = ({ data }: { data: { task: TaskListRead } }) => <h2>{data.task.title}</h2>;
   const Page = () => (
     <>
       {renderTemplate(template as NonNullable<typeof template>, {
@@ -47,9 +45,10 @@ describe("renderTemplate", () => {
 
     const card = await screen.findByTestId("card");
     expect(card).toHaveClass("card", "card--high");
-    // A part has no element of its own: the template's classes land on the part's.
-    expect(screen.getByRole("heading", { name: "Ship it" })).toHaveClass("card__title");
-    expect(screen.getByRole("heading", { name: "Ship it" }).parentElement).toBe(card);
+    expect(screen.getByRole("heading", { name: "Ship it" }).parentElement).toHaveAttribute(
+      "data-part",
+      "title"
+    );
     expect(screen.getByText("High")).toBeInTheDocument();
     expect(screen.queryByText("Calm")).not.toBeInTheDocument();
     expect(screen.getByText("SHIP IT has 7 letters")).toBeInTheDocument();

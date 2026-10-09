@@ -111,12 +111,6 @@ describe("compileTemplate", () => {
       "a.display_name",
       "{ 'done': task.task_status.category == 'done' }",
     ]);
-    // None calls a display function, so the renderer may reuse every answer.
-    expect(template?.display).toEqual([]);
-    expect(
-      compile(`<part name="title" /><p>{{ task.title }} {{ format_date(task.created_at) }}</p>`)
-        .template?.display
-    ).toEqual([1]);
     const article = template?.root[0];
     expect(article).toMatchObject({ t: "el", tag: "article", attrs: { class: "card" } });
     expect(article?.t === "el" && article.kids.map((kid) => kid.t)).toEqual([
@@ -155,12 +149,12 @@ describe("compileTemplate", () => {
     expect(errorsOf(`<div if="true"><part name="title" /></div>`)[0]).toMatch(
       /title is required, so it cannot sit inside if or for/
     );
-    expect(errorsOf(`<part name="title" /><part name="relations" />`)[0]).toMatch(
-      /task.card has no part called relations/
+    expect(errorsOf(`<part name="title" /><part name="checklist" />`)[0]).toMatch(
+      /task.card has no part called checklist/
     );
     // An optional part may come and go.
     expect(
-      errorsOf(`<part name="title" /><part if="has(task.due_date)" name="description" />`)
+      errorsOf(`<part name="title" /><part if="has(task.due_date)" name="excerpt" />`)
     ).toEqual([]);
   });
 

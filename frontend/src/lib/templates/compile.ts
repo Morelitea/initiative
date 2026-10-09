@@ -49,11 +49,6 @@ export interface CompiledTemplate {
   section: string;
   /** Every expression's source, once; the renderer plans each once. */
   exprs: string[];
-  /**
-   * The expressions that call a display function. Their answers depend on the
-   * reader's language and settings, so the renderer never reuses one.
-   */
-  display: number[];
   root: CompiledNode[];
 }
 
@@ -95,7 +90,7 @@ const ELEMENT_ATTRIBUTES: Record<string, Set<string>> = {
 };
 /** Only ever bound: a map of custom properties, typed when rendered. */
 const BOUND_ONLY = new Set(["style"]);
-/** Initiative's own, for marking sections and parts; a template never sets them. */
+/** Ours, on the wrappers the renderer draws; a template never sets them. */
 const RESERVED_DATA = new Set(["data-section", "data-part", "data-node"]);
 
 const DIRECTIVES = new Set(["if", "else-if", "else", "for"]);
@@ -140,23 +135,21 @@ export function compileTemplate(source: string, options: CompileOptions): Compil
   }
 
   const exprs: string[] = [];
-  const display: number[] = [];
   const exprIndex = new Map<string, number>();
   const expression = (
     source: string,
     scope: ExpressionScope,
     at: SourcePosition
   ): { index: number; shape: Shape } => {
-    const check = checkExpression(source, scope);
-    for (const problem of check.problems) report(`${problem}: ${source}`, at);
+    const { problems, shape } = checkExpression(source, scope);
+    for (const problem of problems) report(`${problem}: ${source}`, at);
     let index = exprIndex.get(source);
     if (index === undefined) {
       index = exprs.length;
       exprs.push(source);
       exprIndex.set(source, index);
-      if (check.display) display.push(index);
     }
-    return { index, shape: check.shape };
+    return { index, shape };
   };
 
   const partCounts = new Map<string, number>();
@@ -362,5 +355,5 @@ export function compileTemplate(source: string, options: CompileOptions): Compil
   }
 
   if (errors.length > 0) return { template: null, errors };
-  return { template: { section: options.name, exprs, display, root }, errors };
+  return { template: { section: options.name, exprs, root }, errors };
 }
