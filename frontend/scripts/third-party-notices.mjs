@@ -45,6 +45,8 @@ import {
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { collator } from "../src/lib/intl.ts";
+
 const FRONTEND_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 export const HEADER = "Initiative includes the following third-party software and artwork.";
@@ -189,7 +191,8 @@ export const collectPackages = (rootDir, { buildOnly = [] } = {}) => {
 };
 
 const comparePackages = (a, b) =>
-  a.name.localeCompare(b.name) || a.version.localeCompare(b.version, undefined, { numeric: true });
+  a.name.localeCompare(b.name) ||
+  collator(undefined, { numeric: true }).compare(a.version, b.version);
 
 // --- Licence texts -----------------------------------------------------------
 
@@ -433,12 +436,12 @@ const SUPPLIED = "(no licence file in the package; the standard text is supplied
 const compareComponents = (a, b) =>
   KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind) ||
   a.name.localeCompare(b.name) ||
-  String(a.version).localeCompare(String(b.version), undefined, { numeric: true });
+  collator(undefined, { numeric: true }).compare(String(a.version), String(b.version));
 const KIND_ORDER = ["package", "native", "font"];
 
 const licenceSortKey = (id) => id.replace(/[()]/g, "");
 const byLicence = (a, b) =>
-  licenceSortKey(a).localeCompare(licenceSortKey(b), undefined, { sensitivity: "base" });
+  collator(undefined, { sensitivity: "base" }).compare(licenceSortKey(a), licenceSortKey(b));
 
 /**
  * Classified components in their sections: standard licences grouped by id

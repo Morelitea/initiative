@@ -1,7 +1,7 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, type MockInstance, vi } from "vitest";
 
 import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
@@ -359,7 +359,7 @@ describe("the preview", () => {
     return call && { data: call[0], slots: call[2].slots };
   };
   // Made per test: the suite puts every spy back when a test ends.
-  let shape: ReturnType<typeof vi.spyOn<typeof stat, "shape">>;
+  let shape: MockInstance<typeof stat.shape>;
   beforeEach(() => {
     shape = vi.spyOn(stat, "shape");
   });
