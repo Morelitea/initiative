@@ -143,6 +143,14 @@ export async function ingestDirectory(
   await Promise.all(changes.map((change) => sessionForDevice.forget(change.deviceId)));
   if (!own) return { devices: listed, held: [] };
 
+  // A device that has left the account since it was held is no longer a
+  // question. Read against everything listed, not only what verified: a
+  // device whose signature fails is still there, just not addressable.
+  await peerKeyChanges.withdrawUnlisted(
+    userId,
+    entries.map((entry) => entry.device_id)
+  );
+
   // Held on every read until acknowledged, not only the one that noticed it.
   const held = new Set(
     (await peerKeyChanges.all())

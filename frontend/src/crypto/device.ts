@@ -17,6 +17,7 @@ import { readMe } from "@/api/generated/users/users";
 import { ratchet, stopRatchet } from "./client";
 import { withAccount } from "./sessions";
 import {
+  claimOpen,
   deviceClaim,
   deviceOwner,
   forgetDevice,
@@ -166,10 +167,15 @@ export async function ensureDeviceContext(): Promise<Context> {
   // each registering would leave the server holding two devices and this
   // browser holding one set of private keys, and whatever was sent to the other
   // would never be readable.
-  const turn = await deviceClaim.take();
-  if (turn === null) {
+  let turn = await deviceClaim.take();
+  for (let waits = 0; turn === null; waits += 1) {
     const id = await waitForRegistration(existing);
-    return contextFor(await owner(), id, (await listDevices()).devices);
+    if (id !== null) return contextFor(await owner(), id, (await listDevices()).devices);
+    // The tab that held the turn gave it back or went quiet -- a reload
+    // mid-registration leaves exactly that -- so this one takes it rather
+    // than failing for want of an answer nobody is going to give.
+    if (waits >= 2) throw new Error("another tab is still setting up encrypted messages");
+    turn = await deviceClaim.take();
   }
 
   try {
@@ -198,6 +204,7 @@ export async function ensureDeviceContext(): Promise<Context> {
       // withdrawn rather than left collecting messages nothing can open.
       await removeDevice(created).catch(() => undefined);
       const id = await waitForRegistration(existing);
+      if (id === null) throw new Error("another tab took over setting up encrypted messages");
       return contextFor(self, id, (await listDevices()).devices);
     }
     // Whether this device may ask the account for its history is settled here,
@@ -238,21 +245,26 @@ export async function registeredDevice(): Promise<string | undefined> {
 /**
  * Wait for whichever tab is registering to finish, then use what it made.
  *
+ * `null` once the turn is free to take instead: handed back by a tab that
+ * failed, or gone stale under one that stopped answering. Polled for longer
+ * than a claim can stay fresh, so a turn left behind by a reload is always
+ * seen to lapse rather than outwaited by it.
+ *
  * `stale` is the device this tab already found gone from the server, if any:
  * an answer naming it is the settled claim that is being replaced, not the
  * replacement, so it is waited past.
  */
-async function waitForRegistration(stale?: string): Promise<string> {
-  for (let attempt = 0; attempt < 80; attempt += 1) {
+async function waitForRegistration(stale?: string): Promise<string | null> {
+  for (let attempt = 0; attempt < 160; attempt += 1) {
     const claim = await deviceClaim.read();
     if (claim?.status === "ready" && claim.deviceId !== stale) {
       const id = await storedDeviceId.get();
       if (id) return id;
     }
-    if (claim?.status === "claiming" && claim.at === 0) break;
+    if (claimOpen(claim)) return null;
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
-  throw new Error("another tab is still setting up encrypted messages");
+  return null;
 }
 
 /**

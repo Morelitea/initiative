@@ -77,7 +77,7 @@ import type { TranslateFn } from "@/types/i18n";
  * offer to ask for one instead.
  */
 export function MyMessagesPage() {
-  const { t } = useTranslation(["messages", "nav"]);
+  const { t } = useTranslation(["messages", "nav", "common"]);
   const device = useDmDevice();
   const conversations = useConversations();
   const requests = useMessageRequests();
@@ -252,11 +252,20 @@ export function MyMessagesPage() {
 
   if (device.isError) {
     return (
-      <div>
+      <div className="flex flex-col items-center">
         <StatusMessage
           icon={<ShieldCheck className="size-6" aria-hidden />}
           title={t("deviceFailed")}
         />
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={device.isFetching}
+          onClick={() => void device.refetch()}
+        >
+          {t("common:tryAgain")}
+        </Button>
       </div>
     );
   }

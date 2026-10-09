@@ -311,6 +311,14 @@ export type DeviceClaim =
 const DEVICE_CLAIM = "device-claim";
 const CLAIM_STALE_MS = 30_000;
 
+/**
+ * Whether a claim is free to take: handed back, never made, or made by a tab
+ * that has gone quiet for longer than a registration takes.
+ */
+export const claimOpen = (claim: DeviceClaim | undefined, now = Date.now()): boolean =>
+  claim === undefined ||
+  (claim.status === "claiming" && (claim.at === 0 || now - claim.at >= CLAIM_STALE_MS));
+
 export const deviceClaim = {
   read: () => read<DeviceClaim>(DEVICE_CLAIM),
 
@@ -325,10 +333,7 @@ export const deviceClaim = {
     const now = Date.now();
     const token = crypto.randomUUID();
     const { written } = await update<DeviceClaim>(DEVICE_CLAIM, (current) => {
-      if (current?.status === "ready") return undefined;
-      if (current?.status === "claiming" && now - current.at < CLAIM_STALE_MS) {
-        return undefined;
-      }
+      if (!claimOpen(current, now)) return undefined;
       return { status: "claiming", at: now, token };
     });
     return written ? token : null;
@@ -1002,6 +1007,38 @@ export const peerKeyChanges = {
       existing?.map((change) =>
         deviceIds.includes(change.deviceId) ? { ...change, asked: true as const } : change
       )
+    );
+  },
+  /**
+   * Let go of the holds on this account's devices that the server no longer
+   * lists. A device that signed out, or was removed, has nothing left to
+   * verify, and a prompt about it could never be answered.
+   *
+   * Its remembered keys go with the hold rather than staying behind as the
+   * baseline. `listed` may be older than a hold another tab has just raised
+   * for a device that arrived since, and that device must still be asked
+   * about: forgotten, it is a new sighting again the next time it is read,
+   * and held again before anything can address it.
+   */
+  withdrawUnlisted: async (userId: number, listed: string[]): Promise<void> => {
+    const present = new Set(listed);
+    await updatePair<Record<string, StoredPeerKey>, PeerKeyChange[]>(
+      PEER_KEYS_PREFIX + userId,
+      PEER_CHANGES,
+      (known, held) => {
+        const gone = (held ?? [])
+          .filter((change) => change.userId === userId && !present.has(change.deviceId))
+          .map((change) => change.deviceId);
+        if (gone.length === 0) return {};
+        const keys = { ...(known ?? {}) };
+        for (const id of gone) delete keys[id];
+        return {
+          a: keys,
+          b: (held ?? []).filter(
+            (change) => change.userId !== userId || !gone.includes(change.deviceId)
+          ),
+        };
+      }
     );
   },
   /** The person has dealt with these devices: the keys are already remembered, and this clears their holds. */

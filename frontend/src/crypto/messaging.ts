@@ -45,6 +45,7 @@ export {
   cancelVerification,
   collectVerification,
   confirmMatch,
+  DeviceGoneError,
   dismissVerification,
   rejectMatch,
   startVerification,

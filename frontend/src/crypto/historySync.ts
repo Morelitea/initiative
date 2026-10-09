@@ -5,6 +5,7 @@
  */
 
 import { removeDevice } from "@/api/generated/direct-messages/direct-messages";
+import { getErrorCode } from "@/lib/errorMessage";
 
 import type { Context } from "./device";
 import { type Envelope, newMessageId, sendTransfer } from "./envelope";
@@ -188,7 +189,11 @@ export async function answerNewDevice(
   { mine, sendHistory }: { mine: boolean; sendHistory: boolean }
 ): Promise<void> {
   if (!mine) {
-    await removeDevice(change.deviceId);
+    // Already gone, from another device or by signing out, is the answer
+    // asked for.
+    await removeDevice(change.deviceId).catch((error: unknown) => {
+      if (getErrorCode(error) !== "DM_DEVICE_NOT_FOUND") throw error;
+    });
   } else {
     await approvedDevices.decide(change.deviceId, change.now.fingerprint, sendHistory);
   }
