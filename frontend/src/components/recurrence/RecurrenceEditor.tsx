@@ -73,6 +73,10 @@ type RecurrenceEditorProps = {
   strategy?: TaskListReadRecurrenceStrategy;
   onStrategyChange?: (value: TaskListReadRecurrenceStrategy) => void;
   disabled?: boolean;
+  /** The form its typed inputs submit with, when the field sits outside that
+   *  form (`<input form>`): Enter in one submits it, and the browser's own
+   *  checks on the value hold it back. */
+  form?: string;
 };
 
 /** A row of toggles, at least one of which stays on. */
@@ -130,6 +134,7 @@ export const RecurrenceEditor = ({
   strategy,
   onStrategyChange,
   disabled = false,
+  form,
 }: RecurrenceEditorProps) => {
   const { t, i18n } = useTranslation(["projects", "dates"]);
   const rule = value === "custom" ? null : value;
@@ -283,6 +288,7 @@ export const RecurrenceEditor = ({
               <Label htmlFor="recurrence-interval">{t("recurrence.repeatEvery")}</Label>
               <Input
                 id="recurrence-interval"
+                form={form}
                 type="number"
                 min={1}
                 max={366}
@@ -469,6 +475,7 @@ export const RecurrenceEditor = ({
             ) : null}
             {rule.ends === "after_occurrences" ? (
               <Input
+                form={form}
                 type="number"
                 min={1}
                 max={maxOccurrences(rule)}

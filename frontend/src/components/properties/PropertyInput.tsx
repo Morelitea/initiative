@@ -48,6 +48,10 @@ export interface PropertyInputProps {
    *  name without a search round-trip (the server returns `{id, display_name}`
    *  on reads). */
   selectedUser?: MemberLike | null;
+  /** The form its typed inputs submit with, when the field sits outside that
+   *  form (`<input form>`): Enter in one submits it, and the browser's own
+   *  checks on the value hold it back. */
+  form?: string;
 }
 
 // ── Type guards / coercion helpers ──────────────────────────────────────────
@@ -121,6 +125,7 @@ export const PropertyInput = ({
   initiativeId,
   canOpen,
   selectedUser,
+  form,
 }: PropertyInputProps) => {
   const { t } = useTranslation(["properties", "common"]);
 
@@ -141,6 +146,7 @@ export const PropertyInput = ({
           }}
           placeholder={t("properties:input.textPlaceholder")}
           disabled={disabled}
+          form={form}
           className={cn("bg-transparent", className)}
         />
       );
@@ -163,6 +169,7 @@ export const PropertyInput = ({
           }}
           placeholder={t("properties:input.numberPlaceholder")}
           disabled={disabled}
+          form={form}
           className={cn("bg-transparent", className)}
         />
       );
@@ -191,6 +198,7 @@ export const PropertyInput = ({
           }}
           placeholder={t("properties:input.urlPlaceholder")}
           disabled={disabled}
+          form={form}
           className={cn("bg-transparent", className)}
         />
       );

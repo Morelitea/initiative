@@ -28,6 +28,8 @@ export interface PropertyFieldsProps {
   /** See `PropertyInput`'s `canOpen`. */
   canOpen?: { tool: Tool; id: number | null | undefined };
   className?: string;
+  /** See `PropertyInput`'s `form`. */
+  form?: string;
 }
 
 /** Build a stub ``PropertySummary`` from a definition the user just picked but
@@ -57,6 +59,7 @@ export const PropertyFields = ({
   initiativeId,
   canOpen,
   className,
+  form,
 }: PropertyFieldsProps) => {
   const { t } = useTranslation(["properties", "common"]);
   const idPrefix = useId();
@@ -102,6 +105,7 @@ export const PropertyFields = ({
                   initiativeId={initiativeId}
                   canOpen={canOpen}
                   selectedUser={userReferenceValue(property)}
+                  form={form}
                 />
               </div>
               <Button
