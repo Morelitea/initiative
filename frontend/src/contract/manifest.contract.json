@@ -20,10 +20,18 @@
   },
   "enums": {
     "feature": [
+      "blocks",
       "dashboards",
       "endpoints",
       "pages",
       "widgets"
+    ],
+    "blockArea": [
+      "task.card.inline",
+      "task.page.header",
+      "task.page.aside",
+      "task.page.main",
+      "task.page.actions"
     ],
     "protocol": [
       1
@@ -103,6 +111,9 @@
     "actorKind": [
       "installation",
       "member"
+    ],
+    "endpointSubject": [
+      "task"
     ],
     "scope": [
       "projects:read",
@@ -201,6 +212,10 @@
     "requiresTerms": 10,
     "widgets": 12,
     "widgetStrings": 64,
+    "blocks": 12,
+    "blockStrings": 64,
+    "blockActions": 8,
+    "blockSubjectIds": 100,
     "endpoints": 64,
     "paramsPerEndpoint": 12,
     "returnsPerEndpoint": 24,
@@ -421,6 +436,23 @@
       ],
       "board": [
         "columns"
+      ]
+    },
+    "blockElements": {
+      "timer": [
+        "since"
+      ],
+      "copy": [
+        "value"
+      ],
+      "button": [
+        "action"
+      ],
+      "menu-item": [
+        "action"
+      ],
+      "open": [
+        "page"
       ]
     },
     "classes": [
@@ -1251,6 +1283,15 @@
           "ref": "identifier",
           "description": "What a caller must already have in hand for this to mean anything. Opaque here \u2014 the vocabulary belongs to whoever consumes it; the automation service names the subjects a run can be about."
         },
+        "subject": {
+          "enum": "endpointSubject",
+          "description": "Read and write only. The rows a plug-in block calls this endpoint about. A read declaring 'task' is called with the task ids of a view (up to {blockSubjectIds}) beside its params, and each row it answers names its task in a 'task_id' return. A write declaring it is a block action, called for one task."
+        },
+        "per_viewer": {
+          "type": "boolean",
+          "default": false,
+          "description": "Read only, with 'subject'. The answer depends on who is looking, such as their own running timer: the call carries the viewer's ref, and an answer is never served to another viewer."
+        },
         "direction": {
           "enum": "direction",
           "description": "'read' and 'write' are called through the deployment and answer in place; 'emit' travels the other way \u2014 the plug-in posts it to a subscriber that registered a URL, so it carries no parameters and nothing to gate."
@@ -1373,6 +1414,78 @@
         "sample_data": {
           "type": "object",
           "description": "What the endpoint would answer with, written in its own returns and read through them exactly as a live answer is, so a preview renders with no network call."
+        },
+        "requires": {
+          "ref": "requires"
+        }
+      }
+    },
+    "block": {
+      "type": "object",
+      "required": [
+        "id",
+        "areas",
+        "name",
+        "template"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "ref": "identifier"
+        },
+        "areas": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": {
+            "wholeOf": "blockArea"
+          },
+          "uniqueItems": true,
+          "items": {
+            "enum": "blockArea"
+          },
+          "description": "The block areas this block fits. Where it may be offered, not where it goes: the community's theme places the area, and the community arranges what is in it."
+        },
+        "name": {
+          "ref": "localizedText",
+          "description": "What the block is called where a community arranges it, and in its accessible label."
+        },
+        "template": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The block's template, in the vocabulary the contract's `templates` block lists plus its `blockElements`. It reads `task` (the task it is drawn for), `answer` (that task's row of the endpoint's answer, or null), `strings`, `now`, `area` ('inline', 'panel' or 'menu') and `width` ('base', 'sm', 'md', 'lg' or 'xl'). A `<button action>` or `<menu-item action>` names one of `actions` by its key (the id after `plugin.<public id>.`), and `<open page>` one of this manifest's pages. Compiled and checked when the plug-in is published, and refused if it does not compile. Capped at {templateBytes} UTF-8 bytes, which this schema cannot express."
+        },
+        "endpoint": {
+          "ref": "namespacedId",
+          "description": "The read this block draws, one this manifest declares with `subject: \"task\"`. Absent for a block drawn from the task alone."
+        },
+        "actions": {
+          "type": "array",
+          "maxItems": "blockActions",
+          "uniqueItems": true,
+          "items": {
+            "ref": "namespacedId"
+          },
+          "description": "The writes its buttons and menu items run, each one this manifest declares with `subject: \"task\"`. The plug-in's handler decides what an action changes, with its own access; it answers with the block's fresh row."
+        },
+        "project_listing": {
+          "type": "string",
+          "minLength": "uidLength",
+          "maxLength": "uidLength",
+          "patternFrom": "uid",
+          "patternForm": "plus",
+          "description": "Only on tasks whose project was installed from this listing, by its catalog uid, such as the built-in Sales pipeline's. Absent: on every task."
+        },
+        "strings": {
+          "type": "object",
+          "maxProperties": "blockStrings",
+          "propertyNames": {
+            "patternFrom": "identifier",
+            "patternForm": "plus"
+          },
+          "additionalProperties": {
+            "ref": "localizedText"
+          },
+          "description": "This block's own words, keyed, each in the languages it supports. The template reads one as `strings.<key>`, in the reader's language. Name the keys in snake_case."
         },
         "requires": {
           "ref": "requires"
@@ -2146,6 +2259,13 @@
         "maxItems": "widgets",
         "items": {
           "ref": "widget"
+        }
+      },
+      "blocks": {
+        "type": "array",
+        "maxItems": "blocks",
+        "items": {
+          "ref": "block"
         }
       },
       "pages": {

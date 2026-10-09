@@ -205,6 +205,20 @@ class PluginSurfaceAccessRead(SanitizedBaseModel):
     openable_initiatives: List[int] = []
 
 
+class PluginBlockAccessRead(SanitizedBaseModel):
+    """Where the viewer is shown one of a plug-in's blocks.
+
+    Computed on the server by the same decision its reads and actions make, so
+    the client draws exactly the blocks that answer.
+    """
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    block_id: str
+    #: The initiatives whose tasks show it to this viewer.
+    openable_initiatives: List[int] = []
+
+
 class CommunityPluginRead(SanitizedBaseModel):
     model_config = ConfigDict(
         from_attributes=True, json_schema_serialization_defaults_required=True
@@ -258,6 +272,9 @@ class CommunityPluginRead(SanitizedBaseModel):
     #: Each page the pinned definition declares, with where the
     #: viewer may open it.
     surface_access: List[PluginSurfaceAccessRead] = []
+    #: Each block the pinned definition declares, with the initiatives whose
+    #: tasks show it to the viewer.
+    block_access: List[PluginBlockAccessRead] = []
     #: The scopes the community's seat granted this install: empty until the
     #: seat grants some, and never wider than what the manifest requests or
     #: the registration allows.

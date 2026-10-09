@@ -2645,6 +2645,17 @@ export interface PluginSurfaceAccessRead {
   openable_initiatives: number[];
 }
 
+/**
+ * Where the viewer is shown one of a plug-in's blocks.
+ *
+ * Computed on the server by the same decision its reads and actions make, so
+ * the client draws exactly the blocks that answer.
+ */
+export interface PluginBlockAccessRead {
+  block_id: string;
+  openable_initiatives: number[];
+}
+
 export type PluginSurfaceSummaryName = { [key: string]: string };
 
 /**
@@ -2720,6 +2731,7 @@ export interface CommunityPluginDetail {
   definition: CommunityPluginDetailDefinition;
   placements: PluginPlacementRead[];
   surface_access: PluginSurfaceAccessRead[];
+  block_access: PluginBlockAccessRead[];
   granted_scopes: string[];
   mandatory: boolean;
   available: boolean;
@@ -2794,6 +2806,7 @@ export interface CommunityPluginRead {
   definition: CommunityPluginReadDefinition;
   placements: PluginPlacementRead[];
   surface_access: PluginSurfaceAccessRead[];
+  block_access: PluginBlockAccessRead[];
   granted_scopes: string[];
   mandatory: boolean;
   available: boolean;
