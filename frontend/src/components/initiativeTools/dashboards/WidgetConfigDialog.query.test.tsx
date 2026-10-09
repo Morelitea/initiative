@@ -10,10 +10,6 @@ import type { WidgetBinding } from "@/hooks/useWidgetData";
 import { stat } from "@/lib/widgets/builtins/stat.widget";
 import type { DefinitionWidget } from "@/lib/widgets/definition";
 
-const renderWidget = vi.hoisted(() => vi.fn());
-const readWidgetMeta = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/widgets/runtime/host", () => ({ renderWidget, readWidgetMeta }));
-
 import { WidgetConfigDialog } from "./WidgetConfigDialog";
 
 const BUILT_SQL = "SELECT count(*) AS count FROM tasks";
@@ -97,10 +93,6 @@ const onSave = vi.fn();
 
 beforeEach(() => {
   onSave.mockReset();
-  renderWidget.mockReset();
-  readWidgetMeta.mockReset();
-  renderWidget.mockResolvedValue({ ok: true, spec: { scene: { kind: "empty" } } });
-  readWidgetMeta.mockResolvedValue({ name: { en: "Total" } });
   serve();
 });
 

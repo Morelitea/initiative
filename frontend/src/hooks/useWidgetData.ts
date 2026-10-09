@@ -344,8 +344,8 @@ export function useWidgetData(
         }
         return {
           // Already read through the endpoint's declared returns on the way
-          // here. Nothing on this side looks inside either half; the sandbox is
-          // handed them as values.
+          // here. Nothing on this side looks inside either half; the widget's
+          // template reads them as values.
           data: { source, rows, values, meta },
           isLoading: pluginQuery.isLoading,
           isUnbound: false,

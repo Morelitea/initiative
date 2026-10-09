@@ -36,7 +36,7 @@ what an endpoint hands back — a key, a type, and whether it holds several — 
 that is the whole of what a widget may bind, so it is also how the answer is
 read here: the returns that hold several become rows, side by side, and the ones
 holding a single value stay whole beside them. Nothing interprets a value; the
-projection is by name alone, on its way to a sandboxed widget that is handed the
+projection is by name alone, on its way to a widget's template, which reads the
 result as data.
 
 **The same call serves one plug-in calling another.** :mod:`plugin_hub` checks such a

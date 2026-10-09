@@ -3,8 +3,8 @@
  *
  * Two things are load-bearing here. The list is *one* list — the old palette
  * split "ready-made" from "widgets" and said the same thing twice — and a widget
- * names itself: every row's label comes from the widget module's own `meta`, run
- * through the sandbox, which is what an installed listing will rely on. The
+ * names itself: every row's label comes from the widget's own `meta`, which is
+ * what an installed listing relies on too. The
  * search reaches those names and the widget's own option labels, so "pie" finds
  * the chart that can draw one even though no row is called "pie chart".
  */
@@ -59,8 +59,7 @@ const open = async (onAdd = vi.fn()) => {
   const user = userEvent.setup();
   renderWithProviders(<WidgetPicker catalog={catalog} widgetCount={0} onAdd={onAdd} />);
   await user.click(screen.getByRole("button", { name: /add widget/i }));
-  // The names arrive from the widget modules, so the list is not readable until
-  // the sandbox has answered.
+  // The names are the widgets' own, so the list reads them, not our locale files.
   await screen.findByRole("button", { name: /^Stat/ });
   return { user, onAdd };
 };

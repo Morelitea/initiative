@@ -1,11 +1,12 @@
 """Listing content is data here, and this is the test that keeps it that way.
 
-A service plug-in ships ``module_source``: the JavaScript its widget renders with.
-This build's only jobs are to measure it, store it, and hand it to the browser,
-where it runs inside the zero-capability sandbox every widget uses. Nothing on
-the server parses, compiles, imports, or evaluates it — and "nothing does" is
-easy to believe and easy to lose, because it would take one convenience helper
-to change.
+A service plug-in's widget is a template: HTML whose directives and bindings
+are CEL expressions. The server compiles it, in a separate engine process
+(``app.services.template_engine``), into a tree of data the browser draws, and
+refuses one that does not compile; nothing in it is ever run. Nothing in this
+package turns stored text into behaviour either — and "nothing does" is easy to
+believe and easy to lose, because it would take one convenience helper to
+change.
 
 So it is asserted structurally: every module in this package is parsed, and any
 call that could turn stored text into behaviour fails this test. A new one has
@@ -22,6 +23,7 @@ from pathlib import Path
 import pytest
 
 from app.services.marketplace.definitions import normalize_listing_definition
+from app.services.marketplace.manifest_values import ListingDefinitionError
 
 pytestmark = pytest.mark.always
 
@@ -153,24 +155,37 @@ class TestNothingExecutesListingContent:
         found = imported & _FORBIDDEN_IMPORTS
         assert not found, f"{path.name} imports {sorted(found)}"
 
-    def test_a_module_that_would_be_dangerous_to_run_is_simply_stored(self):
-        """The proof the guard is about something real: content that would do
-        damage if it were ever executed here goes in and comes out byte for
-        byte, because storing is all that happens to it."""
-        source = "__import__('os').system('echo nope')\n"
-        definition = normalize_listing_definition(
-            "plugin",
-            {
-                "plugin_kind": "service",
-                "service": {"public_id": "tests.widget-co"},
-                "features": ["widgets"],
-                "widgets": [
-                    {
-                        "id": "summary",
-                        "meta": {"name": {"en": "Summary"}},
-                        "module_source": source,
-                    }
-                ],
-            },
-        )
-        assert definition["widgets"][0]["module_source"] == source
+    def test_a_template_is_compiled_into_data_never_run(self):
+        """The proof the guard is about something real: a template that names
+        something that would run is refused, and one that compiles goes in and
+        comes out byte for byte, because checking it is all that happens here."""
+
+        def definition(template: str) -> dict:
+            return normalize_listing_definition(
+                "plugin",
+                {
+                    "plugin_kind": "service",
+                    "service": {"public_id": "tests.widget-co"},
+                    "features": ["endpoints", "widgets"],
+                    "endpoints": [
+                        {
+                            "id": "plugin.tests.widget-co.count",
+                            "direction": "read",
+                            "returns": [{"key": "total", "type": "int"}],
+                        }
+                    ],
+                    "widgets": [
+                        {
+                            "id": "summary",
+                            "meta": {"name": {"en": "Summary"}},
+                            "endpoint": "plugin.tests.widget-co.count",
+                            "template": template,
+                        }
+                    ],
+                },
+            )
+
+        with pytest.raises(ListingDefinitionError, match="<script> is not an element"):
+            definition("<script>__import__('os').system('echo nope')</script>")
+        template = '<metric :value="values.total" label="__import__(\'os\')" />'
+        assert definition(template)["widgets"][0]["template"] == template

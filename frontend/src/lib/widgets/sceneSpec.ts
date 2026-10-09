@@ -1,17 +1,17 @@
 /**
- * The SceneSpec — the vocabulary every widget draws in.
+ * What the widget elements draw — the props of `<chart>`, `<metric>` and the
+ * rest, as a widget template binds them.
  *
- * A widget is a module exposing `render(data, config) -> SceneSpec`, evaluated
- * in a QuickJS sandbox (see `runtime/`). Its output is *data describing a
- * picture*, never markup and never a DOM node: our React components map each
- * node onto trusted primitives and escape every string on the way out. That is
- * what makes running an untrusted widget safe — there is no `innerHTML` in the
- * path, no way to name a URL, and no event handler can arrive from a widget.
+ * Each element's props are *data describing a picture*, never markup and never
+ * a DOM node: our React components map them onto trusted primitives and escape
+ * every string on the way out. A bound value is data the compiler never saw, so
+ * each element checks its props against these rules before it draws
+ * (`validateScene`). There is no `innerHTML` in the path, no way to name a URL,
+ * and no event handler can arrive from a widget.
  *
- * The built-in widgets are written against this same vocabulary and get no
- * privileged path, so it has to be expressive enough for all seven of them
- * before any of them ships. If a built-in needs something the vocabulary can't
- * say, the vocabulary grows and every widget gains it in the same release.
+ * The built-in widgets draw with the same elements a plug-in's template uses
+ * and get no privileged path. If a built-in needs something an element can't
+ * say, the element grows and every widget gains it in the same release.
  *
  * Three rules keep it safe to render:
  *
@@ -20,10 +20,8 @@
  *    or imitate app chrome.
  * 2. **Text is text.** Strings are length-capped and rendered as children, so
  *    they cannot become elements.
- * 3. **Everything is bounded.** Node count, nesting depth, series points, and
- *    table cells all have caps (below). The sandbox limits what a widget may
- *    *compute*; these limit what it may *emit*, which is the part that crosses
- *    into the render tree.
+ * 3. **Everything is bounded.** Series points, table cells, lanes and cards all
+ *    have caps (below): what crosses into the render tree.
  */
 
 /** Widget API version. Bumped when the contract changes shape, independently of
@@ -113,7 +111,7 @@ export const SERIES_TONES: readonly Tone[] = [
 ];
 
 /** How the renderer formats a bare number. Locale resolution is ours, not the
- *  widget's — the sandbox has no locale and no timezone. */
+ *  widget's. */
 export const NUMBER_FORMATS = [
   "plain",
   "compact",
@@ -186,7 +184,7 @@ export interface SeriesNode {
   xLabel?: string;
   yLabel?: string;
   /** The x values are epoch milliseconds, one per this unit — a day, a week,
-   *  a month… The renderer formats them, because the sandbox has no locale. */
+   *  a month… The renderer formats them in the reader's locale. */
   xTime?: SeriesTimeUnit;
   showLegend?: boolean;
   /** Direct labels on the marks. Omitted means none. */
@@ -225,7 +223,7 @@ export interface TimelineBaseline {
 }
 
 /** A time span on a lane — the Gantt bar. Times are epoch milliseconds; the
- *  renderer owns formatting them, because the sandbox has no timezone. */
+ *  renderer owns formatting them, in the reader's timezone. */
 export interface TimelineSpan {
   label?: string;
   start: number;
@@ -270,8 +268,8 @@ export interface TimelineNode {
   /** The instant to mark with the "today" line, as the widget saw it.
    *
    *  Carried on the scene rather than read from the renderer's own clock so a
-   *  preview over frozen sample rows keeps a frozen marker: the host hands the
-   *  sandbox the minute it should treat as now, and this is that same minute
+   *  preview over frozen sample rows keeps a frozen marker: the tile hands the
+   *  widget the minute it should treat as now, and this is that same minute
    *  arriving back. Omitted means "draw no marker". */
   now?: number;
 }

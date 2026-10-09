@@ -3,8 +3,8 @@
 Three reads, all guild-scoped, all under the caller's own session.
 
 ``/plugins/widget-catalog`` is the palette: which installed plug-ins contribute
-widgets, what each widget draws, and the module the browser will run in its
-sandbox. It comes from each install's **pinned** definition, so a canvas is
+widgets, which endpoint each draws, and the template the browser draws it
+with. It comes from each install's **pinned** definition, so a canvas is
 authored against the version the guild chose.
 
 ``/plugins/{plugin_id}/endpoints/{endpoint_id}`` is the proxy. A widget never names
@@ -75,24 +75,17 @@ from app.services.marketplace.service_plugins import plugin_widget_type, is_admi
 from app.services.tenant import plugin_age
 
 
-def _projected_sample(raw: Any, endpoints: dict[str, dict[str, Any]]) -> dict[str, Any]:
+def _projected_sample(raw: Any, endpoint: dict[str, Any] | None) -> dict[str, Any]:
     """A widget's own sample, read the way its live answer will be.
 
     A publisher supplies what the endpoint would answer with, and this projects
     it through that endpoint's returns exactly as the proxy does — so the tile
-    somebody chooses a widget by is the tile they get once it is bound. A sample
-    for an endpoint the definition does not read is dropped.
+    somebody chooses a widget by is the tile they get once it is bound.
     """
-    if not isinstance(raw, dict):
+    if endpoint is None or not isinstance(raw, dict) or not raw:
         return {}
-    projected: dict[str, Any] = {}
-    for endpoint_id, result in raw.items():
-        endpoint = endpoints.get(endpoint_id)
-        if endpoint is None or not isinstance(result, dict):
-            continue
-        rows, values = plugin_data_service.project_returns(result, endpoint)
-        projected[endpoint_id] = {"rows": rows, "values": values}
-    return projected
+    rows, values = plugin_data_service.project_returns(raw, endpoint)
+    return {"rows": rows, "values": values}
 
 
 router = APIRouter()
@@ -145,7 +138,7 @@ async def read_plugin_widget_catalog(
     """Which widgets this guild's installed plug-ins contribute.
 
     Every member may read it: a plug-in's existence is guild-wide knowledge and the
-    palette carries no guild data — declarations, module source, and sample
+    palette carries no guild data — declarations, templates, and sample
     rows, all from the pinned definition. An endpoint declared for guild admins
     is still listed, and still refused at fetch time to anyone else.
 
@@ -204,10 +197,12 @@ async def read_plugin_widget_catalog(
                         type=plugin_widget_type(plugin.listing_uid, widget["id"]),
                         id=widget["id"],
                         meta=widget.get("meta") or {},
-                        module_source=widget.get("module_source") or "",
-                        endpoints=widget.get("endpoints") or [],
+                        endpoint=widget.get("endpoint") or "",
+                        template=widget.get("template") or "",
+                        strings=widget.get("strings") or {},
                         sample_data=_projected_sample(
-                            widget.get("sample_data"), readable
+                            widget.get("sample_data"),
+                            readable.get(widget.get("endpoint") or ""),
                         ),
                     )
                     for widget in widgets
@@ -321,7 +316,7 @@ def _transformed(
     """What this widget's statement made of the rows, or nothing.
 
     A binding with no statement draws the plug-in's own rows, as it always has —
-    the plug-in's widget module reads them by the names its manifest declared. A
+    the plug-in's widget template reads them by the names its manifest declared. A
     binding with one gets a table beside them: described, and positional, so a
     built-in widget can be pointed at a plug-in.
     """

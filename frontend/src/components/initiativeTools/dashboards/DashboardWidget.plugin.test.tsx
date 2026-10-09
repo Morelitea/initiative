@@ -1,19 +1,19 @@
 /**
- * A plug-in's widget on a dashboard: where its module comes from, and what happens
- * when the plug-in behind it does not answer.
+ * A plug-in's widget on a dashboard: where its template comes from, and what
+ * happens when the plug-in behind it does not answer.
  *
  * Three things are pinned here.
  *
  * **A preview issues zero requests.** A marketplace listing that is not
- * installed must render from what the manifest shipped — its own module over its
- * own sample rows — and reach nothing at all. The assertion is on the transport:
+ * installed must render from what the manifest shipped — its own template over
+ * its own sample — and reach nothing at all. The assertion is on the transport:
  * not "it used samples", but "no request was made".
  *
- * **The module comes from the pinned definition.** A plug-in widget's code is not in
- * this build's registry; it arrives with the install and is handed to the same
- * sandbox a built-in runs in. `WidgetTile.source` is that seam, and this checks
- * it is actually threaded rather than falling back to the registry (which would
- * silently render "this widget needs a newer version").
+ * **The template comes from the pinned definition.** A plug-in widget is not in
+ * this build's registry; its template arrives with the install and is drawn with
+ * the same elements a built-in uses. `WidgetTile.plugin` is that seam, and this
+ * checks it is actually threaded rather than falling back to the registry (which
+ * would silently render "this widget needs a newer version").
  *
  * **An unreachable plug-in costs one tile.** Not a crash, not a blank, not a
  * misleading "no data" — a localized error tile, with the rest of the canvas
@@ -33,15 +33,11 @@ vi.mock("@/api/client", () => ({
   API_BASE_URL: "http://test/api/v1",
 }));
 
-const renderWidget = vi.hoisted(() => vi.fn());
-const readWidgetMeta = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/widgets/runtime/host", () => ({ renderWidget, readWidgetMeta }));
-
 import { DashboardWidget } from "./DashboardWidget";
 
 const PLUGIN_UID = "SHOPAPP0000001";
 const WIDGET_TYPE = `plugin:${PLUGIN_UID}:summary`;
-const MODULE = "export const render = () => ({ scene: { kind: 'empty' } });";
+const TEMPLATE = '<metric :value="values.total" :label="strings.total" />';
 
 const binding: WidgetBinding = {
   source: "plugin",
@@ -67,14 +63,10 @@ const CATALOG = {
           type: WIDGET_TYPE,
           id: "summary",
           meta: { name: { en: "Summary" } },
-          module_source: MODULE,
-          endpoints: ["plugin.acme.shop.orders-summary"],
-          sample_data: {
-            "plugin.acme.shop.orders-summary": {
-              rows: [{ days: "mon", totals: 4 }],
-              values: { total: 4 },
-            },
-          },
+          endpoint: "plugin.acme.shop.orders-summary",
+          template: TEMPLATE,
+          strings: { total: { en: "Orders this week" } },
+          sample_data: { rows: [{ days: "mon", totals: 4 }], values: { total: 4 } },
         },
       ],
       endpoints: [
@@ -82,6 +74,11 @@ const CATALOG = {
           id: "plugin.acme.shop.orders-summary",
           cache_ttl_seconds: 60,
           params: [],
+          returns: [
+            { key: "days", type: "string", list: true },
+            { key: "totals", type: "int", list: true },
+            { key: "total", type: "int" },
+          ],
         },
       ],
     },
@@ -93,10 +90,6 @@ const dataUrl = (url: string) => url.includes("/endpoints/");
 
 beforeEach(() => {
   apiGet.mockReset();
-  renderWidget.mockReset();
-  readWidgetMeta.mockReset();
-  renderWidget.mockResolvedValue({ ok: true, spec: { scene: { kind: "empty" } } });
-  readWidgetMeta.mockResolvedValue({ name: { en: "Summary" } });
 });
 
 const mount = (props: { sampleData?: boolean; dashboardId?: number } = {}) =>
@@ -113,7 +106,7 @@ const mount = (props: { sampleData?: boolean; dashboardId?: number } = {}) =>
   );
 
 describe("DashboardWidget with a plug-in source", () => {
-  it("runs the module the install pinned, over the rows the proxy returned", async () => {
+  it("draws the template the install pinned, over the answer the proxy returned", async () => {
     apiGet.mockImplementation((url: string) => {
       if (catalogUrl(url)) return Promise.resolve({ data: CATALOG });
       if (dataUrl(url)) {
@@ -131,18 +124,10 @@ describe("DashboardWidget with a plug-in source", () => {
 
     mount({ dashboardId: 11 });
 
-    await waitFor(() => expect(renderWidget).toHaveBeenCalled());
-    const call = renderWidget.mock.calls.at(-1)?.[0];
-    // The seam: the module comes from the pinned definition, not the registry.
-    expect(call.source).toBe(MODULE);
-    // Both halves verbatim, plus the host's own count of the rows — nothing on
-    // this side reads inside either.
-    expect(call.data).toEqual({
-      source: "plugin",
-      rows: [{ days: "mon", totals: 9 }],
-      values: { total: 9 },
-      meta: { total: 1 },
-    });
+    // The seam: the template comes from the pinned definition, not the
+    // registry, and reads the live answer and the widget's own words.
+    expect(await screen.findByText("Orders this week")).toBeInTheDocument();
+    expect(screen.getByText("9")).toBeInTheDocument();
   });
 
   it("asks the proxy for the dashboard the widget sits on", async () => {
@@ -172,9 +157,9 @@ describe("DashboardWidget with a plug-in source", () => {
     mount({ dashboardId: 11 });
 
     expect(await screen.findByText(/not responding/i)).toBeInTheDocument();
-    // The module is never run: it has nothing to draw, and running it over an
-    // empty array would claim "no data" rather than "the plug-in is down".
-    expect(renderWidget).not.toHaveBeenCalled();
+    // The template is never drawn: it has nothing to read, and drawing it over
+    // nothing would claim "no data" rather than "the plug-in is down".
+    expect(screen.queryByText("Orders this week")).toBeNull();
   });
 
   it("previews from the manifest's own samples and issues zero requests", async () => {
@@ -186,14 +171,8 @@ describe("DashboardWidget with a plug-in source", () => {
 
     mount({ sampleData: true });
 
-    await waitFor(() => expect(renderWidget).toHaveBeenCalled());
-    const call = renderWidget.mock.calls.at(-1)?.[0];
-    expect(call.source).toBe(MODULE);
-    expect(call.data).toEqual({
-      source: "plugin",
-      rows: [{ days: "mon", totals: 4 }],
-      values: { total: 4 },
-    });
+    expect(await screen.findByText("Orders this week")).toBeInTheDocument();
+    expect(screen.getByText("4")).toBeInTheDocument();
     // The catalog is a declaration; the data plane is never touched.
     expect(apiGet.mock.calls.every(([url]) => catalogUrl(url))).toBe(true);
   });
@@ -214,9 +193,24 @@ describe("DashboardWidget with a plug-in source", () => {
     mount({ dashboardId: 11 });
 
     expect(await screen.findByText(/no longer installed/i)).toBeInTheDocument();
-    expect(renderWidget).not.toHaveBeenCalled();
     // Only the catalog was read; the data plane was never asked.
     expect(apiGet.mock.calls.every(([url]) => catalogUrl(url))).toBe(true);
+  });
+
+  it("says its template cannot be drawn when this build will not compile it", async () => {
+    // Checked when the plug-in was published, so this is a build whose template
+    // language moved on. One tile says so, with the compiler's own reason.
+    const stale = structuredClone(CATALOG);
+    stale.items[0].widgets[0].template = '<metric :value="values.gone" />';
+    apiGet.mockImplementation((url: string) => {
+      if (catalogUrl(url)) return Promise.resolve({ data: stale });
+      return Promise.resolve({ data: { rows: [], values: {}, fetched_at: "", cached: false } });
+    });
+
+    mount({ dashboardId: 11 });
+
+    expect(await screen.findByText(/template could not be drawn/i)).toBeInTheDocument();
+    expect(screen.getByText(/There is no field gone here/)).toBeInTheDocument();
   });
 
   it("says the plug-in is unavailable when its catalog will not load", async () => {

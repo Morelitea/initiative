@@ -35,7 +35,7 @@ describe("built-in widget registry", () => {
   });
 });
 
-describe("built-ins run in the sandbox like any other widget", () => {
+describe("each built-in's code draws what its elements accept", () => {
   /** The shape each widget declares, mirrored from the backend's WIDGET_SPECS.
    *  The served catalog is the authority; this copy is what lets the widget
    *  tests run without a backend, and `dashboards_test.py` is what would catch

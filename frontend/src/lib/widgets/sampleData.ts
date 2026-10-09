@@ -2,8 +2,8 @@
  * Sample rows, in the one shape `dataShapes.ts` documents.
  *
  * Ships with the app rather than living beside the tests, because the widget
- * picker previews every widget by *running* it — the same sandbox, validator
- * and renderer a live tile uses, over these rows. So someone choosing a widget
+ * picker previews every widget by *drawing* it — the same code, template and
+ * elements a live tile uses, over these rows. So someone choosing a widget
  * sees the real thing before adding it, and the widget tests exercise the same
  * contract the previews do.
  *
@@ -11,8 +11,8 @@
  * preview needs is a set of columns its slots can be filled from — and two
  * widgets that draw the same shape can honestly share one.
  *
- * Frozen values throughout: the sandbox has a frozen clock, so the samples get
- * a frozen calendar and a preview renders identically every time.
+ * Frozen values throughout: a preview draws at a frozen minute, so the samples
+ * get a frozen calendar and a preview renders identically every time.
  */
 
 import type { TabularData } from "./dataShapes";

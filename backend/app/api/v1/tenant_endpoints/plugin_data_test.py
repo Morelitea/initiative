@@ -86,9 +86,10 @@ LIST_SHOPS = f"plugin.{PUBLIC_ID}.list-shops"
 LIST_AISLES = f"plugin.{PUBLIC_ID}.list-aisles"
 BASE_URL = "http://127.0.0.1:9100"
 
-#: A widget module with the characters a plain-text sanitizer would mangle.
-MODULE_SOURCE = (
-    "export const render = (d) => (d.rows.length < 5 && d.rows[0] ? {} : {});"
+#: A widget template with the characters a plain-text sanitizer would mangle.
+TEMPLATE = (
+    '<p if="size(rows) < 5 && values.total > 0">'
+    "{{ strings.lead }} {{ values.total }}</p>"
 )
 
 
@@ -219,17 +220,16 @@ def _definition() -> dict:
             {
                 "id": "summary",
                 "meta": {"name": {"en": "Summary"}},
-                # Carries ``<`` and ``&`` deliberately: a widget module is
-                # JavaScript, and a plain-text sanitizer on the way out would
-                # rewrite these into something that no longer parses.
-                "module_source": MODULE_SOURCE,
-                "endpoints": [ORDERS_SUMMARY],
+                "endpoint": ORDERS_SUMMARY,
+                # Carries ``<`` and ``&`` deliberately: a template is markup
+                # with expressions in it, and a plain-text sanitizer on the way
+                # out would rewrite these into something that no longer compiles.
+                "template": TEMPLATE,
+                "strings": {"lead": {"en": "Orders"}},
                 # What the endpoint would answer with, in its own declared
                 # returns — the catalog reads it the way the proxy reads a live
                 # answer.
-                "sample_data": {
-                    ORDERS_SUMMARY: {"days": ["mon"], "totals": [4], "total": 4}
-                },
+                "sample_data": {"days": ["mon"], "totals": [4], "total": 4},
             }
         ],
     }
@@ -908,7 +908,7 @@ class TestFailureIsOneTile:
 
 
 class TestWidgetCatalog:
-    async def test_it_serves_the_pinned_module_and_samples(
+    async def test_it_serves_the_pinned_template_strings_and_sample(
         self, client, acting_user, session
     ):
         a, plugin, _ = await _workspace(session, acting_user)
@@ -922,16 +922,16 @@ class TestWidgetCatalog:
 
         widget = entry["widgets"][0]
         assert widget["type"] == f"plugin:{PLUGIN_UID}:summary"
-        # Byte-for-byte: the module is JavaScript, and anything that rewrote a
-        # ``<`` or an ``&`` on the way out would ship a module that cannot parse.
-        assert widget["module_source"] == MODULE_SOURCE
+        assert widget["endpoint"] == ORDERS_SUMMARY
+        # Byte-for-byte: anything that rewrote a ``<`` or an ``&`` on the way
+        # out would ship a template that no longer compiles.
+        assert widget["template"] == TEMPLATE
+        assert widget["strings"] == {"lead": {"en": "Orders"}}
         # Projected through the endpoint's returns, so what a preview draws is
         # what a bound tile draws.
         assert widget["sample_data"] == {
-            ORDERS_SUMMARY: {
-                "rows": [{"days": "mon", "totals": 4}],
-                "values": {"total": 4},
-            }
+            "rows": [{"days": "mon", "totals": 4}],
+            "values": {"total": 4},
         }
 
         sources = {source["id"]: source for source in entry["endpoints"]}

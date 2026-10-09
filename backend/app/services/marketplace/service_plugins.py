@@ -14,11 +14,11 @@ keep and later hand to a guild:
   offers is a *path*; the base URL comes from a deployment-level registration.
   The hosts a declarative plug-in names are its vendor's, which every request it
   renders is held to.
-* **No code in it runs here.** ``module_source`` is a widget's browser-side
-  module: it is measured and stored as an opaque string, and this build has no
-  path that parses, compiles, imports, or evaluates it. The browser's sandbox is
-  the only thing that ever executes it. A declarative plug-in's expressions are
-  standard JSONata, evaluated with bounds in worker processes
+* **No code in it runs anywhere.** A widget is a template: HTML whose
+  directives and bindings are CEL expressions, compiled here by the same
+  compiler the browser draws it with (:mod:`app.services.template_engine`), so
+  one that does not compile refuses the plug-in. A declarative plug-in's
+  expressions are standard JSONata, evaluated with bounds in worker processes
   (:mod:`app.services.marketplace.expressions`).
 * **Blocks this build assigns no meaning to stay opaque.** The ``automation``
   body belongs to the automation service; it is checked for shape and size and
@@ -37,6 +37,7 @@ from __future__ import annotations
 from typing import Any, Optional
 
 from app.core.plugin_scopes import ALL_SCOPES, plugin_scope_target
+from app.services import template_engine
 from app.services.marketplace import contract, expressions, plugin_api
 from app.services.marketplace.manifest_values import (
     MAX_HINT_LENGTH,
@@ -303,7 +304,8 @@ SCHEDULE_MAX_MINUTES = contract.cap("scheduleMaxMinutes")
 MAX_SCHEDULE_EVERY_LENGTH = contract.cap("scheduleEveryLength")
 MAX_REQUIRES_TERMS = contract.cap("requiresTerms")
 MAX_WIDGETS = contract.cap("widgets")
-MAX_WIDGET_ENDPOINTS = contract.cap("widgetEndpoints")
+#: Keys in one widget's own words.
+MAX_WIDGET_STRINGS = contract.cap("widgetStrings")
 #: Reads, writes and emissions share one list, so this bounds all three
 #: together rather than each separately.
 MAX_ENDPOINTS = contract.cap("endpoints")
@@ -360,8 +362,8 @@ MAX_STATUS = contract.cap("statusCode")
 MAX_EXPRESSION_LENGTH = contract.cap("expressionLength")
 MAX_GRAPHQL_LENGTH = contract.cap("graphqlLength")
 
-#: A widget's browser-side module. Never parsed here — only measured.
-MAX_MODULE_SOURCE_BYTES = contract.cap("moduleSourceBytes")
+#: A widget's template, compiled here when the plug-in is published.
+MAX_TEMPLATE_BYTES = contract.cap("templateBytes")
 #: Rows powering a preview with no network call.
 MAX_SAMPLE_DATA_BYTES = contract.cap("sampleDataBytes")
 #: The canonical definition, after normalization. Checked last, so a publisher
@@ -2043,8 +2045,16 @@ def _cache_ttl(raw: Any, *, what: str) -> int:
 
 
 def _widget(
-    raw: Any, *, readable_ids: set[str], connection_ids: set[str]
+    raw: Any,
+    *,
+    readable: dict[str, list[dict[str, Any]]],
+    connection_ids: set[str],
 ) -> dict[str, Any]:
+    """One widget: a read endpoint, and the template that draws its answer.
+
+    ``readable`` maps each read endpoint this plug-in declares to its returns,
+    which the template's fields are checked against when it is compiled.
+    """
     widget = require_mapping(raw, "widget")
     widget_id = check_identifier(widget.get("id"), what="widget id")
     what = f"widget {widget_id!r}"
@@ -2053,37 +2063,40 @@ def _widget(
     if meta is None:
         fail(f"{what}: meta must name the widget in at least one language")
 
-    module_source = widget.get("module_source")
-    if not isinstance(module_source, str) or not module_source.strip():
-        fail(f"{what}: module_source is required")
-    # Measured, never read: the module is a string to this build, and the
-    # browser's sandbox is the only thing that evaluates it.
-    encoded = utf8_bytes(module_source, what=f"{what} module_source")
-    if len(encoded) > MAX_MODULE_SOURCE_BYTES:
-        fail(f"{what}: module_source is larger than {MAX_MODULE_SOURCE_BYTES} bytes")
+    endpoint = widget.get("endpoint")
+    if not isinstance(endpoint, str) or endpoint not in readable:
+        # Named rather than described: a write and an emission are both real
+        # endpoints, and neither fills a tile, so "unknown" would be the wrong
+        # word for the mistake somebody is most likely making.
+        fail(f"{what}: binds {endpoint!r}, which is not a declared read endpoint")
 
-    bound = require_list(
-        widget.get("endpoints"), f"{what} endpoints", MAX_WIDGET_ENDPOINTS
-    )
-    endpoints: list[str] = []
-    for entry in bound:
-        if not isinstance(entry, str) or entry not in readable_ids:
-            # Named rather than described: a write and an emission are both real
-            # endpoints, and neither fills a tile, so "unknown" would be the
-            # wrong word for the mistake somebody is most likely making.
-            fail(f"{what}: binds {entry!r}, which is not a declared read endpoint")
-        if entry not in endpoints:
-            endpoints.append(entry)
+    strings = _widget_strings(widget.get("strings"), what=what)
+
+    template = widget.get("template")
+    if not isinstance(template, str) or not template.strip():
+        fail(f"{what}: template is required")
+    encoded = utf8_bytes(template, what=f"{what} template")
+    if len(encoded) > MAX_TEMPLATE_BYTES:
+        fail(f"{what}: template is larger than {MAX_TEMPLATE_BYTES} bytes")
+    try:
+        problems = template_engine.check_widget(
+            template, readable[endpoint], list(strings)
+        )
+    except template_engine.TemplateEngineError as exc:
+        fail(f"{what}: its template could not be checked: {exc}")
+    if problems:
+        fail(f"{what}: template: {'; '.join(problems[:5])}")
 
     cleaned: dict[str, Any] = {
         "id": widget_id,
         "meta": meta,
-        "module_source": module_source,
+        "endpoint": endpoint,
+        "template": template,
     }
-    if endpoints:
-        cleaned["endpoints"] = endpoints
+    if strings:
+        cleaned["strings"] = strings
 
-    sample = _sample_data(widget.get("sample_data"), sources=endpoints, what=what)
+    sample = _sample_data(widget.get("sample_data"), what=what)
     if sample:
         cleaned["sample_data"] = sample
     requires = _requires(
@@ -2094,9 +2107,27 @@ def _widget(
     return cleaned
 
 
-def _bundled_dashboard(
-    raw: Any, *, widget_ids: set[str], readable_ids: set[str]
-) -> dict[str, Any]:
+def _widget_strings(raw: Any, *, what: str) -> dict[str, dict[str, str]]:
+    """A widget's own words: each key's text in the languages it supports.
+
+    Held to the rules its meta's text is (``localized_text``): trimmed and
+    truncated rather than refused, and a key with no usable text is dropped.
+    """
+    if raw is None:
+        return {}
+    supplied = require_mapping(raw, f"{what} strings")
+    if len(supplied) > MAX_WIDGET_STRINGS:
+        fail(f"{what}: strings may hold at most {MAX_WIDGET_STRINGS} keys")
+    strings: dict[str, dict[str, str]] = {}
+    for key, value in supplied.items():
+        name = check_identifier(key, what=f"{what} strings key")
+        text = localized_text(value, MAX_TEXT_LENGTH)
+        if text:
+            strings[name] = text
+    return strings
+
+
+def _bundled_dashboard(raw: Any, *, widget_endpoints: dict[str, str]) -> dict[str, Any]:
     """One dashboard a plug-in ships with itself.
 
     A publisher who declares widgets otherwise leaves every guild to arrange
@@ -2139,9 +2170,7 @@ def _bundled_dashboard(
     )
 
     widgets = [
-        _bundled_dashboard_widget(
-            widget, widget_ids=widget_ids, readable_ids=readable_ids, what=what
-        )
+        _bundled_dashboard_widget(widget, widget_endpoints=widget_endpoints, what=what)
         for widget in require_list(
             entry.get("widgets"), f"{what} widgets", MAX_DASHBOARD_WIDGETS
         )
@@ -2178,18 +2207,25 @@ def _bundled_dashboard(
 
 
 def _bundled_dashboard_widget(
-    raw: Any, *, widget_ids: set[str], readable_ids: set[str], what: str
+    raw: Any, *, widget_endpoints: dict[str, str], what: str
 ) -> dict[str, Any]:
-    """One tile, naming one of this plug-in's widgets and one of its sources."""
+    """One tile, naming one of this plug-in's widgets and the endpoint it draws.
+
+    ``widget_endpoints`` maps each widget to its endpoint. A tile binds that one,
+    because the widget's template was checked against that endpoint's returns.
+    """
     widget = require_mapping(raw, f"{what} widget")
     widget_type = check_identifier(widget.get("type"), what=f"{what} widget type")
-    if widget_type not in widget_ids:
+    if widget_type not in widget_endpoints:
         fail(f"{what}: names unknown widget {widget_type!r}")
 
     binding = require_mapping(widget.get("binding"), f"{what} widget binding")
     endpoint_id = binding.get("endpoint_id")
-    if not isinstance(endpoint_id, str) or endpoint_id not in readable_ids:
-        fail(f"{what}: binds {endpoint_id!r}, which is not a declared read endpoint")
+    if endpoint_id != widget_endpoints[widget_type]:
+        fail(
+            f"{what}: binds {endpoint_id!r}, but widget {widget_type!r} draws "
+            f"{widget_endpoints[widget_type]!r}"
+        )
 
     bound: dict[str, Any] = {"endpoint_id": endpoint_id}
     params = binding.get("params")
@@ -2286,29 +2322,20 @@ def _grid_int(raw: Any, *, low: int, high: Optional[int], what: str) -> Optional
     return raw
 
 
-def _sample_data(raw: Any, *, sources: list[str], what: str) -> dict[str, Any]:
-    """What each source would answer with, so a preview renders with no call.
+def _sample_data(raw: Any, *, what: str) -> dict[str, Any]:
+    """What the widget's endpoint would answer with, so a preview renders with no call.
 
-    Keyed by the sources the widget declared; anything else is dropped, so a
-    sample cannot describe data the widget could never be handed.
-
-    Each one is an endpoint's *result* — the same keys that endpoint declares it
-    returns — because a preview is read through those returns exactly as a live
-    answer is. Checked here rather than left opaque: a sample in any other shape
-    projects to nothing, and an empty preview at a listing is a long way from
-    the manifest that caused it.
+    The endpoint's *result* — the same keys it declares it returns — because a
+    preview is read through those returns exactly as a live answer is. Checked
+    here rather than left opaque: a sample in any other shape projects to
+    nothing, and an empty preview at a listing is a long way from the manifest
+    that caused it.
     """
     if raw is None:
         return {}
-    supplied = require_mapping(raw, f"{what} sample_data")
-    allowed = set(sources)
-    sample = {
-        key: require_mapping(value, f"{what} sample_data for {key!r}")
-        for key, value in supplied.items()
-        if key in allowed
-    }
+    sample = require_mapping(raw, f"{what} sample_data")
     check_json_size(sample, what=f"{what} sample_data", limit=MAX_SAMPLE_DATA_BYTES)
-    return sample
+    return dict(sample)
 
 
 def _scopes(raw: Any, *, what: str) -> list[str]:
@@ -2664,8 +2691,13 @@ def normalize_service_plugin_definition(
     # nothing — which is indistinguishable from a vendor being slow.
     _check_option_sources(endpoints, readable_ids=readable_ids)
 
+    readable = {
+        endpoint["id"]: endpoint.get("returns", [])
+        for endpoint in endpoints
+        if endpoint["id"] in readable_ids
+    }
     widgets = [
-        _widget(entry, readable_ids=readable_ids, connection_ids=connection_ids)
+        _widget(entry, readable=readable, connection_ids=connection_ids)
         for entry in require_list(
             body.get("widgets"), "service plug-in: widgets", MAX_WIDGETS
         )
@@ -2719,7 +2751,10 @@ def normalize_service_plugin_definition(
     # against them — the whole point of bundling rather than publishing
     # separately is that this cross-check is possible at all.
     dashboards = [
-        _bundled_dashboard(entry, widget_ids=widget_ids, readable_ids=readable_ids)
+        _bundled_dashboard(
+            entry,
+            widget_endpoints={widget["id"]: widget["endpoint"] for widget in widgets},
+        )
         for entry in require_list(
             body.get("dashboards"),
             "service plug-in: dashboards",

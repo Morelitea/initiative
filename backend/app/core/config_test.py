@@ -397,16 +397,16 @@ def test_webassembly_is_named_only_on_the_wasm_worker_policy():
     assert "'wasm-unsafe-eval'" not in _csp(settings)
     assert "'wasm-unsafe-eval'" not in settings.docs_content_security_policy
 
-    sandbox = settings.wasm_worker_content_security_policy
-    assert _directive(sandbox, "script-src") == "script-src 'self' 'wasm-unsafe-eval'"
+    worker = settings.wasm_worker_content_security_policy
+    assert _directive(worker, "script-src") == "script-src 'self' 'wasm-unsafe-eval'"
 
 
 def test_wasm_worker_policy_grants_only_what_the_workers_use():
     # Their own script, WebAssembly, and the same-origin fetch for the .wasm
     # file. Everything else — DOM-adjacent fetches, frames, workers — falls to
     # default-src 'none'.
-    sandbox = _settings().wasm_worker_content_security_policy
-    assert {part.strip() for part in sandbox.split(";")} == {
+    worker = _settings().wasm_worker_content_security_policy
+    assert {part.strip() for part in worker.split(";")} == {
         "default-src 'none'",
         "script-src 'self' 'wasm-unsafe-eval'",
         "connect-src 'self'",

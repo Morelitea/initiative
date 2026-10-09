@@ -34,15 +34,11 @@
     "SCENE_VALUE_NOT_FINITE": "Dieses Widget hat eine ungültige Zahl zurückgegeben.",
     "WIDGET_PLUGIN_NOT_INSTALLED": "Das Plug-in, mit dem dieses Widget verbunden war, ist nicht mehr installiert. Verbinden Sie das Plug-in erneut, um das Widget wiederherzustellen.",
     "WIDGET_PLUGIN_UNAVAILABLE": "Das Plug-in hinter diesem Widget antwortet nicht.",
-    "WIDGET_BAD_OUTPUT": "Dieses Widget hat etwas zurückgegeben, das nicht gezeichnet werden kann.",
-    "WIDGET_NO_RENDER_EXPORT": "Dieses Widget hat keine Renderfunktion.",
-    "WIDGET_OUT_OF_MEMORY": "Dieses Widget hat zu viel Speicher belegt und wurde gestoppt.",
-    "WIDGET_RUNTIME_UNAVAILABLE": "Die Widget-Laufzeitumgebung konnte nicht gestartet werden.",
     "WIDGET_THREW": "Beim Zeichnen dieses Widgets ist ein Fehler aufgetreten.",
-    "WIDGET_TIMEOUT": "Dieses Widget hat zu lange gebraucht und wurde gestoppt.",
     "WIDGET_TYPE_UNSUPPORTED": "Dieses Widget benötigt eine neuere Version der App.",
     "default": "Dieses Widget konnte nicht angezeigt werden.",
-    "WIDGET_DATA_UNAVAILABLE": "Die Daten dieses Widgets konnten nicht geladen werden. Versuche es erneut."
+    "WIDGET_DATA_UNAVAILABLE": "Die Daten dieses Widgets konnten nicht geladen werden. Versuche es erneut.",
+    "WIDGET_TEMPLATE_INVALID": "Die Vorlage dieses Widgets konnte nicht dargestellt werden."
   },
   "bindingSource": {
     "query": "SQL-Abfrage",
@@ -53,17 +49,7 @@
     "title": "Widget-Galerie",
     "description": "Jedes integrierte Widget, in der Sandbox mit Beispieldaten ausgeführt. {{combinations}} Kombinationen aus {{widgets}} Widgets und {{sources}} Datenquellen.",
     "markLabel": "Diagrammtyp",
-    "markDefault": "Standard",
-    "failureModes": "Fehlerfälle",
-    "failureModesDescription": "Jede Kachel unten führt ein absichtlich fehlerhaftes Widget aus. Alle sollten eine Fehlerkachel zeigen – und die Seite darum herum sollte durchgehend reagieren.",
-    "failure": {
-      "infiniteLoop": "Endlosschleife",
-      "runawayAllocation": "Unbegrenzte Speicherbelegung",
-      "throws": "Wirft einen Fehler",
-      "noRenderExport": "Keine Renderfunktion",
-      "triesToFetch": "Versucht zu laden",
-      "invalidScene": "Ungültige Szene"
-    }
+    "markDefault": "Standard"
   },
   "canvas": {
     "empty": "Dieses Dashboard hat noch keine Widgets.",

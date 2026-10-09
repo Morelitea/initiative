@@ -34,15 +34,11 @@
     "SCENE_VALUE_NOT_FINITE": "This widget returned a number that is not valid.",
     "WIDGET_PLUGIN_NOT_INSTALLED": "The plug-in this widget was connected to is no longer installed. Reconnect the plug-in to bring this widget back.",
     "WIDGET_PLUGIN_UNAVAILABLE": "The plug-in behind this widget is not responding.",
-    "WIDGET_BAD_OUTPUT": "This widget returned something that cannot be drawn.",
-    "WIDGET_NO_RENDER_EXPORT": "This widget has no render function.",
-    "WIDGET_OUT_OF_MEMORY": "This widget used too much memory and was stopped.",
-    "WIDGET_RUNTIME_UNAVAILABLE": "The widget runtime could not start.",
     "WIDGET_THREW": "This widget hit an error while drawing.",
-    "WIDGET_TIMEOUT": "This widget took too long and was stopped.",
     "WIDGET_TYPE_UNSUPPORTED": "This widget needs a newer version of the app.",
     "default": "This widget could not be displayed.",
-    "WIDGET_DATA_UNAVAILABLE": "This widget's data could not be loaded. Try again."
+    "WIDGET_DATA_UNAVAILABLE": "This widget's data could not be loaded. Try again.",
+    "WIDGET_TEMPLATE_INVALID": "This widget's template could not be drawn."
   },
   "bindingSource": {
     "query": "SQL query",
@@ -53,17 +49,7 @@
     "title": "Widget gallery",
     "description": "Every built-in widget, run in the sandbox against fixture data. {{combinations}} combinations across {{widgets}} widgets and {{sources}} sources.",
     "markLabel": "Chart mark",
-    "markDefault": "Default",
-    "failureModes": "Failure modes",
-    "failureModesDescription": "Each tile below runs a deliberately broken widget. They should each show an error tile — and the page around them should stay responsive throughout.",
-    "failure": {
-      "infiniteLoop": "Infinite loop",
-      "runawayAllocation": "Runaway allocation",
-      "throws": "Throws an error",
-      "noRenderExport": "No render function",
-      "triesToFetch": "Tries to fetch",
-      "invalidScene": "Invalid scene"
-    }
+    "markDefault": "Default"
   },
   "canvas": {
     "empty": "This dashboard has no widgets yet.",

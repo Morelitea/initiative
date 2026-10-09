@@ -1,19 +1,10 @@
-"""What a widget calls itself — the server-side reading of the same rules.
+"""What a widget calls itself.
 
-A widget module exports ``meta`` alongside ``render``, carrying its name, its
-description, and the labels for its own options in every language its author
-supports. The browser reads that meta out of the sandbox and rebuilds it with
-``validateWidgetMeta`` (``frontend/src/lib/widgets/widgetMeta.ts``); a listing
-carries the same structure as plain data, and this module is where that data is
-checked before it is stored.
-
-**Two implementations, one set of numbers.** The implementations exist because
-they run in different places on different inputs — one on a sandbox return
-value, one on catalog content — and neither can call the other. That much is
-irreducible. The limits they trim by are not: both read them from the vendored
-plugin-kit contract, so there is nothing here to keep in step with the mirror and
-no way for a widget to be accepted by the catalog and then re-trimmed
-differently in the browser.
+A widget's ``meta`` carries its name, its description, and the labels for its
+own options in every language its author supports. A listing carries it as plain
+data, and this module is where it is checked before it is stored; the browser
+draws what was kept here. The limits it trims by are read from the vendored
+plugin-kit contract.
 
 Rebuilt from checked parts rather than inspected in place: unknown keys, unusable
 locales, and over-long strings are dropped by construction, so what is stored is
@@ -40,8 +31,8 @@ __all__ = [
 
 # --- limits ------------------------------------------------------------------
 #
-# Every one of these is read from the vendored contract, which is also what the
-# browser's copy reads. None of them refuses anything: an over-long string is
+# Every one of these is read from the vendored contract. None of them refuses
+# anything: an over-long string is
 # truncated and a surplus entry is skipped, so they decide what is *kept* rather
 # than what is allowed. What bounds the payload is the byte cap on the whole
 # definition, not these.
@@ -73,10 +64,9 @@ def _is_locale_tag(value: str) -> bool:
 def localized_text(raw: Any, max_length: int) -> dict[str, str] | None:
     """A language-tag → text map, or ``None`` if nothing usable survives.
 
-    Trimmed and truncated rather than refused, matching the browser: meta is
-    presentation, and a widget with one over-long label should still name
-    itself. Entries past the locale cap stop the scan, exactly as the mirror
-    does, so both sides keep the same first forty.
+    Trimmed and truncated rather than refused: meta is presentation, and a
+    widget with one over-long label should still name itself. Entries past the
+    locale cap stop the scan, so the first forty are the ones kept.
     """
     if not isinstance(raw, dict):
         return None

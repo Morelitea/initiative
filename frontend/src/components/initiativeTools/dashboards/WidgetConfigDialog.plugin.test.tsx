@@ -31,10 +31,6 @@ vi.mock("@/api/client", () => ({
   API_BASE_URL: "http://test/api/v1",
 }));
 
-const renderWidget = vi.hoisted(() => vi.fn());
-const readWidgetMeta = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/widgets/runtime/host", () => ({ renderWidget, readWidgetMeta }));
-
 import { WidgetConfigDialog } from "./WidgetConfigDialog";
 
 const PLUGIN_UID = "SHOPAPP0000001";
@@ -54,8 +50,8 @@ const CATALOG = {
           type: WIDGET_TYPE,
           id: "summary",
           meta: { name: { en: "Summary" } },
-          module_source: "export const render = () => ({});",
-          endpoints: [ORDERS, REVENUE],
+          endpoint: ORDERS,
+          template: "<p>Summary</p>",
           sample_data: {},
         },
       ],
@@ -137,10 +133,6 @@ const onSave = vi.fn();
 beforeEach(() => {
   apiGet.mockReset();
   onSave.mockReset();
-  renderWidget.mockReset();
-  readWidgetMeta.mockReset();
-  renderWidget.mockResolvedValue({ ok: true, spec: { scene: { kind: "empty" } } });
-  readWidgetMeta.mockResolvedValue({ name: { en: "Summary" } });
 });
 
 const mount = (which: DefinitionWidget = widget) =>
@@ -167,14 +159,16 @@ describe("configuring a plug-in widget", () => {
     expect(within(source).getByText("Plug-in data")).toBeInTheDocument();
   });
 
-  it("offers the reads the widget declares, and no others", async () => {
+  it("offers the one read the widget draws, and no others", async () => {
+    // Its template was checked against that read's returns when the plug-in
+    // was published, so no other read could fill it.
     serve();
     const user = userEvent.setup();
     mount();
 
     await user.click(await screen.findByRole("combobox", { name: /what it reads/i }));
     expect(await screen.findByRole("option", { name: ORDERS })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: REVENUE })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: REVENUE })).toBeNull();
   });
 
   it("draws a menu for a parameter whose plug-in said where its values come from", async () => {
@@ -239,10 +233,11 @@ describe("configuring a plug-in widget", () => {
 
   it("drops the old read's answers when it is pointed at a different one", async () => {
     // They were that endpoint's parameters. Carrying them onto another one is
-    // how a binding ends up holding a value the endpoint never declared.
+    // how a binding ends up holding a value the endpoint never declared. One of
+    // our widgets pointed at a plug-in is offered every read it has.
     serve({ menu: [{ value: "north", label: null }] });
     const user = userEvent.setup();
-    mount();
+    mount({ ...widget, type: "table" });
 
     await user.click(await screen.findByRole("combobox", { name: /shop/i }));
     await user.click(await screen.findByRole("option", { name: "north" }));

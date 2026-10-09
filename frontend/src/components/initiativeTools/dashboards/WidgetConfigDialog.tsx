@@ -11,7 +11,7 @@
  * Two changes from the version that shipped first:
  *
  * **It previews.** The right pane runs the real widget over the real data, in
- * the same sandbox and renderer a placed tile uses. A binding that returns
+ * the same template and renderer a placed tile uses. A binding that returns
  * nothing now shows that here, while it can still be fixed, rather than after
  * it lands on the canvas.
  *
@@ -28,8 +28,8 @@ import type { QueryBuildRequest, WidgetCatalog } from "@/api/generated/initiativ
 import {
   type PluginDataParam,
   type PluginEndpointRead,
+  pluginWidgetDrawing,
   pluginWidgetEntry,
-  pluginWidgetSource,
 } from "@/api/pluginData";
 import { QueryBuilder } from "@/components/initiativeTools/dashboards/QueryBuilder";
 import { SqlEditor } from "@/components/initiativeTools/dashboards/SqlEditor";
@@ -67,6 +67,7 @@ import { getErrorMessage } from "@/lib/errorMessage";
 import type { WidgetSource } from "@/lib/widgets/dataShapes";
 import { catalogEntry, type DefinitionWidget, isPluginWidgetType } from "@/lib/widgets/definition";
 import { asControlValue, asDeclaredList, asDeclaredType } from "@/lib/widgets/pluginParams";
+import type { PluginWidgetDrawing } from "@/lib/widgets/pluginTemplate";
 import { canDraw, resolveMapping } from "@/lib/widgets/shape";
 import { shapeFor } from "@/lib/widgets/shapes";
 import {
@@ -174,7 +175,7 @@ export function WidgetConfigDialog({
   // A built-in widget reads a plug-in too, as far as the rows are described: a
   // statement names what it returns, over columns the endpoint declared it
   // hands back. Without one they are the plug-in's own shape, which only the plug-in's
-  // own module knows how to draw — so the source is offered and the statement
+  // own template knows how to draw — so the source is offered and the statement
   // is what makes it usable.
   const sources: string[] = isPlugin ? PLUGIN_SOURCES : ["query", "sheet_range", "plugin"];
   const source = binding.source;
@@ -183,15 +184,14 @@ export function WidgetConfigDialog({
   /**
    * Which of the plug-in's reads this widget may be pointed at.
    *
-   * A widget names the endpoints it draws, and those are the ones offered. One
-   * that names none is offered every read the plug-in has — a publisher who did not
-   * narrow it has not said it should be narrowed here.
+   * A plug-in's widget draws the one endpoint it names, because its template
+   * was checked against that endpoint's returns. One of ours pointed at a
+   * plug-in is offered every read the plug-in has.
    */
   const pluginEndpoints = useMemo((): PluginEndpointRead[] => {
     const all = plugin?.entry.endpoints ?? [];
-    const named = plugin?.widget?.endpoints ?? [];
-    if (!named.length) return all;
-    return all.filter((candidate) => named.includes(candidate.id));
+    const drawn = plugin?.widget?.endpoint;
+    return drawn ? all.filter((candidate) => candidate.id === drawn) : all;
   }, [plugin]);
 
   const pluginEndpoint = pluginEndpoints.find((candidate) => candidate.id === binding.endpoint_id);
@@ -513,9 +513,7 @@ export function WidgetConfigDialog({
             options={options}
             initiativeId={initiativeId}
             dashboardId={dashboardId}
-            moduleSource={
-              isPlugin ? pluginWidgetSource(pluginCatalog.data, widget.type) : undefined
-            }
+            plugin={isPlugin ? pluginWidgetDrawing(pluginCatalog.data, widget.type) : undefined}
           />
         </div>
 
@@ -876,14 +874,14 @@ function BindingPreview({
   options,
   initiativeId,
   dashboardId,
-  moduleSource,
+  plugin,
 }: {
   widget: DefinitionWidget;
   binding: WidgetBinding;
   options: Record<string, string>;
   initiativeId: number;
   dashboardId?: number;
-  moduleSource?: string;
+  plugin?: PluginWidgetDrawing;
 }) {
   const { t } = useTranslation("dashboards");
   const live = useWidgetData(binding, initiativeId, dashboardId);
@@ -913,7 +911,7 @@ function BindingPreview({
           data={data}
           config={options}
           slots={slots}
-          source={moduleSource}
+          plugin={plugin}
           view={drawable ? "scene" : "table"}
           isLoading={live.isLoading}
           errorCode={live.errorCode}

@@ -229,13 +229,14 @@ async def lifespan(app: FastAPI):
         from app.db import post_commit
 
         await post_commit.settle_all()
-        # The expression evaluators of declarative plug-ins and the document
-        # editor, if either started.
-        from app.services import editor_engine
+        # The expression evaluators of declarative plug-ins, the document
+        # editor and the template compiler, if any started.
+        from app.services import editor_engine, template_engine
         from app.services.marketplace import expressions
 
         expressions.shutdown()
         editor_engine.shutdown()
+        template_engine.shutdown()
 
 
 # docs_url is left None: the default route would inherit the app-wide CSP and
@@ -434,19 +435,18 @@ async def insufficient_privilege_handler(
     raise exc
 
 
-# The three WebAssembly workers — the dashboard widget sandbox, the direct
-# message ratchet and the PDF viewer's pdf.js worker — and only they, are served
+# The two WebAssembly workers — the direct message ratchet and the PDF viewer's
+# pdf.js worker — and only they, are served
 # with a policy that admits WebAssembly. Vite emits worker bundles into
 # `assets/workers/` with a content hash (see `worker.rolldownOptions` in
 # frontend/vite.config.ts) and the pdfjs plugin there puts pdf.js beside them
 # under its version, so the match is by directory + stem; the literals are
 # pinned by tests on both sides.
 _WASM_WORKER_ASSET_PREFIXES = (
-    "assets/workers/sandbox.worker-",
     "assets/workers/ratchet.worker-",
     "assets/workers/pdf.worker-",
 )
-# The first two are bundled by Vite as classic `.js`; pdf.js ships an ES module
+# The ratchet is bundled by Vite as classic `.js`; pdf.js ships an ES module
 # and is emitted under its own name.
 _WASM_WORKER_ASSET_SUFFIXES = (".js", ".mjs")
 _WASM_WORKER_CSP = settings.wasm_worker_content_security_policy

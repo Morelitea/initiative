@@ -27,6 +27,7 @@ import type {
   PluginWidgetCatalogResponse,
   PluginWidgetRead,
 } from "@/api/generated/initiativeAPI.schemas";
+import type { PluginWidgetDrawing } from "@/lib/widgets/pluginTemplate";
 
 export type {
   PluginDataParam,
@@ -149,18 +150,23 @@ export const pluginWidgetEntry = (
   return undefined;
 };
 
-/** The module a namespaced widget type resolves to, from the pinned definition
- *  the install carries. `undefined` means this build has nothing to run — the
- *  plug-in was uninstalled, or its version stopped shipping that widget. */
-export const pluginWidgetSource = (
+/** A plug-in widget as a tile draws it: its template, the returns of the
+ *  endpoint it draws, and its own words. `undefined` means this build has
+ *  nothing to draw — the plug-in was uninstalled, or its version stopped
+ *  shipping that widget. */
+export const pluginWidgetDrawing = (
   catalog: PluginWidgetCatalogResponse | undefined,
   widgetType: string
-): string | undefined => {
-  for (const entry of catalog?.items ?? []) {
-    const widget = (entry.widgets ?? []).find((candidate) => candidate.type === widgetType);
-    if (widget) return widget.module_source;
-  }
-  return undefined;
+): PluginWidgetDrawing | undefined => {
+  const found = pluginWidgetEntry(catalog, widgetType);
+  if (!found) return undefined;
+  const { entry, widget } = found;
+  return {
+    template: widget.template,
+    returns:
+      (entry.endpoints ?? []).find((candidate) => candidate.id === widget.endpoint)?.returns ?? [],
+    strings: widget.strings ?? {},
+  };
 };
 
 /** One data source as a widget is handed it: the endpoint's `list` returns read
@@ -183,20 +189,12 @@ const asSample = (raw: unknown): PluginSample => {
   };
 };
 
-/** The sample a plug-in shipped for one of its widgets, in the shape a preview
- *  hands to the sandbox. The catalog has already read it through the endpoint's
+/** The sample a plug-in shipped for one of its widgets, in the shape its
+ *  template reads. The catalog has already read it through the endpoint's
  *  returns, exactly as it reads a live answer, so a preview draws the widget a
  *  community would get. Previews never call the network, so this is the only thing
  *  a marketplace listing's widget is ever drawn with. */
 export const pluginWidgetSample = (
   catalog: PluginWidgetCatalogResponse | undefined,
-  widgetType: string,
-  endpointId: string | null | undefined
-): PluginSample => {
-  for (const entry of catalog?.items ?? []) {
-    const widget = (entry.widgets ?? []).find((candidate) => candidate.type === widgetType);
-    if (!widget) continue;
-    return asSample(endpointId ? widget.sample_data?.[endpointId] : undefined);
-  }
-  return EMPTY_SAMPLE;
-};
+  widgetType: string
+): PluginSample => asSample(pluginWidgetEntry(catalog, widgetType)?.widget.sample_data);

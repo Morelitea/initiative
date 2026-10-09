@@ -1,5 +1,5 @@
-// The browser globals the editor's modules read as they load, for an engine
-// that has none. Nothing here is called while a document is read or written,
+// The browser globals the editor's modules, and the template compiler's, read as
+// they load, for an engine that has none. Nothing here is called while a document is read or written,
 // except `crypto`, which Yjs draws ids from: the server names the client a
 // state is written as, so these never become a document's ids.
 const nothing = () => {};
@@ -30,6 +30,30 @@ Object.assign(globalThis, {
   AbortController: class {
     signal = { aborted: false, addEventListener: nothing, removeEventListener: nothing };
     abort() {}
+  },
+  // UTF-8 only, which is all there is: the template compiler's CEL parser makes
+  // one as it loads, to read bytes literals.
+  TextEncoder: class {
+    encoding = "utf-8";
+    encode(text = "") {
+      const bytes = [];
+      for (const character of String(text)) {
+        const code = character.codePointAt(0);
+        if (code < 0x80) bytes.push(code);
+        else if (code < 0x800) bytes.push(0xc0 | (code >> 6), 0x80 | (code & 63));
+        else if (code < 0x10000) {
+          bytes.push(0xe0 | (code >> 12), 0x80 | ((code >> 6) & 63), 0x80 | (code & 63));
+        } else {
+          bytes.push(
+            0xf0 | (code >> 18),
+            0x80 | ((code >> 12) & 63),
+            0x80 | ((code >> 6) & 63),
+            0x80 | (code & 63)
+          );
+        }
+      }
+      return new Uint8Array(bytes);
+    }
   },
   crypto: {
     getRandomValues(array) {

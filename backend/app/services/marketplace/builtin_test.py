@@ -330,8 +330,8 @@ class TestWithdrawingWhatIsNoLongerShipped:
                     {
                         "id": "open-items",
                         "meta": {"name": {"en": "Open items"}},
-                        "module_source": "export default () => ({});",
-                        "endpoints": [endpoint],
+                        "endpoint": endpoint,
+                        "template": "<p>Open items</p>",
                     }
                 ],
                 "dashboards": [

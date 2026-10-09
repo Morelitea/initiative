@@ -7351,6 +7351,8 @@ export interface PluginSummaryListResponse {
 
 export type PluginWidgetReadMeta = { [key: string]: unknown };
 
+export type PluginWidgetReadStrings = { [key: string]: { [key: string]: string } };
+
 export type PluginWidgetReadSampleData = { [key: string]: unknown };
 
 /**
@@ -7360,8 +7362,9 @@ export interface PluginWidgetRead {
   type: string;
   id: string;
   meta?: PluginWidgetReadMeta;
-  module_source: string;
-  endpoints?: string[];
+  endpoint: string;
+  template: string;
+  strings?: PluginWidgetReadStrings;
   sample_data?: PluginWidgetReadSampleData;
 }
 

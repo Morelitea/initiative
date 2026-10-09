@@ -34,15 +34,11 @@
     "SCENE_VALUE_NOT_FINITE": "Ce widget a renvoyé un nombre non valide.",
     "WIDGET_PLUGIN_NOT_INSTALLED": "Le plug-in auquel ce widget était connecté n'est plus installé. Reconnectez le plug-in pour rétablir ce widget.",
     "WIDGET_PLUGIN_UNAVAILABLE": "Le plug-in derrière ce widget ne répond pas.",
-    "WIDGET_BAD_OUTPUT": "Ce widget a renvoyé quelque chose qui ne peut pas être dessiné.",
-    "WIDGET_NO_RENDER_EXPORT": "Ce widget n'a pas de fonction de rendu.",
-    "WIDGET_OUT_OF_MEMORY": "Ce widget a utilisé trop de mémoire et a été arrêté.",
-    "WIDGET_RUNTIME_UNAVAILABLE": "L'environnement d'exécution des widgets n'a pas pu démarrer.",
     "WIDGET_THREW": "Ce widget a rencontré une erreur lors de son affichage.",
-    "WIDGET_TIMEOUT": "Ce widget a mis trop de temps et a été arrêté.",
     "WIDGET_TYPE_UNSUPPORTED": "Ce widget nécessite une version plus récente de l'application.",
     "default": "Ce widget n'a pas pu être affiché.",
-    "WIDGET_DATA_UNAVAILABLE": "Les données de ce widget n'ont pas pu être chargées. Réessayez."
+    "WIDGET_DATA_UNAVAILABLE": "Les données de ce widget n'ont pas pu être chargées. Réessayez.",
+    "WIDGET_TEMPLATE_INVALID": "Le modèle de ce widget n'a pas pu être affiché."
   },
   "bindingSource": {
     "query": "Requête SQL",
@@ -53,17 +49,7 @@
     "title": "Galerie de widgets",
     "description": "Chaque widget intégré, exécuté dans le bac à sable avec des données d'exemple. {{combinations}} combinaisons pour {{widgets}} widgets et {{sources}} sources.",
     "markLabel": "Type de graphique",
-    "markDefault": "Par défaut",
-    "failureModes": "Modes de défaillance",
-    "failureModesDescription": "Chaque tuile ci-dessous exécute un widget délibérément cassé. Toutes doivent afficher une tuile d'erreur, et la page doit rester réactive tout du long.",
-    "failure": {
-      "infiniteLoop": "Boucle infinie",
-      "runawayAllocation": "Allocation incontrôlée",
-      "throws": "Lève une erreur",
-      "noRenderExport": "Aucune fonction de rendu",
-      "triesToFetch": "Tente un fetch",
-      "invalidScene": "Scène non valide"
-    }
+    "markDefault": "Par défaut"
   },
   "canvas": {
     "empty": "Ce tableau de bord n'a pas encore de widgets.",

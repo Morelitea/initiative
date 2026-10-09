@@ -6,9 +6,9 @@ import type { WidgetErrorCode } from "@/lib/widgets/errors";
 /** Why a widget, or one picture in it, could not be drawn. */
 export function WidgetError({ code, detail }: { code: WidgetErrorCode; detail?: string }) {
   const { t } = useTranslation("dashboards");
-  // Every failure has a localized line; the interpreter's own message is shown
-  // underneath because a widget author debugging their module needs it, and it
-  // is the only diagnostic that crosses the sandbox boundary.
+  // Every failure has a localized line; the widget's own message (a template's
+  // compile error, say) is shown underneath, because an author debugging their
+  // widget needs it.
   return (
     <div className="flex h-full w-full flex-col items-center justify-center gap-1 p-2 text-center">
       <AlertTriangle className="h-4 w-4 text-muted-foreground" aria-hidden />

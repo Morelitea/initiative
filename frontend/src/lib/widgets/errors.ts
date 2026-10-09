@@ -1,21 +1,24 @@
 /**
  * Every way rendering a widget can fail, in one place.
  *
- * Three layers can reject a widget — the runtime that executes it, the
- * validator that checks what it drew, and the tile that couldn't find a module
- * for it — and the viewer sees one error tile regardless. Collecting the codes
+ * Several layers can reject a widget — its code or its template, the validator
+ * that checks what each element is given, and the tile that couldn't find the
+ * widget — and the viewer sees one error tile regardless. Collecting the codes
  * here gives that tile a single union to localize, and gives
  * `widgetErrors.test.ts` something to check the locale files against, so a new
  * failure mode cannot ship without a message in every language.
  */
 
-import { SandboxErrorCode } from "./runtime/sandbox";
 import { SceneErrorCode } from "./validateScene";
 
 export const WidgetErrorCode = {
-  ...SandboxErrorCode,
   ...SceneErrorCode,
-  /** The definition names a widget type this build has no module for — an
+  /** A built-in widget's own code failed while working out what to draw. */
+  THREW: "WIDGET_THREW",
+  /** A plug-in widget's template did not compile. The plug-in was checked when
+   *  it was published, so this is a build whose template language moved on. */
+  TEMPLATE_INVALID: "WIDGET_TEMPLATE_INVALID",
+  /** The definition names a widget type this build has no widget for — an
    *  install from a listing built against a newer app. */
   TYPE_UNSUPPORTED: "WIDGET_TYPE_UNSUPPORTED",
   /** The plug-in behind this widget did not answer, or answered with something the

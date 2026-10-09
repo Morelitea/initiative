@@ -10,19 +10,18 @@
  * **There are two envelopes, not nine.** A statement and a spreadsheet range
  * both answer with columns and rows, so both arrive as {@link TabularData} and
  * a widget never learns which it was given. An installed plug-in's data is its own
- * shape, declared in its own manifest, and its widget ships alongside — that is
- * {@link PluginRows}, and no built-in widget reads it.
+ * shape, declared in its own manifest, and its widget's template reads it — that
+ * is {@link PluginRows}, and no built-in widget reads it.
  *
- * **All timestamps are epoch milliseconds, UTC.** The sandbox has a frozen
- * clock and no timezone, deliberately: rendering a timestamp for a human is the
- * renderer's job, not the widget's.
+ * **All timestamps are epoch milliseconds, UTC.** Rendering a timestamp for a
+ * human is the renderer's job, not the widget's.
  */
 
 /**
  * What a column holds, in the field registry's own vocabulary.
  *
  * Declared here rather than imported from the generated client, because this
- * file is the sandbox's contract and a widget written against it must not move
+ * file is what a widget is handed, and a widget written against it must not move
  * when a serializer does. `dataShapes.test.ts` holds it equal to the served
  * `FieldType`, so the two say the same words without one importing the other.
  */
@@ -72,9 +71,9 @@ export interface TabularData {
  * holding a single value stay whole in `values`, so a total or a reason there
  * is nothing survives an empty set.
  *
- * They are still *data*. The sandbox receives values, and the SceneSpec it has
- * to return has no `html` mark, no raw-string passthrough and no way to name a
- * URL, so a plug-in cannot turn its own rows into rendering.
+ * They are still *data*. A template reads them as values, and nothing it may
+ * contain turns a value into markup or names an outside URL, so a plug-in cannot
+ * turn its own rows into rendering.
  */
 export interface PluginRows {
   source: "plugin";

@@ -34,15 +34,11 @@
     "SCENE_VALUE_NOT_FINITE": "Este widget devolvió un número que no es válido.",
     "WIDGET_PLUGIN_NOT_INSTALLED": "El complemento al que estaba conectado este widget ya no está instalado. Vuelve a conectar el complemento para recuperar este widget.",
     "WIDGET_PLUGIN_UNAVAILABLE": "El complemento que hay detrás de este widget no responde.",
-    "WIDGET_BAD_OUTPUT": "Este widget devolvió algo que no se puede dibujar.",
-    "WIDGET_NO_RENDER_EXPORT": "Este widget no tiene función de renderizado.",
-    "WIDGET_OUT_OF_MEMORY": "Este widget usó demasiada memoria y se detuvo.",
-    "WIDGET_RUNTIME_UNAVAILABLE": "No se pudo iniciar el entorno de ejecución de widgets.",
     "WIDGET_THREW": "Este widget encontró un error al dibujarse.",
-    "WIDGET_TIMEOUT": "Este widget tardó demasiado y se detuvo.",
     "WIDGET_TYPE_UNSUPPORTED": "Este widget necesita una versión más reciente de la aplicación.",
     "default": "No se pudo mostrar este widget.",
-    "WIDGET_DATA_UNAVAILABLE": "No se han podido cargar los datos de este widget. Inténtalo de nuevo."
+    "WIDGET_DATA_UNAVAILABLE": "No se han podido cargar los datos de este widget. Inténtalo de nuevo.",
+    "WIDGET_TEMPLATE_INVALID": "No se pudo dibujar la plantilla de este widget."
   },
   "bindingSource": {
     "query": "Consulta SQL",
@@ -53,17 +49,7 @@
     "title": "Galería de widgets",
     "description": "Todos los widgets integrados, ejecutados en el entorno aislado con datos de ejemplo. {{combinations}} combinaciones entre {{widgets}} widgets y {{sources}} fuentes.",
     "markLabel": "Tipo de gráfico",
-    "markDefault": "Predeterminado",
-    "failureModes": "Modos de fallo",
-    "failureModesDescription": "Cada tarjeta siguiente ejecuta un widget roto a propósito. Todas deberían mostrar una tarjeta de error, y la página debería seguir respondiendo en todo momento.",
-    "failure": {
-      "infiniteLoop": "Bucle infinito",
-      "runawayAllocation": "Asignación descontrolada",
-      "throws": "Lanza un error",
-      "noRenderExport": "Sin función de renderizado",
-      "triesToFetch": "Intenta hacer fetch",
-      "invalidScene": "Escena no válida"
-    }
+    "markDefault": "Predeterminado"
   },
   "canvas": {
     "empty": "Este panel aún no tiene widgets.",

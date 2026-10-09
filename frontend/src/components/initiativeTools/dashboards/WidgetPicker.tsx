@@ -2,9 +2,8 @@
  * "Which widget?" — browse, preview, add.
  *
  * One flat list of widgets, searchable, with a live preview of whichever is
- * selected. The preview is not a screenshot: it is the widget itself, run in the
- * sandbox over `sampleData`, validated and drawn by the same renderer a placed
- * tile uses. So what someone sees before adding is what they get, and a widget
+ * selected. The preview is not a screenshot: it is the widget itself, drawn over
+ * `sampleData` by the same code, template and elements a placed tile uses. So what someone sees before adding is what they get, and a widget
  * that cannot draw shows that here rather than after it lands on the canvas.
  *
  * There is deliberately no second "ready-made" list. A preset is a primitive
@@ -13,8 +12,7 @@
  * than a separate entry saying the same thing. Presets remain a *storage*
  * concept: an installed listing may still name one, and the backend resolves it.
  *
- * Names, descriptions, and option labels come from each widget module's own
- * `meta`, which is what lets an installed listing describe itself here without
+ * Names, descriptions, and option labels come from each widget's own `meta`, which is what lets an installed listing describe itself here without
  * an app release. The dialog's own chrome — and the binding *source* names,
  * which are our endpoints — stay plugin-owned.
  */

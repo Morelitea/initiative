@@ -705,10 +705,8 @@ class Settings(BaseSettings):
     def wasm_worker_content_security_policy(self) -> str:
         """CSP for the WebAssembly worker bundles ONLY (applied per-response).
 
-        Three workers run WebAssembly: the dashboard widget sandbox, which
-        evaluates widget code with QuickJS
-        (``frontend/src/lib/widgets/runtime/sandbox.worker.ts``); the direct
-        message ratchet, which runs vodozemac
+        Two workers run WebAssembly: the direct message ratchet, which runs
+        vodozemac
         (``frontend/src/crypto/ratchet.worker.ts``); and the PDF viewer's pdf.js
         worker, which decodes JBIG2, CCITT fax and JPEG 2000 images that way.
         A worker takes its policy from the response that served its script

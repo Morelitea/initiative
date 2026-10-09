@@ -1,11 +1,9 @@
 /**
- * Number and date formatting for scenes.
+ * Number and date formatting for the widget elements.
  *
- * Deliberately on this side of the sandbox: the widget says *what kind* of
- * value it produced and the app decides how a human reads it, using the
- * viewer's locale and timezone. A widget has neither — its clock is frozen and
- * it has no `Intl` locale data — so this is the only place formatting can
- * correctly happen.
+ * The widget says *what kind* of value it produced, and the element decides
+ * how a human reads it, using the viewer's locale and timezone, so a widget
+ * never formats for a reader it does not know.
  */
 
 import { dateTimeFormat, numberFormat } from "@/lib/intl";

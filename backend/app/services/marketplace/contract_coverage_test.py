@@ -30,7 +30,7 @@ from app.services.marketplace.definitions import normalize_listing_definition
 
 pytestmark = pytest.mark.always
 
-#: The endpoint a widget binds and a sample is keyed by, written once.
+#: The endpoint a widget draws, written once.
 READ_ENDPOINT = "plugin.acme.tracker.read"
 #: The declarative plug-in's listing, which names it.
 DECLARATIVE_ID = "acme.issues"
@@ -215,11 +215,16 @@ def maximal_manifest() -> dict:
             {
                 "id": "tile",
                 "meta": {"name": {"en": "Tile"}},
-                "module_source": "export default () => null;",
-                "endpoints": [READ_ENDPOINT],
-                # Keyed by the endpoints the widget declared; anything else is
-                # dropped, so this is the only key that survives.
-                "sample_data": {READ_ENDPOINT: {"count": [1], "labels": ["one"]}},
+                "endpoint": READ_ENDPOINT,
+                # Reads a single return, a list return and its own words, so
+                # every field it names is checked against the endpoint.
+                "template": (
+                    '<div><metric :value="values.used" :label="strings.title" />'
+                    '<ul><li for="r in rows">{{ r.labels }}</li></ul></div>'
+                ),
+                "strings": {"title": {"en": "Used"}},
+                # The endpoint's answer, written in its returns.
+                "sample_data": {"count": [1], "labels": ["one"], "used": 1},
                 "requires": {"any_of": ["vendor"]},
             }
         ],
@@ -678,12 +683,14 @@ def test_a_term_nested_in_an_inline_object_is_reported():
 
 
 def test_an_object_the_contract_leaves_open_reports_nothing():
-    """A widget's `meta` and `sample_data` are opaque to the contract, and a
-    binding's `params` are named by the author. Keys inside them are nobody's
-    to declare, so reporting them would be noise on every honest manifest."""
+    """A widget's `meta` and `sample_data` are opaque to the contract, and its
+    `strings` keys and a binding's `params` are named by the author. Keys inside
+    them are nobody's to declare, so reporting them would be noise on every
+    honest manifest."""
     served = maximal_manifest()
     served["widgets"][0]["meta"]["whatever"] = 1
-    served["widgets"][0]["sample_data"][READ_ENDPOINT] = {"anything": 2}
+    served["widgets"][0]["sample_data"]["anything"] = 2
+    served["widgets"][0]["strings"]["subtitle"] = {"en": "Of"}
     served["dashboards"][0]["widgets"][0]["binding"]["params"]["choice"] = "b"
 
     assert contract.discarded_terms(served) == []

@@ -76,8 +76,8 @@ def _plugin_manifest(dashboards=None, **overrides) -> dict:
             {
                 "id": "open-items",
                 "meta": {"name": {"en": "Open items"}},
-                "module_source": "export default () => ({});",
-                "endpoints": [OPEN_ITEMS],
+                "endpoint": OPEN_ITEMS,
+                "template": "<p>Open items</p>",
             }
         ],
     }

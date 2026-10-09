@@ -95,22 +95,22 @@ async def test_csp_admits_the_stored_captcha_provider(
 
 def test_wasm_worker_match_names_only_those_files() -> None:
     match = main_module._is_wasm_worker_asset
-    # The widget sandbox (QuickJS) and the direct message ratchet (vodozemac),
-    # bundled by Vite as classic scripts; pdf.js ships an ES module and is
-    # emitted under its own version rather than a content hash.
-    assert match("assets/workers/sandbox.worker-DQURGIoN.js")
+    # The direct message ratchet (vodozemac), bundled by Vite as a classic
+    # script; pdf.js ships an ES module and is emitted under its own version
+    # rather than a content hash.
     assert match("assets/workers/ratchet.worker-DQURGIoN.js")
     assert match("assets/workers/pdf.worker-6.3.289.mjs")
 
-    # Every other built file is an ordinary asset: a fourth worker, a worker
+    # Every other built file is an ordinary asset: another worker (the widget
+    # sandbox's, which no longer runs WebAssembly or exists), a worker
     # whose name merely starts the same way, anything nested under a directory
     # that starts with the name, the sourcemap, and the app's own chunks.
     assert not match("assets/workers/other.worker-DQURGIoN.js")
+    assert not match("assets/workers/sandbox.worker-DQURGIoN.js")
     assert not match("assets/workers/worker-DQURGIoN.js")
-    assert not match("assets/workers/sandbox.worker-DQURGIoN/payload.js")
     assert not match("assets/workers/ratchet.worker-DQURGIoN/payload.js")
     assert not match("assets/workers/pdf.worker-6.3.289/payload.mjs")
-    assert not match("assets/workers/sandbox.worker-DQURGIoN.js.map")
+    assert not match("assets/workers/ratchet.worker-DQURGIoN.js.map")
     assert not match("assets/workers/pdf.worker-6.3.289.mjs.map")
     assert not match("assets/index-lSaaosYz.js")
     assert not match("assets/workers/")
@@ -123,7 +123,7 @@ def test_wasm_worker_match_names_only_those_files() -> None:
 
 @pytest.mark.parametrize(
     ("stem", "suffix"),
-    [("sandbox.worker", ".js"), ("ratchet.worker", ".js"), ("pdf.worker", ".mjs")],
+    [("ratchet.worker", ".js"), ("pdf.worker", ".mjs")],
 )
 async def test_only_the_wasm_worker_assets_carry_their_policy(
     client: AsyncClient, stem: str, suffix: str

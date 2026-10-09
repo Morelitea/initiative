@@ -71,7 +71,7 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
  * Which widgets this guild's installed plug-ins contribute.
  *
  * Every member may read it: a plug-in's existence is guild-wide knowledge and the
- * palette carries no guild data — declarations, module source, and sample
+ * palette carries no guild data — declarations, templates, and sample
  * rows, all from the pinned definition. An endpoint declared for guild admins
  * is still listed, and still refused at fetch time to anyone else.
  *

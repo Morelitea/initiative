@@ -2,7 +2,7 @@
  * One listing's page: what it is, what it looks like, and how to get it.
  *
  * The preview runs the real pipeline — the listing's definition through the same
- * canvas, sandbox, and renderer a live dashboard uses — over **sample rows**.
+ * canvas, templates, and renderer a live dashboard uses — over **sample rows**.
  * A listing is not installed, so it has no initiative to read and is given
  * none: the canvas is told to draw samples, which fetches nothing at all.
  *

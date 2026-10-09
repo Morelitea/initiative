@@ -172,19 +172,20 @@ class PluginWidgetRead(SanitizedBaseModel):
     #: never resolve to a built-in renderer or the other way round.
     type: str
     id: str
-    #: The widget's own strings, in every language its author supplied.
+    #: The widget's name, description and option labels, in every language its
+    #: author supplied.
     meta: Dict[str, Any] = {}
-    #: The browser-side module. Opaque and carried verbatim: it is JavaScript,
-    #: already size-capped by the manifest validator, and passing it through the
-    #: plain-text sanitizer would rewrite operators like ``a < b`` into
-    #: something that no longer parses. Nothing on this side reads, compiles, or
-    #: evaluates it — the browser's sandbox is the only thing that runs it.
-    module_source: RawTextStr
-    #: Which of the plug-in's read endpoints this widget draws.
-    endpoints: List[str] = []
-    #: What a preview draws instead of calling anything, keyed by endpoint id
-    #: and projected through that endpoint's returns exactly as a live answer
-    #: is — so a listing's tile and an installed one are the same widget.
+    #: The read endpoint this widget draws.
+    endpoint: str
+    #: The template that draws it: HTML with CEL bindings, compiled when the
+    #: plug-in was published and again by the browser before it draws. Carried
+    #: verbatim, because the plain-text sanitizer would escape its markup.
+    template: RawTextStr
+    #: The widget's own words, keyed, each in the languages its author supplied.
+    strings: Dict[str, Dict[str, str]] = {}
+    #: What a preview draws instead of calling anything, projected through the
+    #: endpoint's returns exactly as a live answer is — so a listing's tile and
+    #: an installed one are the same widget. Empty when the widget has none.
     sample_data: Dict[str, Any] = {}
 
 

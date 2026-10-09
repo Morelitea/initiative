@@ -1,4 +1,4 @@
-// Build the document editor for the server.
+// Build what the server runs of the frontend.
 //
 //   pnpm build:editor-server
 //
@@ -7,6 +7,11 @@
 // (backend/app/services/editor_worker.py). The libraries only the browser's
 // views use are left out, and the browser globals the editor's modules read as
 // they load are supplied by scripts/editor-server/prelude.js.
+//
+// And dist-editor/templates.js: the template compiler
+// (src/lib/widgets/serverTemplates.ts), which the backend runs to check a
+// plug-in's widget templates when it is published
+// (backend/app/services/template_worker.py).
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -55,5 +60,18 @@ await build({
     __PDFJS_WORKER_URL__: '""',
     __PDFJS_WASM_URL__: '""',
   },
+  logLevel: "error",
+});
+
+await build({
+  entryPoints: [join(ROOT, "src/lib/widgets/serverTemplates.ts")],
+  outfile: join(ROOT, "dist-editor/templates.js"),
+  bundle: true,
+  format: "iife",
+  platform: "browser",
+  minify: true,
+  legalComments: "none",
+  banner: { js: readFileSync(join(ROOT, "scripts/editor-server/prelude.js"), "utf8") },
+  alias: { "@": join(ROOT, "src") },
   logLevel: "error",
 });

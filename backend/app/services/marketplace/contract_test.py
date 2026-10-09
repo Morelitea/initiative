@@ -393,8 +393,8 @@ ACCEPTED = [
                 {
                     "id": "w",
                     "meta": {"name": {"en": "W"}},
-                    "module_source": "export default () => ({});",
-                    "endpoints": ["plugin.acme.tracker.s"],
+                    "endpoint": "plugin.acme.tracker.s",
+                    "template": "<p>W</p>",
                 }
             ],
             dashboards=[
@@ -431,8 +431,8 @@ ACCEPTED = [
                 {
                     "id": "w",
                     "meta": {"name": {"en": "W"}},
-                    "module_source": "export default () => ({});",
-                    "endpoints": ["plugin.acme.tracker.s"],
+                    "endpoint": "plugin.acme.tracker.s",
+                    "template": "<p>W</p>",
                 }
             ],
             dashboards=[
@@ -685,8 +685,8 @@ def test_a_localized_object_with_nothing_usable_is_refused(validator):
                     {
                         "id": "w",
                         "meta": {"name": {"en": "W"}},
-                        "module_source": "export default () => ({})",
-                        "endpoints": ["plugin.acme.tracker.absent"],
+                        "endpoint": "plugin.acme.tracker.absent",
+                        "template": "<p>W</p>",
                     }
                 ],
             ),

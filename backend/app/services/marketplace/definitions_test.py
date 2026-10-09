@@ -11,8 +11,8 @@ implementation could quietly lose:
 * a definition never carries an address — only paths, joined later to a base URL
   the deployment supplies;
 * what a manifest *declares* and what it *ships* cannot disagree;
-* content this build assigns no meaning to (widget modules, sample rows, the
-  automation block) is bounded and stored verbatim, never interpreted.
+* content this build assigns no meaning to (sample rows, the automation block)
+  is bounded and stored verbatim, never interpreted.
 """
 
 import pytest
@@ -786,14 +786,26 @@ class TestEndpoints:
             _with_source(params=[{"key": "token", "type": "secret", "label": _label()}])
 
 
-def _with_widget(**widget_overrides) -> dict:
+def _with_widget(direction: str = "read", **widget_overrides) -> dict:
+    """A plug-in with one endpoint answering a ``total``, and a widget drawing it."""
     widget = {
         "id": "summary",
         "meta": {"name": {"en": "Sales summary"}},
-        "module_source": "export const render = () => ({});",
+        "endpoint": READ_ID,
+        "template": '<metric :value="values.total" />',
     }
     widget.update(widget_overrides)
-    return _normalize(features=["widgets"], widgets=[widget])
+    return _normalize(
+        features=["endpoints", "widgets"],
+        endpoints=[
+            {
+                "id": READ_ID,
+                "direction": direction,
+                "returns": [{"key": "total", "type": "int"}],
+            }
+        ],
+        widgets=[widget],
+    )
 
 
 class TestWidgets:
@@ -801,27 +813,36 @@ class TestWidgets:
         with pytest.raises(ListingDefinitionError, match="meta must name"):
             _with_widget(meta={"description": {"en": "no name"}})
 
-    def test_a_widget_ships_a_module(self):
-        with pytest.raises(ListingDefinitionError, match="module_source is required"):
-            _with_widget(module_source="")
+    def test_a_widget_ships_a_template(self):
+        with pytest.raises(ListingDefinitionError, match="template is required"):
+            _with_widget(template="")
 
-    def test_a_module_larger_than_the_cap_is_refused(self):
-        oversized = "x" * (service_plugins.MAX_MODULE_SOURCE_BYTES + 1)
+    def test_a_template_larger_than_the_cap_is_refused(self):
+        oversized = "<p>" + "x" * service_plugins.MAX_TEMPLATE_BYTES + "</p>"
         with pytest.raises(ListingDefinitionError, match="larger than"):
-            _with_widget(module_source=oversized)
+            _with_widget(template=oversized)
 
-    def test_a_module_is_stored_exactly_as_published(self):
-        """Byte-for-byte: this build measures the module and stores it. What it
-        contains is the browser sandbox's business, not this validator's."""
-        source = "const render = (d) => ({ kind: 'metric', value: d.length });\n"
-        definition = _with_widget(module_source=source)
-        assert definition["widgets"][0]["module_source"] == source
+    def test_a_template_that_does_not_compile_is_refused(self):
+        """Refused at publish with the compiler's own words, so the author learns
+        which field is wrong rather than finding an empty tile later."""
+        with pytest.raises(
+            ListingDefinitionError,
+            match="widget 'summary': template: There is no field nope here",
+        ):
+            _with_widget(template="<p>{{ values.nope }}</p>")
+
+    def test_a_template_is_stored_exactly_as_published(self):
+        """Byte-for-byte: this build compiles the template to check it and
+        stores what the author wrote, which the browser compiles again."""
+        template = '<div>\n  <metric :value="values.total" />\n</div>\n'
+        definition = _with_widget(template=template)
+        assert definition["widgets"][0]["template"] == template
 
     def test_a_widget_may_only_bind_an_endpoint_the_plugin_declares(self):
         with pytest.raises(
             ListingDefinitionError, match="not a declared read endpoint"
         ):
-            _with_widget(endpoints=[READ_ID])
+            _with_widget(endpoint="plugin.tests.widget-co.absent")
 
     def test_a_widget_may_only_bind_one_that_answers(self):
         # A write and an emission are both real endpoints and neither fills a
@@ -831,84 +852,64 @@ class TestWidgets:
             with pytest.raises(
                 ListingDefinitionError, match="not a declared read endpoint"
             ):
-                _normalize(
-                    features=["endpoints", "widgets"],
-                    endpoints=[{"id": READ_ID, "direction": direction}],
-                    widgets=[
-                        {
-                            "id": "summary",
-                            "meta": {"name": {"en": "Sales summary"}},
-                            "module_source": "export const render = () => ({});",
-                            "endpoints": [READ_ID],
-                        }
-                    ],
-                )
+                _with_widget(direction=direction)
 
-    def test_sample_rows_are_kept_only_for_declared_endpoints(self):
-        definition = _normalize(
-            features=["endpoints", "widgets"],
-            endpoints=[{"id": READ_ID, "direction": "read"}],
-            widgets=[
-                {
-                    "id": "summary",
-                    "meta": {"name": {"en": "Sales summary"}},
-                    "module_source": "export const render = () => ({});",
-                    "endpoints": [READ_ID],
-                    "sample_data": {
-                        READ_ID: {"n": [1]},
-                        "elsewhere": {"n": [2]},
-                    },
-                }
-            ],
+    def test_strings_are_held_to_the_localized_text_rules(self):
+        """Trimmed and truncated rather than refused, as the widget's meta is,
+        and a key with no usable text is dropped."""
+        definition = _with_widget(
+            template='<metric :value="values.total" :label="strings.title" />',
+            strings={
+                "title": {
+                    "en": "  Sales  ",
+                    "de": "x" * (service_plugins.MAX_TEXT_LENGTH + 5),
+                },
+                "blank": {"en": "   "},
+            },
         )
-        assert definition["widgets"][0]["sample_data"] == {READ_ID: {"n": [1]}}
+        assert definition["widgets"][0]["strings"] == {
+            "title": {"en": "Sales", "de": "x" * service_plugins.MAX_TEXT_LENGTH},
+        }
+
+    def test_strings_are_capped(self):
+        strings = {
+            f"s{index}": {"en": "Text"}
+            for index in range(service_plugins.MAX_WIDGET_STRINGS + 1)
+        }
+        with pytest.raises(ListingDefinitionError, match="at most"):
+            _with_widget(strings=strings)
+
+    def test_a_sample_is_the_endpoint_s_answer(self):
+        """Written in the endpoint's returns, so a preview reads it the way the
+        proxy reads a live answer."""
+        definition = _with_widget(sample_data={"total": 3})
+        assert definition["widgets"][0]["sample_data"] == {"total": 3}
 
     def test_a_sample_is_what_the_endpoint_would_answer(self):
-        """An endpoint answers with its declared returns, so a sample is written
-        in them too — the preview reads it the way the proxy reads a live one."""
-        with pytest.raises(ListingDefinitionError, match="sample_data for"):
-            _normalize(
-                features=["endpoints", "widgets"],
-                endpoints=[{"id": READ_ID, "direction": "read"}],
-                widgets=[
-                    {
-                        "id": "summary",
-                        "meta": {"name": {"en": "Sales summary"}},
-                        "module_source": "export const render = () => ({});",
-                        "endpoints": [READ_ID],
-                        "sample_data": {READ_ID: [{"n": 1}]},
-                    }
-                ],
-            )
+        """An endpoint answers with an object of its returns, so a sample in any
+        other shape is refused rather than projecting to nothing."""
+        with pytest.raises(ListingDefinitionError, match="sample_data must be"):
+            _with_widget(sample_data=[{"total": 1}])
 
     def test_sample_rows_are_size_capped(self):
         with pytest.raises(ListingDefinitionError, match="sample_data"):
-            _normalize(
-                features=["endpoints", "widgets"],
-                endpoints=[{"id": READ_ID, "direction": "read"}],
-                widgets=[
-                    {
-                        "id": "summary",
-                        "meta": {"name": {"en": "Sales summary"}},
-                        "module_source": "export const render = () => ({});",
-                        "endpoints": [READ_ID],
-                        "sample_data": {
-                            READ_ID: {
-                                "blob": "x" * service_plugins.MAX_SAMPLE_DATA_BYTES
-                            }
-                        },
-                    }
-                ],
+            _with_widget(
+                sample_data={"blob": "x" * service_plugins.MAX_SAMPLE_DATA_BYTES}
             )
 
     def test_two_widgets_cannot_share_an_id(self):
         widget = {
             "id": "summary",
             "meta": {"name": {"en": "Sales summary"}},
-            "module_source": "export const render = () => ({});",
+            "endpoint": READ_ID,
+            "template": "<p>Total</p>",
         }
         with pytest.raises(ListingDefinitionError, match="share the id"):
-            _normalize(features=["widgets"], widgets=[widget, dict(widget)])
+            _normalize(
+                features=["endpoints", "widgets"],
+                endpoints=[{"id": READ_ID, "direction": "read"}],
+                widgets=[widget, dict(widget)],
+            )
 
 
 class TestWidgetTypeNamespacing:
@@ -1177,18 +1178,26 @@ class TestCanonicalShape:
         assert "default_url" not in definition["service"]
 
     def test_the_whole_document_is_size_capped(self):
-        # Each widget is under the per-module cap; together they are not.
-        module = "x" * (service_plugins.MAX_MODULE_SOURCE_BYTES - 1)
+        # Each widget's template and sample is under its own cap; together they
+        # are not.
+        template = "<p>" + "x" * (service_plugins.MAX_TEMPLATE_BYTES - 8) + "</p>"
+        sample = {"blob": "x" * (service_plugins.MAX_SAMPLE_DATA_BYTES - 16)}
         widgets = [
             {
                 "id": f"w{index}",
                 "meta": {"name": {"en": f"Widget {index}"}},
-                "module_source": module,
+                "endpoint": READ_ID,
+                "template": template,
+                "sample_data": sample,
             }
             for index in range(service_plugins.MAX_WIDGETS)
         ]
         with pytest.raises(ListingDefinitionError, match="service plug-in definition"):
-            _normalize(features=["widgets"], widgets=widgets)
+            _normalize(
+                features=["endpoints", "widgets"],
+                endpoints=[{"id": READ_ID, "direction": "read"}],
+                widgets=widgets,
+            )
 
     def test_a_block_longer_than_its_cap_is_refused_not_truncated(self):
         with pytest.raises(ListingDefinitionError, match="more than"):

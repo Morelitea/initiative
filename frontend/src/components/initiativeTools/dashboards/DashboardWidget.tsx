@@ -17,10 +17,10 @@ import {
   Table2,
   Trash2,
 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { pluginWidgetSample, pluginWidgetSource } from "@/api/pluginData";
+import { pluginWidgetDrawing, pluginWidgetEntry, pluginWidgetSample } from "@/api/pluginData";
 import { WidgetProvenance } from "@/components/initiativeTools/dashboards/WidgetProvenance";
 import { WidgetTile } from "@/components/initiativeTools/dashboards/WidgetTile";
 import { Button } from "@/components/ui/button";
@@ -73,24 +73,27 @@ export function DashboardWidget({
   const { t } = useTranslation("dashboards");
   const isPluginWidget = isPluginWidgetType(widget.type);
 
-  // A plug-in widget's module lives in the install's pinned definition rather than
-  // in this build's registry — the seam `WidgetTile.source` exists for. The
-  // catalog is one shared query per community, so a canvas full of plug-in widgets
-  // resolves them all from one request.
+  // A plug-in widget's template lives in the install's pinned definition rather
+  // than in this build's registry. The catalog is one shared query per
+  // community, so a canvas full of plug-in widgets resolves them all from one
+  // request.
   //
-  // In sample mode it is fetched too, and only then: a preview draws the plug-in's
-  // *own* sample rows through the plug-in's own module, so what it shows is the
-  // listing rather than a stand-in. It still issues no data request — no
+  // In sample mode it is fetched too, and only then: a preview draws the
+  // plug-in's *own* sample through the plug-in's own template, so what it shows
+  // is the listing rather than a stand-in. It still issues no data request — no
   // initiative, no dashboard, nothing to fetch.
   const pluginCatalogQuery = usePluginWidgetCatalog(isPluginWidget);
-  const moduleSource = isPluginWidget
-    ? pluginWidgetSource(pluginCatalogQuery.data, widget.type)
-    : undefined;
+  const plugin = useMemo(
+    () => (isPluginWidget ? pluginWidgetDrawing(pluginCatalogQuery.data, widget.type) : undefined),
+    [isPluginWidget, pluginCatalogQuery.data, widget.type]
+  );
 
-  // Named from its own module, like every widget: a plug-in names its widgets in
-  // the manifest, so a marketplace tile has a real title without a locale edit
-  // here. Falls back to the type id until the sandbox read resolves.
-  const { name, meta } = useWidgetMeta(widget.type, moduleSource);
+  // Named in its own words: a built-in in its code, a plug-in in its manifest,
+  // so a marketplace tile has a real title without a locale edit here.
+  const { name, meta } = useWidgetMeta(
+    widget.type,
+    pluginWidgetEntry(pluginCatalogQuery.data, widget.type)?.widget.meta
+  );
 
   // In sample mode the hook still runs (hooks are unconditional) but is handed
   // no initiative, which fail-closes every query — a preview issues no
@@ -108,18 +111,14 @@ export function DashboardWidget({
   const labels = useBindingLabels(binding, initiativeId, !sampleData);
   const [view, setView] = useState<"scene" | "table">("scene");
 
-  const pluginSample = pluginWidgetSample(
-    pluginCatalogQuery.data,
-    widget.type,
-    binding.endpoint_id
-  );
+  const pluginSample = pluginWidgetSample(pluginCatalogQuery.data, widget.type);
   const data = sampleData
     ? isPluginWidget
       ? { source: "plugin" as const, ...pluginSample }
       : sampleFor(widget.type)
     : live.data;
   // Which columns fill this widget's slots. Resolved here rather than in the
-  // sandbox: it needs the widget's declared shape and the author's overrides,
+  // widget: it needs the widget's declared shape and the author's overrides,
   // and neither is the widget's to read.
   const catalogQuery = useWidgetCatalog();
   const shape = shapeFor(widget.type, catalogQuery.data);
@@ -228,7 +227,7 @@ export function DashboardWidget({
             data={data}
             config={widget.options}
             slots={slots}
-            source={moduleSource}
+            plugin={plugin}
             errorCode={errorCode}
             isLoading={isLoading || (isPluginWidget && pluginCatalogQuery.isLoading)}
             now={sampleData ? SAMPLE_NOW : undefined}
