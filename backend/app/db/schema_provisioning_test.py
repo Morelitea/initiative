@@ -982,10 +982,10 @@ async def test_backfill_continues_past_a_failing_guild(engine, monkeypatch):
         # module-level name, so patching it here is enough.
         real_apply_parts = schema_provisioning._apply_parts
 
-        async def _flaky_apply_parts(conn, guild_id: int, parts) -> None:
+        async def _flaky_apply_parts(conn, guild_id: int, parts, **kw) -> None:
             if guild_id == bad:
                 raise RuntimeError("forced provisioning failure")
-            await real_apply_parts(conn, guild_id, parts)
+            await real_apply_parts(conn, guild_id, parts, **kw)
 
         monkeypatch.setattr(schema_provisioning, "_apply_parts", _flaky_apply_parts)
 
