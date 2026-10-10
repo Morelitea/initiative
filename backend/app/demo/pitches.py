@@ -1,4 +1,5 @@
-"""Pitches, and the links that hand them out.
+"""Pitches, and the links that hand them out: invites into the pitch, which
+in demo mode open a copy of it rather than a seat in it.
 
 A pitch is an ordinary community, made from an uploaded bundle and tailored in
 the app by the pitch editors, who are its admins. Publishing it is exporting
@@ -12,8 +13,6 @@ nobody signs in as, which holds their seat.
 from __future__ import annotations
 
 import asyncio
-import hashlib
-import secrets
 from collections.abc import Sequence
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -30,8 +29,8 @@ from app.db import cohorts
 from app.db.request_context import SystemGuild, Unattributed
 from app.db.session import set_rls_context
 from app.demo import accounts
-from app.models.platform.demo import DemoAccount, DemoLink, DemoSandbox
-from app.models.platform.guild import CommunityRole, Guild
+from app.models.platform.demo import DemoAccount, DemoSandbox
+from app.models.platform.guild import CommunityRole, Guild, GuildInvite
 from app.models.platform.guild_image import IMAGE_SPECS, GuildImageVariant
 from app.models.platform.user import User
 from app.models.tenant.export_job import ExportJob, ExportJobStatus
@@ -50,11 +49,6 @@ LINK_ROLES = (CommunityRole.member, CommunityRole.admin, CommunityRole.superadmi
 #: How long making a pitch waits for its import, and how often it looks.
 IMPORT_TIMEOUT_SECONDS = 30 * 60
 IMPORT_POLL_SECONDS = 1.0
-
-
-def hash_token(token: str) -> bytes:
-    """How a link's token is kept and looked up."""
-    return hashlib.sha256(token.encode()).digest()
 
 
 async def seat_cast(
@@ -279,40 +273,34 @@ async def make_link(
     *,
     pitch_id: int,
     role: CommunityRole = CommunityRole.admin,
-    lifetime: timedelta | None = LINK_LIFETIME,
-    label: str | None = None,
+    lifetime: timedelta = LINK_LIFETIME,
     max_redemptions: int | None = None,
-    max_live: int | None = None,
-    created_by: int | None = None,
-) -> tuple[DemoLink, str]:
-    """A new link handing out the pitch ``pitch_id``, lasting ``lifetime`` (for
-    good when ``None``), and its token. Only the token's hash is kept, so the
-    token is returned once, here. Staged; the caller commits."""
+) -> GuildInvite:
+    """A new invite into the pitch ``pitch_id`` for ``lifetime``, opened at
+    most ``max_redemptions`` times; each opening is a copy of the pitch with
+    the visitor in it as ``role``. Its code is the link's token. Staged; the
+    caller commits."""
     if role not in LINK_ROLES:
         raise ValueError(f"a link gives member, admin or superadmin, not {role}")
     if not await is_pitch(session, pitch_id):
         raise ValueError(f"community {pitch_id} is not a pitch")
-    token = secrets.token_urlsafe(32)
-    link = DemoLink(
-        token_hash=hash_token(token),
-        source_guild_id=pitch_id,
+    return await guilds_service.create_guild_invite(
+        session,
+        guild_id=pitch_id,
+        created_by=None,
+        expires_at=datetime.now(timezone.utc) + lifetime,
+        max_uses=max_redemptions,
         role=role,
-        expires_at=datetime.now(timezone.utc) + lifetime if lifetime else None,
-        label=label,
-        max_redemptions=max_redemptions,
-        max_live=max_live,
-        created_by=created_by,
     )
-    session.add(link)
-    await session.flush()
-    return link, token
 
 
-async def revoke_link(session: AsyncSession, link_id: int) -> bool:
-    """End the link now. ``False`` when there is no such link. Staged."""
-    link = await session.get(DemoLink, link_id)
-    if link is None:
+async def revoke_link(session: AsyncSession, invite_id: int) -> bool:
+    """End the link now, keeping it for the daily cleanup. ``False`` when
+    there is no such link. Staged."""
+    invite = await session.get(GuildInvite, invite_id)
+    if invite is None or not await is_pitch(session, invite.guild_id):
         return False
-    link.revoked_at = link.revoked_at or datetime.now(timezone.utc)
-    session.add(link)
+    now = datetime.now(timezone.utc)
+    invite.expires_at = min(invite.expires_at or now, now)
+    session.add(invite)
     return True

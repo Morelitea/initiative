@@ -2,7 +2,6 @@
 
 import time
 from datetime import datetime, timedelta, timezone
-from types import SimpleNamespace
 
 import pytest
 from sqlalchemy import func
@@ -15,11 +14,15 @@ from app.demo import accounts, copies, pitches
 from app.models.platform.auth_session import AuthSession
 from app.models.platform.demo import (
     DemoAccount,
-    DemoLink,
     DemoSandbox,
     DemoSandboxState,
 )
-from app.models.platform.guild import CommunityRole, Guild, GuildMembership
+from app.models.platform.guild import (
+    CommunityRole,
+    Guild,
+    GuildInvite,
+    GuildMembership,
+)
 from app.models.platform.user import User
 from app.models.tenant.export_job import ExportJob, ExportJobStatus
 from app.models.tenant.import_job import ImportJob, ImportJobStatus
@@ -65,9 +68,9 @@ async def pitch(client, acting_user, session, monkeypatch):
     await session.commit()
 
     async def link(role: CommunityRole = CommunityRole.admin) -> str:
-        _link, token = await pitches.make_link(session, pitch_id=a.guild.id, role=role)
+        invite = await pitches.make_link(session, pitch_id=a.guild.id, role=role)
         await session.commit()
-        return token
+        return invite.code
 
     return link, bea.id, a.guild.id
 
@@ -120,6 +123,14 @@ async def test_two_openings_make_two_copies_apart(pitch, client, session):
     )
     assert created.status_code == 403
     assert created.json()["detail"] == GuildMessages.COMMUNITY_CREATION_DEMO_ACCOUNT
+    # The link opens copies; accepting it as an invite joins nobody to the pitch.
+    joined = await client.post(
+        "/api/v1/communities/invite/accept",
+        json={"code": token},
+        headers=second_headers,
+    )
+    assert joined.status_code == 400
+    assert joined.json()["detail"] == GuildMessages.INVITE_NOT_FOUND
 
 
 @pytest.mark.parametrize(
@@ -206,7 +217,7 @@ async def test_a_failed_opening_spends_nothing(pitch, session, monkeypatch):
     sandbox = await session.get(DemoSandbox, copy_id)
     assert sandbox is not None and sandbox.state == DemoSandboxState.pooled
     assert sandbox.import_job_id is None
-    assert (await session.exec(select(DemoLink.redemption_count))).one() == 0
+    assert (await session.exec(select(GuildInvite.uses))).one() == 0
     assert (await session.exec(select(DemoAccount))).all() == []
     assert (await session.exec(select(func.count()).select_from(User))).one() == users
 
@@ -214,17 +225,13 @@ async def test_a_failed_opening_spends_nothing(pitch, session, monkeypatch):
 async def test_a_link_that_ends_while_opening_opens_nothing(
     pitch, client, session, monkeypatch
 ):
-    """The link is checked again by the clock as it reads once locked."""
-    _link, _bea, source = pitch
-    row, token = await pitches.make_link(session, pitch_id=source)
-    ends = datetime.now(timezone.utc) + timedelta(hours=1)
-    row.expires_at = ends
-    session.add(row)
-    await session.commit()
+    """The link is checked again once it is locked."""
+    link, _bea, _source = pitch
+    token = await link()
     await copies.build_copy()
-    readings = iter([ends - timedelta(seconds=1), ends + timedelta(seconds=1)])
+    answers = iter([True, False])
     monkeypatch.setattr(
-        copies, "datetime", SimpleNamespace(now=lambda tz: next(readings))
+        copies.guilds_service, "invite_is_active", lambda _invite: next(answers)
     )
 
     response = await client.post(REDEEM, json={"token": token})
@@ -331,7 +338,7 @@ async def test_making_a_pitch_imports_and_publishes(pitch, session):
     assert (await session.exec(select(Task.title))).all() == ["Proof the dough"]
 
 
-async def test_cleanup_removes_an_idle_pitch_a_stale_link_and_leftovers(session):
+async def test_cleanup_removes_an_idle_pitch_and_leftovers(session):
     host = await accounts.demo_host(session)
     now = datetime.now(timezone.utc)
     old = now - copies.CLEANUP_AFTER - timedelta(days=10)
@@ -340,8 +347,8 @@ async def test_cleanup_removes_an_idle_pitch_a_stale_link_and_leftovers(session)
     seeded = await create_guild(session, creator=host, created_at=old)
     links = {}
     for name, guild in (("idle", idle), ("live", kept), ("stale", kept)):
-        links[name], _token = await pitches.make_link(session, pitch_id=guild.id)
-    links["idle"].revoked_at = old
+        links[name] = await pitches.make_link(session, pitch_id=guild.id)
+    links["idle"].expires_at = old
     links["stale"].expires_at = old
     session.add_all(links.values())
     leftover = await create_user(session)
@@ -360,8 +367,8 @@ async def test_cleanup_removes_an_idle_pitch_a_stale_link_and_leftovers(session)
     assert await session.get(Guild, idle_id) is None
     assert await session.get(Guild, kept_id) is not None
     assert await session.get(Guild, seeded_id) is not None
-    remaining = set((await session.exec(select(DemoLink.id))).all())
-    assert remaining == {ids["live"]}
+    remaining = set((await session.exec(select(GuildInvite.id))).all())
+    assert remaining == {ids["live"], ids["stale"]}
     assert await session.get(User, leftover_id) is None
     for user_id in (member_id, persona_id, host_id):
         assert await session.get(User, user_id) is not None

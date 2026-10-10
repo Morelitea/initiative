@@ -5,6 +5,7 @@ from typing import Any, List, Optional, TYPE_CHECKING
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     Column,
     DateTime,
     ForeignKey,
@@ -565,6 +566,11 @@ class GuildMembership(SQLModel, table=True):
 
 class GuildInvite(SQLModel, table=True):
     __tablename__ = "guild_invites"
+    __table_args__ = (
+        CheckConstraint(
+            "role IN ('member', 'admin', 'superadmin')", name="ck_guild_invites_role"
+        ),
+    )
     __allow_unmapped__ = True
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -578,8 +584,14 @@ class GuildInvite(SQLModel, table=True):
     expires_at: Optional[datetime] = Field(
         default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
     )
-    max_uses: Optional[int] = Field(default=1, nullable=True)
+    #: ``None`` for no limit.
+    max_uses: Optional[int] = Field(default=1, sa_column=Column(Integer, nullable=True))
     uses: int = Field(default=0, nullable=False)
+    #: What accepting the invite makes somebody in the community.
+    role: CommunityRole = Field(
+        default=CommunityRole.member,
+        sa_column=Column(String, nullable=False, server_default="member"),
+    )
     invitee_email_encrypted: Optional[str] = Field(
         default=None,
         sa_column=Column(String(2000), nullable=True, info={FERNET_SALT: SALT_EMAIL}),

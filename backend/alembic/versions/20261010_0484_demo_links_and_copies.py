@@ -1,14 +1,16 @@
-"""demo links and copies
+"""an invite names a role, and demo copies
 
-The demo deployment's three tables: ``demo_links`` (a link handing a pitch
-out, kept by the SHA-256 of its token), ``demo_sandboxes`` (communities built
-for the pool, and the visitors' copies once claimed) and ``demo_accounts``
-(the account made for each visitor, tied to its copy). Empty on every
-deployment not started with ``DEMO_MODE``.
+``guild_invites.role`` is what accepting the invite makes somebody in the
+community; every invite until now made a member, which is its default.
 
-All three are app_admin-only: RLS enabled and forced with no policies, and
-the schema's default grants revoked from the two base roles. The tables are
-new and empty, so nothing is backfilled.
+The demo deployment's two tables: ``demo_sandboxes`` (communities built for
+the pool, and the visitors' copies once claimed, each with the invite that
+opened it) and ``demo_accounts`` (the account made for each visitor, tied to
+its copy). Empty on every deployment not started with ``DEMO_MODE``.
+
+Both are app_admin-only: RLS enabled and forced with no policies, and the
+schema's default grants revoked from the two base roles. The tables are new
+and empty, so nothing is backfilled.
 
 Revision ID: 20261010_0484
 Revises: 20261010_0483
@@ -27,53 +29,38 @@ down_revision = "20261010_0483"
 branch_labels = None
 depends_on = None
 
-_TABLES = ("demo_links", "demo_sandboxes", "demo_accounts")
+_TABLES = ("demo_sandboxes", "demo_accounts")
 
 
 def upgrade() -> None:
-    op.create_table(
-        "demo_links",
-        sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column("token_hash", sa.LargeBinary(), nullable=False),
-        sa.Column("source_guild_id", sa.Integer(), nullable=False),
-        sa.Column("role", sa.String(), nullable=False, server_default="admin"),
-        sa.Column("max_redemptions", sa.Integer(), nullable=True),
-        sa.Column("max_live", sa.Integer(), nullable=True),
-        sa.Column("expires_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("revoked_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("label", sa.String(), nullable=True),
-        sa.Column("redemption_count", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("last_redeemed_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("created_by", sa.Integer(), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
-        sa.ForeignKeyConstraint(["source_guild_id"], ["guilds.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["created_by"], ["users.id"], ondelete="SET NULL"),
-        sa.CheckConstraint(
-            "role IN ('member', 'admin', 'superadmin')", name="ck_demo_links_role"
-        ),
+    op.add_column(
+        "guild_invites",
+        sa.Column("role", sa.String(), nullable=False, server_default="member"),
     )
-    op.create_unique_constraint(
-        "uq_demo_links_token_hash", "demo_links", ["token_hash"]
+    op.create_check_constraint(
+        "ck_guild_invites_role",
+        "guild_invites",
+        "role IN ('member', 'admin', 'superadmin')",
     )
-    op.create_index("ix_demo_links_source_guild_id", "demo_links", ["source_guild_id"])
 
     op.create_table(
         "demo_sandboxes",
         sa.Column("guild_id", sa.Integer(), primary_key=True),
         sa.Column("state", sa.String(), nullable=False, server_default="pooled"),
-        sa.Column("link_id", sa.Integer(), nullable=True),
+        sa.Column("invite_id", sa.Integer(), nullable=True),
         sa.Column("claimed_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("import_job_id", sa.Integer(), nullable=True),
         sa.ForeignKeyConstraint(["guild_id"], ["guilds.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["link_id"], ["demo_links.id"], ondelete="SET NULL"),
+        sa.ForeignKeyConstraint(
+            ["invite_id"], ["guild_invites.id"], ondelete="SET NULL"
+        ),
         sa.CheckConstraint(
             "state IN ('pooled', 'live')", name="ck_demo_sandboxes_state"
         ),
     )
     op.create_index("ix_demo_sandboxes_state", "demo_sandboxes", ["state"])
-    op.create_index("ix_demo_sandboxes_link_id", "demo_sandboxes", ["link_id"])
-
+    op.create_index("ix_demo_sandboxes_invite_id", "demo_sandboxes", ["invite_id"])
     op.create_table(
         "demo_accounts",
         sa.Column("user_id", sa.Integer(), primary_key=True),
@@ -101,14 +88,10 @@ def upgrade() -> None:
             f"GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.{table} TO app_admin",
         ):
             op.execute(statement)
-    # The system engine draws the ids of the links it inserts.
-    op.execute(
-        "REVOKE ALL ON SEQUENCE public.demo_links_id_seq "
-        f'FROM app_guild_base, "{base}", app_user'
-    )
-    op.execute("GRANT USAGE, SELECT ON SEQUENCE public.demo_links_id_seq TO app_admin")
 
 
 def downgrade() -> None:
     for table in reversed(_TABLES):
         op.drop_table(table)
+    op.drop_constraint("ck_guild_invites_role", "guild_invites", type_="check")
+    op.drop_column("guild_invites", "role")

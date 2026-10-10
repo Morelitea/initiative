@@ -1309,9 +1309,10 @@ async def create_guild_invite(
     max_uses: int | None = 1,
     invitee_email: str | None = None,
     actor_user_id: int | None = None,
+    role: CommunityRole = CommunityRole.member,
 ) -> GuildInvite:
-    """Mint an invite. ``actor_user_id`` names who for the record; without one
-    the invite is minted unrecorded."""
+    """Mint an invite that makes whoever accepts it ``role``. ``actor_user_id``
+    names who for the record; without one the invite is minted unrecorded."""
     # A full guild mints no new invites: every seat is taken, so any code handed
     # out now could only fail at redemption. Raises ``GuildCapacityError``.
     await _assert_member_capacity(session, guild_id=guild_id, claiming_seat=False)
@@ -1330,6 +1331,7 @@ async def create_guild_invite(
         created_by=created_by,
         expires_at=expiry,
         max_uses=max_uses,
+        role=role,
         invitee_email_encrypted=encrypt_field(invitee_email, SALT_EMAIL)
         if invitee_email
         else None,
@@ -1948,6 +1950,13 @@ async def _live_invite(session: AsyncSession, *, code: str) -> GuildInvite:
     target_guild = await get_guild(session, guild_id=invite.guild_id)
     if target_guild.status != CommunityStatus.active.value:
         raise GuildInviteError(GuildMessages.INVITE_EXPIRED_OR_USED)
+    if settings.DEMO_MODE:
+        from app.demo import pitches
+
+        # An invite into a pitch opens a copy of it (app.demo.copies), and
+        # joins nobody to the pitch itself.
+        if await pitches.is_pitch(session, invite.guild_id):
+            raise GuildInviteError(GuildMessages.INVITE_NOT_FOUND)
     return invite
 
 
@@ -2019,7 +2028,7 @@ async def redeem_invite_for_user(
         session,
         guild_id=invite.guild_id,
         user_id=user.id,
-        role=CommunityRole.member,
+        role=CommunityRole(invite.role),
         via="invite",
         invite_id=invite.id,
     )

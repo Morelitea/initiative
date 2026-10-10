@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import cast
 
-from sqlalchemy import delete, exists, func, or_
+from sqlalchemy import exists, func, or_
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -29,7 +29,6 @@ from app.db.session import set_rls_context
 from app.demo import accounts, pitches
 from app.models.platform.demo import (
     DemoAccount,
-    DemoLink,
     DemoSandbox,
     DemoSandboxState,
 )
@@ -37,6 +36,7 @@ from app.models.platform.guild import (
     CommunityRole,
     CommunityStatus,
     Guild,
+    GuildInvite,
     GuildMembership,
 )
 from app.models.platform.guild_image import IMAGE_SPECS, GuildImage, GuildImageVariant
@@ -92,10 +92,7 @@ async def redeem(session: AsyncSession, token: str) -> Redemption:
     of the pitch's newest export, its dates moved from the pitch's creation to
     now. ``session`` is a platform system session."""
     await set_rls_context(session, Unattributed())
-    digest = pitches.hash_token(token)
-    source_id = _live(
-        await _link(session, digest), datetime.now(timezone.utc)
-    ).source_guild_id
+    source_id = (await _live(session, await _link(session, token))).guild_id
     if not await _count(session, DemoSandbox.state == DemoSandboxState.pooled):
         raise PoolBusy
     artifact = await pitches.newest_export(source_id)
@@ -107,17 +104,10 @@ async def redeem(session: AsyncSession, token: str) -> Redemption:
         plan = await asyncio.to_thread(
             backup_service.plan_backup, bundle, existing_initiative_names=set()
         )
-        link = await _link(session, digest, lock=True)
-        # Checked again by the clock as it reads once the link is locked.
+        # Checked again once the link is locked.
+        link = await _live(session, await _link(session, token, lock=True))
         now = datetime.now(timezone.utc)
-        link = _live(link, now)
         role = CommunityRole(link.role)
-        if link.max_live is not None and link.max_live <= await _count(
-            session,
-            DemoSandbox.link_id == link.id,
-            DemoSandbox.state == DemoSandboxState.live,
-        ):
-            raise PoolBusy
         sandbox = (
             await session.exec(
                 select(DemoSandbox)
@@ -171,14 +161,13 @@ async def redeem(session: AsyncSession, token: str) -> Redemption:
             await guild_session.flush()
             job_id = cast(int, job.id)
             sandbox.state = DemoSandboxState.live
-            sandbox.link_id = link.id
+            sandbox.invite_id = link.id
             sandbox.claimed_at = now
             sandbox.expires_at = expires_at
             sandbox.import_job_id = job_id
             session.add(sandbox)
             session.add(DemoAccount(user_id=visitor.id, sandbox_guild_id=guild_id))
-            link.redemption_count += 1
-            link.last_redeemed_at = now
+            link.uses += 1
             session.add(link)
             # The job is committed only once the claim is.
             await session.commit()
@@ -196,24 +185,20 @@ async def redeem(session: AsyncSession, token: str) -> Redemption:
     )
 
 
-def _live(link: DemoLink | None, now: datetime) -> DemoLink:
+async def _live(session: AsyncSession, link: GuildInvite | None) -> GuildInvite:
     if (
         link is None
-        or link.revoked_at is not None
-        or (link.expires_at is not None and link.expires_at <= now)
-        or (
-            link.max_redemptions is not None
-            and link.redemption_count >= link.max_redemptions
-        )
+        or not guilds_service.invite_is_active(link)
+        or not await pitches.is_pitch(session, link.guild_id)
     ):
         raise LinkNotLive
     return link
 
 
 async def _link(
-    session: AsyncSession, digest: bytes, *, lock: bool = False
-) -> DemoLink | None:
-    stmt = select(DemoLink).where(DemoLink.token_hash == digest)
+    session: AsyncSession, token: str, *, lock: bool = False
+) -> GuildInvite | None:
+    stmt = select(GuildInvite).where(GuildInvite.code == token)
     if lock:
         stmt = stmt.with_for_update().execution_options(populate_existing=True)
     return (await session.exec(stmt)).one_or_none()
@@ -393,29 +378,24 @@ async def build_copy() -> int:
 
 async def clean_up() -> None:
     """Delete each pitch whose links have all been dead, with no live copy,
-    for :data:`CLEANUP_AFTER` (a community nobody ever made a link to, such as
-    a seeded one, is left alone), each link that ended that long ago, and every
-    account left over from an invite: one on the bottom rung that is in no
+    for :data:`CLEANUP_AFTER`, with its links (a community nobody ever made a
+    link to, such as a seeded one, is left alone), and every account left over
+    from an invite: one on the bottom rung that is in no
     community and that somebody can sign in to."""
     async with cohorts.system_session(None) as session:
         await set_rls_context(session, Unattributed())
         cutoff = datetime.now(timezone.utc) - CLEANUP_AFTER
         host = await accounts.demo_host(session)
-        ended = func.least(DemoLink.revoked_at, DemoLink.expires_at)
         in_use = exists().where(
-            DemoLink.source_guild_id == Guild.id,
-            or_(
-                ended.is_(None),
-                ended > cutoff,
-                DemoLink.last_redeemed_at > cutoff - COPY_LIFETIME,
-            ),
+            GuildInvite.guild_id == Guild.id,
+            or_(GuildInvite.expires_at.is_(None), GuildInvite.expires_at > cutoff),
         )
         idle = await session.exec(
             select(Guild.id).where(
                 Guild.created_by == host.id,
                 Guild.created_at < cutoff,
                 ~exists().where(DemoSandbox.guild_id == Guild.id),
-                exists().where(DemoLink.source_guild_id == Guild.id),
+                exists().where(GuildInvite.guild_id == Guild.id),
                 ~in_use,
             )
         )
@@ -427,7 +407,6 @@ async def clean_up() -> None:
             except Exception:
                 logger.exception("demo: deleting pitch %s failed", pitch_id)
                 await session.rollback()
-        await session.exec(delete(DemoLink).where(ended < cutoff))
         await session.commit()
 
         leftovers = (

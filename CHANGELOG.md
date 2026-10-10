@@ -52,6 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **An invite with no use limit takes any number of people.** One made with the uses left at 0 stopped working after the first person joined.
 - **Your recently opened items, favorite projects and project order are yours alone.** Nobody else in the community can read or change them, admins included.
 - **Only you can answer a poll or mark a notice read as yourself.** Admins can't change your answer either. Others still see the counts and who answered, as before.
 - **The project task table keeps its rows current.** A task's checklist progress, a swapped assignee and its blocker count now update in the table as they change, as they already did on the board.
