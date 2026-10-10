@@ -921,7 +921,9 @@
         "filed": "Von der Person eingereicht",
         "about": "Betrifft die Person",
         "help": "Um einen Vorgang zu öffnen, brauchst du Zugriff auf das Projekt, in dem er geführt wird."
-      }
+      },
+      "forCase": "Für Fall",
+      "forCaseHelp": "Optional. Was du hier tust, wird im gewählten Fall vermerkt."
     },
     "deleted": "Gelöscht",
     "erasedOn": "Löschung am {{date}}",
@@ -1034,7 +1036,18 @@
     "communityLabel": "Community",
     "communityPlaceholder": "Community auswählen",
     "communitySearch": "Nach Name oder Nummer suchen…",
-    "communityEmpty": "Keine Communities gefunden."
+    "communityEmpty": "Keine Communities gefunden.",
+    "caseLabel": "Fall",
+    "casePlaceholder": "Fall auswählen",
+    "caseSearch": "Nach Titel oder Nummer suchen…",
+    "caseEmpty": "Keine offenen Fälle gefunden.",
+    "caseNone": "Kein Fall",
+    "caseYours": "deiner",
+    "caseRequiredHint": "Wähle den Fall, für den du diesen Zugriff brauchst.",
+    "caseRequiredNoneOpen": "Zugriff wird hier für einen Fall beantragt, und es gibt keinen offenen Fall, den du angeben kannst. Eröffne zuerst einen.",
+    "caseOptionalHint": "Optional. Ohne Fall hältst du danach von Hand im Fall fest, was du getan hast.",
+    "caseOtherCommunity": "Dieser Fall betrifft Community #{{community}}, nicht die ausgewählte.",
+    "caseMark": "Fall #{{id}}"
   },
   "platformLayout": {
     "title": "Plattformeinstellungen",

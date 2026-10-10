@@ -832,5 +832,10 @@
   "COMMUNITY_SUSPENSION_NEEDS_GRANT": "Suspending a community, or lifting its suspension, needs a live moderation grant on it. Request one under Access.",
   "COMMUNITY_NOT_SUSPENDABLE": "This community can't be suspended from the status it is in now.",
   "COMMUNITY_NOT_SUSPENDED": "This community isn't suspended, so there is no suspension to lift.",
-  "OPERATOR_CANNOT_ACT_ON_SELF": "You can't do this to your own account from here. Change it in your own settings."
+  "OPERATOR_CANNOT_ACT_ON_SELF": "You can't do this to your own account from here. Change it in your own settings.",
+  "ACCESS_GRANT_CASE_REQUIRED": "Choose the case this access is for.",
+  "ACCESS_GRANT_CASE_NOT_FOUND": "That case wasn't found, or you can't open it.",
+  "ACCESS_GRANT_CASE_NOT_LINKABLE": "Access can't be asked for a case of this kind.",
+  "ACCESS_GRANT_CASE_CLOSED": "That case is closed.",
+  "ACCESS_GRANT_CASE_OTHER_COMMUNITY": "That case is about another community."
 }

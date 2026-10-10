@@ -921,7 +921,9 @@
         "filed": "Filed by them",
         "about": "About them",
         "help": "Opening a case needs access to the project it is kept in."
-      }
+      },
+      "forCase": "For case",
+      "forCaseHelp": "Optional. What you do here is noted on the case you choose."
     },
     "deleted": "Deleted",
     "erasedOn": "Erased {{date}}",
@@ -1034,7 +1036,18 @@
     "communityLabel": "Community",
     "communityPlaceholder": "Choose a community",
     "communitySearch": "Search by name or number…",
-    "communityEmpty": "No communities found."
+    "communityEmpty": "No communities found.",
+    "caseLabel": "Case",
+    "casePlaceholder": "Choose a case",
+    "caseSearch": "Search by title or number…",
+    "caseEmpty": "No open cases found.",
+    "caseNone": "No case",
+    "caseYours": "yours",
+    "caseRequiredHint": "Choose the case this access is for.",
+    "caseRequiredNoneOpen": "Access is asked for on a case here, and there is no open case you can name. Open one first.",
+    "caseOptionalHint": "Optional. Without one, record what you did on the case by hand afterwards.",
+    "caseOtherCommunity": "This case is about community #{{community}}, not the one chosen.",
+    "caseMark": "Case #{{id}}"
   },
   "platformLayout": {
     "title": "Platform settings",

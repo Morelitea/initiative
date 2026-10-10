@@ -921,7 +921,9 @@
         "filed": "Déposé par la personne",
         "about": "La concernant",
         "help": "Pour ouvrir un cas, il vous faut l’accès au projet où il est tenu."
-      }
+      },
+      "forCase": "Pour le dossier",
+      "forCaseHelp": "Facultatif. Ce que vous faites ici est noté dans le dossier choisi."
     },
     "deleted": "Supprimé",
     "erasedOn": "Effacé le {{date}}",
@@ -1034,7 +1036,18 @@
     "communityLabel": "Communauté",
     "communityPlaceholder": "Choisir une communauté",
     "communitySearch": "Rechercher par nom ou numéro…",
-    "communityEmpty": "Aucune communauté trouvée."
+    "communityEmpty": "Aucune communauté trouvée.",
+    "caseLabel": "Dossier",
+    "casePlaceholder": "Choisir un dossier",
+    "caseSearch": "Rechercher par titre ou numéro…",
+    "caseEmpty": "Aucun dossier ouvert trouvé.",
+    "caseNone": "Aucun dossier",
+    "caseYours": "le vôtre",
+    "caseRequiredHint": "Choisissez le dossier pour lequel vous demandez cet accès.",
+    "caseRequiredNoneOpen": "Ici, l'accès se demande pour un dossier, et aucun dossier ouvert ne peut être indiqué. Ouvrez-en un d'abord.",
+    "caseOptionalHint": "Facultatif. Sans dossier, notez ensuite à la main dans le dossier ce que vous avez fait.",
+    "caseOtherCommunity": "Ce dossier concerne la communauté #{{community}}, pas celle choisie.",
+    "caseMark": "Dossier #{{id}}"
   },
   "platformLayout": {
     "title": "Paramètres de la plateforme",

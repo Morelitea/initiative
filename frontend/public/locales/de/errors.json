@@ -832,5 +832,10 @@
   "COMMUNITY_SUSPENSION_NEEDS_GRANT": "Um eine Community zu sperren oder ihre Sperre aufzuheben, brauchst du eine aktive Moderationsfreigabe für sie. Fordere eine unter Zugriff an.",
   "COMMUNITY_NOT_SUSPENDABLE": "Diese Community kann aus ihrem aktuellen Status heraus nicht gesperrt werden.",
   "COMMUNITY_NOT_SUSPENDED": "Diese Community ist nicht gesperrt, es gibt also keine Sperre aufzuheben.",
-  "OPERATOR_CANNOT_ACT_ON_SELF": "Das kannst du hier nicht mit deinem eigenen Konto tun. Ändere es in deinen eigenen Einstellungen."
+  "OPERATOR_CANNOT_ACT_ON_SELF": "Das kannst du hier nicht mit deinem eigenen Konto tun. Ändere es in deinen eigenen Einstellungen.",
+  "ACCESS_GRANT_CASE_REQUIRED": "Wähle den Fall, für den dieser Zugriff ist.",
+  "ACCESS_GRANT_CASE_NOT_FOUND": "Dieser Fall wurde nicht gefunden, oder du kannst ihn nicht öffnen.",
+  "ACCESS_GRANT_CASE_NOT_LINKABLE": "Für einen Fall dieser Art kann kein Zugriff angefragt werden.",
+  "ACCESS_GRANT_CASE_CLOSED": "Dieser Fall ist geschlossen.",
+  "ACCESS_GRANT_CASE_OTHER_COMMUNITY": "Dieser Fall betrifft eine andere Community."
 }

@@ -4,12 +4,13 @@ import { useTranslation } from "react-i18next";
 
 import type {
   AccessGrantRead,
-  AccessGrantStatus,
   BreakGlassCreate,
+  GrantCaseRead,
 } from "@/api/generated/initiativeAPI.schemas";
+import { AccessGrantStatusBadge } from "@/components/platform/AccessGrantStatusBadge";
+import { CasePicker } from "@/components/platform/CasePicker";
 import { CommunityPicker, type PickedCommunity } from "@/components/platform/CommunityPicker";
 import { UserHandle } from "@/components/UserHandle";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -32,6 +33,7 @@ import {
   useCancelAccessRequest,
   useCreateAccessRequest,
   useDenyAccessGrant,
+  useGrantCases,
   useMyAccessGrants,
   useRevokeAccessGrant,
 } from "@/hooks/useAccessGrants";
@@ -45,17 +47,6 @@ import { assertForBreakGlass, describePasskeyPromptError } from "@/lib/passkeys"
 import { Capability, hasCapability } from "@/lib/permissions";
 import { classifySecondFactorAnswer } from "@/lib/secondFactorAnswer";
 import { getUserDisplayName } from "@/lib/userDisplay";
-
-const STATUS_VARIANT: Record<
-  AccessGrantStatus,
-  "default" | "secondary" | "outline" | "destructive"
-> = {
-  pending: "secondary",
-  approved: "default",
-  denied: "destructive",
-  revoked: "destructive",
-  expired: "outline",
-};
 
 // Always surface the community id alongside the name so approvers can
 // disambiguate similarly-named communities (and fall back cleanly when the name
@@ -103,6 +94,100 @@ const usePreselectedCommunity = (form: AccessGrantsForm): PickedCommunity | null
   return { id: search.community, name: search.name ?? null };
 };
 
+/**
+ * The operations case a form is for: the open cases on offer, whether one must
+ * be named, and the one chosen, starting from the case the page was opened
+ * for when it was opened for this form.
+ */
+const useCaseChoice = (form: AccessGrantsForm) => {
+  const search = useSearch({ strict: false }) as AccessGrantsSearch;
+  const cases = useGrantCases();
+  const [caseTaskId, setCaseTaskId] = useState<number | null>(
+    search.form === form ? (search.case ?? null) : null
+  );
+  const items = cases.data?.items ?? [];
+  return {
+    items,
+    loading: cases.isLoading,
+    loaded: cases.isSuccess,
+    required: cases.data?.required ?? false,
+    caseTaskId,
+    setCaseTaskId,
+    chosen: caseTaskId == null ? undefined : items.find((item) => item.task_id === caseTaskId),
+  };
+};
+
+type CaseChoice = ReturnType<typeof useCaseChoice>;
+
+/**
+ * The community a form asks about: the one picked, or else the one the chosen
+ * case is about.
+ */
+const formCommunity = (
+  picked: PickedCommunity | null,
+  chosen: GrantCaseRead | undefined
+): PickedCommunity | null =>
+  picked ?? (chosen?.subject_community_id != null ? { id: chosen.subject_community_id } : null);
+
+/** The case picker, what it asks of the form, and a word where the community
+ *  picked is not the one the case is about. The server decides; this only
+ *  says so before it is asked. */
+const CaseField = ({
+  choice,
+  community,
+  optional,
+}: {
+  choice: CaseChoice;
+  community: PickedCommunity | null;
+  optional: boolean;
+}) => {
+  const { t } = useTranslation("settings");
+  const subject = choice.chosen?.subject_community_id ?? null;
+  const otherCommunity = subject != null && community != null && community.id !== subject;
+  let hint: string | null = null;
+  if (choice.caseTaskId == null) {
+    if (optional) hint = t("accessGrants.caseOptionalHint");
+    else if (choice.required) {
+      hint =
+        choice.loaded && choice.items.length === 0
+          ? t("accessGrants.caseRequiredNoneOpen")
+          : t("accessGrants.caseRequiredHint");
+    }
+  }
+  return (
+    <div className="space-y-1">
+      <Label>{t("accessGrants.caseLabel")}</Label>
+      <CasePicker
+        aria-label={t("accessGrants.caseLabel")}
+        cases={choice.items}
+        value={choice.caseTaskId}
+        onChange={choice.setCaseTaskId}
+        optional={optional || !choice.required}
+        loading={choice.loading}
+      />
+      {hint ? <p className="text-muted-foreground text-xs">{hint}</p> : null}
+      {otherCommunity ? (
+        <p className="text-warning text-xs">
+          {t("accessGrants.caseOtherCommunity", { community: subject })}
+        </p>
+      ) : null}
+    </div>
+  );
+};
+
+/** The case a grant was asked for, by its number. */
+const GrantCaseMark = ({ grant }: { grant: AccessGrantRead }) => {
+  const { t } = useTranslation("settings");
+  if (grant.case_task_id == null) return null;
+  // Reaching the case needs the operations community's address, which this
+  // page does not hold, so the number stands alone.
+  return (
+    <span className="shrink-0 text-muted-foreground text-xs">
+      {t("accessGrants.caseMark", { id: grant.case_task_id })}
+    </span>
+  );
+};
+
 export const SettingsAccessGrantsPage = () => {
   const { t } = useTranslation(["settings", "common"]);
   const { user } = useAuth();
@@ -146,13 +231,6 @@ const LoadMore = ({
   );
 };
 
-const StatusBadge = ({ grant }: { grant: AccessGrantRead }) => {
-  const { t } = useTranslation("settings");
-  return (
-    <Badge variant={STATUS_VARIANT[grant.status]}>{t(`accessGrants.status.${grant.status}`)}</Badge>
-  );
-};
-
 // Break-glass duration presets (whole hours), offered up to the window the
 // server says the caller may break glass for — a self-approved grant is
 // deliberately short.
@@ -177,7 +255,9 @@ const BreakGlassSection = () => {
   const { t } = useTranslation(["settings", "common", "auth"]);
   const { refreshCommunities } = useCommunities();
   const preselected = usePreselectedCommunity("break_glass");
-  const [community, setCommunity] = useState<PickedCommunity | null>(preselected);
+  const [pickedCommunity, setCommunity] = useState<PickedCommunity | null>(preselected);
+  const caseChoice = useCaseChoice("break_glass");
+  const community = formCommunity(pickedCommunity, caseChoice.chosen);
   // Null until chosen: the offered windows arrive with the requirements below.
   const [chosenDuration, setDuration] = useState<string | null>(null);
   const [reason, setReason] = useState("");
@@ -211,6 +291,7 @@ const BreakGlassSection = () => {
     onSuccess: () => {
       toast.success(t("accessGrants.breakGlass.activated"));
       setCommunity(null);
+      caseChoice.setCaseTaskId(null);
       setReason("");
       setCode("");
       setFactorRefused(false);
@@ -240,6 +321,7 @@ const BreakGlassSection = () => {
       community_id: community.id,
       reason: reason.trim(),
       requested_duration_minutes: Number.parseInt(duration, 10),
+      ...(caseChoice.caseTaskId == null ? {} : { case_task_id: caseChoice.caseTaskId }),
       ...answer,
     });
   };
@@ -282,6 +364,7 @@ const BreakGlassSection = () => {
               onChange={setCommunity}
             />
           </div>
+          <CaseField choice={caseChoice} community={community} optional />
           <div className="space-y-1">
             <Label htmlFor="bg-duration">{t("accessGrants.durationLabel")}</Label>
             <Select value={duration} onValueChange={setDuration}>
@@ -373,7 +456,9 @@ const RequestSection = () => {
   );
   const defaultDuration = String(durationOptions.includes(240) ? 240 : (durationOptions[0] ?? ""));
   const preselected = usePreselectedCommunity("request");
-  const [community, setCommunity] = useState<PickedCommunity | null>(preselected);
+  const [pickedCommunity, setCommunity] = useState<PickedCommunity | null>(preselected);
+  const caseChoice = useCaseChoice("request");
+  const community = formCommunity(pickedCommunity, caseChoice.chosen);
   // Two axes, asked for independently. "none" is how you say you do not want
   // one — clearing up after an incident wants both; having a look wants only
   // the first.
@@ -388,6 +473,7 @@ const RequestSection = () => {
     onSuccess: () => {
       toast.success(t("accessGrants.requestSubmitted"));
       setCommunity(null);
+      caseChoice.setCaseTaskId(null);
       setReason("");
       setDuration(null);
     },
@@ -399,10 +485,12 @@ const RequestSection = () => {
 
   // A request must name at least one authority.
   const asksForSomething = level !== "none" || settingsLevel !== "none";
+  // And, where the deployment says so, the case it is for.
+  const namesItsCase = !caseChoice.required || caseChoice.caseTaskId != null;
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!community || !reason.trim() || !asksForSomething || !duration) return;
+    if (!community || !reason.trim() || !asksForSomething || !namesItsCase || !duration) return;
     createRequest.mutate({
       community_id: community.id,
       ...(level === "none" ? {} : { access_level: level as "read" | "read_write" | "moderate" }),
@@ -411,6 +499,7 @@ const RequestSection = () => {
         : { settings_level: settingsLevel as "admin" | "superadmin" }),
       reason: reason.trim(),
       requested_duration_minutes: Number.parseInt(duration, 10),
+      ...(caseChoice.caseTaskId == null ? {} : { case_task_id: caseChoice.caseTaskId }),
     });
   };
 
@@ -430,6 +519,7 @@ const RequestSection = () => {
               onChange={setCommunity}
             />
           </div>
+          <CaseField choice={caseChoice} community={community} optional={false} />
           <div className="space-y-1">
             <Label htmlFor="ag-level">{t("accessGrants.purposeContent")}</Label>
             <Select value={level} onValueChange={setLevel}>
@@ -489,7 +579,7 @@ const RequestSection = () => {
           <div className="col-span-full">
             <Button
               type="submit"
-              disabled={!community || createRequest.isPending || !asksForSomething}
+              disabled={!community || createRequest.isPending || !asksForSomething || !namesItsCase}
             >
               {createRequest.isPending ? t("common:submitting") : t("accessGrants.submitRequest")}
             </Button>
@@ -513,7 +603,10 @@ const RequestSection = () => {
                       <p className="truncate text-sm">
                         {communityLabel(grant)} · {grantScope(grant)}
                       </p>
-                      <p className="truncate text-muted-foreground text-xs">{grant.reason}</p>
+                      <p className="flex gap-2 text-muted-foreground text-xs">
+                        <GrantCaseMark grant={grant} />
+                        <span className="truncate">{grant.reason}</span>
+                      </p>
                     </div>
                     <div className="flex items-center gap-2">
                       {grant.is_live && left !== null && (
@@ -521,7 +614,7 @@ const RequestSection = () => {
                           {t("accessGrants.expiresIn", { minutes: left })}
                         </span>
                       )}
-                      <StatusBadge grant={grant} />
+                      <AccessGrantStatusBadge grant={grant} />
                       {grant.status === "pending" && (
                         <Button
                           type="button"
@@ -592,7 +685,10 @@ const ApprovalQueue = () => {
                       <GrantHolder grant={grant} /> → {communityLabel(grant)} · {grantScope(grant)}{" "}
                       · {t("accessGrants.minutes", { minutes: grant.requested_duration_minutes })}
                     </p>
-                    <p className="truncate text-muted-foreground text-xs">{grant.reason}</p>
+                    <p className="flex gap-2 text-muted-foreground text-xs">
+                      <GrantCaseMark grant={grant} />
+                      <span className="truncate">{grant.reason}</span>
+                    </p>
                   </div>
                   <div className="flex items-center gap-2">
                     <Button
@@ -639,9 +735,12 @@ const ApprovalQueue = () => {
                         <GrantHolder grant={grant} /> → {communityLabel(grant)} ·{" "}
                         {grantScope(grant)}
                       </p>
-                      {left !== null && (
-                        <p className="text-muted-foreground text-xs">
-                          {t("accessGrants.expiresIn", { minutes: left })}
+                      {(left !== null || grant.case_task_id != null) && (
+                        <p className="flex gap-2 text-muted-foreground text-xs">
+                          <GrantCaseMark grant={grant} />
+                          {left !== null && (
+                            <span>{t("accessGrants.expiresIn", { minutes: left })}</span>
+                          )}
                         </p>
                       )}
                     </div>

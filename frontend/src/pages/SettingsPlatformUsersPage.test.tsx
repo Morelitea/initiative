@@ -18,6 +18,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { buildPage, buildUser } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
 import type {
+  GrantCaseRead,
   OperatorAccountCaseRead,
   OperatorUserRead,
   UserAction,
@@ -36,6 +37,15 @@ const state = vi.hoisted(() => ({
   clearProfileField: vi.fn(),
   cases: [] as OperatorAccountCaseRead[],
   casesEnabled: undefined as boolean | undefined,
+  grantCases: [] as GrantCaseRead[],
+  signOutCase: undefined as number | null | undefined,
+}));
+
+vi.mock("@/hooks/useAccessGrants", () => ({
+  useGrantCases: () => ({
+    data: { items: state.grantCases, required: false },
+    isLoading: false,
+  }),
 }));
 
 vi.mock("@/hooks/useAppConfig", () => ({
@@ -59,7 +69,10 @@ vi.mock("@/hooks/useOperatorUsers", () => ({
   useOperatorUpdatePlatformRole: () => ({ mutate: vi.fn(), isPending: false }),
   useOperatorRemoveAvatar: () => ({ mutate: vi.fn(), isPending: false }),
   useOperatorRevokeApiKeys: () => ({ mutate: state.revokeApiKeys, isPending: false }),
-  useOperatorSignOutEverywhere: () => ({ mutate: state.signOutEverywhere, isPending: false }),
+  useOperatorSignOutEverywhere: (_options: unknown, caseTaskId?: number | null) => {
+    state.signOutCase = caseTaskId;
+    return { mutate: state.signOutEverywhere, isPending: false };
+  },
   useOperatorClearProfileField: () => ({ mutate: state.clearProfileField, isPending: false }),
   useOperatorAccountCases: (_userId: number, options?: { enabled?: boolean }) => {
     state.casesEnabled = options?.enabled;
@@ -305,6 +318,34 @@ describe("SettingsPlatformUsersPage manage sheet", () => {
 
     await userEvent.click(within(dialog).getByRole("button", { name: "Sign out everywhere" }));
     expect(state.signOutEverywhere).toHaveBeenCalledWith(rows[1].id);
+  });
+
+  it("takes an act for the case chosen in the sheet", async () => {
+    state.grantCases = [
+      {
+        task_id: 41,
+        title: "Spam wave",
+        stream: "moderation",
+        subject_community_id: null,
+        mine: true,
+      },
+    ];
+    const rows = masked(["sign_out_everywhere"]);
+    renderRoster(rows, buildUser({ role: "moderator" }));
+
+    const sheet = await openSheet();
+    expect(state.signOutCase).toBeNull();
+    await userEvent.click(within(sheet).getByRole("combobox", { name: "For case" }));
+    await userEvent.click(await screen.findByRole("option", { name: /#41 · Spam wave/ }));
+    expect(state.signOutCase).toBe(41);
+    state.grantCases = [];
+  });
+
+  it("offers no case to choose where there is none", async () => {
+    state.grantCases = [];
+    renderRoster(masked(["sign_out_everywhere"]), buildUser({ role: "moderator" }));
+    const sheet = await openSheet();
+    expect(within(sheet).queryByRole("combobox", { name: "For case" })).toBeNull();
   });
 
   it.each<[UserAction, string, string]>([
