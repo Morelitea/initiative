@@ -878,14 +878,59 @@
       "suspendHelp": "A suspended account can sign in and read why, and reaches nothing else.",
       "role": "Platform role",
       "roleLabel": "Role",
-      "roleHelp": "What this account may do across the whole deployment. You cannot grant above your own role."
+      "roleHelp": "What this account may do across the whole deployment. You cannot grant above your own role.",
+      "signOutLabel": "Sessions",
+      "signOutHelp": "End every session on every device. They sign in again; anyone else who had the account does not.",
+      "signOut": "Sign out everywhere",
+      "signOutConfirmTitle": "Sign out everywhere?",
+      "signOutConfirmBody": "Every session {{handle}} has ends now, on every device, and its open connections close. They can sign in again.",
+      "signOutDone": "Signed out everywhere.",
+      "clear": {
+        "button": "Clear",
+        "displayNames": {
+          "label": "Names in communities",
+          "help": "The names they go by in their communities, all of them. They can set them again.",
+          "action": "Clear their names in communities",
+          "confirmTitle": "Clear their names in communities?",
+          "confirmBody": "The names {{handle}} goes by in every community are cleared, and their handle shows instead. They can set them again.",
+          "done": "Names in communities cleared."
+        },
+        "customStatus": {
+          "label": "Status line",
+          "help": "The status line shown beside their name. They can set another.",
+          "action": "Clear status line",
+          "confirmTitle": "Clear this status line?",
+          "confirmBody": "The status line on {{handle}} is cleared. They can set another.",
+          "done": "Status line cleared."
+        },
+        "decorations": {
+          "label": "Decorations",
+          "help": "Their profile banner, frame and trophies. They can set them again.",
+          "action": "Clear decorations",
+          "confirmTitle": "Clear these decorations?",
+          "confirmBody": "The banner, frame and trophies on {{handle}} are taken off. They can set them again.",
+          "done": "Decorations cleared."
+        }
+      },
+      "cases": {
+        "title": "Cases",
+        "count_one": "{{count}} open case they filed or that is about them.",
+        "count_other": "{{count}} open cases they filed or that are about them.",
+        "loading": "Loading cases…",
+        "loadError": "Could not load their cases.",
+        "filed": "Filed by them",
+        "about": "About them",
+        "help": "Opening a case needs access to the project it is kept in."
+      }
     },
     "deleted": "Deleted",
     "erasedOn": "Erased {{date}}",
     "erasedNever": "Kept indefinitely",
     "restore": "Restore account",
     "restoreSuccess": "Restored {{handle}}.",
-    "restoreError": "Could not restore the account. Please try again."
+    "restoreError": "Could not restore the account. Please try again.",
+    "openCases_one": "{{count}} open case",
+    "openCases_other": "{{count}} open cases"
   },
   "operatorDeleteUser": {
     "subtitle": "Delete {{email}}",
@@ -943,8 +988,6 @@
     },
     "queueTitle": "Approvals",
     "queueDescription": "Grant, deny, or revoke time-bound access requests.",
-    "communityIdLabel": "Community ID",
-    "communityIdPlaceholder": "e.g. 42",
     "levelNone": "None",
     "nothingAsked": "Choose content access, settings access, or both.",
     "levelRead": "Read-only",
@@ -987,7 +1030,11 @@
       "denied": "Denied",
       "revoked": "Revoked",
       "expired": "Expired"
-    }
+    },
+    "communityLabel": "Community",
+    "communityPlaceholder": "Choose a community",
+    "communitySearch": "Search communities…",
+    "communityEmpty": "No communities found."
   },
   "platformLayout": {
     "title": "Platform settings",
@@ -1124,7 +1171,7 @@
   "communities": {
     "title": "Community limits",
     "description": "Set per-community caps on storage and on the number of users. Lowering a limit below current usage blocks new uploads or members, but never removes existing files or members.",
-    "platformOnly": "You need the operator or owner role to manage community limits.",
+    "platformOnly": "You need a platform staff role to see communities.",
     "loading": "Loading communities…",
     "loadError": "Could not load communities. Please try again.",
     "filterByName": "Filter communities by name",
@@ -1229,6 +1276,22 @@
       "confirm": "Restore",
       "done": "Restored {{name}}.",
       "error": "Could not restore the community. Please try again."
+    },
+    "suspension": {
+      "suspend": "Suspend",
+      "lift": "Lift suspension",
+      "suspendLabel": "Suspend {{name}}",
+      "liftLabel": "Lift the suspension on {{name}}",
+      "liftTitle": "Lift the suspension on {{name}}?",
+      "liftDescription": "It returns to the status it had before: {{status}}. Everyone in it has the access they had then.",
+      "liftToDeleted": "It goes back to being deleted, and the countdown to its destruction starts again from the beginning, so its owners have the whole window to restore it.",
+      "suspendDeleted": "This community is deleted. Suspending it stops the countdown to its destruction until the suspension is lifted. Nobody in it can reach it either way.",
+      "suspended": "Suspended {{name}}.",
+      "lifted": "Lifted the suspension on {{name}}."
+    },
+    "access": {
+      "request": "Request access",
+      "breakGlass": "Break glass"
     }
   },
   "operatorDashboard": {

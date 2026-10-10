@@ -878,14 +878,59 @@
       "suspendHelp": "Ein gesperrtes Konto kann sich anmelden und nachlesen, warum, und erreicht sonst nichts.",
       "role": "Plattformrolle",
       "roleLabel": "Rolle",
-      "roleHelp": "Was dieses Konto in der gesamten Installation darf. Du kannst nichts oberhalb deiner eigenen Rolle vergeben."
+      "roleHelp": "Was dieses Konto in der gesamten Installation darf. Du kannst nichts oberhalb deiner eigenen Rolle vergeben.",
+      "signOutLabel": "Sitzungen",
+      "signOutHelp": "Beendet jede Sitzung auf jedem Gerät. Die Person meldet sich neu an; wer das Konto sonst noch hatte, nicht.",
+      "signOut": "Überall abmelden",
+      "signOutConfirmTitle": "Überall abmelden?",
+      "signOutConfirmBody": "Jede Sitzung von {{handle}} endet jetzt, auf jedem Gerät, und offene Verbindungen werden getrennt. Die Person kann sich wieder anmelden.",
+      "signOutDone": "Überall abgemeldet.",
+      "clear": {
+        "button": "Entfernen",
+        "displayNames": {
+          "label": "Namen in Communities",
+          "help": "Die Namen, unter denen die Person in ihren Communities auftritt, alle. Sie kann sie wieder festlegen.",
+          "action": "Namen in Communities entfernen",
+          "confirmTitle": "Namen in Communities entfernen?",
+          "confirmBody": "Die Namen von {{handle}} in allen Communities werden entfernt, stattdessen erscheint das Handle. Die Person kann sie wieder festlegen.",
+          "done": "Namen in Communities entfernt."
+        },
+        "customStatus": {
+          "label": "Statuszeile",
+          "help": "Die Statuszeile neben dem Namen. Die Person kann eine neue festlegen.",
+          "action": "Statuszeile entfernen",
+          "confirmTitle": "Diese Statuszeile entfernen?",
+          "confirmBody": "Die Statuszeile von {{handle}} wird entfernt. Die Person kann eine neue festlegen.",
+          "done": "Statuszeile entfernt."
+        },
+        "decorations": {
+          "label": "Verzierungen",
+          "help": "Profilbanner, Rahmen und Trophäen. Die Person kann sie wieder festlegen.",
+          "action": "Verzierungen entfernen",
+          "confirmTitle": "Diese Verzierungen entfernen?",
+          "confirmBody": "Banner, Rahmen und Trophäen von {{handle}} werden entfernt. Die Person kann sie wieder festlegen.",
+          "done": "Verzierungen entfernt."
+        }
+      },
+      "cases": {
+        "title": "Vorgänge",
+        "count_one": "{{count}} offener Vorgang, den die Person eingereicht hat oder der sie betrifft.",
+        "count_other": "{{count}} offene Vorgänge, die die Person eingereicht hat oder die sie betreffen.",
+        "loading": "Vorgänge werden geladen…",
+        "loadError": "Die Vorgänge konnten nicht geladen werden.",
+        "filed": "Von der Person eingereicht",
+        "about": "Betrifft die Person",
+        "help": "Um einen Vorgang zu öffnen, brauchst du Zugriff auf das Projekt, in dem er geführt wird."
+      }
     },
     "deleted": "Gelöscht",
     "erasedOn": "Löschung am {{date}}",
     "erasedNever": "Unbegrenzt aufbewahrt",
     "restore": "Konto wiederherstellen",
     "restoreSuccess": "{{handle}} wiederhergestellt.",
-    "restoreError": "Das Konto konnte nicht wiederhergestellt werden. Bitte erneut versuchen."
+    "restoreError": "Das Konto konnte nicht wiederhergestellt werden. Bitte erneut versuchen.",
+    "openCases_one": "{{count}} offener Vorgang",
+    "openCases_other": "{{count}} offene Vorgänge"
   },
   "operatorDeleteUser": {
     "subtitle": "{{email}} löschen",
@@ -943,8 +988,6 @@
     },
     "queueTitle": "Genehmigungen",
     "queueDescription": "Gewähre, verweigere oder widerrufe zeitlich begrenzte Zugriffsanfragen.",
-    "communityIdLabel": "Community-ID",
-    "communityIdPlaceholder": "z. B. 42",
     "levelNone": "Keiner",
     "nothingAsked": "Wähle Zugriff auf Inhalte, auf Einstellungen oder beides.",
     "levelRead": "Nur Lesen",
@@ -987,7 +1030,11 @@
       "denied": "Verweigert",
       "revoked": "Widerrufen",
       "expired": "Abgelaufen"
-    }
+    },
+    "communityLabel": "Community",
+    "communityPlaceholder": "Community auswählen",
+    "communitySearch": "Communities durchsuchen…",
+    "communityEmpty": "Keine Communities gefunden."
   },
   "platformLayout": {
     "title": "Plattformeinstellungen",
@@ -1203,7 +1250,7 @@
   "communities": {
     "title": "Community-Limits",
     "description": "Lege pro Community Obergrenzen für Speicher und Benutzeranzahl fest. Ein Limit unter die aktuelle Nutzung zu senken, blockiert neue Uploads oder Mitglieder, entfernt aber nie vorhandene Dateien oder Mitglieder.",
-    "platformOnly": "Du benötigst die Operator- oder Eigentümerrolle, um Community-Limits zu verwalten.",
+    "platformOnly": "Du benötigst eine Plattform-Mitarbeiterrolle, um Communities zu sehen.",
     "loading": "Communitys werden geladen…",
     "loadError": "Communitys konnten nicht geladen werden. Bitte versuche es erneut.",
     "filterByName": "Communitys nach Namen filtern",
@@ -1308,6 +1355,22 @@
       "confirm": "Wiederherstellen",
       "done": "{{name}} wiederhergestellt.",
       "error": "Die Community konnte nicht wiederhergestellt werden. Bitte erneut versuchen."
+    },
+    "suspension": {
+      "suspend": "Sperren",
+      "lift": "Sperre aufheben",
+      "suspendLabel": "{{name}} sperren",
+      "liftLabel": "Sperre von {{name}} aufheben",
+      "liftTitle": "Sperre von {{name}} aufheben?",
+      "liftDescription": "Sie kehrt zu ihrem vorherigen Status zurück: {{status}}. Alle darin haben wieder den Zugriff, den sie vorher hatten.",
+      "liftToDeleted": "Sie ist dann wieder gelöscht, und der Countdown bis zu ihrer Vernichtung beginnt von vorn, damit ihre Eigentümer das ganze Zeitfenster haben, sie wiederherzustellen.",
+      "suspendDeleted": "Diese Community ist gelöscht. Eine Sperre hält den Countdown bis zu ihrer Vernichtung an, bis sie aufgehoben wird. Niemand darin erreicht sie so oder so.",
+      "suspended": "{{name}} gesperrt.",
+      "lifted": "Sperre von {{name}} aufgehoben."
+    },
+    "access": {
+      "request": "Zugriff anfordern",
+      "breakGlass": "Notfallzugriff"
     }
   },
   "storage": {

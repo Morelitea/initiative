@@ -878,14 +878,59 @@
       "suspendHelp": "Un compte suspendu peut se connecter et lire pourquoi, et n’accède à rien d’autre.",
       "role": "Rôle de plateforme",
       "roleLabel": "Rôle",
-      "roleHelp": "Ce que ce compte peut faire sur l'ensemble du déploiement. Vous ne pouvez pas accorder au-delà de votre propre rôle."
+      "roleHelp": "Ce que ce compte peut faire sur l'ensemble du déploiement. Vous ne pouvez pas accorder au-delà de votre propre rôle.",
+      "signOutLabel": "Sessions",
+      "signOutHelp": "Met fin à toutes les sessions sur tous les appareils. La personne se reconnecte ; quiconque d’autre avait le compte, non.",
+      "signOut": "Déconnecter partout",
+      "signOutConfirmTitle": "Déconnecter partout ?",
+      "signOutConfirmBody": "Toutes les sessions de {{handle}} prennent fin maintenant, sur tous les appareils, et ses connexions ouvertes se ferment. La personne peut se reconnecter.",
+      "signOutDone": "Déconnecté partout.",
+      "clear": {
+        "button": "Effacer",
+        "displayNames": {
+          "label": "Noms dans les communautés",
+          "help": "Les noms que la personne utilise dans ses communautés, tous. Elle peut les redéfinir.",
+          "action": "Effacer ses noms dans les communautés",
+          "confirmTitle": "Effacer ses noms dans les communautés ?",
+          "confirmBody": "Les noms que {{handle}} utilise dans toutes les communautés sont effacés, et son identifiant s’affiche à la place. La personne peut les redéfinir.",
+          "done": "Noms dans les communautés effacés."
+        },
+        "customStatus": {
+          "label": "Ligne de statut",
+          "help": "La ligne de statut affichée à côté de son nom. La personne peut en définir une autre.",
+          "action": "Effacer la ligne de statut",
+          "confirmTitle": "Effacer cette ligne de statut ?",
+          "confirmBody": "La ligne de statut de {{handle}} est effacée. La personne peut en définir une autre.",
+          "done": "Ligne de statut effacée."
+        },
+        "decorations": {
+          "label": "Décorations",
+          "help": "Sa bannière de profil, son cadre et ses trophées. La personne peut les redéfinir.",
+          "action": "Effacer les décorations",
+          "confirmTitle": "Effacer ces décorations ?",
+          "confirmBody": "La bannière, le cadre et les trophées de {{handle}} sont retirés. La personne peut les redéfinir.",
+          "done": "Décorations effacées."
+        }
+      },
+      "cases": {
+        "title": "Cas",
+        "count_one": "{{count}} cas ouvert déposé par cette personne ou la concernant.",
+        "count_other": "{{count}} cas ouverts déposés par cette personne ou la concernant.",
+        "loading": "Chargement des cas…",
+        "loadError": "Impossible de charger ses cas.",
+        "filed": "Déposé par la personne",
+        "about": "La concernant",
+        "help": "Pour ouvrir un cas, il vous faut l’accès au projet où il est tenu."
+      }
     },
     "deleted": "Supprimé",
     "erasedOn": "Effacé le {{date}}",
     "erasedNever": "Conservé indéfiniment",
     "restore": "Restaurer le compte",
     "restoreSuccess": "{{handle}} restauré.",
-    "restoreError": "Impossible de restaurer le compte. Veuillez réessayer."
+    "restoreError": "Impossible de restaurer le compte. Veuillez réessayer.",
+    "openCases_one": "{{count}} cas ouvert",
+    "openCases_other": "{{count}} cas ouverts"
   },
   "operatorDeleteUser": {
     "subtitle": "Supprimer {{email}}",
@@ -943,8 +988,6 @@
     },
     "queueTitle": "Approbations",
     "queueDescription": "Accordez, refusez ou révoquez les demandes d'accès temporaire.",
-    "communityIdLabel": "ID de la communauté",
-    "communityIdPlaceholder": "ex. 42",
     "levelNone": "Aucun",
     "nothingAsked": "Choisissez l'accès au contenu, aux réglages, ou les deux.",
     "levelRead": "Lecture seule",
@@ -987,7 +1030,11 @@
       "denied": "Refusé",
       "revoked": "Révoqué",
       "expired": "Expiré"
-    }
+    },
+    "communityLabel": "Communauté",
+    "communityPlaceholder": "Choisir une communauté",
+    "communitySearch": "Rechercher des communautés…",
+    "communityEmpty": "Aucune communauté trouvée."
   },
   "platformLayout": {
     "title": "Paramètres de la plateforme",
@@ -1203,7 +1250,7 @@
   "communities": {
     "title": "Limites par communauté",
     "description": "Définissez des limites par communauté pour le stockage et le nombre d'utilisateurs. Abaisser une limite en dessous de l'utilisation actuelle bloque les nouveaux téléversements ou membres, mais ne supprime jamais les fichiers ni les membres existants.",
-    "platformOnly": "Vous devez avoir le rôle d'opérateur ou de propriétaire pour gérer les limites des communautés.",
+    "platformOnly": "Vous devez avoir un rôle d’équipe de la plateforme pour voir les communautés.",
     "loading": "Chargement des communautés…",
     "loadError": "Impossible de charger les communautés. Veuillez réessayer.",
     "filterByName": "Filtrer les communautés par nom",
@@ -1308,6 +1355,22 @@
       "confirm": "Restaurer",
       "done": "{{name}} restaurée.",
       "error": "Impossible de restaurer la communauté. Veuillez réessayer."
+    },
+    "suspension": {
+      "suspend": "Suspendre",
+      "lift": "Lever la suspension",
+      "suspendLabel": "Suspendre {{name}}",
+      "liftLabel": "Lever la suspension de {{name}}",
+      "liftTitle": "Lever la suspension de {{name}} ?",
+      "liftDescription": "Elle retrouve le statut qu’elle avait avant : {{status}}. Chacun y retrouve l’accès qu’il avait alors.",
+      "liftToDeleted": "Elle redevient supprimée, et le compte à rebours avant sa destruction repart de zéro, pour que ses propriétaires aient tout le délai pour la restaurer.",
+      "suspendDeleted": "Cette communauté est supprimée. La suspendre arrête le compte à rebours avant sa destruction jusqu’à la levée de la suspension. Personne n’y a accès dans un cas comme dans l’autre.",
+      "suspended": "{{name}} suspendue.",
+      "lifted": "Suspension de {{name}} levée."
+    },
+    "access": {
+      "request": "Demander l'accès",
+      "breakGlass": "Accès d'urgence"
     }
   },
   "storage": {

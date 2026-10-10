@@ -827,5 +827,9 @@
   "SECURITY_NOWHERE_TO_SEND": "Sicherheitsmeldungen sind auf diesem Server noch nicht eingerichtet. Nutze stattdessen die Adresse unten.",
   "FEEDBACK_NOWHERE_TO_SEND": "Feedback ist auf diesem Server noch nicht eingerichtet. Nutze stattdessen die Adresse unten.",
   "APPEAL_NOT_SUSPENDED": "Dein Konto ist nicht gesperrt, es gibt also nichts, wogegen du Einspruch erheben könntest.",
-  "APPEAL_NOWHERE_TO_SEND": "Einsprüche sind auf diesem Server noch nicht eingerichtet. Nutze stattdessen die Adresse unten."
+  "APPEAL_NOWHERE_TO_SEND": "Einsprüche sind auf diesem Server noch nicht eingerichtet. Nutze stattdessen die Adresse unten.",
+  "COMMUNITY_SUSPENSION_NEEDS_GRANT": "Um eine Community zu sperren oder ihre Sperre aufzuheben, brauchst du eine aktive Moderationsfreigabe für sie. Fordere eine unter Zugriff an.",
+  "COMMUNITY_NOT_SUSPENDABLE": "Diese Community kann aus ihrem aktuellen Status heraus nicht gesperrt werden.",
+  "COMMUNITY_NOT_SUSPENDED": "Diese Community ist nicht gesperrt, es gibt also keine Sperre aufzuheben.",
+  "OPERATOR_CANNOT_ACT_ON_SELF": "Das kannst du hier nicht mit deinem eigenen Konto tun. Ändere es in deinen eigenen Einstellungen."
 }

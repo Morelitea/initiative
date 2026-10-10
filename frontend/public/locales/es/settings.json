@@ -878,14 +878,59 @@
       "suspendHelp": "Una cuenta suspendida puede iniciar sesión y leer el motivo, y no accede a nada más.",
       "role": "Rol de plataforma",
       "roleLabel": "Rol",
-      "roleHelp": "Lo que esta cuenta puede hacer en toda la instalación. No puedes conceder por encima de tu propio rol."
+      "roleHelp": "Lo que esta cuenta puede hacer en toda la instalación. No puedes conceder por encima de tu propio rol.",
+      "signOutLabel": "Sesiones",
+      "signOutHelp": "Cierra todas las sesiones en todos los dispositivos. Su titular vuelve a iniciar sesión; cualquier otra persona que tuviera la cuenta, no.",
+      "signOut": "Cerrar sesión en todas partes",
+      "signOutConfirmTitle": "¿Cerrar sesión en todas partes?",
+      "signOutConfirmBody": "Todas las sesiones de {{handle}} terminan ahora, en todos los dispositivos, y sus conexiones abiertas se cierran. Puede volver a iniciar sesión.",
+      "signOutDone": "Sesión cerrada en todas partes.",
+      "clear": {
+        "button": "Borrar",
+        "displayNames": {
+          "label": "Nombres en comunidades",
+          "help": "Los nombres que usa en sus comunidades, todos. Puede volver a ponerlos.",
+          "action": "Borrar sus nombres en comunidades",
+          "confirmTitle": "¿Borrar sus nombres en comunidades?",
+          "confirmBody": "Se borran los nombres que {{handle}} usa en todas las comunidades y en su lugar se muestra su identificador. Puede volver a ponerlos.",
+          "done": "Nombres en comunidades borrados."
+        },
+        "customStatus": {
+          "label": "Línea de estado",
+          "help": "La línea de estado que aparece junto a su nombre. Puede poner otra.",
+          "action": "Borrar línea de estado",
+          "confirmTitle": "¿Borrar esta línea de estado?",
+          "confirmBody": "Se borra la línea de estado de {{handle}}. Puede poner otra.",
+          "done": "Línea de estado borrada."
+        },
+        "decorations": {
+          "label": "Decoraciones",
+          "help": "Su banner de perfil, su marco y sus trofeos. Puede volver a ponerlos.",
+          "action": "Borrar decoraciones",
+          "confirmTitle": "¿Borrar estas decoraciones?",
+          "confirmBody": "Se quitan el banner, el marco y los trofeos de {{handle}}. Puede volver a ponerlos.",
+          "done": "Decoraciones borradas."
+        }
+      },
+      "cases": {
+        "title": "Casos",
+        "count_one": "{{count}} caso abierto que presentó o que trata sobre esta cuenta.",
+        "count_other": "{{count}} casos abiertos que presentó o que tratan sobre esta cuenta.",
+        "loading": "Cargando casos…",
+        "loadError": "No se pudieron cargar sus casos.",
+        "filed": "Presentado por esta cuenta",
+        "about": "Sobre esta cuenta",
+        "help": "Para abrir un caso necesitas acceso al proyecto donde se guarda."
+      }
     },
     "deleted": "Eliminada",
     "erasedOn": "Se borra el {{date}}",
     "erasedNever": "Se conserva indefinidamente",
     "restore": "Restaurar cuenta",
     "restoreSuccess": "{{handle}} restaurada.",
-    "restoreError": "No se ha podido restaurar la cuenta. Inténtalo de nuevo."
+    "restoreError": "No se ha podido restaurar la cuenta. Inténtalo de nuevo.",
+    "openCases_one": "{{count}} caso abierto",
+    "openCases_other": "{{count}} casos abiertos"
   },
   "operatorDeleteUser": {
     "subtitle": "Eliminar {{email}}",
@@ -943,8 +988,6 @@
     },
     "queueTitle": "Aprobaciones",
     "queueDescription": "Concede, deniega o revoca solicitudes de acceso temporal.",
-    "communityIdLabel": "ID de la comunidad",
-    "communityIdPlaceholder": "p. ej. 42",
     "levelNone": "Ninguno",
     "nothingAsked": "Elige acceso al contenido, a los ajustes, o ambos.",
     "levelRead": "Solo lectura",
@@ -987,7 +1030,11 @@
       "denied": "Denegado",
       "revoked": "Revocado",
       "expired": "Caducado"
-    }
+    },
+    "communityLabel": "Comunidad",
+    "communityPlaceholder": "Elige una comunidad",
+    "communitySearch": "Buscar comunidades…",
+    "communityEmpty": "No se encontraron comunidades."
   },
   "platformLayout": {
     "title": "Configuración de la plataforma",
@@ -1203,7 +1250,7 @@
   "communities": {
     "title": "Límites por comunidad",
     "description": "Establece límites por comunidad para el almacenamiento y el número de usuarios. Bajar un límite por debajo del uso actual bloquea las nuevas subidas o miembros, pero nunca elimina los archivos ni los miembros existentes.",
-    "platformOnly": "Necesitas el rol de operador o de propietario para gestionar los límites de las comunidades.",
+    "platformOnly": "Necesitas un rol de personal de la plataforma para ver las comunidades.",
     "loading": "Cargando comunidades…",
     "loadError": "No se pudieron cargar las comunidades. Inténtalo de nuevo.",
     "filterByName": "Filtrar comunidades por nombre",
@@ -1308,6 +1355,22 @@
       "confirm": "Restaurar",
       "done": "{{name}} restaurada.",
       "error": "No se ha podido restaurar la comunidad. Inténtalo de nuevo."
+    },
+    "suspension": {
+      "suspend": "Suspender",
+      "lift": "Levantar suspensión",
+      "suspendLabel": "Suspender {{name}}",
+      "liftLabel": "Levantar la suspensión de {{name}}",
+      "liftTitle": "¿Levantar la suspensión de {{name}}?",
+      "liftDescription": "Vuelve al estado que tenía antes: {{status}}. Todos recuperan el acceso que tenían entonces.",
+      "liftToDeleted": "Vuelve a estar eliminada, y la cuenta atrás hasta su destrucción empieza de nuevo desde el principio, para que sus propietarios tengan todo el plazo para restaurarla.",
+      "suspendDeleted": "Esta comunidad está eliminada. Suspenderla detiene la cuenta atrás hasta su destrucción mientras dure la suspensión. Nadie en ella puede acceder en ningún caso.",
+      "suspended": "{{name}} suspendida.",
+      "lifted": "Suspensión de {{name}} levantada."
+    },
+    "access": {
+      "request": "Solicitar acceso",
+      "breakGlass": "Acceso de emergencia"
     }
   },
   "storage": {

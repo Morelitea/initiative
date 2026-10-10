@@ -4,12 +4,13 @@ import type {
   UseMutationResult,
   UseQueryResult,
 } from "@tanstack/react-query";
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { buildUser } from "@/__tests__/factories";
-import { renderWithProviders } from "@/__tests__/helpers/render";
+import { buildPage, buildUser } from "@/__tests__/factories";
+import { renderPage } from "@/__tests__/helpers/render";
+import type { PlatformCommunityStorageRead } from "@/api/generated/initiativeAPI.schemas";
 
 const createRequest = vi.fn();
 const breakGlass = vi.fn();
@@ -65,6 +66,9 @@ const noPages = <TPage,>(): UseInfiniteQueryResult<InfiniteData<TPage, number>, 
   isFetchingPreviousPage: false,
 });
 
+/** The approver's pending queue, as a test sets it. */
+let pendingQueue: UseInfiniteQueryResult<InfiniteData<unknown, number>, Error> = noPages();
+
 /** A mutation nobody has fired yet. */
 const idle = <TData, TVariables>(
   mutate: UseMutationResult<TData, Error, TVariables>["mutate"] = vi.fn<
@@ -93,7 +97,8 @@ const idle = <TData, TVariables>(
 vi.mock(import("@/hooks/useAccessGrants"), async (importOriginal) => ({
   ...(await importOriginal()),
   useMyAccessGrants: () => noPages(),
-  useAccessGrantQueue: () => noPages(),
+  useAccessGrantQueue: ((status?: string) =>
+    status === "pending" ? pendingQueue : noPages()) as never,
   useAccessGrantLimits: () => answered({ max_duration_minutes: requestCeiling }),
   useCreateAccessRequest: () => idle(createRequest),
   useCancelAccessRequest: () => idle(),
@@ -129,25 +134,97 @@ vi.mock(import("@/hooks/useCommunities"), async (importOriginal) => ({
   }),
 }));
 
+// The communities the picker finds, and what it last searched for. Only the
+// fields the picker reads.
+const pickable = [
+  { id: 7, name: "Riverside", status: "active" },
+  { id: 9, name: "Gone Community", status: "deleted" },
+] as PlatformCommunityStorageRead[];
+let searched: string | undefined;
+
+vi.mock(import("@/hooks/useSettings"), async (importOriginal) => ({
+  ...(await importOriginal()),
+  usePlatformCommunities: ((params: { search?: string }) => {
+    searched = params.search;
+    return answered({ ...buildPage(pickable), support_bound: false });
+  }) as unknown as typeof import("@/hooks/useSettings").usePlatformCommunities,
+}));
+
 import { SettingsAccessGrantsPage } from "./SettingsAccessGrantsPage";
 
-const render = () =>
-  renderWithProviders(<SettingsAccessGrantsPage />, {
-    auth: { user: buildUser({ capabilities: ["access.request"] }) },
+const render = (
+  capabilities: string[] = ["access.request"],
+  routerSearch?: Record<string, unknown>
+) =>
+  renderPage(SettingsAccessGrantsPage, {
+    auth: { user: buildUser({ capabilities: capabilities as never }) },
+    routerSearch,
   });
+
+/** Choose a community in the form's picker (the first, or the one given). */
+const pickCommunity = async (
+  user: ReturnType<typeof userEvent.setup>,
+  name: RegExp = /Riverside/,
+  picker = 0
+) => {
+  await user.click((await screen.findAllByRole("combobox", { name: "Community" }))[picker]);
+  await user.click(await screen.findByRole("option", { name }));
+};
 
 describe("SettingsAccessGrantsPage", () => {
   beforeEach(() => {
     createRequest.mockClear();
     breakGlass.mockClear();
     requestCeiling = 240;
+    searched = undefined;
+    pendingQueue = noPages();
+  });
+
+  it("names whoever asked by their handle, never their address", async () => {
+    const now = new Date().toISOString();
+    pendingQueue = {
+      ...noPages(),
+      data: {
+        pageParams: [1],
+        pages: [
+          {
+            items: [
+              {
+                id: 3,
+                user_id: 12,
+                user: { id: 12, username: "riverwatch", discriminator: 42, status: "active" },
+                community_id: 7,
+                community_name: "Riverside",
+                purpose: "content",
+                access_level: "read",
+                status: "pending",
+                reason: "looking into a report",
+                requested_duration_minutes: 60,
+                requested_by_id: 12,
+                requested_at: now,
+                is_live: false,
+              },
+            ],
+            total_count: 1,
+            page: 1,
+            page_size: 25,
+            has_next: false,
+          },
+        ],
+      },
+    } as never;
+    render(["access.approve"]);
+
+    expect(await screen.findByText("riverwatch")).toBeInTheDocument();
+    expect(screen.getByText("#0042")).toBeInTheDocument();
+    expect(screen.queryByText(/@/)).toBeNull();
   });
 
   it("asks for a content read and no settings by default", async () => {
     const user = userEvent.setup();
     render();
 
-    await user.type(await screen.findByLabelText(/community id/i), "7");
+    await pickCommunity(user);
     await user.type(screen.getByLabelText(/reason/i), "looking into a report");
     await user.click(screen.getByRole("button", { name: /request access/i }));
 
@@ -167,10 +244,8 @@ describe("SettingsAccessGrantsPage", () => {
     expect(screen.queryByRole("option", { name: "Moderate" })).toBeNull();
     unmount();
 
-    renderWithProviders(<SettingsAccessGrantsPage />, {
-      auth: { user: buildUser({ capabilities: ["access.request", "content.moderate"] }) },
-    });
-    await user.type(await screen.findByLabelText(/community id/i), "7");
+    render(["access.request", "content.moderate"]);
+    await pickCommunity(user);
     await user.click(screen.getByLabelText(/^content access$/i));
     await user.click(await screen.findByRole("option", { name: "Moderate" }));
     await user.type(screen.getByLabelText(/reason/i), "a held comment");
@@ -198,7 +273,7 @@ describe("SettingsAccessGrantsPage", () => {
     await user.click(await screen.findByRole("option", { name: /^2 hours$/i }));
     expect(screen.queryByRole("option", { name: /^4 hours$/i })).not.toBeInTheDocument();
 
-    await user.type(screen.getByLabelText(/community id/i), "7");
+    await pickCommunity(user);
     await user.type(screen.getByLabelText(/reason/i), "a short look");
     await user.click(screen.getByRole("button", { name: /request access/i }));
 
@@ -214,7 +289,7 @@ describe("SettingsAccessGrantsPage", () => {
     await user.click(screen.getByLabelText(/settings access/i));
     await user.click(await screen.findByRole("option", { name: /^superadmin$/i }));
 
-    await user.type(screen.getByLabelText(/community id/i), "7");
+    await pickCommunity(user);
     await user.type(screen.getByLabelText(/reason/i), "clearing up an incident");
     await user.click(screen.getByRole("button", { name: /request access/i }));
 
@@ -233,7 +308,7 @@ describe("SettingsAccessGrantsPage", () => {
     await user.click(screen.getByLabelText(/settings access/i));
     await user.click(await screen.findByRole("option", { name: /^admin$/i }));
 
-    await user.type(screen.getByLabelText(/community id/i), "7");
+    await pickCommunity(user);
     await user.type(screen.getByLabelText(/reason/i), "billing question");
     await user.click(screen.getByRole("button", { name: /request access/i }));
 
@@ -248,7 +323,7 @@ describe("SettingsAccessGrantsPage", () => {
     await user.click(await screen.findByLabelText(/content access/i));
     await user.click(await screen.findByRole("option", { name: /^none$/i }));
 
-    await user.type(screen.getByLabelText(/community id/i), "7");
+    await pickCommunity(user);
     await user.type(screen.getByLabelText(/reason/i), "nothing in particular");
 
     expect(screen.getByRole("button", { name: /request access/i })).toBeDisabled();
@@ -256,5 +331,69 @@ describe("SettingsAccessGrantsPage", () => {
       screen.getByText(/choose content access, settings access, or both/i)
     ).toBeInTheDocument();
     expect(createRequest).not.toHaveBeenCalled();
+  });
+
+  it("names each community with its id, and says when one is not active", async () => {
+    const user = userEvent.setup();
+    render();
+
+    await user.click(await screen.findByRole("combobox", { name: "Community" }));
+
+    expect(await screen.findByRole("option", { name: /Riverside.*#7/ })).toBeInTheDocument();
+    // Still pickable: a grant may be needed on exactly this one.
+    const gone = screen.getByRole("option", { name: /Gone Community.*Deleted · #9/ });
+    expect(gone).not.toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("searches the server with what is typed", async () => {
+    const user = userEvent.setup();
+    render();
+
+    await user.click(await screen.findByRole("combobox", { name: "Community" }));
+    await user.type(screen.getByPlaceholderText("Search communities…"), "river");
+
+    await waitFor(() => expect(searched).toBe("river"));
+  });
+
+  it("will not send a request before a community is chosen", async () => {
+    const user = userEvent.setup();
+    render();
+
+    await user.type(await screen.findByLabelText(/reason/i), "looking into a report");
+
+    expect(screen.getByRole("button", { name: /request access/i })).toBeDisabled();
+  });
+
+  it("starts with the community it was opened for", async () => {
+    const user = userEvent.setup();
+    render(["access.request"], { community: 9, name: "Gone Community", form: "request" });
+
+    expect(await screen.findByRole("combobox", { name: "Community" })).toHaveTextContent(
+      "Gone Community (#9)"
+    );
+    await user.type(screen.getByLabelText(/reason/i), "a report about it");
+    await user.click(screen.getByRole("button", { name: /request access/i }));
+
+    expect(createRequest.mock.calls[0][0]).toMatchObject({ community_id: 9 });
+  });
+
+  it("starts breaking glass with the community it was opened for, and only that form", async () => {
+    const user = userEvent.setup();
+    render(["access.request", "data.bypass"], {
+      community: 7,
+      name: "Riverside",
+      form: "break_glass",
+    });
+
+    const [breakGlassPicker, requestPicker] = await screen.findAllByRole("combobox", {
+      name: "Community",
+    });
+    expect(breakGlassPicker).toHaveTextContent("Riverside (#7)");
+    expect(requestPicker).not.toHaveTextContent("Riverside");
+
+    await user.type(screen.getAllByLabelText(/reason/i)[0], "incident 12");
+    await user.click(screen.getByRole("button", { name: /^break glass$/i }));
+
+    expect(breakGlass.mock.calls[0][0]).toMatchObject({ community_id: 7 });
   });
 });

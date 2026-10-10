@@ -18,8 +18,8 @@ Five rungs, each adding to the one below:
 | Role | What it can do |
 |---|---|
 | **Member** | Standard access to their own communities. No server-wide privileges. This is everyone by default. |
-| **Support** | Read-only visibility of the platform's users, can **request** time-bound access to a community to help with an issue, and can let somebody answer the age question again after a typo. |
-| **Moderator** | Everything Support can do, **plus** user management (suspend/reactivate, revoke an account's API keys) and content moderation. |
+| **Support** | Read-only visibility of the platform's users and communities, can open a community's billing in the billing service's support console, can **request** time-bound access to a community to help with an issue, and can let somebody answer the age question again after a typo. |
+| **Moderator** | Everything Support can do, **plus** user management (suspend/reactivate, sign out everywhere, revoke an account's API keys), content moderation, and suspending a community under a [Moderate grant](#suspending-a-community-as-a-moderator). |
 | **Operator** | Manages users, communities, and roles platform-wide, has cross-community access (via break-glass), approves access requests, writes [announcements](announcements.md), writes [sign-in placement rules](single-sign-on.md#rules-on-a-provider), and opens [billing insights](#billing-insights). |
 | **Owner** | Full control, **including server-wide configuration** (single sign-on, email, branding, AI). The only role that can change configuration. |
 
@@ -45,11 +45,14 @@ The **first person to register** on a new server becomes the **owner**. The owne
 
 - **Username** — the handle they're addressed by. The four digits after it stay as they are.
 - **Profile picture** — take one down. Putting one up stays theirs.
+- **Names in communities**, **status line** and **decorations** — clear any of them, for one that breaches your terms. Names clear in every community they're in. They can set each again.
+- **Sign out everywhere** — ends every session the account has, on every device. For an account somebody else may have got into: its holder signs in again, and whoever else had it doesn't.
+- **Cases** — how many open cases in your [operations community](#where-operations-work-lands) the account filed or is the subject of, with a link to each. A link opens only for someone with access to where the case is kept.
 - **API keys** — **Revoke** switches off every key the account holds, at once. The keys stay on the owner's list marked disabled, and they can make new ones.
 - **Suspend** — puts the account in time out. They can sign in, and what they get is one screen: that they're suspended, the reason you gave, and [who to contact](#who-to-contact). Their communities, their own settings and every power their platform role carries stay out of reach until you lift it. Nothing is deleted; lifting it hands everything back exactly as it was.
 - **Platform role** — move them up or down the ladder. You can't grant a rung above your own.
 
-Each of those asks for its own capability, so a moderator opening the same panel sees everything but the platform role.
+Each of those asks for its own capability, so a moderator opening the same panel sees everything but the platform role. What's offered on each account is worked out by the server: nothing on an account above your own rung, and nothing on your own — that's yours to change from your own settings.
 
 The row's actions menu keeps the one-off jobs. It offers nothing but **Export** on an account above your own role.
 
@@ -113,7 +116,7 @@ Operators and owners can write **announcements** — notices shown in a dialog t
 
 ## What you decide per community
 
-**Settings → Platform → Communities** lists every community on the server, and **Manage** opens what you set for one of them: its storage and member limits, whether it may configure [its own sign-in](single-sign-on.md#letting-a-community-use-a-provider), and a few features you can switch on or off. See [File & object storage](object-storage.md#per-community-storage-limits) for the limits.
+**Operator dashboard → Communities** lists every community on the server — deleted and suspended ones included — for support and above. Each row offers what your role allows: support and moderators see its members, storage and status, open its billing in the support console, and ask for access to it; operators and owners also set its status, open the operator console, and break glass. **Manage**, for operators and owners, opens what you set for one of them: its storage and member limits, whether it may configure [its own sign-in](single-sign-on.md#letting-a-community-use-a-provider), and a few features you can switch on or off. See [File & object storage](object-storage.md#per-community-storage-limits) for the limits.
 
 **Help requests** is one of those features, and it starts off. Switched on, the community's members can ask about the community itself behind **Ask for help**, and whoever holds its seat can ask for a copy of its data or for it to be deleted; what they send lands in your support project (see [Where operations work lands](#where-operations-work-lands)) — so it can only be switched on once that project is set up.
 
@@ -138,6 +141,14 @@ On hold and suspended both ask you to confirm first, because each takes everybod
 - **Suspended** tells nobody directly. Its admins find the lock on their rail, and opening it says the community is suspended and gives them the address.
 
 Neither status keeps *you* out. A [grant or break-glass](#cross-community-access-break-glass-and-time-bound-grants) reaches a community whatever its status, which is how you look inside before deciding what happens to it.
+
+### Suspending a community as a moderator
+
+A moderator suspends a community, and lifts its suspension, from its row — but only while holding a live [**Moderate** grant](#what-a-grant-can-say) on it, so they're acting on a community they're looking at. Ask for the grant first, and an operator approves it.
+
+A suspension starts from active, read-only, on hold, or **deleted**. Suspending a deleted community takes it out of its deletion countdown and keeps everything in it: the answer to a community deleting itself to destroy evidence. Lifting a suspension puts the community back where it was. One suspended out of deletion goes back to being deleted, with its countdown started again from the beginning, so its owners get the whole window to notice.
+
+Operators and owners set a community's status from its row as before, and a suspension they make is lifted back to where it began too.
 
 ### Deleted communities
 
