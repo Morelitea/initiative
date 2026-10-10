@@ -55,7 +55,9 @@ class ImportJob(CreatedByMixin, table=True):
 
     # Envelope type ("initiative-file", …) or "backup".
     source: str = Field(nullable=False)
-    # The caller's OPTIONS (target initiative, include map) — never content.
+    # The caller's OPTIONS (target initiative, include map, the ``anchor`` a
+    # backup's dates are moved from, who ``join``s what it creates) — never
+    # content.
     params: dict[str, Any] = Field(
         default_factory=dict,
         sa_column=Column(JSONB, nullable=False, server_default="{}"),

@@ -211,6 +211,7 @@ async def create_session(
     install_id: uuid.UUID | None = None,
     refresh_ttl: timedelta | None = None,
     now: datetime | None = None,
+    ends_by: datetime | None = None,
 ) -> IssuedSession:
     """Open a new session for ``user_id`` and mint its first refresh token.
 
@@ -227,6 +228,8 @@ async def create_session(
     ends at this function and a rule spread over eight of them is a rule with
     seven places to forget it. It lands in the same transaction as the session,
     so a sign-in that fails leaves the deletion exactly where it was.
+
+    ``ends_by``, when given, is the latest the whole chain may last.
     """
     issued = now or utcnow()
     ttl = await _narrowed_ttl(
@@ -240,6 +243,8 @@ async def create_session(
     chain_ends = await session_lifetime.chain_deadline(
         session, user_id=user_id, issued=issued
     )
+    if ends_by is not None:
+        chain_ends = min(chain_ends, ends_by) if chain_ends else ends_by
     raw = _generate_refresh_token()
     row = AuthSession(
         user_id=user_id,

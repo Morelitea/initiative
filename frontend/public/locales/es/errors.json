@@ -33,6 +33,7 @@
   "COMMUNITY_CREATION_DISABLED": "La creación de comunidades está deshabilitada",
   "FREE_COMMUNITY_ALREADY_HELD": "Ya tienes una comunidad gratuita. Otra necesita un plan: elige uno y la creamos.",
   "COMMUNITY_CREATION_LIMIT_REACHED": "Ya has creado todas las comunidades que puedes en 24 horas. Vuelve a intentarlo más tarde.",
+  "COMMUNITY_CREATION_DEMO_ACCOUNT": "Las cuentas de demostración no pueden crear comunidades",
   "COMMUNITY_OWNER_REQUIRES_CAPABILITY": "Solo el personal de la plataforma puede crear una comunidad para otra persona",
   "COMMUNITY_OWNER_NOT_FOUND": "Esa cuenta no existe o no puede recibir una comunidad",
   "COMMUNITY_NOT_FOUND": "Comunidad no encontrada",
@@ -827,5 +828,14 @@
   "SECURITY_NOWHERE_TO_SEND": "Este servidor aún no recibe informes de seguridad. Usa la dirección de abajo.",
   "FEEDBACK_NOWHERE_TO_SEND": "Este servidor aún no recibe comentarios. Usa la dirección de abajo.",
   "APPEAL_NOT_SUSPENDED": "Tu cuenta no está suspendida, así que no hay nada que apelar.",
-  "APPEAL_NOWHERE_TO_SEND": "Este servidor aún no recibe apelaciones. Usa la dirección de abajo."
+  "APPEAL_NOWHERE_TO_SEND": "Este servidor aún no recibe apelaciones. Usa la dirección de abajo.",
+  "DEMO_LINK_NOT_FOUND": "Este enlace de demostración ya no funciona. Pide uno nuevo a quien te lo envió.",
+  "DEMO_BUSY": "Todos los espacios de demostración están ocupados. Vuelve a intentarlo en un minuto.",
+  "DEMO_COPY_NOT_FOUND": "Esta copia de demostración ya no existe.",
+  "DEMO_PITCH_NOT_FOUND": "Esta comunidad no es una presentación de demostración.",
+  "DEMO_PITCH_ADMIN_REQUIRED": "Solo los administradores de esta presentación pueden publicarla.",
+  "DEMO_PITCH_SOURCE_INVALID": "No se puede importar el archivo de exportación de la presentación, o un editor indicado no tiene cuenta.",
+  "DEMO_PITCH_HELD": "Esta presentación tiene contenido en revisión, así que aún no se puede eliminar.",
+  "DEMO_PERSONA_TAKEN": "Ese identificador pertenece a una cuenta real.",
+  "DEMO_LINK_EXPIRY_INVALID": "Un enlace de demostración no puede terminar en el pasado."
 }

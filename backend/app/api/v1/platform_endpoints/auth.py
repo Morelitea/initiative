@@ -729,6 +729,7 @@ async def bootstrap_status(session: SessionDep) -> dict[str, bool]:
     return {
         "has_users": await any_account_exists(session),
         "public_registration_enabled": settings.registration_open,
+        "demo": settings.DEMO_MODE,
     }
 
 

@@ -177,6 +177,8 @@ class GuildMessages:
     COMMUNITY_CREATION_DISABLED = "COMMUNITY_CREATION_DISABLED"
     FREE_COMMUNITY_ALREADY_HELD = "FREE_COMMUNITY_ALREADY_HELD"
     COMMUNITY_CREATION_LIMIT_REACHED = "COMMUNITY_CREATION_LIMIT_REACHED"
+    #: A demo visitor's account holds its copy and creates no community.
+    COMMUNITY_CREATION_DEMO_ACCOUNT = "COMMUNITY_CREATION_DEMO_ACCOUNT"
     # Naming another user as a new guild's admin is platform-staff only.
     COMMUNITY_OWNER_REQUIRES_CAPABILITY = "COMMUNITY_OWNER_REQUIRES_CAPABILITY"
     # ...and that user has to exist already; we never create one.
@@ -1760,6 +1762,31 @@ class ContactGrantMessages:
     #: Accepting something nobody asked for, or accepting your own request.
     NO_REQUEST = "CONTACT_GRANT_NO_REQUEST"
     CANNOT_GRANT_SELF = "CONTACT_GRANT_CANNOT_GRANT_SELF"
+
+
+class DemoMessages:
+    """The demo deployment's links, copies and pitches."""
+
+    #: The link is unknown, revoked, expired or used up, or its pitch has
+    #: nothing published.
+    DEMO_LINK_NOT_FOUND = "DEMO_LINK_NOT_FOUND"
+    #: No demo space is free right now.
+    DEMO_BUSY = "DEMO_BUSY"
+    #: The account was not made for a demo copy, or its copy is gone.
+    DEMO_COPY_NOT_FOUND = "DEMO_COPY_NOT_FOUND"
+    #: The community is not a pitch, or the reference names none.
+    DEMO_PITCH_NOT_FOUND = "DEMO_PITCH_NOT_FOUND"
+    #: Publishing a pitch is for its admins.
+    DEMO_PITCH_ADMIN_REQUIRED = "DEMO_PITCH_ADMIN_REQUIRED"
+    #: The pitch's bundle can't be imported, or an editor it names has no
+    #: account.
+    DEMO_PITCH_SOURCE_INVALID = "DEMO_PITCH_SOURCE_INVALID"
+    #: The platform holds content in the pitch, so it stays until released.
+    DEMO_PITCH_HELD = "DEMO_PITCH_HELD"
+    #: A persona's handle belongs to an account that is not a persona.
+    DEMO_PERSONA_TAKEN = "DEMO_PERSONA_TAKEN"
+    #: A link's end is in the past.
+    DEMO_LINK_EXPIRY_INVALID = "DEMO_LINK_EXPIRY_INVALID"
 
 
 class ContactMessages:

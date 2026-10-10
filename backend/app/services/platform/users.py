@@ -13,6 +13,7 @@ from app.core.errors import CodedError
 from app.core.messages import AuthMessages, GuildMessages, UserMessages
 from app.core.audit_events import AuditEventType
 from app.core.capabilities import Capability, roles_with_capability
+from app.core.config import settings
 from app.core import usernames
 from app.core.security import has_usable_password
 from app.core.encryption import (
@@ -1111,6 +1112,13 @@ async def to_self_read(session: AsyncSession, user: User) -> "UserRead":
     )
     payload.has_password = has_usable_password(user.hashed_password)
     payload.password_required = await auth_posture.password_confirms(session, user)
+    if settings.DEMO_MODE:
+        from app.demo.copies import account_copy
+
+        copy = await account_copy(user.id)
+        if copy is not None:
+            payload.demo_community_id = copy.guild_id
+            payload.demo_expires_at = copy.expires_at
     return payload
 
 
