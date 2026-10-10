@@ -239,6 +239,13 @@ class TestDates:
                 },
             ],
         }
+        # Published, it goes back to the anchor whole.
+        anchored = anchor_dates(
+            Tool.calendar, shift_dates(Tool.calendar, calendar, 9618)
+        )
+        assert anchored["events"][0]["start_at"].startswith("2000-01-03T09:00")
+        assert anchored["events"][1]["original_start"].startswith("2000-01-10T09:00")
+
         series, edit, once = shift_dates(Tool.calendar, calendar, 5)["events"]
         assert series["start_at"].startswith("2000-01-10T09:00")
         assert series["end_at"].startswith("2000-01-10T09:15")

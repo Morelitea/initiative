@@ -675,20 +675,39 @@ def split(
     return head, tail
 
 
-def _slot(parts: dict[str, list], at: datetime) -> tuple[int, ...]:
-    """Which of the days and hours ``parts`` name ``at`` falls on."""
-    slot: list[int] = []
-    if "BYMONTH" in parts:
-        slot.append(at.month)
-    if "BYMONTHDAY" in parts:
-        slot.append(at.day)
-    if "BYDAY" in parts:
-        slot.append(at.weekday())
-        if any(day[:-2] for day in map(str, parts["BYDAY"])):
-            slot.append((at.day - 1) // 7)
-    if "BYHOUR" in parts:
-        slot.append(at.hour)
-    return tuple(slot)
+def _period(freq: str, at: datetime, n: int = 0) -> tuple[datetime, datetime]:
+    """The hour, day, week, month or year ``at`` falls in, ``n`` of them on:
+    its first moment and the next one's. ``at`` is where the days were picked,
+    without a zone."""
+    if freq == "HOURLY":
+        first = at.replace(minute=0, second=0, microsecond=0) + timedelta(hours=n)
+        return first, first + timedelta(hours=1)
+    day = datetime.combine(at.date(), time())
+    if freq == "DAILY":
+        return day + timedelta(days=n), day + timedelta(days=n + 1)
+    if freq == "WEEKLY":
+        first = day - timedelta(days=at.weekday()) + timedelta(weeks=n)
+        return first, first + timedelta(weeks=1)
+    months = 1 if freq == "MONTHLY" else 12
+    index = (at.year * 12 + at.month - 1) // months * months + n * months
+    end = index + months
+    return (
+        datetime(index // 12, index % 12 + 1, 1),
+        datetime(end // 12, end % 12 + 1, 1),
+    )
+
+
+def _periods_between(freq: str, earlier: datetime, later: datetime) -> int:
+    """How many of ``freq``'s periods on from ``earlier``'s ``later``'s is."""
+    if freq in ("MONTHLY", "YEARLY"):
+        months = 1 if freq == "MONTHLY" else 12
+        return (later.year * 12 + later.month - 1) // months - (
+            earlier.year * 12 + earlier.month - 1
+        ) // months
+    length = {"HOURLY": timedelta(hours=1), "DAILY": timedelta(days=1)}.get(
+        freq, timedelta(weeks=1)
+    )
+    return (_period(freq, later)[0] - _period(freq, earlier)[0]) // length
 
 
 @dataclass(frozen=True)
@@ -711,13 +730,14 @@ def moved(
 ) -> Moved:
     """The series starting at ``start``, moved by about ``delta`` without
     leaving its days: it starts on the occurrence of its rule nearest
-    ``start + delta``, so a series of Mondays stays on Mondays and one on the
-    second Tuesday of the month stays there.
+    ``start + delta`` that holds the start's place in its week, month or
+    year, so a series of Mondays stays on Mondays and one on the last Friday
+    of the month stays there.
 
-    Its skipped starts, its end and each of ``occurrences`` go to the new
-    occurrence of the same number, so they name the same occurrence as
-    before. An extra start, or a value the rule never made, moves as far as
-    the series start did."""
+    The series moves by whole periods of its rule, and so does everything it
+    names: a skipped start, its end and each of ``occurrences`` go to the
+    occurrence holding the same place that many periods on. An extra start,
+    or a value the rule never made, moves as far as the series start did."""
     start = start.astimezone(timezone.utc)
     asked = tuple(value.astimezone(timezone.utc) for value in occurrences)
     if not delta:
@@ -728,48 +748,66 @@ def moved(
     own = {key: v for key, v in repeat.rule.items() if key not in ("COUNT", "UNTIL")}
     pinned = _pinned(own, (start + offset).replace(tzinfo=None))
     days = Recurrence({key: v for key, v in pinned.items() if key != "INTERVAL"})
+    freq = pinned["FREQ"][0]
+
+    def local(value: datetime) -> datetime:
+        return (value + offset).replace(tzinfo=None)
+
+    def between_(lower: datetime, upper: datetime) -> list[datetime]:
+        # The rule's days in [lower, upper], walked from a start before them
+        # at the series' time of day.
+        before = start + timedelta(days=(lower - start) // timedelta(days=1) - 1)
+        return list(_walk(days, before, shift, lower, upper))
+
+    def in_period(value: datetime, n: int = 0) -> list[datetime]:
+        first, end = _period(freq, local(value), n)
+        return between_(
+            (first - offset).replace(tzinfo=timezone.utc),
+            (end - offset).replace(tzinfo=timezone.utc) - timedelta(microseconds=1),
+        )
+
+    def place(value: datetime) -> tuple[int, int] | None:
+        listed = in_period(value)
+        if value not in listed:
+            return None
+        n = listed.index(value)
+        return n, n - len(listed)
 
     target = start + delta
     span = _steps(days.rule, 1)
-    near = list(_walk(days, start, shift, target - span, target + span))
-    near = near or list(islice(_walk(days, start, shift, target), 1))
-    # Among them, the ones on the start's own day of the rule's, so a series
-    # of Mondays and Wednesdays that began on a Monday begins on one again.
-    here = _slot(pinned, (start + offset).replace(tzinfo=None))
+    near = between_(target - span, target + span) or between_(
+        target - 4 * span, target + 4 * span
+    )
+    here = place(start)
     alike = [
-        v for v in near if _slot(pinned, (v + offset).replace(tzinfo=None)) == here
+        v
+        for v in near
+        if here and (spot := place(v)) and (spot[0] == here[0] or spot[1] == here[1])
     ]
     new_start = min(alike or near, key=lambda v: (abs(v - target), v), default=target)
     along = new_start - start
+    periods = _periods_between(freq, local(start), local(new_start))
+
+    def going(value: datetime) -> datetime:
+        listed = in_period(value)
+        later = in_period(value, periods) if value in listed else []
+        if not later:
+            return value + along
+        return later[min(listed.index(value), len(later) - 1)]
 
     def instant(value: date | datetime) -> datetime:
         if isinstance(value, datetime):
             return value.astimezone(timezone.utc)
         return datetime.combine(value, at, timezone.utc) - offset
 
-    until = repeat.rule.get("UNTIL")
-    end = instant(until[0]) if until else None
-    skipped = [instant(value) for value in repeat.exdates]
-    through = max([*skipped, *asked, *([end] if end else [])], default=start)
-    old = list(
-        islice(_walk(Recurrence(own), start, shift, start, through), MAX_EXPANDED)
-    )
-    number = {value: n for n, value in enumerate(old)}
-    last = max((v for v in old if v <= end), default=None) if end else None
-    named = [*skipped, *asked, *([last] if last else [])]
-    wanted = max((number[v] for v in named if v in number), default=-1)
-    new = list(islice(_walk(Recurrence(own), new_start, shift, new_start), wanted + 1))
-
-    def going(value: datetime) -> datetime:
-        n = number.get(value)
-        return new[n] if n is not None and n < len(new) else value + along
-
     def by_days(value: date, by: timedelta) -> date:
         return value + timedelta(days=round(by / timedelta(days=1)))
 
     rule = dict(repeat.rule)
-    if until:
+    if until := repeat.rule.get("UNTIL"):
         # The end keeps its distance past the last occurrence before it.
+        end = instant(until[0])
+        last = max(between_(end - span, end), default=None)
         by = going(last) - last if last else along
         rule["UNTIL"] = [
             until[0] + by if isinstance(until[0], datetime) else by_days(until[0], by)

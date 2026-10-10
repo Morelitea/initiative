@@ -439,20 +439,20 @@ def _move_series(
     keys = (
         ("due_date", "start_date") if tool is Tool.project else ("start_at", "end_at")
     )
+    own_rows: dict[str, list[tuple[dict[str, Any], datetime]]] = {}
+    for other in items:
+        if (
+            isinstance(other, dict)
+            and (ref := other.get("series_ref"))
+            and (was := _instant(other.get("original_start"))) is not None
+        ):
+            own_rows.setdefault(ref, []).append((other, was))
     for item in _repeating(tool, env):
         key = next((k for k in keys if _instant(item.get(k)) is not None), None)
         start = _instant(item.get(key)) if key else None
         if start is None:
             continue
-        ref = item.get("external_ref")
-        rows = [
-            (other, was)
-            for other in items
-            if ref
-            and isinstance(other, dict)
-            and other.get("series_ref") == ref
-            and (was := _instant(other.get("original_start"))) is not None
-        ]
+        rows = own_rows.get(item.get("external_ref") or "", [])
         series = recurrence.moved(
             item["recurrence"],
             start,
