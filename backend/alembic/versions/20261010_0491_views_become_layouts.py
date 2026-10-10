@@ -27,8 +27,8 @@ shipped, each list view with what its layout drew and the default it opened
 on, and its task layout back. A shared tool's list layouts, which views could
 not hold, are not kept.
 
-Revision ID: 20261010_0490
-Revises: 20261010_0489
+Revision ID: 20261010_0491
+Revises: 20261010_0490
 Create Date: 2026-10-10
 """
 
@@ -41,8 +41,8 @@ from sqlalchemy.dialects import postgresql
 
 from app.db.guild_migrations import run_for_each_guild_schema
 
-revision = "20261010_0490"
-down_revision = "20261010_0489"
+revision = "20261010_0491"
+down_revision = "20261010_0490"
 branch_labels = None
 depends_on = None
 

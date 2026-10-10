@@ -1550,40 +1550,23 @@ async def test_plain_write_edits_but_cannot_pin(
     assert response.status_code == 200
 
 
-# ── Views travel with the project ─────────────────────────────────────
+# ── Layouts travel with the project ───────────────────────────────────
 
 
-async def test_duplicating_a_project_copies_its_views(
-    client: AsyncClient, session: AsyncSession, acting_user
+async def test_duplicating_a_project_copies_its_layouts(
+    client: AsyncClient, acting_user
 ):
     a = await acting_user(
         guild_role=CommunityRole.member, initiative=True, project=True
     )
-    source_status = await create_task_status(session, project=a.project, name="Review")
-    views_url = a.g("/views/")
-    saved = await client.put(
-        views_url,
-        params={"tool": "project", "tool_id": a.project.id},
-        json={
-            "views": [
-                {
-                    "name": "Table",
-                    "slug": "table",
-                    "definition": {"layout": {"type": "table"}},
-                },
-                {
-                    "name": "In review",
-                    "is_default": True,
-                    "definition": {
-                        "layout": {"type": "board"},
-                        "filters": {"status_ids": [source_status.id]},
-                    },
-                },
-            ]
-        },
-        headers=a.headers,
-    )
-    assert saved.status_code == 200, saved.text
+    url = a.g("/layouts/")
+    source = {"tool": "project", "tool_id": a.project.id}
+    columns = {"kind": "table", "definition": {"columns": ["title", "dueDate"]}}
+    for path, body in (("", columns), ("default", {"kind": "board"})):
+        saved = await client.put(
+            f"{url}{path}", params=source, json=body, headers=a.headers
+        )
+        assert saved.status_code == 200, saved.text
 
     duplicated = await client.post(
         a.g(f"/projects/{a.project.id}/duplicate"),
@@ -1593,21 +1576,15 @@ async def test_duplicating_a_project_copies_its_views(
     assert duplicated.status_code == 201
     copied = (
         await client.get(
-            views_url,
+            url,
             params={"tool": "project", "tool_id": duplicated.json()["id"]},
             headers=a.headers,
         )
     ).json()
 
-    assert copied["stored"] is True
-    assert [(v["slug"], v["is_default"]) for v in copied["views"]] == [
-        ("table", False),
-        ("in-review", True),
-    ]
-    # The status id was translated to the copy's own status, not carried over.
-    cloned_status_ids = copied["views"][1]["definition"]["filters"]["status_ids"]
-    assert cloned_status_ids
-    assert source_status.id not in cloned_status_ids
+    layouts = {layout["kind"]: layout for layout in copied["layouts"]}
+    assert layouts["table"]["definition"]["columns"] == ["title", "dueDate"]
+    assert layouts["board"]["is_default"] is True
 
 
 async def test_activity_feed_pages_newest_first(

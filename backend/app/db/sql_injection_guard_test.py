@@ -87,9 +87,6 @@ ALLOWED_DYNAMIC_SQL: dict[str, str] = {
         "model DDL: the CHECK lists the PROPERTY_TARGETS constant, the partial "
         "indexes name the model's own value columns"
     ),
-    "app/models/tenant/tool_layout.py::ToolLayout": (
-        "model DDL: the CHECKs list the LAYOUT_TOOLS and LAYOUT_KINDS constants"
-    ),
     "app/db/schema_provisioning.py::strip_template_registry_objects": (
         "the TEMPLATE_SCHEMA constant; policy, trigger and table names read "
         "from the catalog and quoted; function names and argument lists from "
