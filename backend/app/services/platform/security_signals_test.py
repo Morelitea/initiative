@@ -237,3 +237,21 @@ async def test_a_case_that_could_not_open_is_tried_again(
     monkeypatch.setattr(intake, "open_case", real)
     assert await security_signals.flush() == []
     assert len(await _cases(session, security_desk.id)) == 1
+
+
+async def test_counts_given_back_keep_to_the_key_cap(session):
+    """A failed flush returns its counts beside what came since; the two
+    together still hold to the cap, the rest counted under the collapsed
+    key."""
+    for n in range(MAX_KEYS_PER_RULE):
+        security_signals.observe(_failed_sign_in(f"10.1.{n // 256}.{n % 256}"), now=_AT)
+    taken = security_signals._take()
+    for n in range(MAX_KEYS_PER_RULE):
+        security_signals.observe(_failed_sign_in(f"10.2.{n // 256}.{n % 256}"), now=_AT)
+    security_signals._give_back(taken)
+
+    buckets = security_signals._counts.rules["sign_in_spray"]
+    start = security_signals.window_start(_AT, BY_NAME["sign_in_spray"].window)
+    assert len(buckets) == MAX_KEYS_PER_RULE + 1
+    assert buckets[(COLLAPSED_KEY, start)].count == MAX_KEYS_PER_RULE
+    assert sum(bucket.count for bucket in buckets.values()) == 2 * MAX_KEYS_PER_RULE

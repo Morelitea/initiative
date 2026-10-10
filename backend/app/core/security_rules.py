@@ -8,9 +8,8 @@ deployment opens a security case about it (``app.services.platform
 than opening one per event.
 
 The thresholds are constants, reviewed in code like everything else that
-decides what the people running a server are woken for. They are not
-settings: a threshold an operator can raise is one an intruder who reaches
-the settings can raise too.
+decides what the people running a server are woken for, rather than
+settings.
 """
 
 from __future__ import annotations

@@ -156,6 +156,11 @@ def _give_back(taken: dict[str, dict[tuple[str, datetime], _Bucket]]) -> None:
         for name, buckets in taken.items():
             pending = _counts.rules.setdefault(name, {})
             for slot, bucket in buckets.items():
+                if slot not in pending and len(pending) >= MAX_KEYS_PER_RULE:
+                    # The cap holds across what was taken and what came since.
+                    slot = (COLLAPSED_KEY, slot[1])
+                    if slot not in pending:
+                        pending[slot] = _Bucket(raw_key=COLLAPSED_KEY)
                 since = pending.get(slot)
                 if since is None:
                     pending[slot] = bucket
