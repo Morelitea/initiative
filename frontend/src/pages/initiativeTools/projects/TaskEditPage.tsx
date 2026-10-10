@@ -40,7 +40,7 @@ import { useCommunities } from "@/hooks/useCommunities";
 import { useInitiative } from "@/hooks/useInitiatives";
 import { useReadOnOpen } from "@/hooks/useNotifications";
 import { useProject, useProjectTaskStatuses, useWritableProjects } from "@/hooks/useProjects";
-import { useProjectViews } from "@/hooks/useProjectViews";
+import { taskPageOf, useProjectViews } from "@/hooks/useProjectViews";
 import {
   useDeleteTask,
   useDuplicateTask,
@@ -55,6 +55,7 @@ import { queryClient } from "@/lib/queryClient";
 import { taskRoute, toolDetailRoute, toolListRoute } from "@/lib/tools";
 import { usePluginMenuActions } from "@/lib/views/plugins";
 import { TaskPageView } from "@/lib/views/taskPage";
+import type { StoredRegions } from "@/lib/views/tasks";
 
 type MoveTaskVariables = {
   targetProjectId: number;
@@ -391,10 +392,7 @@ export const TaskEditPage = () => {
       />
       <TaskPageView
         task={task}
-        layout={
-          viewsQuery.data?.item_layouts.find((layout) => layout.item_kind === "task")
-            ?.definition as Parameters<typeof TaskPageView>[0]["layout"]
-        }
+        layout={taskPageOf(viewsQuery.data) as StoredRegions | null}
         page={{
           readOnly: isReadOnly,
           readOnlyMessage,

@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { ChevronDown, ChevronUp, Pencil, Star, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp, FileText, Pencil, Star, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -75,12 +75,20 @@ export const ProjectViewsManager = ({ projectId, editHref, set }: ProjectViewsMa
           </div>
           {/* The editor needs room beside its canvas. */}
           {editHref && wide ? (
-            <Button asChild variant="outline" size="sm">
-              <Link to={editHref}>
-                <Pencil className="h-4 w-4" />
-                {t("viewEditor.open")}
-              </Link>
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button asChild variant="outline" size="sm">
+                <Link to={editHref}>
+                  <Pencil className="h-4 w-4" />
+                  {t("viewEditor.open")}
+                </Link>
+              </Button>
+              <Button asChild variant="outline" size="sm">
+                <Link to={editHref} search={{ page: "task" }}>
+                  <FileText className="h-4 w-4" />
+                  {t("viewEditor.openTaskPage")}
+                </Link>
+              </Button>
+            </div>
           ) : null}
         </CardHeader>
         <CardContent className="space-y-2">

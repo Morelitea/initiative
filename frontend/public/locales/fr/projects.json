@@ -323,6 +323,7 @@
   },
   "viewEditor": {
     "open": "Modifier les vues",
+    "openTaskPage": "Modifier la page de tâche",
     "title": "Modifier les vues",
     "close": "Fermer l’éditeur",
     "view": "Vue en cours de modification",
@@ -336,9 +337,9 @@
     "redo": "Rétablir",
     "discard": "Abandonner",
     "saving": "Enregistrement…",
-    "saved": "Vues enregistrées",
+    "saved": "Enregistré",
     "unsavedTitle": "Quitter sans enregistrer ?",
-    "unsavedBody": "Vos modifications de ces vues n’ont pas été enregistrées. Quitter les abandonne.",
+    "unsavedBody": "Vos modifications n'ont pas été enregistrées. Quitter les abandonne.",
     "leave": "Quitter",
     "stay": "Continuer",
     "compact": "Les vues se modifient sur un écran plus large. Ouvrez cette page sur une tablette ou un ordinateur.",
@@ -385,7 +386,48 @@
     "ownWidth": "Garder la largeur de chaque élément",
     "muted": "Texte atténué",
     "titleHelp": "Chaque tâche affiche son titre, qui l’ouvre.",
-    "holdsTitle": "Ce groupe contient le titre, que chaque tâche affiche : il reste.",
-    "savingBody": "Vos vues sont encore en cours d’enregistrement. Quitter maintenant peut faire perdre vos modifications si l’enregistrement échoue."
+    "holdsTitle": "Il contient le titre, que chaque tâche affiche, il reste donc.",
+    "savingBody": "Vos modifications sont encore en cours d'enregistrement. Quitter maintenant peut les perdre si l'enregistrement échoue.",
+    "taskPage": "Page de tâche",
+    "noticePreview": "Affiché à qui ne peut pas modifier la tâche, pour dire pourquoi.",
+    "noTasks": "Ce projet n'a encore aucune tâche. Ajoutez-en une pour voir sa page ici.",
+    "empty": "Vide",
+    "dropHere": "Déposer ici",
+    "pageHelp": "La mise en page de chaque page de tâche de ce projet. Un champ placé nulle part reste affiché, sous Autres champs.",
+    "useShippedPage": "Utiliser la page d'origine",
+    "shippedPage": "C'est la page d'origine. La modifier en fait celle du projet.",
+    "section": "Section",
+    "sectionWith": "Section avec {{name}}",
+    "sectionTitle": "Titre",
+    "startFolded": "Repliée au départ",
+    "toMoreFields": "Déplacer {{name}} vers Autres champs",
+    "toMoreFieldsHelp": "Chaque page de tâche permet de modifier ce champ. Retiré d'ici, il passe dans Autres champs.",
+    "pageTitleHelp": "Chaque page de tâche affiche son titre.",
+    "parts": {
+      "header": "En-tête",
+      "main": "Principal",
+      "side": "Côté",
+      "status": "Statut",
+      "dates": "Dates de début et d'échéance",
+      "byline": "Créée par",
+      "notice": "Note de lecture seule",
+      "actions": "Menu",
+      "relations": "Relations",
+      "case": "Dossier",
+      "comments": "Commentaires"
+    },
+    "regionHelp": {
+      "header": "En haut de la page, au-dessus des deux colonnes.",
+      "main": "La colonne large.",
+      "side": "La colonne étroite à côté de Principal. Sur un téléphone, la page tient en une colonne ; l'aperçu téléphone montre son ordre."
+    },
+    "partHelp": {
+      "comments": "Les commentaires de la tâche, et l'écriture d'un nouveau.",
+      "relations": "Ce à quoi la tâche est liée, et ce qu'elle attend.",
+      "case": "Le dossier d'assistance de la tâche, s'il y en a un.",
+      "byline": "Qui a créé la tâche, et quand.",
+      "notice": "Dit pourquoi à qui ne peut pas modifier la tâche.",
+      "actions": "Ce qu'on peut faire d'autre avec la tâche : déplacer, dupliquer, archiver, supprimer, et les actions des plug-ins."
+    }
   }
 }

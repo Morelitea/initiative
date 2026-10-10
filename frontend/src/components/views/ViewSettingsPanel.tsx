@@ -19,8 +19,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { cardOf, nodeAt, removable, type Selection } from "@/lib/views/draft";
+import { cardOf, type NodePath, nodeAt, removable, type Selection } from "@/lib/views/draft";
 import { type FieldDef, VIEW_NAMESPACES } from "@/lib/views/fields";
+import { editsAField, PAGE_REGIONS } from "@/lib/views/tasks";
 import type { ViewNode } from "@/lib/views/tree";
 import type { TranslateFn } from "@/types/i18n";
 
@@ -50,50 +51,105 @@ export const ViewSettingsPanel = ({
 }) => (
   // Disabled as one, so a save under way leaves every control as it was.
   <fieldset disabled={locked} className="min-w-0">
-    <SelectedSettings view={view} fields={fields} selection={selection} edits={edits} />
+    {selection.kind === "view" ? (
+      <ViewSettings view={view} fields={fields} edits={edits} />
+    ) : selection.kind === "column" ? (
+      <ColumnSettings field={selection.field} fields={fields} edits={edits} />
+    ) : (
+      <PartSettings
+        tree={cardOf(view.definition)}
+        path={selection.path}
+        fields={fields}
+        edits={edits}
+        onPage={false}
+      />
+    )}
   </fieldset>
 );
 
-const SelectedSettings = ({
-  view,
+/** The settings of what is selected on a task's page: the page's own, or a
+ *  part's. */
+export const PageSettingsPanel = ({
+  page,
+  stored,
   fields,
   selection,
   edits,
+  locked,
 }: {
-  view: ToolViewWrite;
+  /** The page as one tree: the page, holding its header, main and side. */
+  page: ViewNode;
+  /** Whether the project lays out its own page, as against the shipped one. */
+  stored: boolean;
   fields: ReadonlyMap<string, FieldDef>;
   selection: Selection;
   edits: ViewEdits;
+  locked: boolean;
+}) => {
+  const { t } = useTranslation("projects");
+  return (
+    <fieldset disabled={locked} className="min-w-0">
+      {selection.kind === "part" ? (
+        <PartSettings tree={page} path={selection.path} fields={fields} edits={edits} onPage />
+      ) : (
+        <Panel heading={t("viewEditor.taskPage")}>
+          <p className="text-muted-foreground text-sm">{t("viewEditor.pageHelp")}</p>
+          {stored ? (
+            <Button type="button" variant="outline" size="sm" onClick={edits.resetPage}>
+              {t("viewEditor.useShippedPage")}
+            </Button>
+          ) : (
+            <p className="text-muted-foreground text-xs">{t("viewEditor.shippedPage")}</p>
+          )}
+        </Panel>
+      )}
+    </fieldset>
+  );
+};
+
+const ColumnSettings = ({
+  field,
+  fields,
+  edits,
+}: {
+  field: string;
+  fields: ReadonlyMap<string, FieldDef>;
+  edits: ViewEdits;
+}) => {
+  const { t } = useTranslation("projects");
+  const keeps = fields.get(field)?.hideable === false;
+  return (
+    <Panel heading={t("viewEditor.column")}>
+      <p className="text-muted-foreground text-sm">
+        {t(keeps ? "viewEditor.titleHelp" : "viewEditor.columnHelp")}
+      </p>
+      {keeps ? null : (
+        <Button type="button" variant="outline" size="sm" onClick={() => edits.removeColumn(field)}>
+          {t("viewEditor.remove")}
+        </Button>
+      )}
+    </Panel>
+  );
+};
+
+/** One part of a card or a page: how a group or a section is arranged, what
+ *  the part does, and taking it off where it may go. */
+const PartSettings = ({
+  tree,
+  path,
+  fields,
+  edits,
+  onPage,
+}: {
+  tree: ViewNode;
+  path: NodePath;
+  fields: ReadonlyMap<string, FieldDef>;
+  edits: ViewEdits;
+  onPage: boolean;
 }) => {
   const { t } = useTranslation(VIEW_NAMESPACES);
   const translate = t as TranslateFn;
-
-  if (selection.kind === "view") {
-    return <ViewSettings view={view} fields={fields} edits={edits} />;
-  }
-
-  if (selection.kind === "column") {
-    const keeps = fields.get(selection.field)?.hideable === false;
-    return (
-      <Panel heading={translate("viewEditor.column")}>
-        <p className="text-muted-foreground text-sm">
-          {translate(keeps ? "viewEditor.titleHelp" : "viewEditor.columnHelp")}
-        </p>
-        {keeps ? null : (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => edits.removeColumn(selection.field)}
-          >
-            {translate("viewEditor.remove")}
-          </Button>
-        )}
-      </Panel>
-    );
-  }
-
-  const node = nodeAt(cardOf(view.definition), selection.path);
+  const node = nodeAt(tree, path);
   if (!node) return null;
   if (node.type === "card") {
     return (
@@ -102,39 +158,57 @@ const SelectedSettings = ({
       </Panel>
     );
   }
+  if ((PAGE_REGIONS as readonly string[]).includes(node.type)) {
+    return (
+      <Panel heading={translate(`viewEditor.parts.${node.type}`)}>
+        <p className="text-muted-foreground text-sm">
+          {translate(`viewEditor.regionHelp.${node.type}`)}
+        </p>
+      </Panel>
+    );
+  }
   const canRemove = removable(node, fields);
   const remove = canRemove ? (
-    <Button
-      type="button"
-      variant="outline"
-      size="sm"
-      onClick={() => edits.removePart(selection.path)}
-    >
+    <Button type="button" variant="outline" size="sm" onClick={() => edits.removePart(path)}>
       {translate("viewEditor.remove")}
     </Button>
-  ) : null;
+  ) : (
+    <p className="text-muted-foreground text-xs">{translate("viewEditor.holdsTitle")}</p>
+  );
+  const change = (next: ViewNode) => edits.changePart(path, next);
 
   if (node.type === "stack") {
     return (
-      <GroupSettings node={node} onChange={(next) => edits.changePart(selection.path, next)}>
-        {remove ?? (
-          <p className="text-muted-foreground text-xs">{translate("viewEditor.holdsTitle")}</p>
-        )}
+      <GroupSettings node={node} onChange={change}>
+        {remove}
       </GroupSettings>
     );
   }
+  if (node.type === "section") {
+    return (
+      <SectionSettings node={node} onChange={change}>
+        {remove}
+      </SectionSettings>
+    );
+  }
   const help =
-    node.type === "properties"
-      ? "viewEditor.propertiesHelp"
-      : node.type === "plugin"
-        ? "viewEditor.pluginPartHelp"
-        : canRemove
-          ? "viewEditor.fieldHelp"
-          : "viewEditor.titleHelp";
+    node.type === "plugin"
+      ? "viewEditor.pluginPartHelp"
+      : !canRemove
+        ? onPage
+          ? "viewEditor.pageTitleHelp"
+          : "viewEditor.titleHelp"
+        : onPage && editsAField(node)
+          ? "viewEditor.toMoreFieldsHelp"
+          : onPage
+            ? `viewEditor.partHelp.${node.type}`
+            : node.type === "properties"
+              ? "viewEditor.propertiesHelp"
+              : "viewEditor.fieldHelp";
   return (
     <Panel heading={translate("viewEditor.settings")}>
       <p className="text-muted-foreground text-sm">{translate(help)}</p>
-      {remove}
+      {canRemove ? remove : null}
     </Panel>
   );
 };
@@ -158,31 +232,13 @@ const ViewSettings = ({
   const { t } = useTranslation(VIEW_NAMESPACES);
   const translate = t as TranslateFn;
   const { definition } = view;
-  // The name is kept as typed and saved to the view when the field is left,
-  // so one rename is one change to undo.
-  const [name, setName] = useState(view.name);
-  useEffect(() => setName(view.name), [view.name]);
-  const commitName = () => {
-    const trimmed = name.trim();
-    if (trimmed && trimmed !== view.name) edits.rename(trimmed);
-    else setName(view.name);
-  };
   const [sort] = definition.sort ?? [];
 
   return (
     <Panel heading={translate("viewEditor.viewHeading")}>
       <div className="space-y-2">
         <Label htmlFor="view-name">{translate("viewEditor.name")}</Label>
-        <Input
-          id="view-name"
-          value={name}
-          maxLength={100}
-          onChange={(event) => setName(event.target.value)}
-          onBlur={commitName}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") commitName();
-          }}
-        />
+        <CommittedInput id="view-name" value={view.name} onCommit={edits.rename} />
       </div>
       <div className="space-y-2">
         <Label htmlFor="view-layout">{translate("viewEditor.layout")}</Label>
@@ -336,5 +392,91 @@ const GroupSettings = ({
       {flag("tone", "muted", t("viewEditor.muted"))}
       {children}
     </Panel>
+  );
+};
+
+/** A section's title, and whether it starts folded, which only a titled
+ *  section can: its title is what unfolds it. */
+const SectionSettings = ({
+  node,
+  onChange,
+  children,
+}: {
+  node: ViewNode;
+  onChange: (next: ViewNode) => void;
+  children: ReactNode;
+}) => {
+  const { t } = useTranslation("projects");
+  const props = node.props ?? {};
+  const title = typeof props.title === "string" ? props.title : "";
+  const set = (key: string, value: unknown) => {
+    const { [key]: _left, ...rest } = props;
+    onChange({ ...node, props: value === undefined ? rest : { ...rest, [key]: value } });
+  };
+  return (
+    <Panel heading={t("viewEditor.section")}>
+      <div className="space-y-2">
+        <Label htmlFor="section-title">{t("viewEditor.sectionTitle")}</Label>
+        <CommittedInput
+          id="section-title"
+          value={title}
+          optional
+          onCommit={(next) => {
+            const { title: _title, collapsed: _collapsed, ...rest } = props;
+            onChange({
+              ...node,
+              props: next
+                ? { ...rest, title: next, ...(props.collapsed ? { collapsed: true } : {}) }
+                : rest,
+            });
+          }}
+        />
+      </div>
+      <div className="flex items-center justify-between gap-2">
+        <Label htmlFor="section-collapsed">{t("viewEditor.startFolded")}</Label>
+        <Switch
+          id="section-collapsed"
+          checked={props.collapsed === true}
+          disabled={!title}
+          onCheckedChange={(checked) => set("collapsed", checked ? true : undefined)}
+        />
+      </div>
+      {children}
+    </Panel>
+  );
+};
+
+/** Text kept as typed and given to `onCommit` when the field is left or Enter
+ *  is pressed, so one change of it is one change to undo. Left empty, it
+ *  puts back what it had, unless it is `optional`. */
+const CommittedInput = ({
+  id,
+  value,
+  optional = false,
+  onCommit,
+}: {
+  id: string;
+  value: string;
+  optional?: boolean;
+  onCommit: (value: string) => void;
+}) => {
+  const [text, setText] = useState(value);
+  useEffect(() => setText(value), [value]);
+  const commit = () => {
+    const trimmed = text.trim();
+    if (trimmed === value || (!trimmed && !optional)) setText(value);
+    else onCommit(trimmed);
+  };
+  return (
+    <Input
+      id={id}
+      value={text}
+      maxLength={100}
+      onChange={(event) => setText(event.target.value)}
+      onBlur={commit}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") commit();
+      }}
+    />
   );
 };

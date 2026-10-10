@@ -1,5 +1,6 @@
 /**
- * `/projects/$projectId/views` — the project's views, edited in place.
+ * `/projects/$projectId/views` — the project's views and its task page,
+ * edited in place.
  *
  * Who may is the server's answer on the set (the project's owner, the
  * initiative's managers, a community admin). The editor itself says when the
@@ -10,7 +11,7 @@ import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { ToolSettingsPermissionRequired } from "@/components/tools/settings/ToolSettingsGuard";
-import { ViewEditor } from "@/components/views/ViewEditor";
+import { TASK_PAGE, ViewEditor } from "@/components/views/ViewEditor";
 import { useProject, useProjectTaskStatuses } from "@/hooks/useProjects";
 import { useProjectViews } from "@/hooks/useProjectViews";
 import { useCommunityPath } from "@/lib/communityUrl";
@@ -18,7 +19,7 @@ import { toolSettingsRoute } from "@/lib/tools";
 
 export const ProjectViewEditorPage = () => {
   const { projectId } = useParams({ strict: false }) as { projectId?: string };
-  const { view } = useSearch({ strict: false }) as { view?: string };
+  const { view, page } = useSearch({ strict: false }) as { view?: string; page?: "task" };
   const parsedId = projectId ? Number(projectId) : Number.NaN;
   const id = Number.isFinite(parsedId) ? parsedId : null;
   const navigate = useNavigate();
@@ -36,7 +37,7 @@ export const ProjectViewEditorPage = () => {
       initiativeId={project.initiative_id}
       statuses={statuses}
       set={set}
-      initialSlug={view}
+      initialSlug={page === "task" ? TASK_PAGE : view}
       onClose={() =>
         void navigate({
           to: gp(`${toolSettingsRoute(Tool.project, project.initiative_id, id)}/views`),

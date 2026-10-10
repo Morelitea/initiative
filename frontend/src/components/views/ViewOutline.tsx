@@ -4,6 +4,7 @@ import {
   KeyboardSensor,
   MouseSensor,
   TouchSensor,
+  useDroppable,
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
@@ -14,28 +15,34 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { EyeOff, GripVertical, LayoutList, Plus } from "lucide-react";
+import { EyeOff, FileText, GripVertical, LayoutList, Plus } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { ToolViewWrite } from "@/api/generated/initiativeAPI.schemas";
+import { TaskPageFieldId, type ToolViewWrite } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import {
   addableFields,
+  addablePluginParts,
   cardOf,
   columnsOf,
+  dropInto,
+  dropOn,
+  HOLDERS,
+  holdsPart,
   type NodePath,
+  namedFields,
   pathKey,
   pathOf,
   removable,
   type Selection,
   sameSelection,
-  showsAllProperties,
 } from "@/lib/views/draft";
 import { type FieldDef, VIEW_NAMESPACES } from "@/lib/views/fields";
 import type { PluginOnItems } from "@/lib/views/plugins";
+import { editsAField, PAGE_REGIONS, unplacedFields } from "@/lib/views/tasks";
 import type { ViewNode } from "@/lib/views/tree";
 import { localized } from "@/lib/widgets/widgetMeta";
 import type { TranslateFn } from "@/types/i18n";
@@ -49,13 +56,95 @@ type PickerPlugin = {
   parts: { id: string; name: string; description?: string }[];
 };
 
-const parentKey = (key: string) => pathKey(pathOf(key).slice(0, -1));
+/** A part the picker offers beside the fields, under the group it names. */
+type PickerPart = { group: "builtin" | "properties" | "layout"; label: string; node: ViewNode };
+
+/** The parts of a task's page that are its own, which it places at most once. */
+const PAGE_PARTS = [
+  "status",
+  "dates",
+  "comments",
+  "relations",
+  "case",
+  "byline",
+  "notice",
+  "actions",
+] as const;
+
+/** Rows that stay where they are: an item page's regions. */
+const FIXED = new Set<string>(PAGE_REGIONS);
+
+const INTO = "into:";
+
+const usePickerPlugins = (plugins: ReadonlyMap<number, PluginOnItems>): PickerPlugin[] => {
+  const { i18n } = useTranslation();
+  return [...plugins.values()].map((plugin) => ({
+    id: plugin.id,
+    name: plugin.name,
+    parts: [...plugin.parts.values()].map((part) => ({
+      id: part.id,
+      name: localized(part.name, i18n.language) ?? part.id,
+      description: localized(part.description, i18n.language),
+    })),
+  }));
+};
+
+/** What a part is called in the outline and the settings. */
+export const usePartLabel = (
+  fields: ReadonlyMap<string, FieldDef>,
+  plugins: ReadonlyMap<number, PluginOnItems>
+) => {
+  const { t } = useTranslation(VIEW_NAMESPACES);
+  const translate = t as TranslateFn;
+  const pickerPlugins = usePickerPlugins(plugins);
+  const labelOf = (field: FieldDef) =>
+    field.source === "builtin" ? translate(field.label) : field.label;
+  const partLabel = (node: ViewNode): string => {
+    switch (node.type) {
+      case "card":
+        return translate("viewEditor.card");
+      case "stack":
+        return node.props?.direction === "row"
+          ? translate("viewEditor.row")
+          : translate("viewEditor.group");
+      // An untitled section is told apart by what it starts with.
+      case "section": {
+        if (typeof node.props?.title === "string" && node.props.title) return node.props.title;
+        const [first] = node.children ?? [];
+        return first
+          ? translate("viewEditor.sectionWith", { name: partLabel(first) })
+          : translate("viewEditor.section");
+      }
+      case "properties":
+        return translate("viewEditor.allProperties");
+      case "plugin": {
+        const plugin = pickerPlugins.find((each) => each.id === Number(node.props?.plugin));
+        const part = plugin?.parts.find((each) => each.id === node.props?.part);
+        return part?.name ?? translate("viewEditor.missingPart");
+      }
+      case "field": {
+        const field = fields.get(String(node.props?.field));
+        return field ? labelOf(field) : translate("viewEditor.missingField");
+      }
+      default:
+        return translate(`viewEditor.parts.${node.type}`);
+    }
+  };
+  return { labelOf, partLabel, pickerPlugins };
+};
+
+const useOutlineSensors = () =>
+  useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
 
 /**
  * What the view is made of, as a list beside the canvas: the view itself,
  * then a board's card part by part or a table's columns in order. A row is
- * dragged to move it among its siblings, hidden from its own row, and
- * selected to change it. Add offers what is not there yet, under where it
+ * dragged to move it, into another group as well, hidden from its own row,
+ * and selected to change it. Add offers what is not there yet, under where it
  * comes from.
  */
 export const ViewOutline = ({
@@ -74,90 +163,19 @@ export const ViewOutline = ({
   /** A save is under way, and nothing changes until it answers. */
   locked: boolean;
 }) => {
-  const { t, i18n } = useTranslation(VIEW_NAMESPACES);
+  const { t } = useTranslation(VIEW_NAMESPACES);
   const translate = t as TranslateFn;
-  const sensors = useSensors(
-    useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-  );
+  const sensors = useOutlineSensors();
+  const { labelOf, partLabel, pickerPlugins } = usePartLabel(fields, plugins);
   const { definition } = view;
   const layout = definition.layout.type;
   const card = cardOf(definition);
   const columns = columnsOf(definition);
-  const offeredPlugins: PickerPlugin[] = [...plugins.values()].map((plugin) => ({
-    id: plugin.id,
-    name: plugin.name,
-    parts: [...plugin.parts.values()].map((part) => ({
-      id: part.id,
-      name: localized(part.name, i18n.language) ?? part.id,
-      description: localized(part.description, i18n.language),
-    })),
-  }));
-
-  const labelOf = (field: FieldDef) =>
-    field.source === "builtin" ? translate(field.label) : field.label;
-  const partLabel = (node: ViewNode): string => {
-    switch (node.type) {
-      case "card":
-        return translate("viewEditor.card");
-      case "stack":
-        return node.props?.direction === "row"
-          ? translate("viewEditor.row")
-          : translate("viewEditor.group");
-      case "properties":
-        return translate("viewEditor.allProperties");
-      case "plugin": {
-        const plugin = offeredPlugins.find((each) => each.id === Number(node.props?.plugin));
-        const part = plugin?.parts.find((each) => each.id === node.props?.part);
-        return part?.name ?? translate("viewEditor.missingPart");
-      }
-      case "field": {
-        const field = fields.get(String(node.props?.field));
-        return field ? labelOf(field) : translate("viewEditor.missingField");
-      }
-      default:
-        return node.type;
-    }
-  };
   const isSelected = (other: Selection) => sameSelection(selection, other);
 
-  const onCardDragEnd = ({ active, over }: DragEndEvent) => {
-    const from = String(active.id);
-    const to = over ? String(over.id) : null;
-    // A part moves among its own siblings.
-    if (!to || from === to || parentKey(from) !== parentKey(to)) return;
-    edits.movePart(pathOf(from).slice(0, -1), pathOf(from).at(-1) ?? 0, pathOf(to).at(-1) ?? 0);
-  };
   const onColumnDragEnd = ({ active, over }: DragEndEvent) => {
     if (!over || active.id === over.id) return;
     edits.moveColumn(columns.indexOf(String(active.id)), columns.indexOf(String(over.id)));
-  };
-
-  const partRows = (parent: ViewNode, parentPath: NodePath, depth: number): ReactNode => {
-    const children = parent.children ?? [];
-    const keys = children.map((_, index) => pathKey([...parentPath, index]));
-    return (
-      <SortableContext items={keys} strategy={verticalListSortingStrategy}>
-        {children.map((child, index) => {
-          const path = [...parentPath, index];
-          return (
-            <div key={keys[index]}>
-              <OutlineRow
-                id={keys[index]}
-                depth={depth}
-                label={partLabel(child)}
-                selected={isSelected({ kind: "part", path })}
-                onSelect={() => edits.select({ kind: "part", path })}
-                onHide={removable(child, fields) ? () => edits.removePart(path) : undefined}
-                locked={locked}
-              />
-              {child.children ? partRows(child, path, depth + 1) : null}
-            </div>
-          );
-        })}
-      </SortableContext>
-    );
   };
 
   return (
@@ -173,7 +191,7 @@ export const ViewOutline = ({
           fixed
         />
         {layout === "board" ? (
-          <DndContext sensors={sensors} onDragEnd={onCardDragEnd}>
+          <>
             <OutlineRow
               id="card"
               depth={1}
@@ -182,8 +200,20 @@ export const ViewOutline = ({
               onSelect={() => edits.select({ kind: "part", path: [] })}
               fixed
             />
-            {partRows(card, [], 2)}
-          </DndContext>
+            <PartTree
+              root={card}
+              depth={2}
+              partLabel={partLabel}
+              hideAction={(node) =>
+                removable(node, fields)
+                  ? translate("viewEditor.hide", { name: partLabel(node) })
+                  : null
+              }
+              selection={selection}
+              edits={edits}
+              locked={locked}
+            />
+          </>
         ) : null}
         {layout === "table" ? (
           <DndContext sensors={sensors} onDragEnd={onColumnDragEnd}>
@@ -193,16 +223,24 @@ export const ViewOutline = ({
             <SortableContext items={columns} strategy={verticalListSortingStrategy}>
               {columns.map((id) => {
                 const field = fields.get(id);
+                const label = field ? labelOf(field) : translate("viewEditor.missingField");
                 return (
                   <OutlineRow
                     key={id}
                     id={id}
                     depth={1}
-                    label={field ? labelOf(field) : translate("viewEditor.missingField")}
+                    label={label}
                     selected={isSelected({ kind: "column", field: id })}
                     onSelect={() => edits.select({ kind: "column", field: id })}
                     // A table always has its title.
-                    onHide={field?.hideable === false ? undefined : () => edits.removeColumn(id)}
+                    hide={
+                      field?.hideable === false
+                        ? undefined
+                        : {
+                            label: translate("viewEditor.hide", { name: label }),
+                            run: () => edits.removeColumn(id),
+                          }
+                    }
                     locked={locked}
                   />
                 );
@@ -221,34 +259,277 @@ export const ViewOutline = ({
                 ? edits.addPart({ type: "field", props: { field: field.id } })
                 : edits.addColumn(field.id)
             }
-            plugins={offeredPlugins}
             // A table draws fields only; a card takes parts as well.
-            withParts={layout === "board"}
+            plugins={pickerPlugins.map((plugin) => ({
+              ...plugin,
+              parts: layout === "board" ? addablePluginParts(card, plugin.id, plugin.parts) : [],
+            }))}
             onPart={(plugin, part) => edits.addPart({ type: "plugin", props: { plugin, part } })}
-            layoutParts={
+            parts={
               layout === "board"
                 ? [
-                    {
-                      label: translate("viewEditor.group"),
-                      node: { type: "stack", props: { align: "start" }, children: [] },
-                    },
-                    ...(showsAllProperties(card)
+                    ...(holdsPart(card, "properties")
                       ? []
                       : [
                           {
+                            group: "properties" as const,
                             label: translate("viewEditor.allProperties"),
                             node: { type: "properties" },
                           },
                         ]),
+                    {
+                      group: "layout" as const,
+                      label: translate("viewEditor.group"),
+                      node: { type: "stack", props: { align: "start" }, children: [] },
+                    },
                   ]
                 : []
             }
-            onLayout={edits.addPart}
+            onNode={edits.addPart}
             locked={locked}
           />
         </div>
       )}
     </nav>
+  );
+};
+
+/**
+ * A task's page as a list beside the canvas: the page, its header, main and
+ * side with their parts, then the fields placed nowhere, which every task
+ * still shows under More fields. A row is dragged to move it, into another
+ * region or section as well; taking off a part that changes a field sends the
+ * field to More fields.
+ */
+export const PageOutline = ({
+  page,
+  fields,
+  plugins,
+  selection,
+  edits,
+  locked,
+}: {
+  /** The page as one tree: the page, holding its header, main and side. */
+  page: ViewNode;
+  fields: ReadonlyMap<string, FieldDef>;
+  plugins: ReadonlyMap<number, PluginOnItems>;
+  selection: Selection;
+  edits: ViewEdits;
+  locked: boolean;
+}) => {
+  const { t } = useTranslation(VIEW_NAMESPACES);
+  const translate = t as TranslateFn;
+  const { labelOf, partLabel, pickerPlugins } = usePartLabel(fields, plugins);
+  const regions = page.children ?? [];
+  const unplaced = unplacedFields({
+    header: regions[0]?.children ?? [],
+    main: regions[1]?.children ?? [],
+    side: regions[2]?.children ?? [],
+  });
+  const named = namedFields(page);
+  const pageFields = new Set<string>(Object.values(TaskPageFieldId));
+
+  return (
+    <nav aria-label={translate("viewEditor.outline")} className="flex h-full flex-col">
+      <div className="flex-1 space-y-1 overflow-y-auto p-3">
+        <OutlineRow
+          id="view"
+          depth={0}
+          label={translate("viewEditor.taskPage")}
+          icon={<FileText className="h-4 w-4" aria-hidden="true" />}
+          selected={sameSelection(selection, { kind: "view" })}
+          onSelect={() => edits.select({ kind: "view" })}
+          fixed
+        />
+        <PartTree
+          root={page}
+          depth={1}
+          partLabel={partLabel}
+          hideAction={(node) =>
+            FIXED.has(node.type) || !removable(node, fields)
+              ? null
+              : translate(editsAField(node) ? "viewEditor.toMoreFields" : "viewEditor.hide", {
+                  name: partLabel(node),
+                })
+          }
+          selection={selection}
+          edits={edits}
+          locked={locked}
+        />
+        {unplaced.length > 0 ? (
+          <div className="pt-2">
+            <p className="px-2 font-medium text-muted-foreground text-xs">
+              {translate("tasks:edit.moreFields")}
+            </p>
+            <ul className="text-muted-foreground text-sm">
+              {unplaced.map((node) => (
+                <li key={`${node.type}:${String(node.props?.field ?? "")}`}>
+                  <span className="block truncate py-1 pl-8">{partLabel(node)}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+      </div>
+      <div className="border-t p-3">
+        <AddPicker
+          fields={[...fields.values()].filter(
+            (field) =>
+              !named.has(field.id) &&
+              ((field.source === "builtin" && pageFields.has(field.id)) ||
+                field.source === "plugin")
+          )}
+          labelOf={labelOf}
+          onField={(field) => edits.addPart({ type: "field", props: { field: field.id } })}
+          plugins={pickerPlugins.map((plugin) => ({
+            ...plugin,
+            parts: addablePluginParts(page, plugin.id, plugin.parts),
+          }))}
+          onPart={(plugin, part) => edits.addPart({ type: "plugin", props: { plugin, part } })}
+          parts={[
+            ...PAGE_PARTS.filter((type) => !holdsPart(page, type)).map((type) => ({
+              group: "builtin" as const,
+              label: translate(`viewEditor.parts.${type}`),
+              node: { type },
+            })),
+            ...(holdsPart(page, "properties")
+              ? []
+              : [
+                  {
+                    group: "properties" as const,
+                    label: translate("viewEditor.allProperties"),
+                    node: { type: "properties" },
+                  },
+                ]),
+            {
+              group: "layout" as const,
+              label: translate("viewEditor.section"),
+              node: { type: "section", children: [] },
+            },
+            {
+              group: "layout" as const,
+              label: translate("viewEditor.group"),
+              node: { type: "stack", children: [] },
+            },
+          ]}
+          onNode={edits.addPart}
+          locked={locked}
+        />
+      </div>
+    </nav>
+  );
+};
+
+/**
+ * A tree's parts as rows under its root, each group's below it. A row is
+ * dragged onto another to take its place, in its own group or another, or
+ * onto the slot at the end of a group, which each group shows while a row is
+ * dragged (and an empty one always).
+ */
+const PartTree = ({
+  root,
+  depth,
+  partLabel,
+  hideAction,
+  selection,
+  edits,
+  locked,
+}: {
+  root: ViewNode;
+  depth: number;
+  partLabel: (node: ViewNode) => string;
+  /** What hiding the part is called, or null when it stays. */
+  hideAction: (node: ViewNode) => string | null;
+  selection: Selection;
+  edits: ViewEdits;
+  locked: boolean;
+}) => {
+  const sensors = useOutlineSensors();
+  const [dragging, setDragging] = useState(false);
+
+  const onDragEnd = ({ active, over }: DragEndEvent) => {
+    setDragging(false);
+    if (!over) return;
+    const from = pathOf(String(active.id));
+    const target = String(over.id);
+    const to = target.startsWith(INTO)
+      ? dropInto(root, from, pathOf(target.slice(INTO.length)))
+      : dropOn(from, pathOf(target));
+    if (to && pathKey(to) !== pathKey(from)) edits.movePart(from, to);
+  };
+
+  const rows = (parent: ViewNode, parentPath: NodePath, at: number): ReactNode => {
+    const children = parent.children ?? [];
+    const keys = children.map((_, index) => pathKey([...parentPath, index]));
+    return (
+      <SortableContext
+        items={keys.filter((_, index) => !FIXED.has(children[index].type))}
+        strategy={verticalListSortingStrategy}
+      >
+        {children.map((child, index) => {
+          const path = [...parentPath, index];
+          const hide = hideAction(child);
+          return (
+            <div key={keys[index]}>
+              <OutlineRow
+                id={keys[index]}
+                depth={at}
+                label={partLabel(child)}
+                selected={sameSelection(selection, { kind: "part", path })}
+                onSelect={() => edits.select({ kind: "part", path })}
+                hide={hide ? { label: hide, run: () => edits.removePart(path) } : undefined}
+                fixed={FIXED.has(child.type)}
+                locked={locked}
+              />
+              {HOLDERS.has(child.type) ? (
+                <>
+                  {rows(child, path, at + 1)}
+                  {dragging || !child.children?.length ? (
+                    <EndSlot
+                      id={`${INTO}${keys[index]}`}
+                      depth={at + 1}
+                      empty={!child.children?.length}
+                    />
+                  ) : null}
+                </>
+              ) : null}
+            </div>
+          );
+        })}
+      </SortableContext>
+    );
+  };
+
+  return (
+    <DndContext
+      sensors={sensors}
+      onDragStart={() => setDragging(true)}
+      onDragEnd={onDragEnd}
+      onDragCancel={() => setDragging(false)}
+    >
+      {rows(root, [], depth)}
+      {dragging && HOLDERS.has(root.type) ? (
+        <EndSlot id={INTO} depth={depth} empty={false} />
+      ) : null}
+    </DndContext>
+  );
+};
+
+/** Where a dragged row goes to the end of a group. */
+const EndSlot = ({ id, depth, empty }: { id: string; depth: number; empty: boolean }) => {
+  const { t } = useTranslation("projects");
+  const { setNodeRef, isOver } = useDroppable({ id });
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        "rounded-md border border-transparent border-dashed py-1 pr-1 text-muted-foreground text-xs",
+        isOver && "border-primary bg-muted"
+      )}
+      style={{ paddingLeft: `${depth * 0.75 + 1.75}rem` }}
+    >
+      {empty ? t("viewEditor.empty") : t("viewEditor.dropHere")}
+    </div>
   );
 };
 
@@ -259,7 +540,7 @@ const OutlineRow = ({
   icon,
   selected,
   onSelect,
-  onHide,
+  hide,
   fixed = false,
   locked = false,
 }: {
@@ -270,7 +551,7 @@ const OutlineRow = ({
   selected: boolean;
   onSelect: () => void;
   /** Absent: the row cannot be hidden. */
-  onHide?: () => void;
+  hide?: { label: string; run: () => void };
   /** It has no place to move to. */
   fixed?: boolean;
   locked?: boolean;
@@ -315,15 +596,15 @@ const OutlineRow = ({
       >
         {label}
       </button>
-      {onHide ? (
+      {hide ? (
         <Button
           type="button"
           variant="ghost"
           size="icon"
           className="h-7 w-7 opacity-0 focus-visible:opacity-100 group-hover:opacity-100"
-          aria-label={t("viewEditor.hide", { name: label })}
+          aria-label={hide.label}
           disabled={locked}
-          onClick={onHide}
+          onClick={hide.run}
         >
           <EyeOff className="h-4 w-4" />
         </Button>
@@ -337,63 +618,74 @@ type PickerGroupEntry = {
   heading: string;
   fields: FieldDef[];
   plugin: number;
-  parts: PickerPlugin["parts"];
+  plugins: PickerPlugin["parts"];
+  parts: PickerPart[];
 };
 
-/** What can be added, shown as things rather than ids: fields by where they
- *  come from, each plug-in's fields and parts under its name, and the layout
+/** What can be added, shown as things rather than ids: fields and parts by
+ *  where they come from, each plug-in's under its name, and the layout
  *  parts. */
 const AddPicker = ({
   fields,
   labelOf,
   onField,
   plugins,
-  withParts,
   onPart,
-  layoutParts,
-  onLayout,
+  parts,
+  onNode,
   locked,
 }: {
   fields: FieldDef[];
   labelOf: (field: FieldDef) => string;
   onField: (field: FieldDef) => void;
+  /** Each plug-in, with the parts it can still place. */
   plugins: PickerPlugin[];
-  withParts: boolean;
   onPart: (plugin: number, part: string) => void;
-  layoutParts: { label: string; node: ViewNode }[];
-  onLayout: (node: ViewNode) => void;
+  parts: PickerPart[];
+  onNode: (node: ViewNode) => void;
   locked: boolean;
 }) => {
   const { t } = useTranslation("projects");
   const [open, setOpen] = useState(false);
+  const own = (group: PickerPart["group"]) => parts.filter((part) => part.group === group);
   const groups: PickerGroupEntry[] = [
     {
       key: "builtin",
       heading: t("viewEditor.builtIn"),
       fields: fields.filter((field) => field.source === "builtin"),
       plugin: 0,
-      parts: [],
+      plugins: [],
+      parts: own("builtin"),
     },
     {
       key: "properties",
       heading: t("viewEditor.properties"),
       fields: fields.filter((field) => field.source === "property"),
       plugin: 0,
-      parts: [],
+      plugins: [],
+      parts: own("properties"),
     },
     ...plugins.map((plugin) => ({
       key: `plugin:${plugin.id}`,
       heading: plugin.name,
       fields: fields.filter((field) => field.plugin?.install === plugin.id),
       plugin: plugin.id,
-      parts: withParts ? plugin.parts : [],
+      plugins: plugin.parts,
+      parts: [],
     })),
-  ].filter((group) => group.fields.length > 0 || group.parts.length > 0);
+    {
+      key: "layout",
+      heading: t("viewEditor.layoutParts"),
+      fields: [],
+      plugin: 0,
+      plugins: [],
+      parts: own("layout"),
+    },
+  ].filter((group) => group.fields.length + group.plugins.length + group.parts.length > 0);
   const pick = (run: () => void) => {
     run();
     setOpen(false);
   };
-  const nothing = groups.length === 0 && layoutParts.length === 0;
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -402,7 +694,7 @@ const AddPicker = ({
           variant="outline"
           size="sm"
           className="w-full"
-          disabled={nothing || locked}
+          disabled={groups.length === 0 || locked}
         >
           <Plus className="h-4 w-4" />
           {t("viewEditor.add")}
@@ -411,6 +703,11 @@ const AddPicker = ({
       <PopoverContent align="start" className="max-h-96 w-72 overflow-y-auto p-2">
         {groups.map((group) => (
           <PickerGroup key={group.key} heading={group.heading}>
+            {group.parts.map((part) => (
+              <PickerItem key={part.label} onClick={() => pick(() => onNode(part.node))}>
+                {part.label}
+              </PickerItem>
+            ))}
             {group.fields.map((field) => {
               const Icon = field.icon;
               return (
@@ -422,7 +719,7 @@ const AddPicker = ({
                 </PickerItem>
               );
             })}
-            {group.parts.map((part) => (
+            {group.plugins.map((part) => (
               <PickerItem
                 key={`part:${part.id}`}
                 description={part.description}
@@ -433,15 +730,6 @@ const AddPicker = ({
             ))}
           </PickerGroup>
         ))}
-        {layoutParts.length > 0 ? (
-          <PickerGroup heading={t("viewEditor.layoutParts")}>
-            {layoutParts.map((part) => (
-              <PickerItem key={part.label} onClick={() => pick(() => onLayout(part.node))}>
-                {part.label}
-              </PickerItem>
-            ))}
-          </PickerGroup>
-        ) : null}
       </PopoverContent>
     </Popover>
   );
