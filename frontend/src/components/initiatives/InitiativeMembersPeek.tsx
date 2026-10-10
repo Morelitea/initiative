@@ -73,9 +73,11 @@ const RosterList = ({
             >
               {getUserDisplayName(member.user)}
             </UserHoverLink>
-            {member.role_display_name ? (
+            {member.role_display_name || member.guest_until ? (
               <span className="ml-auto shrink-0 text-muted-foreground text-xs">
-                {member.role_display_name}
+                {[member.guest_until ? t("detail.guest") : null, member.role_display_name]
+                  .filter(Boolean)
+                  .join(" · ")}
               </span>
             ) : null}
           </li>

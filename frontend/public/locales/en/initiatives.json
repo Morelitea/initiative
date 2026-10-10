@@ -87,6 +87,7 @@
     "noAccess": "You do not have access to any features in this initiative. Contact an initiative manager for assistance.",
     "member_one": "{{count}} member",
     "member_other": "{{count}} members",
+    "guest": "Guest",
     "online_one": "{{count}} online",
     "online_other": "{{count}} online",
     "initiativeSettings": "Initiative settings",

@@ -23,7 +23,7 @@ from app.core.messages import GuildMessages
 from app.db import cohorts, post_commit
 from app.db.advisory_locks import LockNamespace, advisory_lock
 from app.db.guild_migrations import GUILD_SCHEMA_REGEX
-from app.db.query import apply_pagination
+from app.db.query import apply_pagination, ids_in
 from app.models.platform.guild import (
     BANNER_TEXT_COLORS,
     GUILD_ADMIN_ROLES,
@@ -752,6 +752,26 @@ async def count_members_by_guild(
         )
     ).all()
     return {guild_id: total for guild_id, total in rows}
+
+
+async def guest_ends(
+    session: AsyncSession, *, guild_id: int, user_ids: Sequence[int]
+) -> dict[int, datetime]:
+    """When each of these people's time in the guild ends, for those who are
+    its guests. Read under the caller's session: a guest reads their own row
+    alone, so to them nobody else is marked."""
+    if not user_ids:
+        return {}
+    rows = (
+        await session.exec(
+            select(GuildMembership.user_id, GuildMembership.guest_until).where(
+                GuildMembership.guild_id == guild_id,
+                ids_in(GuildMembership.user_id, user_ids),
+                GuildMembership.guest_until.is_not(None),
+            )
+        )
+    ).all()
+    return {user_id: until for user_id, until in rows}
 
 
 async def count_members(session: AsyncSession, *, guild_id: int) -> int:

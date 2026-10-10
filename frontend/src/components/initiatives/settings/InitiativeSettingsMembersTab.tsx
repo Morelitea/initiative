@@ -214,7 +214,14 @@ export const InitiativeSettingsMembersTab = ({
         id: "handle",
         accessorKey: "user.username",
         header: t("settings.handleColumn"),
-        cell: ({ row }) => <UserHandle user={row.original.user} />,
+        cell: ({ row }) => (
+          <span className="inline-flex items-center gap-2">
+            <UserHandle user={row.original.user} />
+            {row.original.guest_until ? (
+              <Badge variant="secondary">{t("detail.guest")}</Badge>
+            ) : null}
+          </span>
+        ),
       },
       // Without a display name on the page this column would be a full one of
       // em-dashes.

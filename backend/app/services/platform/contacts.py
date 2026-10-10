@@ -16,7 +16,13 @@ from sqlmodel import col, select
 from app.core import usernames
 from app.db.query import apply_pagination, ids_in, page_has_next
 from app.db.session import set_rls_context
-from app.models.platform.guild import LIVE_STATUS_VALUES, Guild, GuildMembership
+from app.models.platform.guild import (
+    LIVE_STATUS_VALUES,
+    CommunityRole,
+    Guild,
+    GuildMembership,
+)
+from app.services.membership import live_membership_clause
 from app.models.platform.guild_image import GuildImageVariant
 from app.models.platform.profile_favorite import ProfileFavorite
 from app.models.platform.user import User, UserStatus
@@ -48,7 +54,8 @@ async def ordered_member_guilds(
     ``GuildMembership.position`` is the order they dragged the rail into, so
     this is the same rule the rail uses rather than a second one. A suspended
     guild is left out, matching ``member_guild_ids`` and the ``/c/{community_id}``
-    path it stands in for.
+    path it stands in for, and so is one the reader is only a guest of: a guest
+    reads nobody's place in it.
     """
     await set_rls_context(session, Platform(user_id=user_id))
     rows = (
@@ -58,6 +65,8 @@ async def ordered_member_guilds(
             .join(User, User.id == GuildMembership.user_id)
             .where(
                 GuildMembership.user_id == user_id,
+                GuildMembership.role != CommunityRole.guest,
+                live_membership_clause(),
                 Guild.status.in_(LIVE_STATUS_VALUES),
                 User.status != UserStatus.suspended,
             )

@@ -205,6 +205,9 @@ class InitiativeMemberRead(SanitizedBaseModel):
     oidc_managed: bool = False
     #: How they appear right now, public as it is on their profile.
     presence: Presence = Presence.offline
+    #: When their time in the community ends, for a guest. ``None`` for a
+    #: member.
+    guest_until: Optional[datetime] = None
 
 
 class InitiativeMemberListResponse(PageMeta):
@@ -222,6 +225,9 @@ class InitiativeCan(SanitizedBaseModel):
     manage: bool = False
     #: Act on its moderation reports ("Full access", or the community's admin).
     moderate: bool = False
+    #: Read who is in it: its members, the community's admin and a grantee,
+    #: not a guest given items in it.
+    roster: bool = False
     #: The tools the caller may open here.
     view: List[Tool] = Field(default_factory=list)
     #: The tools the caller may make a new one of here.
@@ -379,6 +385,7 @@ def initiative_can(initiative: "Initiative") -> InitiativeCan:
     return InitiativeCan(
         manage="manage" in held,
         moderate="moderate" in held,
+        roster="roster" in held,
         view=[t for t in Tool if f"view:{t.value}" in held],
         create=[t for t in Tool if f"create:{t.value}" in held],
     )
@@ -415,11 +422,13 @@ def serialize_initiative(
 
 
 def serialize_initiative_member(
-    membership: "InitiativeMember", presence: Presence = Presence.offline
+    membership: "InitiativeMember",
+    presence: Presence = Presence.offline,
+    guest_until: Optional[datetime] = None,
 ) -> InitiativeMemberRead:
-    """One roster row: the member, the role they hold and how they appear.
-    Reads ``membership.user`` and ``membership.role_ref``, so the loader brings
-    both."""
+    """One roster row: the member, the role they hold, how they appear and,
+    for a guest, when they go. Reads ``membership.user`` and
+    ``membership.role_ref``, so the loader brings both."""
     role = membership.role_ref
     return InitiativeMemberRead(
         user=UserSummary.model_validate(membership.user),
@@ -433,4 +442,5 @@ def serialize_initiative_member(
         joined_at=membership.joined_at,
         oidc_managed=membership.oidc_provider_id is not None,
         presence=presence,
+        guest_until=guest_until,
     )

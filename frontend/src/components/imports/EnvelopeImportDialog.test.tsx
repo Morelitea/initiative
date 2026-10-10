@@ -22,6 +22,7 @@ const initiative = buildInitiative({
   can: {
     manage: false,
     moderate: false,
+    roster: true,
     view: [],
     create: [Tool.queue, Tool.file, Tool.project, Tool.gallery],
   },
@@ -29,6 +30,7 @@ const initiative = buildInitiative({
 
 vi.mock("@/hooks/useInitiatives", () => ({
   useInitiatives: () => ({ data: [initiative] }),
+  useInitiative: () => ({ data: initiative }),
 }));
 
 import { toast } from "@/lib/mascotToast";

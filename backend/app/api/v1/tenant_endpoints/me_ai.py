@@ -41,7 +41,8 @@ async def list_my_ai(
     mode, or a guild's own in guild mode); the key/preference are the member's,
     per guild. Shared-key connections they can't attach to are still listed.
     """
-    target_guilds = await member_guild_ids(session, current_user.id)
+    # A guest uses no AI of the community's.
+    target_guilds = await member_guild_ids(session, current_user.id, guests=False)
 
     # Guild names up-front under the user-only context (the user is a member, so
     # RLS admits these rows), so each row carries its guild's name without a
