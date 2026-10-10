@@ -32,7 +32,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { DataTable, type DataTableRowWrapperProps } from "@/components/ui/data-table";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { TableRow } from "@/components/ui/table";
-import { usePersistedColumnVisibility } from "@/hooks/usePersistedColumnVisibility";
 import type { useProjectTaskTableState } from "@/hooks/useProjectTaskView";
 import { useProperties } from "@/hooks/useProperties";
 import type { AppColumnDef } from "@/lib/table";
@@ -40,7 +39,7 @@ import { cn } from "@/lib/utils";
 import { fieldColumnId } from "@/lib/views/columns";
 import { useProjectViewEnv } from "@/lib/views/fields";
 import { pluginFields, usePluginsOnItems } from "@/lib/views/plugins";
-import { taskFields } from "@/lib/views/tasks";
+import { TASK_COLUMNS, taskFields } from "@/lib/views/tasks";
 import { fieldNamed } from "@/lib/views/tree";
 
 type ProjectTasksListViewProps = {
@@ -70,8 +69,8 @@ type ProjectTasksListViewProps = {
   tableState: ReturnType<typeof useProjectTaskTableState>;
   /** The fields the view shows as columns, in order, where it names them. */
   viewColumns?: string[] | null;
-  /** The view on screen, whose own columns are remembered apart. */
-  viewSlug?: string;
+  /** The view is being edited. */
+  editing?: boolean;
 };
 
 type SortableRowContextValue = {
@@ -193,59 +192,41 @@ const ProjectTasksTableViewComponent = ({
   onExitSelection,
   tableState: [tableState, { setGrouping, setSorting }],
   viewColumns,
-  viewSlug = "",
+  editing = false,
 }: ProjectTasksListViewProps) => {
   const { t, i18n } = useTranslation(["projects", "comments", "tasks"]);
   const statusDisabled = !canEditTaskDetails || taskActionsDisabled;
   const env = useProjectViewEnv(taskHref);
 
-  // Property and plug-in columns are hidden by default, and persist their
-  // visibility. Scoped to the project's initiative so the column list stays
-  // focused.
+  // Scoped to the project's initiative so the column list stays focused.
   const { data: propertyDefinitions = [] } = useProperties({ initiativeId });
   const plugins = usePluginsOnItems(initiativeId);
   const fields = useMemo(
     () => taskFields(propertyDefinitions, pluginFields(plugins, i18n.language)),
     [propertyDefinitions, plugins, i18n.language]
   );
-  // A view that names its columns shows those, in its order, and starts the
-  // rest hidden. One that does not shows the built-ins.
+  // The columns the view shows, in its order: its own, or the shipped ones.
+  // What the view leaves out is hidden, as are the columns that only group.
   const shown = useMemo(
     () =>
-      viewColumns?.flatMap((id) => {
+      (viewColumns ?? TASK_COLUMNS).flatMap((id) => {
         const field = fieldNamed(fields, { type: "field", props: { field: id } });
         return field ? [fieldColumnId(field.id)] : [];
-      }) ?? null,
+      }),
     [viewColumns, fields]
   );
-  const hiddenIds = useMemo(
-    () =>
-      [...fields.values()]
-        .filter((field) =>
-          shown
-            ? field.hideable && !shown.includes(fieldColumnId(field.id))
-            : field.source !== "builtin"
-        )
-        .map(({ id }) => fieldColumnId(id)),
+  const columnVisibility = useMemo(
+    () => ({
+      ...Object.fromEntries(
+        [...fields.values()]
+          .filter((field) => field.hideable)
+          .map(({ id }) => [fieldColumnId(id), shown.includes(fieldColumnId(id))])
+      ),
+      "date group": false,
+      [TAG_GROUP_COLUMN_ID]: false,
+    }),
     [fields, shown]
   );
-  const [columnVisibility, setColumnVisibility] = usePersistedColumnVisibility(
-    shown
-      ? `initiative-project-${projectId}-${viewSlug}-task-columns`
-      : `initiative-project-${projectId}-task-columns`,
-    hiddenIds
-  );
-  // "date group" column must always start hidden in this view (non-property
-  // toggle). Merge it once with the persisted map. The tag group column drives
-  // "group by tag" only — the tags column already shows a task's tags — so it
-  // stays hidden whatever the persisted map holds.
-  const effectiveColumnVisibility = useMemo(() => {
-    const withDateGroup =
-      "date group" in columnVisibility
-        ? columnVisibility
-        : { ...columnVisibility, "date group": false };
-    return { ...withDateGroup, [TAG_GROUP_COLUMN_ID]: false };
-  }, [columnVisibility]);
 
   // Tag grouping keys rows by tag name; keep the tags around so a group header
   // can render its badge, and name the group tasks without tags fall into.
@@ -408,18 +389,36 @@ const ProjectTasksTableViewComponent = ({
     t,
     untaggedLabel,
   ]);
-  // The view's columns take the places its columns held, in its order.
+  // The view's columns take the places its columns held, in its order. While
+  // the view is edited, each field's header is marked with the field, so the
+  // editor finds the column that was clicked.
   const orderedColumns = useMemo(() => {
-    if (!shown) return columns;
     const rank = new Map(shown.map((id, index) => [id, index]));
     const listed = columns
       .filter((column) => column.id !== undefined && rank.has(column.id))
       .sort((a, b) => (rank.get(a.id as string) ?? 0) - (rank.get(b.id as string) ?? 0));
     let next = 0;
-    return columns.map((column) =>
+    const ordered = columns.map((column) =>
       column.id !== undefined && rank.has(column.id) ? listed[next++] : column
     );
-  }, [columns, shown]);
+    if (!editing) return ordered;
+    const fieldOf = new Map(
+      [...fields.values()].map((field) => [fieldColumnId(field.id), field.id])
+    );
+    return ordered.map((column): AppColumnDef<TaskTagRow> => {
+      const fieldId = column.id === undefined ? undefined : fieldOf.get(column.id);
+      const { header } = column;
+      if (fieldId === undefined || typeof header !== "function") return column;
+      return {
+        ...column,
+        header: (context: Parameters<typeof header>[0]) => (
+          <span className="contents" data-view-node={`column:${fieldId}`}>
+            {header(context)}
+          </span>
+        ),
+      } as AppColumnDef<TaskTagRow>;
+    });
+  }, [columns, shown, editing, fields]);
   const groupingOptions = useMemo(
     () => [
       { id: "date group", label: t("tasks:columns.dateWindow") },
@@ -481,8 +480,7 @@ const ProjectTasksTableViewComponent = ({
           virtualContainerHeight="h-[calc(100vh-20rem)]"
           virtualRowHeight={52}
           groupingOptions={groupingOptions}
-          columnVisibility={effectiveColumnVisibility}
-          onColumnVisibilityChange={setColumnVisibility}
+          columnVisibility={columnVisibility}
           onSortingChange={setSorting}
           onGroupingChange={setGrouping}
           helpText={(table) => {
@@ -519,7 +517,6 @@ const ProjectTasksTableViewComponent = ({
           enableFilterInput
           filterInputColumnKey="title"
           filterInputPlaceholder={t("table.filterPlaceholder")}
-          enableColumnVisibilityDropdown
           enableResetSorting
           enableRowSelection
           onRowSelectionChange={handleSelectionChange}
@@ -547,7 +544,7 @@ export const ProjectTasksTableView = memo(
       prevProps.initiativeId === nextProps.initiativeId &&
       prevProps.tableState[0] === nextProps.tableState[0] &&
       prevProps.viewColumns === nextProps.viewColumns &&
-      prevProps.viewSlug === nextProps.viewSlug
+      prevProps.editing === nextProps.editing
       // Note: Intentionally ignoring callback prop changes as they're functionally the same
     );
   }

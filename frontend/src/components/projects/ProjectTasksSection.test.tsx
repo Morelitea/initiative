@@ -165,7 +165,9 @@ describe("ProjectTasksSection views", () => {
     await pickView(user, "Board");
 
     await waitFor(() => expect(urlView(router).view).toBe("board"));
-    expect(await screen.findByRole("button", { name: /fields/i })).toBeInTheDocument();
+    await waitFor(() =>
+      expect(document.querySelector("[data-kanban-scroll-container]")).not.toBeNull()
+    );
   });
 
   it("does not throw the reader back to the top of the list when picking one", async () => {
@@ -839,22 +841,5 @@ describe("ProjectTasksSection table", () => {
     await pickView(user, "Incomplete");
 
     await waitFor(() => expect(screen.queryByText(/1 task selected/i)).not.toBeInTheDocument());
-  });
-
-  it("names the fields in the Columns menu by their labels", async () => {
-    server.use(
-      communityHttp.get("/tasks/", () =>
-        HttpResponse.json(buildTaskListResponse([buildTask({ title: "Chore 1" })]))
-      )
-    );
-    section({ routerSearch: { view: "table" } });
-    const user = userEvent.setup();
-    // The tasks arrive once the view is known, which is the table to stay.
-    await screen.findByRole("link", { name: "Chore 1" });
-
-    await user.click(await screen.findByRole("button", { name: /^columns$/i }));
-
-    expect(await screen.findByRole("menuitemcheckbox", { name: "Due date" })).toBeInTheDocument();
-    expect(screen.getByRole("menuitemcheckbox", { name: "Comments" })).toBeInTheDocument();
   });
 });

@@ -31,6 +31,8 @@ export type ViewContext = {
   plugins?: ReadonlyMap<number, PluginOnItems>;
   /** A board's card. */
   card?: ViewNode;
+  /** While the view is edited: the path of each part of its tree. */
+  editing?: WeakMap<ViewNode, string>;
   variant: ViewVariant;
   isHidden: (fieldId: string) => boolean;
   env: ViewEnv;
@@ -47,14 +49,25 @@ type Part<I> = (node: ViewNode, item: I, view: ViewContext, parts: Parts<I>) => 
 /** The parts a tree of one kind of item can hold, by node type. */
 export type Parts<I> = Readonly<Record<string, Part<I>>>;
 
-/** Draws one item through a tree. Unknown parts and fields draw nothing. */
+/** Draws one item through a tree. Unknown parts and fields draw nothing.
+ *  While the tree is edited, each part is marked with its path, in an element
+ *  that takes no box of its own, so the editor finds what was clicked. */
 export const renderNode = <I,>(
   node: ViewNode,
   item: I,
   view: ViewContext,
   parts: Parts<I>
-): ReactNode =>
-  Object.hasOwn(parts, node.type) ? parts[node.type](node, item, view, parts) : null;
+): ReactNode => {
+  const drawn = Object.hasOwn(parts, node.type) ? parts[node.type](node, item, view, parts) : null;
+  const path = view.editing?.get(node);
+  return path === undefined ? (
+    drawn
+  ) : (
+    <div className="contents" data-view-node={path}>
+      {drawn}
+    </div>
+  );
+};
 
 const renderChildren = <I,>(
   node: ViewNode,
@@ -253,24 +266,10 @@ const PARTS: Parts<ViewItem> = {
   ),
 };
 
-/** The fields a tree draws: those it names, and every property where it
- *  draws them all. What the Fields menu offers to hide. */
-export const drawnFields = (node: ViewNode, fields: ReadonlyMap<string, FieldDef>): FieldDef[] => {
-  const named = new Set<string>();
-  let properties = false;
-  const walk = (part: ViewNode) => {
-    if (part.type === "field") {
-      const field = fieldNamed(fields, part);
-      if (field) named.add(field.id);
-    }
-    if (part.type === "properties") properties = true;
-    part.children?.forEach(walk);
-  };
-  walk(node);
-  return [...fields.values()].filter(
-    (field) => named.has(field.id) || (properties && field.source === "property")
-  );
-};
+/** Whether a tree draws a field. */
+export const namesField = (node: ViewNode, fieldId: string): boolean =>
+  (node.type === "field" && node.props?.field === fieldId) ||
+  (node.children ?? []).some((child) => namesField(child, fieldId));
 
 /** Draws one item of a collection through a tree. */
 export const ViewTree = memo(function ViewTree({

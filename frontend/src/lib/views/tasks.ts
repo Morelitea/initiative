@@ -100,6 +100,9 @@ export const taskFields = (
 
 const field = (id: string): ViewNode => ({ type: "field", props: { field: id } });
 
+/** The table's columns as shipped, in order: the fields it draws as columns. */
+export const TASK_COLUMNS = ["title", "startDate", "dueDate", "priority", "tags", "comments"];
+
 /** The board's card as shipped. */
 export const TASK_CARD: ViewNode = {
   type: "card",

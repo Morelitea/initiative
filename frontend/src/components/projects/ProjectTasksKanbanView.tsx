@@ -20,21 +20,18 @@ import type {
   TaskStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import { KanbanColumn } from "@/components/projects/KanbanColumn";
-import { KanbanFieldsMenu } from "@/components/projects/KanbanFieldsMenu";
-import { isKanbanFieldVisible, kanbanFieldsStorageKey } from "@/components/projects/kanbanFields";
 import { priorityVariant } from "@/components/projects/projectTasksConfig";
 import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress";
 import { Badge } from "@/components/ui/badge";
 import { MentionText } from "@/components/user/MentionText";
 import { MentionedPeopleScope, ReportMentionedPeople } from "@/hooks/useMentionedPeople";
-import { usePersistedColumnVisibility } from "@/hooks/usePersistedColumnVisibility";
 import { useProperties } from "@/hooks/useProperties";
 import { formatDateTime } from "@/lib/formatDate";
 import { cn } from "@/lib/utils";
 import { useProjectViewEnv } from "@/lib/views/fields";
 import { pluginFields, usePluginsOnItems } from "@/lib/views/plugins";
 import { TASK_CARD, taskFields } from "@/lib/views/tasks";
-import { drawnFields, type ViewContext, type ViewNode } from "@/lib/views/tree";
+import { namesField, type ViewContext, type ViewNode } from "@/lib/views/tree";
 
 import { TaskAssigneeList } from "./TaskAssigneeList";
 
@@ -60,6 +57,8 @@ type ProjectTasksKanbanViewProps = {
   propertyDefinitions?: PropertyDefinitionRead[];
   /** The view's card, where it has its own. */
   card?: ViewNode;
+  /** While the view is edited: the path of each part of its card. */
+  editing?: WeakMap<ViewNode, string>;
 };
 
 // One empty list while the definitions load, so the fields aren't rebuilt on
@@ -85,25 +84,18 @@ export const ProjectTasksKanbanView = ({
   isArchivingDoneTasks,
   propertyDefinitions: givenDefinitions,
   card = TASK_CARD,
+  editing,
 }: ProjectTasksKanbanViewProps) => {
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   useHorizontalDragScroll(scrollContainerRef);
 
-  // Which fields each card shows. Scoped to this project's initiative, like
-  // the table's property columns, so the menu lists the properties a task
-  // here can actually carry. No default-hidden ids: a board that has never
-  // been configured shows everything, as it did before the menu existed.
+  // The properties the cards can show, scoped to this project's initiative.
+  // What a card shows is its view's card.
   const { data: fetchedDefinitions = NO_DEFINITIONS } = useProperties({
     initiativeId,
     enabled: !givenDefinitions,
   });
   const propertyDefinitions = givenDefinitions ?? fetchedDefinitions;
-  // The hook holds this in state, so its identity is stable between changes —
-  // which is what lets the memoized card skip re-rendering on every parent pass.
-  const [fieldVisibility, setFieldVisibility] = usePersistedColumnVisibility(
-    kanbanFieldsStorageKey(projectId),
-    EMPTY_DEFAULT_HIDDEN
-  );
   // Built once per change rather than once per card, and stable in between so
   // the memoized cards skip re-rendering on an unrelated parent pass. What the
   // renderers share is held apart, so a change of fields redraws the cards but
@@ -115,28 +107,29 @@ export const ProjectTasksKanbanView = ({
     () => taskFields(propertyDefinitions, pluginFields(plugins, i18n.language)),
     [propertyDefinitions, plugins, i18n.language]
   );
-  const drawn = useMemo(() => drawnFields(card, fields), [card, fields]);
   const view = useMemo<ViewContext>(
     () => ({
       fields,
       plugins,
       card,
       variant: "card",
-      isHidden: (fieldId) => !isKanbanFieldVisible(fieldVisibility, fieldId),
+      // The card draws what it names.
+      isHidden: (fieldId) => !namesField(card, fieldId),
       env,
+      editing,
     }),
-    [fields, plugins, card, fieldVisibility, env]
+    [fields, plugins, card, env, editing]
   );
 
   // The people the cards' excerpts mention, asked about once for the board.
   const excerpts = useMemo(
     () =>
-      !view.isHidden("description")
+      namesField(card, "description")
         ? Object.values(groupedTasks).flatMap((tasks) =>
             tasks.flatMap((task) => task.description_excerpt ?? [])
           )
         : [],
-    [groupedTasks, view]
+    [groupedTasks, card]
   );
 
   const taskStatusesLength = taskStatuses.length;
@@ -157,13 +150,6 @@ export const ProjectTasksKanbanView = ({
         onDragEnd={onDragEnd}
         onDragCancel={onDragCancel}
       >
-        <div className="mb-3 flex justify-end">
-          <KanbanFieldsMenu
-            fields={drawn}
-            visibility={fieldVisibility}
-            onChange={setFieldVisibility}
-          />
-        </div>
         <div
           ref={scrollContainerRef}
           className="scrollbar-thin cursor-grab overflow-x-auto pb-4"
@@ -271,7 +257,6 @@ const TaskDragOverlay = ({
 
 // Module-level so its identity is stable; the hook re-seeds defaults whenever
 // this array's contents change.
-const EMPTY_DEFAULT_HIDDEN: string[] = [];
 
 const useHorizontalDragScroll = (ref: React.RefObject<HTMLDivElement | null>) => {
   useEffect(() => {

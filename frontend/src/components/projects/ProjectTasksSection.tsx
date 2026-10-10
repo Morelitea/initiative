@@ -1166,7 +1166,6 @@ export const ProjectTasksSection = ({
               onExitSelection={() => setSelectedTasks([])}
               tableState={tableState}
               viewColumns={view?.definition.columns}
-              viewSlug={view?.slug}
             />
             {canEditTaskDetails && (
               <div className="flex justify-end">
