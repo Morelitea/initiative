@@ -800,5 +800,20 @@
   "HOLD_ALREADY_RELEASED": "That hold has already been released.",
   "HOLD_CASE_NOT_FOUND": "That case isn't one the platform is working.",
   "HOLD_COMMUNITY_GONE": "This community is being deleted for good, so nothing more can be held in it.",
-  "HOLD_COVERED_BY_ANOTHER": "Another hold still covers this. Release that one first, or restore this one."
+  "HOLD_COVERED_BY_ANOTHER": "Another hold still covers this. Release that one first, or restore this one.",
+  "MODERATION_LEGAL_BASIS_REQUIRED": "Say which law it breaks",
+  "MODERATION_LEGAL_BASIS_NOT_TAKEN": "Only a report of something illegal names a law",
+  "MODERATION_DETAIL_REQUIRED": "Say what is wrong with it",
+  "MODERATION_NO_ATTACHMENTS": "Don't attach anything to a child-safety report. Say where it is instead.",
+  "MODERATION_ACT_NOT_TAKEN": "That can't be done to this",
+  "MODERATION_ALREADY_REMOVED": "It has already been taken down",
+  "MODERATION_NOT_REMOVED": "There's nothing of this removal left to put back",
+  "MODERATION_NOT_A_REMOVAL": "Only a removal can be put back",
+  "MODERATION_ACTION_NOT_FOUND": "That isn't in the moderation log",
+  "MODERATION_ALREADY_LOCKED": "Comments are already locked",
+  "MODERATION_NOT_LOCKED": "Comments aren't locked",
+  "MODERATION_MESSAGE_REQUIRED": "Write what they'll be told",
+  "MODERATION_NOBODY_TO_WARN": "Nobody wrote this, so there's nobody to warn",
+  "COMMENT_REMOVED": "This comment was removed",
+  "COMMENT_THREAD_LOCKED": "A moderator locked comments here"
 }

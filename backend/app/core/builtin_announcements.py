@@ -285,6 +285,38 @@ BUILTIN_ANNOUNCEMENTS: tuple[BuiltinAnnouncement, ...] = (
             ),
         ),
     ),
+    BuiltinAnnouncement(
+        slug="0-76-comment-removal-moved-to-moderators",
+        title="Taking down comments is for moderators now",
+        category=AnnouncementCategory.breaking,
+        published_at=datetime(2026, 10, 9, tzinfo=timezone.utc),
+        audience_accounts=AnnouncementAudienceAccounts.existing,
+        only_upgrading_from_below="0.76.0",
+        guild_admins_only=True,
+        sections=(
+            AnnouncementSection(
+                heading="What changed",
+                body=(
+                    "**Delete is for your own comments.** Project managers "
+                    "could delete anybody's comment in their initiative. They "
+                    "can't any more.\n\n"
+                    "**Moderators take comments down instead.** Community "
+                    "admins, and anyone whose initiative role has **Full "
+                    "access**, can remove a comment with a reason. It leaves a "
+                    "tombstone where it was, its replies stay, and it can be "
+                    "put back from the moderation page's **Log**."
+                ),
+            ),
+            AnnouncementSection(
+                heading="What to do",
+                body=(
+                    "If a manager should keep taking comments down, give their "
+                    "role **Full access** in the initiative's settings, or "
+                    "move them to the built-in **Moderator** role."
+                ),
+            ),
+        ),
+    ),
 )
 
 

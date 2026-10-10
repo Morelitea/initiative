@@ -7,6 +7,7 @@ from sqlmodel import Field, Relationship
 from app.core.tools import Tool
 from app.models.tenant._mixins import (
     ArchiveMixin,
+    CommentLockMixin,
     CommentsToggleMixin,
     CreatedByMixin,
     HoldMixin,
@@ -27,6 +28,7 @@ DEFAULT_CALENDAR_COLOR = "#6366f1"
 
 class Calendar(
     HoldMixin,
+    CommentLockMixin,
     CommentsToggleMixin,
     CreatedByMixin,
     ArchiveMixin,

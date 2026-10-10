@@ -368,7 +368,10 @@
       "task": "Una tarea",
       "taskObject": "tu tarea",
       "user": "Un usuario"
-    }
+    },
+    "moderationRemoved": "Un moderador retiró algo que escribiste: {{reason}}",
+    "moderationRemovedLegal": "Algo que escribiste se retiró por motivos legales",
+    "moderationWarned": "Un aviso de los moderadores: {{message}}"
   },
   "version": {
     "versionInformation": "Información de versión",

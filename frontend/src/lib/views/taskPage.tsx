@@ -60,7 +60,7 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useAIEnabled } from "@/hooks/useAIEnabled";
-import { useComments, useCommentsCache } from "@/hooks/useComments";
+import { useComments, useCommentsCache, useCommentThreadState } from "@/hooks/useComments";
 import { useDateLocale } from "@/hooks/useDateLocale";
 import { usePastedImages } from "@/hooks/usePastedImages";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
@@ -846,6 +846,7 @@ const Comments = ({ task }: { task: TaskRead }) => {
   const params = { task_id: task.id };
   const query = useComments(params);
   const cache = useCommentsCache(params);
+  const thread = useCommentThreadState(params);
   return (
     <>
       {query.isError ? <p className="text-destructive text-sm">{t("edit.commentsError")}</p> : null}
@@ -861,6 +862,8 @@ const Comments = ({ task }: { task: TaskRead }) => {
         onCommentDeleted={cache.removeComment}
         onCommentUpdated={cache.putComment}
         initiativeId={initiativeId ?? 0}
+        locked={thread.data?.locked ?? false}
+        canModerate={thread.data?.canModerate ?? false}
       />
     </>
   );

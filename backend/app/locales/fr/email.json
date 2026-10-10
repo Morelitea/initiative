@@ -370,7 +370,8 @@
       "direct_messages": "Messages directs",
       "connections": "Contacts",
       "jobs": "Exports et imports",
-      "account": "Votre compte"
+      "account": "Votre compte",
+      "moderation": "Modération"
     }
   },
   "signInCode": {
@@ -466,6 +467,18 @@
       "m10": "octobre",
       "m11": "novembre",
       "m12": "décembre"
+    }
+  },
+  "moderation": {
+    "removed": {
+      "subject": "Un modérateur a retiré quelque chose que vous avez écrit",
+      "title": "Un modérateur a retiré quelque chose que vous avez écrit",
+      "body": "Quelque chose que vous avez écrit enfreignait les règles de cette communauté et a été retiré. La notification dans l'application en donne la raison."
+    },
+    "warned": {
+      "subject": "Un avertissement des modérateurs de cette communauté",
+      "title": "Un avertissement des modérateurs de cette communauté",
+      "body": "Les modérateurs ont écrit :<br><br>{{message}}"
     }
   }
 }

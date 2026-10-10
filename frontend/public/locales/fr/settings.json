@@ -369,7 +369,8 @@
       "direct_messages": "Messages directs",
       "connections": "Contacts",
       "jobs": "Exports et imports",
-      "account": "Votre compte"
+      "account": "Votre compte",
+      "moderation": "Modération"
     },
     "reminderLeadTime": {
       "label": "Me rappeler",
@@ -411,7 +412,8 @@
       "direct_messages": "Quelqu'un vous a écrit. Qui et combien, jamais le contenu.",
       "connections": "Quelqu'un a demandé à se connecter, ou a accepté.",
       "jobs": "Un export ou import que vous avez demandé est terminé.",
-      "account": "Quelque chose a été fait sur votre compte. Toujours visible dans la cloche."
+      "account": "Quelque chose a été fait sur votre compte. Toujours visible dans la cloche.",
+      "moderation": "Les modérateurs d'une communauté ont retiré quelque chose que vous avez écrit, ou vous ont averti à ce sujet. Toujours affiché dans la cloche."
     },
     "quietHours": {
       "title": "Heures calmes",

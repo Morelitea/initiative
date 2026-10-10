@@ -110,7 +110,7 @@ async def test_settling_a_report_as_held_hands_it_over_hidden(
     client, session, scene, operations
 ):
     report_id = await moderation._filed_report_id(
-        client, session, scene, reason="illegal", detail="They posted my address."
+        client, session, scene, reason="harassment", detail="They posted my address."
     )
     settle = f"/api/v1/c/{scene['guild'].id}/reports/{report_id}/settle"
 
@@ -498,8 +498,18 @@ async def test_the_platform_releases_a_hold(
     assert released.status_code == 200, released.text
     assert released.json()["release_outcome"] == outcome
 
-    thread = {c["id"] for c in await _thread(client, scene["member"], scene["task"].id)}
-    assert (scene["comment"].id in thread) is (outcome == "restore")
+    thread = {
+        c["id"]: c for c in await _thread(client, scene["member"], scene["task"].id)
+    }
+    if outcome == "purge":
+        assert scene["comment"].id not in thread
+    else:
+        # Removed, it is a moderator's tombstone where it was.
+        shown = thread[scene["comment"].id]
+        assert (shown["removed"] is not None) is (outcome == "remove")
+        if outcome == "remove":
+            assert shown["removed"] == {"by": "moderator", "reason": "illegal"}
+            assert shown["content"] == ""
     await _system(session, guild.id)
     row = (
         await session.exec(
@@ -511,8 +521,8 @@ async def test_the_platform_releases_a_hold(
     if outcome == "purge":
         assert row is None
     else:
-        assert row is not None and row.held_at is None
-        assert (row.deleted_at is not None) is (outcome == "remove")
+        assert row is not None and row.held_at is None and row.deleted_at is None
+        assert (row.removed_at is not None) is (outcome == "remove")
 
 
 async def test_a_platform_moderator_holds_against_a_case(

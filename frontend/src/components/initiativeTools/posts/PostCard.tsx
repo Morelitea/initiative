@@ -10,6 +10,7 @@ import { PostByline } from "@/components/initiativeTools/posts/PostByline";
 import { PostPinButton } from "@/components/initiativeTools/posts/PostPinButton";
 import { PostPoll } from "@/components/initiativeTools/posts/PostPoll";
 import { PostReadersDialog } from "@/components/initiativeTools/posts/PostReadersDialog";
+import { ModerationMenu } from "@/components/moderation/ModerationMenu";
 import { ReportButton } from "@/components/moderation/ReportButton";
 import { UnreadDot } from "@/components/notifications/UnreadDot";
 import { ReactionBar } from "@/components/reactions/ReactionBar";
@@ -31,6 +32,9 @@ interface PostCardProps {
   /** Whether this reader may pin — community admin or an initiative manager. The
    *  server decides again on the request; this only decides what is offered. */
   canPin?: boolean;
+  /** Whether this reader moderates the initiative — its community's admins and
+   *  the people with Full access there. */
+  canModerate?: boolean;
   className?: string;
 }
 
@@ -50,7 +54,7 @@ interface PostCardProps {
  * bookkeeping. Marking it unread again puts it back and stops this card
  * counting it while they are still looking at it.
  */
-const PostCardInner = ({ post, canPin = false, className }: PostCardProps) => {
+const PostCardInner = ({ post, canPin = false, canModerate = false, className }: PostCardProps) => {
   const { t } = useTranslation(["posts", "common"]);
   const gp = useCommunityPath();
   // Clearing the schedule is what publishes: the same call the author would
@@ -130,6 +134,14 @@ const PostCardInner = ({ post, canPin = false, className }: PostCardProps) => {
           <div className="flex shrink-0 items-center gap-1">
             {canPin && <PostPinButton post={post} />}
             <ReportButton targetType="post" targetId={post.id} authorId={post.created_by} />
+            <ModerationMenu
+              targetType="post"
+              targetId={post.id}
+              canModerate={canModerate}
+              commentsLocked={post.comments_locked_at != null}
+              reactable
+              communityId={post.community_id}
+            />
           </div>
         </div>
       </CardHeader>

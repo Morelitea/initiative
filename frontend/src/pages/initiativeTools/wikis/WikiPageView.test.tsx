@@ -4,7 +4,13 @@ import { HttpResponse } from "msw";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { buildWiki, buildWikiPage, writerCan } from "@/__tests__/factories";
+import {
+  buildInitiative,
+  buildWiki,
+  buildWikiPage,
+  initiativeCan,
+  writerCan,
+} from "@/__tests__/factories";
 import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
@@ -244,5 +250,43 @@ describe("a page that has not been published", () => {
 
     await screen.findByText("Step 1");
     expect(screen.queryByRole("button", { name: "Publish" })).not.toBeInTheDocument();
+  });
+});
+
+describe("moderating a page", () => {
+  /** Serves the wiki's initiative with this reader's standing in it, and says
+   *  once it has been asked for. */
+  const serveInitiative = (moderate: boolean) => {
+    const served = { done: false };
+    server.use(
+      communityHttp.get("/initiatives/:id", ({ params }) => {
+        served.done = true;
+        return HttpResponse.json(
+          buildInitiative({ id: Number(params.id), can: initiativeCan({ moderate }) })
+        );
+      })
+    );
+    return served;
+  };
+
+  it("offers nothing to moderate to a member of the initiative", async () => {
+    const served = serveInitiative(false);
+    renderPageView(READING);
+
+    await screen.findByText("Step 1");
+    await waitFor(() => expect(served.done).toBe(true));
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+    expect(screen.queryByRole("button", { name: "Moderate" })).not.toBeInTheDocument();
+  });
+
+  it("offers the moderation menu to the initiative's moderators", async () => {
+    serveInitiative(true);
+    const user = userEvent.setup();
+    renderPageView(READING);
+
+    await user.click(await screen.findByRole("button", { name: "Moderate" }));
+    // A page has a thread, so its lock is offered; nobody reacts to one.
+    expect(await screen.findByRole("menuitem", { name: "Lock comments" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Clear reactions" })).not.toBeInTheDocument();
   });
 });

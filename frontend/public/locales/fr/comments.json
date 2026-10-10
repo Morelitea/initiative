@@ -8,7 +8,7 @@
   "deleteComment": "Supprimer",
   "deleteConfirmTitle": "Supprimer ce commentaire ?",
   "deleteConfirmDescription": "Il sera placé dans la corbeille.",
-  "deleteConfirmWithReplies": "Il sera placé dans la corbeille, avec les réponses qui se trouvent en dessous.",
+  "deleteConfirmWithReplies": "Il va dans votre corbeille. Les réponses restent, sous une ligne indiquant que vous l'avez supprimé.",
   "deleteError": "Le commentaire n'a pas pu être supprimé.",
   "editPlaceholder": "Modifier votre commentaire...",
   "edited": "(modifié)",
@@ -37,5 +37,11 @@
   "reply": "Répondre",
   "replyPlaceholder": "Écrire une réponse...",
   "title": "Commentaires",
-  "unavailable": "Indisponible"
+  "unavailable": "Indisponible",
+  "removed": {
+    "byModerator": "Retiré par un modérateur · {{reason}}",
+    "legal": "Retiré pour des raisons légales",
+    "byAuthor": "Supprimé par son auteur"
+  },
+  "locked": "Un modérateur a verrouillé les commentaires ici."
 }

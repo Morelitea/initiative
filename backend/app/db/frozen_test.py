@@ -431,32 +431,32 @@ class TestAncestorFreeze:
             )
         assert dbapi_sqlstate(excinfo.value) == FROZEN_SQLSTATE
 
-    @pytest.mark.parametrize("task_archived", [False, True])
-    async def test_a_reply_cannot_come_out_from_under_a_trashed_comment(
-        self, session, routed, workspace, task_archived
+    async def test_a_reply_does_not_freeze_with_the_comment_it_answers(
+        self, session, routed, workspace
     ):
-        """A reply thrown away before its comment keeps a stamp of its own, so
-        the comment's restore leaves it where it is — and it may not come back
-        before the comment it answers does. An archive on the task does not
-        hide the trash on the comment: they are two different ways up."""
+        """A reply is its writer's words, not part of the comment it answers:
+        the comment going to its author's trash leaves the reply as it was,
+        writable, and a reply thrown away before it comes back on its own."""
         user, _g, _i, _p, task = workspace
         comment = await create_comment(session, user, task=task)
         reply = await create_comment(
             session, user, task=task, parent_comment_id=comment.id
         )
-        await _trash(session, reply, by=user.id)
         await _trash(session, comment, by=user.id)
-        if task_archived:
-            await _archive(session, task)
 
-        with pytest.raises(DBAPIError) as excinfo:
-            await routed.exec(
-                text(
-                    "UPDATE comments SET deleted_at = NULL, deleted_by = NULL, "
-                    "purge_at = NULL WHERE id = :id"
-                ).bindparams(id=reply.id)
+        await routed.exec(
+            text("UPDATE comments SET content = 'edited' WHERE id = :id").bindparams(
+                id=reply.id
             )
-        assert dbapi_sqlstate(excinfo.value) == FROZEN_SQLSTATE
+        )
+        await routed.commit()
+        await _trash(session, reply, by=user.id)
+        await routed.exec(
+            text(
+                "UPDATE comments SET deleted_at = NULL, deleted_by = NULL, "
+                "purge_at = NULL WHERE id = :id"
+            ).bindparams(id=reply.id)
+        )
 
     async def test_a_comment_under_an_archived_task_is_still_read_only(
         self, session, routed, workspace

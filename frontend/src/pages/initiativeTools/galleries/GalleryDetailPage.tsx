@@ -53,6 +53,7 @@ import {
 } from "@/hooks/useGalleries";
 import { type GridToggleOptions, useGridSelection } from "@/hooks/useGridSelection";
 import { useImageUploader } from "@/hooks/useImageUploader";
+import { useInitiative } from "@/hooks/useInitiatives";
 import { useReadOnOpen } from "@/hooks/useNotifications";
 import { useRecordRecentView } from "@/hooks/useRecents";
 import { useViewPreference } from "@/hooks/useViewPreference";
@@ -107,6 +108,8 @@ export function GalleryDetailPage() {
   }, [viewedId, recordViewMutation.mutate]);
 
   const canEdit = Boolean(gallery?.can.edit);
+  const initiativeQuery = useInitiative(gallery?.initiative_id ?? null);
+  const canModerate = Boolean(initiativeQuery.data?.can.moderate);
 
   // How the wall is looked at — remembered across galleries, because it is a
   // preference about walls rather than about this one.
@@ -527,6 +530,7 @@ export function GalleryDetailPage() {
         }}
         canEdit={canEdit}
         canDeleteVersions={Boolean(gallery?.can.delete)}
+        canModerate={canModerate}
         isCover={gallery?.cover_image_id === detailsId}
         onSetCover={(imageId) => setCover.mutate({ cover_image_id: imageId })}
         onRemoved={(imageId) => {

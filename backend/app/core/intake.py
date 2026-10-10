@@ -198,6 +198,8 @@ class CaseField(str, Enum):
     #: The key of the finding in the private security repository, written in by
     #: a person when a case turns out to need a code change. One-way, by hand.
     tracker_key = "tracker_key"
+    #: The law an ``illegal`` report or hold names (``LegalBasis``).
+    legal_basis = "legal_basis"
 
 
 #: Each field's property type, as a ``PropertyType`` value. Declared as plain
@@ -212,6 +214,7 @@ CASE_FIELD_TYPES: dict[CaseField, str] = {
     CaseField.reported_at: "datetime",
     CaseField.severity: "text",
     CaseField.tracker_key: "text",
+    CaseField.legal_basis: "text",
 }
 
 #: Which fields each stream's blueprint defines. ``tracker_key`` is security's
@@ -233,6 +236,7 @@ STREAM_FIELDS: dict[IntakeStream, tuple[CaseField, ...]] = {
         CaseField.resource_id,
         CaseField.severity,
         CaseField.reported_at,
+        CaseField.legal_basis,
     ),
     IntakeStream.support: (
         CaseField.subject_user,

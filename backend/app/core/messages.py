@@ -490,6 +490,11 @@ class CommentMessages:
     PROVIDE_ONE_ENTITY = "COMMENT_PROVIDE_ONE_ENTITY"
     AUTHOR_ONLY_EDIT = "COMMENT_AUTHOR_ONLY_EDIT"
     AUTHOR_ONLY_DELETE = "COMMENT_AUTHOR_ONLY_DELETE"
+    #: A moderator took it down, or its author deleted it: it has no words to
+    #: edit or react to.
+    REMOVED = "COMMENT_REMOVED"
+    #: A moderator closed the thread to new comments.
+    LOCKED = "COMMENT_THREAD_LOCKED"
     NOT_LINKED = "COMMENT_NOT_LINKED"
     COMMENTS_DISABLED = "COMMENTS_DISABLED"
     #: Only an operations case with somebody to answer takes a comment said to
@@ -609,6 +614,30 @@ class ModerationMessages:
     NOWHERE_TO_SEND = "MODERATION_NOWHERE_TO_SEND"
     TARGET_NOT_FOUND = "MODERATION_TARGET_NOT_FOUND"
     NOT_A_MODERATOR = "MODERATION_NOT_A_MODERATOR"
+    #: An ``illegal`` report names the law it falls under.
+    LEGAL_BASIS_REQUIRED = "MODERATION_LEGAL_BASIS_REQUIRED"
+    #: Only an ``illegal`` report names a law.
+    LEGAL_BASIS_NOT_TAKEN = "MODERATION_LEGAL_BASIS_NOT_TAKEN"
+    #: An ``illegal`` or ``other`` report says what is wrong.
+    DETAIL_REQUIRED = "MODERATION_DETAIL_REQUIRED"
+    #: A child-safety report names where the material is and attaches none.
+    NO_ATTACHMENTS = "MODERATION_NO_ATTACHMENTS"
+    #: That act isn't done to that kind of thing.
+    ACT_NOT_TAKEN = "MODERATION_ACT_NOT_TAKEN"
+    #: It is taken down already.
+    ALREADY_REMOVED = "MODERATION_ALREADY_REMOVED"
+    #: The removal named was undone already, or what it took down is gone.
+    NOT_REMOVED = "MODERATION_NOT_REMOVED"
+    #: That log row isn't a removal.
+    NOT_A_REMOVAL = "MODERATION_NOT_A_REMOVAL"
+    ACTION_NOT_FOUND = "MODERATION_ACTION_NOT_FOUND"
+    #: The thread is locked already, or not locked.
+    ALREADY_LOCKED = "MODERATION_ALREADY_LOCKED"
+    NOT_LOCKED = "MODERATION_NOT_LOCKED"
+    #: A warning says what the member is told.
+    MESSAGE_REQUIRED = "MODERATION_MESSAGE_REQUIRED"
+    #: Nobody wrote it, so there is nobody to warn.
+    NOBODY_TO_WARN = "MODERATION_NOBODY_TO_WARN"
 
 
 class HoldMessages:

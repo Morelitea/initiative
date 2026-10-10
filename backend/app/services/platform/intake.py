@@ -86,6 +86,7 @@ class CaseRefs:
     resource_id: Optional[int] = None
     reported_at: Optional[datetime] = None
     severity: Optional[str] = None
+    legal_basis: Optional[str] = None
 
     def as_fields(self) -> dict[CaseField, object]:
         """The non-empty refs, keyed by the field each is stored in."""
@@ -97,6 +98,7 @@ class CaseRefs:
             CaseField.resource_id: self.resource_id,
             CaseField.reported_at: self.reported_at,
             CaseField.severity: self.severity,
+            CaseField.legal_basis: self.legal_basis,
         }
         return {field: value for field, value in named.items() if value is not None}
 
@@ -112,7 +114,9 @@ class CaseFiler:
     """
 
     user_id: int
-    subject: str
+    #: What they called it. None where they named nothing — a report — and
+    #: the stream's own name stands for it.
+    subject: Optional[str]
     words: str
 
 

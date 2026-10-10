@@ -134,6 +134,7 @@ export const PostsView = ({ fixedInitiativeId, canCreate }: PostsViewProps) => {
   // rule the server applies, asked here only to decide what to offer.
   const initiativeQuery = useInitiative(fixedInitiativeId);
   const canPin = Boolean(initiativeQuery.data?.can.manage);
+  const canModerate = Boolean(initiativeQuery.data?.can.moderate);
 
   const {
     open: createOpen,
@@ -273,8 +274,15 @@ export const PostsView = ({ fixedInitiativeId, canCreate }: PostsViewProps) => {
   );
 
   const renderCard = useCallback(
-    (index: number) => <PostCard key={posts[index].id} post={posts[index]} canPin={canPin} />,
-    [posts, canPin]
+    (index: number) => (
+      <PostCard
+        key={posts[index].id}
+        post={posts[index]}
+        canPin={canPin}
+        canModerate={canModerate}
+      />
+    ),
+    [posts, canPin, canModerate]
   );
 
   return (

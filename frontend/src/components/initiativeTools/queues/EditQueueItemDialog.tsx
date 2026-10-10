@@ -5,6 +5,8 @@ import { useTranslation } from "react-i18next";
 import type { QueueItemRead } from "@/api/generated/initiativeAPI.schemas";
 import { QueueItemFields } from "@/components/initiativeTools/queues/QueueItemFields";
 import { useQueueItemForm } from "@/components/initiativeTools/queues/useQueueItemForm";
+import { ModerationMenu } from "@/components/moderation/ModerationMenu";
+import { ReportButton } from "@/components/moderation/ReportButton";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
@@ -30,6 +32,8 @@ type EditQueueItemDialogProps = DialogProps & {
   initiativeId: number;
   item: QueueItemRead;
   readOnly?: boolean;
+  /** Whether this reader moderates the queue's initiative. */
+  canModerate?: boolean;
   onSuccess?: () => void;
 };
 
@@ -40,6 +44,7 @@ export const EditQueueItemDialog = ({
   initiativeId,
   item,
   readOnly = false,
+  canModerate = false,
   onSuccess,
 }: EditQueueItemDialogProps) => {
   const { t } = useTranslation(["queues", "common"]);
@@ -144,7 +149,23 @@ export const EditQueueItemDialog = ({
         <DialogContent className="w-full rounded-2xl border bg-card shadow-2xl sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{t("editItem")}</DialogTitle>
-            <DialogDescription>{item.label}</DialogDescription>
+            <div className="flex items-center justify-between gap-2">
+              <DialogDescription className="min-w-0 truncate">{item.label}</DialogDescription>
+              <div className="flex shrink-0 items-center gap-1">
+                <ReportButton targetType="queue_item" targetId={item.id} />
+                {/* Taken down or held, the item is off the queue, so the dialog
+                    about it closes. */}
+                <ModerationMenu
+                  targetType="queue_item"
+                  targetId={item.id}
+                  canModerate={canModerate}
+                  onGone={() => {
+                    onOpenChange(false);
+                    onSuccess?.();
+                  }}
+                />
+              </div>
+            </div>
           </DialogHeader>
 
           <QueueItemFields

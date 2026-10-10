@@ -158,7 +158,7 @@ Each hold opens a moderation case in the operations community, or lands on the c
 | Release | What happens |
 |---|---|
 | **Restore** | It's back exactly as it was. |
-| **Remove** | It goes to the community's bin. |
+| **Remove** | It's taken down through the community's moderation log: a comment becomes a line saying it was removed for legal reasons, and anything else goes to the community's bin. |
 | **Purge** | It's deleted for good, with everything held with it. |
 
 A hold never expires. Every 30 days it stays in place, its case is reminded.

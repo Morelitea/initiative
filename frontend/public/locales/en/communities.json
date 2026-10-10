@@ -368,7 +368,10 @@
       "task": "A task",
       "taskObject": "your task",
       "user": "A user"
-    }
+    },
+    "moderationRemoved": "A moderator took down something you wrote: {{reason}}",
+    "moderationRemovedLegal": "Something you wrote was taken down for legal reasons",
+    "moderationWarned": "A warning from the moderators: {{message}}"
   },
   "version": {
     "versionInformation": "Version Information",

@@ -369,7 +369,8 @@
       "direct_messages": "Mensajes directos",
       "connections": "Contactos",
       "jobs": "Exportaciones e importaciones",
-      "account": "Tu cuenta"
+      "account": "Tu cuenta",
+      "moderation": "Moderación"
     },
     "reminderLeadTime": {
       "label": "Recordarme",
@@ -411,7 +412,8 @@
       "direct_messages": "Alguien te escribió. Quién y cuántos, nunca qué dice.",
       "connections": "Alguien pidió conectar, o aceptó.",
       "jobs": "Terminó una exportación o importación que pediste.",
-      "account": "Se hizo algo con tu cuenta. Siempre aparece en la campana."
+      "account": "Se hizo algo con tu cuenta. Siempre aparece en la campana.",
+      "moderation": "Los moderadores de una comunidad retiraron algo que escribiste o te avisaron por ello. Siempre aparece en la campana."
     },
     "quietHours": {
       "title": "Horas de silencio",

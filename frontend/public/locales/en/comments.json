@@ -8,7 +8,7 @@
   "deleteComment": "Delete",
   "deleteConfirmTitle": "Delete this comment?",
   "deleteConfirmDescription": "It goes to the trash.",
-  "deleteConfirmWithReplies": "It goes to the trash, along with the replies under it.",
+  "deleteConfirmWithReplies": "It goes to your trash. The replies to it stay, under a line saying you deleted it.",
   "deleteError": "The comment could not be deleted.",
   "editPlaceholder": "Edit your comment...",
   "edited": "(edited)",
@@ -37,5 +37,11 @@
   "reply": "Reply",
   "replyPlaceholder": "Write a reply...",
   "title": "Comments",
-  "unavailable": "Unavailable"
+  "unavailable": "Unavailable",
+  "removed": {
+    "byModerator": "Removed by a moderator · {{reason}}",
+    "legal": "Removed for legal reasons",
+    "byAuthor": "Deleted by its author"
+  },
+  "locked": "A moderator locked comments here."
 }

@@ -29,6 +29,7 @@ import { ToolPageHeader } from "@/components/tools/ToolPageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
+import { useInitiative } from "@/hooks/useInitiatives";
 import { useReadOnOpen } from "@/hooks/useNotifications";
 import {
   useAdvanceTurn,
@@ -131,6 +132,8 @@ export function QueueDetailPage() {
   const [editingItem, setEditingItem] = useState<QueueItemRead | null>(null);
 
   const canEdit = Boolean(queue?.can.edit);
+  const initiativeQuery = useInitiative(queue?.initiative_id ?? null);
+  const canModerate = Boolean(initiativeQuery.data?.can.moderate);
 
   // Drive the app-wide bottom-nav add button for this route.
   useRegisterPrimaryCreateAction(
@@ -289,6 +292,7 @@ export function QueueDetailPage() {
           initiativeId={queue.initiative_id}
           item={editingItem}
           readOnly={!canEdit}
+          canModerate={canModerate}
         />
       )}
     </div>

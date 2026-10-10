@@ -20,6 +20,7 @@ from app.core import recurrence
 from app.models.tenant._mixins import (
     ArchiveMixin,
     CreatedByMixin,
+    CommentLockMixin,
     HoldMixin,
     SoftDeleteMixin,
 )
@@ -95,7 +96,14 @@ class TaskAssignee(SQLModel, table=True):
     user_id: int = Field(foreign_key="users.id", primary_key=True, index=True)
 
 
-class Task(HoldMixin, CreatedByMixin, ArchiveMixin, SoftDeleteMixin, table=True):
+class Task(
+    HoldMixin,
+    CommentLockMixin,
+    CreatedByMixin,
+    ArchiveMixin,
+    SoftDeleteMixin,
+    table=True,
+):
     __tablename__ = "tasks"
     _display_field = "title"
 

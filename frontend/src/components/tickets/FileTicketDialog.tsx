@@ -13,13 +13,18 @@
  * Where a report has to go to the people who run the deployment and they have
  * set nothing up to receive it, the dialog turns into their address, if they
  * gave one, rather than ending on a refusal.
+ *
+ * A report of something illegal names the law and says what is wrong; it goes
+ * to the community and to the people who run the server at once, and where
+ * they take no reports here, the thanks says how to reach them. A child-safety
+ * report carries no files: it says where the material is, and it stays there.
  */
 
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { ReportReason } from "@/api/generated/initiativeAPI.schemas";
-import { ReportReason as Reason } from "@/api/generated/initiativeAPI.schemas";
+import type { LegalBasis, ReportReason } from "@/api/generated/initiativeAPI.schemas";
+import { LegalBasis as Basis, ReportReason as Reason } from "@/api/generated/initiativeAPI.schemas";
 import { ContactDialog } from "@/components/tickets/ContactDialog";
 import { EvidencePicker } from "@/components/tickets/Evidence";
 import { Button } from "@/components/ui/button";
@@ -68,6 +73,16 @@ const REASONS: ReportReason[] = [
   Reason.other,
 ];
 
+/** The laws an illegal report can name, in the order they are offered. */
+const BASES: LegalBasis[] = [
+  Basis.child_safety,
+  Basis.terrorism,
+  Basis.privacy,
+  Basis.fraud,
+  Basis.intellectual_property,
+  Basis.other,
+];
+
 /** What is being filed. */
 export type TicketKind =
   | { stream: "support" }
@@ -97,6 +112,7 @@ export const FileTicketDialog = ({
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [reason, setReason] = useState<ReportReason | "">("");
+  const [basis, setBasis] = useState<LegalBasis | "">("");
   const [files, setFiles] = useState<File[]>([]);
   // Set, to what the server said, when the people who run the deployment had
   // nowhere to receive this. Kept apart from their address, which may still
@@ -108,14 +124,25 @@ export const FileTicketDialog = ({
   const evidence = availability.data?.[ticket.stream].evidence ?? null;
 
   const isReport = ticket.stream === "moderation";
+  const illegal = reason === Reason.illegal;
+  // An illegal or "something else" report has to say what is wrong.
+  const detailRequired = illegal || reason === Reason.other;
+  const childSafety = illegal && basis === Basis.child_safety;
 
   const file = useFileTicket({
-    onSuccess: () => {
-      toast.success(isReport ? t("moderation:report.thanks") : t("help.thanks"));
+    onSuccess: (accepted) => {
+      const contactLine = accepted.platform_contact
+        ? t("moderation:report.platformContact", { contact: accepted.platform_contact })
+        : undefined;
+      toast.success(
+        isReport ? t("moderation:report.thanks") : t("help.thanks"),
+        contactLine ? { description: contactLine } : undefined
+      );
       onOpenChange(false);
       setSubject("");
       setBody("");
       setReason("");
+      setBasis("");
       setFiles([]);
     },
     onError: (err) => {
@@ -153,12 +180,15 @@ export const FileTicketDialog = ({
   const payload = (): TicketCreate | null => {
     if (ticket.stream === "moderation") {
       if (!reason) return null;
+      if (illegal && !basis) return null;
+      if (detailRequired && !body.trim()) return null;
       return {
         stream: "moderation",
         target_type: ticket.targetType,
         target_id: ticket.targetId,
         reason,
         detail: body.trim() || null,
+        legal_basis: illegal && basis ? basis : null,
         community_id: communityId,
       };
     }
@@ -199,13 +229,50 @@ export const FileTicketDialog = ({
                 </SelectContent>
               </Select>
             </div>
+            {illegal && (
+              <div className="space-y-2">
+                <Label htmlFor="ticket-basis">{t("moderation:report.basisLabel")}</Label>
+                <Select
+                  value={basis}
+                  onValueChange={(v) => {
+                    setBasis(v as LegalBasis);
+                    // Nothing is attached to a child-safety report.
+                    if (v === Basis.child_safety) setFiles([]);
+                  }}
+                >
+                  <SelectTrigger id="ticket-basis">
+                    <SelectValue placeholder={t("moderation:report.basisPlaceholder")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {BASES.map((value) => (
+                      <SelectItem key={value} value={value}>
+                        {t(`moderation:hold.bases.${value}`)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-muted-foreground text-xs">
+                  {childSafety
+                    ? t("moderation:report.childSafetyHelp")
+                    : t("moderation:report.basisHelp")}
+                </p>
+              </div>
+            )}
             <div className="space-y-2">
-              <Label htmlFor="ticket-detail">{t("moderation:report.detailLabel")}</Label>
+              <Label htmlFor="ticket-detail">
+                {detailRequired
+                  ? t("moderation:report.detailRequiredLabel")
+                  : t("moderation:report.detailLabel")}
+              </Label>
               <Textarea
                 id="ticket-detail"
                 value={body}
                 onChange={(e) => setBody(e.target.value)}
-                placeholder={t("moderation:report.detailPlaceholder")}
+                placeholder={
+                  detailRequired
+                    ? t("moderation:report.detailRequiredPlaceholder")
+                    : t("moderation:report.detailPlaceholder")
+                }
                 rows={4}
                 maxLength={DETAIL_MAX}
               />
@@ -249,12 +316,14 @@ export const FileTicketDialog = ({
           </div>
         )}
 
-        <EvidencePicker
-          policy={evidence}
-          files={files}
-          onChange={setFiles}
-          disabled={file.isPending}
-        />
+        {!childSafety && (
+          <EvidencePicker
+            policy={evidence}
+            files={files}
+            onChange={setFiles}
+            disabled={file.isPending}
+          />
+        )}
 
         {nowhere && !availability.isPending && (
           <p className="text-destructive text-sm" role="alert">
