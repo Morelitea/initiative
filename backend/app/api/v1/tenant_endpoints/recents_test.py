@@ -26,18 +26,14 @@ from app.services.tenant import expiry
 from app.services.tenant.recent_views import DEFAULT_RECENT_VIEWS, WINDOW
 from app.testing import (
     create_calendar,
-    create_calendar_event,
-    create_counter,
-    create_gallery_image,
     create_guild,
     create_guild_membership,
     create_project,
     create_queue,
-    create_queue_item,
     create_resource_grant,
     create_task,
+    create_child_entity,
     create_tool_entity,
-    create_wiki_page,
     enable_all_tools,
     route_as,
 )
@@ -46,16 +42,6 @@ RECENTS = "/api/v1/recents/"
 
 #: Every tool, as its own test case.
 TOOLS = pytest.mark.parametrize("tool", list(Tool), ids=[t.value for t in Tool])
-
-#: How to make each kind inside a tool, given its tool and a person.
-_INSIDE_A_TOOL = {
-    "task": lambda s, tool, user: create_task(s, tool),
-    "queue_item": lambda s, tool, user: create_queue_item(s, tool),
-    "calendar_event": create_calendar_event,
-    "counter": lambda s, tool, user: create_counter(s, tool),
-    "gallery_image": create_gallery_image,
-    "wiki_page": create_wiki_page,
-}
 
 
 async def test_recents_mixed_ordering(
@@ -361,7 +347,7 @@ async def test_opening_something_inside_a_tool_is_recorded_and_never_a_tab(
     parent = KINDS[kind].parent
     assert parent is not None
     tool = await create_tool_entity(session, parent, a.initiative, a.user)
-    entity = await _INSIDE_A_TOOL[kind](session, tool, a.user)
+    entity = await create_child_entity(session, kind, tool, a.user)
 
     response = await client.post(
         a.g(f"/recents/{kind}/{entity.id}?source=search"), headers=a.headers
