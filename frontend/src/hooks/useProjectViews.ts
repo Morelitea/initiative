@@ -19,7 +19,14 @@ import {
   type ToolViewSetWrite,
   type ToolViewWrite,
 } from "@/api/generated/initiativeAPI.schemas";
-import { getGetViewsQueryKey, getViews, putViews } from "@/api/generated/views/views";
+import {
+  getGetInitiativeViewsQueryKey,
+  getGetViewsQueryKey,
+  getInitiativeViews,
+  getViews,
+  putViews,
+} from "@/api/generated/views/views";
+import { invalidate, q } from "@/api/query-keys";
 import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useOptimisticMutation } from "@/hooks/useApiMutation";
 import type { MutationOpts } from "@/types/mutation";
@@ -40,6 +47,20 @@ export const useProjectViews = (projectId: number | null) => {
     // would show the last project's views — and its `can_configure`, which
     // gates the curation controls. Showing one project's permissions while
     // another loads is not a stale list, it is the wrong answer.
+    placeholderData: undefined,
+  });
+};
+
+/** Every project's views in an initiative the reader can open, for its
+ *  settings, with whether the reader may change each. */
+export const useInitiativeViews = (initiativeId: number) => {
+  const communityId = useActiveCommunityId();
+  const params = { initiative_id: initiativeId };
+  return useQuery({
+    queryKey: getGetInitiativeViewsQueryKey(communityId, params),
+    queryFn: () => getInitiativeViews(communityId, params),
+    // Another initiative's projects, while this one's load, would be listed
+    // under this one's addresses.
     placeholderData: undefined,
   });
 };
@@ -74,6 +95,8 @@ export const usePutProjectViews = (
         ),
       }),
       seed: (_, set) => set,
+      // The set itself is the answer; the initiative's list of sets reads anew.
+      invalidate: () => invalidate(q.initiativeViews()),
       mutationFn: (communityId, data) => putViews(communityId, data, target(projectId)),
       errorKey: "projects:views.saveError",
     },

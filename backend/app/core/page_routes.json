@@ -82,6 +82,7 @@
   "/c/$communityId/i/$initiativeId/settings/members",
   "/c/$communityId/i/$initiativeId/settings/properties",
   "/c/$communityId/i/$initiativeId/settings/roles",
+  "/c/$communityId/i/$initiativeId/settings/views",
   "/c/$communityId/i/$initiativeId/wikis/",
   "/c/$communityId/i/$initiativeId/wikis/$wikiId/",
   "/c/$communityId/i/$initiativeId/wikis/$wikiId/files/$fileId",

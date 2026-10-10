@@ -496,8 +496,12 @@ const wikiPage = (pageId: number): Spec => ({ communityExact: [`/api/v1/wiki-pag
 
 // ── Views (community) ────────────────────────────────────────────────────────
 
-/** Every set of views. One path serves them all, its target in the params. */
-const views = (): Spec => ({ communityExact: ["/api/v1/views/"] });
+/** An initiative's list of its tools' views, for its settings. */
+const initiativeViews = (): Spec => ({ communityExact: ["/api/v1/views/initiative"] });
+
+/** Every set of views (one path serves them all, its target in the params),
+ *  and the initiatives' lists of them. */
+const views = (): Spec => compose({ communityExact: ["/api/v1/views/"] }, initiativeViews());
 
 // ── Version (personal) ───────────────────────────────────────────────────────
 
@@ -527,7 +531,10 @@ const toolLists = (which: Tool): Spec => {
   const lists = compose(resourceAndMe(toolRouteSegment(which)), {
     communityPrefix: [`/api/v1/tools/${which}/counts`],
   });
-  return which === Tool.calendar ? compose(lists, allCalendarEvents()) : lists;
+  if (which === Tool.calendar) return compose(lists, allCalendarEvents());
+  // An initiative's list of views names its projects, by name.
+  if (which === Tool.project) return compose(lists, initiativeViews());
+  return lists;
 };
 
 /** Every list of one tool and the counts beside them — what adding or
@@ -689,6 +696,7 @@ export const q = {
   toolSubtree,
   userStats,
   version,
+  initiativeViews,
   views,
   wiki,
   wikiPage,

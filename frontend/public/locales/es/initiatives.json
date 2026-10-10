@@ -272,7 +272,18 @@
       "turnedOffHeading": "Desactivadas en esta iniciativa",
       "turnedOffNote": "No conceden nada hasta que la herramienta se vuelva a activar en Detalles. Mientras tanto no se pierde nada de lo que contienen."
     },
-    "managerDescription": "Los gestores dirigen esta iniciativa — sus miembros, sus roles y sus ajustes — y pueden ver y crear en todas las herramientas. Qué elementos concretos pueden abrir lo sigue decidiendo cómo se comparte cada uno."
+    "managerDescription": "Los gestores dirigen esta iniciativa — sus miembros, sus roles y sus ajustes — y pueden ver y crear en todas las herramientas. Qué elementos concretos pueden abrir lo sigue decidiendo cómo se comparte cada uno.",
+    "viewsTab": "Vistas",
+    "views": {
+      "heading": "Vistas",
+      "description": "Las vistas de cada proyecto, y si tiene su propia página de tarea. Las vistas de un proyecto se cambian en su editor.",
+      "noProjects": "Esta iniciativa aún no tiene proyectos.",
+      "loadError": "No se pudieron cargar las vistas.",
+      "default": "Se abre primero",
+      "shippedViews": "Las vistas originales",
+      "ownTaskPage": "Su propia página de tarea",
+      "shippedTaskPage": "La página de tarea original"
+    }
   },
   "advancedTools": "Herramientas",
   "advancedToolsDescription": "Elige de qué se compone esta iniciativa. Los proyectos y los archivos vienen activados; el resto lo añades tú.",

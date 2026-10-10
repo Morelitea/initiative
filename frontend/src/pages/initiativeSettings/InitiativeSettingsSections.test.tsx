@@ -31,6 +31,7 @@ import { InitiativeSettingsExportPage } from "./InitiativeSettingsExportPage";
 import { InitiativeSettingsMembersPage } from "./InitiativeSettingsMembersPage";
 import { InitiativeSettingsPropertiesPage } from "./InitiativeSettingsPropertiesPage";
 import { InitiativeSettingsRolesPage } from "./InitiativeSettingsRolesPage";
+import { InitiativeSettingsViewsPage } from "./InitiativeSettingsViewsPage";
 
 const INITIATIVE_ID = 7;
 
@@ -277,10 +278,56 @@ describe("initiative settings sections", () => {
     ).toBeInTheDocument();
   });
 
+  it("lists each project's views at /settings/views, editable where allowed", async () => {
+    stubInitiative();
+    server.use(
+      communityHttp.get("/views/initiative", () =>
+        HttpResponse.json([
+          {
+            tool: "project",
+            tool_id: 3,
+            name: "Launch",
+            views: [
+              { name: "Table", slug: "table", layout: "table", is_default: false },
+              { name: "Sprint", slug: "sprint", layout: "board", is_default: true },
+            ],
+            stored: true,
+            has_item_layout: true,
+            can_configure: true,
+          },
+          {
+            tool: "project",
+            tool_id: 4,
+            name: "Archive digs",
+            views: [{ name: "Table", slug: "table", layout: "table", is_default: true }],
+            stored: false,
+            has_item_layout: false,
+            can_configure: false,
+          },
+        ])
+      )
+    );
+
+    renderSection(InitiativeSettingsViewsPage, "views");
+
+    const launch = await screen.findByRole("region", { name: "Launch" });
+    expect(within(launch).getByText("Sprint")).toBeInTheDocument();
+    expect(within(launch).getByRole("img", { name: "Opens first" })).toBeInTheDocument();
+    expect(within(launch).getByText("Its own task page")).toBeInTheDocument();
+    expect(within(launch).getByRole("link", { name: /edit views/i })).toHaveAttribute(
+      "href",
+      expect.stringContaining("/projects/3/views")
+    );
+    const digs = screen.getByRole("region", { name: "Archive digs" });
+    expect(within(digs).getByText("The shipped views · The shipped task page")).toBeInTheDocument();
+    expect(within(digs).queryByRole("link", { name: /edit views/i })).not.toBeInTheDocument();
+  });
+
   it.each([
     ["members", InitiativeSettingsMembersPage],
     ["roles", InitiativeSettingsRolesPage],
     ["properties", InitiativeSettingsPropertiesPage],
+    ["views", InitiativeSettingsViewsPage],
     ["export", InitiativeSettingsExportPage],
     ["danger", InitiativeSettingsDangerPage],
   ])(

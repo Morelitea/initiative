@@ -115,6 +115,29 @@ async def list_rows(session: AsyncSession, target: Target) -> list[ToolView]:
     return list(rows.all())
 
 
+async def rows_by_instance(
+    session: AsyncSession, initiative_id: int, tool: Tool, tool_ids: list[int]
+) -> dict[int, list[ToolView]]:
+    """The stored sets of several instances of one tool, in one read, each in
+    its order. An instance with nothing stored is absent."""
+    if not tool_ids:
+        return {}
+    rows = await session.exec(
+        select(ToolView)
+        .where(
+            ToolView.initiative_id == initiative_id,
+            ToolView.tool == tool.value,
+            col(ToolView.tool_id).in_(tool_ids),
+        )
+        .order_by(col(ToolView.position), col(ToolView.id))
+    )
+    found: dict[int, list[ToolView]] = {}
+    for row in rows.all():
+        if row.tool_id is not None:
+            found.setdefault(row.tool_id, []).append(row)
+    return found
+
+
 def read_set(
     tool: Tool, rows: list[ToolView]
 ) -> tuple[list[ToolViewRead], list[ToolItemLayoutRead]]:

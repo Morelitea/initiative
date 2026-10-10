@@ -22,8 +22,10 @@ import type {
 
 import type {
   DeleteViewsParams,
+  GetInitiativeViewsParams,
   GetViewsParams,
   HTTPValidationError,
+  InitiativeToolViewsRead,
   PutViewsParams,
   ToolViewSetRead,
   ToolViewSetWrite,
@@ -352,3 +354,139 @@ export const useDeleteViews = <TError = ErrorType<HTTPValidationError>, TContext
 > => {
   return useMutation(getDeleteViewsMutationOptions(options), queryClient);
 };
+/**
+ * The views of every project in the initiative the reader can open, by
+ * name, each its own set or the shipped one, for the initiative's settings.
+ * A set is changed on its own target.
+ * @summary Get Initiative Views
+ */
+export const getInitiativeViews = (
+  communityId: number,
+  params: GetInitiativeViewsParams,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<InitiativeToolViewsRead[]>(
+    { url: `/api/v1/c/${communityId}/views/initiative`, method: "GET", params, signal },
+    options
+  );
+};
+
+export const getGetInitiativeViewsQueryKey = (
+  communityId: number,
+  params?: GetInitiativeViewsParams
+) => {
+  return [`/api/v1/c/${communityId}/views/initiative`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetInitiativeViewsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getInitiativeViews>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  params: GetInitiativeViewsParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getInitiativeViews>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetInitiativeViewsQueryKey(communityId, params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getInitiativeViews>>> = ({ signal }) =>
+    getInitiativeViews(communityId, params, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: communityId !== null && communityId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<Awaited<ReturnType<typeof getInitiativeViews>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+};
+
+export type GetInitiativeViewsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getInitiativeViews>>
+>;
+export type GetInitiativeViewsQueryError = ErrorType<HTTPValidationError>;
+
+export function useGetInitiativeViews<
+  TData = Awaited<ReturnType<typeof getInitiativeViews>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  params: GetInitiativeViewsParams,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getInitiativeViews>>, TError, TData>> &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getInitiativeViews>>,
+          TError,
+          Awaited<ReturnType<typeof getInitiativeViews>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetInitiativeViews<
+  TData = Awaited<ReturnType<typeof getInitiativeViews>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  params: GetInitiativeViewsParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getInitiativeViews>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getInitiativeViews>>,
+          TError,
+          Awaited<ReturnType<typeof getInitiativeViews>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetInitiativeViews<
+  TData = Awaited<ReturnType<typeof getInitiativeViews>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  params: GetInitiativeViewsParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getInitiativeViews>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Get Initiative Views
+ */
+
+export function useGetInitiativeViews<
+  TData = Awaited<ReturnType<typeof getInitiativeViews>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  params: GetInitiativeViewsParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getInitiativeViews>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetInitiativeViewsQueryOptions(communityId, params, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}

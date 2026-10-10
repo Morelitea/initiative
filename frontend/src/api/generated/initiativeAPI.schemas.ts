@@ -5749,6 +5749,38 @@ export interface InitiativeTaskStatusRead {
   projects_total: number;
 }
 
+export type ToolViewSummaryLayout =
+  (typeof ToolViewSummaryLayout)[keyof typeof ToolViewSummaryLayout];
+
+export const ToolViewSummaryLayout = {
+  table: "table",
+  board: "board",
+  calendar: "calendar",
+} as const;
+
+/**
+ * A view as a list of views names it.
+ */
+export interface ToolViewSummary {
+  name: string;
+  slug: string;
+  layout: ToolViewSummaryLayout;
+  is_default: boolean;
+}
+
+/**
+ * One instance's views, as its initiative's list of them shows them.
+ */
+export interface InitiativeToolViewsRead {
+  tool: Tool;
+  tool_id: number;
+  name: string;
+  views: ToolViewSummary[];
+  stored: boolean;
+  has_item_layout: boolean;
+  can_configure: boolean;
+}
+
 export interface InitiativeUpdate {
   projects_enabled?: boolean | null;
   files_enabled?: boolean | null;
@@ -11697,6 +11729,10 @@ export type DeleteViewsParams = {
   tool: Tool;
   tool_id?: number | null;
   initiative_id?: number | null;
+};
+
+export type GetInitiativeViewsParams = {
+  initiative_id: number;
 };
 
 export type ListTasksParams = {

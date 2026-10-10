@@ -25,7 +25,7 @@ from app.schemas.tenant.tool_view import (
     MAX_VIEWS,
 )
 from app.services.tenant import tool_views as tool_views_service
-from app.testing import create_resource_grant, route_session_to_guild
+from app.testing import create_project, create_resource_grant, route_session_to_guild
 
 
 def _project(a: Any) -> dict[str, Any]:
@@ -294,6 +294,84 @@ async def test_a_non_member_of_the_initiative_reads_nothing(
     for user, seen in ((outsider.user, 0), (owner.user, 2)):
         reader = await reading_as(user.id, owner.guild.id)
         assert len((await reader.exec(select(ToolView.id))).all()) == seen
+
+
+async def test_an_initiatives_views_list_each_project_the_reader_can_open(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    manager = await acting_user(
+        guild_role=CommunityRole.member,
+        initiative=True,
+        project=True,
+        initiative_role="project_manager",
+    )
+    closed = await create_project(
+        session, manager.initiative, manager.user, name="Zeta"
+    )
+    member = await acting_user(
+        guild_role=CommunityRole.member,
+        guild=manager.guild,
+        initiative=manager.initiative,
+        initiative_role="member",
+    )
+    await create_resource_grant(
+        session, manager.project, user=member.user, level=ResourceAccessLevel.read
+    )
+    page = {"item_kind": "task", "definition": {"main": [{"type": "comments"}]}}
+    assert (
+        await client.put(
+            manager.g("/views/"),
+            params=_project(manager),
+            json={**_TWO, "item_layouts": [page]},
+            headers=manager.headers,
+        )
+    ).status_code == 200
+    url, params = (
+        manager.g("/views/initiative"),
+        {"initiative_id": manager.initiative.id},
+    )
+
+    seen = (await client.get(url, params=params, headers=manager.headers)).json()
+    read = (await client.get(url, params=params, headers=member.headers)).json()
+
+    assert [
+        (each["tool_id"], each["stored"], each["has_item_layout"]) for each in seen
+    ] == [
+        (manager.project.id, True, True),
+        (closed.id, False, False),
+    ]
+    assert seen[0]["views"] == [
+        {"name": "Table", "slug": "table", "layout": "table", "is_default": False},
+        {"name": "Sprint", "slug": "sprint", "layout": "board", "is_default": True},
+    ]
+    assert seen[1]["views"][0] == {
+        "name": "Table",
+        "slug": "table",
+        "layout": "table",
+        "is_default": True,
+    }
+    assert all(each["can_configure"] for each in seen)
+    # A member reads only what they were let into, and changes none of it.
+    assert [(each["tool_id"], each["can_configure"]) for each in read] == [
+        (manager.project.id, False)
+    ]
+
+
+async def test_an_initiatives_views_are_not_listed_outside_it(
+    client: AsyncClient, acting_user
+):
+    owner = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
+    outsider = await acting_user(guild_role=CommunityRole.member, guild=owner.guild)
+
+    response = await client.get(
+        outsider.g("/views/initiative"),
+        params={"initiative_id": owner.initiative.id},
+        headers=outsider.headers,
+    )
+
+    assert response.status_code == 404
 
 
 _FIELD = {"type": "field", "props": {"field": "title"}}
