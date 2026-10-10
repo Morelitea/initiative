@@ -247,6 +247,12 @@ export function EventDetailPage() {
           shownEnd,
           askScope: (action) => scopePrompt.ask(action),
           onMoved: toEvent,
+          onShifted: (start) =>
+            void navigate({
+              to: gp(eventRoute(initiativeId, event.calendar_id, event.id)),
+              search: { occurrence: start },
+              replace: true,
+            }),
           leaving,
           actions,
         }}

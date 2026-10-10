@@ -111,6 +111,9 @@ export type EventSaveTarget = {
   occurrenceStart: string;
   askScope: (action: "edit") => Promise<OccurrenceScope | null>;
   onMoved: (moved: CalendarEventRead) => void;
+  /** Takes the page to the date it shows, moved to `start` with every date of
+   *  its series. */
+  onShifted: (start: string) => void;
 };
 
 /**
@@ -121,7 +124,7 @@ export type EventSaveTarget = {
  */
 export const eventSaveOptions = (
   event: CalendarEventRead,
-  { occurrenceStart, askScope, onMoved }: EventSaveTarget
+  { occurrence, occurrenceStart, askScope, onMoved, onShifted }: EventSaveTarget
 ): FieldSaveOptions<CalendarEventRead, EventPatch> => {
   const repeating = Boolean(event.recurrence) || event.series_id != null;
   return {
@@ -145,6 +148,13 @@ export const eventSaveOptions = (
       const moved = written.id !== undefined && written.id !== event.id;
       if (moved) onMoved(written as CalendarEventRead);
       return moved;
+    },
+    // Every date moved as the one shown did, so the page follows it there:
+    // the date it named is no longer one of the series'.
+    onSaved: (edit) => {
+      if ("patch" in edit && occurrence && edit.patch.scope === "all" && edit.patch.start_at) {
+        onShifted(edit.patch.start_at);
+      }
     },
   };
 };

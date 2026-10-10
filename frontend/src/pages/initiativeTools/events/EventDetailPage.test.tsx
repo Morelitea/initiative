@@ -3,7 +3,7 @@
  * field saved on its own, and a repeating event asked which dates a change is
  * for.
  */
-import { screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -13,6 +13,7 @@ import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import { type CalendarEventRead, PropertyType } from "@/api/generated/initiativeAPI.schemas";
+import { eventSaveOptions } from "@/hooks/useCalendarEvents";
 import { toast } from "@/lib/mascotToast";
 
 vi.mock("@/lib/mascotToast", () => ({
@@ -61,8 +62,6 @@ const open = (search: Record<string, unknown> = {}) =>
 
 beforeEach(() => {
   sent = [];
-  // A description draft is kept on the device.
-  localStorage.clear();
 });
 
 describe("an event's page", () => {
@@ -219,5 +218,47 @@ describe("an event's page", () => {
       "href",
       "https://example.com/agenda"
     );
+  });
+
+  it("saves a new repeat only when asked, never a rule picked on the way", async () => {
+    serve(buildCalendarEvent({ id: 9, recurrence: "RRULE:FREQ=WEEKLY" }));
+    open();
+    const user = userEvent.setup();
+
+    // A number that cannot be emptied, set as a whole.
+    fireEvent.change(await screen.findByLabelText(/repeat every/i), { target: { value: "2" } });
+    await user.tab();
+    expect(sent).toEqual([]);
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(String(sent[0].recurrence)).toContain("INTERVAL=2");
+  });
+});
+
+describe("a change to every date of a series", () => {
+  const series = buildCalendarEvent({ id: 9, recurrence: "RRULE:FREQ=WEEKLY" });
+  const target = (onShifted: (start: string) => void) => ({
+    occurrence: "2026-10-27T15:00:00.000Z",
+    occurrenceStart: "2026-10-27T15:00:00.000Z",
+    askScope: async () => null,
+    onMoved: vi.fn(),
+    onShifted,
+  });
+
+  it("takes the page to the date shown, at its new time", () => {
+    const onShifted = vi.fn();
+    const moved = { start_at: "2026-10-27T16:00:00.000Z", end_at: "2026-10-27T17:00:00.000Z" };
+
+    eventSaveOptions(series, target(onShifted)).onSaved?.({
+      patch: { ...moved, scope: "all", occurrence: "2026-10-27T15:00:00.000Z" },
+      shows: {},
+    });
+    eventSaveOptions(series, target(onShifted)).onSaved?.({
+      patch: { location: "Room 3", scope: "all", occurrence: "2026-10-27T15:00:00.000Z" },
+      shows: {},
+    });
+
+    expect(onShifted.mock.calls).toEqual([["2026-10-27T16:00:00.000Z"]]);
   });
 });

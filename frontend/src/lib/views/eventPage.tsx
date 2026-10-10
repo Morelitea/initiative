@@ -91,6 +91,8 @@ export interface EventPageContext {
   /** Takes the page to the event a change answered with: one date of a
    *  repeating event made its own, or the new series from it. */
   onMoved: (moved: CalendarEventRead) => void;
+  /** Takes the page to the date it shows, moved with every date of its series. */
+  onShifted: (start: string) => void;
   /** Set when the page is left on purpose, so an open draft does not hold it. */
   leaving: RefObject<boolean>;
   /** Reporting it, and the menu of what else can be done with it. */
@@ -295,6 +297,10 @@ const DatesEditor = ({ event }: { event: CalendarEventRead }) => {
  * How the event repeats, and the dates it skips or adds. One date with a row
  * of its own repeats with its series, which is where that changes; opened at
  * one date of a series, it can be made a row of its own.
+ *
+ * A new rule is saved with Save, not as it is picked: it can take away dates
+ * that have changes and answers of their own, and some rules take more than
+ * one pick to say (an end date is picked after choosing to end on one).
  */
 const RepeatEditor = ({ event, label }: EditorProps) => {
   const { t } = useTranslation(["calendars", "common"]);
@@ -307,14 +313,17 @@ const RepeatEditor = ({ event, label }: EditorProps) => {
     event.recurrence_shift,
     event.all_day
   );
-  const draft = useFieldDraft(
-    saved,
-    (rule) =>
-      rule === "custom"
-        ? Promise.resolve(false)
-        : save.save({ patch: rulePayload(rule, { allDay: event.all_day }), shows: {} }),
-    sameJson
-  );
+  // The rule picked, until it is saved or put back.
+  const [picked, setPicked] = useState<RecurrenceRule | "custom" | null | undefined>(undefined);
+  const changed = picked !== undefined && !sameJson(picked, saved);
+  const commit = async () => {
+    if (picked === undefined || picked === "custom") return;
+    const sent = await save.save({
+      patch: rulePayload(picked, { allDay: event.all_day }),
+      shows: {},
+    });
+    if (sent) setPicked(undefined);
+  };
   const openAlone = useOccurrenceAction(event.id, "open", { onSuccess: onMoved });
   const restoreDate = useOccurrenceAction(event.id, "restore", {
     onSuccess: () => toast.success(t("occurrence.restored")),
@@ -359,15 +368,30 @@ const RepeatEditor = ({ event, label }: EditorProps) => {
     ) : null;
   }
   return (
-    <FieldFrame label={label} hideLabel save={save} changed={draft.changed} keys={draft.keys}>
+    <FieldFrame label={label} hideLabel save={save}>
       <RecurrenceEditor
         kind="event"
-        value={draft.value}
-        onChange={draft.edit}
+        value={picked === undefined ? saved : picked}
+        onChange={setPicked}
         referenceDate={event.all_day ? allDayReference(event.start_at) : event.start_at}
         allDay={event.all_day}
         stored={event.recurrence ? { rule: event.recurrence, shift: event.recurrence_shift } : null}
       />
+      {changed ? (
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            size="sm"
+            disabled={picked === "custom" || save.state === "saving"}
+            onClick={() => void commit()}
+          >
+            {t("common:save")}
+          </Button>
+          <Button type="button" size="sm" variant="outline" onClick={() => setPicked(undefined)}>
+            {t("common:cancel")}
+          </Button>
+        </div>
+      ) : null}
       {event.recurrence && occurrence ? (
         <Button
           type="button"
