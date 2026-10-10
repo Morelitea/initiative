@@ -53,6 +53,8 @@ class LockNamespace(IntEnum):
     FIRST_ACCOUNT = 0x696E6974626F6F74
     #: Refreshing the marketplace registry's TUF metadata.
     MARKETPLACE_REFRESH = -0x307876F6777BC55F
+    #: The demo deployment's pool pass, one process at a time.
+    DEMO_POOL = 0x44454D4F504F4F4C
 
     # -- keyed by a guild ---------------------------------------------------
     #: Provisioning a guild's schema; key 0 orders the shared trigger functions.

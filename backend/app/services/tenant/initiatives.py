@@ -1141,12 +1141,14 @@ async def create_imported_initiative(
     tool_flags: dict[str, bool],
     manager_id: int,
     join_policy: InitiativeJoinPolicy | None = None,
+    member_ids: Sequence[int] = (),
 ) -> Initiative:
     """Create an initiative for a backup import: the exact create-endpoint
     sequence (row → built-in roles → creator as PM), with the name suffixed
     on collision (always-create policy) instead of 409ing, and the tool
     master switches and join policy taken from the backup manifest.
-    Flush-only — the backup orchestrator owns its per-chunk transaction."""
+    ``member_ids`` join it with the built-in member role. Flush-only — the
+    backup orchestrator owns its per-chunk transaction."""
     from app.core.tools import DEFAULT_ENABLED_TOOLS, Tool
     from app.services.import_engine.common import unique_name
 
@@ -1181,6 +1183,15 @@ async def create_imported_initiative(
                 )
             ).id,
         )
+    )
+    session.add_all(
+        InitiativeMember(
+            initiative_id=initiative.id,
+            user_id=member_id,
+            role_id=roles["member"].id,
+        )
+        for member_id in member_ids
+        if member_id != manager_id
     )
     await session.flush()
     return initiative
