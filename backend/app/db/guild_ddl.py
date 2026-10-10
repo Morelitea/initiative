@@ -82,6 +82,8 @@ from app.db.tenancy import (
     LEDGER_TABLES,
     MANAGED_TABLES,
     OWN_ROW_TABLES,
+    PRIVATE_ROW_SHARED_READ,
+    PRIVATE_ROW_TABLES,
     SEAT_READ_TABLES,
     SEAT_TABLES,
 )
@@ -311,6 +313,20 @@ _OWN_ROW_WRITE_PREDICATE = (
     f" OR ({POLICY_SETTINGS_ADMIN} AND {IN_POLICY.pam_write}))"
 )
 
+_PRIVATE_ROW_SECTION = """\
+-- ===========================================================================
+-- Private-row tables (app.db.tenancy.PRIVATE_ROW_TABLES): one member's own
+-- state about content they reach — recent views, favorites, an order, a read
+-- receipt, a ballot. RESTRICTIVE on top of the table's initiative gate: only
+-- the member and trusted system maintenance reach a row, never the community's
+-- administrator, a settings rung or a grant. A table in PRIVATE_ROW_SHARED_READ
+-- (read counts, poll tallies) is read under its initiative gate and written by
+-- its member alone.
+-- ==========================================================================="""
+
+#: Who reaches a private row: its member, or the system engine.
+_PRIVATE_ROW_PREDICATE = f"({_OWN_ROW_OWNER} OR {IN_POLICY.system})"
+
 _COMMANDS = (
     ("select", "SELECT", "USING", False),
     ("insert", "INSERT", "WITH CHECK", True),
@@ -425,6 +441,15 @@ def _own_row_block(table: str, owner_col: str) -> str:
     )
 
 
+def _private_row_block(table: str, owner_col: str) -> str:
+    """RLS for a private-row table: RESTRICTIVE per-command policies admitting
+    the row's member or the system engine, on top of its initiative gate. A
+    ``PRIVATE_ROW_SHARED_READ`` table leaves reading to that gate."""
+    pred = _PRIVATE_ROW_PREDICATE.format(col=owner_col)
+    read = None if table in PRIVATE_ROW_SHARED_READ else pred
+    return "\n".join(_policies(table, "private_row", read, pred, restrictive=True))
+
+
 _SEAT_SECTION = """\
 -- ===========================================================================
 -- Seat-held guild-level tables (app.db.tenancy.SEAT_TABLES): configuration the
@@ -459,13 +484,16 @@ _SEAT_TRIGGER_WRITTEN_INSERT: dict[str, str] = {
 def _policies(
     table: str,
     prefix: str,
-    read: str,
+    read: str | None,
     write: str,
     *,
     insert: str | None = None,
+    restrictive: bool = False,
 ) -> list[str]:
-    """One PERMISSIVE policy per command: ``read`` for SELECT, ``write`` for
-    the other three — or ``insert`` for INSERT, when given."""
+    """One policy per command: ``read`` for SELECT, ``write`` for the other
+    three — or ``insert`` for INSERT, when given. PERMISSIVE unless
+    ``restrictive``; a RESTRICTIVE set with no ``read`` leaves SELECT alone."""
+    kind = "RESTRICTIVE" if restrictive else "PERMISSIVE"
     lines: list[str] = []
     for suffix, command, clause, is_write in _COMMANDS:
         pred = write if is_write else read
@@ -473,7 +501,9 @@ def _policies(
             pred = insert
         name = f"{prefix}_{suffix}"
         lines.append(f"DROP POLICY IF EXISTS {name} ON {table};")
-        lines.append(f"CREATE POLICY {name} ON {table} AS PERMISSIVE FOR {command}")
+        if pred is None:
+            continue
+        lines.append(f"CREATE POLICY {name} ON {table} AS {kind} FOR {command}")
         if clause == "USING-CHECK":
             lines.append(f"  USING ({pred}) WITH CHECK ({pred});")
         elif clause == "WITH CHECK":
@@ -1169,6 +1199,8 @@ def render_guild_rls_ddl() -> str:
     own_rows = [_own_row_block(t, c) for t, c in sorted(OWN_ROW_TABLES.items())]
     if own_rows:
         out += "\n\n" + _OWN_ROW_SECTION + "\n\n" + "\n\n".join(own_rows)
+    private = [_private_row_block(t, c) for t, c in sorted(PRIVATE_ROW_TABLES.items())]
+    out += "\n\n" + _PRIVATE_ROW_SECTION + "\n\n" + "\n\n".join(private)
     seats = [_seat_block(t) for t in sorted(SEAT_TABLES)]
     out += "\n\n" + _SEAT_SECTION + "\n\n" + "\n\n".join(seats)
     out += "\n" + PLUGIN_SECRET_FIELDS_FN + "\n" + PLUGIN_SECRET_FIELDS_TRIGGER

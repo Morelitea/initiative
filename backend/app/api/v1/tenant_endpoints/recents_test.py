@@ -10,18 +10,26 @@ import asyncio
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy.exc import DBAPIError
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.tools import Tool
 from app.models.platform.guild import CommunityRole
+from app.models.tenant.project import Project
+from app.models.tenant.recent_view import RecentView
+from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.testing import (
     create_calendar,
     create_guild,
     create_guild_membership,
     create_project,
     create_queue,
+    create_resource_grant,
     create_tool_entity,
     enable_all_tools,
+    route_as,
+    route_session_to_guild,
 )
 
 RECENTS = "/api/v1/recents/"
@@ -93,6 +101,60 @@ async def test_recents_are_cross_guild_names_only(
     r = await client.get(RECENTS, headers=other.headers)
     assert r.status_code == 200
     assert r.json() == []
+
+
+async def test_a_recent_view_is_its_owners_row(
+    client: AsyncClient, session: AsyncSession, acting_user, role_session
+):
+    """Neither another member who can edit the same project nor the
+    community's admin reads or writes someone's recent view of it in the
+    database."""
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
+    project = await create_project(session, a.initiative, a.user)
+    other = await acting_user(
+        guild_role=CommunityRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    await create_resource_grant(
+        session, project, user=other.user, level=ResourceAccessLevel.write
+    )
+    admin = await acting_user(guild_role=CommunityRole.admin, guild=a.guild)
+    r = await client.post(a.g(f"/recents/project/{project.id}"), headers=a.headers)
+    assert r.status_code == 200
+
+    for outsider in (other, admin):
+        asking = await role_session("app_user")
+        await route_as(asking, user_id=outsider.user.id, guild_id=a.guild.id)
+        assert (await asking.exec(select(Project.id))).all() == [project.id]
+        assert (await asking.exec(select(RecentView))).all() == []
+        asking.add(
+            RecentView(user_id=a.user.id, entity_type="project", entity_id=project.id)
+        )
+        with pytest.raises(DBAPIError, match="row-level security"):
+            await asking.flush()
+
+
+async def test_purging_an_item_drops_everyones_recent_view_of_it(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The admin emptying the trash reaches no member's recent view, and the
+    purge still takes them all with the item."""
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
+    project = await create_project(session, a.initiative, a.user)
+    admin = await acting_user(guild_role=CommunityRole.admin, guild=a.guild)
+    await client.post(a.g(f"/recents/project/{project.id}"), headers=a.headers)
+
+    deleted = await client.delete(a.g(f"/projects/{project.id}"), headers=admin.headers)
+    assert deleted.status_code in (200, 204), deleted.text
+    purged = await client.delete(
+        a.g(f"/trash/project/{project.id}/purge"), headers=admin.headers
+    )
+    assert purged.status_code == 204, purged.text
+
+    await route_session_to_guild(session, a.guild.id)
+    assert (await session.exec(select(RecentView))).all() == []
 
 
 async def test_recent_tabs_limit_caps_list_and_prune(

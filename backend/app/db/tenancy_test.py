@@ -20,6 +20,8 @@ from app.db.tenancy import (
     INITIATIVE_SCOPED_TABLES,
     LEDGER_TABLES,
     OWN_ROW_TABLES,
+    PRIVATE_ROW_SHARED_READ,
+    PRIVATE_ROW_TABLES,
     SEAT_READ_TABLES,
     SEAT_TABLES,
     SHARED_TABLES,
@@ -139,6 +141,16 @@ def test_own_row_tables_are_guild_level():
         assert owner_col in cols, (
             f"OWN_ROW_TABLES maps {table!r} to missing column {owner_col!r}."
         )
+
+
+def test_private_row_tables_are_initiative_scoped():
+    """PRIVATE_ROW_TABLES narrows an initiative gate, so every entry must be
+    initiative-scoped and name an owner column the table has; the shared-read
+    ones are a subset of it."""
+    assert set(PRIVATE_ROW_TABLES) <= INITIATIVE_SCOPED_TABLES
+    assert PRIVATE_ROW_SHARED_READ <= set(PRIVATE_ROW_TABLES)
+    for table, owner_col in PRIVATE_ROW_TABLES.items():
+        assert owner_col in SQLModel.metadata.tables[table].columns, table
 
 
 def test_seat_and_ledger_tables_are_guild_level():

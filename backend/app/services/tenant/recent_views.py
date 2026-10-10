@@ -123,16 +123,30 @@ async def purge_for_entities(
     session: AsyncSession, entity_type: str, entity_ids: Iterable[int]
 ) -> None:
     """Drop everyone's recent view of these, for a purge: ``entity_id`` is a
-    weak reference, so nothing carries the rows out with the entity."""
+    weak reference, so nothing carries the rows out with the entity.
+
+    A row is its member's alone, so on a person's session (an admin emptying
+    the trash) the platform drops them, in a transaction of its own.
+    """
+    from app.db import cohorts
+    from app.db.request_context import SystemGuild
+    from app.db.session import guild_context, set_rls_context
+
     ids = tuple(entity_ids)
     if not ids:
         return
-    await session.exec(
-        delete(RecentView).where(  # type: ignore[arg-type]
-            RecentView.entity_type == entity_type,
-            RecentView.entity_id.in_(ids),  # type: ignore[attr-defined]
-        )
+    statement = delete(RecentView).where(  # type: ignore[arg-type]
+        RecentView.entity_type == entity_type,
+        RecentView.entity_id.in_(ids),  # type: ignore[attr-defined]
     )
+    context = guild_context(session)
+    if context is None:
+        await session.exec(statement)
+        return
+    async with cohorts.system_session(context.guild_id) as system:
+        await set_rls_context(system, SystemGuild(context.guild_id))
+        await system.exec(statement)
+        await system.commit()
 
 
 async def list_recent_views(

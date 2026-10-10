@@ -35,6 +35,8 @@ from app.db.tenancy import (
     INITIATIVE_SCOPED_TABLES,
     LEDGER_TABLES,
     OWN_ROW_TABLES,
+    PRIVATE_ROW_SHARED_READ,
+    PRIVATE_ROW_TABLES,
     SEAT_TABLES,
 )
 
@@ -142,14 +144,16 @@ async def test_every_initiative_scoped_table_has_policies(engine):
         async with engine.connect() as conn:
             pol_rows = await conn.execute(
                 text(
-                    "SELECT tablename, policyname FROM pg_policies "
+                    "SELECT tablename, policyname, permissive FROM pg_policies "
                     "WHERE schemaname = :s"
                 ),
                 {"s": schema},
             )
             policies: dict[str, set[str]] = {}
-            for tbl, pol in pol_rows:
+            kinds: dict[tuple[str, str], str] = {}
+            for tbl, pol, kind in pol_rows:
                 policies.setdefault(tbl, set()).add(pol)
+                kinds[(tbl, pol)] = kind
 
             rls_rows = await conn.execute(
                 text(
@@ -160,6 +164,18 @@ async def test_every_initiative_scoped_table_has_policies(engine):
                 {"s": schema},
             )
             rls = {row[0]: (row[1], row[2]) for row in rls_rows}
+
+        # A private-row table narrows its gate to its member: RESTRICTIVE, and
+        # with no SELECT policy of its own where the initiative reads it.
+        for tbl in sorted(PRIVATE_ROW_TABLES):
+            private = {
+                p for p in policies.get(tbl, set()) if p.startswith("private_row_")
+            }
+            commands = {"insert", "update", "delete"}
+            if tbl not in PRIVATE_ROW_SHARED_READ:
+                commands.add("select")
+            assert private == {f"private_row_{c}" for c in commands}, tbl
+            assert {kinds[(tbl, p)] for p in private} == {"RESTRICTIVE"}, tbl
 
         # Every initiative-scoped table: FORCE RLS + the four policies.
         for tbl in sorted(INITIATIVE_SCOPED_TABLES):
