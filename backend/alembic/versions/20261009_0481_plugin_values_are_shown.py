@@ -7,8 +7,8 @@ next write, or its next version, sets it. ``ix_plugin_metadata_entity`` finds
 an item's values from every install at once. The read policy is rendered by
 the provisioning run.
 
-Revision ID: 20261009_0480
-Revises: 20261009_0479
+Revision ID: 20261009_0481
+Revises: 20261009_0480
 Create Date: 2026-10-09
 """
 
@@ -17,8 +17,8 @@ from alembic import op
 
 from app.db.guild_migrations import run_for_each_guild_schema
 
-revision = "20261009_0480"
-down_revision = "20261009_0479"
+revision = "20261009_0481"
+down_revision = "20261009_0480"
 branch_labels = None
 depends_on = None
 

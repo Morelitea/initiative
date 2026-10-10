@@ -169,6 +169,10 @@ const FieldSaveStatus = ({ save }: { save: FieldSave }) => {
 /**
  * One field on an item's page: its label, its own save state with Retry, a
  * note when it changed underneath an edit, and the editor.
+ *
+ * A field whose label is hidden has no row for its save state, so the state
+ * floats instead, where it moves nothing: level with the top of the editor
+ * (beside a label the editor draws itself), or just under it.
  */
 export const FieldFrame = ({
   label,
@@ -177,6 +181,7 @@ export const FieldFrame = ({
   changed = false,
   keys,
   hideLabel = false,
+  statusBelow = false,
   action,
   className,
   children,
@@ -187,21 +192,37 @@ export const FieldFrame = ({
   changed?: boolean;
   keys?: FieldDraft<unknown>["keys"];
   hideLabel?: boolean;
-  /** Beside the label, as the description's Edit. */
+  /** With the label hidden, the save state sits under the editor. */
+  statusBelow?: boolean;
+  /** Beside the label. */
   action?: ReactNode;
   className?: string;
   children: ReactNode;
 }) => {
   const { t } = useTranslation("common");
   return (
-    <fieldset aria-label={label} className={cn("min-w-0 space-y-2", className)} {...keys}>
-      <div className={cn("flex items-center gap-2", !hideLabel && "min-h-5")}>
-        <Label htmlFor={htmlFor} className={cn(hideLabel && "sr-only")}>
-          {label}
-        </Label>
-        {action}
-        <FieldSaveStatus save={save} />
-      </div>
+    <fieldset aria-label={label} className={cn("relative min-w-0 space-y-2", className)} {...keys}>
+      {hideLabel ? (
+        <>
+          <Label htmlFor={htmlFor} className="sr-only">
+            {label}
+          </Label>
+          <div
+            className={cn(
+              "absolute right-0 flex h-5 items-center",
+              statusBelow ? "top-full mt-2" : "-top-0.5"
+            )}
+          >
+            <FieldSaveStatus save={save} />
+          </div>
+        </>
+      ) : (
+        <div className="flex min-h-5 items-center gap-2">
+          <Label htmlFor={htmlFor}>{label}</Label>
+          {action}
+          <FieldSaveStatus save={save} />
+        </div>
+      )}
       {children}
       {changed ? (
         <p role="status" className="text-muted-foreground text-xs">

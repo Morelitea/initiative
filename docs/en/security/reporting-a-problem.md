@@ -13,6 +13,16 @@ If you come across data you don't believe you should have access to — another 
 - **On a server your group runs:** tell your **community's admin, or whoever runs the server**, first. They can check whether it's a settings issue.
 - **If it looks like a real flaw in Initiative itself:** follow the responsible-disclosure steps below.
 
+## A problem with this server
+
+To tell whoever runs the server you use about a security problem, choose **Report a security problem**: it's under **User settings → Security**, in **My Tickets**, and in the command palette. Say what it's about, what you found, and attach a screenshot if it helps. The people who run the server read it, and you follow it, and talk with them about it, in **My Tickets**. Where the server isn't set up to take these reports, you're shown the address to write to instead.
+
+From outside, a server says where to send these at `/.well-known/security.txt`. That file names its security address and, where reports are taken in the app, the form.
+
+**If an email says your account changed and it wasn't you**, choose **This wasn't me** in it. Your account is signed out everywhere, and the people who run the server are told; where nobody is set up to hear it, the page names who to tell.
+
+A problem with **this server** goes to the people who run it. A problem with **the Initiative software itself**, which every server running it would have, goes to the project, below.
+
 Either way, please **don't poke further** than needed to confirm it, and **don't share** what you saw.
 
 ## Content that shouldn't be there

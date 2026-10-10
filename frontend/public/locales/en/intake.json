@@ -188,5 +188,25 @@
     "reveal": "Show {{name}}",
     "view": "View {{name}}",
     "open": "Open {{name}}"
+  },
+  "security": {
+    "action": "Report a security problem",
+    "cardTitle": "Report a security problem",
+    "cardDescription": "Found a weakness in this server, or someone else got into your account? Tell the people who run it.",
+    "title": "Report a security problem",
+    "description": "The people who run this server read this, and you can follow it under My Tickets.",
+    "topicLabel": "What is it about?",
+    "topicPlaceholder": "Choose one",
+    "topics": {
+      "vulnerability": "A weakness in this server",
+      "account_compromise": "Someone else got into my account",
+      "other": "Something else"
+    },
+    "bodyLabel": "What did you find?",
+    "bodyPlaceholder": "What you saw, where, and how to see it again.",
+    "softwareNote": "A problem with the Initiative software itself, rather than this server, goes to the project: see SECURITY.md.",
+    "submit": "Send report",
+    "thanks": "Sent. You can follow it under My Tickets.",
+    "error": "Could not send that. Try again in a moment."
   }
 }

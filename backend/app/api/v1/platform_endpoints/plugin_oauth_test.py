@@ -38,6 +38,8 @@ from app.testing.plugin_clients import (
     install_plugin,
     mint_client_assertion,
 )
+from app.core.audit_events import AuditEventType
+from app.testing.audit import emitted
 
 TOKEN_URL = "/api/v1/plugin-platform/oauth/token"
 INSTALLATIONS_URL = "/api/v1/plugin-platform/installations"
@@ -90,6 +92,20 @@ async def test_a_plugin_token_names_only_the_client(
     assert response.headers["cache-control"] == "no-store"
     token = unseal_access_token(body["access_token"])
     assert token == PluginAccessToken(client_id=CLIENT, exp=token.exp)
+
+
+async def test_an_assertion_presented_twice_is_refused_and_written_down(
+    client: AsyncClient, session: AsyncSession, acting_user, role_session, capfd
+):
+    await install_plugin(session, acting_user, role_session, granted=["files:read"])
+    assertion = _assertion()
+    assert (await _ask(client, assertion=assertion)).status_code == 200
+
+    emitted(capfd)
+    again = await _ask(client, assertion=assertion)
+    assert again.status_code == 401
+    (line,) = emitted(capfd, AuditEventType.SECURITY_REPLAY_REJECTED)
+    assert line["detail"] == {"channel": "plugin_assertion", "install": CLIENT}
 
 
 async def test_a_p256_key_authenticates_too(

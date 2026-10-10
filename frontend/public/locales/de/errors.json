@@ -823,5 +823,6 @@
   "MODERATION_MESSAGE_REQUIRED": "Schreib, was der Person mitgeteilt wird",
   "MODERATION_NOBODY_TO_WARN": "Das hat niemand geschrieben, also gibt es niemanden zu verwarnen",
   "COMMENT_REMOVED": "Dieser Kommentar wurde entfernt",
-  "COMMENT_THREAD_LOCKED": "Ein Moderator hat die Kommentare hier gesperrt"
+  "COMMENT_THREAD_LOCKED": "Ein Moderator hat die Kommentare hier gesperrt",
+  "SECURITY_NOWHERE_TO_SEND": "Sicherheitsmeldungen sind auf diesem Server noch nicht eingerichtet. Nutze stattdessen die Adresse unten."
 }

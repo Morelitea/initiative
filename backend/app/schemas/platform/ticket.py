@@ -7,7 +7,7 @@ from typing import Annotated, List, Literal, Optional, Union
 
 from pydantic import AfterValidator, ConfigDict, Field as PydanticField
 
-from app.core.intake import Conversation, IntakeStream
+from app.core.intake import Conversation, IntakeStream, SecurityTopic
 from app.core.moderation import ReportVenue
 from app.schemas.base import RichTextStr, SanitizedBaseModel
 from app.schemas.tenant.evidence import EvidencePolicyRead, EvidenceRead
@@ -53,9 +53,25 @@ class ModerationTicketCreate(ReportCreate):
     stream: Literal["moderation"]
 
 
+class SecurityTicketCreate(SanitizedBaseModel):
+    """Telling whoever runs this server about a security problem."""
+
+    stream: Literal["security"]
+    #: What it is about.
+    type: SecurityTopic
+    #: One line saying what this is. Becomes the case's title.
+    subject: Annotated[str, AfterValidator(_said_something)] = PydanticField(
+        min_length=1, max_length=SUBJECT_LENGTH
+    )
+    #: What they found, in their own words.
+    body: Annotated[str, AfterValidator(_said_something)] = PydanticField(
+        min_length=1, max_length=BODY_LENGTH
+    )
+
+
 #: One filing, told apart by its stream.
 TicketCreate = Annotated[
-    Union[SupportTicketCreate, ModerationTicketCreate],
+    Union[SupportTicketCreate, ModerationTicketCreate, SecurityTicketCreate],
     PydanticField(discriminator="stream"),
 ]
 

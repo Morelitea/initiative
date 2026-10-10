@@ -58,6 +58,22 @@ def test_a_cross_site_form_post_is_refused(client):
     assert response.json()["detail"] == CSRF_ERROR_CODE
 
 
+def test_a_refusal_is_counted_by_the_security_rules_and_not_written_down(client):
+    from app.services.platform import security_signals
+
+    security_signals.discard()
+    _cookie(client)
+    client.post(
+        "/write",
+        files={"file": ("x.png", b"data", "image/png")},
+        headers={"origin": "https://attacker.test", "sec-fetch-site": "cross-site"},
+    )
+    try:
+        assert "csrf_burst" in security_signals._counts.rules
+    finally:
+        security_signals.discard()
+
+
 def test_a_cross_site_post_with_no_origin_at_all_is_refused(client):
     # Browsers send Origin on an unsafe method as a matter of course, so its
     # absence is not an answer of yes.

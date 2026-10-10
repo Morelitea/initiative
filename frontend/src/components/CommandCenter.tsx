@@ -11,6 +11,7 @@ import {
   Plus,
   Search,
   Settings,
+  ShieldAlert,
   ShieldCheck,
   UserCog,
 } from "lucide-react";
@@ -20,6 +21,7 @@ import { useTranslation } from "react-i18next";
 import { type SearchSuggestion, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { InitiativeMark } from "@/components/icons/InitiativeMark";
 import { getOpenCreateTaskWizard } from "@/components/tasks/CreateTaskWizard";
+import { useSecurityReporting } from "@/components/tickets/ReportSecurityProblem";
 import { getOpenCreateToolWizard } from "@/components/tools/CreateToolWizard";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -248,6 +250,7 @@ export function CommandCenter() {
   const isCommunityAdmin = Boolean(activeCommunity?.can.administer);
   const dmEnabled = useDirectMessagesEnabled();
   const hasTickets = useHasFiledTickets();
+  const securityReporting = useSecurityReporting();
   const showPlatformSettings = canManagePlatformConfig(user);
   const showOperatorDashboard = canAccessOperatorDashboard(user);
 
@@ -448,6 +451,18 @@ export function CommandCenter() {
             >
               <FilePlus className="text-muted-foreground" />
               <span>{t("actions.addFile")}</span>
+            </CommandItem>
+          )}
+          {(securityReporting.form || securityReporting.contact) && (
+            <CommandItem
+              value="action-report-security-problem"
+              onSelect={() => {
+                setOpen(false);
+                void router.navigate({ to: "/my-tickets", search: { report: "security" } });
+              }}
+            >
+              <ShieldAlert className="text-muted-foreground" />
+              <span>{t("actions.reportSecurityProblem")}</span>
             </CommandItem>
           )}
         </CommandGroup>

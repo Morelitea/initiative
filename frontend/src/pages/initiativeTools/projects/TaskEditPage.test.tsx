@@ -178,10 +178,16 @@ const expectSaved = async (field: RegExp) => {
   await waitFor(() => expect(within(frame).getByRole("status")).toHaveTextContent(/saved/i));
 };
 
+/** The description opens on its preview; this turns to its field. */
 const openDescription = async () =>
   userEvent.click(
-    within(await fieldNamed(/^description$/i)).getByRole("button", { name: /^edit$/i })
+    within(await fieldNamed(/^description$/i)).getByRole("tab", { name: /^write$/i })
   );
+
+/** Text the page shows, not what the description's hidden field holds. */
+const shown = (text: string) => screen.findByText(text, { selector: ":not(textarea)" });
+
+const saveButton = () => screen.queryByRole("button", { name: /^save$/i });
 
 describe("TaskEditPage", () => {
   beforeEach(() => {
@@ -248,8 +254,15 @@ describe("TaskEditPage", () => {
     expect(sent[1]).toMatchObject({ title: "Wire the doorbell now please" });
   });
 
-  it("writes a description in its own mode, keeps the draft, and saves it over what it read", async () => {
+  it("opens the description on its preview, keeps what is typed, and saves it over what it read", async () => {
     const first = renderTaskPage({ description: "Old words", userId: 41 });
+    const description = await fieldNamed(/^description$/i);
+    expect(within(description).getByRole("tab", { name: /^preview$/i })).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
+    expect(await shown("Old words")).toBeInTheDocument();
+    expect(saveButton()).not.toBeInTheDocument();
 
     await openDescription();
     const editor = await screen.findByRole("textbox", { name: /^description$/i });
@@ -260,27 +273,29 @@ describe("TaskEditPage", () => {
 
     // The draft is the account's own, on its own server.
     const other = renderTaskPage({ description: "Old words", userId: 42 });
-    expect(await screen.findByText("Old words")).toBeInTheDocument();
-    expect(screen.queryByRole("textbox", { name: /^description$/i })).not.toBeInTheDocument();
+    expect(await shown("Old words")).toBeInTheDocument();
+    expect(saveButton()).not.toBeInTheDocument();
     other.unmount();
     setStoredServerUrl("https://elsewhere.example/api/v1");
     const elsewhere = renderTaskPage({ description: "Old words", userId: 41 });
-    expect(await screen.findByText("Old words")).toBeInTheDocument();
-    expect(screen.queryByRole("textbox", { name: /^description$/i })).not.toBeInTheDocument();
+    expect(await shown("Old words")).toBeInTheDocument();
+    expect(saveButton()).not.toBeInTheDocument();
     elsewhere.unmount();
     clearStoredServerUrl();
 
     // Coming back finds the draft where it was left.
     const { sent } = renderTaskPage({ description: "Old words", userId: 41 });
-    const restored = await screen.findByRole("textbox", { name: /^description$/i });
+    expect(await shown("New words")).toBeInTheDocument();
+    await openDescription();
+    const restored = screen.getByRole("textbox", { name: /^description$/i });
     expect(restored).toHaveValue("New words");
 
     await userEvent.type(restored, "{Control>}{Enter}{/Control}");
 
     await waitFor(() => expect(sent).toHaveLength(1));
     expect(sent[0]).toMatchObject({ description: "New words", description_base: "Old words" });
-    expect(await screen.findByText("New words")).toBeInTheDocument();
-    expect(screen.queryByRole("textbox", { name: /^description$/i })).not.toBeInTheDocument();
+    await waitFor(() => expect(saveButton()).not.toBeInTheDocument());
+    expect(restored).toHaveValue("New words");
   });
 
   it("keeps a draft but offers nothing that writes once the task is read-only", async () => {
@@ -301,9 +316,8 @@ describe("TaskEditPage", () => {
 
     // Editing again finds it where it was left.
     renderTaskPage({ description: "Old words", userId: 43 });
-    expect(await screen.findByRole("textbox", { name: /^description$/i })).toHaveValue(
-      "Old words more"
-    );
+    await openDescription();
+    expect(screen.getByRole("textbox", { name: /^description$/i })).toHaveValue("Old words more");
   });
 
   it("keeps what is typed while the description saves, as a draft over the saved text", async () => {
@@ -354,11 +368,11 @@ describe("TaskEditPage", () => {
     await userEvent.click(within(description).getByRole("button", { name: /try again/i }));
 
     await waitFor(() => expect(sent).toHaveLength(2));
-    expect(await screen.findByText("Old words more")).toBeInTheDocument();
-    expect(screen.queryByRole("textbox", { name: /^description$/i })).not.toBeInTheDocument();
+    await waitFor(() => expect(saveButton()).not.toBeInTheDocument());
+    expect(screen.getByRole("textbox", { name: /^description$/i })).toHaveValue("Old words more");
   });
 
-  it("starts another task's page afresh, without this one's open editor", async () => {
+  it("starts another task's page afresh, on its description's preview", async () => {
     const { router, queryClient } = renderTaskPage({ description: "Old words" });
     const other = {
       ...buildTask({ id: TASK_ID + 1, project_id: PROJECT_ID }),
@@ -381,7 +395,7 @@ describe("TaskEditPage", () => {
       to: `/c/${COMMUNITY_ID}/i/${INITIATIVE_ID}/projects/${PROJECT_ID}/tasks/${other.id}`,
     });
 
-    expect(await screen.findByText("Its words")).toBeInTheDocument();
+    expect(await shown("Its words")).toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: /^description$/i })).not.toBeInTheDocument();
   });
 
@@ -393,7 +407,7 @@ describe("TaskEditPage", () => {
           ? undefined
           : HttpResponse.json({ detail: "TASK_DESCRIPTION_CHANGED" }, { status: 409 }),
     });
-    await screen.findByText("Old words");
+    await shown("Old words");
     // Somebody else saves theirs first.
     task.description = "Their words";
 
@@ -453,9 +467,9 @@ describe("TaskEditPage", () => {
 
     expect(await screen.findByDisplayValue("Wire the doorbell")).toBeDisabled();
     expect(within(await fieldNamed(/^status$/i)).getByRole("combobox")).toBeDisabled();
-    expect(
-      within(await fieldNamed(/^description$/i)).queryByRole("button", { name: /^edit$/i })
-    ).not.toBeInTheDocument();
+    const description = await fieldNamed(/^description$/i);
+    expect(within(description).getByText("Old words")).toBeInTheDocument();
+    expect(within(description).queryByRole("tab")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /more actions/i })).not.toBeInTheDocument();
   });
 

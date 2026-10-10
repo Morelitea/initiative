@@ -83,6 +83,16 @@ async def public_config() -> tuple[str, str] | None:
     return cfg.provider, cfg.site_key
 
 
+def _count_refusal(remote_ip: str | None) -> None:
+    """A refused captcha is counted by the security rules, never written down
+    one by one. A provider we couldn't reach is our trouble, not theirs, and
+    is not counted."""
+    from app.core.security_rules import Signal
+    from app.services.platform import security_signals
+
+    security_signals.signal(Signal.captcha_rejected, source_ip=remote_ip)
+
+
 async def verify_or_raise(token: str | None, *, remote_ip: str | None) -> None:
     """Verify a captcha ``token`` against the configured provider.
 
@@ -98,6 +108,7 @@ async def verify_or_raise(token: str | None, *, remote_ip: str | None) -> None:
 
     cleaned = (token or "").strip()
     if not cleaned:
+        _count_refusal(remote_ip)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.CAPTCHA_REQUIRED,
@@ -143,6 +154,7 @@ async def verify_or_raise(token: str | None, *, remote_ip: str | None) -> None:
                 provider,
                 body.get("error-codes") or body.get("errorCodes"),
             )
+        _count_refusal(remote_ip)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.CAPTCHA_INVALID,

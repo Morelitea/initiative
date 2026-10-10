@@ -8,6 +8,11 @@ import { PasskeysSection } from "@/components/settings/PasskeysSection";
 import { SettingsSection } from "@/components/settings/SettingsSection";
 import { SignedInSection } from "@/components/settings/SignedInSection";
 import { TwoFactorSection } from "@/components/settings/TwoFactorSection";
+import {
+  ReportSecurityProblemButton,
+  SecurityReportDialog,
+  useSecurityReporting,
+} from "@/components/tickets/ReportSecurityProblem";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -207,9 +212,11 @@ const NewApiKeyDialog = ({
 };
 
 export const UserSettingsSecurityPage = () => {
-  const { t } = useTranslation(["settings", "common"]);
+  const { t } = useTranslation(["settings", "common", "intake"]);
   const [creating, setCreating] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<ApiKeyMetadata | null>(null);
+  const [reporting, setReporting] = useState(false);
+  const securityReporting = useSecurityReporting();
 
   const { communities } = useCommunities();
   const communityName = (id: number) =>
@@ -337,6 +344,17 @@ export const UserSettingsSecurityPage = () => {
           if (deleteTarget) deleteKey.mutate(deleteTarget.id);
         }}
       />
+
+      {/* Where this server takes them: something wrong with it, or with an
+          account that isn't behaving like its owner. */}
+      {securityReporting.form || securityReporting.contact ? (
+        <SettingsSection
+          title={t("intake:security.cardTitle")}
+          description={t("intake:security.cardDescription")}
+          action={<ReportSecurityProblemButton onOpen={() => setReporting(true)} />}
+        />
+      ) : null}
+      <SecurityReportDialog open={reporting} onOpenChange={setReporting} />
     </div>
   );
 };

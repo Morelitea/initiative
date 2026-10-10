@@ -675,6 +675,13 @@ class HoldMessages:
     COMMUNITY_GONE = "HOLD_COMMUNITY_GONE"
 
 
+class SecurityMessages:
+    """Telling whoever runs this server about a security problem."""
+
+    #: Nothing is set up to receive security reports here.
+    NOWHERE_TO_SEND = "SECURITY_NOWHERE_TO_SEND"
+
+
 class SupportMessages:
     """Asking whoever runs this deployment for help."""
 

@@ -155,12 +155,43 @@ const stackClassName = ({ direction, gap = "xs", wrap, align, tone }: StackProps
 };
 
 // A region of an item's page: it draws its parts in a column, and places
-// itself on the page's grid. The side column sits above the main one until
-// there is room beside it.
+// itself on the page's grid.
 const region =
   (className: string) =>
   <I,>(node: ViewNode, item: I, view: ViewContext, parts: Parts<I>) => (
     <div className={cn("min-w-0", className)}>{renderChildren(node, item, view, parts)}</div>
+  );
+
+// Where a part of a column falls once the page is a single column.
+const ORDER: Record<number, string> = {
+  1: "order-1 canvas-md:order-none",
+  2: "order-2 canvas-md:order-none",
+  3: "order-3 canvas-md:order-none",
+  4: "order-4 canvas-md:order-none",
+  5: "order-5 canvas-md:order-none",
+  6: "order-6 canvas-md:order-none",
+  7: "order-7 canvas-md:order-none",
+  8: "order-8 canvas-md:order-none",
+};
+
+// A column of an item's page. Until there is room for the columns side by
+// side, the page is one column and each column's parts join it, falling where
+// their `order` prop puts them, so the two columns can interleave. A part
+// that draws nothing takes no room.
+const column =
+  (className: string) =>
+  <I,>(node: ViewNode, item: I, view: ViewContext, parts: Parts<I>) => (
+    <div className={cn("canvas-md:flex contents canvas-md:min-w-0 canvas-md:flex-col", className)}>
+      {node.children?.map((child, index) => (
+        <div
+          // biome-ignore lint/suspicious/noArrayIndexKey: a tree is fixed for the life of a view
+          key={index}
+          className={cn("min-w-0 empty:hidden", ORDER[Number(child.props?.order)])}
+        >
+          {renderNode(child, item, view, parts)}
+        </div>
+      ))}
+    </div>
   );
 
 /** Arrangement, for a tree of any kind of item. */
@@ -177,12 +208,8 @@ export const LAYOUT_PARTS = {
     </div>
   ),
   header: region("space-y-2 canvas-md:col-span-2"),
-  main: region(
-    "order-2 space-y-6 canvas-md:order-none canvas-md:col-start-1 canvas-md:row-start-2"
-  ),
-  side: region(
-    "order-1 space-y-4 canvas-md:order-none canvas-md:col-start-2 canvas-md:row-start-2"
-  ),
+  main: column("canvas-md:col-start-1 canvas-md:row-start-2 canvas-md:gap-6"),
+  side: column("canvas-md:col-start-2 canvas-md:row-start-2 canvas-md:gap-4"),
   /** A bordered group of parts. */
   section: <I,>(node: ViewNode, item: I, view: ViewContext, parts: Parts<I>) => (
     <section className="space-y-4 rounded-lg border bg-card p-4 text-card-foreground shadow-sm">

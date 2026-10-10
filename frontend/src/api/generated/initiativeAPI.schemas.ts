@@ -264,6 +264,15 @@ export interface AccessGrantListResponse {
 }
 
 /**
+ * What answering a "This wasn't me" link did.
+ */
+export interface AccountChangeDone {
+  status: string;
+  platform_told: boolean;
+  contact: string | null;
+}
+
+/**
  * What a "This wasn't me" link answers and what it may do.
  */
 export interface AccountChangeRead {
@@ -934,7 +943,7 @@ export interface BillingPortalHandoffResponse {
 }
 
 export interface BodyFileTicket {
-  /** The ticket, as JSON: a support request or a report, told apart by ``stream``. */
+  /** The ticket, as JSON: a support request, a report or a security problem, told apart by ``stream``. */
   payload: string;
   files?: Blob[];
 }
@@ -10559,6 +10568,35 @@ export interface ModerationTicketCreate {
   legal_basis?: LegalBasis | null;
   community_id?: number | null;
   stream: "moderation";
+}
+
+/**
+ * What a security report is about, as its filer says.
+ */
+export type SecurityTopic = (typeof SecurityTopic)[keyof typeof SecurityTopic];
+
+export const SecurityTopic = {
+  vulnerability: "vulnerability",
+  account_compromise: "account_compromise",
+  other: "other",
+} as const;
+
+/**
+ * Telling whoever runs this server about a security problem.
+ */
+export interface SecurityTicketCreate {
+  stream: "security";
+  type: SecurityTopic;
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  subject: string;
+  /**
+   * @minLength 1
+   * @maxLength 5000
+   */
+  body: string;
 }
 
 /**

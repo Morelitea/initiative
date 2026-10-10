@@ -35,6 +35,8 @@ from app.schemas.platform.billing import (
     BillingCommunityTierApply,
     BillingCommunityTierRead,
 )
+from app.core.audit_events import AuditEventType
+from app.services import audit as audit_service
 
 logger = logging.getLogger(__name__)
 
@@ -195,6 +197,12 @@ async def record_jti(session: AsyncSession, *, jti: str, expires_at: datetime) -
     try:
         await session.flush()
     except IntegrityError as exc:
+        # Written now: the refusal rolls the transaction back.
+        audit_service.emit(
+            event_type=AuditEventType.SECURITY_REPLAY_REJECTED,
+            actor_user_id=None,
+            detail={"channel": "billing"},
+        )
         raise CodedError(BillingMessages.REPLAYED_TOKEN, 403) from exc
 
 

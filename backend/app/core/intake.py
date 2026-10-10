@@ -61,6 +61,16 @@ class Conversation(str, Enum):
     open = "open"
 
 
+class SecurityTopic(str, Enum):
+    """What a security report is about, as its filer says."""
+
+    #: A weakness in this server.
+    vulnerability = "vulnerability"
+    #: Somebody else got into their account.
+    account_compromise = "account_compromise"
+    other = "other"
+
+
 #: Pictures a person may attach, by the type their bytes say they are.
 IMAGE_TYPES = frozenset({"image/png", "image/jpeg", "image/gif", "image/webp"})
 #: Documents a person may attach beside pictures.
@@ -118,8 +128,10 @@ class IntakeStreamMeta:
 #: step, so a stream cannot exist without saying what feeds it.
 STREAMS: dict[IntakeStream, IntakeStreamMeta] = {
     IntakeStream.security: IntakeStreamMeta(
-        sources=frozenset({Source.alerted, Source.manual}),
-        submitter=Submitter.system,
+        # The rules raise their own cases; a person reports a problem, or
+        # says a change to their account wasn't them.
+        sources=frozenset({Source.alerted, Source.submitted, Source.manual}),
+        submitter=Submitter.member,
         blueprint="security.json",
         conversation=Conversation.open,
         filing_rate="5/day",

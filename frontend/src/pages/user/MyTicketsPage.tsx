@@ -3,13 +3,19 @@
  *
  * Not tasks: a filer follows where their ticket stands and what is said to
  * them, never the task the team works it in. The sidebar offers this page once
- * they have filed something.
+ * they have filed something. It is also where a security problem is reported
+ * from, and where ``/.well-known/security.txt`` sends people to do it.
  */
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate, useSearch } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { FiledTicketRead } from "@/api/generated/initiativeAPI.schemas";
 import { SkeletonRegion } from "@/components/skeletons/PageSkeletons";
+import {
+  ReportSecurityProblemButton,
+  SecurityReportDialog,
+} from "@/components/tickets/ReportSecurityProblem";
 import { TicketStateBadge } from "@/components/tickets/TicketStateBadge";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -44,10 +50,29 @@ export const MyTicketsPage = () => {
   const { t } = useTranslation(["intake", "nav"]);
   const { data, isLoading, isError } = useFiledTickets();
   const items = data?.items ?? [];
+  const { report } = useSearch({ strict: false }) as { report?: string };
+  const navigate = useNavigate();
+  const [reporting, setReporting] = useState(report === "security");
+  // Asked for again while already here — the command palette, say — opens it
+  // too, not only on arrival.
+  useEffect(() => {
+    if (report === "security") setReporting(true);
+  }, [report]);
+
+  const closeReport = (open: boolean) => {
+    setReporting(open);
+    // Arrived from a link to the form: closing it leaves the list, not the
+    // link, so going back does not open it again.
+    if (!open && report) void navigate({ to: "/my-tickets", search: {}, replace: true });
+  };
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-6">
-      <h1 className="font-semibold text-3xl tracking-tight">{t("nav:myTickets")}</h1>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h1 className="font-semibold text-3xl tracking-tight">{t("nav:myTickets")}</h1>
+        <ReportSecurityProblemButton onOpen={() => setReporting(true)} />
+      </div>
+      <SecurityReportDialog open={reporting} onOpenChange={closeReport} />
       {isLoading ? (
         <SkeletonRegion>
           <Skeleton className="h-48 w-full" />

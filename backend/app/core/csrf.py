@@ -127,6 +127,18 @@ def intent_is_proven(headers: Headers, scheme: str = "http") -> bool:
     return _origin_is_the_requested_host(headers, origin, scheme)
 
 
+def _count_refusal(scope: Scope) -> None:
+    """A refusal is counted by the security rules, never written down one by
+    one (``app.core.security_rules.Signal``)."""
+    from app.core.security_rules import Signal
+    from app.services.platform import security_signals
+
+    client = scope.get("client")
+    security_signals.signal(
+        Signal.csrf_rejected, source_ip=client[0] if client else None
+    )
+
+
 class CsrfOriginMiddleware:
     """Refuse a cookie-authenticated write that cannot say where it came from.
 
@@ -157,6 +169,7 @@ class CsrfOriginMiddleware:
         # A machine-readable code, mapped to text in
         # frontend/public/locales/*/errors.json, per CLAUDE.md "Backend: Error
         # code constants".
+        _count_refusal(scope)
         response = JSONResponse(status_code=403, content={"detail": CSRF_ERROR_CODE})
         await response(scope, receive, send)
 
@@ -184,6 +197,7 @@ class CsrfOriginMiddleware:
         message = await receive()
         if message["type"] != "websocket.connect":  # pragma: no cover - spec order
             return
+        _count_refusal(scope)
         # 1008 policy violation, which is what the routes here already use for a
         # handshake they refuse.
         await send({"type": "websocket.close", "code": 1008})

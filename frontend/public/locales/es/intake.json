@@ -188,5 +188,25 @@
     "reveal": "Mostrar {{name}}",
     "view": "Ver {{name}}",
     "open": "Abrir {{name}}"
+  },
+  "security": {
+    "action": "Informar de un problema de seguridad",
+    "cardTitle": "Informar de un problema de seguridad",
+    "cardDescription": "¿Encontraste un fallo en este servidor, o alguien entró en tu cuenta? Avisa a quienes lo gestionan.",
+    "title": "Informar de un problema de seguridad",
+    "description": "Lo leen quienes gestionan este servidor, y puedes seguirlo en Mis tickets.",
+    "topicLabel": "¿De qué se trata?",
+    "topicPlaceholder": "Elige uno",
+    "topics": {
+      "vulnerability": "Un fallo en este servidor",
+      "account_compromise": "Alguien entró en mi cuenta",
+      "other": "Otra cosa"
+    },
+    "bodyLabel": "¿Qué encontraste?",
+    "bodyPlaceholder": "Qué viste, dónde y cómo volver a verlo.",
+    "softwareNote": "Un problema del propio software Initiative, y no de este servidor, va al proyecto: consulta SECURITY.md.",
+    "submit": "Enviar informe",
+    "thanks": "Enviado. Puedes seguirlo en Mis tickets.",
+    "error": "No se pudo enviar. Inténtalo de nuevo en un momento."
   }
 }

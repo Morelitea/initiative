@@ -39,6 +39,7 @@ from app.core.audit_events import (
     AuditEventType,
 )
 from app.db import post_commit
+from app.services.platform import security_signals
 
 audit_logger = logging.getLogger("audit")
 
@@ -66,6 +67,9 @@ def _write(envelope: dict[str, Any]) -> None:
         audit_logger.info(json.dumps(envelope, separators=(",", ":")))
     except Exception:  # pragma: no cover - a broken handler, not our logic
         logging.getLogger(__name__).exception("audit log line could not be emitted")
+    # Every line passes the security rules on its way out: one lookup, and a
+    # count in memory for the few they watch (app.core.security_rules).
+    security_signals.observe(envelope)
 
 
 async def record(

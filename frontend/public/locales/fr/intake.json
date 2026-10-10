@@ -188,5 +188,25 @@
     "reveal": "Afficher {{name}}",
     "view": "Voir {{name}}",
     "open": "Ouvrir {{name}}"
+  },
+  "security": {
+    "action": "Signaler un problème de sécurité",
+    "cardTitle": "Signaler un problème de sécurité",
+    "cardDescription": "Vous avez trouvé une faille dans ce serveur, ou quelqu'un d'autre est entré dans votre compte ? Prévenez ses responsables.",
+    "title": "Signaler un problème de sécurité",
+    "description": "Les responsables de ce serveur le lisent, et vous pouvez le suivre dans Mes tickets.",
+    "topicLabel": "De quoi s'agit-il ?",
+    "topicPlaceholder": "Choisissez",
+    "topics": {
+      "vulnerability": "Une faille dans ce serveur",
+      "account_compromise": "Quelqu'un d'autre est entré dans mon compte",
+      "other": "Autre chose"
+    },
+    "bodyLabel": "Qu'avez-vous trouvé ?",
+    "bodyPlaceholder": "Ce que vous avez vu, où, et comment le revoir.",
+    "softwareNote": "Un problème du logiciel Initiative lui-même, plutôt que de ce serveur, va au projet : voir SECURITY.md.",
+    "submit": "Envoyer le signalement",
+    "thanks": "Envoyé. Vous pouvez le suivre dans Mes tickets.",
+    "error": "Impossible d'envoyer. Réessayez dans un instant."
   }
 }
