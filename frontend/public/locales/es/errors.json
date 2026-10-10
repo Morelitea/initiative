@@ -96,7 +96,7 @@
   "HELD_CHANGE_NEEDS_PASSKEY": "Vuelve a iniciar sesión con una clave de acceso para hacer este cambio ahora.",
   "RESERVED_SIGIL_IN_NAME": "Los nombres y títulos no pueden contener # ni @.",
   "FIELD_CANNOT_BE_NULL": "Este campo no puede quedar vacío.",
-  "NOT_FOUND": "No se encontró {{thisKind}}",
+  "NOT_FOUND": "{{kind}} no disponible",
   "NO_ACCESS": "No tienes acceso a {{thisKind}}",
   "OWNER_REQUIRED": "Solo quien es propietario de {{thisKind}} puede hacerlo",
   "WRITE_ACCESS_REQUIRED": "Necesitas acceso de escritura a {{thisKind}}",
