@@ -8,8 +8,8 @@ model at boot.
 The downgrade deletes the rows of the kinds inside a tool, which the earlier
 render does not admit, and drops ``source``.
 
-Revision ID: 20261010_0490
-Revises: 20261010_0489
+Revision ID: 20261010_0492
+Revises: 20261010_0491
 Create Date: 2026-10-10
 """
 
@@ -18,8 +18,8 @@ from alembic import op
 
 from app.db.guild_migrations import run_for_each_guild_schema
 
-revision = "20261010_0490"
-down_revision = "20261010_0489"
+revision = "20261010_0492"
+down_revision = "20261010_0491"
 branch_labels = None
 depends_on = None
 

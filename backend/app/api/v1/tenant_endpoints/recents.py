@@ -29,7 +29,7 @@ from app.api.deps import (
     get_current_active_user,
     GuildContextDep,
 )
-from app.core.tools import CHILD_KINDS, KINDS, Tool
+from app.core.tools import Tool
 from app.services.tenant.tags import TOOL_TAG_LINKS
 from app.models.tenant.file import File
 from app.models.platform.guild import GuildMembership
@@ -92,14 +92,6 @@ RECENT_TOOL_SPECS: dict[Tool, RecentToolSpec] = {
 
 RECENT_SPECS_BY_ENTITY_TYPE: dict[str, tuple[Tool, RecentToolSpec]] = {
     tool.value: (tool, spec) for tool, spec in RECENT_TOOL_SPECS.items()
-}
-
-_SUB_TOOLS_BY_TABLE = {
-    model.__tablename__: model for model in resource_access.SUB_TOOLS
-}
-#: The model of each kind inside a tool, by its wire name.
-_SUB_TOOL_MODELS: dict[str, type] = {
-    kind: _SUB_TOOLS_BY_TABLE[KINDS[kind].table] for kind in CHILD_KINDS
 }
 
 
@@ -213,13 +205,9 @@ async def record_recent(
     tool's own words. A PAM grantee's browsing is transient by design and is
     not stored.
     """
-    model = _SUB_TOOL_MODELS.get(entity_type.value)
-    if model is None:
-        row = await resource_access.load_authorized(
-            session, Tool(entity_type.value), entity_id, current_user, guild_context
-        )
-    else:
-        row = await resource_access.load_child(session, model, entity_id)
+    row = await resource_access.load_kind(
+        session, entity_type.value, entity_id, current_user, guild_context
+    )
     record = await recent_views_service.record_view(
         session,
         user_id=current_user.id,
