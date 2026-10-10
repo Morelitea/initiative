@@ -60,6 +60,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Search leaves out what is inside archived work.** Comments, wiki pages, queue items, counters, pictures and events no longer show as live results once the project, wiki, queue, counter group, gallery or calendar they are in is archived. They come back when it does, and a search that asks for archived work still finds them.
 - **Your recently opened items, favorite projects and project order are yours alone.** Nobody else in the community can read or change them, admins included.
 - **Only you can answer a poll or mark a notice read as yourself.** Admins can't change your answer either. Others still see the counts and who answered, as before.
 - **Only a comment's author can change or delete it, and only you can add or take off your reactions.** Comments, posts and reactions always carry the person who wrote them as their author. Moderators still take comments down and clear reactions, and an import still keeps the authors it maps.
