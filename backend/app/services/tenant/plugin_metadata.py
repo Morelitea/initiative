@@ -7,15 +7,13 @@ which rows it reaches: its own, on an item it can read, with the read scope of
 the item's tool. The checks here answer the same questions first, so a refusal
 names its reason instead of surfacing as a policy violation.
 
-The caps are the plug-in kit's (``metadataKeyLength`` and the rest of SDK 6's
-contract). They are stated here until this build vendors that kit release,
-when they are read from ``app.services.marketplace.contract`` instead.
+The caps are the plug-in kit's (``metadataValueBytes`` and the rest), read
+from the vendored contract.
 """
 
 from __future__ import annotations
 
 import json
-import string
 from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Any, Iterable, Mapping, Optional, Sequence
@@ -32,6 +30,8 @@ from app.db.advisory_locks import LockNamespace, advisory_lock
 from app.db.guild_standing import InstallContext
 from app.db.initiative_rls import governing_path
 from app.models.tenant.plugin_metadata import LOOKUP_LENGTH, PluginMetadata
+from app.services.marketplace import contract
+from app.services.marketplace.manifest_values import is_metadata_key
 from app.services.tenant.plugin_channels import PluginChannelError
 
 __all__ = [
@@ -41,19 +41,14 @@ __all__ = [
     "write",
 ]
 
-#: The longest key, and the characters it is spelled with: a lowercase letter,
-#: then lowercase letters, digits, ``_`` and ``.``.
-KEY_LENGTH = 64
-_KEY_FIRST = frozenset(string.ascii_lowercase)
-_KEY_CHARS = frozenset(string.ascii_lowercase + string.digits + "_.")
 #: The most one value may take, as JSON.
-VALUE_BYTES = 8192
+VALUE_BYTES = contract.cap("metadataValueBytes")
 #: What one install may keep on one item.
-ITEM_KEYS = 32
-ITEM_BYTES = 65536
+ITEM_KEYS = contract.cap("metadataKeysPerObject")
+ITEM_BYTES = contract.cap("metadataBytesPerObject")
 #: What an install may keep on itself.
-INSTALL_KEYS = 256
-INSTALL_BYTES = 1048576
+INSTALL_KEYS = contract.cap("installMetadataKeys")
+INSTALL_BYTES = contract.cap("installMetadataBytes")
 #: The most items one read may name.
 READ_IDS = 500
 #: The most items one look-up answers.
@@ -72,12 +67,7 @@ def _read_scope(kind: str) -> str:
 
 
 def _check_key(key: str) -> None:
-    if (
-        not key
-        or len(key) > KEY_LENGTH
-        or key[0] not in _KEY_FIRST
-        or any(character not in _KEY_CHARS for character in key)
-    ):
+    if not is_metadata_key(key):
         raise PluginChannelError(PluginChannelMessages.METADATA_KEY_INVALID)
 
 

@@ -55,12 +55,12 @@ from app.api.v1.tenant_endpoints import (
     resource_grants,
     storage,
     tags,
-    filter_presets,
     task_statuses,
     tasks,
     tool_grants,
     tool_lifecycle,
     tool_lists,
+    tool_views,
     tools,
     trash,
     wikis,
@@ -279,7 +279,7 @@ guild_router.include_router(tool_lists.router)
 guild_router.include_router(projects.router, **_tool_mount(Tool.project))
 guild_router.include_router(task_statuses.router, tags=["task-statuses"])
 guild_router.include_router(task_statuses.initiative_router, tags=["task-statuses"])
-guild_router.include_router(filter_presets.router, tags=["filter-presets"])
+guild_router.include_router(tool_views.router, tags=["views"])
 guild_router.include_router(query.router, tags=["query"])
 guild_router.include_router(tasks.router, prefix="/tasks", tags=["tasks"])
 # A community's own moderation: its reports, and settling them. No prefix —

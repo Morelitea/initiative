@@ -1,7 +1,7 @@
 """The names a row is known by: slugs, and names that must not repeat.
 
 A slug is an address, so its rule is stated once here and every place that
-derives one (a wiki page, a filter preset, an import) spells it the same way.
+derives one (a wiki page, a view, an import) spells it the same way.
 """
 
 from __future__ import annotations

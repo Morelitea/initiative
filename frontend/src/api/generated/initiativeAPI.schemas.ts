@@ -1644,6 +1644,89 @@ export interface CaptchaSettingsUpdate {
   secret_key?: string | null;
 }
 
+export type StackPropsDirection =
+  | (typeof StackPropsDirection)[keyof typeof StackPropsDirection]
+  | null;
+
+export const StackPropsDirection = {
+  column: "column",
+  row: "row",
+} as const;
+
+export type StackPropsGap = (typeof StackPropsGap)[keyof typeof StackPropsGap] | null;
+
+export const StackPropsGap = {
+  xs: "xs",
+  sm: "sm",
+} as const;
+
+export interface StackProps {
+  direction?: StackPropsDirection;
+  gap?: StackPropsGap;
+  wrap?: boolean | null;
+  align?: "start" | null;
+  tone?: "muted" | null;
+}
+
+/**
+ * A task's built-in fields, by the ids the renderer keys them by. An enum
+ * rather than a ``Literal`` so the generated client names the set.
+ */
+export type TaskFieldId = (typeof TaskFieldId)[keyof typeof TaskFieldId];
+
+export const TaskFieldId = {
+  title: "title",
+  description: "description",
+  assignees: "assignees",
+  startDate: "startDate",
+  dueDate: "dueDate",
+  recurrence: "recurrence",
+  checklist: "checklist",
+  priority: "priority",
+  comments: "comments",
+  blockers: "blockers",
+  tags: "tags",
+} as const;
+
+export interface FieldProps {
+  field: TaskFieldId | string;
+}
+
+export interface FieldPart {
+  type: "field";
+  props: FieldProps;
+}
+
+/**
+ * Every property the item carries, in its own order.
+ */
+export const PropertiesPartValue = {
+  type: "properties",
+} as const;
+export type PropertiesPart = typeof PropertiesPartValue;
+
+export interface StackPartInput {
+  type: "stack";
+  props?: StackProps | null;
+  children?: (CardPartInput | StackPartInput | FieldPart | PropertiesPart)[];
+}
+
+export interface CardPartInput {
+  type: "card";
+  children?: (CardPartInput | StackPartInput | FieldPart | PropertiesPart)[];
+}
+
+export interface StackPartOutput {
+  type: "stack";
+  props?: StackProps | null;
+  children?: (CardPartOutput | StackPartOutput | FieldPart | PropertiesPart)[];
+}
+
+export interface CardPartOutput {
+  type: "card";
+  children?: (CardPartOutput | StackPartOutput | FieldPart | PropertiesPart)[];
+}
+
 /**
  * A file attached to a case, and where in the conversation it came.
  */
@@ -4808,86 +4891,6 @@ export interface FiledTicketList {
   items: FiledTicketRead[];
 }
 
-export interface PresetPropertyFilter {
-  property_id: number;
-  op?: FilterOp;
-  value?: unknown;
-}
-
-export type TaskFilterSpecDue = (typeof TaskFilterSpecDue)[keyof typeof TaskFilterSpecDue] | null;
-
-export const TaskFilterSpecDue = {
-  overdue: "overdue",
-  today: "today",
-  "7_days": "7_days",
-  "30_days": "30_days",
-} as const;
-
-/**
- * The filter values a task preset holds. Unknown keys are rejected.
- */
-export interface TaskFilterSpec {
-  /** @maxItems 50 */
-  status_ids?: number[];
-  status_categories?: TaskStatusCategory[];
-  /** @maxItems 25 */
-  assignees?: string[];
-  /** @maxItems 25 */
-  tag_ids?: number[];
-  /** @maxItems 5 */
-  properties?: PresetPropertyFilter[];
-  due?: TaskFilterSpecDue;
-  include_archived?: boolean;
-}
-
-export interface FilterPresetCreate {
-  /**
-   * @minLength 1
-   * @maxLength 100
-   */
-  name: string;
-  filters?: TaskFilterSpec;
-  is_default?: boolean;
-  position?: number | null;
-}
-
-export interface FilterPresetRead {
-  id: number;
-  project_id: number;
-  slug: string;
-  name: string;
-  position: number;
-  is_default: boolean;
-  filters: TaskFilterSpec;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface FilterPresetListResponse {
-  items: FilterPresetRead[];
-  can_manage: boolean;
-}
-
-export interface FilterPresetReorderItem {
-  id: number;
-  /** @minimum 0 */
-  position: number;
-}
-
-export interface FilterPresetReorderRequest {
-  items: FilterPresetReorderItem[];
-}
-
-/**
- * Everything but ``slug`` — a slug is what a shared link carries.
- */
-export interface FilterPresetUpdate {
-  name?: string | null;
-  filters?: TaskFilterSpec | null;
-  is_default?: boolean | null;
-  position?: number | null;
-}
-
 /**
  * Body of ``POST /imports/foreign/{source}``.
  *
@@ -5763,6 +5766,26 @@ export interface InterfaceSettingsUpdate {
   light_accent_color: string;
   dark_accent_color: string;
   cookie_consent_enabled?: boolean | null;
+}
+
+/**
+ * An item's page, in three regions. A field placed in none of them is
+ * drawn in a "More fields" section.
+ */
+export interface ItemLayoutDefinitionInput {
+  header?: CardPartInput | StackPartInput | FieldPart | PropertiesPart | null;
+  main?: CardPartInput | StackPartInput | FieldPart | PropertiesPart | null;
+  side?: CardPartInput | StackPartInput | FieldPart | PropertiesPart | null;
+}
+
+/**
+ * An item's page, in three regions. A field placed in none of them is
+ * drawn in a "More fields" section.
+ */
+export interface ItemLayoutDefinitionOutput {
+  header?: CardPartOutput | StackPartOutput | FieldPart | PropertiesPart | null;
+  main?: CardPartOutput | StackPartOutput | FieldPart | PropertiesPart | null;
+  side?: CardPartOutput | StackPartOutput | FieldPart | PropertiesPart | null;
 }
 
 /**
@@ -7905,16 +7928,6 @@ export interface ProjectCreate {
   grants?: ResourceGrantSchema[];
 }
 
-export type ProjectReadDefaultViewMode =
-  | (typeof ProjectReadDefaultViewMode)[keyof typeof ProjectReadDefaultViewMode]
-  | null;
-
-export const ProjectReadDefaultViewMode = {
-  table: "table",
-  kanban: "kanban",
-  calendar: "calendar",
-} as const;
-
 export interface ProjectTaskSummary {
   total: number;
   completed: number;
@@ -7941,7 +7954,6 @@ export interface ProjectRead {
   owner_id: number | null;
   is_template: boolean;
   pinned_at: string | null;
-  default_view_mode: ProjectReadDefaultViewMode;
   owner: UserPublic | null;
   owner_plugin: OwnerPluginSummary | null;
   initiative: InitiativeSummary | null;
@@ -7964,23 +7976,12 @@ export interface ProjectReorderRequest {
   project_ids?: number[];
 }
 
-export type ProjectUpdateDefaultViewMode =
-  | (typeof ProjectUpdateDefaultViewMode)[keyof typeof ProjectUpdateDefaultViewMode]
-  | null;
-
-export const ProjectUpdateDefaultViewMode = {
-  table: "table",
-  kanban: "kanban",
-  calendar: "calendar",
-} as const;
-
 export interface ProjectUpdate {
   name?: string | null;
   description?: string | null;
   icon?: string | null;
   is_template?: boolean | null;
   pinned?: boolean | null;
-  default_view_mode?: ProjectUpdateDefaultViewMode;
   start_date?: string | null;
   end_date?: string | null;
 }
@@ -9274,6 +9275,38 @@ export interface TaskCreate {
   checklist?: ChecklistItemInput[];
 }
 
+export type TaskFilterSpecDue = (typeof TaskFilterSpecDue)[keyof typeof TaskFilterSpecDue] | null;
+
+export const TaskFilterSpecDue = {
+  overdue: "overdue",
+  today: "today",
+  "7_days": "7_days",
+  "30_days": "30_days",
+} as const;
+
+export interface TaskPropertyFilter {
+  property_id: number;
+  op?: FilterOp;
+  value?: unknown;
+}
+
+/**
+ * The filter values a task view holds. Unknown keys are rejected.
+ */
+export interface TaskFilterSpec {
+  /** @maxItems 50 */
+  status_ids?: number[];
+  status_categories?: TaskStatusCategory[];
+  /** @maxItems 25 */
+  assignees?: string[];
+  /** @maxItems 25 */
+  tag_ids?: number[];
+  /** @maxItems 5 */
+  properties?: TaskPropertyFilter[];
+  due?: TaskFilterSpecDue;
+  include_archived?: boolean;
+}
+
 export interface TaskListResponse {
   total_count: number;
   page: number;
@@ -9508,6 +9541,121 @@ export interface ToolCountsResponse {
 export interface ToolDuplicateRequest {
   name?: string | null;
   target_initiative_id?: number | null;
+}
+
+export interface ToolItemLayoutRead {
+  id: number;
+  item_kind: "task";
+  definition: ItemLayoutDefinitionOutput;
+}
+
+export interface ToolItemLayoutWrite {
+  item_kind: "task";
+  definition: ItemLayoutDefinitionInput;
+}
+
+export type ViewLayoutType = (typeof ViewLayoutType)[keyof typeof ViewLayoutType];
+
+export const ViewLayoutType = {
+  table: "table",
+  board: "board",
+  calendar: "calendar",
+} as const;
+
+export interface ViewLayout {
+  type: ViewLayoutType;
+}
+
+export type ViewSortDirection = (typeof ViewSortDirection)[keyof typeof ViewSortDirection];
+
+export const ViewSortDirection = {
+  asc: "asc",
+  desc: "desc",
+} as const;
+
+export interface ViewSort {
+  field: TaskFieldId | string;
+  direction?: ViewSortDirection;
+}
+
+export type ViewDefinitionOutputOpens =
+  | (typeof ViewDefinitionOutputOpens)[keyof typeof ViewDefinitionOutputOpens]
+  | null;
+
+export const ViewDefinitionOutputOpens = {
+  panel: "panel",
+  page: "page",
+} as const;
+
+/**
+ * A view. What it leaves out is drawn as shipped: a view with no ``card``
+ * draws the shipped card, one with no ``columns`` the shipped columns.
+ */
+export interface ViewDefinitionOutput {
+  layout: ViewLayout;
+  filters?: TaskFilterSpec | null;
+  card?: CardPartOutput | null;
+  columns?: (TaskFieldId | string)[] | null;
+  sort?: ViewSort[] | null;
+  opens?: ViewDefinitionOutputOpens;
+}
+
+export interface ToolViewRead {
+  id: number | null;
+  name: string;
+  slug: string;
+  position: number;
+  is_default: boolean;
+  definition: ViewDefinitionOutput;
+}
+
+export interface ToolViewSetRead {
+  views: ToolViewRead[];
+  item_layouts: ToolItemLayoutRead[];
+  stored: boolean;
+  can_configure: boolean;
+}
+
+export type ViewDefinitionInputOpens =
+  | (typeof ViewDefinitionInputOpens)[keyof typeof ViewDefinitionInputOpens]
+  | null;
+
+export const ViewDefinitionInputOpens = {
+  panel: "panel",
+  page: "page",
+} as const;
+
+/**
+ * A view. What it leaves out is drawn as shipped: a view with no ``card``
+ * draws the shipped card, one with no ``columns`` the shipped columns.
+ */
+export interface ViewDefinitionInput {
+  layout: ViewLayout;
+  filters?: TaskFilterSpec | null;
+  card?: CardPartInput | null;
+  columns?: (TaskFieldId | string)[] | null;
+  sort?: ViewSort[] | null;
+  opens?: ViewDefinitionInputOpens;
+}
+
+export interface ToolViewWrite {
+  /**
+   * @minLength 1
+   * @maxLength 100
+   */
+  name: string;
+  slug?: string | null;
+  is_default?: boolean;
+  definition: ViewDefinitionInput;
+}
+
+/**
+ * A target's whole set, in order. It replaces whatever was stored.
+ */
+export interface ToolViewSetWrite {
+  /** @minItems 1 */
+  views: ToolViewWrite[];
+  item_layouts?: ToolItemLayoutWrite[];
 }
 
 export interface TrashItem {
@@ -11062,6 +11210,24 @@ export type ReadProjectParams = {
    * Also return the resource if it is in the trash. For reading a resource back after a deleted event — the row still exists until retention purges it, and access is checked exactly as for a live one.
    */
   include_deleted?: boolean;
+};
+
+export type GetViewsParams = {
+  tool: Tool;
+  tool_id?: number | null;
+  initiative_id?: number | null;
+};
+
+export type PutViewsParams = {
+  tool: Tool;
+  tool_id?: number | null;
+  initiative_id?: number | null;
+};
+
+export type DeleteViewsParams = {
+  tool: Tool;
+  tool_id?: number | null;
+  initiative_id?: number | null;
 };
 
 export type ListTasksParams = {

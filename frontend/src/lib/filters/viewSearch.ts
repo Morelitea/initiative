@@ -1,32 +1,19 @@
 /**
- * The two search params that make a list view linkable: which view it is in,
- * and which saved preset it is showing.
+ * The search param that makes a list view linkable: which of its views it
+ * shows, by slug.
  *
- * Tool-agnostic on purpose — nothing here imports `Tool`. A tool adopting
- * presets passes its own view vocabulary in, because that vocabulary genuinely
- * differs per tool (tasks are table/kanban/calendar, a counter group is
- * row/grid, a calendar is day/week/month/...) and a shared enum would be wrong
- * at the type level. Everything else about presets is the same everywhere, so
- * it is shared rather than declared per tool.
+ * Tool-agnostic on purpose — nothing here imports `Tool`. A view's slug means
+ * the same thing for every tool that has views.
  */
 
 /** Slugs are lowercase kebab, matching what the API derives from a name. */
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const MAX_SLUG_LENGTH = 64;
 
-/** Coerce a `?preset=` value. Anything malformed is dropped, never thrown —
- *  a pasted link with a typo should still render the project. */
-export function parsePresetSlug(raw: unknown): string | undefined {
-  if (typeof raw !== "string") return undefined;
-  if (raw.length === 0 || raw.length > MAX_SLUG_LENGTH) return undefined;
-  return SLUG_PATTERN.test(raw) ? raw : undefined;
-}
-
-/** Coerce a `?view=` value against the tool's own vocabulary. */
-export function parseViewMode<V extends string>(
-  raw: unknown,
-  allowed: readonly V[]
-): V | undefined {
-  if (typeof raw !== "string") return undefined;
-  return (allowed as readonly string[]).includes(raw) ? (raw as V) : undefined;
-}
+/** Coerce a `?view=` value (or a `?preset=` from before views). Anything
+ *  malformed is dropped, never thrown — a pasted link with a typo should still
+ *  render the list. */
+export const parseViewSlug = (raw: unknown): string | undefined =>
+  typeof raw === "string" && raw.length <= MAX_SLUG_LENGTH && SLUG_PATTERN.test(raw)
+    ? raw
+    : undefined;

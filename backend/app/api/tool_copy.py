@@ -27,7 +27,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.api import resource_access
 from app.core.messages import FileMessages
 from app.core.tools import Tool
-from app.db.guild_standing import ActorContext
+from app.db.guild_standing import ActorContext, InstallContext
 from app.db.session import require_actor_context
 from app.models.platform.user import User
 from app.models.tenant._mixins import (
@@ -53,7 +53,6 @@ from app.services.tenant import attachments as attachments_service
 from app.services.tenant import calendar_occurrences as occurrences_service
 from app.services.tenant import files as files_service
 from app.services.tenant import file_versions
-from app.services.tenant import filter_presets as filter_presets_service
 from app.services.tenant import named_people, project_grants
 from app.services.tenant import properties as properties_service
 from app.services.tenant import content_references, relationships
@@ -61,6 +60,7 @@ from app.services.tenant.relationships import Endpoint
 from app.services.tenant import tags as tags_service
 from app.services.tenant import task_creation
 from app.services.tenant import task_statuses as task_statuses_service
+from app.services.tenant import tool_views as tool_views_service
 from app.services.tenant import wikis as wikis_service
 from app.services.tenant.names import copy_name, ensure_name_free
 
@@ -309,15 +309,16 @@ async def _project_contents(
         session, source_project_id=source.id, target_project_id=copy.id
     )
     statuses = await task_statuses_service.ensure_default_statuses(session, copy.id)
-    # Presets' status filters name per-project ids, so they go through the
-    # mapping too.
-    await filter_presets_service.clone_presets(
-        session,
-        source_project_id=source.id,
-        target_project_id=copy.id,
-        status_mapping=status_mapping,
-    )
-    await filter_presets_service.ensure_default_presets(session, copy.id)
+    # Views' status filters name per-project ids, so they go through the
+    # mapping too. A plug-in's copy has the shipped views: views are the
+    # initiative's own layout of its tools, which plug-ins do not read.
+    if not isinstance(actor, InstallContext):
+        await tool_views_service.copy_views(
+            session,
+            tool_views_service.Target(Tool.project, source.id, source.initiative_id),
+            tool_views_service.Target(Tool.project, copy.id, copy.initiative_id),
+            status_mapping=status_mapping,
+        )
     return await task_creation.copy_project_tasks(
         session,
         source,

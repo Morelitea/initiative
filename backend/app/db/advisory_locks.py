@@ -84,6 +84,8 @@ class LockNamespace(IntEnum):
     #: The values one install keeps on one item, keyed by guild, install and
     #: item, written under the per-item caps.
     PLUGIN_METADATA = _tag(b"PMET")
+    #: Replacing one target's views, keyed by guild, tool and target.
+    TOOL_VIEWS = _tag(b"VIEW")
 
     # -- keyed by an account ------------------------------------------------
     #: Creating communities under the daily limit.

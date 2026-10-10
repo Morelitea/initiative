@@ -253,7 +253,8 @@ async def restore_entity(
 
 async def _purge_references(session: AsyncSession, doomed: Level) -> None:
     """Drop every row that names one of these by ``(kind, id)``: edges,
-    reactions, recent views, custom property values and plug-ins' metadata.
+    reactions, recent views, custom property values, plug-ins' metadata and a
+    tool's views.
 
     Nothing carries those out with the row they name, and once it is gone
     their policies have nothing to ask, so they go first. Each kind is read
@@ -262,7 +263,7 @@ async def _purge_references(session: AsyncSession, doomed: Level) -> None:
     """
     from app.core.reactions import ReactionTarget
     from app.core.relationships import ENDPOINT_KINDS
-    from app.core.tools import ITEM_KINDS, KINDS
+    from app.core.tools import ITEM_KINDS, KINDS, VIEWS_PER_INSTANCE
     from app.db.initiative_rls import RECENT_ENTITY_TABLES
     from app.services.tenant import (
         plugin_metadata,
@@ -270,12 +271,14 @@ async def _purge_references(session: AsyncSession, doomed: Level) -> None:
         reactions,
         recent_views,
         relationships,
+        tool_views,
     )
 
     edge_kinds = {endpoint.table: kind for kind, endpoint in ENDPOINT_KINDS.items()}
     reaction_targets = {target.table: target for target in ReactionTarget}
     recent_kinds = {table: kind for kind, table in RECENT_ENTITY_TABLES.items()}
     item_kinds = {KINDS[kind].table: kind for kind in ITEM_KINDS}
+    view_tools = {tool.plural: tool for tool in VIEWS_PER_INSTANCE}
     for model, ids in doomed.items():
         table = getattr(model, "__tablename__", "")
         if not ids:
@@ -290,6 +293,8 @@ async def _purge_references(session: AsyncSession, doomed: Level) -> None:
             await properties.drop_values(session, spec.target, ids)
         if (item := item_kinds.get(table)) is not None:
             await plugin_metadata.drop_for_items(session, item, ids)
+        if (tool := view_tools.get(table)) is not None:
+            await tool_views.drop_for_instances(session, tool, ids)
 
 
 #: The tables whose rows the purge hooks read, not just their ids, with the

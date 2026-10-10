@@ -50,7 +50,8 @@ export const ProjectDetailPage = () => {
     await invalidate(
       q.project(parsedProjectId),
       q.allTasks(),
-      q.projectTaskStatuses(parsedProjectId)
+      q.projectTaskStatuses(parsedProjectId),
+      q.views()
     );
   }, [parsedProjectId]);
 
@@ -140,7 +141,6 @@ export const ProjectDetailPage = () => {
           projectId={project.id}
           initiativeId={project.initiative_id}
           taskStatuses={taskStatusesQuery.data ?? []}
-          projectDefaultViewMode={project.default_view_mode}
           canEditTaskDetails={canEdit}
           projectIsArchived={projectIsArchived}
           taskHref={taskHref}

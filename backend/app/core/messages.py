@@ -316,17 +316,27 @@ class InitiativeMessages:
     CONTENT_KEPT_IN = "INITIATIVE_CONTENT_KEPT_IN"
 
 
-class FilterPresetMessages:
-    NOT_FOUND = "FILTER_PRESET_NOT_FOUND"
-    DUPLICATE_ID = "FILTER_PRESET_DUPLICATE_ID"
-    LIMIT_REACHED = "FILTER_PRESET_LIMIT_REACHED"
+class ToolViewMessages:
+    # The tool takes no views, or the target names an instance where the tool
+    # has one page per initiative (or the other way round).
+    TARGET_INVALID = "TOOL_VIEWS_TARGET_INVALID"
+    # A layout or an item kind this tool does not draw.
+    LAYOUT_NOT_ALLOWED = "TOOL_VIEWS_LAYOUT_NOT_ALLOWED"
+    # A set holds exactly one default view.
+    ONE_DEFAULT = "TOOL_VIEWS_ONE_DEFAULT"
+    # More views than a target may have.
+    LIMIT_REACHED = "TOOL_VIEWS_LIMIT_REACHED"
+    DUPLICATE_SLUG = "TOOL_VIEWS_DUPLICATE_SLUG"
+    DUPLICATE_ITEM_LAYOUT = "TOOL_VIEWS_DUPLICATE_ITEM_LAYOUT"
+    # A view or item layout over its node, depth or size limit.
+    TOO_LARGE = "TOOL_VIEWS_TOO_LARGE"
 
 
 class ProjectMessages:
     INVALID_TEMPLATE = "PROJECT_INVALID_TEMPLATE"
     INITIATIVE_REQUIRED = "PROJECT_INITIATIVE_REQUIRED"
-    # Configuring the project itself (pinning, default view, filter
-    # presets) — a project manager, the project owner, or a guild admin.
+    # Configuring the project itself (pinning, default view, its views) — a
+    # project manager, the project owner, or a guild admin.
     CONFIGURE_REQUIRED = "PROJECT_CONFIGURE_REQUIRED"
 
 

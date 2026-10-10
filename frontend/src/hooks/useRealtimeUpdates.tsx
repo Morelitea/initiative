@@ -131,6 +131,13 @@ const CONTAINER_SPECS: Record<string, (id: number, direct: boolean) => Spec[]> =
   wiki_pages: (id) => [q.wikiPage(id)],
 };
 
+/**
+ * What a change to one facet of a resource makes stale, by the facet's label in
+ * `changed`, where the facet is read at an address of its own rather than under
+ * the resource's: a project's views, or an initiative's calendar views.
+ */
+const FACET_SPECS: Record<string, Spec> = { views: q.views() };
+
 const isRef = (value: unknown): value is ResourceRef => {
   const ref = value as ResourceRef | undefined;
   return typeof ref?.type === "string" && Number.isFinite(ref?.id);
@@ -159,10 +166,15 @@ export const applyChanges = (changes: readonly RealtimeChange[], communityId: nu
   const resources = new Map<string, [ResourceRef, boolean]>();
   const containers = new Map<string, [ResourceRef, boolean]>();
   const threads = new Map<string, { parent: ResourceRef; commentIds: Set<number> }>();
+  const specs: Spec[] = [];
 
   for (const change of changes) {
     const resource = change.resource;
     const parents = (change.parents ?? []).filter(isRef);
+    for (const facet of change.changed ?? []) {
+      const spec = FACET_SPECS[facet];
+      if (spec) specs.push(spec);
+    }
     if (isRef(resource)) {
       note(resources, resource, recounts(change));
       // The innermost parent is what the comment's thread hangs off.
@@ -178,7 +190,6 @@ export const applyChanges = (changes: readonly RealtimeChange[], communityId: nu
     }
   }
 
-  const specs: Spec[] = [];
   for (const [ref, recount] of resources.values()) {
     specs.push(...(RESOURCE_SPECS[ref.type]?.(ref.id, recount) ?? []));
   }

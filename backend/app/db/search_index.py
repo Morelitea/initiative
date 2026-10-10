@@ -486,7 +486,7 @@ NOT_SEARCHABLE: dict[str, str] = {
     "intake_cases": "the key -> task map; the task it names is what is indexed",
     "evidence": "files attached to a report or a case, opened only through it",
     "recent_views": "one member's own viewing state",
-    "project_filter_presets": "one member's saved filters",
+    "tool_views": "how a tool is laid out, reached from the tool",
     "task_statuses": "column names, reached from the project",
     "file_versions": "history of a file already indexed",
     "gallery_image_versions": "history of a picture already indexed",

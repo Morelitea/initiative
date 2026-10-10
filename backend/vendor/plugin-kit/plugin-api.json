@@ -2,10 +2,10 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Initiative plug-in API",
-    "version": "5.0.0",
+    "version": "6.0.0",
     "x-initiative-source": {
-      "version": "0.74.0",
-      "commit": "0492f28bb7e586091a62a58dcc1bc768d0544416"
+      "version": "0.75.3",
+      "commit": "b7992004243ed01bf3e971481b11561e1fb7ab58"
     }
   },
   "servers": [
@@ -16456,22 +16456,6 @@
             ],
             "title": "Pinned At"
           },
-          "default_view_mode": {
-            "anyOf": [
-              {
-                "type": "string",
-                "enum": [
-                  "table",
-                  "kanban",
-                  "calendar"
-                ]
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Default View Mode"
-          },
           "owner": {
             "anyOf": [
               {
@@ -16552,7 +16536,6 @@
           "owner_id",
           "is_template",
           "pinned_at",
-          "default_view_mode",
           "owner",
           "owner_plugin",
           "initiative",
@@ -16642,22 +16625,6 @@
               }
             ],
             "title": "Pinned"
-          },
-          "default_view_mode": {
-            "anyOf": [
-              {
-                "type": "string",
-                "enum": [
-                  "table",
-                  "kanban",
-                  "calendar"
-                ]
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Default View Mode"
           },
           "start_date": {
             "anyOf": [

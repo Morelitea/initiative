@@ -18,11 +18,6 @@ export {
   resetCounter as resetDmCounter,
 } from "./dm.factory";
 export { buildFileSummary, resetCounter as resetFileCounter } from "./file.factory";
-export {
-  buildDefaultFilterPresets,
-  buildFilterPreset,
-  resetCounter as resetFilterPresetCounter,
-} from "./filterPreset.factory";
 export { buildGallery, buildGalleryImage } from "./gallery.factory";
 export {
   buildInitiative,
@@ -88,6 +83,13 @@ export {
   resetCounter as resetTaskCounter,
 } from "./task.factory";
 export {
+  buildSavedViewSet,
+  buildShippedProjectViews,
+  buildToolView,
+  buildToolViewSet,
+  resetCounter as resetToolViewCounter,
+} from "./toolView.factory";
+export {
   buildOwnedDecoration,
   buildUser,
   buildUserCommunityMember,
@@ -103,7 +105,6 @@ import { resetCounter as resetCommentCounter } from "./comment.factory";
 import { resetCounter as resetCommunityCounter } from "./community.factory";
 import { resetCounter as resetDmCounter } from "./dm.factory";
 import { resetCounter as resetFileCounter } from "./file.factory";
-import { resetCounter as resetFilterPresetCounter } from "./filterPreset.factory";
 import { resetCounter as resetGalleryCounter } from "./gallery.factory";
 import { resetCounter as resetInitiativeCounter } from "./initiative.factory";
 import { resetCounter as resetMarketplaceCounter } from "./marketplace.factory";
@@ -116,6 +117,7 @@ import { resetRecentCounter } from "./recent.factory";
 import { resetCounter as resetSearchCounter } from "./search.factory";
 import { resetCounter as resetTagCounter } from "./tag.factory";
 import { resetCounter as resetTaskCounter } from "./task.factory";
+import { resetCounter as resetToolViewCounter } from "./toolView.factory";
 import { resetCounter as resetUserCounter } from "./user.factory";
 import { resetCounter as resetWikiCounter } from "./wiki.factory";
 
@@ -137,7 +139,7 @@ export function resetFactories(): void {
   resetPropertyCounter();
   resetRecentCounter();
   resetMarketplaceCounter();
-  resetFilterPresetCounter();
+  resetToolViewCounter();
   resetSearchCounter();
   resetDmCounter();
   resetPostCounter();

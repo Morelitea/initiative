@@ -1,9 +1,9 @@
 {
-  "$comment": "The Initiative plug-in contract: the vocabulary a plug-in manifest draws on and the shape it takes. Hand-authored HERE, in the initiative-plugin-sdk repository, and nowhere else. Running `npm run generate` in that repository rewrites schemas/plugin-manifest.json and src/contract.ts from this file. Initiative vendors this file to derive its validator's constants and hold its normalizer to the field inventory; the copies under initiative's backend/vendor/plugin-kit and frontend/src/contract are refreshed by backend/scripts/refresh_plugin_kit.py and are not edited there. Edit this; never the generated output. A manifest describes a plug-in's API and nothing about how a consumer PRESENTS it: there is no term here for a control, a picker, a default or a bound, because what a step looks like on somebody's canvas is that consumer's to decide and ours to stay out of.",
+  "$comment": "The Initiative plug-in contract: the vocabulary a plug-in manifest draws on and the shape it takes. Hand-authored HERE, in the initiative-plugin-sdk repository, and nowhere else. Running `npm run generate` in that repository rewrites schemas/plugin-manifest.json and src/contract.ts from this file. Initiative vendors this file to derive its validator's constants and hold its normalizer to the field inventory; the copies under initiative's backend/vendor/plugin-kit and frontend/src/contract are refreshed by backend/scripts/refresh_plugin_kit.py and are not edited there. Edit this; never the generated output. A manifest describes a plug-in's API and nothing about how a consumer PRESENTS it: there is no term here for a control, a picker, a default or a bound, because what a step looks like on somebody's canvas is that consumer's to decide and ours to stay out of. Fields, parts and actions are the one exception, and a narrow one: they say how a plug-in's own values are shown in Initiative's own components, and the community's managers decide where.",
   "schema": {
     "$id": "https://initiativetasks.com/schemas/plugin-manifest-v1.json",
     "title": "Initiative plug-in manifest (the 'definition' body)",
-    "description": "What a plug-in declares it can do. A plug-in is a container, which names its `service` and answers Initiative's calls, or declarative, which names its `hosts` and no service, and whose endpoints, connection checks and webhook events Initiative runs itself from the requests and JSONata expressions written here; one plug-in is never both. This is the 'definition' field of the document served at /.well-known/initiative-plugin.json, NOT that whole document: a registrar also requires protocol_version, public_id and kind alongside it, and refuses a definition served bare. Generated from the platform's own validator vocabulary. A manifest that satisfies this schema is well-formed, not necessarily acceptable. Cross-references (the endpoint a widget binds, a requires term's connection, an endpoint's service prefix), the direction-specific rules on an endpoint, the features/blocks cross-check in both directions, UTF-8 byte-size caps, the rules tying a connection's flow and token to its scope and fields, what a webhooks block names, what a vendor setup writes to, whether every expression parses, what a declarative request and its steps name, and the bounds and unique ids of schedules are enforced by the platform on publish and are not expressible here."
+    "description": "What a plug-in declares it can do. A plug-in is a container, which names its `service` and answers Initiative's calls, or declarative, which names its `hosts` and no service, and whose endpoints, connection checks and webhook events Initiative runs itself from the requests and JSONata expressions written here; one plug-in is never both. This is the 'definition' field of the document served at /.well-known/initiative-plugin.json, NOT that whole document: a registrar also requires protocol_version, public_id and kind alongside it, and refuses a definition served bare. Generated from the platform's own validator vocabulary. A manifest that satisfies this schema is well-formed, not necessarily acceptable. Cross-references (the endpoint a widget binds, a requires term's connection, an endpoint's service prefix), the direction-specific rules on an endpoint, the features/blocks cross-check in both directions, UTF-8 byte-size caps, the rules tying a connection's flow and token to its scope and fields, what a webhooks block names, what a vendor setup writes to, whether every expression parses, what a declarative request and its steps name, the bounds and unique ids of schedules, the unique keys and ids of fields, parts and actions, what a part's nodes and an action name, and a part's size and depth are enforced by the platform on publish and are not expressible here."
   },
   "charsets": {
     "identifier": "-0123456789_abcdefghijklmnopqrstuvwxyz",
@@ -16,13 +16,17 @@
     "localeTag": "-ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
     "version": "0123456789.-+abcdefghijklmnopqrstuvwxyz",
     "artwork": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/._-",
-    "queryName": "-.0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ[]_abcdefghijklmnopqrstuvwxyz~"
+    "queryName": "-.0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ[]_abcdefghijklmnopqrstuvwxyz~",
+    "metadataKey": "._0123456789abcdefghijklmnopqrstuvwxyz"
   },
   "enums": {
     "feature": [
+      "actions",
       "dashboards",
       "endpoints",
+      "fields",
       "pages",
+      "parts",
       "widgets"
     ],
     "protocol": [
@@ -151,6 +155,32 @@
       "geolocation",
       "microphone"
     ],
+    "itemKind": [
+      "task",
+      "calendar_event",
+      "queue_item",
+      "counter",
+      "gallery_image",
+      "post"
+    ],
+    "fieldKind": [
+      "text",
+      "number",
+      "date",
+      "datetime",
+      "link",
+      "badge",
+      "progress",
+      "checkbox"
+    ],
+    "tone": [
+      "accent",
+      "positive",
+      "negative",
+      "warning",
+      "neutral",
+      "muted"
+    ],
     "listingKind": [
       "plugin",
       "dashboard"
@@ -206,6 +236,19 @@
     "returnsPerEndpoint": 24,
     "pages": 12,
     "pageCapabilities": 8,
+    "fields": 32,
+    "parts": 16,
+    "actions": 16,
+    "partNodes": 50,
+    "partDepth": 4,
+    "metadataKeyLength": 64,
+    "metadataValueBytes": 8192,
+    "metadataLookupLength": 255,
+    "metadataKeysPerObject": 32,
+    "metadataBytesPerObject": 65536,
+    "installMetadataKeys": 256,
+    "installMetadataBytes": 1048576,
+    "partsPlacedPerItem": 3,
     "bundledDashboards": 8,
     "dashboardWidgets": 50,
     "dashboardGridColumns": 12,
@@ -1166,6 +1209,375 @@
         }
       }
     },
+    "metadataKey": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": "metadataKeyLength",
+      "patternFrom": "metadataKey",
+      "patternForm": "letterFirst",
+      "description": "A key the plug-in keeps a value under, on an item or on its own install: a lowercase letter, then lowercase letters, digits, '_' and '.'."
+    },
+    "field": {
+      "type": "object",
+      "description": "How one of the plug-in's metadata keys is shown on Initiative's items. The plug-in keeps the value in Initiative, through its installation token; Initiative draws it with its own component for `kind` and computes its plain text itself, so a field filters, sorts and exports with no call to the plug-in. Which views show it is chosen by the community's managers, never by the plug-in. Initiative holds what is kept, and these caps are enforced there rather than here: a value of at most {metadataValueBytes} bytes as JSON, with a string of at most {metadataLookupLength} characters to be found by; at most {metadataKeysPerObject} keys and {metadataBytesPerObject} bytes on one item, and {installMetadataKeys} keys and {installMetadataBytes} bytes on the install.",
+      "required": [
+        "key",
+        "name",
+        "kind",
+        "on"
+      ],
+      "properties": {
+        "key": {
+          "ref": "metadataKey",
+          "description": "The metadata key whose value this shows. Unique among this manifest's fields."
+        },
+        "name": {
+          "ref": "localizedText",
+          "description": "The field's label."
+        },
+        "kind": {
+          "enum": "fieldKind",
+          "description": "What the value is, and so how it is drawn: 'text' a string; 'number' a number; 'date' a 'YYYY-MM-DD' string; 'datetime' an ISO 8601 string with its offset; 'link' {url, text?}; 'badge' {text, tone?}; 'progress' {value, max}; 'checkbox' a boolean."
+        },
+        "on": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": {
+            "wholeOf": "itemKind"
+          },
+          "uniqueItems": true,
+          "items": {
+            "enum": "itemKind"
+          },
+          "description": "The item kinds it is offered on."
+        },
+        "description": {
+          "ref": "localizedText",
+          "description": "The one line the view editor's Add picker shows beside the name."
+        },
+        "tone": {
+          "enum": "tone",
+          "description": "A badge's tone when its value names none."
+        },
+        "requires": {
+          "ref": "requires"
+        }
+      }
+    },
+    "partNode": {
+      "description": "One node of a part: one of Initiative's own components, told apart by 'type', with its props and, for a section or a stack, the nodes inside it.",
+      "oneOf": [
+        {
+          "ref": "sectionNode"
+        },
+        {
+          "ref": "stackNode"
+        },
+        {
+          "ref": "fieldNode"
+        },
+        {
+          "ref": "valueNode"
+        },
+        {
+          "ref": "textNode"
+        },
+        {
+          "ref": "buttonNode"
+        }
+      ]
+    },
+    "sectionNode": {
+      "type": "object",
+      "description": "A titled group, which the reader may fold.",
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "const": "section"
+        },
+        "props": {
+          "type": "object",
+          "properties": {
+            "title": {
+              "ref": "localizedText"
+            },
+            "collapsed": {
+              "type": "boolean",
+              "default": false,
+              "description": "Drawn folded until the reader opens it."
+            }
+          },
+          "additionalProperties": false
+        },
+        "children": {
+          "type": "array",
+          "maxItems": "partNodes",
+          "items": {
+            "ref": "partNode"
+          },
+          "description": "Drawn in order, inside this one."
+        }
+      },
+      "additionalProperties": false
+    },
+    "stackNode": {
+      "type": "object",
+      "description": "Nodes side by side or one above another.",
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "const": "stack"
+        },
+        "props": {
+          "type": "object",
+          "properties": {
+            "direction": {
+              "enum": [
+                "row",
+                "column"
+              ],
+              "default": "column"
+            },
+            "gap": {
+              "enum": [
+                "none",
+                "small",
+                "medium",
+                "large"
+              ],
+              "description": "The space between the nodes. Absent: Initiative's own."
+            },
+            "wrap": {
+              "type": "boolean",
+              "default": false,
+              "description": "A row runs onto a second line rather than past its edge."
+            }
+          },
+          "additionalProperties": false
+        },
+        "children": {
+          "type": "array",
+          "maxItems": "partNodes",
+          "items": {
+            "ref": "partNode"
+          },
+          "description": "Drawn in order, inside this one."
+        }
+      },
+      "additionalProperties": false
+    },
+    "fieldNode": {
+      "type": "object",
+      "description": "A field's label and its value.",
+      "required": [
+        "type",
+        "props"
+      ],
+      "properties": {
+        "type": {
+          "const": "field"
+        },
+        "props": {
+          "type": "object",
+          "required": [
+            "field"
+          ],
+          "properties": {
+            "field": {
+              "ref": "metadataKey",
+              "description": "One of this manifest's fields, by its key, offered on every item kind the part is."
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "valueNode": {
+      "type": "object",
+      "description": "A field's value alone.",
+      "required": [
+        "type",
+        "props"
+      ],
+      "properties": {
+        "type": {
+          "const": "value"
+        },
+        "props": {
+          "type": "object",
+          "required": [
+            "field"
+          ],
+          "properties": {
+            "field": {
+              "ref": "metadataKey",
+              "description": "One of this manifest's fields, by its key, offered on every item kind the part is."
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "textNode": {
+      "type": "object",
+      "description": "Words the plug-in wrote.",
+      "required": [
+        "type",
+        "props"
+      ],
+      "properties": {
+        "type": {
+          "const": "text"
+        },
+        "props": {
+          "type": "object",
+          "required": [
+            "text"
+          ],
+          "properties": {
+            "text": {
+              "ref": "localizedText"
+            },
+            "tone": {
+              "enum": "tone"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "buttonNode": {
+      "type": "object",
+      "description": "A button that runs one of this plug-in's actions on the item, labelled with the action's name.",
+      "required": [
+        "type",
+        "props"
+      ],
+      "properties": {
+        "type": {
+          "const": "button"
+        },
+        "props": {
+          "type": "object",
+          "required": [
+            "action"
+          ],
+          "properties": {
+            "action": {
+              "ref": "identifier",
+              "description": "One of this manifest's actions, by its id, offered on every item kind the part is."
+            },
+            "variant": {
+              "enum": [
+                "primary",
+                "secondary",
+                "ghost"
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "part": {
+      "type": "object",
+      "description": "A piece of an item's page or view, built from Initiative's own components and bound to this plug-in's fields and actions. Data only: Initiative draws each node, and no plug-in code runs in the reader's browser. Which views show it is chosen by the community's managers, never by the plug-in, and Initiative places at most {partsPlacedPerItem} of a plug-in's parts on one item.",
+      "required": [
+        "id",
+        "name",
+        "on",
+        "tree"
+      ],
+      "properties": {
+        "id": {
+          "ref": "identifier",
+          "description": "Unique among this manifest's parts."
+        },
+        "name": {
+          "ref": "localizedText",
+          "description": "What the view editor calls it."
+        },
+        "on": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": {
+            "wholeOf": "itemKind"
+          },
+          "uniqueItems": true,
+          "items": {
+            "enum": "itemKind"
+          },
+          "description": "The item kinds it is offered on."
+        },
+        "tree": {
+          "ref": "partNode",
+          "description": "What is drawn: at most {partNodes} nodes, at most {partDepth} deep."
+        },
+        "description": {
+          "ref": "localizedText",
+          "description": "The one line the view editor's Add picker shows beside the name."
+        },
+        "requires": {
+          "ref": "requires"
+        }
+      }
+    },
+    "action": {
+      "type": "object",
+      "description": "Something a reader runs on one item, from a part's button or the item's own menu. Initiative only connects: it calls the write endpoint as the installation, with the reader as 'viewer' and the item as 'subject' in the call's token, and the endpoint does the work, usually writing the plug-in's metadata. Initiative then answers the reader with the item's metadata as it stands.",
+      "required": [
+        "id",
+        "name",
+        "endpoint",
+        "on"
+      ],
+      "properties": {
+        "id": {
+          "ref": "identifier",
+          "description": "Unique among this manifest's actions."
+        },
+        "name": {
+          "ref": "localizedText",
+          "description": "The button's or the menu entry's label."
+        },
+        "endpoint": {
+          "ref": "namespacedId",
+          "description": "A write endpoint this manifest declares."
+        },
+        "on": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": {
+            "wholeOf": "itemKind"
+          },
+          "uniqueItems": true,
+          "items": {
+            "enum": "itemKind"
+          },
+          "description": "The item kinds it is offered on."
+        },
+        "confirm": {
+          "ref": "localizedText",
+          "description": "A question Initiative asks before running it. Absent: it runs at once."
+        },
+        "menu": {
+          "type": "boolean",
+          "default": false,
+          "description": "Also offered in the item's own menu."
+        },
+        "requires": {
+          "ref": "requires"
+        }
+      }
+    },
     "bundledDashboard": {
       "type": "object",
       "required": [
@@ -1908,6 +2320,30 @@
           "ref": "bundledDashboard"
         },
         "description": "Ready-made arrangements of this plug-in's own widgets. Publishing the plug-in publishes one ordinary dashboard listing per entry, offered to communities that install the plug-in."
+      },
+      "fields": {
+        "type": "array",
+        "maxItems": "fields",
+        "items": {
+          "ref": "field"
+        },
+        "description": "How the plug-in's metadata is shown on items. A container plug-in's only: a declarative plug-in holds no installation token, so it keeps no metadata to show."
+      },
+      "parts": {
+        "type": "array",
+        "maxItems": "parts",
+        "items": {
+          "ref": "part"
+        },
+        "description": "Pieces of items' pages and views, built from Initiative's components and bound to the plug-in's fields and actions. A container plug-in's only, as fields are."
+      },
+      "actions": {
+        "type": "array",
+        "maxItems": "actions",
+        "items": {
+          "ref": "action"
+        },
+        "description": "What a reader may run on an item, each one of the plug-in's write endpoints. A container plug-in's only: a declarative plug-in has no handler to do an action's work."
       }
     }
   }

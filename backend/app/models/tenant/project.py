@@ -1,7 +1,7 @@
 from datetime import date, datetime, timezone
 from typing import List, Optional, TYPE_CHECKING
 
-from sqlalchemy import Column, Date, DateTime, String, Text
+from sqlalchemy import Column, Date, DateTime, Text
 from sqlmodel import Field, Relationship
 
 from app.core.tools import Tool
@@ -18,7 +18,6 @@ from app.models.tenant._mixins import (
 
 
 if TYPE_CHECKING:  # pragma: no cover - imported lazily for type checking only
-    from app.models.tenant.filter_preset import ProjectFilterPreset
     from app.models.tenant.task import Task, TaskStatus
     from app.models.tenant.initiative import Initiative
     from app.models.tenant.resource_grant import ResourceGrant
@@ -68,15 +67,6 @@ class Project(
         default=None,
         sa_column=Column(DateTime(timezone=True), nullable=True),
     )
-    # Which task view a project opens on for someone with no view of their own
-    # yet. VARCHAR rather than a native enum on purpose: under schema-per-guild
-    # an enum is one type object per guild schema, so growing the vocabulary
-    # would mean an ALTER TYPE across every schema. The vocabulary lives in
-    # ProjectUpdate's Literal instead.
-    default_view_mode: Optional[str] = Field(
-        default=None,
-        sa_column=Column(String(length=16), nullable=True),
-    )
 
     initiative: Optional["Initiative"] = Relationship(back_populates="projects")
 
@@ -85,10 +75,6 @@ class Project(
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
     task_statuses: List["TaskStatus"] = Relationship(
-        back_populates="project",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
-    )
-    filter_presets: List["ProjectFilterPreset"] = Relationship(
         back_populates="project",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )

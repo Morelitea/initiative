@@ -1,60 +1,38 @@
 import { createFileRoute, lazyRouteComponent } from "@tanstack/react-router";
 
-import {
-  getListFilterPresetsQueryKey,
-  listFilterPresets,
-} from "@/api/generated/filter-presets/filter-presets";
-import type {
-  FilterPresetListResponse,
-  ProjectRead,
-  UserViewPreferencesMap,
-} from "@/api/generated/initiativeAPI.schemas";
+import type { ProjectRead, UserViewPreferencesMap } from "@/api/generated/initiativeAPI.schemas";
 import { getReadProjectQueryKey, readProject } from "@/api/generated/projects/projects";
 import {
   getListTaskStatusesQueryKey,
   listTaskStatuses,
 } from "@/api/generated/task-statuses/task-statuses";
+import {
+  projectViews,
+  projectViewsPreferenceKey,
+  sanitizeStoredViews,
+} from "@/hooks/useProjectTaskView";
+import { projectViewsQuery } from "@/hooks/useProjectViews";
 import { tasksQuery } from "@/hooks/useTasks";
 import { VIEW_PREFERENCES_QUERY_KEY } from "@/hooks/useViewPreference";
-import { resolvePresetState } from "@/lib/filters/presets";
 import {
   buildTaskListParams,
   EMPTY_TASK_FILTERS,
-  specFromApi,
-  TASK_VIEW_MODES,
-  type TaskFilterSpec,
-  type TaskViewMode,
   taskFiltersEqual,
 } from "@/lib/filters/taskFilters";
-import { parsePresetSlug, parseViewMode } from "@/lib/filters/viewSearch";
-
-/** The viewer's remembered filter state, from the hydrated preferences cache. */
-function storedSpec(
-  queryClient: { getQueryData: <T>(key: readonly unknown[]) => T | undefined },
-  projectId: number
-): { spec: TaskFilterSpec; viewMode?: TaskViewMode; activePresetSlug?: string | null } | null {
-  const raw = queryClient.getQueryData<UserViewPreferencesMap>(VIEW_PREFERENCES_QUERY_KEY)?.items?.[
-    `project:${projectId}:view-filters`
-  ];
-  if (raw === null || raw === undefined || typeof raw !== "object") return null;
-  const parsed = raw as Record<string, unknown>;
-  return {
-    spec: specFromApi(parsed as never),
-    viewMode: parseViewMode(parsed.viewMode, TASK_VIEW_MODES),
-    activePresetSlug: typeof parsed.activePresetSlug === "string" ? parsed.activePresetSlug : null,
-  };
-}
+import { parseViewSlug } from "@/lib/filters/viewSearch";
+import { resolveViewState } from "@/lib/filters/views";
 
 export const Route = createFileRoute(
   "/_serverRequired/_authenticated/c/$communityId/i/$initiativeId/projects/$projectId/"
 )({
   validateSearch: (search: Record<string, unknown>) => ({
     create: typeof search.create === "string" ? search.create : undefined,
-    // What makes a task view linkable: which saved preset it shows, and which
-    // view it is in. Malformed values are dropped, never thrown — a pasted
-    // link with a typo should still render the project.
-    preset: parsePresetSlug(search.preset),
-    view: parseViewMode(search.view, TASK_VIEW_MODES),
+    // Which of the project's views it shows, which makes it linkable. A link
+    // from before views names a preset instead, which became the view with
+    // its slug. Malformed values are dropped, never thrown — a pasted link
+    // with a typo should still render the project.
+    view: parseViewSlug(search.view),
+    preset: parseViewSlug(search.preset),
   }),
   // The prefetch depends on the search params, so the loader has to see them.
   loaderDeps: ({ search }) => search,
@@ -68,15 +46,14 @@ export const Route = createFileRoute(
     // is swallowed here; the page fetches for itself and reports the error.
     void (async () => {
       try {
-        const [project, presets] = await Promise.all([
+        const [, set] = await Promise.all([
           queryClient.ensureQueryData<ProjectRead>({
             queryKey: getReadProjectQueryKey(communityId, projectId),
             queryFn: () => readProject(communityId, projectId),
             staleTime: 30_000,
           }),
-          queryClient.ensureQueryData<FilterPresetListResponse>({
-            queryKey: getListFilterPresetsQueryKey(communityId, projectId),
-            queryFn: () => listFilterPresets(communityId, projectId),
+          queryClient.ensureQueryData({
+            ...projectViewsQuery(communityId, projectId),
             staleTime: 60_000,
           }),
           queryClient.ensureQueryData({
@@ -90,22 +67,20 @@ export const Route = createFileRoute(
         // same function, so the prefetch lands on the key the component asks for.
         // These used to be two separate implementations that had drifted, and the
         // prefetched entry was never read.
-        const { spec } = resolvePresetState<TaskFilterSpec, TaskViewMode>({
+        const { spec } = resolveViewState({
           search: deps,
-          presets: (presets.items ?? []).map((preset) => ({
-            ...preset,
-            filters: specFromApi(preset.filters),
-          })),
-          stored: storedSpec(queryClient, projectId),
-          allowedViews: TASK_VIEW_MODES,
-          defaultView: project.default_view_mode,
-          fallbackView: "table",
+          views: projectViews(set.views),
+          stored: sanitizeStoredViews(
+            queryClient.getQueryData<UserViewPreferencesMap>(VIEW_PREFERENCES_QUERY_KEY)?.items?.[
+              projectViewsPreferenceKey(projectId)
+            ]
+          ),
           emptySpec: EMPTY_TASK_FILTERS,
           equals: taskFiltersEqual,
         });
         const taskParams = buildTaskListParams(spec, { projectId });
 
-        // Deliberately not awaited: re-running the loader on a preset change must
+        // Deliberately not awaited: re-running the loader on a view change must
         // not block the navigation on a task refetch.
         void queryClient.ensureQueryData({
           ...tasksQuery(communityId, taskParams),

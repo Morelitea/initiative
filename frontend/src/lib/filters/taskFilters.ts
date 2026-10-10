@@ -6,28 +6,24 @@
  * it, so the three cannot disagree about what the list is showing — they used
  * to, and the loader's prefetch key silently never matched the component's.
  *
- * The spec mirrors `TaskFilterSpec` on the server (what a saved preset holds),
- * so preset, stored preference, and query params are all the same object.
+ * The spec mirrors `TaskFilterSpec` on the server (what a view holds),
+ * so view, stored preference, and query params are all the same object.
  */
 
 import type { SortingState } from "@tanstack/react-table";
 
-import {
-  type TaskFilterSpec as ApiTaskFilterSpec,
-  type FilterCondition,
-  type FilterGroup,
-  type ListTasksParams,
-  ProjectReadDefaultViewMode,
-  type SortField,
-  type TaskStatusCategory,
+import type {
+  TaskFilterSpec as ApiTaskFilterSpec,
+  FilterCondition,
+  FilterGroup,
+  ListTasksParams,
+  SortField,
+  TaskStatusCategory,
 } from "@/api/generated/initiativeAPI.schemas";
 import type { DueFilterOption } from "@/components/projects/projectTasksConfig";
 import type { PropertyFilterCondition } from "@/components/properties/PropertyFilter";
 
-export type TaskViewMode = NonNullable<ProjectReadDefaultViewMode>;
-export const TASK_VIEW_MODES = Object.values(ProjectReadDefaultViewMode);
-
-/** The due-window tokens a preset can hold. `null` is "any due date". */
+/** The due-window tokens a view can hold. `null` is "any due date". */
 export type DueToken = Exclude<DueFilterOption, "all">;
 
 /** The tokens `assignees` may hold besides a numeric user id. `me` is resolved
@@ -69,7 +65,7 @@ const CATEGORIES: readonly string[] = ["backlog", "todo", "in_progress", "done"]
 const numbers = (raw: unknown): number[] =>
   Array.isArray(raw) ? raw.filter((v): v is number => typeof v === "number") : [];
 
-/** Coerce an API preset's `filters` (every key optional) into a full spec. */
+/** Coerce an API view's `filters` (every key optional) into a full spec. */
 export function specFromApi(raw: ApiTaskFilterSpec | null | undefined): TaskFilterSpec {
   if (!raw) return EMPTY_TASK_FILTERS;
   return {
@@ -91,7 +87,7 @@ export function specFromApi(raw: ApiTaskFilterSpec | null | undefined): TaskFilt
   };
 }
 
-/** The wire shape a preset is saved as. Identical keys — the spec IS the payload. */
+/** The wire shape a view's filters are saved as. Identical keys — the spec IS the payload. */
 export const specToApi = (spec: TaskFilterSpec): ApiTaskFilterSpec => ({
   status_ids: spec.status_ids,
   status_categories: spec.status_categories,

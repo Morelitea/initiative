@@ -29,7 +29,7 @@ describe("buildTaskConditions", () => {
     ]);
   });
 
-  it("filters by status category, never by status id, for a portable preset", () => {
+  it("filters by status category, never by status id, for a portable view", () => {
     const conditions = buildTaskConditions(spec({ status_categories: ["backlog", "todo"] }), {
       projectId: 1,
     });
@@ -220,7 +220,7 @@ describe("taskFiltersEqual / taskFilterCount", () => {
     );
   });
 
-  it("compares by value, so a tweaked preset is not equal to itself", () => {
+  it("compares by value, so a tweaked view is not equal to itself", () => {
     expect(taskFiltersEqual(spec({ tag_ids: [1] }), spec({ tag_ids: [1] }))).toBe(true);
     expect(taskFiltersEqual(spec({ tag_ids: [1] }), spec({ tag_ids: [1, 2] }))).toBe(false);
   });

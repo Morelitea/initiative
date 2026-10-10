@@ -48,6 +48,7 @@ from app.db.initiative_rls import (
     dac_asks_at_write,
     entity_tables,
     governing_path,
+    managed_write,
     render_entity_access_fn,
     render_entity_initiative_fn,
     InitiativePath,
@@ -249,17 +250,6 @@ _MANAGED_SECTION = """\
 -- ==========================================================================="""
 
 
-def _managed_write_predicate(initiative_expr: str) -> str:
-    """Who changes an initiative's structure: its managers by the standing, the
-    community's admin, a settings rung writing beside a read_write grant, or
-    the system engine."""
-    return (
-        f"({IN_POLICY.system} OR {IN_POLICY.admin} OR ({POLICY_SETTINGS_ADMIN} AND {IN_POLICY.pam_write})"
-        f" OR ({IN_POLICY.this_guild}"
-        f" AND ({initiative_expr}) = ANY ({IN_POLICY.field('manager_initiatives')})))"
-    )
-
-
 #: A member's own row into an initiative that is open to join — the self-join
 #: route. Names the community's members (``app.current_guild_id`` is set for a
 #: membership routing and for nothing else) and the initiative's policy.
@@ -275,7 +265,7 @@ def _managed_block(table: str, initiative_expr: str) -> str:
     """RLS for a structural initiative table: reading open within the schema,
     writing by the managed-write predicate. ``initiatives`` keeps its admin-only
     purge guard and trash-read policies beside these."""
-    pred = _managed_write_predicate(initiative_expr)
+    pred = managed_write(initiative_expr)
     insert_pred = (
         f"({pred} OR {_SELF_JOIN_LEG})" if table == "initiative_members" else pred
     )
