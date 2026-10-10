@@ -85,6 +85,7 @@ Two more fields, for plug-ins with pages that open inside Initiative:
 |---|---|
 | **Enabled** | Off, every community that added it stops reaching it at once: its data, its settings, its events and its pages. Nothing is deleted. Turn it back on and everything is where it was. A restart never turns it back on for you. |
 | **Install in every community** | It's added to every community, including new ones, and community admins can't remove it or turn it off. Shown as **In every community**. |
+| **Only the operations community** | Only the [operations community](platform-roles.md#where-operations-work-lands) can find it, install it or use it. A copy already added anywhere else goes quiet until you turn this off; nothing is deleted. Turned on with **Install in every community**, it's added to that one community. Shown as **Operations community only**. |
 | **Delete** | Removes the registration for good, and adding it back means registering it again. A plug-in from the registry can't be deleted, because the next update would bring it straight back; switch it off instead. |
 
 A row marked **Publisher switched off** has stopped because everything from that publisher has. Nothing is deleted there either.
@@ -123,6 +124,7 @@ Rather click nothing? `PLUGIN_SERVICES_CONFIG` names a JSON file Initiative read
 | `jwks` / `jwks_uri` | Its keys, pasted or by address. |
 | `allowed_origins` | A list of origins. |
 | `mandatory` | `true` installs it in every community. |
+| `operations_only` | `true` offers it to the operations community alone. |
 | `vendor_env` | Each vendor value, as the name of an environment variable holding it. Read and stored encrypted at every start, so a secret never sits in the file. |
 
 What the plug-in *is* comes from its listing, so an entry naming its image, its scopes or its listing is refused. An entry for a plug-in whose listing hasn't arrived waits for it. And a plug-in you switched off stays off, whatever the file says.

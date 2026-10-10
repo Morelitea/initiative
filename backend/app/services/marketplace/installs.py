@@ -23,6 +23,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.errors import CodedError
 from app.core.messages import MarketplaceMessages
 from app.db import cohorts
+from app.db.session import routed_guild_id
 from app.models.platform.marketplace import (
     MarketplaceListing,
     MarketplaceListingVersion,
@@ -94,7 +95,9 @@ async def resolve_listing_install(
         # version needing a newer app, for the same reason.
         raise ListingInstallError(MarketplaceMessages.LISTING_PLUGIN_API_INCOMPATIBLE)
     if not already_installed and not await registration_lookup.plugin_is_offered(
-        version.definition, listing_uid=listing.uid
+        version.definition,
+        guild_id=routed_guild_id(session),
+        listing_uid=listing.uid,
     ):
         # A plug-in whose service this deployment does not run is not in this
         # marketplace at all — browse leaves it out and its page answers 404 —

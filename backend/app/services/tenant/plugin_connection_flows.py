@@ -841,7 +841,7 @@ async def _load_for_flow(
     registration = await registration_lookup.registration_for_definition(
         plugin.definition, listing_uid=plugin.listing_uid
     )
-    if registration is None or not registration.live:
+    if registration is None or not registration.live_in(state.guild_id):
         return None
     return _Loaded(
         plugin=plugin,

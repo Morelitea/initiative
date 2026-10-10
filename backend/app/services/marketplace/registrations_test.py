@@ -772,6 +772,7 @@ async def test_reconcile_writes_the_deployment_facts_from_the_mounted_file(
                     "base_url": BASE_URL,
                     "allowed_origins": ["https://app.example.com"],
                     "mandatory": True,
+                    "operations_only": True,
                 }
             ],
         ),
@@ -784,6 +785,7 @@ async def test_reconcile_writes_the_deployment_facts_from_the_mounted_file(
     assert row.base_url == BASE_URL
     assert row.allowed_origins == ["https://app.example.com"]
     assert row.mandatory is True
+    assert row.operations_only is True
     assert row.listing_uid == LISTING_UID
 
 

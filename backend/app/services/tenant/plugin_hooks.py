@@ -405,7 +405,11 @@ async def receive(public_id: str, headers: Mapping[str, str], body: bytes) -> in
     current = _route_spec(webhooks["route"])
     if current is not None:
         specs.add(current)
-    installs = await _routed(registration.listing_uid, specs, headers, body)
+    installs = [
+        install
+        for install in await _routed(registration.listing_uid, specs, headers, body)
+        if registration.serves(install.guild_id)
+    ]
     if not installs:
         metrics.plugin_hook_deliveries.labels(outcome="unroutable").inc()
         return 202

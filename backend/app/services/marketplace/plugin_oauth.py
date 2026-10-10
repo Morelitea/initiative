@@ -506,6 +506,7 @@ async def _installation_token(
         or client.listing_uid is None
         or row.listing_uid != client.listing_uid
         or not row.enabled
+        or not client.serves(guild_id)
     ):
         raise OAuthError("invalid_grant", "unknown installation")
 
@@ -635,6 +636,7 @@ async def _member_token(
         or client.listing_uid is None
         or row.listing_uid != client.listing_uid
         or not row.enabled
+        or not client.serves(guild_id)
     ):
         raise _invalid_grant("unknown installation")
     if belongs is None or row.granted_access is None:
@@ -756,8 +758,8 @@ async def issue_token(
 @dataclass(frozen=True)
 class InstallationListing:
     installation: str
-    #: The install is switched on and its community is in use, so a token can
-    #: be issued for it. An install that is off, or whose community is on hold,
+    #: The install is switched on, its community is in use and its plug-in is
+    #: for that community, so a token can be issued for it. An install that is off, or whose community is on hold,
     #: suspended or awaiting deletion, is still listed: it still exists.
     active: bool
 
@@ -785,7 +787,7 @@ async def list_installations(
     return [
         InstallationListing(
             installation=refs[(entry.guild_id, entry.install_id)],
-            active=entry.active,
+            active=entry.active and client.serves(entry.guild_id),
         )
         for entry in entries
     ], next_cursor

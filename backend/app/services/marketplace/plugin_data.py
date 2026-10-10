@@ -569,10 +569,14 @@ async def _member_connection(
 
 
 async def _load_registration(
-    public_id: Optional[str], *, plugin: Optional[GuildPlugin] = None
+    public_id: Optional[str],
+    *,
+    guild_id: Optional[int],
+    plugin: Optional[GuildPlugin] = None,
 ) -> RegistrationSnapshot:
-    """Where this plug-in lives and whether the operator still allows it: the
-    registration for ``public_id``, or the one behind ``plugin``.
+    """Where this plug-in lives and whether the operator still allows it in
+    community ``guild_id``: the registration for ``public_id``, or the one
+    behind ``plugin``.
 
     Read from the registration snapshot every request path shares
     (:mod:`app.services.marketplace.registration_lookup`), which an operator's
@@ -588,7 +592,7 @@ async def _load_registration(
     )
     if row is None:
         raise PluginDataError(PluginDataMessages.SERVICE_NOT_REGISTERED, 404)
-    if not row.live:
+    if not row.live_in(guild_id):
         raise PluginDataError(PluginDataMessages.SERVICE_DISABLED, 409)
     return row
 
@@ -992,7 +996,9 @@ async def fetch_plugin_source(
     if not plugin.enabled:
         raise PluginDataError(PluginDataMessages.PLUGIN_DISABLED, 409)
 
-    registration = await _load_registration(None, plugin=plugin)
+    registration = await _load_registration(
+        None, guild_id=routed_guild_id(session), plugin=plugin
+    )
     params, canonical = validate_params(endpoint, raw_params)
     refs, fields = await _resolve_connections(
         session, plugin=plugin, endpoint=endpoint, user_id=user_id

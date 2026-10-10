@@ -406,7 +406,8 @@ _INSTALL_STANDING: dict[gucs.Guc, str] = {
 #:
 #: ``install`` is the install when it may act at all: the community's status is
 #: one its members use, the install is on, and the operator's registration for
-#: its listing is live (on, its publisher on, and holding a key set) and the
+#: its listing is live in this community (on, its publisher on, holding a key
+#: set, and not limited to the operations community unless this is it) and the
 #: client the token names. Every value below is computed from it, so an install
 #: that may not act has an empty standing. ``live`` says which.
 #:
@@ -478,7 +479,7 @@ install AS (
       WHERE r.listing_uid = a.listing_uid
         AND r.public_id = {gucs.TOKEN_CLIENT_ID}
         AND r.kind = '{RegistrationKind.CONTAINER}'
-        AND {registration_live_sql("r", "p")}
+        AND {registration_live_sql("r", "p", "g.id")}
     )
     AND ({gucs.USER_ID} IS NULL OR (
       EXISTS (SELECT 1 FROM consent)

@@ -234,7 +234,7 @@ async def run_due(session: AsyncSession, guild_id: int) -> None:
     live = {
         registration.listing_uid: registration
         for registration in (await load_registrations()).values()
-        if registration.live and registration.listing_uid
+        if registration.live_in(guild_id) and registration.listing_uid
     }
     while (run := await _claim(session, sorted(live))) is not None:
         plugin = await session.get(GuildPlugin, run.install_id)

@@ -126,10 +126,11 @@ def _callable_endpoint(
     return None
 
 
-async def _target_registration(public_id: str) -> RegistrationSnapshot:
-    """The target's registration, live, or ``target_not_installed``."""
+async def _target_registration(public_id: str, guild_id: int) -> RegistrationSnapshot:
+    """The target's registration, live in community ``guild_id``, or
+    ``target_not_installed``."""
     try:
-        return await plugin_data._load_registration(public_id)
+        return await plugin_data._load_registration(public_id, guild_id=guild_id)
     except PluginDataError as exc:
         raise _refuse(PluginHubMessages.TARGET_NOT_INSTALLED, 404) from exc
 
@@ -205,7 +206,7 @@ async def call_plugin(
         if issuable is None or scope not in issuable:
             raise _refuse(PluginHubMessages.INSUFFICIENT_SCOPE, 403)
 
-        registration = await _target_registration(target_public_id)
+        registration = await _target_registration(target_public_id, caller.guild_id)
         target = (
             (
                 await session.exec(

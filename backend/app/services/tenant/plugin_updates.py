@@ -419,7 +419,7 @@ async def _update_guild(
         pending = offer.update
         mandatory = (
             await registration_lookup.install_state(
-                plugin.definition, listing_uid=plugin.listing_uid
+                plugin.definition, guild_id=guild_id, listing_uid=plugin.listing_uid
             )
         ).mandatory
         if offer.asks.asks_more and mandatory:

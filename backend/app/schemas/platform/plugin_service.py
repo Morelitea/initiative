@@ -79,6 +79,8 @@ class PluginServiceRegistrationRead(SanitizedBaseModel):
     scope_ceiling: List[str] = []
     #: Installed into every guild and not removable by guild admins.
     mandatory: bool = False
+    #: Offered to, installed in and live in the operations community alone.
+    operations_only: bool = False
     enabled: bool = True
     #: ``registry`` when its plug-in facts come from a listing the registry signed,
     #: ``operator`` otherwise.
@@ -147,6 +149,7 @@ class PluginServiceRegistrationCreate(_DeploymentFacts):
     jwks: Optional[Dict[str, Any]] = None
     jwks_uri: Optional[str] = Field(default=None, max_length=1000)
     mandatory: bool = False
+    operations_only: bool = False
     enabled: bool = True
     #: Values for the vendor fields the listing's manifest declares, by key.
     vendor_values: Optional[Dict[str, Optional[RawTextStr]]] = None
@@ -169,6 +172,7 @@ class PluginServiceRegistrationUpdate(_DeploymentFacts):
     jwks: Optional[Dict[str, Any]] = None
     jwks_uri: Optional[str] = Field(default=None, max_length=1000)
     mandatory: Optional[bool] = None
+    operations_only: Optional[bool] = None
     enabled: Optional[bool] = None
     #: Set or clear vendor values, by key.
     vendor_values: Optional[Dict[str, Optional[RawTextStr]]] = None

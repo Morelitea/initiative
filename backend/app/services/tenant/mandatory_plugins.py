@@ -16,6 +16,8 @@ Six properties, and each one is a deliberate choice:
   next boot tries again.
 * **The kill switch outranks the flag.** A registration the operator turned off
   installs nowhere new — deactivating a plug-in stops it exactly like any other.
+  One limited to the operations community (``operations_only``) is installed
+  there alone.
 * **It is granted what it asks for, within the ceiling.** The manifest's
   requested scopes, capped by the registration's ``scope_ceiling``: the
   operator's registration is the consent a seat would otherwise give. Using
@@ -144,7 +146,11 @@ async def install_mandatory_plugins(
     an install is *recorded against* can differ — that is ``installer_id``,
     which falls back to the guild's longest-standing admin.
     """
-    registrations = await registration_lookup.mandatory_registrations()
+    registrations = [
+        registration
+        for registration in await registration_lookup.mandatory_registrations()
+        if registration.serves(guild_id)
+    ]
     if not registrations:
         return []
 

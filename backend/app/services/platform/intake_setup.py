@@ -34,6 +34,7 @@ from app.models.tenant.initiative import Initiative
 from app.models.tenant.intake import IntakeBinding, IntakeCase
 from app.models.tenant.project import Project
 from app.models.tenant.task import Task, TaskStatus
+from app.services.marketplace.registration_lookup import invalidate_registrations
 from app.services.platform.intake import operations_guild_id
 from app.db.request_context import SystemGuild
 
@@ -106,6 +107,8 @@ async def set_operations_guild(
     row.operations_guild_id = guild_id
     session.add(row)
     await session.commit()
+    # A plug-in limited to the operations community follows the choice too.
+    invalidate_registrations()
     # The filer role follows the choice: created in the community chosen,
     # dropped from the one it replaces. Boot does the same, so a move this
     # process did not finish is finished there.

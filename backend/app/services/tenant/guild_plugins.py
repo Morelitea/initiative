@@ -1019,7 +1019,9 @@ async def plugin_callers(
         if plugin.id == exclude_id or scope not in requested_scopes(plugin.definition):
             continue
         state = await registration_lookup.install_state(
-            plugin.definition, listing_uid=plugin.listing_uid
+            plugin.definition,
+            guild_id=routed_guild_id(session),
+            listing_uid=plugin.listing_uid,
         )
         if scope in state.scope_ceiling:
             callers.append(plugin)

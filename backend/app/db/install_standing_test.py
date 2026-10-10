@@ -37,6 +37,7 @@ from app.models.tenant.file import File
 from app.models.tenant.guild_plugin import GuildPlugin
 from app.models.tenant.initiative import PermissionKey
 from app.services.platform.identity_refs import ensure_ref
+from app.services.platform.intake_setup import set_operations_guild
 from app.testing import (
     create_resource_grant,
     create_plugin_service_registration,
@@ -323,6 +324,7 @@ async def _set_guild_status(
         "registration_disabled",
         "registration_keyless",
         "publisher_disabled",
+        "operations_only_elsewhere",
         "another_client",
         "guild_suspended",
         "guild_on_hold",
@@ -348,6 +350,8 @@ async def test_an_install_that_may_not_act_is_refused(
             ).bindparams(c=CLIENT)
         )
         await session.commit()
+    elif reason == "operations_only_elsewhere":
+        await _set_registration(session, "operations_only", True)
     elif reason == "another_client":
         client = "tests.someone-else"
     elif reason == "guild_suspended":
@@ -376,6 +380,18 @@ async def test_an_install_that_may_not_act_is_refused(
         )
     ).one()
     assert tuple(values) == ("", "", "", "false")
+    await s.rollback()
+
+
+async def test_an_operations_only_install_acts_in_the_operations_community(
+    session, acting_user, role_session
+):
+    install = await _install(session, acting_user, role_session, granted=["files:read"])
+    await _set_registration(session, "operations_only", True)
+    await set_operations_guild(session, install.guild.id)
+
+    s, context = await _route(role_session, install, ["files:read"])
+    assert context.live
     await s.rollback()
 
 
@@ -713,6 +729,8 @@ async def test_a_new_transaction_replays_the_install(
                 # Whether it is a declarative plug-in's, which needs no location
                 # or keys to be live.
                 "kind",
+                # Whether it is live outside the operations community.
+                "operations_only",
             },
         ),
         # Whether the registration's publisher is on.

@@ -11,8 +11,8 @@ Every plug-in splits the same way, whatever published its listing
   Compose service onto the registration for the service it names, creating the row when there is
   none. Reference sectors are honoured only from the registry.
 * **The operator gives the deployment facts**: where the plug-in runs, the keys
-  its container signs with, its vendor values, the switch, the mandatory flag
-  and the origins. Through the ``plugins.manage`` endpoints, or in
+  its container signs with, its vendor values, the switch, the mandatory and
+  operations-only flags and the origins. Through the ``plugins.manage`` endpoints, or in
   ``PLUGIN_SERVICES_CONFIG``, a file a chart mounts, reconciled at boot. An
   entry's ``vendor_env`` names the environment variables holding its vendor
   values, which are sealed into the registration on each boot. An entry for a
@@ -106,6 +106,7 @@ AUDITED_FIELDS: tuple[str, ...] = (
     "jwks_uri",
     "scope_ceiling",
     "mandatory",
+    "operations_only",
     "enabled",
     "source",
     "image_digest",
@@ -487,6 +488,7 @@ async def create_registration(
     jwks: Optional[dict] = None,
     jwks_uri: Optional[str] = None,
     mandatory: bool = False,
+    operations_only: bool = False,
     enabled: bool = True,
     vendor_values: Optional[dict[str, Optional[str]]] = None,
     actor_user_id: int | None = None,
@@ -521,6 +523,7 @@ async def create_registration(
         jwks=key_set,
         jwks_uri=key_uri,
         mandatory=mandatory,
+        operations_only=operations_only,
         enabled=enabled,
     )
     vendor_changed = await _apply_vendor(session, row, vendor_values)
@@ -573,6 +576,7 @@ async def update_registration(
     jwks: Optional[dict] = None,
     jwks_uri: Optional[str] = None,
     mandatory: Optional[bool] = None,
+    operations_only: Optional[bool] = None,
     enabled: Optional[bool] = None,
     vendor_values: Optional[dict[str, Optional[str]]] = None,
     actor_user_id: int | None = None,
@@ -603,6 +607,8 @@ async def update_registration(
     )
     if mandatory is not None:
         row.mandatory = mandatory
+    if operations_only is not None:
+        row.operations_only = operations_only
     if enabled is not None:
         row.enabled = enabled
     vendor_changed = await _apply_vendor(session, row, vendor_values)
@@ -628,7 +634,7 @@ async def update_registration(
         )
     await session.commit()
     await session.refresh(row)
-    # The kill switch, the mandatory flag, the keys and the origin list are all
+    # The kill switch, the flags, the keys and the origin list are all
     # read through a cached snapshot on the request path, so an operator's edit
     # drops it rather than waiting out its TTL.
     invalidate_registrations()
@@ -1173,6 +1179,7 @@ class DeploymentFacts:
     jwks_uri: Optional[str] = None
     allowed_origins: Optional[list[str]] = None
     mandatory: Optional[bool] = None
+    operations_only: Optional[bool] = None
     vendor_env: Any = None
 
     @property
@@ -1221,6 +1228,9 @@ def _deployment_facts(entry: dict[str, Any]) -> DeploymentFacts:
         ),
         allowed_origins=origins or None,
         mandatory=bool(entry["mandatory"]) if "mandatory" in entry else None,
+        operations_only=(
+            bool(entry["operations_only"]) if "operations_only" in entry else None
+        ),
         vendor_env=entry.get("vendor_env"),
     )
 
@@ -1265,6 +1275,7 @@ def apply_deployment_facts(
             row.jwks,
             row.jwks_uri,
             row.mandatory,
+            row.operations_only,
         )
 
     was = state()
@@ -1281,6 +1292,8 @@ def apply_deployment_facts(
     )
     if facts.mandatory is not None:
         row.mandatory = facts.mandatory
+    if facts.operations_only is not None:
+        row.operations_only = facts.operations_only
     vendor_moved = vendor_values_service.apply_vendor_env(
         row, facts.vendor_env, public_id=row.public_id
     )
@@ -1292,8 +1305,8 @@ async def reconcile_from_config(session: AsyncSession) -> ReconcileResult:
     it names.
 
     Each entry is ``{public_id}`` with any of ``base_url``, ``page_origin``,
-    ``allowed_origins``, ``jwks``, ``jwks_uri``, ``mandatory`` and
-    ``vendor_env`` (vendor key → environment variable name, read and sealed on
+    ``allowed_origins``, ``jwks``, ``jwks_uri``, ``mandatory``,
+    ``operations_only`` and ``vendor_env`` (vendor key → environment variable name, read and sealed on
     every pass). An entry naming what only the plug-in's listing states is
     refused. Database-only: this updates rows and stops. It creates none: an
     entry for a plug-in whose listing has not arrived waits, and the listing

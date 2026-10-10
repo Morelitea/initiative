@@ -292,12 +292,13 @@ async def test_patch_sets_the_operator_only_fields(
     response = await client.patch(
         f"{BASE}{row.id}",
         headers=headers,
-        json={"mandatory": True, "enabled": False},
+        json={"mandatory": True, "operations_only": True, "enabled": False},
     )
 
     assert response.status_code == 200, response.text
     body = response.json()
     assert body["mandatory"] is True
+    assert body["operations_only"] is True
     assert body["enabled"] is False
 
 
