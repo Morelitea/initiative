@@ -194,6 +194,12 @@ class GuildMessages:
     #: ``deleted`` is reached by deleting a guild and left by restoring it,
     #: never by setting the status control to it.
     COMMUNITY_STATUS_NOT_SETTABLE = "COMMUNITY_STATUS_NOT_SETTABLE"
+    #: Suspending a community, or lifting its suspension, needs a live
+    #: ``moderate`` grant on it.
+    COMMUNITY_SUSPENSION_NEEDS_GRANT = "COMMUNITY_SUSPENSION_NEEDS_GRANT"
+    #: It is in no status a suspension starts from, or has none to lift.
+    COMMUNITY_NOT_SUSPENDABLE = "COMMUNITY_NOT_SUSPENDABLE"
+    COMMUNITY_NOT_SUSPENDED = "COMMUNITY_NOT_SUSPENDED"
     #: The deployment's billing service sets this community's caps and
     #: entitlements; they are changed there.
     COMMUNITY_PLAN_SET_BY_BILLING = "COMMUNITY_PLAN_SET_BY_BILLING"
@@ -749,6 +755,9 @@ class OperatorMessages:
     CANNOT_ASSIGN_HIGHER_ROLE = "OPERATOR_CANNOT_ASSIGN_HIGHER_ROLE"
     USE_SELF_DELETION = "OPERATOR_USE_SELF_DELETION"
     CANNOT_DELETE_SELF = "OPERATOR_CANNOT_DELETE_SELF"
+    #: Staff do not act on their own account from the operator dashboard; it
+    #: is theirs to change from their own settings.
+    CANNOT_ACT_ON_SELF = "OPERATOR_CANNOT_ACT_ON_SELF"
 
 
 class AccessGrantMessages:

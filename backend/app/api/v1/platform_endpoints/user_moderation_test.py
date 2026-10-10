@@ -448,6 +448,11 @@ class TestNothingElse:
             # Moderator (content.moderate / users.manage).
             ("/api/v1/operator/users/{user_id}/avatar", "DELETE"),
             ("/api/v1/operator/users/{user_id}/username", "PATCH"),
+            # Names in communities, status line, decorations: each cleared,
+            # never set, like the picture.
+            ("/api/v1/operator/users/{user_id}/profile/{field}", "DELETE"),
+            # Ends every session; its holder signs in again.
+            ("/api/v1/operator/users/{user_id}/sessions", "DELETE"),
             ("/api/v1/operator/users/{user_id}/suspension", "POST"),
             # Turns password and code sign-in back on after wrong answers.
             ("/api/v1/operator/users/{user_id}/sign-in-lock", "DELETE"),
@@ -474,6 +479,8 @@ class TestNothingElse:
         [
             ("DELETE", "/avatar", None),
             ("PATCH", "/username", {"username": "renamed"}),
+            ("DELETE", "/profile/custom_status", None),
+            ("DELETE", "/sessions", None),
             ("DELETE", "/sign-in-lock", None),
             ("DELETE", "/api-keys", None),
             ("POST", "/reactivate", None),

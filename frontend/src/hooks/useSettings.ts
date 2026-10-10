@@ -26,6 +26,7 @@ import type {
   CommunityNarrowingPending,
   CommunitySettingsResponse,
   CommunitySettingsUpdate,
+  CommunitySuspensionUpdate,
   EmailSettingsResponse,
   EmailSettingsUpdate,
   FCMConfigResponse,
@@ -77,6 +78,7 @@ import {
   readCommunityNarrowings,
   restorePlatformCommunity,
   sendTestEmail,
+  setPlatformCommunitySuspension,
   startStorageBackfill,
   testStorageConnection,
   updateCaptchaSettings,
@@ -196,9 +198,10 @@ export const useFcmConfig = () => {
 };
 
 /**
- * One page of communities with their storage caps, for the platform settings →
- * Communities tab, searched and sorted on the server. Operator and above
- * (`communities.manage`); pass `{ enabled }` to skip the request for anyone else.
+ * One page of communities with their storage caps, for the operator dashboard →
+ * Communities tab, searched and sorted on the server. Support and above
+ * (`communities.read`); pass `{ enabled }` to skip the request for anyone else.
+ * Each row carries what the reader may do to it, in `allowed_actions`.
  */
 export const usePlatformCommunities = (
   params: ListPlatformCommunityStorageParams,
@@ -493,6 +496,27 @@ export const useUpdateCommunityStorage = (
         ),
       // The help-request switch decides what "Ask for help" offers.
       invalidate: () => invalidate(q.platformCommunities(), q.ticketAvailability()),
+    },
+    options
+  );
+
+/**
+ * Suspend a community, or lift its suspension (``communities.suspend``, under a
+ * live ``moderate`` grant on it). Lifting returns it to the row's `lifts_to`.
+ */
+export const useSetCommunitySuspension = (
+  options?: MutationOpts<
+    PlatformCommunityStorageRead,
+    { communityId: number; data: CommunitySuspensionUpdate }
+  >
+) =>
+  useApiMutation<
+    PlatformCommunityStorageRead,
+    { communityId: number; data: CommunitySuspensionUpdate }
+  >(
+    {
+      mutationFn: ({ communityId, data }) => setPlatformCommunitySuspension(communityId, data),
+      invalidate: () => invalidate(q.platformCommunities()),
     },
     options
   );

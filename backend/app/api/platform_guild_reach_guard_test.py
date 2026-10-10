@@ -154,6 +154,14 @@ _ALLOWED: dict[tuple[str, str], str] = {
     (f"{_SERVICES}/intake.py", "open_case"): (
         "intake: opens a case in the operations community on the deployment's behalf"
     ),
+    (f"{_SERVICES}/intake.py", "open_case_counts"): (
+        "intake: counts the open cases about an account, for the staff roster, "
+        "naming no case's content"
+    ),
+    (f"{_SERVICES}/intake.py", "open_cases_for"): (
+        "intake: lists where an account's open cases are, for staff to link to; "
+        "opening one is its initiative's to allow"
+    ),
     (f"{_SERVICES}/tickets.py", "reply"): (
         "tickets: writes a filer's answer in the operations community the "
         "filer role just read their case in"

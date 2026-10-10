@@ -935,11 +935,11 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
                     ("app_guild_base",),
                     using=routed_or_pam("guild_id"),
                 ),
-                # The operator's list of every community reads each one's caps.
+                # The staff list of every community reads each one's caps.
                 Policy(
                     "guild_administration_guilds_manage_read",
                     SELECT,
-                    Capability.COMMUNITIES_MANAGE,
+                    Capability.COMMUNITIES_READ,
                     using=OPEN,
                 ),
                 # A settings rung routed read-only reads the community it
@@ -1300,11 +1300,11 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
                 Policy(
                     "guild_update", UPDATE, ("public",), using=routed_admin_write("id")
                 ),
-                # The operator's list of every community.
+                # The staff list of every community.
                 Policy(
                     "guilds_manage_read",
                     SELECT,
-                    Capability.COMMUNITIES_MANAGE,
+                    Capability.COMMUNITIES_READ,
                     using=OPEN,
                 ),
                 Policy("guilds_pam_read", SELECT, ("public",), using=pam_read("id")),

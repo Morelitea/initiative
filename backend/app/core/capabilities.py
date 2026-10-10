@@ -46,7 +46,21 @@ class Capability(str, Enum):
     USERS_DELETE = "users.delete"
 
     # Platform operations.
+    #: The operator dashboard's list of every community — its name, members,
+    #: storage and status — for the staff who answer questions about them.
+    #: Reading only: what an operator sets on a community stays
+    #: ``communities.manage``.
+    COMMUNITIES_READ = "communities.read"
     COMMUNITIES_MANAGE = "communities.manage"
+    #: Suspend a community and lift it, out of deletion included. Never on its
+    #: own: the route also asks for a live ``moderate`` grant on that
+    #: community, so a moderator acts on one they are looking at.
+    COMMUNITIES_SUSPEND = "communities.suspend"
+    #: Open the billing service's support console for one community: its plan,
+    #: invoices and payments, read under a billing grant that reaches nothing
+    #: in the community. The operator console, which changes them, stays
+    #: ``communities.manage``.
+    BILLING_SUPPORT = "billing.support"
 
     # Opening the billing service's insights page: account-wide revenue and
     # subscriber figures from the payment processor, and counts that name no
@@ -95,11 +109,14 @@ _SUPPORT: FrozenSet[Capability] = _MEMBER | {
     Capability.USERS_READ,
     Capability.USERS_AGE_UNBLOCK,
     Capability.ACCESS_REQUEST,
+    Capability.COMMUNITIES_READ,
+    Capability.BILLING_SUPPORT,
 }
 
 _MODERATOR: FrozenSet[Capability] = _SUPPORT | {
     Capability.CONTENT_MODERATE,
     Capability.USERS_MANAGE,
+    Capability.COMMUNITIES_SUSPEND,
 }
 
 _OPERATOR: FrozenSet[Capability] = _MODERATOR | {
@@ -195,6 +212,13 @@ _ROLE_ORDER: tuple[UserRole, ...] = tuple(UserRole)
 
 def role_rank(role: UserRole) -> int:
     return _ROLE_ORDER.index(role)
+
+
+def may_act_on(actor: "User", target: "User") -> bool:
+    """Whether staff ``actor`` may act on ``target``'s account: never their
+    own, and never one whose rung is above theirs. Every operator route that
+    changes an account asks this."""
+    return target.id != actor.id and role_rank(target.role) <= role_rank(actor.role)
 
 
 def can_assign_role(actor: "User", target_role: UserRole) -> bool:

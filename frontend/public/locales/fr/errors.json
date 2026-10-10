@@ -827,5 +827,9 @@
   "SECURITY_NOWHERE_TO_SEND": "Ce serveur ne reçoit pas encore de signalements de sécurité. Utilisez plutôt l'adresse ci-dessous.",
   "FEEDBACK_NOWHERE_TO_SEND": "Ce serveur ne reçoit pas encore de retours. Utilisez plutôt l'adresse ci-dessous.",
   "APPEAL_NOT_SUSPENDED": "Votre compte n'est pas suspendu : il n'y a rien à contester.",
-  "APPEAL_NOWHERE_TO_SEND": "Ce serveur ne reçoit pas encore de recours. Utilisez plutôt l'adresse ci-dessous."
+  "APPEAL_NOWHERE_TO_SEND": "Ce serveur ne reçoit pas encore de recours. Utilisez plutôt l'adresse ci-dessous.",
+  "COMMUNITY_SUSPENSION_NEEDS_GRANT": "Pour suspendre une communauté ou lever sa suspension, il vous faut une autorisation de modération active sur elle. Demandez-en une sous Accès.",
+  "COMMUNITY_NOT_SUSPENDABLE": "Cette communauté ne peut pas être suspendue depuis son statut actuel.",
+  "COMMUNITY_NOT_SUSPENDED": "Cette communauté n’est pas suspendue, il n’y a donc aucune suspension à lever.",
+  "OPERATOR_CANNOT_ACT_ON_SELF": "Vous ne pouvez pas faire cela sur votre propre compte depuis ici. Modifiez-le dans vos propres paramètres."
 }

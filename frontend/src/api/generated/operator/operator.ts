@@ -25,6 +25,7 @@ import type {
   ExportPlatformUsersCsvParams,
   HTTPValidationError,
   ListAllUsersParams,
+  OperatorAccountCaseRead,
   OperatorDeletionEligibilityResponse,
   OperatorSuspensionUpdate,
   OperatorUserDeleteRequest,
@@ -405,6 +406,308 @@ export const useClearSecondFactor = <TError = ErrorType<HTTPValidationError>, TC
 > => {
   return useMutation(getClearSecondFactorMutationOptions(options), queryClient);
 };
+/**
+ * End every session an account has, on every device (``users.manage``).
+ *
+ * For an account somebody else may be signed in to: its holder signs in
+ * again, and whoever else had it does not. Its open connections close now.
+ * @summary Sign User Out Everywhere
+ */
+export const signUserOutEverywhere = (
+  userId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<OperatorUserRead>(
+    { url: `/api/v1/operator/users/${userId}/sessions`, method: "DELETE", signal },
+    options
+  );
+};
+
+export const getSignUserOutEverywhereMutationKey = () => ["signUserOutEverywhere"] as const;
+
+export const getSignUserOutEverywhereMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof signUserOutEverywhere>>,
+    TError,
+    SignUserOutEverywhereMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof signUserOutEverywhere>>,
+  TError,
+  SignUserOutEverywhereMutationVariables,
+  TContext
+> => {
+  const mutationKey = getSignUserOutEverywhereMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof signUserOutEverywhere>>,
+    SignUserOutEverywhereMutationVariables
+  > = (props) => {
+    const { userId } = props ?? {};
+
+    return signUserOutEverywhere(userId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SignUserOutEverywhereMutationResult = NonNullable<
+  Awaited<ReturnType<typeof signUserOutEverywhere>>
+>;
+
+export type SignUserOutEverywhereMutationError = ErrorType<HTTPValidationError>;
+export type SignUserOutEverywhereMutationVariables = { userId: number };
+
+/**
+ * @summary Sign User Out Everywhere
+ */
+export const useSignUserOutEverywhere = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof signUserOutEverywhere>>,
+      TError,
+      SignUserOutEverywhereMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof signUserOutEverywhere>>,
+  TError,
+  SignUserOutEverywhereMutationVariables,
+  TContext
+> => {
+  return useMutation(getSignUserOutEverywhereMutationOptions(options), queryClient);
+};
+/**
+ * Clear part of how an account appears to others (``content.moderate``).
+ *
+ * ``display_names`` clears the names it goes by in its communities, all of
+ * them; ``custom_status`` its status line; ``decorations`` its banner, frame
+ * and trophies. Like a picture takedown, for what breaches the terms of use:
+ * its holder may set them again.
+ * @summary Clear Profile Field
+ */
+export const clearProfileField = (
+  userId: number,
+  field: "display_names" | "custom_status" | "decorations",
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<OperatorUserRead>(
+    { url: `/api/v1/operator/users/${userId}/profile/${field}`, method: "DELETE", signal },
+    options
+  );
+};
+
+export const getClearProfileFieldMutationKey = () => ["clearProfileField"] as const;
+
+export const getClearProfileFieldMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof clearProfileField>>,
+    TError,
+    ClearProfileFieldMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof clearProfileField>>,
+  TError,
+  ClearProfileFieldMutationVariables,
+  TContext
+> => {
+  const mutationKey = getClearProfileFieldMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof clearProfileField>>,
+    ClearProfileFieldMutationVariables
+  > = (props) => {
+    const { userId, field } = props ?? {};
+
+    return clearProfileField(userId, field, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ClearProfileFieldMutationResult = NonNullable<
+  Awaited<ReturnType<typeof clearProfileField>>
+>;
+
+export type ClearProfileFieldMutationError = ErrorType<HTTPValidationError>;
+export type ClearProfileFieldMutationVariables = {
+  userId: number;
+  field: "display_names" | "custom_status" | "decorations";
+};
+
+/**
+ * @summary Clear Profile Field
+ */
+export const useClearProfileField = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof clearProfileField>>,
+      TError,
+      ClearProfileFieldMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof clearProfileField>>,
+  TError,
+  ClearProfileFieldMutationVariables,
+  TContext
+> => {
+  return useMutation(getClearProfileFieldMutationOptions(options), queryClient);
+};
+/**
+ * The open operations cases an account filed or is the subject of
+ * (``users.read``): where each lives, to open it, and nothing it says.
+ * @summary List Account Cases
+ */
+export const listAccountCases = (
+  userId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<OperatorAccountCaseRead[]>(
+    { url: `/api/v1/operator/users/${userId}/cases`, method: "GET", signal },
+    options
+  );
+};
+
+export const getListAccountCasesQueryKey = (userId: number) => {
+  return [`/api/v1/operator/users/${userId}/cases`] as const;
+};
+
+export const getListAccountCasesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listAccountCases>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  userId: number,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listAccountCases>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListAccountCasesQueryKey(userId);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listAccountCases>>> = ({ signal }) =>
+    listAccountCases(userId, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: userId !== null && userId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<Awaited<ReturnType<typeof listAccountCases>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+};
+
+export type ListAccountCasesQueryResult = NonNullable<Awaited<ReturnType<typeof listAccountCases>>>;
+export type ListAccountCasesQueryError = ErrorType<HTTPValidationError>;
+
+export function useListAccountCases<
+  TData = Awaited<ReturnType<typeof listAccountCases>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  userId: number,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof listAccountCases>>, TError, TData>> &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listAccountCases>>,
+          TError,
+          Awaited<ReturnType<typeof listAccountCases>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListAccountCases<
+  TData = Awaited<ReturnType<typeof listAccountCases>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  userId: number,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listAccountCases>>, TError, TData>> &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listAccountCases>>,
+          TError,
+          Awaited<ReturnType<typeof listAccountCases>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListAccountCases<
+  TData = Awaited<ReturnType<typeof listAccountCases>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  userId: number,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listAccountCases>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List Account Cases
+ */
+
+export function useListAccountCases<
+  TData = Awaited<ReturnType<typeof listAccountCases>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  userId: number,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listAccountCases>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListAccountCasesQueryOptions(userId, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
 /**
  * Trigger a password reset email for a user (``users.manage``).
  *

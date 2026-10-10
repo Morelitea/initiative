@@ -28,6 +28,7 @@ import type {
   CommunityNarrowingPending,
   CommunitySettingsResponse,
   CommunitySettingsUpdate,
+  CommunitySuspensionUpdate,
   CreatePlatformCommunityBillingServiceHandoffParams,
   EmailSettingsResponse,
   EmailSettingsUpdate,
@@ -2322,10 +2323,10 @@ export function useGetFcmConfig<
  * One page of the deployment's guilds with their storage caps, for the
  * Operator dashboard Guilds tab.
  *
- * Operator/owner (``communities.manage``). Reads only shared ``public`` tables. The
- * guilds and their administration rows are read on the caller's platform
- * tier, under the ``communities.manage`` policies on both; the caps join in a
- * single pass. Member counts and seats are totals read on the system engine
+ * Support and above (``communities.read``). Reads only shared ``public``
+ * tables. The guilds and their administration rows are read on the caller's
+ * platform tier, under the ``communities.read`` policies on both; the caps
+ * join in a single pass. Each row says what the reader may do to it. Member counts and seats are totals read on the system engine
  * (``_member_tallies``), one grouped query each for the page.
  * @summary List Platform Community Storage
  */
@@ -2570,6 +2571,109 @@ export const useUpdatePlatformCommunityStorage = <
   TContext
 > => {
   return useMutation(getUpdatePlatformCommunityStorageMutationOptions(options), queryClient);
+};
+/**
+ * Suspend a community, or lift its suspension (``communities.suspend``).
+ *
+ * Only under a live ``moderate`` grant on that community, held by whoever
+ * asks: a moderator suspends a community they are looking at. A suspension
+ * starts from active, read-only, on hold or deleted — taking a deleted one
+ * out of its purge countdown — and lifting it returns the community where it
+ * was. One suspended out of deletion goes back to deleted with its countdown
+ * started again, so its owners have the whole window to notice.
+ * @summary Set Platform Community Suspension
+ */
+export const setPlatformCommunitySuspension = (
+  communityId: number,
+  communitySuspensionUpdate: BodyType<CommunitySuspensionUpdate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<PlatformCommunityStorageRead>(
+    {
+      url: `/api/v1/settings/communities/${communityId}/suspension`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: communitySuspensionUpdate,
+      signal,
+    },
+    options
+  );
+};
+
+export const getSetPlatformCommunitySuspensionMutationKey = () =>
+  ["setPlatformCommunitySuspension"] as const;
+
+export const getSetPlatformCommunitySuspensionMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setPlatformCommunitySuspension>>,
+    TError,
+    SetPlatformCommunitySuspensionMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setPlatformCommunitySuspension>>,
+  TError,
+  SetPlatformCommunitySuspensionMutationVariables,
+  TContext
+> => {
+  const mutationKey = getSetPlatformCommunitySuspensionMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setPlatformCommunitySuspension>>,
+    SetPlatformCommunitySuspensionMutationVariables
+  > = (props) => {
+    const { communityId, data } = props ?? {};
+
+    return setPlatformCommunitySuspension(communityId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetPlatformCommunitySuspensionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setPlatformCommunitySuspension>>
+>;
+export type SetPlatformCommunitySuspensionMutationBody = BodyType<CommunitySuspensionUpdate>;
+export type SetPlatformCommunitySuspensionMutationError = ErrorType<HTTPValidationError>;
+export type SetPlatformCommunitySuspensionMutationVariables = {
+  communityId: number;
+  data: BodyType<CommunitySuspensionUpdate>;
+};
+
+/**
+ * @summary Set Platform Community Suspension
+ */
+export const useSetPlatformCommunitySuspension = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof setPlatformCommunitySuspension>>,
+      TError,
+      SetPlatformCommunitySuspensionMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof setPlatformCommunitySuspension>>,
+  TError,
+  SetPlatformCommunitySuspensionMutationVariables,
+  TContext
+> => {
+  return useMutation(getSetPlatformCommunitySuspensionMutationOptions(options), queryClient);
 };
 /**
  * What this community says its own arrivals look like, and whether
@@ -2928,7 +3032,9 @@ export const useRestorePlatformCommunity = <
 /**
  * Mint the operator handoff into the billing portal for one guild.
  *
- * Backs the Guilds tab's billing buttons. Operator/owner (``communities.manage``).
+ * Backs the Guilds tab's billing buttons. The support console is
+ * ``billing.support`` (support and above); the operator console, which
+ * changes a plan, is ``communities.manage``.
  * The token names the ``access_grants`` row that authorises the visit: a
  * live billing grant is reused, otherwise one is self-issued — after the
  * account's second factor, as breaking glass takes it — so the visit is

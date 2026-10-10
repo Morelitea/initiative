@@ -6,10 +6,8 @@ from pydantic import (
     ConfigDict,
     Field,
     computed_field,
-    field_validator,
 )
 
-from app.core.email_masking import mask_email
 from app.models.platform.access_grant import (
     AccessGrantStatus,
     grant_is_live,
@@ -18,6 +16,7 @@ from app.models.platform.access_grant import (
 )
 from app.models.platform.guild import CommunityStatus
 from app.schemas.base import SanitizedBaseModel
+from app.schemas.platform.user import UserIdentity
 from app.schemas.query import PageMeta
 
 
@@ -138,9 +137,9 @@ class AccessGrantRead(SanitizedBaseModel):
     # Enrichment populated by the service for display (avoids the client
     # re-fetching users/guilds). Optional so ``model_validate`` over a bare
     # ORM row still works.
-    #: Masked (``u***1@e***m``). An approver reads this row to decide on a
-    #: request; the handle and user id beside it identify the requester.
-    user_email: Optional[str] = None
+    #: Who holds the grant, by handle: what an approver reads to decide on a
+    #: request. Never their address.
+    user: Optional[UserIdentity] = None
     community_name: Optional[str] = Field(
         default=None, validation_alias=AliasChoices("community_name", "guild_name")
     )
@@ -150,13 +149,8 @@ class AccessGrantRead(SanitizedBaseModel):
     community_status: Optional[CommunityStatus] = Field(
         default=None, validation_alias=AliasChoices("community_status", "guild_status")
     )
-    #: Masked, as ``user_email`` is.
-    approved_by_email: Optional[str] = None
-
-    @field_validator("user_email", "approved_by_email", mode="after")
-    @classmethod
-    def _mask_emails(cls, value: Optional[str]) -> Optional[str]:
-        return mask_email(value)
+    #: Who approved it, by handle.
+    approved_by: Optional[UserIdentity] = None
 
     @computed_field(return_type=bool)  # type: ignore[misc]
     @property

@@ -1101,6 +1101,7 @@ async def test_a_zero_hour_limit_is_refused(client: AsyncClient, owner):
 
 _CONFIG_MANAGE = "config.manage"  # owner only
 _GUILDS_MANAGE = "communities.manage"  # operator and owner
+_GUILDS_READ = "communities.read"  # support and above
 _BILLING_INSIGHTS = "billing.insights"  # operator and owner
 
 #: (capability, method, path — ``{community_id}`` is filled in, json body or None)
@@ -1122,10 +1123,15 @@ _ROUTES: list[tuple[str, str, str, dict | None]] = [
         "/api/v1/settings/auth/platform",
         {"session_max_hours": 12},
     ),
-    (_GUILDS_MANAGE, "get", GUILDS, None),
+    (_GUILDS_READ, "get", GUILDS, None),
     (_GUILDS_MANAGE, "patch", GUILDS + "/{community_id}", {"max_storage_bytes": 1024}),
     (_GUILDS_MANAGE, "patch", GUILDS + "/{community_id}", {"status": "suspended"}),
-    (_GUILDS_MANAGE, "post", GUILDS + "/{community_id}/billing/service-handoff", None),
+    (
+        _GUILDS_MANAGE,
+        "post",
+        GUILDS + "/{community_id}/billing/service-handoff?console=operator",
+        None,
+    ),
     (_BILLING_INSIGHTS, "post", "/api/v1/settings/billing/insights-handoff", None),
 ]
 
@@ -1138,6 +1144,7 @@ _BELOW_THE_BAR: dict[str, list[UserRole]] = {
         UserRole.operator,
     ],
     _GUILDS_MANAGE: [UserRole.member, UserRole.support, UserRole.moderator],
+    _GUILDS_READ: [UserRole.member],
     _BILLING_INSIGHTS: [UserRole.member, UserRole.support, UserRole.moderator],
 }
 
