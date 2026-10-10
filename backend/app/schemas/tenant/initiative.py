@@ -205,6 +205,9 @@ class InitiativeMemberRead(SanitizedBaseModel):
     oidc_managed: bool = False
     #: How they appear right now, public as it is on their profile.
     presence: Presence = Presence.offline
+    #: When their time in the community ends, for a guest. ``None`` for a
+    #: member.
+    guest_until: Optional[datetime] = None
 
 
 class InitiativeMemberListResponse(PageMeta):
@@ -415,11 +418,13 @@ def serialize_initiative(
 
 
 def serialize_initiative_member(
-    membership: "InitiativeMember", presence: Presence = Presence.offline
+    membership: "InitiativeMember",
+    presence: Presence = Presence.offline,
+    guest_until: Optional[datetime] = None,
 ) -> InitiativeMemberRead:
-    """One roster row: the member, the role they hold and how they appear.
-    Reads ``membership.user`` and ``membership.role_ref``, so the loader brings
-    both."""
+    """One roster row: the member, the role they hold, how they appear and,
+    for a guest, when they go. Reads ``membership.user`` and
+    ``membership.role_ref``, so the loader brings both."""
     role = membership.role_ref
     return InitiativeMemberRead(
         user=UserSummary.model_validate(membership.user),
@@ -433,4 +438,5 @@ def serialize_initiative_member(
         joined_at=membership.joined_at,
         oidc_managed=membership.oidc_provider_id is not None,
         presence=presence,
+        guest_until=guest_until,
     )

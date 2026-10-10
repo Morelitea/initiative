@@ -1263,10 +1263,19 @@ async def get_initiative_members(
     memberships, total_count, actual_page = await paginated_query(
         session, data_stmt, count_stmt, page=page, page_size=page_size
     )
+    guests = await guilds_service.guest_ends(
+        session,
+        guild_id=guild_context.guild_id,
+        user_ids=[m.user_id for m in memberships],
+    )
     return InitiativeMemberListResponse(
         **build_paginated_response(
             [
-                serialize_initiative_member(m, shown.get(m.user_id, Presence.offline))
+                serialize_initiative_member(
+                    m,
+                    shown.get(m.user_id, Presence.offline),
+                    guests.get(m.user_id),
+                )
                 for m in memberships
             ],
             total_count,

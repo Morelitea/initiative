@@ -134,6 +134,7 @@ def _can_of(guild_context: GuildContext, *, use_api: bool) -> CommunityCan:
         configure=guild_context.writes_settings,
         administer_content=holds_guild_role(guild_context, CommunityRole.admin),
         seat=guild_context.guild_seat,
+        community_wide=not guild_context.routes_as_guest,
         use_api=use_api,
     )
 
@@ -153,6 +154,7 @@ def _can_of_membership(
         configure=administers,
         administer_content=administers,
         seat=role.reaches(CommunityRole.superadmin),
+        community_wide=role is not CommunityRole.guest,
         use_api=use_api,
     )
 

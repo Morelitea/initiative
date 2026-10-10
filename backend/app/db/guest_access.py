@@ -65,6 +65,8 @@ _NAMED: dict[str, GuestAccess] = {
     "relationships": GuestAccess.write,
     "property_values": GuestAccess.write,
     "property_definitions": GuestAccess.read,
+    # Read beside a task, and refused to a guest row by row (GUEST_ROWS).
+    "intake_cases": GuestAccess.read,
     # The files content shows, stored and claimed as a step of saving it.
     "uploads": GuestAccess.write,
     # The search index, kept by the refresh trigger on what they write.
@@ -145,6 +147,9 @@ GUEST_ROWS: dict[str, str] = {
         " OR (resource_grants.all_initiative_members"
         f" AND resource_grants.initiative_id = ANY ({_MEMBER_OF})))"
     ),
+    # Operations intake is the community's staff's: a task's case reads as
+    # none.
+    "intake_cases": "false",
     # Files of the initiatives they reach, as a member of one reads them, and
     # their own; none that belongs to the whole community.
     "uploads": (

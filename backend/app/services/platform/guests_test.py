@@ -17,6 +17,8 @@ from app.services.platform import users as users_service
 from app.testing import (
     create_guest,
     create_initiative_member,
+    create_resource_grant,
+    create_task,
     get_auth_headers,
 )
 
@@ -172,3 +174,45 @@ async def test_boot_records_whether_this_is_the_demo(session):
         await session.commit()
         row = await app_settings_service.ensure_settings_row(session)
         assert row.demo_mode is demo_mode
+
+
+async def test_a_guest_opens_a_shared_task_and_finds_it_across_communities(
+    client, acting_user, session
+):
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
+    await _platform(session)
+    task = await create_task(session, a.project)
+    guest = await create_guest(session, a.guild)
+    await create_resource_grant(session, a.project, user=guest)
+    headers, project_id = get_auth_headers(guest), a.project.id
+
+    opened = await client.get(a.g(f"/tasks/{task.id}"), headers=headers)
+    case = await client.get(a.g(f"/tasks/{task.id}/case"), headers=headers)
+    mine = await client.get("/api/v1/me/projects", headers=headers)
+
+    assert opened.status_code == 200, opened.text
+    assert case.status_code == 404, case.text
+    assert [p["id"] for p in mine.json()["items"]] == [project_id]
+
+
+async def test_a_guest_holds_no_community_wide_reach_and_is_marked_on_a_roster(
+    client, acting_user, session
+):
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
+    await _platform(session)
+    guest = await create_guest(session, a.guild)
+    await create_initiative_member(session, a.initiative, guest)
+    guest_id = guest.id
+
+    async def community_wide(headers) -> bool:
+        response = await client.get("/api/v1/communities/", headers=headers)
+        return response.json()[0]["can"]["community_wide"]
+
+    roster = await client.get(
+        a.g(f"/initiatives/{a.initiative.id}/members"), headers=a.headers
+    )
+
+    assert await community_wide(a.headers) is True
+    assert await community_wide(get_auth_headers(guest)) is False
+    marked = {m["user"]["id"]: m["guest_until"] for m in roster.json()["items"]}
+    assert marked[guest_id] is not None and marked[a.user.id] is None

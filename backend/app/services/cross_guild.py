@@ -26,7 +26,6 @@ from app.db.query import effective_page_size, paginate_sequence
 from app.db.session import set_rls_context
 from app.models.platform.guild import (
     LIVE_STATUS_VALUES,
-    CommunityRole,
     Guild,
     GuildMembership,
 )
@@ -78,8 +77,6 @@ async def member_guild_ids(
     conditions = [
         GuildMembership.user_id == user_id,
         live_membership_clause(),
-        # Twin of the guild path, which a guest rung does not route through yet.
-        GuildMembership.role != CommunityRole.guest,
         Guild.status.in_(LIVE_STATUS_VALUES),
         User.status != UserStatus.suspended,
     ]
