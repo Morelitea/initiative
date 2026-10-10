@@ -71,6 +71,44 @@ class SearchDependency:
 
 
 @dataclass(frozen=True)
+class ArchiveParent:
+    """Something archivable a row sits under, which takes the row out of the
+    working set when it is archived.
+
+    The archive cascade stamps every archivable child, so a row that can carry
+    its own ``archived_at`` needs none of these. One that cannot — a comment, a
+    wiki page, a queue item — reads it off what it sits under, and a trigger on
+    that table rewrites its entries when the stamp moves.
+    """
+
+    #: The table whose ``archived_at`` counts.
+    table: str
+    #: The source's column naming it, or naming the step to it.
+    column: str
+    #: ``(table, column)`` between the two, where the row names the step.
+    through: tuple[str, str] | None = None
+
+    def archived(self, row: str) -> str:
+        if self.through is None:
+            return (
+                f"EXISTS (SELECT 1 FROM {self.table} a WHERE a.id = {row}.{self.column}"  # noqa: S608 — registry names
+                " AND a.archived_at IS NOT NULL)"
+            )
+        step, fk = self.through
+        return (
+            f"EXISTS (SELECT 1 FROM {step} s JOIN {self.table} a ON a.id = s.{fk}"  # noqa: S608 — registry names
+            f" WHERE s.id = {row}.{self.column} AND a.archived_at IS NOT NULL)"
+        )
+
+    def rows_under(self, row: str) -> str:
+        """The source rows under the ``$2`` this trigger fired for."""
+        if self.through is None:
+            return f"{row}.{self.column} = $2"
+        step, fk = self.through
+        return f"{row}.{self.column} IN (SELECT id FROM {step} WHERE {fk} = $2)"  # noqa: S608
+
+
+@dataclass(frozen=True)
 class SearchSource:
     """How one table's rows become search entries."""
 
@@ -103,6 +141,10 @@ class SearchSource:
     in_default_scope: bool = True
     #: Columns on other tables that move these rows between gates.
     depends_on: tuple[SearchDependency, ...] = ()
+    #: What archiving takes this row with, for a source whose governing tool
+    #: is not one fixed column, read once the models are loaded. ``None``
+    #: derives it from ``dac_tool``/``dac_id``.
+    archive_parents: Callable[[], tuple[ArchiveParent, ...]] | None = None
 
     @property
     def trigger_name(self) -> str:
@@ -242,6 +284,25 @@ def _comment_preview(row: str) -> str:
     )
 
 
+def _comment_archive_parents() -> tuple[ArchiveParent, ...]:
+    """What archiving takes a comment with: the thing it is on, or, where that
+    cannot be archived itself, the tool it is part of (a wiki page's wiki)."""
+    parents: list[ArchiveParent] = []
+    tables = SQLModel.metadata.tables
+    for column, parent in COMMENT_PARENTS.items():
+        if "archived_at" in tables[parent.table].columns:
+            parents.append(ArchiveParent(parent.table, column))
+        elif parent.tool_fk is not None:
+            parents.append(
+                ArchiveParent(
+                    parent.governed_by.plural,
+                    column,
+                    through=(parent.table, parent.tool_fk),
+                )
+            )
+    return tuple(parents)
+
+
 def _comment_dac(row: str) -> tuple[str, str]:
     """Which tool's sharing governs a comment, and which of its entities.
 
@@ -294,6 +355,31 @@ def _flag_expr(table: str, flag: str, row: str) -> str | None:
     if isinstance(columns[column].type, DateTime):
         return f"{row}.{column} IS NOT NULL"
     return f"{row}.{column}"
+
+
+def archive_parents(table: str, source: "SearchSource") -> tuple[ArchiveParent, ...]:
+    """What archiving takes a row of ``source`` with. A row that carries its
+    own ``archived_at`` is stamped by the cascade and needs none; any other
+    sits under its governing tool."""
+    if source.archive_parents is not None:
+        return source.archive_parents()
+    tables = SQLModel.metadata.tables
+    if "archived_at" in tables[table].columns or not (
+        source.dac_tool and source.dac_id
+    ):
+        return ()
+    tool = source.dac_tool.plural
+    if "archived_at" not in tables[tool].columns:
+        return ()
+    return (ArchiveParent(tool, source.dac_id),)
+
+
+def _archived_expr(table: str, source: "SearchSource", row: str) -> str | None:
+    """Whether a row is archived: stamped itself, or under something that is."""
+    legs = [_flag_expr(table, "archived", row)]
+    legs += [parent.archived(row) for parent in archive_parents(table, source)]
+    present = [leg for leg in legs if leg]
+    return f"({' OR '.join(present)})" if present else None
 
 
 def _written(table: str, source: "SearchSource") -> tuple[str, ...]:
@@ -447,6 +533,7 @@ SEARCH_SOURCES: dict[str, SearchSource] = {
         # so the entry is rewritten from the table that moved. Every other
         # parent names its own initiative and cannot move between them.
         depends_on=(SearchDependency("tasks", "project_id", "task_id"),),
+        archive_parents=_comment_archive_parents,
     ),
 }
 
@@ -784,7 +871,7 @@ def _write_call(table: str, source: SearchSource, row: str, schema: str) -> str:
         else "NULL::integer"
     )
     body = _body_expr(source, row) or "''"
-    archived = _flag_expr(table, "archived", row) or "false"
+    archived = _archived_expr(table, source, row) or "false"
     template = _flag_expr(table, "template", row) or "false"
     mentions = _mentions_expr(table, source, row) or "NULL::text[]"
     return (
@@ -795,12 +882,13 @@ def _write_call(table: str, source: SearchSource, row: str, schema: str) -> str:
     )
 
 
-def _dependency_block(
-    table: str, source: SearchSource, dependency: SearchDependency
+def _rewrite_trigger(
+    name: str, table: str, source: SearchSource, on: str, column: str, rows: str
 ) -> str:
-    """DDL for the trigger that rewrites entries when a row moves under them.
+    """DDL for a trigger on ``on`` that rewrites the entries of the ``table``
+    rows ``rows`` selects whenever ``column`` changes there.
 
-    ``$1`` is the guild schema and ``$2`` the id of the row that moved. The
+    ``$1`` is the guild schema and ``$2`` the id of the row that changed. The
     dependent table is named unqualified, as every other rendered expression is:
     the trigger runs with its own schema first on the search path.
     """
@@ -808,18 +896,43 @@ def _dependency_block(
     statement = (
         f"SELECT {_write_call(table, source, row, '$1')}"  # noqa: S608 — rendered
         f" FROM {table} {row}"
-        f" WHERE {row}.{dependency.local_column} = $2{_live_clause(table, row)}"
+        f" WHERE {rows.format(row=row)}{_live_clause(table, row)}"
     )
-    name = f"{source.trigger_name}_from_{dependency.table}"
     return "\n".join(
         [
-            f"DROP TRIGGER IF EXISTS {name} ON {dependency.table};",
+            f"DROP TRIGGER IF EXISTS {name} ON {on};",
             f"CREATE TRIGGER {name}",
-            f"  AFTER UPDATE ON {dependency.table}",
-            f"  FOR EACH ROW WHEN (OLD.{dependency.column} "
-            f"IS DISTINCT FROM NEW.{dependency.column})",
+            f"  AFTER UPDATE ON {on}",
+            f"  FOR EACH ROW WHEN (OLD.{column} IS DISTINCT FROM NEW.{column})",
             f"  EXECUTE FUNCTION {DEPENDENT_FUNCTION}({_quoted(statement)});",
         ]
+    )
+
+
+def _dependency_block(
+    table: str, source: SearchSource, dependency: SearchDependency
+) -> str:
+    """The trigger that rewrites entries when a row moves under them."""
+    return _rewrite_trigger(
+        f"{source.trigger_name}_from_{dependency.table}",
+        table,
+        source,
+        dependency.table,
+        dependency.column,
+        f"{{row}}.{dependency.local_column} = $2",
+    )
+
+
+def _archive_block(table: str, source: SearchSource, parent: ArchiveParent) -> str:
+    """The trigger that rewrites entries when what they sit under is archived
+    or brought back."""
+    return _rewrite_trigger(
+        f"{source.trigger_name}_archived_by_{parent.column}",
+        table,
+        source,
+        parent.table,
+        "archived_at",
+        parent.rows_under("{row}"),
     )
 
 
@@ -840,7 +953,7 @@ def _call_args(table: str, source: SearchSource) -> list[str]:
         f"    {_quoted(_body_expr(source))},",
         f"    {_quoted(dac_tool)},",
         f"    {_quoted(dac_id)},",
-        f"    {_quoted(_flag_expr(table, 'archived', ROW) or '')},",
+        f"    {_quoted(_archived_expr(table, source, ROW) or '')},",
         f"    {_quoted(_flag_expr(table, 'template', ROW) or '')},",
         f"    {_quoted(_mentions_expr(table, source))}",
     ]
@@ -957,6 +1070,11 @@ def render_guild_search_ddl(opclass: str | None = None) -> str:
         _dependency_block(table, source, dependency)
         for table, source in sorted(SEARCH_SOURCES.items())
         for dependency in source.depends_on
+    )
+    blocks.extend(
+        _archive_block(table, source, parent)
+        for table, source in sorted(SEARCH_SOURCES.items())
+        for parent in archive_parents(table, source)
     )
     blocks.append(_entity_type_check_block())
     blocks.append(_index_block(opclass))
