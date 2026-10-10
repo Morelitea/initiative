@@ -114,6 +114,7 @@ from app.services.platform import guilds as guilds_service
 from app.services.platform import intake as intake_service
 from app.services.content_sockets import sockets as content_sockets
 from app.services.tenant import plugin_connections as plugin_connections_service
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 
@@ -1295,7 +1296,22 @@ async def delete_community(
     #
     # From here the guild is gone as far as everybody in it is concerned:
     # absent from their guild lists and refused on every path, admins included.
-    guild_row = await guilds_service.get_guild(system_session, guild_id=guild_id)
+    # Locked and read again: the status may have moved since the access check,
+    # and a community suspended in the meantime is the platform's now, not its
+    # seat's to delete.
+    guild_row = (
+        await system_session.exec(
+            select(Guild)
+            .where(Guild.id == guild_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+    ).one_or_none()
+    if guild_row is None or guild_row.status not in LIVE_STATUS_VALUES:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=GuildMessages.COMMUNITY_ACCESS_DENIED,
+        )
     notice = await guilds_service.soft_delete_guild(
         system_session, guild_row, actor_user_id=current_user.id, via="admin"
     )

@@ -350,7 +350,7 @@ describe("SettingsAccessGrantsPage", () => {
     render();
 
     await user.click(await screen.findByRole("combobox", { name: "Community" }));
-    await user.type(screen.getByPlaceholderText("Search communities…"), "river");
+    await user.type(screen.getByPlaceholderText("Search by name or number…"), "river");
 
     await waitFor(() => expect(searched).toBe("river"));
   });

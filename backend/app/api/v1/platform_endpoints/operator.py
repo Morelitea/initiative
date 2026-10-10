@@ -453,9 +453,13 @@ async def sign_user_out_everywhere(
     For an account somebody else may be signed in to: its holder signs in
     again, and whoever else had it does not. Its open connections close now.
     """
-    user = await _account_within_rank(session, user_id, current_user)
+    user = await _account_within_rank(session, user_id, current_user, lock=True)
     await challenge_service.revoke_for_user(session, user_id=user_id)
     await session_service.revoke_all_for_user(session, user_id=user_id)
+    # The access tokens already handed out stop working with the sessions.
+    user.token_version += 1
+    user.updated_at = datetime.now(timezone.utc)
+    session.add(user)
     await audit_service.record(
         session,
         event_type=AuditEventType.USER_SESSIONS_REVOKED,

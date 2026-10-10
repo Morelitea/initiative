@@ -6,18 +6,22 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 import pytest
+from httpx import AsyncClient, Response
 from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import AuthMessages, GuildMessages
 from app.models.platform.access_grant import AccessGrant
 from app.models.platform.guild import CommunityRole, CommunityStatus, Guild
-from app.models.platform.user import UserRole
+from app.models.platform.user import User, UserRole
 from app.testing import create_guild, create_user, get_auth_headers
 
 COMMUNITIES = "/api/v1/settings/communities"
 
 
-async def _moderate_grant(session, *, user, guild) -> AccessGrant:
+async def _moderate_grant(
+    session: AsyncSession, *, user: User, guild: Guild
+) -> AccessGrant:
     """A live ``moderate`` grant on ``guild``, approved by somebody else."""
     approver = await create_user(session, role=UserRole.operator)
     now = datetime.now(timezone.utc)
@@ -38,7 +42,7 @@ async def _moderate_grant(session, *, user, guild) -> AccessGrant:
     return grant
 
 
-async def _row(client, user, guild) -> dict:
+async def _row(client: AsyncClient, user: User, guild: Guild) -> dict:
     response = await client.get(
         COMMUNITIES,
         params={"search": guild.name},
@@ -49,14 +53,22 @@ async def _row(client, user, guild) -> dict:
     return row
 
 
-async def _set_status(session, guild: Guild, status: CommunityStatus, *, at=None):
+async def _set_status(
+    session: AsyncSession,
+    guild: Guild,
+    status: CommunityStatus,
+    *,
+    at: datetime | None = None,
+) -> None:
     guild.status = status.value
     guild.status_changed_at = at or datetime.now(timezone.utc)
     session.add(guild)
     await session.commit()
 
 
-async def _suspend(client, user, guild, suspended=True):
+async def _suspend(
+    client: AsyncClient, user: User, guild: Guild, suspended: bool = True
+) -> Response:
     return await client.post(
         f"{COMMUNITIES}/{guild.id}/suspension",
         json={"suspended": suspended},
@@ -265,3 +277,14 @@ async def test_a_moderate_grant_reads_a_community_that_is_closed(
         owner.g("/initiatives/"), headers=get_auth_headers(moderator)
     )
     assert response.status_code == 200, response.text
+
+
+async def test_a_community_is_found_by_its_number(client: AsyncClient, session) -> None:
+    support = await create_user(session, role=UserRole.support)
+    guild = await create_guild(session)
+    for term in (str(guild.id), f"#{guild.id}"):
+        response = await client.get(
+            COMMUNITIES, params={"search": term}, headers=get_auth_headers(support)
+        )
+        assert response.status_code == 200, response.text
+        assert guild.id in [row["id"] for row in response.json()["items"]]

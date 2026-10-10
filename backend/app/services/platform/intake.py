@@ -34,6 +34,7 @@ from typing import TYPE_CHECKING, Optional, Sequence
 
 from sqlalchemy import func
 from sqlmodel import select
+from sqlmodel.sql.expression import Select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.intake import (
@@ -747,7 +748,7 @@ class AccountCase:
     filed: bool
 
 
-def _open_case_task():
+def _open_case_task() -> Select:
     """Tasks of open cases: out of the trash and short of a ``done`` status."""
     return (
         select(IntakeCase.task_id, IntakeCase.stream, IntakeCase.filer_user_id)

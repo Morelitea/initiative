@@ -1033,7 +1033,7 @@
     },
     "communityLabel": "Community",
     "communityPlaceholder": "Choose a community",
-    "communitySearch": "Search communities…",
+    "communitySearch": "Search by name or number…",
     "communityEmpty": "No communities found."
   },
   "platformLayout": {

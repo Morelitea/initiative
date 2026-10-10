@@ -3,7 +3,7 @@ from typing import Annotated, Any, Literal
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlmodel import select
 
 from app.api.deps import (
@@ -1020,7 +1020,13 @@ async def list_platform_community_storage(
         GuildAdministration, GuildAdministration.guild_id == Guild.id
     )
     if search and (term := search.strip()):
-        base = base.where(Guild.name.ilike(f"%{term}%"))
+        # A number, with or without its ``#``, also finds the community by id,
+        # so one of many sharing a name can still be picked.
+        number = term.removeprefix("#")
+        matches = Guild.name.ilike(f"%{term}%")
+        if number.isdigit():
+            matches = or_(matches, Guild.id == int(number))
+        base = base.where(matches)
     order = _GUILD_SORT_FIELDS[sort_by]
     rows, total_count, actual_page = await paginated_query(
         session,
@@ -1224,13 +1230,21 @@ async def set_platform_community_suspension(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=GuildMessages.COMMUNITY_SUSPENSION_NEEDS_GRANT,
         )
-    try:
-        guild = await guilds_service.get_guild(session, guild_id=guild_id)
-    except ValueError as exc:
+    # Locked for the rest of the transaction, so a deletion or a purge pass
+    # deciding on the same community waits for this and reads what it wrote.
+    guild = (
+        await session.exec(
+            select(Guild)
+            .where(Guild.id == guild_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+    ).one_or_none()
+    if guild is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=GuildMessages.COMMUNITY_NOT_FOUND,
-        ) from exc
+        )
     current = CommunityStatus(guild.status)
     administration = await guilds_service.get_administration(session, guild_id=guild_id)
     if payload.suspended:

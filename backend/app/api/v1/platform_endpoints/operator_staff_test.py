@@ -5,6 +5,7 @@ and the cases it has."""
 from __future__ import annotations
 
 import pytest
+from httpx import AsyncClient
 from sqlmodel import select
 
 from app.models.platform.guild import CommunityRole, GuildMembership
@@ -19,7 +20,7 @@ from app.testing import (
 USERS = "/api/v1/operator/users"
 
 
-async def _row(client, actor, target) -> dict:
+async def _row(client: AsyncClient, actor: User, target: User) -> dict:
     response = await client.get(
         USERS,
         params={"search": f"{target.username}#{target.discriminator:04d}"},
@@ -116,6 +117,21 @@ async def test_signing_an_account_out_everywhere(client, session, capfd):
     (line,) = emitted(capfd, AuditEventType.USER_SESSIONS_REVOKED)
     assert line["target_user_id"] == member.id
     assert line["actor_user_id"] == moderator.id
+
+
+async def test_an_access_token_handed_out_before_signing_out_stops_working(
+    client, session
+):
+    moderator = await create_user(session, role=UserRole.moderator)
+    member = await create_user(session)
+    before = get_auth_headers(member)
+    assert (await client.get("/api/v1/me", headers=before)).status_code == 200
+
+    response = await client.delete(
+        f"{USERS}/{member.id}/sessions", headers=get_auth_headers(moderator)
+    )
+    assert response.status_code == 200, response.text
+    assert (await client.get("/api/v1/me", headers=before)).status_code == 401
 
 
 async def test_support_cannot_sign_anybody_out(client, session):
