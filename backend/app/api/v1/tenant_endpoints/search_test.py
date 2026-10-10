@@ -23,6 +23,8 @@ from app.testing import (
     create_project,
     create_tag,
     create_task,
+    create_wiki,
+    create_wiki_page,
     lexical_body,
     route_session_to_guild,
 )
@@ -491,6 +493,40 @@ async def test_archived_work_is_kept_back_until_it_is_asked_for(
 
     asked = await _search(client, a, search="shelved", include_archived=True)
     assert {h["entity_id"] for h in asked["items"]} == {live.id, filed.id}
+
+
+async def test_what_cannot_be_archived_goes_with_what_it_is_under(
+    client, session, acting_user: ActingUser
+) -> None:
+    """A comment and a wiki page have no archive of their own: archiving the
+    project or wiki they are under keeps them back with it, and bringing that
+    back brings them back."""
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
+    task = await create_task(session, a.project, title="ledger")
+    on_task = await create_comment(session, a.user, task=task, content="walnut note")
+    wiki = await create_wiki(session, a.initiative, a.user)
+    page = await create_wiki_page(session, wiki, a.user, title="walnut page")
+    on_page = await create_comment(
+        session, a.user, wiki_page=page, content="walnut too"
+    )
+    everything = {
+        ("comment", on_task.id),
+        ("wiki_page", page.id),
+        ("comment", on_page.id),
+    }
+
+    async def found() -> set[tuple[str, int]]:
+        body = await _search(client, a, search="walnut", types=["comment", "wiki_page"])
+        return {(h["entity_type"], h["entity_id"]) for h in body["items"]}
+
+    assert await found() == everything
+    for verb, expected in (("archive", set()), ("unarchive", everything)):
+        for kind, row in (("project", a.project), ("wiki", wiki)):
+            moved = await client.post(
+                a.g(f"/{verb}/{kind}/{row.id}"), headers=a.headers
+            )
+            assert moved.status_code == 200, moved.text
+        assert await found() == expected
 
 
 async def test_templates_are_found_by_name_and_pickable_on_their_own(

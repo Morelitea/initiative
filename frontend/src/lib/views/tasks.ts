@@ -203,6 +203,36 @@ const SHIPPED_FIELDS = nodesIn(Object.values(TASK_PAGE_REGIONS).flat()).filter((
   EDITS_A_FIELD.has(node.type)
 );
 
+/** What a column's part is known by: its kind or field, or a group's first. */
+const anchorOf = (node: ViewNode): string | undefined =>
+  node.type === "section" || node.type === "stack"
+    ? (node.children ?? []).map(anchorOf).find((anchor) => anchor !== undefined)
+    : placedAs(node);
+
+/** Where the shipped page puts each of its column parts once it is one column. */
+const SHIPPED_ORDER = new Map(
+  [...TASK_PAGE_REGIONS.main, ...TASK_PAGE_REGIONS.side].map((node) => [
+    anchorOf(node),
+    Number(node.props?.order),
+  ])
+);
+
+/**
+ * A column's parts with where each falls once the page is one column, as the
+ * shipped page interleaves its columns: a part the shipped page has falls
+ * where it puts it, any other right after the part before it, and a column
+ * keeps its own order (a part never falls before one above it). Parts that
+ * fall together keep the main column's ahead of the side's.
+ */
+const ordered = (parts: ViewNode[], column: "main" | "side"): ViewNode[] => {
+  const known = parts.map((part) => SHIPPED_ORDER.get(anchorOf(part)));
+  let order = known.find((each) => each !== undefined) ?? (column === "main" ? 1 : 2);
+  return parts.map((part, index) => {
+    order = Math.max(order, known[index] ?? order);
+    return at(order, part);
+  });
+};
+
 /** Each region as stored, or as shipped where the layout leaves it out. */
 const regionsOf = (stored: StoredRegions | null | undefined): Record<Region, ViewNode[]> => ({
   header: stored?.header ?? TASK_PAGE_REGIONS.header,
@@ -257,7 +287,8 @@ export const storedLayout = (root: ViewNode): ItemLayoutDefinitionInput => {
  * shipped where the layout leaves it out. What the shipped page edits and the
  * layout places nowhere is drawn in a "More fields" section at the side, so a
  * field still has a place on a page nobody laid out for it. A stored part
- * carries no `order`, so on one column a stored region keeps its own order.
+ * carries no `order`: where it falls on one column is worked out here, so a
+ * page laid out anew still reads as the shipped one does on a phone.
  */
 export const taskPageTree = (
   stored: StoredRegions | null | undefined,
@@ -266,18 +297,18 @@ export const taskPageTree = (
   const regions = regionsOf(stored);
   const unplaced = unplacedFields(regions);
   // Last on one column, after whatever the regions hold.
-  const side = unplaced.length
-    ? [
-        ...regions.side,
-        at(7, { type: "section", props: { title: moreFields }, children: unplaced }),
-      ]
-    : regions.side;
+  const side = ordered(regions.side, "side");
   return {
     type: "page",
     children: [
       { type: "header", children: regions.header },
-      { type: "main", children: regions.main },
-      { type: "side", children: side },
+      { type: "main", children: ordered(regions.main, "main") },
+      {
+        type: "side",
+        children: unplaced.length
+          ? [...side, at(7, { type: "section", props: { title: moreFields }, children: unplaced })]
+          : side,
+      },
     ],
   };
 };

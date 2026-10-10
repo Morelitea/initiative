@@ -358,6 +358,10 @@
     "move": "{{name}} verschieben",
     "hide": "{{name}} ausblenden",
     "add": "Hinzufügen",
+    "addBefore": "Vor {{name}} hinzufügen",
+    "addAfter": "Nach {{name}} hinzufügen",
+    "addInto": "Zu {{name}} hinzufügen",
+    "emptyGroup": "Leer. Lege hier einen Teil ab oder füge einen hinzu.",
     "builtIn": "Eingebaut",
     "properties": "Eigenschaften",
     "layoutParts": "Layout",
@@ -428,6 +432,14 @@
       "byline": "Wer die Aufgabe erstellt hat und wann.",
       "notice": "Sagt jemandem, der die Aufgabe nicht ändern kann, warum.",
       "actions": "Was sonst mit der Aufgabe möglich ist: verschieben, duplizieren, archivieren, löschen und Plug-in-Aktionen."
-    }
+    },
+    "addView": "Ansicht hinzufügen",
+    "viewActions": "Mehr zu dieser Ansicht",
+    "duplicateView": "Duplizieren",
+    "deleteView": "Löschen",
+    "newView": "Neue Ansicht",
+    "copyOf": "{{name}} (Kopie)",
+    "filters": "Filter",
+    "filtersHelp": "Die Ansicht zeigt nur Aufgaben, die hierzu passen. Jede Person kann sie mit eigenen Filtern weiter eingrenzen."
   }
 }

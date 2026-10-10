@@ -6,6 +6,7 @@ import {
   addableFields,
   addablePluginParts,
   changeAt,
+  dropAt,
   dropInto,
   dropOn,
   historyReducer,
@@ -18,7 +19,14 @@ import {
   removable,
   startHistory,
 } from "./draft";
-import { storedLayout, taskFields, taskPageRoot, unplacedFields } from "./tasks";
+import {
+  type StoredRegions,
+  storedLayout,
+  taskFields,
+  taskPageRoot,
+  taskPageTree,
+  unplacedFields,
+} from "./tasks";
 import type { ViewNode } from "./tree";
 
 const field = (id: string): ViewNode => ({ type: "field", props: { field: id } });
@@ -155,6 +163,16 @@ describe("where a dragged part lands", () => {
     expect(dropOn([0], [0, 1])).toBeNull();
   });
 
+  it("goes before or after the part it is put beside", () => {
+    // After the description, from ahead of it in its own group.
+    expect(dropAt([0, 0], [0], 2)).toEqual([0, 1]);
+    // Before the title, from outside the group.
+    expect(dropAt([1], [0], 0)).toEqual([0, 0]);
+    // After the group, from inside it.
+    expect(dropAt([0, 1], [], 1)).toEqual([1]);
+    expect(dropAt([0], [0, 1], 0)).toBeNull();
+  });
+
   it("goes last in a group dropped into", () => {
     expect(dropInto(CARD, [1], [0])).toEqual([0, 2]);
     expect(dropInto(CARD, [0, 0], [0])).toEqual([0, 1]);
@@ -177,6 +195,38 @@ describe("a task page laid out", () => {
       props: { field: "checklist" },
     });
     expect(layout.header).toHaveLength(3);
+  });
+
+  it("reads on a phone as the shipped page does once laid out anew", () => {
+    // Stored after any change: no one-column order of its own, and a plug-in
+    // part added after the checklist.
+    const stored = storedLayout(
+      insertAt(taskPageRoot(null), [1], { type: "plugin", props: { plugin: 3, part: "ci" } }, 2)
+    );
+    const tree = taskPageTree(stored as StoredRegions, "More fields");
+    const orders = (index: number) =>
+      tree.children?.[index]?.children?.map((node) => [
+        // A section by its first part.
+        node.props?.field ??
+          node.children?.[0]?.props?.field ??
+          node.children?.[0]?.type ??
+          node.type,
+        node.props?.order,
+      ]);
+
+    // Description, the fields, the checklist and what follows it, case,
+    // relations, then comments.
+    expect(orders(1)).toEqual([
+      ["description", 1],
+      ["checklist", 3],
+      ["plugin", 3],
+      ["case", 4],
+      ["comments", 6],
+    ]);
+    expect(orders(2)).toEqual([
+      ["status", 2],
+      ["relations", 5],
+    ]);
   });
 
   it("names what it places nowhere, which More fields then draws", () => {
