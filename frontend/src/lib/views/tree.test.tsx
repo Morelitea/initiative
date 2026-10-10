@@ -189,7 +189,8 @@ describe("taskPageTree", () => {
     const page = regions(taskPageTree({ main: [work], side: [] }, "More fields"));
 
     expect(page.header).toEqual(regions(TASK_PAGE).header);
-    expect(page.main).toEqual([work]);
+    // Drawn where the shipped page puts what it starts with on one column.
+    expect(page.main).toEqual([{ ...work, props: { ...work.props, order: 1 } }]);
     const [more] = page.side ?? [];
     expect(more.props).toMatchObject({ title: "More fields" });
     expect(more.children?.map((node) => String(node.props?.field ?? node.type))).toEqual([

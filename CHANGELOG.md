@@ -61,6 +61,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A task page laid out for a project reads the same on a phone.** Once a project's task page had been changed in the view editor, a phone showed all of the main column before the side, so a task's status, people and dates sat below its whole comment thread. The page now keeps the shipped order on one column: the description, then the fields, the checklist, the case, relations and comments, with anything added falling next to what it was placed beside.
 - **Search leaves out what is inside archived work.** Comments, wiki pages, queue items, counters, pictures and events no longer show as live results once the project, wiki, queue, counter group, gallery or calendar they are in is archived. They come back when it does, and a search that asks for archived work still finds them.
 - **Your recently opened items, favorite projects and project order are yours alone.** Nobody else in the community can read or change them, admins included.
 - **Only you can answer a poll or mark a notice read as yourself.** Admins can't change your answer either. Others still see the counts and who answered, as before.
