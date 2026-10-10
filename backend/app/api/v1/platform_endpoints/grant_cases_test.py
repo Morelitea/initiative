@@ -440,7 +440,7 @@ async def test_two_requests_for_one_unnamed_case_settle_one_community(
     assert await grant_cases.claim(task_id, guild_id=second.id) == "other"
     assert await grant_cases.claim(task_id, guild_id=first.id) == "held"
     # A grant that then fails to be made gives the case back unnamed.
-    await grant_cases.release(task_id, guild_id=first.id)
+    await grant_cases.unclaim(task_id, guild_id=first.id)
     assert await grant_cases.claim(task_id, guild_id=second.id) == "named"
 
 
@@ -615,3 +615,23 @@ async def test_a_refused_request_leaves_its_case_unnamed(
     assert response.status_code == 404, response.text
     other = await create_guild(session)
     assert await grant_cases.claim(task_id, guild_id=other.id) == "named"
+
+
+async def test_releasing_keeps_a_name_another_grant_rests_on(
+    session: AsyncSession, desk
+):
+    target = await create_guild(session)
+    other = await create_guild(session)
+    task_id = await _case()
+    assert await grant_cases.claim(task_id, guild_id=target.id) == "named"
+    # A second request found it named so, and its grant was made.
+    await _live_grant(
+        session,
+        user=desk["agent"].user,
+        guild_id=target.id,
+        case=task_id,
+        ago=timedelta(0),
+    )
+    # The first one's grant then failed: its release leaves the name.
+    await grant_cases.unclaim(task_id, guild_id=target.id)
+    assert await grant_cases.claim(task_id, guild_id=other.id) == "other"

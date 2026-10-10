@@ -162,6 +162,10 @@ _ALLOWED: dict[tuple[str, str], str] = {
     (f"{_SERVICES}/intake.py", "open_case"): (
         "intake: opens a case in the operations community on the deployment's behalf"
     ),
+    (f"{_SERVICES}/intake.py", "release_subject_guild"): (
+        "intake: unnames a case's community again, for a grant that was not "
+        "made after all"
+    ),
     (f"{_SERVICES}/intake.py", "claim_subject_guild"): (
         "intake: settles the community a case is about, as an access grant for "
         "it is asked for"

@@ -119,7 +119,7 @@ async def _commit_with_case(
         await session.commit()
     except BaseException:
         if outcome == "named":
-            await grant_cases.release(case_task_id, guild_id=guild_id)
+            await grant_cases.unclaim(case_task_id, guild_id=guild_id)
         raise
 
 

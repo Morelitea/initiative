@@ -291,7 +291,7 @@ async def claim(task_id: int, *, guild_id: int) -> str:
     return await claim_subject_guild(task_id, guild_id)
 
 
-async def release(task_id: int, *, guild_id: int) -> None:
+async def unclaim(task_id: int, *, guild_id: int) -> None:
     """Undo a :func:`claim` that named the case, for a grant not made."""
     from app.services.platform.intake import release_subject_guild
 

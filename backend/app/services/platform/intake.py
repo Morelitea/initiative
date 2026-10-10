@@ -892,7 +892,8 @@ async def claim_subject_guild(task_id: int, guild_id: int) -> ClaimOutcome:
 async def release_subject_guild(task_id: int, guild_id: int) -> None:
     """Undo :func:`claim_subject_guild` naming ``guild_id`` on case
     ``task_id``, for a grant that was not made after all: the case names no
-    community again, where it still names that one."""
+    community again, where it still names that one and no grant for it rests
+    on that name. Under the same lock as the claim."""
     operations = await configured_operations_guild_id()
     if operations is None:
         return
@@ -919,6 +920,26 @@ async def release_subject_guild(task_id: int, guild_id: int) -> None:
                 .where(PropertyValue.entity_id == task_id)
             )
         ).first()
-        if named is not None and named.value_number == guild_id:
+        if named is None or named.value_number != guild_id:
+            await session.rollback()
+            return
+        # Another request may have found the case named so and been made on
+        # the strength of it: then the name stays.
+        # Grants are shared rows, read on the system engine itself: this
+        # session is routed into the operations community.
+        from app.db.session import SystemSessionLocal
+        from app.models.platform.access_grant import AccessGrant, AccessGrantStatus
+
+        async with SystemSessionLocal() as shared:
+            relied_on = (
+                await shared.exec(
+                    select(AccessGrant.id)
+                    .where(AccessGrant.case_task_id == task_id)
+                    .where(AccessGrant.guild_id == guild_id)
+                    .where(AccessGrant.status != AccessGrantStatus.denied.value)
+                    .limit(1)
+                )
+            ).first()
+        if relied_on is None:
             await session.delete(named)
         await session.commit()
