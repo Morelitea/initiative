@@ -2,7 +2,7 @@
  * The view editor, worked as a manager works it: change the open view in the
  * outline or on the canvas, see it at once, and nothing is stored until Save.
  */
-import { screen, waitFor, within } from "@testing-library/react";
+import { createEvent, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse } from "msw";
 import { useState } from "react";
@@ -22,6 +22,7 @@ import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import type { ToolViewSetRead, ToolViewSetWrite } from "@/api/generated/initiativeAPI.schemas";
 import { useProjectViews } from "@/hooks/useProjectViews";
+import type { ViewNode } from "@/lib/views/tree";
 
 import { TASK_PAGE, ViewEditor } from "./ViewEditor";
 
@@ -48,6 +49,17 @@ const editor = (slug: string, onClose = vi.fn(), set = buildToolViewSet()) => {
   };
   renderPage(Page);
   return { user: userEvent.setup(), onClose };
+};
+
+/** A pointer event from one pointer: jsdom's stand-in carries no id. */
+const firePointer = (
+  type: "pointerDown" | "pointerUp" | "pointerCancel",
+  target: Element | Window,
+  pointerId: number
+) => {
+  const event = createEvent[type](target);
+  Object.defineProperty(event, "pointerId", { value: pointerId });
+  fireEvent(target, event);
 };
 
 const outline = () => screen.findByRole("navigation", { name: /outline/i });
@@ -271,6 +283,152 @@ describe("ViewEditor", () => {
     await user.click(screen.getByRole("button", { name: /^leave$/i }));
 
     expect(onClose).toHaveBeenCalled();
+  });
+
+  describe("on the canvas", () => {
+    it("adds a part before the one pointed at", async () => {
+      const { user } = editor("board");
+      await user.hover(await within(await canvas()).findByText(/priority: medium/i));
+
+      // Clicked where it is, as the pointer reaches it from the part.
+      fireEvent.click(screen.getByRole("button", { name: /add before priority/i }));
+      const picker = await screen.findByRole("dialog", { name: "Add" });
+      await user.click(within(picker).getByRole("button", { name: "Group" }));
+      await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+      await waitFor(() => expect(saves).toHaveLength(1));
+      const card = saves[0].views.find((view) => view.slug === "board")?.definition.card;
+      // The row holding Priority starts with the group, Priority after it.
+      expect((card?.children?.[1] as ViewNode | undefined)?.children?.slice(0, 2)).toEqual([
+        { type: "stack", props: { align: "start" }, children: [] },
+        { type: "field", props: { field: "priority" } },
+      ]);
+    });
+
+    it("adds a column after the one pointed at", async () => {
+      const { user } = editor("table");
+      const header = await within(await canvas()).findByRole("columnheader", { name: /priority/i });
+      await user.hover(within(header).getByText(/priority/i));
+
+      fireEvent.click(screen.getByRole("button", { name: /add after priority/i }));
+      const picker = await screen.findByRole("dialog", { name: "Add" });
+      await user.click(within(picker).getByRole("button", { name: "Effort" }));
+      await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+      await waitFor(() => expect(saves).toHaveLength(1));
+      expect(saves[0].views.find((view) => view.slug === "table")?.definition.columns).toEqual([
+        "title",
+        "startDate",
+        "dueDate",
+        "priority",
+        "property:12",
+        "tags",
+        "comments",
+      ]);
+    });
+
+    /** Grabs the selected part's handle on the canvas, with one pointer. */
+    const grab = async (name: RegExp, pointer = 1) => {
+      const nav = await outline();
+      const handle = screen
+        .getAllByRole("button", { name })
+        .find((button) => !nav.contains(button)) as Element;
+      firePointer("pointerDown", handle, pointer);
+    };
+    /** What jsdom cannot work out: the element under the pointer. */
+    const under = (element: Element, run: () => void) => {
+      const was = document.elementsFromPoint;
+      document.elementsFromPoint = () => [element];
+      try {
+        run();
+      } finally {
+        document.elementsFromPoint = was;
+      }
+    };
+
+    it("lets a drag go when an undo changes the card under it", async () => {
+      const { user } = editor("board");
+      const drawn = await canvas();
+      await user.click(within(await outline()).getByRole("button", { name: /hide tags/i }));
+      await user.click(await within(drawn).findByText(/priority: medium/i));
+      await grab(/move priority/i);
+
+      await user.keyboard("{Control>}z{/Control}");
+      under(within(drawn).getByText("Draw the map"), () => firePointer("pointerUp", window, 1));
+
+      // The undo stands, and nothing moved after it.
+      expect(screen.getByRole("button", { name: /^save$/i })).toBeDisabled();
+    });
+
+    it("moves a part only for the pointer that took hold of it", async () => {
+      const { user } = editor("board");
+      const drawn = await canvas();
+      await user.click(await within(drawn).findByText(/priority: medium/i));
+      const title = within(drawn).getByText("Draw the map");
+
+      await grab(/move priority/i, 1);
+      under(title, () => firePointer("pointerUp", window, 2));
+      firePointer("pointerCancel", window, 1);
+      under(title, () => firePointer("pointerUp", window, 1));
+
+      expect(screen.getByRole("button", { name: /^save$/i })).toBeDisabled();
+    });
+
+    it("takes a part into a group added empty", async () => {
+      const { user } = editor("board");
+      const drawn = await canvas();
+      await user.click(await within(drawn).findByText(/priority: medium/i));
+      await user.click(within(await outline()).getByRole("button", { name: /^add$/i }));
+      const picker = await screen.findByRole("dialog", { name: "Add" });
+      await user.click(within(picker).getByRole("button", { name: "Group" }));
+      // Adding put the group after Priority and selected it; Priority again.
+      await user.click(within(drawn).getByText(/priority: medium/i));
+      const [empty] = within(drawn).getAllByText(/drop a part here/i);
+      await user.hover(empty);
+      expect(screen.getByRole("button", { name: /add to group/i })).toBeInTheDocument();
+
+      await grab(/move priority/i);
+      under(empty, () => firePointer("pointerUp", window, 1));
+      await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+      await waitFor(() => expect(saves).toHaveLength(1));
+      const card = saves[0].views.find((view) => view.slug === "board")?.definition.card;
+      expect((card?.children?.[1] as ViewNode | undefined)?.children?.[0]).toEqual({
+        type: "stack",
+        props: { align: "start" },
+        children: [{ type: "field", props: { field: "priority" } }],
+      });
+    });
+
+    it("moves the selected part where it is dragged", async () => {
+      const { user } = editor("board");
+      const drawn = await canvas();
+      await user.click(await within(drawn).findByText(/priority: medium/i));
+      const title = within(drawn).getByText("Draw the map");
+      const nav = await outline();
+      const handle = screen
+        .getAllByRole("button", { name: /move priority/i })
+        .find((button) => !nav.contains(button));
+
+      // Dropped on the title's upper half: before it. jsdom lays nothing out,
+      // so what is under the pointer is said here.
+      const under = document.elementsFromPoint;
+      document.elementsFromPoint = () => [title];
+      try {
+        fireEvent.pointerDown(handle as Element);
+        fireEvent.pointerUp(window, { clientX: 0, clientY: 0 });
+      } finally {
+        document.elementsFromPoint = under;
+      }
+      await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+      await waitFor(() => expect(saves).toHaveLength(1));
+      const card = saves[0].views.find((view) => view.slug === "board")?.definition.card;
+      expect((card?.children?.[0] as ViewNode | undefined)?.children?.slice(0, 2)).toEqual([
+        { type: "field", props: { field: "priority" } },
+        { type: "field", props: { field: "title" } },
+      ]);
+    });
   });
 
   describe("the set of views", () => {
