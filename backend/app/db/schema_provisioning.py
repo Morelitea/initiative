@@ -220,6 +220,8 @@ class ProvisioningBundle:
 
     schema_ddl: str
     checks_ddl: str
+    #: Not digested: it follows from ``checks_ddl``.
+    validate_ddl: str
     rls_ddl: str
     capture_ddl: str
     search_ddl: str
@@ -228,7 +230,14 @@ class ProvisioningBundle:
     @property
     def stamp(self) -> str:
         """The schema comment a guild carries once every part is applied."""
-        return _STAMP_PREFIX + ",".join(f"{p}={self.digests[p]}" for p in PARTS)
+        return self.stamp_pending()
+
+    def stamp_pending(self, *parts: str) -> str:
+        """The stamp, with ``parts`` still to finish: a later boot applies
+        them again."""
+        return _STAMP_PREFIX + ",".join(
+            f"{p}={'pending' if p in parts else self.digests[p]}" for p in PARTS
+        )
 
     def stale_parts(self, stamp: str | None) -> tuple[str, ...]:
         """The parts a schema commented ``stamp`` still needs, in apply order."""
@@ -259,7 +268,10 @@ async def get_provisioning_bundle() -> ProvisioningBundle:
             return _bundle
         from app.db.event_capture import render_guild_capture_ddl
         from app.db.guild_ddl import render_guild_rls_ddl, render_guild_schema_ddl
-        from app.db.registry_checks import render_guild_registry_check_ddl
+        from app.db.registry_checks import (
+            render_guild_registry_check_ddl,
+            render_guild_registry_validate_ddl,
+        )
         from app.db.search_index import render_guild_search_ddl
 
         schema_ddl = await render_guild_schema_ddl(db_session.provisioning_engine)
@@ -275,6 +287,7 @@ async def get_provisioning_bundle() -> ProvisioningBundle:
         _bundle = ProvisioningBundle(
             schema_ddl=schema_ddl,
             checks_ddl=checks_ddl,
+            validate_ddl=render_guild_registry_validate_ddl(),
             rls_ddl=rls_ddl,
             capture_ddl=capture_ddl,
             search_ddl=search_ddl,
@@ -315,10 +328,16 @@ async def apply_guild_schema(conn: AsyncConnection, schema: str) -> None:
     )
 
 
-async def apply_guild_checks(conn: AsyncConnection, schema: str) -> None:
-    """Assert the registry CHECKs on ``schema``'s tables
+async def apply_guild_checks(
+    conn: AsyncConnection, schema: str, *, replace: bool = True, validate: bool = True
+) -> None:
+    """Replace and/or validate the registry CHECKs on ``schema``'s tables
     (``app.db.registry_checks``), with the search_path pointed at it."""
-    ddl = (await get_provisioning_bundle()).checks_ddl
+    bundle = await get_provisioning_bundle()
+    ddl = "\n".join(
+        ([bundle.checks_ddl] if replace else [])
+        + ([bundle.validate_ddl] if validate else [])
+    )
     raw = await conn.get_raw_connection()
     await raw.driver_connection.execute(
         f'SET search_path TO "{schema}", public;\n{ddl}\nSET search_path TO public;'
@@ -702,20 +721,32 @@ async def _existing_roles(conn: AsyncConnection, roles: tuple[str, ...]) -> set[
 _BACKFILL_CONCURRENCY = 4
 
 
+async def _write_stamp(conn: AsyncConnection, schema: str, stamp: str) -> None:
+    # Constant hex digests, safe to inline.
+    await conn.exec_driver_sql(f"COMMENT ON SCHEMA \"{schema}\" IS '{stamp}'")
+
+
 async def _apply_parts(
-    conn: AsyncConnection, guild_id: int, parts: tuple[str, ...]
+    conn: AsyncConnection,
+    guild_id: int,
+    parts: tuple[str, ...],
+    *,
+    validate_checks: bool = True,
 ) -> None:
     """Apply ``parts`` of the bundle to ``guild_<id>``, then stamp the schema.
 
     Every part is idempotent (``IF NOT EXISTS``, ``CREATE OR REPLACE``, drop
     and re-create), so re-applying one that was current changes nothing.
+    ``validate_checks=False`` replaces the registry CHECKs without checking
+    the rows already there, and stamps ``checks`` pending until the caller
+    validates them in a transaction of its own.
     """
     schema = guild_schema_name(guild_id)
     if "schema" in parts:
         await conn.exec_driver_sql(f'CREATE SCHEMA IF NOT EXISTS "{schema}"')
         await apply_guild_schema(conn, schema)  # canonical Alembic-owned table DDL
-    if "checks" in parts:
-        await apply_guild_checks(conn, schema)  # CHECKs that follow a registry
+    if "checks" in parts:  # CHECKs that follow a registry
+        await apply_guild_checks(conn, schema, validate=validate_checks)
     if "grants" in parts:
         roles = _guild_roles(guild_id)
         existing = await _existing_roles(conn, roles)
@@ -732,9 +763,11 @@ async def _apply_parts(
         await apply_guild_capture(conn, schema)  # change-capture triggers
     if "search" in parts:
         await apply_guild_search(conn, schema)  # search-index refresh triggers
-    # Constant hex digests, safe to inline.
-    stamp = (await get_provisioning_bundle()).stamp
-    await conn.exec_driver_sql(f"COMMENT ON SCHEMA \"{schema}\" IS '{stamp}'")
+    bundle = await get_provisioning_bundle()
+    pending = "checks" in parts and not validate_checks
+    await _write_stamp(
+        conn, schema, bundle.stamp_pending("checks") if pending else bundle.stamp
+    )
 
 
 async def provision_guild_schema(conn: AsyncConnection, guild_id: int) -> str:
@@ -847,8 +880,16 @@ async def _backfill_guild(guild_id: int, *, wait: bool) -> bool | None:
         )
         parts = PARTS if settings.FORCE_GUILD_BACKFILL else bundle.stale_parts(stamp)
         if parts:
-            await _apply_parts(conn, guild_id, parts)
-        return bool(parts)
+            await _apply_parts(conn, guild_id, parts, validate_checks=False)
+    if "checks" in parts:
+        # After the replacement commits, so the scan holds no lock that stops
+        # the guild's reads and writes. A failure leaves ``checks`` pending.
+        async with db_session.provisioning_engine.begin() as conn:
+            await advisory_lock(conn, LockNamespace.GUILD_PROVISION, guild_id)
+            schema = guild_schema_name(guild_id)
+            await apply_guild_checks(conn, schema, replace=False)
+            await _write_stamp(conn, schema, bundle.stamp)
+    return bool(parts)
 
 
 async def backfill_guild_schemas() -> BackfillSummary:

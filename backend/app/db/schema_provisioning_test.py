@@ -1031,12 +1031,15 @@ async def test_backfill_continues_past_a_failing_guild(engine, monkeypatch):
 async def test_backfill_applies_only_stale_parts_and_waits_for_a_held_guild(
     engine, monkeypatch
 ):
-    """A guild behind on one part gets that part alone. A guild another
-    process holds the provisioning lock on is waited for, and found current
-    once it lets go, rather than applied a second time."""
+    """A guild behind on some parts gets those parts alone; its registry
+    CHECKs are validated after they are replaced, and only then is it stamped
+    current. A guild another process holds the provisioning lock on is waited
+    for, and found current once it lets go, rather than applied a second time."""
     partial, held = _GID_BACKFILL_PARTIAL, _GID_BACKFILL_HELD
     bundle = await schema_provisioning.get_provisioning_bundle()
-    stale_rls = bundle.stamp.replace(f"rls={bundle.digests['rls']}", "rls=old")
+    stale_rls = bundle.stamp.replace(f"rls={bundle.digests['rls']}", "rls=old").replace(
+        f"checks={bundle.digests['checks']}", "checks=old"
+    )
     try:
         async with engine.begin() as conn:
             for gid, name in ((partial, "backfill-partial"), (held, "backfill-held")):
@@ -1049,9 +1052,9 @@ async def test_backfill_applies_only_stale_parts_and_waits_for_a_held_guild(
         applied: dict[int, tuple[str, ...]] = {}
         real_apply_parts = schema_provisioning._apply_parts
 
-        async def _recording_apply_parts(conn, guild_id: int, parts) -> None:
+        async def _recording_apply_parts(conn, guild_id: int, parts, **kw) -> None:
             applied[guild_id] = parts
-            await real_apply_parts(conn, guild_id, parts)
+            await real_apply_parts(conn, guild_id, parts, **kw)
 
         monkeypatch.setattr(schema_provisioning, "_apply_parts", _recording_apply_parts)
 
@@ -1080,8 +1083,25 @@ async def test_backfill_applies_only_stale_parts_and_waits_for_a_held_guild(
 
         assert partial not in summary.failed_guild_ids
         assert held not in summary.failed_guild_ids
-        assert applied.get(partial) == ("rls",)
+        assert applied.get(partial) == ("checks", "rls")
         assert held not in applied
+        async with engine.connect() as conn:
+            schema = guild_schema_name(partial)
+            assert (
+                await conn.scalar(
+                    text("SELECT obj_description(to_regnamespace(:s), 'pg_namespace')"),
+                    {"s": schema},
+                )
+                == bundle.stamp
+            )
+            unvalidated = await conn.scalar(
+                text(
+                    "SELECT count(*) FROM pg_constraint "
+                    "WHERE connamespace = to_regnamespace(:s) AND NOT convalidated"
+                ),
+                {"s": schema},
+            )
+            assert unvalidated == 0
     finally:
         async with engine.begin() as conn:
             for gid in (partial, held):

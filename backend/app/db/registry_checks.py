@@ -7,10 +7,11 @@ renders it into every guild schema rather than a migration freezing a copy: a
 value added to the registry is admitted on the next boot, with no migration
 restating the list.
 
-The render replaces the constraint without scanning under an exclusive lock:
-``ADD … NOT VALID`` checks only new rows, then ``VALIDATE`` checks the rows
-already there while reads and writes go on. It runs only when the render's
-digest moves, so only when a registry changed.
+Replacing a constraint and validating it are two renders, run in two
+transactions. ``ADD … NOT VALID`` checks only new rows and holds its exclusive
+lock just until its transaction commits; ``VALIDATE``, run after, checks the
+rows already there under a lock that lets reads and writes go on. Both run
+only when the replacement's digest moves, so only when a registry changed.
 """
 
 from __future__ import annotations
@@ -40,8 +41,8 @@ def registry_checks() -> list[tuple[Table, CheckConstraint]]:
 
 
 def render_guild_registry_check_ddl() -> str:
-    """The DDL that asserts every registry CHECK in a guild schema. Run with
-    the search_path on that schema."""
+    """The DDL that replaces every registry CHECK in a guild schema, checking
+    new rows only. Run with the search_path on that schema."""
     lines: list[str] = []
     for table, constraint in registry_checks():
         name = constraint.name
@@ -49,6 +50,14 @@ def render_guild_registry_check_ddl() -> str:
             f"ALTER TABLE {table.name} DROP CONSTRAINT IF EXISTS {name};",
             f"ALTER TABLE {table.name} ADD CONSTRAINT {name}"
             f" CHECK ({constraint.sqltext}) NOT VALID;",
-            f"ALTER TABLE {table.name} VALIDATE CONSTRAINT {name};",
         ]
     return "\n".join(lines)
+
+
+def render_guild_registry_validate_ddl() -> str:
+    """The DDL that checks the rows already in a guild schema against every
+    registry CHECK, after the replacement has committed."""
+    return "\n".join(
+        f"ALTER TABLE {table.name} VALIDATE CONSTRAINT {constraint.name};"
+        for table, constraint in registry_checks()
+    )
