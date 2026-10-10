@@ -558,12 +558,11 @@ async def update_project(
         session, Tool.project, project_id, current_user, guild_context, access="write"
     )
     update_data = project_in.model_dump(exclude_unset=True)
-    # Fields that configure the project itself rather than describe it: they
-    # need a project manager, the project owner, or a guild admin, where plain
+    # Pinning configures the project itself rather than describing it: it
+    # needs a project manager, the project owner, or a guild admin, where plain
     # write access is enough for the rest of the payload.
-    if update_data.keys() & {"pinned", "default_view_mode"}:
-        permissions_service.require_project_configure(project, context=guild_context)
     if "pinned" in update_data:
+        permissions_service.require_project_configure(project, context=guild_context)
         pinned = update_data.pop("pinned")
         project.pinned_at = datetime.now(timezone.utc) if pinned else None
 

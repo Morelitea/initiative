@@ -81,7 +81,6 @@ export function buildProject(overrides: Partial<ProjectRead> = {}): ProjectRead 
     is_template: false,
     archived_at: null,
     pinned_at: null,
-    default_view_mode: null,
     owner: null,
     owner_plugin: null,
     initiative: null,

@@ -1,7 +1,7 @@
 from datetime import date, datetime, timezone
 from typing import List, Optional, TYPE_CHECKING
 
-from sqlalchemy import Column, Date, DateTime, String, Text
+from sqlalchemy import Column, Date, DateTime, Text
 from sqlmodel import Field, Relationship
 
 from app.core.tools import Tool
@@ -64,15 +64,6 @@ class Project(
     pinned_at: Optional[datetime] = Field(
         default=None,
         sa_column=Column(DateTime(timezone=True), nullable=True),
-    )
-    # Which task view a project opens on for someone with no view of their own
-    # yet. VARCHAR rather than a native enum on purpose: under schema-per-guild
-    # an enum is one type object per guild schema, so growing the vocabulary
-    # would mean an ALTER TYPE across every schema. The vocabulary lives in
-    # ProjectUpdate's Literal instead.
-    default_view_mode: Optional[str] = Field(
-        default=None,
-        sa_column=Column(String(length=16), nullable=True),
     )
 
     initiative: Optional["Initiative"] = Relationship(back_populates="projects")

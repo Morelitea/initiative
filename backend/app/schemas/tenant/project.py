@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import TYPE_CHECKING, Any, List, Literal, Optional
+from typing import TYPE_CHECKING, Any, List, Optional
 
 from pydantic import ConfigDict, Field
 from sqlalchemy import inspect as sa_inspect
@@ -29,11 +29,6 @@ from app.schemas.tenant.comment import CommentAuthor
 if TYPE_CHECKING:  # pragma: no cover
     from app.db.guild_standing import ActorContext
 
-
-# The task views a project can open on. Kept as a Literal rather than a
-# database enum so growing it is a code change, not an ALTER TYPE in every
-# guild schema.
-ProjectViewMode = Literal["table", "kanban", "calendar"]
 
 # Matches ``Project.icon``'s column width.
 PROJECT_ICON_MAX_LENGTH = 8
@@ -64,10 +59,6 @@ class ProjectUpdate(SanitizedBaseModel):
     icon: Optional[str] = Field(default=None, max_length=PROJECT_ICON_MAX_LENGTH)
     is_template: Optional[bool] = None
     pinned: Optional[bool] = None
-    # Which task view the project opens on. Send ``null`` to clear it and fall
-    # back to the client default. The vocabulary lives here rather than in a
-    # database enum — see the column's note on Project.
-    default_view_mode: Optional[ProjectViewMode] = None
     # Send ``null`` to clear a date; omit the field to leave it untouched.
     start_date: Optional[date] = None
     end_date: Optional[date] = None
@@ -100,7 +91,6 @@ class ProjectRead(ProjectBase, ToolSummaryBase):
     owner_id: Optional[PersonId] = None
     is_template: bool
     pinned_at: Optional[datetime] = None
-    default_view_mode: Optional[ProjectViewMode] = None
     owner: Optional[UserPublic] = Field(default=None, validation_alias="owner_source")
     #: The installed plug-in holding the owner grant, or None when a person owns
     #: the project or nobody does. At most one of ``owner_id`` and this is set.

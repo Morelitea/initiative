@@ -1466,51 +1466,14 @@ async def test_project_counts_by_initiative(
     assert response.json()["counts"]["project"] == {str(admin.initiative.id): 1}
 
 
-# ── Default view mode ─────────────────────────────────────────────────
-# Which view a project opens on is project configuration, not content: it takes
-# a project manager, the project owner, or a guild admin — the same bar as
-# pinning.
+# ── Pinning ───────────────────────────────────────────────────────────
 
 
-async def test_project_owner_sets_the_default_view(
+async def test_plain_write_edits_but_cannot_pin(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    a = await acting_user(
-        guild_role=CommunityRole.member, initiative=True, project=True
-    )
-
-    response = await client.patch(
-        a.g(f"/projects/{a.project.id}"),
-        json={"default_view_mode": "kanban"},
-        headers=a.headers,
-    )
-
-    assert response.status_code == 200
-    assert response.json()["default_view_mode"] == "kanban"
-
-
-async def test_guild_admin_sets_the_default_view(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    owner = await acting_user(
-        guild_role=CommunityRole.member, initiative=True, project=True
-    )
-    admin = await acting_user(guild_role=CommunityRole.admin, guild=owner.guild)
-
-    response = await client.patch(
-        admin.g(f"/projects/{owner.project.id}"),
-        json={"default_view_mode": "calendar"},
-        headers=admin.headers,
-    )
-
-    assert response.status_code == 200
-    assert response.json()["default_view_mode"] == "calendar"
-
-
-async def test_plain_write_edits_but_cannot_set_the_default_view(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """The escalation is per-field: renaming a project is still plain write."""
+    """Pinning is project configuration and the escalation is per-field:
+    renaming a project is still plain write."""
     owner = await acting_user(
         guild_role=CommunityRole.member, initiative=True, project=True
     )
@@ -1525,9 +1488,7 @@ async def test_plain_write_edits_but_cannot_set_the_default_view(
     )
     url = editor.g(f"/projects/{owner.project.id}")
 
-    response = await client.patch(
-        url, json={"default_view_mode": "kanban"}, headers=editor.headers
-    )
+    response = await client.patch(url, json={"pinned": True}, headers=editor.headers)
     assert response.status_code == 403
     assert response.json()["detail"] == "PROJECT_CONFIGURE_REQUIRED"
 
@@ -1535,22 +1496,6 @@ async def test_plain_write_edits_but_cannot_set_the_default_view(
         url, json={"name": "Renamed by an editor"}, headers=editor.headers
     )
     assert response.status_code == 200
-
-
-async def test_default_view_rejects_an_unknown_mode(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    a = await acting_user(
-        guild_role=CommunityRole.member, initiative=True, project=True
-    )
-
-    response = await client.patch(
-        a.g(f"/projects/{a.project.id}"),
-        json={"default_view_mode": "gantt"},
-        headers=a.headers,
-    )
-
-    assert response.status_code == 422
 
 
 # ── Views travel with the project ─────────────────────────────────────
