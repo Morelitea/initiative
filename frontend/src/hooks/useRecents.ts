@@ -1,6 +1,13 @@
 import { type UseQueryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useParams, useRouterState } from "@tanstack/react-router";
+import { useEffect } from "react";
 
-import type { RecentEntityType, RecentItemRead, Tool } from "@/api/generated/initiativeAPI.schemas";
+import {
+  RecentEntityType,
+  type RecentItemRead,
+  type RecentKind,
+  type ViewSource,
+} from "@/api/generated/initiativeAPI.schemas";
 import {
   clearRecent,
   getListRecentsQueryKey,
@@ -27,21 +34,32 @@ export const useRecents = (options?: QueryOpts<RecentItemRead[]>) => {
   });
 };
 
+const TAB_KINDS = new Set<string>(Object.values(RecentEntityType));
+
 /**
- * Mutation that POSTs ``/recents/{type}/{id}`` to record a recent open. Pages
+ * Mutation that POSTs ``/recents/{type}/{id}`` to record a recent open: of a
+ * tool, which becomes a tab, or of something inside one, which does not. Pages
  * call this in a ``useEffect`` once the entity has loaded and access checks
- * have passed.
+ * have passed. ``source`` is where the open came from; absent is a direct one.
  *
  * ``communityId`` is the entity's OWN community — pass the ``/c/{communityId}`` route param,
  * NOT the active community. The active community is shared across tabs (localStorage +
  * storage events), so recording with it tags the view under the wrong community
  * when another tab is in a different community; the URL path is per-tab.
  */
-export const useRecordRecentView = (entityType: Tool, communityId: number) => {
+export const useRecordRecentView = (
+  entityType: RecentKind,
+  communityId: number,
+  source?: ViewSource
+) => {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (entityId: number) => recordRecent(communityId, entityType, entityId),
+    mutationFn: (entityId: number) =>
+      recordRecent(communityId, entityType, entityId, source ? { source } : undefined),
     onSuccess: (written) => {
+      if (!TAB_KINDS.has(written.entity_type)) {
+        return;
+      }
       // The bar is read across every community the reader is in, so it is
       // read again only for a tab it does not have yet — whose name and icon
       // nothing here knows. Reopening one already there moves it to the front.
@@ -69,6 +87,21 @@ export const useRecordRecentView = (entityType: Tool, communityId: number) => {
       );
     },
   });
+};
+
+/**
+ * Records that the reader opened this, once it has loaded (``id`` is set only
+ * after the read passed its access checks), in the community the route
+ * addresses, with where the open came from: the history entry's
+ * ``viewSource``, which a search sets when it navigates.
+ */
+export const useRecordOpen = (kind: RecentKind, id: number | undefined) => {
+  const { communityId } = useParams({ strict: false }) as { communityId?: string };
+  const source = useRouterState({ select: (state) => state.location.state.viewSource });
+  const { mutate } = useRecordRecentView(kind, Number(communityId), source);
+  useEffect(() => {
+    if (id) mutate(id);
+  }, [id, mutate]);
 };
 
 /**

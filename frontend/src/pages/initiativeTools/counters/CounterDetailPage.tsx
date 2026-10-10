@@ -31,6 +31,7 @@ import {
   useSetCount,
   useSteppedCount,
 } from "@/hooks/useCounters";
+import { useRecordOpen } from "@/hooks/useRecents";
 import { useToolRealtime } from "@/hooks/useResourceRealtime";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { getContrastingTextColor } from "@/lib/counter-color";
@@ -84,6 +85,7 @@ export function CounterDetailPage() {
     [counters, counterId]
   );
   const counter = currentIndex >= 0 ? counters[currentIndex] : null;
+  useRecordOpen("counter", counter?.id);
 
   const canWrite = Boolean(group?.can.edit);
 

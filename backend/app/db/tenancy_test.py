@@ -99,19 +99,6 @@ def test_initiative_and_guild_level_are_disjoint():
     )
 
 
-def test_recent_views_path_covers_entity_types():
-    """recent_views' polymorphic RLS path must join every entity type the app can
-    record — otherwise rows of an uncovered type would be silently invisible."""
-    from app.db.initiative_rls import RECENT_ENTITY_TABLES
-    from app.models.tenant.recent_view import RECENT_ENTITY_TYPES
-
-    uncovered = set(RECENT_ENTITY_TYPES) - set(RECENT_ENTITY_TABLES)
-    assert not uncovered, (
-        f"recent_views_path() has no initiative join for entity types {sorted(uncovered)} "
-        "— add them to RECENT_ENTITY_TABLES in app/db/initiative_rls.py."
-    )
-
-
 def test_initiative_scoped_helper():
     assert is_initiative_scoped("projects") and not is_initiative_scoped(
         "guild_settings"

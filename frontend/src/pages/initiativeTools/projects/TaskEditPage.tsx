@@ -41,6 +41,7 @@ import { useInitiative } from "@/hooks/useInitiatives";
 import { useReadOnOpen } from "@/hooks/useNotifications";
 import { useProject, useProjectTaskStatuses, useWritableProjects } from "@/hooks/useProjects";
 import { taskPageOf, useProjectViews } from "@/hooks/useProjectViews";
+import { useRecordOpen } from "@/hooks/useRecents";
 import {
   useDeleteTask,
   useDuplicateTask,
@@ -84,6 +85,7 @@ export const TaskEditPage = () => {
 
   const taskQuery = useTask(parsedTaskId);
   useReadOnOpen("task", taskQuery.data?.id);
+  useRecordOpen("task", taskQuery.data?.id);
 
   const projectId = projectIdParam ? Number(projectIdParam) : taskQuery.data?.project_id;
   const projectQuery = useProject(projectId ?? null);

@@ -40,7 +40,9 @@ from app.core.relationships import (
 from app.core.tools import (
     DEFAULT_ENABLED_TOOLS,
     INSTALL_METADATA_KIND,
+    CONTENT_KINDS,
     ITEM_KINDS,
+    KINDS,
     PROPERTY_TARGETS,
     VIEWS_PER_INSTANCE,
     Tool,
@@ -1214,11 +1216,10 @@ def relationships_path() -> InitiativePath:
     return InitiativePath(predicate=build, initiative_expr=locate)
 
 
-# recent_views is polymorphic over (entity_type, entity_id). Every entity it can
-# point at is an initiative-scoped table with a direct initiative_id, so the path
-# is a per-type EXISTS join. Derived from the canonical Tool enum: entity_type is
-# the tool's string value, its table is the pluralized stem.
-RECENT_ENTITY_TABLES: dict[str, str] = {t.value: t.plural for t in Tool}
+# recent_views is polymorphic over (entity_type, entity_id): every tool and
+# everything inside one, keyed by its wire name, with the table its ids point
+# at.
+RECENT_ENTITY_TABLES: dict[str, str] = {k: KINDS[k].table for k in CONTENT_KINDS}
 
 
 def webhook_subscription_path() -> InitiativePath:
@@ -1379,7 +1380,7 @@ def recent_views_path() -> InitiativePath:
     def locate(r: str) -> str:
         arms = " ".join(
             f"WHEN '{etype}' THEN "
-            f"(SELECT {tbl}.initiative_id FROM {tbl} WHERE {tbl}.id = {r}.entity_id)"  # noqa: S608
+            f"(SELECT {initiative_of(tbl, 're')} FROM {tbl} re WHERE re.id = {r}.entity_id)"  # noqa: S608
             for etype, tbl in RECENT_ENTITY_TABLES.items()
         )
         return f"(CASE {r}.entity_type {arms} END)"

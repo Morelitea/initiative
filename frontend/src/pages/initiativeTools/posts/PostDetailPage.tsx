@@ -1,7 +1,7 @@
 import { useBlocker, useNavigate, useParams } from "@tanstack/react-router";
 import type { SerializedEditorState } from "lexical";
 import { CalendarClock, Loader2, Vote } from "lucide-react";
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { ReactionTarget, SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
@@ -36,7 +36,7 @@ import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useInitiative } from "@/hooks/useInitiatives";
 import { useReadOnOpen } from "@/hooks/useNotifications";
 import { useDeletePostPoll, usePost, useSetPostPoll, useUpdatePost } from "@/hooks/usePosts";
-import { useRecordRecentView } from "@/hooks/useRecents";
+import { useRecordOpen } from "@/hooks/useRecents";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { normalizeEditorState } from "@/lib/editorState";
 import { formatDateTime, fromLocalDateTimeInput, toLocalDateTimeInput } from "@/lib/formatDate";
@@ -60,10 +60,7 @@ const Editor = lazy(() =>
  */
 export function PostDetailPage() {
   const { t } = useTranslation(["posts", "common"]);
-  const { communityId, postId } = useParams({ strict: false }) as {
-    communityId: string;
-    postId: string;
-  };
+  const { postId } = useParams({ strict: false }) as { postId: string };
   const parsedId = Number(postId);
   const gp = useCommunityPath();
 
@@ -71,13 +68,9 @@ export function PostDetailPage() {
   const post = postQuery.data;
   const initiativeId = useCanonicalInitiativeId(post?.initiative_id);
 
-  const recordViewMutation = useRecordRecentView(Tool.post, Number(communityId));
   const viewedPostId = post?.id;
   useReadOnOpen(Tool.post, viewedPostId);
-  useEffect(() => {
-    if (!viewedPostId) return;
-    recordViewMutation.mutate(viewedPostId);
-  }, [viewedPostId, recordViewMutation.mutate]);
+  useRecordOpen(Tool.post, viewedPostId);
 
   const canEdit = Boolean(post?.can.edit);
 
