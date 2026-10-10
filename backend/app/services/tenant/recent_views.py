@@ -139,6 +139,18 @@ async def purge_for_entities(
     )
 
 
+async def purge_for_user(session: AsyncSession, user_id: int) -> None:
+    """Drop a person's recent views in this community, for their leaving it.
+    Whoever removes them cannot reach rows that are the person's alone, so the
+    platform drops them."""
+    from app.db.cohorts import exec_as_system
+
+    await exec_as_system(
+        session,
+        delete(RecentView).where(RecentView.user_id == user_id),  # type: ignore[arg-type]
+    )
+
+
 async def list_recent_views(
     session: AsyncSession,
     *,
@@ -147,10 +159,8 @@ async def list_recent_views(
 ) -> Sequence[RecentView]:
     """Return the user's most recent N rows, ordered by ``last_viewed_at`` desc.
 
-    ``recent_views`` lives in the active guild's schema, so the search_path
-    already scopes rows to that guild — no guild_id filter is needed (and the
-    column isn't populated in-schema, since its denormalization trigger is a
-    public-table artifact).
+    ``recent_views`` lives in its community's schema, so the routed session
+    already scopes rows to that community.
     """
     stmt = (
         select(RecentView)
