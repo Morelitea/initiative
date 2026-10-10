@@ -5,8 +5,8 @@ stream, as its filer chose — a support topic, a security topic, a feedback
 kind, an appeal. NULL where nobody chose one. The filer role's grant on it is
 rendered by the provisioning run.
 
-Revision ID: 20261010_0481
-Revises: 20261009_0480
+Revision ID: 20261010_0483
+Revises: 20261010_0482
 Create Date: 2026-10-10
 """
 
@@ -15,8 +15,8 @@ from alembic import op
 
 from app.db.guild_migrations import run_for_each_guild_schema
 
-revision = "20261010_0481"
-down_revision = "20261009_0480"
+revision = "20261010_0483"
+down_revision = "20261010_0482"
 branch_labels = None
 depends_on = None
 
