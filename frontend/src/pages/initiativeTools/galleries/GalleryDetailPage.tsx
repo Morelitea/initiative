@@ -8,7 +8,7 @@ import type {
   TagSummary,
   TimelineBucket,
 } from "@/api/generated/initiativeAPI.schemas";
-import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { Tool, ViewSource } from "@/api/generated/initiativeAPI.schemas";
 import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
 import { ToolRelationsPanel } from "@/components/entities/ToolRelationsPanel";
 import { BulkEditImageTagsDialog } from "@/components/initiativeTools/galleries/BulkEditImageTagsDialog";
@@ -182,7 +182,7 @@ export function GalleryDetailPage() {
   // somebody is looking at.
   const [openId, setOpenId] = useState<number | null>(null);
   // An image opens in the lightbox.
-  useRecordOpen("gallery_image", openId ?? undefined);
+  useRecordOpen("gallery_image", openId ?? undefined, { source: ViewSource.direct });
   const [detailsId, setDetailsId] = useState<number | null>(null);
   const openIndex = openId === null ? -1 : images.findIndex((image) => image.id === openId);
   const lightboxItems = useMemo<LightboxItem[]>(

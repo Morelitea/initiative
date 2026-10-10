@@ -15,7 +15,7 @@ import { buildRecentItem } from "@/__tests__/factories";
 import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
-import type { RecentItemRead } from "@/api/generated/initiativeAPI.schemas";
+import { type RecentItemRead, ViewSource } from "@/api/generated/initiativeAPI.schemas";
 import { getListRecentsQueryKey } from "@/api/generated/recents/recents";
 import { useRecordOpen, useRecordRecentView } from "@/hooks/useRecents";
 import { queryClient } from "@/lib/queryClient";
@@ -26,6 +26,24 @@ const wrapper = ({ children }: { children: ReactNode }) => (
 );
 
 const VIEWED_AT = "2026-09-30T12:00:00.000Z";
+
+/** Every open the server is told of, as `kind id source`. */
+const recordOpens = () => {
+  const opened: string[] = [];
+  server.use(
+    communityHttp.post("/recents/:entityType/:entityId", ({ request, params }) => {
+      const source = new URL(request.url).searchParams.get("source") ?? "direct";
+      opened.push(`${params.entityType} ${params.entityId} ${source}`);
+      return HttpResponse.json({
+        entity_type: params.entityType,
+        entity_id: Number(params.entityId),
+        last_viewed_at: VIEWED_AT,
+        source,
+      });
+    })
+  );
+  return opened;
+};
 
 describe("useRecordRecentView", () => {
   afterEach(() => queryClient.clear());
@@ -85,19 +103,7 @@ describe("useRecordRecentView", () => {
   });
 
   it("records something inside a tool with where it was opened from, leaving the bar alone", async () => {
-    const opened: URL[] = [];
-    server.use(
-      communityHttp.post("/recents/:entityType/:entityId", ({ request, params }) => {
-        const url = new URL(request.url);
-        opened.push(url);
-        return HttpResponse.json({
-          entity_type: params.entityType,
-          entity_id: Number(params.entityId),
-          last_viewed_at: VIEWED_AT,
-          source: url.searchParams.get("source") ?? "direct",
-        });
-      })
-    );
+    const opened = recordOpens();
     const TaskPage = () => {
       const { taskId } = useParams({ strict: false }) as { taskId: string };
       useRecordOpen("task", Number(taskId));
@@ -112,15 +118,41 @@ describe("useRecordRecentView", () => {
       routeParams: { communityId: "3", taskId: "7" },
     });
 
-    await waitFor(() => expect(opened).toHaveLength(1));
-    expect(opened[0].pathname).toBe("/api/v1/c/3/recents/task/7");
-    expect(opened[0].searchParams.get("source")).toBeNull();
+    await waitFor(() => expect(opened).toEqual(["task 7 direct"]));
 
+    // Searching for what is already open opens it again.
+    await router.navigate({ href: "/c/3/tasks/7", state: FROM_SEARCH });
+    await waitFor(() => expect(opened).toEqual(["task 7 direct", "task 7 search"]));
+
+    // Moving about on a page opens nothing.
     await router.navigate({ href: "/c/3/tasks/8", state: FROM_SEARCH });
-    await waitFor(() => expect(opened).toHaveLength(2));
-    expect(opened[1].pathname).toBe("/api/v1/c/3/recents/task/8");
-    expect(opened[1].searchParams.get("source")).toBe("search");
+    await router.navigate({ href: "/c/3/tasks/8?tab=details" });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(opened).toEqual(["task 7 direct", "task 7 search", "task 8 search"]);
     expect(queryClient.getQueryData(key)).toBe(bar);
     expect(queryClient.getQueryState(key)?.isInvalidated).toBe(false);
+  });
+
+  it("records a tool again for each thing opened in it, and an open inside a page as direct", async () => {
+    const opened = recordOpens();
+    const WikiPage = () => {
+      const { pageId } = useParams({ strict: false }) as { pageId: string };
+      useRecordOpen("wiki", 4, { each: Number(pageId) });
+      useRecordOpen("gallery_image", 9, { source: ViewSource.direct });
+      return null;
+    };
+    const { router } = renderPage(WikiPage, {
+      queryClient,
+      initialRoute: "/c/$communityId/wikis/4/pages/$pageId",
+      routeParams: { communityId: "3", pageId: "1" },
+    });
+    await waitFor(() => expect(opened.sort()).toEqual(["gallery_image 9 direct", "wiki 4 direct"]));
+
+    await router.navigate({ href: "/c/3/wikis/4/pages/2" });
+    await waitFor(() => expect(opened).toHaveLength(3));
+    await router.navigate({ href: "/c/3/wikis/4/pages/2", state: FROM_SEARCH });
+    await waitFor(() => expect(opened).toHaveLength(4));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(opened.slice(2)).toEqual(["wiki 4 direct", "wiki 4 search"]);
   });
 });

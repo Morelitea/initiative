@@ -128,7 +128,7 @@ export const WikiPageView = () => {
   // A wiki is read through its pages, so a page that opens opens the wiki,
   // which is the tab.
   const loadedWikiId = pageQuery.data?.wiki_id;
-  useRecordOpen(Tool.wiki, loadedWikiId);
+  useRecordOpen(Tool.wiki, loadedWikiId, { each: loadedPageId });
   useRecordOpen(RecentKind.wiki_page, loadedPageId);
   const loadedTitle = pageQuery.data?.title;
   useEffect(() => {

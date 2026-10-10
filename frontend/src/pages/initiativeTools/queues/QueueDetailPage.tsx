@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { QueueItemRead } from "@/api/generated/initiativeAPI.schemas";
-import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { Tool, ViewSource } from "@/api/generated/initiativeAPI.schemas";
 import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
 import { ToolRelationsPanel } from "@/components/entities/ToolRelationsPanel";
 import { ActHeldButton } from "@/components/initiativeTools/queues/ActHeldButton";
@@ -124,7 +124,7 @@ export function QueueDetailPage() {
   const [addItemOpen, setAddItemOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<QueueItemRead | null>(null);
   // An item opens in its dialog.
-  useRecordOpen("queue_item", editingItem?.id);
+  useRecordOpen("queue_item", editingItem?.id, { source: ViewSource.direct });
 
   const canEdit = Boolean(queue?.can.edit);
   const initiativeQuery = useInitiative(queue?.initiative_id ?? null);

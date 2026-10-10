@@ -1,6 +1,6 @@
 import { type UseQueryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams, useRouterState } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 import {
   RecentEntityType,
@@ -89,19 +89,44 @@ export const useRecordRecentView = (
   });
 };
 
+interface OpenOptions {
+  /** Where an open inside a page came from (an image in the lightbox, an item
+   *  in its dialog). The history entry there is the page's, not the open's. */
+  source?: ViewSource;
+  /** Record again each time this changes: a wiki is opened by each page. */
+  each?: number;
+}
+
 /**
  * Records that the reader opened this, once it has loaded (``id`` is set only
  * after the read passed its access checks), in the community the route
  * addresses, with where the open came from: the history entry's
- * ``viewSource``, which a search sets when it navigates.
+ * ``viewSource``, which a search sets when it navigates. A search that brings
+ * the reader back to what is already open records it again.
  */
-export const useRecordOpen = (kind: RecentKind, id: number | undefined) => {
+export const useRecordOpen = (
+  kind: RecentKind,
+  id: number | undefined,
+  { source, each }: OpenOptions = {}
+) => {
   const { communityId } = useParams({ strict: false }) as { communityId?: string };
-  const source = useRouterState({ select: (state) => state.location.state.viewSource });
-  const { mutate } = useRecordRecentView(kind, Number(communityId), source);
+  // Read once a navigation has settled, when the page and its history entry
+  // agree: while one is under way they move at different times.
+  const settled = useRouterState({ select: (state) => state.status === "idle" });
+  const arrivedFrom = useRouterState({
+    select: (state) => state.resolvedLocation?.state.viewSource,
+  });
+  const entry = useRouterState({ select: (state) => state.resolvedLocation?.state.__TSR_key });
+  const { mutate } = useRecordRecentView(kind, Number(communityId), source ?? arrivedFrom);
+  const recorded = useRef<{ id?: number; each?: number; entry?: string }>({});
   useEffect(() => {
-    if (id) mutate(id);
-  }, [id, mutate]);
+    if (!id || !settled) return;
+    const last = recorded.current;
+    const searchedAgain = !source && arrivedFrom !== undefined && entry !== last.entry;
+    if (id === last.id && each === last.each && !searchedAgain) return;
+    recorded.current = { id, each, entry };
+    mutate(id);
+  }, [id, each, entry, arrivedFrom, settled, source, mutate]);
 };
 
 /**
