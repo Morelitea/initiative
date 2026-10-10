@@ -20,6 +20,7 @@ from sqlalchemy import ColumnElement, delete
 from sqlalchemy.exc import DBAPIError
 from sqlmodel import select
 
+from app.core.errors import CodedError
 from app.api import resource_access
 from app.core.tools import Tool
 from app.db import session as db_session
@@ -193,8 +194,8 @@ def standing(
     )
 
 
-def refused(resource, row, **kwargs) -> HTTPException:
-    with pytest.raises(HTTPException) as exc:
+def refused(resource, row, **kwargs) -> HTTPException | CodedError:
+    with pytest.raises((HTTPException, CodedError)) as exc:
         require_access(resource, row, **kwargs)
     assert exc.value.status_code == 403
     return exc.value
@@ -279,8 +280,8 @@ async def test_every_tool_resolves_sharing_through_one_engine(
     row, context = await w.as_reader(grantee)
     require_access(resource, row, context=context, access="read")
     assert (
-        refused(resource, row, context=context, access="write").detail
-        == resource.write_msg
+        refused(resource, row, context=context, access="write").body
+        == resource.name.write_required().body
     )
 
     # Holding a read grant of their own is where the level check answers.
@@ -288,12 +289,12 @@ async def test_every_tool_resolves_sharing_through_one_engine(
     row, context = await w.as_reader(w.co_member.user)
     require_access(resource, row, context=context, access="read")
     assert (
-        refused(resource, row, context=context, access="write").detail
-        == resource.write_msg
+        refused(resource, row, context=context, access="write").body
+        == resource.name.write_required().body
     )
     assert (
-        refused(resource, row, context=context, action=Action.delete).detail
-        == resource.owner_msg
+        refused(resource, row, context=context, action=Action.delete).body
+        == resource.name.owner_required().body
     )
 
     # A writer edits it; deleting it and changing who it is shared with are
@@ -503,8 +504,8 @@ async def test_a_frozen_guild_caps_everyone_at_read(session, role_session, actin
     }
     require_access(w.resource, row, context=context, access="read")
     assert (
-        refused(w.resource, row, context=context, access="write").detail
-        == w.resource.write_msg
+        refused(w.resource, row, context=context, access="write").body
+        == w.resource.name.write_required().body
     )
     refused(w.resource, row, context=context, action=Action.delete)
 

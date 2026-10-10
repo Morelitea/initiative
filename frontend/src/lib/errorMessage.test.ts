@@ -46,6 +46,15 @@ describe("getErrorMessage", () => {
     expect(typeof getErrorMessage(validation422("Value error, NOT_A_KNOWN_CODE"))).toBe("string");
   });
 
+  it("names the kind a shared refusal is about", () => {
+    expect(getErrorMessage(apiError(404, { detail: "NOT_FOUND", params: { kind: "file" } }))).toBe(
+      "File not found"
+    );
+    expect(
+      getErrorMessage(apiError(403, { detail: "NO_ACCESS", params: { kind: "calendar_event" } }))
+    ).toBe("You don't have access to this event");
+  });
+
   it("keeps an unknown string detail verbatim", () => {
     expect(getErrorMessage(apiError(400, { detail: "Something specific" }))).toBe(
       "Something specific"

@@ -31,6 +31,7 @@ from sqlalchemy.orm import selectinload, undefer
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.errors import CodedError
 from app.api import resource_access
 from app.api.deps import GuildAccessError, establish_guild_access
 from app.core.identify import presented_credential
@@ -248,7 +249,7 @@ def tool_authorizer(guild_id: int, tool: Tool, resource_id: int) -> Authorizer:
             resource_access.authorize(
                 tool, row, user, context=require_guild_context(session)
             )
-        except HTTPException:
+        except (HTTPException, CodedError):
             return None
         return frozenset({tool_room(guild_id, tool, resource_id)})
 

@@ -6,6 +6,7 @@ from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.tools import Tool
 from app.models.platform.api_key import UserApiKey
 from app.models.platform.guild import CommunityRole
 from app.models.tenant.calendar_event import CalendarEvent
@@ -103,7 +104,7 @@ async def test_create_calendar_requires_feature_enabled(
     )
 
     assert response.status_code == 403
-    assert response.json()["detail"] == "CALENDARS_NOT_ENABLED"
+    assert response.json() == Tool.calendar.disabled().body
 
 
 async def test_create_calendar_non_pm_forbidden(
@@ -392,7 +393,7 @@ async def test_a_write_grant_writes_a_guild_calendar_s_events(
         json={"name": "Mine now"},
     )
     assert renamed.status_code == 403
-    assert renamed.json()["detail"] == "CALENDAR_WRITE_ACCESS_REQUIRED"
+    assert renamed.json() == Tool.calendar.write_required().body
 
     archived = await client.post(
         member.g(f"/archive/calendar/{calendar.id}"), headers=member.headers

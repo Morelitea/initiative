@@ -36,6 +36,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sqlalchemy.orm import defer, selectinload, undefer
 
+from app.core.tools import KINDS
 from app.core.messages import WikiMessages
 from app.models.tenant.wiki import Wiki, WikiPage, WikiPageOrder
 from app.services.permissions import with_tool
@@ -464,10 +465,7 @@ async def validate_reparent(
 
     parent = await get_page(session, new_parent_id, wiki_id=page.wiki_id)
     if parent is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=WikiMessages.PAGE_NOT_FOUND,
-        )
+        raise KINDS["wiki_page"].not_found()
 
     pages = await load_pages(session, page.wiki_id)
     if new_parent_id in descendant_ids(pages, page.id):

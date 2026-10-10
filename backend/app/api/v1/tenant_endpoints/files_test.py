@@ -8,6 +8,7 @@ from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.tools import Tool
 from app.models.tenant.file import (
     File,
     FileType,
@@ -75,7 +76,7 @@ async def test_create_refuses_when_files_are_switched_off(
     )
 
     assert response.status_code == 403
-    assert response.json()["detail"] == "FILES_NOT_ENABLED"
+    assert response.json() == Tool.file.disabled().body
 
 
 async def test_a_guild_admin_does_not_list_files_of_a_switched_off_initiative(
@@ -204,7 +205,7 @@ async def test_duplicate_is_held_to_create_and_keeps_the_sources_sharing(
         writer.g(f"/files/{doc.id}/duplicate"), headers=writer.headers
     )
     assert refused.status_code == 403
-    assert refused.json()["detail"] == "FILE_CREATE_PERMISSION_REQUIRED"
+    assert refused.json() == Tool.file.create_denied().body
 
     duplicated = await client.post(
         owner.g(f"/files/{doc.id}/duplicate"), headers=owner.headers
@@ -503,7 +504,7 @@ async def test_a_write_naming_a_version_since_changed_is_refused(
     assert taken.status_code == 200, taken.text
     assert taken.json()["content_version"] != version
     assert stale.status_code == 409
-    assert stale.json()["detail"] == "FILE_CONTENT_CHANGED"
+    assert stale.json()["detail"] == "CONTENT_CHANGED"
 
 
 async def test_a_versioned_write_goes_into_a_live_session(
@@ -546,10 +547,10 @@ async def test_a_versioned_write_goes_into_a_live_session(
         )
 
         assert unversioned.status_code == 409
-        assert unversioned.json()["detail"] == "FILE_LIVE_SESSION_OWNS_CONTENT"
+        assert unversioned.json()["detail"] == "LIVE_SESSION_OWNS_CONTENT"
         assert versioned.status_code == 200, versioned.text
         assert stale.status_code == 409
-        assert stale.json()["detail"] == "FILE_CONTENT_CHANGED"
+        assert stale.json()["detail"] == "CONTENT_CHANGED"
         assert await _words(room.get_state()) == "from the API"
     finally:
         room.release()
@@ -956,7 +957,7 @@ async def test_a_content_patch_against_a_live_file_is_refused(
     )
 
     assert response.status_code == 409
-    assert response.json()["detail"] == "FILE_LIVE_SESSION_OWNS_CONTENT"
+    assert response.json()["detail"] == "LIVE_SESSION_OWNS_CONTENT"
     await session.refresh(doc, ["content"])
     assert doc.content == original
 

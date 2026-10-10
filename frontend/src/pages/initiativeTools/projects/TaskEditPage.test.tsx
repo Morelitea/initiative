@@ -426,7 +426,7 @@ describe("TaskEditPage", () => {
       refuse: (body) =>
         body.description_base === task.description
           ? undefined
-          : HttpResponse.json({ detail: "TASK_DESCRIPTION_CHANGED" }, { status: 409 }),
+          : HttpResponse.json({ detail: "DESCRIPTION_CHANGED" }, { status: 409 }),
     });
     await shown("Old words");
     // Somebody else saves theirs first.

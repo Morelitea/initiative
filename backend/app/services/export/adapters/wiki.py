@@ -45,6 +45,7 @@ from dataclasses import replace
 
 from fastapi import HTTPException
 
+from app.core.errors import CodedError
 from app.core.tools import Tool, tool_envelope_type
 from app.models.platform.user import User
 from app.models.tenant.file import File, FileType
@@ -101,7 +102,7 @@ class WikiAdapter(ToolExportAdapter):
                         session, user, guild_id, linked.id, access=access
                     )
                 )
-            except HTTPException:
+            except (HTTPException, CodedError):
                 # Not theirs to export: it stays out of the download.
                 continue
         return wiki, pages, files

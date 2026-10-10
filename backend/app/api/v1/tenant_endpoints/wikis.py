@@ -38,11 +38,11 @@ from app.api.deps import (
     get_current_active_user,
     GuildContextDep,
 )
-from app.core.messages import WikiMessages
+from app.core.messages import CommonMessages, WikiMessages
 from app.core.body_limit import max_document_body
 from app.core.relationships import RelationshipType
 from app.core.search import SearchEntityType
-from app.core.tools import Tool
+from app.core.tools import KINDS, Tool
 from app.models.platform.user import User
 from app.models.tenant.wiki import Wiki, WikiPage
 from app.schemas.tenant.wiki import (
@@ -242,10 +242,7 @@ async def read_after_write(
         session, wiki_id, populate_existing=True
     )
     if hydrated is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=Tool.wiki.not_found_code,
-        )
+        raise Tool.wiki.not_found()
     return serialize_tool(
         WikiRead, hydrated, user_id=guild_context.user_id, context=guild_context
     )
@@ -356,17 +353,13 @@ async def move_wiki_file(
     files = await wikis_service.linked_files(session, wiki.id)
     file = next((d for d in files if d.id == file_id), None)
     if file is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=WikiMessages.PAGE_NOT_FOUND
-        )
+        raise KINDS["wiki_page"].not_found()
 
     if move.parent_page_id is not None and (
         await wikis_service.get_page(session, move.parent_page_id, wiki_id=wiki.id)
         is None
     ):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=WikiMessages.PAGE_NOT_FOUND
-        )
+        raise KINDS["wiki_page"].not_found()
     await wikis_service.place_in_list(
         session, wiki, file, move.position, move.parent_page_id
     )
@@ -432,10 +425,7 @@ async def create_wiki_page(
             session, page_in.parent_page_id, wiki_id=wiki.id
         )
         if parent is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=WikiMessages.PAGE_NOT_FOUND,
-            )
+            raise KINDS["wiki_page"].not_found()
 
     # A new page starts as a copy of the wiki's template, where it has one and
     # the request did not bring a body of its own. That is what keeps two
@@ -556,7 +546,7 @@ async def update_wiki_page(
     if room is not None and version is None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=WikiMessages.LIVE_SESSION_OWNS_CONTENT,
+            detail=CommonMessages.LIVE_SESSION_OWNS_CONTENT,
         )
     if room is None and content_updated:
         # Locked until this write commits, so a write naming the same version
@@ -568,7 +558,7 @@ async def update_wiki_page(
         if version is not None and content_version(page.content) != version:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=WikiMessages.CONTENT_CHANGED,
+                detail=CommonMessages.CONTENT_CHANGED,
             )
 
     if "is_draft" in data and data["is_draft"] is not None:
@@ -588,7 +578,7 @@ async def update_wiki_page(
         ):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=WikiMessages.CONTENT_CHANGED,
+                detail=CommonMessages.CONTENT_CHANGED,
             )
         content_updated = False
     elif content_updated:

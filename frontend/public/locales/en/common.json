@@ -366,5 +366,87 @@
     "unsavedBody": "You have an unsaved description. If you leave now, it will be lost.",
     "leave": "Leave",
     "stay": "Stay"
+  },
+  "kinds": {
+    "project": {
+      "name": "Project",
+      "this": "this project",
+      "plural": "projects"
+    },
+    "file": {
+      "name": "File",
+      "this": "this file",
+      "plural": "files"
+    },
+    "queue": {
+      "name": "Queue",
+      "this": "this queue",
+      "plural": "queues"
+    },
+    "counter_group": {
+      "name": "Counter group",
+      "this": "this counter group",
+      "plural": "counter groups"
+    },
+    "calendar": {
+      "name": "Calendar",
+      "this": "this calendar",
+      "plural": "calendars"
+    },
+    "dashboard": {
+      "name": "Dashboard",
+      "this": "this dashboard",
+      "plural": "dashboards"
+    },
+    "post": {
+      "name": "Post",
+      "this": "this post",
+      "plural": "posts"
+    },
+    "gallery": {
+      "name": "Gallery",
+      "this": "this gallery",
+      "plural": "galleries"
+    },
+    "wiki": {
+      "name": "Wiki",
+      "this": "this wiki",
+      "plural": "wikis"
+    },
+    "task": {
+      "name": "Task",
+      "this": "this task",
+      "plural": "tasks"
+    },
+    "queue_item": {
+      "name": "Queue item",
+      "this": "this queue item",
+      "plural": "queue items"
+    },
+    "calendar_event": {
+      "name": "Event",
+      "this": "this event",
+      "plural": "events"
+    },
+    "counter": {
+      "name": "Counter",
+      "this": "this counter",
+      "plural": "counters"
+    },
+    "gallery_image": {
+      "name": "Picture",
+      "this": "this picture",
+      "plural": "pictures"
+    },
+    "wiki_page": {
+      "name": "Page",
+      "this": "this page",
+      "plural": "pages"
+    },
+    "tag": {
+      "name": "Tag",
+      "this": "this tag",
+      "plural": "tags"
+    }
   }
 }

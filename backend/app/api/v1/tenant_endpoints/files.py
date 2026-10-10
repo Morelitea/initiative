@@ -44,6 +44,7 @@ from app.api.deps import (
     GuildContextDep,
 )
 from app.core.messages import (
+    CommonMessages,
     FileMessages,
 )
 from app.core.rate_limit import limiter
@@ -470,7 +471,7 @@ async def upload_file_version(
         session,
         guild_context.guild_id,
         version,
-        conflict=FileMessages.VERSION_CONFLICT,
+        conflict=True,
     )
     return file_versions.read(FileVersionRead, version, file)
 
@@ -524,9 +525,7 @@ async def delete_file_version(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=FileMessages.NOT_AN_UPLOADED_FILE,
         )
-    deleted = await file_versions.delete_version(
-        session, file, version_id, FileMessages
-    )
+    deleted = await file_versions.delete_version(session, file, version_id)
     # A featured image that was the deleted file follows the current one.
     current = file.current_version
     if current is not None and file.featured_image_url == deleted.file_url:
@@ -626,7 +625,7 @@ async def update_file(
         # so either is refused rather than taken and reported as saved.
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=FileMessages.LIVE_SESSION_OWNS_CONTENT,
+            detail=CommonMessages.LIVE_SESSION_OWNS_CONTENT,
         )
     if room is not None:
         # The writer read what the session holds now: the change goes into
@@ -637,7 +636,7 @@ async def update_file(
         if not await room.write(live_content, version, user_id=guild_context.user_id):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=FileMessages.CONTENT_CHANGED,
+                detail=CommonMessages.CONTENT_CHANGED,
             )
         updated = True
     elif "content" in update_data:
@@ -650,7 +649,7 @@ async def update_file(
             # refused and the writer reads again.
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=FileMessages.CONTENT_CHANGED,
+                detail=CommonMessages.CONTENT_CHANGED,
             )
         previous_content_urls = attachments_service.extract_upload_urls(file.content)
         file.content = files_service.normalize_file_content(
@@ -821,12 +820,10 @@ async def read_after_write(
     )
     if not file:
         raise await reachability.missing_or_denied(
-            "files",
+            Tool.file,
             file_id,
             guild_context.user_id,
             guild_context.guild_id,
-            not_found=Tool.file.not_found_code,
-            denied=Tool.file.no_access_code,
         )
     return await versioned(
         serialize_file(file, user_id=guild_context.user_id, context=guild_context),
@@ -895,18 +892,14 @@ async def download_file(
     file, context = await _load_download_file(session, current_user, guild_id, file_id)
     if file is None:
         raise await reachability.missing_or_denied(
-            "files",
+            Tool.file,
             file_id,
             int(current_user.id),
             int(guild_id),
-            not_found=Tool.file.not_found_code,
-            denied=Tool.file.no_access_code,
         )
     version = file.current_version
     if file.file_type != FileType.file or version is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=Tool.file.not_found_code
-        )
+        raise Tool.file.not_found()
 
     resource_access.authorize(
         Tool.file, file, current_user, access="read", context=context
@@ -938,17 +931,13 @@ async def download_file_version(
     file, context = await _load_download_file(session, current_user, guild_id, file_id)
     if file is None:
         raise await reachability.missing_or_denied(
-            "files",
+            Tool.file,
             file_id,
             int(current_user.id),
             int(guild_id),
-            not_found=Tool.file.not_found_code,
-            denied=Tool.file.no_access_code,
         )
     if file.file_type != FileType.file:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=Tool.file.not_found_code
-        )
+        raise Tool.file.not_found()
 
     resource_access.authorize(
         Tool.file, file, current_user, access="read", context=context
@@ -964,7 +953,7 @@ async def download_file_version(
     if version is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=FileMessages.VERSION_NOT_FOUND,
+            detail=CommonMessages.VERSION_NOT_FOUND,
         )
 
     logger.info(

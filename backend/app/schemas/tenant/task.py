@@ -144,7 +144,7 @@ class TaskUpdate(PropertiesOnUpdate):
     description: Optional[RichMentionStr] = None
     #: The description this ``description`` was written over. Given and no
     #: longer the stored one, the update is refused with
-    #: ``TASK_DESCRIPTION_CHANGED``.
+    #: ``DESCRIPTION_CHANGED``.
     description_base: Optional[RichMentionStr] = None
     task_status_id: Optional[int] = None
     priority: Optional[TaskPriority] = None

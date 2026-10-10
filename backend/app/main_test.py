@@ -69,6 +69,14 @@ async def test_coded_error_is_answered_with_its_code_and_status() -> None:
     assert response.status_code == 409
     assert json.loads(response.body) == {"detail": "SOME_REFUSAL"}
 
+    with_params = await coded_error_handler(
+        None, CodedError("SOME_REFUSAL", 404, params={"kind": "file"})
+    )
+    assert json.loads(with_params.body) == {
+        "detail": "SOME_REFUSAL",
+        "params": {"kind": "file"},
+    }
+
 
 async def test_responses_carry_content_security_policy(client: AsyncClient) -> None:
     # The CSP middleware must attach an enforced policy to served responses.

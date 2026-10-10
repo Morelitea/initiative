@@ -9,7 +9,7 @@ from app.api.deps import (
     get_current_active_user,
     GuildContextDep,
 )
-from app.core.messages import AttachmentMessages
+from app.core.messages import ImageMessages, AttachmentMessages
 from app.models.platform.user import User
 from app.schemas.tenant.attachment import AttachmentUploadResponse
 from app.services.tenant.attachments import (
@@ -76,7 +76,7 @@ async def _store_image(
     if not contents:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=AttachmentMessages.FILE_EMPTY,
+            detail=ImageMessages.IMAGE_EMPTY,
         )
 
     content_type = detect_document_image_type(contents)

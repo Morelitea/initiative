@@ -17,6 +17,7 @@ from sqlalchemy import text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.tools import Tool
 from app.models.platform.guild import CommunityRole
 from app.models.platform.notification import Notification, NotificationType
 from app.models.tenant.post import Post
@@ -144,7 +145,7 @@ async def test_create_requires_feature_enabled(
     )
 
     assert response.status_code == 403
-    assert response.json()["detail"] == "POSTS_NOT_ENABLED"
+    assert response.json() == Tool.post.disabled().body
 
 
 async def test_create_requires_the_create_permission(
@@ -160,7 +161,7 @@ async def test_create_requires_the_create_permission(
     )
 
     assert response.status_code == 403
-    assert response.json()["detail"] == "POST_CREATE_PERMISSION_REQUIRED"
+    assert response.json() == Tool.post.create_denied().body
 
 
 async def test_list_carries_bodies_and_read_matches(

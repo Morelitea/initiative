@@ -27,7 +27,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.errors import CodedError
-from app.core.messages import ReactionMessages
+from app.core.messages import KindMessages, ReactionMessages
 from app.core.reactions import ReactionTarget
 from app.core.tools import Tool
 from app.db import session as db_session
@@ -167,7 +167,9 @@ async def _resolve_post(
             access="read",
         )
     except Exception as exc:  # the DAC engine raises its own HTTP error type
-        raise ReactionPermissionError(Tool.post.no_access_code) from exc
+        raise ReactionPermissionError(
+            KindMessages.NO_ACCESS, params={"kind": Tool.post.value}
+        ) from exc
 
     return TargetContext(
         target=ReactionTarget.post,

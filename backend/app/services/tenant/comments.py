@@ -32,8 +32,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.errors import CodedError
 from app.core.messages import (
     CommentMessages,
-    TaskMessages,
-    WikiMessages,
+    KindMessages,
 )
 from app.core.tools import Tool
 from app.db.initiative_rls import (
@@ -96,15 +95,11 @@ class CommentValidationError(CommentError):
 
 @dataclass(frozen=True)
 class CommentTarget:
-    """How one tool binds to comments: its model, the FK column on
-    ``comments`` (``{tool}_id``), and the codes its failures report.
-    ``feature_disabled`` is ``None`` for core tools, which have no master
-    switch."""
+    """How one tool binds to comments: its model and the FK column on
+    ``comments`` (``{tool}_id``)."""
 
     tool: Tool
     model: type[SQLModel]
-    not_found: str
-    feature_disabled: Optional[str] = None
 
     @property
     def column(self) -> str:
@@ -131,13 +126,7 @@ _REGISTERED = (
 # this spans the enum, and that the columns here match the model and the RLS
 # parent registry (app.db.initiative_rls._COMMENT_PARENTS).
 TOOL_COMMENT_TARGETS: dict[Tool, CommentTarget] = {
-    tool: CommentTarget(
-        tool,
-        tool_models()[tool.plural],
-        CommentMessages.TARGET_NOT_FOUND,
-        tool.feature_disabled_code,
-    )
-    for tool in Tool
+    tool: CommentTarget(tool, tool_models()[tool.plural]) for tool in Tool
 }
 
 
@@ -153,8 +142,8 @@ class ExtraCommentTarget:
     It has no sharing and no comment switch of its own, so the tool it belongs
     to answers both; which tool that is, and how a row reaches it, is declared
     once in ``app.db.initiative_rls.COMMENT_PARENTS`` and read from there. What
-    is left is what only this layer knows: the model to load, the field that
-    titles the thread, and the code its absence reports.
+    is left is what only this layer knows: the model to load and the field
+    that titles the thread.
     """
 
     #: The kind's name — the ``{kind}_id`` column, and what an event or a
@@ -163,7 +152,6 @@ class ExtraCommentTarget:
     model: type[SQLModel]
     #: The column holding what the thread is called.
     title_field: str
-    not_found: str
     #: Whether a new comment tells whoever wrote the row. A page's author
     #: wants to hear about a note on their page; a task instead tells the
     #: people it is assigned to, which is a different question and already
@@ -190,11 +178,10 @@ EXTRA_COMMENT_TARGETS: dict[str, ExtraCommentTarget] = {
             "task",
             Task,
             "title",
-            TaskMessages.NOT_FOUND,
             notifies_author=False,
             anchor_switch=False,
         ),
-        ExtraCommentTarget("wiki_page", WikiPage, "title", WikiMessages.PAGE_NOT_FOUND),
+        ExtraCommentTarget("wiki_page", WikiPage, "title"),
     )
 }
 
@@ -457,12 +444,12 @@ async def _ensure_parent_access(
     else:
         target = TOOL_COMMENT_TARGETS[cast(Tool, ctx.tool)]
         initiative = getattr(ctx.resource, "initiative", None)
-        if (
-            target.feature_disabled is not None
-            and initiative is not None
-            and not getattr(initiative, target.tool.view_permission)
+        if initiative is not None and not getattr(
+            initiative, target.tool.view_permission
         ):
-            raise CommentPermissionError(target.feature_disabled)
+            raise CommentPermissionError(
+                KindMessages.TOOL_NOT_ENABLED, params={"kind": target.tool.value}
+            )
         if not getattr(ctx.resource, "comments_enabled", True):
             raise CommentPermissionError(CommentMessages.COMMENTS_DISABLED)
         anchor_model, anchor_row = target.model, ctx.resource
@@ -559,11 +546,11 @@ async def _get_comment(
     return result.one_or_none()
 
 
-def _parent_not_found(column: str) -> str:
-    extra = EXTRA_COMMENT_TARGETS.get(column)
-    if extra is not None:
-        return extra.not_found
-    return _TARGETS_BY_COLUMN[column].not_found
+def _parent_missing(column: str) -> CommentNotFoundError:
+    """The parent a ``{kind}_id`` column names is not there to comment on."""
+    return CommentNotFoundError(
+        KindMessages.NOT_FOUND, params={"kind": column.removesuffix("_id")}
+    )
 
 
 async def _resolved_parent(
@@ -591,7 +578,7 @@ async def _resolved_parent(
             table, entity_id, cast(int, user.id), guild_id
         ):
             raise CommentPermissionError(CommentMessages.PERMISSION_DENIED)
-        raise CommentNotFoundError(_parent_not_found(column))
+        raise _parent_missing(column)
     await _ensure_parent_access(session, ctx, user=user, access=access)
     return ctx
 
@@ -1291,20 +1278,19 @@ async def recent_activity(
         # The entity's own comment switch gates its thread, so it gates the
         # feed too.
         parent_ids = select(model.id).where(model.comments_enabled.is_(True))
-        if target.feature_disabled is not None:
-            # The tool's master switch gates the thread, so it gates the feed
-            # too. A parent that names no initiative (a guild calendar) has no
-            # switch to answer to.
-            parent_ids = parent_ids.where(
-                or_(
-                    model.initiative_id.is_(None),
-                    model.initiative_id.in_(
-                        select(Initiative.id).where(
-                            getattr(Initiative, tool.view_permission).is_(True)
-                        )
-                    ),
-                )
+        # The tool's master switch gates the thread, so it gates the feed
+        # too. A parent that names no initiative (a guild calendar) has no
+        # switch to answer to.
+        parent_ids = parent_ids.where(
+            or_(
+                model.initiative_id.is_(None),
+                model.initiative_id.in_(
+                    select(Initiative.id).where(
+                        getattr(Initiative, tool.view_permission).is_(True)
+                    )
+                ),
             )
+        )
         reachable_by_tool[tool] = parent_ids
         legs.append(and_(fk.isnot(None), fk.in_(parent_ids)))
     # The extras — a thread on something that is not a tool. Each is reached

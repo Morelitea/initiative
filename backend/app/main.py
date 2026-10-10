@@ -387,7 +387,7 @@ async def coded_error_handler(request: Request, exc: CodedError) -> JSONResponse
 
     Handled here rather than at each route because a refusal is raised where
     it is decided, often below every route that reaches it."""
-    return JSONResponse(status_code=exc.status_code, content={"detail": exc.code})
+    return JSONResponse(status_code=exc.status_code, content=exc.body)
 
 
 @app.exception_handler(DBAPIError)

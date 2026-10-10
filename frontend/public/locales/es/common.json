@@ -366,5 +366,87 @@
     "unsavedBody": "Tienes una descripción sin guardar. Si sales ahora, se perderá.",
     "leave": "Salir",
     "stay": "Quedarme"
+  },
+  "kinds": {
+    "project": {
+      "name": "Proyecto",
+      "this": "este proyecto",
+      "plural": "proyectos"
+    },
+    "file": {
+      "name": "Archivo",
+      "this": "este archivo",
+      "plural": "archivos"
+    },
+    "queue": {
+      "name": "Cola",
+      "this": "esta cola",
+      "plural": "colas"
+    },
+    "counter_group": {
+      "name": "Grupo de contadores",
+      "this": "este grupo de contadores",
+      "plural": "grupos de contadores"
+    },
+    "calendar": {
+      "name": "Calendario",
+      "this": "este calendario",
+      "plural": "calendarios"
+    },
+    "dashboard": {
+      "name": "Panel",
+      "this": "este panel",
+      "plural": "paneles"
+    },
+    "post": {
+      "name": "Publicación",
+      "this": "esta publicación",
+      "plural": "publicaciones"
+    },
+    "gallery": {
+      "name": "Galería",
+      "this": "esta galería",
+      "plural": "galerías"
+    },
+    "wiki": {
+      "name": "Wiki",
+      "this": "este wiki",
+      "plural": "wikis"
+    },
+    "task": {
+      "name": "Tarea",
+      "this": "esta tarea",
+      "plural": "tareas"
+    },
+    "queue_item": {
+      "name": "Elemento de cola",
+      "this": "este elemento de cola",
+      "plural": "elementos de cola"
+    },
+    "calendar_event": {
+      "name": "Evento",
+      "this": "este evento",
+      "plural": "eventos"
+    },
+    "counter": {
+      "name": "Contador",
+      "this": "este contador",
+      "plural": "contadores"
+    },
+    "gallery_image": {
+      "name": "Imagen",
+      "this": "esta imagen",
+      "plural": "imágenes"
+    },
+    "wiki_page": {
+      "name": "Página",
+      "this": "esta página",
+      "plural": "páginas"
+    },
+    "tag": {
+      "name": "Etiqueta",
+      "this": "esta etiqueta",
+      "plural": "etiquetas"
+    }
   }
 }

@@ -156,7 +156,7 @@ async def test_someone_outside_the_initiative_gets_the_tools_not_found(
         json=[],
     )
     assert response.status_code == 404, response.text
-    assert response.json()["detail"] == tool.not_found_code
+    assert response.json() == tool.not_found().body
 
 
 @TOOLS

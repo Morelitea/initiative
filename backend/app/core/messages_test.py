@@ -7,12 +7,12 @@ reader is handed ``WEBHOOK_SUBSCRIPTION_NOT_FOUND`` instead of a sentence. That
 is invisible until somebody hits the path, which is why it is asserted here
 rather than noticed in review.
 
-Two kinds of code are deliberately out of scope. The **machine surfaces**
-below are service-to-service channels — billing, the bundled-reference
-channel, an installed plug-in's installation calls — where no person is on the
-other end and the code IS the answer. And the per-tool codes are *derived* from
-``Tool``, so the set grows on its own; what cannot be derived is the wording,
-which is what this asks a locale for.
+The **machine surfaces** below are deliberately out of scope: service-to-service
+channels — billing, the bundled-reference channel, an installed plug-in's
+installation calls — where no person is on the other end and the code IS the
+answer. The ``KindMessages`` refusals are worded once with the kind's name
+filled in, so what a locale owes for a new tool or kind is its name, under
+``kinds`` in the shared ``common`` namespace.
 """
 
 import inspect
@@ -22,8 +22,7 @@ from pathlib import Path
 import pytest
 
 from app.core import messages as messages_module
-from app.core.messages import SharingMessages
-from app.core.tools import Tool
+from app.core.tools import KINDS
 
 pytestmark = pytest.mark.always
 
@@ -43,17 +42,9 @@ MACHINE_SURFACES = frozenset(
     }
 )
 
-#: The per-tool code families, each a property on ``Tool``.
-TOOL_CODE_PROPERTIES = (
-    "not_found_code",
-    "no_access_code",
-    "owner_required_code",
-    "write_required_code",
-    "create_permission_code",
-    "grant_cannot_manage_members_code",
-    "role_permission_code",
-    "feature_disabled_code",
-)
+#: The forms of a kind's name the ``KindMessages`` wording is filled in with:
+#: as a sentence starts with it, as "this <kind>", and in the plural.
+KIND_NAME_FORMS = frozenset({"name", "this", "plural"})
 
 
 def _user_facing_codes() -> dict[str, str]:
@@ -68,16 +59,12 @@ def _user_facing_codes() -> dict[str, str]:
             if attr.startswith("_") or not isinstance(value, str):
                 continue
             codes.setdefault(value, name)
-    for tool in Tool:
-        for prop in TOOL_CODE_PROPERTIES:
-            codes.setdefault(getattr(tool, prop), f"Tool.{tool.value}.{prop}")
-        codes.setdefault(SharingMessages.grantee_lacks_tool(tool), "SharingMessages")
     return codes
 
 
-def _catalogue(locale: str) -> dict:
+def _catalogue(locale: str, namespace: str = "errors") -> dict:
     locales = Path(__file__).resolve().parents[2].parent / "frontend/public/locales"
-    return json.loads((locales / locale / "errors.json").read_text())
+    return json.loads((locales / locale / f"{namespace}.json").read_text())
 
 
 @pytest.mark.parametrize("locale", LOCALES)
@@ -130,3 +117,20 @@ def test_locales_agree_on_which_codes_exist():
             f"{locale}/errors.json differs from en: "
             f"missing {sorted(reference - keys)}, extra {sorted(keys - reference)}"
         )
+
+
+@pytest.mark.parametrize("locale", LOCALES)
+def test_every_kind_is_named(locale: str):
+    """Each kind's name, in every form a refusal about it is worded with."""
+    names = _catalogue(locale, "common").get("kinds", {})
+    unnamed = sorted(
+        kind
+        for kind in KINDS
+        if not isinstance(names.get(kind), dict)
+        or set(names[kind]) != KIND_NAME_FORMS
+        or not all(isinstance(v, str) and v for v in names[kind].values())
+    )
+    assert not unnamed, f"{locale}/common.json has no full name for {unnamed}"
+    assert set(names) == set(KINDS), (
+        f"{locale}/common.json names kinds that are not: {sorted(set(names) - set(KINDS))}"
+    )

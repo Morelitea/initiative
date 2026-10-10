@@ -2,6 +2,7 @@ import type { AxiosError } from "axios";
 import { isAxiosError } from "axios";
 
 import i18n from "@/i18n";
+import { kindNames } from "@/lib/tools";
 
 /** Loose translation function that accepts dynamic keys without strict type checking. */
 const translate = i18n.t.bind(i18n) as (key: string, options?: Record<string, unknown>) => string;
@@ -10,6 +11,18 @@ const translate = i18n.t.bind(i18n) as (key: string, options?: Record<string, un
 interface ValidationDetail {
   msg?: string;
   loc?: (string | number)[];
+}
+
+/** The values a refusal's wording is filled in with, as the API sent them. */
+type ErrorParams = Record<string, string>;
+
+/**
+ * What a refusal's `params` fill its wording with. A `kind` names the thing
+ * refused — "Project not found" — in the forms `kindNames` gives.
+ */
+function interpolation(params: ErrorParams | undefined): Record<string, string> {
+  if (!params) return {};
+  return params.kind ? { ...params, ...kindNames(params.kind, translate) } : params;
 }
 
 /**
@@ -36,9 +49,13 @@ function codeFromValidationDetail(detail: ValidationDetail[]): string | null {
  * the provided fallback key or the raw detail string.
  */
 export function getErrorMessage(error: unknown, fallbackKey?: string): string {
-  const axiosError = error as AxiosError<{ detail?: string | ValidationDetail[] }>;
+  const axiosError = error as AxiosError<{
+    detail?: string | ValidationDetail[];
+    params?: ErrorParams;
+  }>;
 
   const detail = axiosError?.response?.data?.detail;
+  const params = axiosError?.response?.data?.params;
 
   // slowapi returns 429 with {"error": "..."} instead of {"detail": "..."}, so a
   // 429 with nothing in `detail` is the rate limiter and says so. The app's own
@@ -63,7 +80,11 @@ export function getErrorMessage(error: unknown, fallbackKey?: string): string {
 
   if (detail) {
     // Try to look up the detail as a key in the errors namespace
-    const localized = translate(detail, { ns: "errors", defaultValue: "" });
+    const localized = translate(detail, {
+      ns: "errors",
+      defaultValue: "",
+      ...interpolation(params),
+    });
     if (localized) {
       return localized;
     }

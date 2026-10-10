@@ -47,6 +47,7 @@ from typing import Annotated, Any, Optional
 from fastapi import APIRouter, HTTPException, Query, status
 from sqlmodel import select
 
+from app.core.errors import CodedError
 from app.api import resource_access
 from app.api.deps import (
     AgeViewerDep,
@@ -81,7 +82,6 @@ from app.schemas.tenant.plugin_data import (
 from app.services import audit as audit_service
 from app.services.marketplace import plugin_actions
 from app.services.marketplace import plugin_data as plugin_data_service
-from app.services.marketplace.plugin_data import PluginDataError
 from app.services.marketplace.service_plugins import plugin_widget_type, is_admin_only
 from app.services.tenant import plugin_age
 
@@ -581,7 +581,7 @@ async def run_plugin_action(
             user_id=current_user.id,
             age_allows=plugin_age.age_allows(plugin.definition, viewer),
         )
-    except PluginDataError as exc:
+    except CodedError as exc:
         audit(exc.code)
         raise
     except HTTPException as exc:

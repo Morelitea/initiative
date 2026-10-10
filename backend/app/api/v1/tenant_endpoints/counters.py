@@ -96,10 +96,7 @@ async def read_after_write(
         session, group_id, populate_existing=True
     )
     if not group:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=Tool.counter_group.not_found_code,
-        )
+        raise Tool.counter_group.not_found()
     return serialize_tool(
         CounterGroupRead, group, user_id=guild_context.user_id, context=guild_context
     )

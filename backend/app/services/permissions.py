@@ -178,26 +178,10 @@ def writable_scope_clause(
 
 @dataclass(frozen=True)
 class DacResource:
-    """One tool's DAC identity: the tool itself, and the three refusals.
-
-    The refusals are derived from ``name`` rather than stored, so a new
-    ``Tool`` member arrives with its full set and none of them can be wired to
-    another tool's code by a copy-paste.
-    """
+    """One tool's DAC identity. Its refusals come from the tool (``Tool``), so
+    a new member arrives with its full set."""
 
     name: Tool
-
-    @property
-    def denied_msg(self) -> str:
-        return self.name.no_access_code
-
-    @property
-    def owner_msg(self) -> str:
-        return self.name.owner_required_code
-
-    @property
-    def write_msg(self) -> str:
-        return self.name.write_required_code
 
 
 #: Every tool, by construction — ``tools_test`` has nothing to catch up on.
@@ -444,10 +428,7 @@ async def replace_resource_grants(
             permission_key=view_key,
         )
         if valid_users - permitted_users or valid_roles - permitted_roles:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=SharingMessages.grantee_lacks_tool(tool),
-            )
+            raise tool.grantee_lacks_access()
         valid_users, valid_roles = permitted_users, permitted_roles
 
     existing = (
@@ -580,7 +561,7 @@ def allows(row: Any, action: Action) -> bool:
 
 def _refusal(
     resource: DacResource, row: Any, action: Action, context: ActorContext | None
-) -> HTTPException:
+) -> Exception:
     """Which refusal a missing ``action`` is. Only names it: the database
     already decided."""
     if action is Action.export:
@@ -598,9 +579,7 @@ def _refusal(
             ),
         )
     if context is not None and context.content_read_only:
-        return HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail=resource.write_msg
-        )
+        return resource.name.write_required()
     # Archived or trashed content is read-only, and so is everything under it.
     # Not a permission answer — the caller may well own it — so it carries its
     # own code and its own status, and the thing to do is bring it back first.
@@ -617,22 +596,15 @@ def _refusal(
         and context is not None
         and context.grant_content is not None
     ):
-        return HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=resource.name.grant_cannot_manage_members_code,
-        )
+        return resource.name.grant_cannot_manage_members()
     if action in (Action.delete, Action.share):
-        return HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail=resource.owner_msg
-        )
+        return resource.name.owner_required()
     if action is Action.configure:
         return HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=ProjectMessages.CONFIGURE_REQUIRED,
         )
-    return HTTPException(
-        status_code=status.HTTP_403_FORBIDDEN, detail=resource.write_msg
-    )
+    return resource.name.write_required()
 
 
 def require_access(

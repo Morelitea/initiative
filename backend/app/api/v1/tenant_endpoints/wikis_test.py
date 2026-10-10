@@ -12,6 +12,7 @@ from types import SimpleNamespace
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.tools import KINDS, Tool
 from app.models.platform.guild import CommunityRole
 from app.testing import (
     create_file,
@@ -75,7 +76,7 @@ async def test_create_requires_feature_enabled(
     )
 
     assert response.status_code == 403
-    assert response.json()["detail"] == "WIKIS_NOT_ENABLED"
+    assert response.json() == Tool.wiki.disabled().body
 
 
 async def test_a_member_outside_the_initiative_cannot_see_it(
@@ -689,7 +690,7 @@ async def test_a_file_is_not_filed_under_a_page_of_another_wiki(
         json={"parent_page_id": elsewhere.id, "position": 0},
     )
     assert response.status_code == 404, response.text
-    assert response.json()["detail"] == "WIKI_PAGE_NOT_FOUND"
+    assert response.json() == KINDS["wiki_page"].not_found().body
 
 
 async def test_a_file_under_a_trashed_page_is_drawn_at_the_top(
@@ -939,7 +940,7 @@ async def test_a_body_saved_outside_a_live_session_is_refused(
         url, headers=a.headers, json={"content": {"root": "written outside"}}
     )
     assert refused.status_code == 409
-    assert refused.json()["detail"] == "WIKI_LIVE_SESSION_OWNS_CONTENT"
+    assert refused.json()["detail"] == "LIVE_SESSION_OWNS_CONTENT"
     await session.refresh(page, ["content"])
     assert page.content != {"root": "written outside"}
 
@@ -993,7 +994,7 @@ async def test_a_page_write_naming_a_version_since_changed_is_refused(
 
     assert taken.status_code == 200, taken.text
     assert stale.status_code == 409
-    assert stale.json()["detail"] == "WIKI_CONTENT_CHANGED"
+    assert stale.json()["detail"] == "CONTENT_CHANGED"
 
 
 # ---------------------------------------------------------------------------

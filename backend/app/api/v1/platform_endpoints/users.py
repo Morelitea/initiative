@@ -1963,7 +1963,7 @@ async def remove_member(
 def _image_not_found() -> HTTPException:
     return HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
-        detail=GuildMessages.IMAGE_NOT_FOUND,
+        detail=ImageMessages.IMAGE_NOT_FOUND,
     )
 
 

@@ -26,6 +26,7 @@ from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.tools import KINDS
 from app.core.tools import Tool
 from app.models.platform.guild import CommunityRole
 from app.models.tenant.initiative import Initiative
@@ -70,8 +71,6 @@ class Surface:
     kind: str
     #: Path segment under ``/c/{guild}/`` the entity is listed from.
     path: str
-    #: What the write route answers for an entity it cannot see.
-    not_found_code: str
     #: Whatever ``make`` needs in place inside an initiative.
     parent: Callable[[AsyncSession, Actor, Initiative], Awaitable[Any]]
     #: One entity under that parent, by id.
@@ -151,7 +150,6 @@ async def _make_event(session, a, calendar, title):
 TASKS = Surface(
     kind="task",
     path="tasks",
-    not_found_code="TASK_NOT_FOUND",
     parent=_project_in,
     make=_make_task,
     filter_query=_conditions_filter,
@@ -159,7 +157,6 @@ TASKS = Surface(
 FILES = Surface(
     kind="file",
     path="files",
-    not_found_code="FILE_NOT_FOUND",
     parent=_initiative_itself,
     make=_make_file,
     filter_query=_property_filters,
@@ -167,7 +164,6 @@ FILES = Surface(
 EVENTS = Surface(
     kind="calendar_event",
     path="calendar-events",
-    not_found_code="CALENDAR_EVENT_NOT_FOUND",
     parent=_calendar_in,
     make=_make_event,
     filter_query=_event_filters,
@@ -482,7 +478,7 @@ async def test_put_on_an_entity_of_another_community_is_not_found(
     response = await _write(client, a, surface, entity_b, [])
 
     assert response.status_code == 404
-    assert response.json()["detail"] == surface.not_found_code
+    assert response.json() == KINDS[surface.kind].not_found().body
 
 
 @surfaces
@@ -516,7 +512,7 @@ async def test_put_needs_write_on_the_tool_that_governs_it(
 
     hidden = await _write(client, outsider, surface, entity, values)
     assert hidden.status_code == 404
-    assert hidden.json()["detail"] == surface.not_found_code
+    assert hidden.json() == KINDS[surface.kind].not_found().body
 
     refused = await _write(client, reader, surface, entity, values)
     assert refused.status_code == 403

@@ -18,6 +18,7 @@ from sqlalchemy.orm import undefer
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.tools import Tool
 from app.api.content_socket import MSG_AUTH
 from app.api.v1.tenant_endpoints.collaboration import MSG_AWARENESS
 from app.core.security import create_upload_token
@@ -512,7 +513,7 @@ async def test_a_read_grant_cannot_hand_over(
     )
 
     assert response.status_code == 403
-    assert response.json()["detail"] == "FILE_WRITE_ACCESS_REQUIRED"
+    assert response.json() == Tool.file.write_required().body
 
 
 async def test_the_roster_names_a_collaborator_as_their_community_does(

@@ -170,7 +170,7 @@ async def test_writing_a_project_is_not_the_rung_to_share_it(
         json=[{"all_initiative_members": True, "level": "write"}],
     )
     assert refused.status_code == 403, refused.text
-    assert refused.json()["detail"] == Tool.project.owner_required_code
+    assert refused.json() == Tool.project.owner_required().body
     assert await _grant_rows(session, installed.guild.id, project.id) == before
 
 

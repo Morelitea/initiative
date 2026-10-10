@@ -9,6 +9,7 @@ accepts anything that would let a definition write.
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.tools import Tool
 from app.models.platform.guild import CommunityRole
 from app.testing import create_dashboard, strip_non_owner_grants
 
@@ -117,7 +118,7 @@ async def test_create_requires_feature_enabled(
     )
 
     assert response.status_code == 403
-    assert response.json()["detail"] == "DASHBOARDS_NOT_ENABLED"
+    assert response.json() == Tool.dashboard.disabled().body
 
 
 async def test_list_and_read_dashboard(client: AsyncClient, acting_user, session):

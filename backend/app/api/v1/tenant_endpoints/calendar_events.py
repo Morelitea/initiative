@@ -38,7 +38,7 @@ from app.models.tenant.calendar_event import (
 )
 from app.models.platform.notification import NotificationType
 from app.models.platform.user import User
-from app.core.messages import CalendarEventMessages
+from app.core.messages import CommonMessages, CalendarEventMessages
 from app.schemas.tenant.calendar_event import (
     CalendarEventCreate,
     CalendarEventUpdate,
@@ -468,7 +468,7 @@ async def update_calendar_event(
         if (event.description or "") != (event_in.description_base or ""):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=CalendarEventMessages.DESCRIPTION_CHANGED,
+                detail=CommonMessages.DESCRIPTION_CHANGED,
             )
     changes = event_in.model_dump(
         exclude_unset=True,

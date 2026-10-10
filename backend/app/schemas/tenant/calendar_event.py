@@ -111,7 +111,7 @@ class CalendarEventUpdate(PropertiesOnUpdate):
     description: Optional[RichMentionStr] = None
     #: The description this ``description`` was written over, as the event
     #: being changed holds it. Given and no longer the stored one, the update
-    #: is refused with ``CALENDAR_EVENT_DESCRIPTION_CHANGED``.
+    #: is refused with ``DESCRIPTION_CHANGED``.
     description_base: Optional[RichMentionStr] = None
     location: Optional[MentionStr] = Field(default=None, max_length=500)
     start_at: Optional[datetime] = None
