@@ -86,8 +86,9 @@ import {
 import { indexPaths } from "./draft";
 import { FieldFrame, useFieldDraft } from "./editing";
 import { type FieldKind, useProjectViewEnv } from "./fields";
+import type { StoredRegions } from "./itemPage";
 import { PluginFieldOnPage, PluginPartView, pluginFields, usePluginsOnItems } from "./plugins";
-import { type StoredRegions, taskFields, taskPageTree } from "./tasks";
+import { TASK_PAGE_KIND, taskFields } from "./tasks";
 import { LAYOUT_PARTS, type Parts, renderNode, type ViewContext } from "./tree";
 
 /** What the task's page shares with its parts, beside the task itself. */
@@ -915,7 +916,7 @@ export const TaskPageView = ({
     [gp, page.initiativeId, task.project_id]
   );
   const env = useProjectViewEnv(taskHref);
-  const tree = useMemo(() => taskPageTree(layout, t("edit.moreFields")), [layout, t]);
+  const tree = useMemo(() => TASK_PAGE_KIND.tree(layout, t("edit.moreFields")), [layout, t]);
   const plugins = usePluginsOnItems(page.initiativeId);
   // The page's labels are the fields' own.
   const view = useMemo<ViewContext>(

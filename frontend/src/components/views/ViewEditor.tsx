@@ -66,8 +66,9 @@ import {
   VIEW_SELECTED,
   withCard,
 } from "@/lib/views/draft";
+import { type StoredRegions, storedLayout } from "@/lib/views/itemPage";
 import { pluginFields, usePluginsOnItems } from "@/lib/views/plugins";
-import { type StoredRegions, storedLayout, taskFields, taskPageRoot } from "@/lib/views/tasks";
+import { TASK_PAGE_KIND, taskFields } from "@/lib/views/tasks";
 import type { ViewNode } from "@/lib/views/tree";
 import type { TranslateFn } from "@/types/i18n";
 
@@ -210,7 +211,7 @@ export const ViewEditor = ({
     setActive(current.key);
     setSelected(VIEW_SELECTED);
   }
-  const page = useMemo(() => taskPageRoot(draft.page as StoredRegions | null), [draft.page]);
+  const page = useMemo(() => TASK_PAGE_KIND.root(draft.page as StoredRegions | null), [draft.page]);
   // The tree the part edits change.
   const tree = current ? cardOf(current.definition) : onPage ? page : null;
   const columns = current ? columnsOf(current.definition) : [];

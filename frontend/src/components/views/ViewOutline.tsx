@@ -45,8 +45,9 @@ import {
   sameSelection,
 } from "@/lib/views/draft";
 import { type FieldDef, VIEW_NAMESPACES } from "@/lib/views/fields";
+import { PAGE_REGIONS } from "@/lib/views/itemPage";
 import type { PluginOnItems } from "@/lib/views/plugins";
-import { editsAField, PAGE_REGIONS, unplacedFields } from "@/lib/views/tasks";
+import { TASK_PAGE_KIND } from "@/lib/views/tasks";
 import type { ViewNode } from "@/lib/views/tree";
 import { localized } from "@/lib/widgets/widgetMeta";
 import type { TranslateFn } from "@/types/i18n";
@@ -397,7 +398,7 @@ export const PageOutline = ({
   const translate = t as TranslateFn;
   const { labelOf, partLabel } = usePartLabel(fields, plugins);
   const regions = page.children ?? [];
-  const unplaced = unplacedFields({
+  const unplaced = TASK_PAGE_KIND.unplacedFields({
     header: regions[0]?.children ?? [],
     main: regions[1]?.children ?? [],
     side: regions[2]?.children ?? [],
@@ -421,9 +422,12 @@ export const PageOutline = ({
           hideAction={(node) =>
             FIXED.has(node.type) || !removable(node, fields)
               ? null
-              : translate(editsAField(node) ? "viewEditor.toMoreFields" : "viewEditor.hide", {
-                  name: partLabel(node),
-                })
+              : translate(
+                  TASK_PAGE_KIND.editsAField(node) ? "viewEditor.toMoreFields" : "viewEditor.hide",
+                  {
+                    name: partLabel(node),
+                  }
+                )
           }
           selection={selection}
           edits={edits}

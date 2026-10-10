@@ -1,11 +1,5 @@
-import {
-  type QueryClient,
-  useMutation,
-  useMutationState,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { archiveEntity } from "@/api/generated/archive/archive";
@@ -16,7 +10,6 @@ import type {
   GenerateChecklistResponse,
   GenerateDescriptionResponse,
   ListTasksParams,
-  PropertyValueInput,
   TaskListRead,
   TaskListResponse,
   TaskRead,
@@ -27,7 +20,6 @@ import type {
   TaskUpdateScope,
 } from "@/api/generated/initiativeAPI.schemas";
 import { PropertyTarget } from "@/api/generated/initiativeAPI.schemas";
-import { setProperties } from "@/api/generated/properties/properties";
 import { getReadSmartChipsQueryKey } from "@/api/generated/smart-chips/smart-chips";
 import {
   getListTaskStatusesQueryKey,
@@ -50,18 +42,22 @@ import {
   toggleChecklistItem,
   updateTask,
 } from "@/api/generated/tasks/tasks";
-import { describes, invalidate, q } from "@/api/query-keys";
+import { invalidate, q } from "@/api/query-keys";
 import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useCommunityMutation } from "@/hooks/useApiMutation";
 import { useAuth } from "@/hooks/useAuth";
+import {
+  type FieldSaveKind,
+  type ItemEdit,
+  useItemFieldSave,
+  useShownWithPending,
+} from "@/hooks/useFieldSave";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { fetchAllPages } from "@/lib/fetchAllPages";
 import { toast } from "@/lib/mascotToast";
-import { currentServerKey } from "@/lib/offlineSession";
 import { withZone } from "@/lib/recurrence";
 import { fireTaskCompletionFeedback } from "@/lib/taskCompletionFeedback";
 import { statusForCategory } from "@/lib/taskStatusDefaults";
-import type { FieldSave, FieldSaveState } from "@/lib/views/editing";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
 
@@ -80,21 +76,7 @@ export const useTask = (taskId: number | null, options?: QueryOpts<TaskRead>) =>
     enabled: taskId !== null && Number.isFinite(taskId) && userEnabled,
     ...rest,
   });
-  // In the order they were made, which is the order they land in.
-  const pending = useMutationState({
-    filters: {
-      mutationKey: taskFieldSaveKey(communityId, taskId ?? 0),
-      exact: true,
-      status: "pending",
-    },
-    select: (mutation) => (mutation.state.variables as TaskFieldSave).edit.shows,
-  });
-  const data = useMemo(
-    () =>
-      query.data && pending.length ? Object.assign({ ...query.data }, ...pending) : query.data,
-    [query.data, pending]
-  );
-  return data === query.data ? query : { ...query, data };
+  return useShownWithPending(TASK_SAVES, taskId, query);
 };
 
 /** The complete task list for `params`: the one key and fetch every reader of it shares. */
@@ -236,12 +218,8 @@ export const useUpdateTask = (
 };
 
 /** A change to some of a task's fields: what is sent, and how the task reads
- *  once it is saved. A change to its properties names only those it sets or
- *  takes off, so one person's leaves another's standing. */
-export type TaskEdit = { shows: Partial<TaskRead> } & (
-  | { patch: TaskUpdate }
-  | { properties: { values: PropertyValueInput[]; removed?: number[] } }
-);
+ *  once it is saved. */
+export type TaskEdit = ItemEdit<TaskRead, TaskUpdate>;
 
 // The fields an edit of one task of a repeating series may keep from the rest
 // of it, so changing one asks which tasks it is for.
@@ -255,50 +233,21 @@ const SERIES_FIELDS: (keyof TaskUpdate)[] = [
   "tag_ids",
 ];
 
-const SAVED_SHOWN_MS = 2_000;
-
-/** One save of some of a task's fields, as the mutation that sends it carries it. */
-interface TaskFieldSave {
-  communityId: number;
-  taskId: number;
-  edit: TaskEdit;
-  /** The edit the confirmation's Undo sends. */
-  undo?: TaskEdit;
-  /** Who sent it, to which server. Its answer is written only while both still hold. */
-  session: { userId: number | undefined; server: string };
-}
-
-/** Every save of one task's fields shares this key, whichever field it is. */
-const taskFieldSaveKey = (communityId: number, taskId: number) =>
-  ["task-field", communityId, taskId] as const;
-
-/** The task's field saves not yet answered: being sent, or waiting their turn. */
-const pendingFieldSaves = (
-  client: QueryClient,
-  communityId: number,
-  taskId: number
-): TaskFieldSave[] =>
-  client
-    .getMutationCache()
-    .findAll({ mutationKey: taskFieldSaveKey(communityId, taskId), exact: true, status: "pending" })
-    .map((mutation) => mutation.state.variables as TaskFieldSave);
+/** How a task is saved field by field. */
+const TASK_SAVES: FieldSaveKind<TaskRead, TaskUpdate> = {
+  name: "task",
+  readKey: (communityId, id) => getReadTaskQueryKey(communityId, id),
+  patch: (communityId, id, patch) => updateTask(communityId, id, withZone(patch)),
+  properties: PropertyTarget.task,
+  lists: (edit) => ("patch" in edit ? q.allTasks() : q.propertyHolder(PropertyTarget.task)),
+  itself: (id) => q.task(id),
+};
 
 /**
- * The one way a task's page saves a field: the fields it names, shown at once
- * and taken back if it fails. A change to a repeating task's series fields
- * asks which tasks it is for first.
- *
- * Given `undo`, the edit that puts it back, the confirmation offers Undo: for
- * a status move, or a cleared value.
- *
- * Each save is a mutation keyed by its task, and one task's saves are sent one
- * at a time in the order they were made, so the last change made is the one
- * the server keeps. The cached task holds only what the server answered;
- * `useTask` shows the saves not yet answered over it, so a failed save
- * leaves nothing to take back, and a newer save of the same field keeps
- * showing. The task is read afresh once the last save settles. An answer that
- * lands after its session ended (signed out, or another server) writes
- * nothing.
+ * The one way a task's page saves a field ({@link useItemFieldSave}). A change
+ * to a repeating task's series fields asks which tasks it is for first, and
+ * its Undo is for the same ones. A status move offers Undo, and one into done
+ * gives the completion feedback as it shows.
  */
 export const useTaskFieldSave = (
   task: TaskRead,
@@ -312,161 +261,32 @@ export const useTaskFieldSave = (
   onSaved?: (edit: TaskEdit) => void
 ) => {
   const { t } = useTranslation("common");
-  const communityId = useActiveCommunityId();
-  const queryClient = useQueryClient();
   const { user } = useAuth();
-  const [state, setState] = useState<FieldSaveState>("idle");
-  const [error, setError] = useState<unknown>(null);
-  const sending = useRef(0);
-  const last = useRef<{ edit: TaskEdit; undo?: TaskEdit } | null>(null);
-  // Who is signed in now, for answers that land later.
-  const signedIn = useRef(user?.id);
-  useEffect(() => {
-    signedIn.current = user?.id;
-  });
-
-  useEffect(() => {
-    if (state !== "saved") return;
-    const timer = setTimeout(() => setState("idle"), SAVED_SHOWN_MS);
-    return () => clearTimeout(timer);
-  }, [state]);
-
-  /** The task's saves in flight, while `save` still belongs to this session;
-   *  null once it does not. Clearing the cache on sign-out drops it from them. */
-  const inSession = (save: TaskFieldSave): TaskFieldSave[] | null => {
-    const { userId, server } = save.session;
-    if (userId !== signedIn.current || server !== currentServerKey()) return null;
-    const pending = pendingFieldSaves(queryClient, save.communityId, save.taskId);
-    return pending.includes(save) ? pending : null;
-  };
-
-  const cancelTaskReads = ({
-    communityId,
-    taskId,
-  }: Pick<TaskFieldSave, "communityId" | "taskId">) =>
-    queryClient.cancelQueries({ queryKey: getReadTaskQueryKey(communityId, taskId), exact: true });
-
-  const { mutateAsync } = useMutation({
-    mutationKey: taskFieldSaveKey(communityId, task.id),
-    // One at a time per task, in the order made: a later save waits its turn.
-    scope: { id: `task-field:${communityId}:${task.id}` },
-    mutationFn: async ({ edit, ...save }: TaskFieldSave): Promise<Partial<TaskRead>> => {
-      // A read already in flight may have been answered before this write,
-      // and would land over it. Runs when this save's turn comes, not when
-      // it was queued.
-      await cancelTaskReads(save);
-      return "patch" in edit
-        ? updateTask(save.communityId, save.taskId, withZone(edit.patch))
-        : {
-            properties: await setProperties(save.communityId, PropertyTarget.task, save.taskId, {
-              ...edit.properties,
-              merge: true,
-            }),
-          };
-    },
-    onSuccess: async (written, save) => {
-      if (!inSession(save)) return;
-      const { taskId, edit, undo } = save;
-      // So does a read started while this save was being sent.
-      await cancelTaskReads(save);
-      // Every earlier save has landed, so this answer is what the server holds.
-      queryClient.setQueryData<TaskRead>(
-        getReadTaskQueryKey(save.communityId, taskId),
-        (current) => current && { ...current, ...written }
-      );
-      // The lists showing the task; the task itself is read once the last save settles.
-      const lists = describes(
-        "patch" in edit ? q.allTasks() : q.propertyHolder(PropertyTarget.task)
-      );
-      const itself = describes(q.task(taskId));
-      void queryClient.invalidateQueries({
-        predicate: ({ queryKey }) => lists(queryKey) && !itself(queryKey),
-      });
-      if (undo) {
-        const moved = edit.shows.task_status;
-        toast.success(
-          moved
-            ? t("fieldSave.moved", { status: moved.name })
-            : t("fieldSave.cleared", { field: label }),
-          {
-            action: {
-              label: t("fieldSave.undo"),
-              onClick: () =>
-                void send(
-                  "patch" in undo && "patch" in edit
-                    ? { ...undo, patch: { ...undo.patch, scope: edit.patch.scope } }
-                    : undo
-                ),
-            },
-          }
-        );
-      }
-      onSaved?.(edit);
-    },
-    onSettled: (_written, _failed, save) => {
-      // Only this save is left: what the server holds now is what to show.
-      if (inSession(save)?.length === 1) {
-        void queryClient.invalidateQueries({
-          queryKey: getReadTaskQueryKey(save.communityId, save.taskId),
-          exact: true,
-        });
-      }
-    },
-  });
-
-  const send = async (edit: TaskEdit, undo?: TaskEdit): Promise<boolean> => {
-    last.current = { edit, undo };
-    sending.current += 1;
-    setState("saving");
-    setError(null);
-    // The move shows as made now, so the completion feedback goes with it.
-    const moved = edit.shows.task_status;
-    if (moved?.category === "done" && task.task_status.category !== "done" && user) {
-      const isAssigned = task.assignees.some((assignee) => assignee.id === user.id);
-      fireTaskCompletionFeedback(user, { isAssigned });
-    }
-    let saved = false;
-    try {
-      await mutateAsync({
-        communityId,
-        taskId: task.id,
-        edit,
-        undo,
-        session: { userId: user?.id, server: currentServerKey() },
-      });
-      saved = true;
-    } catch (failed) {
-      setError(failed);
-    }
-    sending.current -= 1;
-    if (sending.current === 0) setState(saved ? "saved" : "error");
-    return saved;
-  };
-
-  const save = async (edit: TaskEdit, undo?: TaskEdit): Promise<boolean> => {
-    if (task.recurrence && "patch" in edit && SERIES_FIELDS.some((name) => name in edit.patch)) {
+  return useItemFieldSave(TASK_SAVES, task.id, label, {
+    prepare: async (edit) => {
+      if (!task.recurrence || !("patch" in edit)) return edit;
+      if (!SERIES_FIELDS.some((name) => name in edit.patch)) return edit;
       const scope = await askScope("edit", { tool: "tasks", count: task.series_size });
-      if (scope === null) return false;
-      return send({ ...edit, patch: { ...edit.patch, scope } }, undo);
-    }
-    return send(edit, undo);
-  };
-
-  const field: FieldSave = {
-    state,
-    retry: () => {
-      if (last.current) void send(last.current.edit, last.current.undo);
+      return scope === null ? null : { ...edit, patch: { ...edit.patch, scope } };
     },
-  };
-  return {
-    ...field,
-    save,
-    error,
-    reset: () => {
-      setError(null);
-      setState("idle");
+    undoWith: (undo, edit) =>
+      "patch" in undo && "patch" in edit
+        ? { ...undo, patch: { ...undo.patch, scope: edit.patch.scope } }
+        : undo,
+    undoMessage: (edit) => {
+      const moved = edit.shows.task_status;
+      return moved ? t("fieldSave.moved", { status: moved.name }) : undefined;
     },
-  };
+    // The move shows as made now, so the completion feedback goes with it.
+    sending: (edit) => {
+      const moved = edit.shows.task_status;
+      if (moved?.category === "done" && task.task_status.category !== "done" && user) {
+        const isAssigned = task.assignees.some((assignee) => assignee.id === user.id);
+        fireTaskCompletionFeedback(user, { isAssigned });
+      }
+    },
+    onSaved,
+  });
 };
 
 /**

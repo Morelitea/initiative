@@ -19,14 +19,8 @@ import {
   removable,
   startHistory,
 } from "./draft";
-import {
-  type StoredRegions,
-  storedLayout,
-  taskFields,
-  taskPageRoot,
-  taskPageTree,
-  unplacedFields,
-} from "./tasks";
+import { type StoredRegions, storedLayout } from "./itemPage";
+import { TASK_PAGE_KIND, taskFields } from "./tasks";
 import type { ViewNode } from "./tree";
 
 const field = (id: string): ViewNode => ({ type: "field", props: { field: id } });
@@ -183,7 +177,7 @@ describe("where a dragged part lands", () => {
 
 describe("a task page laid out", () => {
   it("is stored whole, without the shipped page's one-column order", () => {
-    const shipped = taskPageRoot(null);
+    const shipped = TASK_PAGE_KIND.root(null);
     // Relations to the top of Main, then Checklist into the Description section.
     const moved = moveNode(moveNode(shipped, [2, 1], [1, 0]), [1, 2], [1, 1, 1]);
     const layout = storedLayout(moved);
@@ -201,9 +195,14 @@ describe("a task page laid out", () => {
     // Stored after any change: no one-column order of its own, and a plug-in
     // part added after the checklist.
     const stored = storedLayout(
-      insertAt(taskPageRoot(null), [1], { type: "plugin", props: { plugin: 3, part: "ci" } }, 2)
+      insertAt(
+        TASK_PAGE_KIND.root(null),
+        [1],
+        { type: "plugin", props: { plugin: 3, part: "ci" } },
+        2
+      )
     );
-    const tree = taskPageTree(stored as StoredRegions, "More fields");
+    const tree = TASK_PAGE_KIND.tree(stored as StoredRegions, "More fields");
     const orders = (index: number) =>
       tree.children?.[index]?.children?.map((node) => [
         // A section by its first part.
@@ -230,8 +229,8 @@ describe("a task page laid out", () => {
   });
 
   it("names what it places nowhere, which More fields then draws", () => {
-    const page = taskPageRoot({ side: [] });
-    const unplaced = unplacedFields({
+    const page = TASK_PAGE_KIND.root({ side: [] });
+    const unplaced = TASK_PAGE_KIND.unplacedFields({
       header: page.children?.[0]?.children ?? [],
       main: page.children?.[1]?.children ?? [],
       side: [],
