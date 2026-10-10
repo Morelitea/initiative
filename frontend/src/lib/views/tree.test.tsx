@@ -5,7 +5,11 @@ import { buildPropertyDefinition, buildPropertySummary, buildTask } from "@/__te
 import i18n from "@/__tests__/helpers/i18n-test";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import type { PropertyDefinitionRead, TaskListRead } from "@/api/generated/initiativeAPI.schemas";
-import { TASK_PAGE, taskFields, taskPageTree } from "@/lib/views/tasks";
+import { TASK_PAGE_KIND, taskFields } from "@/lib/views/tasks";
+
+/** The page as shipped. */
+const TASK_PAGE = TASK_PAGE_KIND.tree(undefined, "");
+
 import {
   LAYOUT_PARTS,
   type Parts,
@@ -175,7 +179,7 @@ describe("renderNode", () => {
   });
 });
 
-describe("taskPageTree", () => {
+describe("a task page's tree", () => {
   const regions = (tree: ViewNode) =>
     Object.fromEntries((tree.children ?? []).map((region) => [region.type, region.children]));
 
@@ -186,7 +190,7 @@ describe("taskPageTree", () => {
       children: [field("description")],
     };
 
-    const page = regions(taskPageTree({ main: [work], side: [] }, "More fields"));
+    const page = regions(TASK_PAGE_KIND.tree({ main: [work], side: [] }, "More fields"));
 
     expect(page.header).toEqual(regions(TASK_PAGE).header);
     // Drawn where the shipped page puts what it starts with on one column.
@@ -206,8 +210,8 @@ describe("taskPageTree", () => {
   });
 
   it("adds no More fields where a layout places every field", () => {
-    expect(regions(taskPageTree({ main: regions(TASK_PAGE).main }, "More fields")).side).toEqual(
-      regions(TASK_PAGE).side
-    );
+    expect(
+      regions(TASK_PAGE_KIND.tree({ main: regions(TASK_PAGE).main }, "More fields")).side
+    ).toEqual(regions(TASK_PAGE).side);
   });
 });

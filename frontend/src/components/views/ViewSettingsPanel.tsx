@@ -32,7 +32,8 @@ import {
   type Selection,
 } from "@/lib/views/draft";
 import { type FieldDef, VIEW_NAMESPACES } from "@/lib/views/fields";
-import { editsAField, PAGE_REGIONS } from "@/lib/views/tasks";
+import { PAGE_REGIONS } from "@/lib/views/itemPage";
+import { TASK_PAGE_KIND } from "@/lib/views/tasks";
 import type { ViewNode } from "@/lib/views/tree";
 import type { TranslateFn } from "@/types/i18n";
 
@@ -211,7 +212,7 @@ const PartSettings = ({
         ? onPage
           ? "viewEditor.pageTitleHelp"
           : "viewEditor.titleHelp"
-        : onPage && editsAField(node)
+        : onPage && TASK_PAGE_KIND.editsAField(node)
           ? "viewEditor.toMoreFieldsHelp"
           : onPage
             ? `viewEditor.partHelp.${node.type}`

@@ -53,9 +53,9 @@ import { getHttpStatus } from "@/lib/errorMessage";
 import { toast } from "@/lib/mascotToast";
 import { queryClient } from "@/lib/queryClient";
 import { taskRoute, toolDetailRoute, toolListRoute } from "@/lib/tools";
+import type { StoredRegions } from "@/lib/views/itemPage";
 import { usePluginMenuActions } from "@/lib/views/plugins";
 import { TaskPageView } from "@/lib/views/taskPage";
-import type { StoredRegions } from "@/lib/views/tasks";
 
 type MoveTaskVariables = {
   targetProjectId: number;
