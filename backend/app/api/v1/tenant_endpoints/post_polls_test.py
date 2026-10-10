@@ -574,9 +574,9 @@ async def test_hidden_results_open_when_the_poll_closes(
 async def test_a_ballot_and_a_receipt_are_their_owners_to_write(
     client: AsyncClient, acting_user, session, role_session
 ):
-    """Another member reads someone's answer and read receipt, which the
-    tallies and rosters count, but neither writes nor removes one in their
-    name in the database."""
+    """Another member and the community's admin read someone's answer and
+    read receipt, which the tallies and rosters count, but neither writes nor
+    removes one in their name in the database."""
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _posts_enabled(session, a.initiative)
     post = await create_post(session, a.initiative, a.user)
@@ -600,18 +600,22 @@ async def test_a_ballot_and_a_receipt_are_their_owners_to_write(
     )
     assert voted.status_code == 200, voted.text
 
-    asking = await role_session("app_user")
-    await route_as(asking, user_id=c.user.id, guild_id=a.guild.id)
-    assert (await asking.exec(select(PostPollVote.user_id))).all() == [b.user.id]
-    assert (await asking.exec(select(PostRead.user_id))).all() == [b.user.id]
-    for model in (PostPollVote, PostRead):
-        gone = await asking.exec(delete(model).where(model.user_id == b.user.id))
-        assert gone.rowcount == 0, model
-    asking.add(
-        PostPollVote(poll_id=poll.id, option_id=poll.options[1].id, user_id=b.user.id)
-    )
-    with pytest.raises(DBAPIError, match="row-level security"):
-        await asking.flush()
+    for outsider in (c, a):
+        asking = await role_session("app_user")
+        await route_as(asking, user_id=outsider.user.id, guild_id=a.guild.id)
+        voters = (await asking.exec(select(PostPollVote.user_id))).all()
+        assert voters == [b.user.id]
+        assert (await asking.exec(select(PostRead.user_id))).all() == [b.user.id]
+        for model in (PostPollVote, PostRead):
+            gone = await asking.exec(delete(model).where(model.user_id == b.user.id))
+            assert gone.rowcount == 0, model
+        asking.add(
+            PostPollVote(
+                poll_id=poll.id, option_id=poll.options[1].id, user_id=b.user.id
+            )
+        )
+        with pytest.raises(DBAPIError, match="row-level security"):
+            await asking.flush()
 
 
 async def test_the_roster_names_who_chose_what(

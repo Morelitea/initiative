@@ -46,8 +46,9 @@ __all__ = [
     "SHARED_TABLES",
     "GUILD_LEVEL_TABLES",
     "MANAGED_TABLES",
-    "OWN_ROW_SHARED_READ",
     "OWN_ROW_TABLES",
+    "PRIVATE_ROW_SHARED_READ",
+    "PRIVATE_ROW_TABLES",
     "CREATED_BY_EXEMPT_TABLES",
     "INITIATIVE_SCOPED_TABLES",
     "GUILD_SCOPED_TABLES",
@@ -185,16 +186,13 @@ MANAGED_TABLES: dict[str, str] = {
     ),
 }
 
-# --- Own-row overlay ----------------------------------------------------------
-# Tables whose rows belong to ONE user: table -> owner FK column. These get
-# per-command ``own_row_*`` RLS policies (owner OR routed guild admin) rendered
-# by ``app.db.guild_ddl.render_guild_rls_ddl``. On a guild-level table they are
-# the row gate (PERMISSIVE) — unlike the allow-all ``guild_level_open`` tables.
-# On an initiative-scoped table they are RESTRICTIVE, on top of its initiative
-# gate: reaching what a row names does not reach somebody else's row about it.
-# Every entry here MUST also be placed, in ``GUILD_LEVEL_TABLES`` or
-# ``INITIATIVE_PATHS`` (that's the schema-placement decision; this is the
-# policy overlay) — enforced in ``tenancy_test.py``.
+# --- Own-row overlay on guild-level tables -----------------------------------
+# Guild-level tables whose rows belong to ONE user: table -> owner FK column.
+# These get per-command ``own_row_*`` RLS policies (owner OR routed guild
+# admin) rendered by ``app.db.guild_ddl.render_guild_rls_ddl`` — unlike the
+# allow-all ``guild_level_open`` tables, this IS a row gate. Every entry here
+# MUST also be in ``GUILD_LEVEL_TABLES`` (that's the schema-placement decision;
+# this is the policy overlay) — enforced in ``tenancy_test.py``.
 OWN_ROW_TABLES: dict[str, str] = {
     "export_jobs": "created_by",
     "import_jobs": "created_by",
@@ -202,7 +200,16 @@ OWN_ROW_TABLES: dict[str, str] = {
     "guild_ai_member_prefs": "user_id",
     "guild_plugin_user_connections": "user_id",
     "plugin_member_consents": "user_id",
-    # One member's own state about something they can reach.
+}
+
+# --- Private-row overlay on initiative-scoped tables --------------------------
+# Initiative-scoped tables whose rows are one member's own state about content
+# they reach: table -> owner FK column. Only that member and the system engine
+# reach a row — no guild admin, settings rung or grant — through RESTRICTIVE
+# ``private_row_*`` policies rendered by ``app.db.guild_ddl.render_guild_rls_ddl``
+# on top of the table's initiative gate. Every entry here MUST also be in
+# ``INITIATIVE_PATHS`` — enforced in ``tenancy_test.py``.
+PRIVATE_ROW_TABLES: dict[str, str] = {
     "recent_views": "user_id",
     "project_favorites": "user_id",
     "project_orders": "user_id",
@@ -210,10 +217,11 @@ OWN_ROW_TABLES: dict[str, str] = {
     "post_poll_votes": "user_id",
 }
 
-#: Initiative-scoped own-row tables the rest of the initiative reads (a
-#: notice's read count, a poll's tally and who chose what): only their owner
-#: writes them, and reading is the initiative gate's alone.
-OWN_ROW_SHARED_READ: frozenset[str] = frozenset({"post_reads", "post_poll_votes"})
+# The private-row tables the rest of the initiative reads (a notice's read
+# count, a poll's tally and who chose what): written by their owner alone, read
+# under the initiative gate. Every entry here MUST also be in
+# ``PRIVATE_ROW_TABLES`` — enforced in ``tenancy_test.py``.
+PRIVATE_ROW_SHARED_READ: frozenset[str] = frozenset({"post_reads", "post_poll_votes"})
 
 # --- Seat overlay on guild-level tables ---------------------------------------
 # Guild-level configuration the community's seat holds. Read within the schema:

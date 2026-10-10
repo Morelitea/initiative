@@ -35,6 +35,8 @@ from app.db.tenancy import (
     INITIATIVE_SCOPED_TABLES,
     LEDGER_TABLES,
     OWN_ROW_TABLES,
+    PRIVATE_ROW_SHARED_READ,
+    PRIVATE_ROW_TABLES,
     SEAT_TABLES,
 )
 
@@ -148,10 +150,10 @@ async def test_every_initiative_scoped_table_has_policies(engine):
                 {"s": schema},
             )
             policies: dict[str, set[str]] = {}
-            permissive: dict[tuple[str, str], str] = {}
+            kinds: dict[tuple[str, str], str] = {}
             for tbl, pol, kind in pol_rows:
                 policies.setdefault(tbl, set()).add(pol)
-                permissive[(tbl, pol)] = kind
+                kinds[(tbl, pol)] = kind
 
             rls_rows = await conn.execute(
                 text(
@@ -162,6 +164,18 @@ async def test_every_initiative_scoped_table_has_policies(engine):
                 {"s": schema},
             )
             rls = {row[0]: (row[1], row[2]) for row in rls_rows}
+
+        # A private-row table narrows its gate to its member: RESTRICTIVE, and
+        # with no SELECT policy of its own where the initiative reads it.
+        for tbl in sorted(PRIVATE_ROW_TABLES):
+            private = {
+                p for p in policies.get(tbl, set()) if p.startswith("private_row_")
+            }
+            commands = {"insert", "update", "delete"}
+            if tbl not in PRIVATE_ROW_SHARED_READ:
+                commands.add("select")
+            assert private == {f"private_row_{c}" for c in commands}, tbl
+            assert {kinds[(tbl, p)] for p in private} == {"RESTRICTIVE"}, tbl
 
         # Every initiative-scoped table: FORCE RLS + the four policies.
         for tbl in sorted(INITIATIVE_SCOPED_TABLES):
@@ -178,10 +192,6 @@ async def test_every_initiative_scoped_table_has_policies(engine):
 
         # No guild-level table should carry the initiative-member policies.
         for tbl in sorted(GUILD_LEVEL_TABLES):
-            if tbl in INITIATIVE_SCOPED_TABLES:
-                kinds = {permissive[(tbl, p)] for p in _OWN_ROW_POLICIES}
-                assert kinds == {"RESTRICTIVE"}, tbl
-                continue
             leaked = _EXPECTED_POLICIES & policies.get(tbl, set())
             assert not leaked, (
                 f"{tbl} is GUILD_LEVEL (exempt) but has initiative_member policies "
@@ -239,9 +249,8 @@ async def test_own_row_tables_have_policies(engine):
     """Every ``OWN_ROW_TABLES`` table gets FORCE RLS + the four ``own_row_*``
     policies in a freshly provisioned schema — the row gate that keeps one
     member's rows (e.g. an export job's selector + artifact download) hidden
-    from other members. A guild-level one carries no ``initiative_member_*``
-    policies; on an initiative-scoped one the ``own_row_*`` policies are
-    RESTRICTIVE, so they narrow its initiative gate rather than widen it."""
+    from other members — and no ``initiative_member_*`` policies (own-row
+    tables are guild-level, not membership-gated)."""
     schema = guild_schema_name(_GID_OWN_ROW)
     try:
         async with engine.begin() as conn:
@@ -249,16 +258,14 @@ async def test_own_row_tables_have_policies(engine):
         async with engine.connect() as conn:
             pol_rows = await conn.execute(
                 text(
-                    "SELECT tablename, policyname, permissive FROM pg_policies "
+                    "SELECT tablename, policyname FROM pg_policies "
                     "WHERE schemaname = :s"
                 ),
                 {"s": schema},
             )
             policies: dict[str, set[str]] = {}
-            permissive: dict[tuple[str, str], str] = {}
-            for tbl, pol, kind in pol_rows:
+            for tbl, pol in pol_rows:
                 policies.setdefault(tbl, set()).add(pol)
-                permissive[(tbl, pol)] = kind
 
             rls_rows = await conn.execute(
                 text(
@@ -281,10 +288,6 @@ async def test_own_row_tables_have_policies(engine):
                 f"{tbl} is in OWN_ROW_TABLES but missing policies "
                 f"{sorted(missing)} — check guild_ddl._own_row_block."
             )
-            if tbl in INITIATIVE_SCOPED_TABLES:
-                kinds = {permissive[(tbl, p)] for p in _OWN_ROW_POLICIES}
-                assert kinds == {"RESTRICTIVE"}, tbl
-                continue
             leaked = _EXPECTED_POLICIES & policies.get(tbl, set())
             assert not leaked, (
                 f"{tbl} is own-row (guild-level) but carries initiative_member "

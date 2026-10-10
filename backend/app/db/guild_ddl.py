@@ -81,8 +81,9 @@ from app.db.tenancy import (
     GUILD_SCOPED_TABLES,
     LEDGER_TABLES,
     MANAGED_TABLES,
-    OWN_ROW_SHARED_READ,
     OWN_ROW_TABLES,
+    PRIVATE_ROW_SHARED_READ,
+    PRIVATE_ROW_TABLES,
     SEAT_READ_TABLES,
     SEAT_TABLES,
 )
@@ -223,17 +224,14 @@ _GUILD_LEVEL_SECTION = """\
 # Header for the own-row section (export_jobs, …).
 _OWN_ROW_SECTION = """\
 -- ===========================================================================
--- Own-row tables (app.db.tenancy.OWN_ROW_TABLES): rows belong to ONE user.
--- Unlike guild_level_open, this IS a row gate — a member must not see another
--- member's rows (an export_jobs row leaks the selector and gates the artifact
--- download). Owner OR the community's administrator OR trusted system
--- maintenance; the last two legs match initiative_access and the purge guard
--- exactly. A settings rung reads them, and writes them only beside a
+-- Own-row guild-level tables (app.db.tenancy.OWN_ROW_TABLES): rows belong to
+-- ONE user. Unlike guild_level_open, this IS a row gate — a member must not
+-- see another member's rows (an export_jobs row leaks the selector and gates
+-- the artifact download). Owner OR the community's administrator OR trusted
+-- system maintenance; the last two legs match initiative_access and the purge
+-- guard exactly. A settings rung reads them, and writes them only beside a
 -- read_write grant. A read-only PAM grantee is routed to guild_<id>_ro with
--- none of them set: no rows, by design. On an initiative-scoped table the
--- policies are RESTRICTIVE, so the row also answers its initiative gate; one
--- in OWN_ROW_SHARED_READ (read counts, poll tallies) is read by the whole
--- initiative and written by its owner alone.
+-- none of them set: no rows, by design.
 -- ==========================================================================="""
 
 # Own-row predicate: the owner column is compared against the request GUC.
@@ -314,6 +312,20 @@ _OWN_ROW_WRITE_PREDICATE = (
     f"({_OWN_ROW_OWNER} OR {IN_POLICY.system} OR {IN_POLICY.admin}"
     f" OR ({POLICY_SETTINGS_ADMIN} AND {IN_POLICY.pam_write}))"
 )
+
+_PRIVATE_ROW_SECTION = """\
+-- ===========================================================================
+-- Private-row tables (app.db.tenancy.PRIVATE_ROW_TABLES): one member's own
+-- state about content they reach — recent views, favorites, an order, a read
+-- receipt, a ballot. RESTRICTIVE on top of the table's initiative gate: only
+-- the member and trusted system maintenance reach a row, never the community's
+-- administrator, a settings rung or a grant. A table in PRIVATE_ROW_SHARED_READ
+-- (read counts, poll tallies) is read under its initiative gate and written by
+-- its member alone.
+-- ==========================================================================="""
+
+#: Who reaches a private row: its member, or the system engine.
+_PRIVATE_ROW_PREDICATE = f"({_OWN_ROW_OWNER} OR {IN_POLICY.system})"
 
 _COMMANDS = (
     ("select", "SELECT", "USING", False),
@@ -414,25 +426,28 @@ def _freeze_policies(table: str) -> list[str]:
 
 
 def _own_row_block(table: str, owner_col: str) -> str:
-    """RLS for an own-row table: per-command policies admitting the row's
-    owner or the routed guild admin. INSERT/UPDATE WITH CHECK use the write
-    predicate, so a member can't author rows owned by someone else either.
-    RESTRICTIVE on an initiative-scoped table, whose own block admits; an
-    ``OWN_ROW_SHARED_READ`` one leaves reading to that block."""
-    read = (
-        "true"
-        if table in OWN_ROW_SHARED_READ
-        else _OWN_ROW_READ_PREDICATE.format(col=owner_col)
-    )
+    """RLS for an own-row guild-level table: per-command policies admitting the
+    row's owner or the routed guild admin. INSERT/UPDATE WITH CHECK use the
+    write predicate, so a member can't author rows owned by someone else
+    either."""
+    read = _OWN_ROW_READ_PREDICATE.format(col=owner_col)
     write = _OWN_ROW_WRITE_PREDICATE.format(col=owner_col)
-    restrictive = table in INITIATIVE_SCOPED_TABLES
     return "\n".join(
         [
             f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY;",
             f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY;",
-            *_policies(table, "own_row", read, write, restrictive=restrictive),
+            *_policies(table, "own_row", read, write),
         ]
     )
+
+
+def _private_row_block(table: str, owner_col: str) -> str:
+    """RLS for a private-row table: RESTRICTIVE per-command policies admitting
+    the row's member or the system engine, on top of its initiative gate. A
+    ``PRIVATE_ROW_SHARED_READ`` table leaves reading to that gate."""
+    pred = _PRIVATE_ROW_PREDICATE.format(col=owner_col)
+    read = None if table in PRIVATE_ROW_SHARED_READ else pred
+    return "\n".join(_policies(table, "private_row", read, pred, restrictive=True))
 
 
 _SEAT_SECTION = """\
@@ -469,7 +484,7 @@ _SEAT_TRIGGER_WRITTEN_INSERT: dict[str, str] = {
 def _policies(
     table: str,
     prefix: str,
-    read: str,
+    read: str | None,
     write: str,
     *,
     insert: str | None = None,
@@ -477,7 +492,7 @@ def _policies(
 ) -> list[str]:
     """One policy per command: ``read`` for SELECT, ``write`` for the other
     three — or ``insert`` for INSERT, when given. PERMISSIVE unless
-    ``restrictive``."""
+    ``restrictive``; a RESTRICTIVE set with no ``read`` leaves SELECT alone."""
     kind = "RESTRICTIVE" if restrictive else "PERMISSIVE"
     lines: list[str] = []
     for suffix, command, clause, is_write in _COMMANDS:
@@ -486,6 +501,8 @@ def _policies(
             pred = insert
         name = f"{prefix}_{suffix}"
         lines.append(f"DROP POLICY IF EXISTS {name} ON {table};")
+        if pred is None:
+            continue
         lines.append(f"CREATE POLICY {name} ON {table} AS {kind} FOR {command}")
         if clause == "USING-CHECK":
             lines.append(f"  USING ({pred}) WITH CHECK ({pred});")
@@ -1182,6 +1199,8 @@ def render_guild_rls_ddl() -> str:
     own_rows = [_own_row_block(t, c) for t, c in sorted(OWN_ROW_TABLES.items())]
     if own_rows:
         out += "\n\n" + _OWN_ROW_SECTION + "\n\n" + "\n\n".join(own_rows)
+    private = [_private_row_block(t, c) for t, c in sorted(PRIVATE_ROW_TABLES.items())]
+    out += "\n\n" + _PRIVATE_ROW_SECTION + "\n\n" + "\n\n".join(private)
     seats = [_seat_block(t) for t in sorted(SEAT_TABLES)]
     out += "\n\n" + _SEAT_SECTION + "\n\n" + "\n\n".join(seats)
     out += "\n" + PLUGIN_SECRET_FIELDS_FN + "\n" + PLUGIN_SECRET_FIELDS_TRIGGER

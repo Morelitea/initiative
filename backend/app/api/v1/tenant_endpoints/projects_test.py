@@ -1148,8 +1148,9 @@ async def test_delete_project_without_permission_forbidden(
 async def test_a_favorite_and_an_order_are_their_owners_rows(
     client: AsyncClient, session: AsyncSession, acting_user, role_session
 ):
-    """Another member who can edit the project neither reads nor writes
-    someone's favorite of it or their place for it in the database."""
+    """Neither another member who can edit the project nor the community's
+    admin reads or writes someone's favorite of it or their place for it in
+    the database."""
     a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     project = await create_project(session, a.initiative, a.user)
     other = await acting_user(
@@ -1161,6 +1162,7 @@ async def test_a_favorite_and_an_order_are_their_owners_rows(
     await create_resource_grant(
         session, project, user=other.user, level=ResourceAccessLevel.write
     )
+    admin = await acting_user(guild_role=CommunityRole.admin, guild=a.guild)
     favorited = await client.post(
         a.g(f"/projects/{project.id}/favorite"), headers=a.headers
     )
@@ -1169,13 +1171,14 @@ async def test_a_favorite_and_an_order_are_their_owners_rows(
     session.add(ProjectOrder(user_id=a.user.id, project_id=project.id, sort_order=1))
     await session.commit()
 
-    asking = await role_session("app_user")
-    await route_as(asking, user_id=other.user.id, guild_id=a.guild.id)
-    for model in (ProjectFavorite, ProjectOrder):
-        assert (await asking.exec(select(model))).all() == [], model
-    asking.add(ProjectFavorite(user_id=a.user.id, project_id=project.id))
-    with pytest.raises(DBAPIError, match="row-level security"):
-        await asking.flush()
+    for outsider in (other, admin):
+        asking = await role_session("app_user")
+        await route_as(asking, user_id=outsider.user.id, guild_id=a.guild.id)
+        for model in (ProjectFavorite, ProjectOrder):
+            assert (await asking.exec(select(model))).all() == [], model
+        asking.add(ProjectFavorite(user_id=a.user.id, project_id=project.id))
+        with pytest.raises(DBAPIError, match="row-level security"):
+            await asking.flush()
 
 
 async def test_favoriting_a_project_lists_it_until_it_is_unfavorited(
