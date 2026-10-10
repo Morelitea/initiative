@@ -165,7 +165,9 @@ async def run_action(
         raise _not_offered()
     if not plugin_config.installation_meets(plugin, action.get("requires")):
         raise PluginDataError(PluginDataMessages.NEEDS_CONFIGURATION, 409)
-    registration = await plugin_data._load_registration(None, plugin=plugin)
+    registration = await plugin_data._load_registration(
+        None, guild_id=context.guild_id, plugin=plugin
+    )
 
     install_id = int(plugin.id or 0)
     initiative_id = await _item_initiative(session, kind, entity_id, context)
