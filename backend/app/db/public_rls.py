@@ -2044,7 +2044,7 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             # operations_only), for the registration the install's token names
             # (install_reads_its_registration; migrations 20260924_0379,
             # 20260924_0387, 20260924_0388, 20260924_0390, 20260925_0393,
-            # 20261001_0437 and 20261010_0481). Asserted in install_standing_test
+            # 20261001_0437 and 20261010_0482). Asserted in install_standing_test
             # beside the one on guilds.
             plugin_install_base=None,
         ),
