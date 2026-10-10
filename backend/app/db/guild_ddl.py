@@ -222,14 +222,15 @@ _GUILD_LEVEL_SECTION = """\
 # Header for the own-row section (export_jobs, …).
 _OWN_ROW_SECTION = """\
 -- ===========================================================================
--- Own-row guild-level tables (app.db.tenancy.OWN_ROW_TABLES): rows belong to
--- ONE user. Unlike guild_level_open, this IS a row gate — a member must not
--- see another member's rows (an export_jobs row leaks the selector and gates
--- the artifact download). Owner OR the community's administrator OR trusted
--- system maintenance; the last two legs match initiative_access and the purge
--- guard exactly. A settings rung reads them, and writes them only beside a
+-- Own-row tables (app.db.tenancy.OWN_ROW_TABLES): rows belong to ONE user.
+-- Unlike guild_level_open, this IS a row gate — a member must not see another
+-- member's rows (an export_jobs row leaks the selector and gates the artifact
+-- download). Owner OR the community's administrator OR trusted system
+-- maintenance; the last two legs match initiative_access and the purge guard
+-- exactly. A settings rung reads them, and writes them only beside a
 -- read_write grant. A read-only PAM grantee is routed to guild_<id>_ro with
--- none of them set: no rows, by design.
+-- none of them set: no rows, by design. On an initiative-scoped table the
+-- policies are RESTRICTIVE, so the row also answers its initiative gate.
 -- ==========================================================================="""
 
 # Own-row predicate: the owner column is compared against the request GUC.
@@ -410,17 +411,18 @@ def _freeze_policies(table: str) -> list[str]:
 
 
 def _own_row_block(table: str, owner_col: str) -> str:
-    """RLS for an own-row guild-level table: per-command policies admitting the
-    row's owner or the routed guild admin. INSERT/UPDATE WITH CHECK use the
-    write predicate, so a member can't author rows owned by someone else
-    either."""
+    """RLS for an own-row table: per-command policies admitting the row's
+    owner or the routed guild admin. INSERT/UPDATE WITH CHECK use the write
+    predicate, so a member can't author rows owned by someone else either.
+    RESTRICTIVE on an initiative-scoped table, whose own block admits."""
     read = _OWN_ROW_READ_PREDICATE.format(col=owner_col)
     write = _OWN_ROW_WRITE_PREDICATE.format(col=owner_col)
+    restrictive = table in INITIATIVE_SCOPED_TABLES
     return "\n".join(
         [
             f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY;",
             f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY;",
-            *_policies(table, "own_row", read, write),
+            *_policies(table, "own_row", read, write, restrictive=restrictive),
         ]
     )
 
@@ -463,9 +465,12 @@ def _policies(
     write: str,
     *,
     insert: str | None = None,
+    restrictive: bool = False,
 ) -> list[str]:
-    """One PERMISSIVE policy per command: ``read`` for SELECT, ``write`` for
-    the other three — or ``insert`` for INSERT, when given."""
+    """One policy per command: ``read`` for SELECT, ``write`` for the other
+    three — or ``insert`` for INSERT, when given. PERMISSIVE unless
+    ``restrictive``."""
+    kind = "RESTRICTIVE" if restrictive else "PERMISSIVE"
     lines: list[str] = []
     for suffix, command, clause, is_write in _COMMANDS:
         pred = write if is_write else read
@@ -473,7 +478,7 @@ def _policies(
             pred = insert
         name = f"{prefix}_{suffix}"
         lines.append(f"DROP POLICY IF EXISTS {name} ON {table};")
-        lines.append(f"CREATE POLICY {name} ON {table} AS PERMISSIVE FOR {command}")
+        lines.append(f"CREATE POLICY {name} ON {table} AS {kind} FOR {command}")
         if clause == "USING-CHECK":
             lines.append(f"  USING ({pred}) WITH CHECK ({pred});")
         elif clause == "WITH CHECK":

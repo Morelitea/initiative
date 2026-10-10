@@ -184,13 +184,16 @@ MANAGED_TABLES: dict[str, str] = {
     ),
 }
 
-# --- Own-row overlay on guild-level tables -----------------------------------
-# Guild-level tables whose rows belong to ONE user: table -> owner FK column.
-# These get per-command ``own_row_*`` RLS policies (owner OR routed guild
-# admin) rendered by ``app.db.guild_ddl.render_guild_rls_ddl`` — unlike the
-# allow-all ``guild_level_open`` tables, this IS a row gate. Every entry here
-# MUST also be in ``GUILD_LEVEL_TABLES`` (that's the schema-placement decision;
-# this is the policy overlay) — enforced in ``tenancy_test.py``.
+# --- Own-row overlay ----------------------------------------------------------
+# Tables whose rows belong to ONE user: table -> owner FK column. These get
+# per-command ``own_row_*`` RLS policies (owner OR routed guild admin) rendered
+# by ``app.db.guild_ddl.render_guild_rls_ddl``. On a guild-level table they are
+# the row gate (PERMISSIVE) — unlike the allow-all ``guild_level_open`` tables.
+# On an initiative-scoped table they are RESTRICTIVE, on top of its initiative
+# gate: reaching what a row names does not reach somebody else's row about it.
+# Every entry here MUST also be placed, in ``GUILD_LEVEL_TABLES`` or
+# ``INITIATIVE_PATHS`` (that's the schema-placement decision; this is the
+# policy overlay) — enforced in ``tenancy_test.py``.
 OWN_ROW_TABLES: dict[str, str] = {
     "export_jobs": "created_by",
     "import_jobs": "created_by",
@@ -198,6 +201,8 @@ OWN_ROW_TABLES: dict[str, str] = {
     "guild_ai_member_prefs": "user_id",
     "guild_plugin_user_connections": "user_id",
     "plugin_member_consents": "user_id",
+    # One member's own history of what they opened.
+    "recent_views": "user_id",
 }
 
 # --- Seat overlay on guild-level tables ---------------------------------------

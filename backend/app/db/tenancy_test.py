@@ -125,14 +125,14 @@ def test_managed_tables_are_guild_level():
     assert not set(MANAGED_TABLES) & INITIATIVE_SCOPED_TABLES
 
 
-def test_own_row_tables_are_guild_level():
+def test_own_row_tables_are_placed():
     """OWN_ROW_TABLES is a policy overlay, not a placement bucket: every entry
-    must also be classified GUILD_LEVEL (the schema-placement decision), and
-    its owner column must exist on the table."""
-    not_guild_level = set(OWN_ROW_TABLES) - GUILD_LEVEL_TABLES
-    assert not not_guild_level, (
-        f"OWN_ROW_TABLES entries {sorted(not_guild_level)} are not in "
-        "GUILD_LEVEL_TABLES — add them there too (that is the placement decision)."
+    must also be classified GUILD_LEVEL or initiative-scoped (the
+    schema-placement decision), and its owner column must exist on the table."""
+    unplaced = set(OWN_ROW_TABLES) - GUILD_LEVEL_TABLES - INITIATIVE_SCOPED_TABLES
+    assert not unplaced, (
+        f"OWN_ROW_TABLES entries {sorted(unplaced)} are not placed — add them to "
+        "GUILD_LEVEL_TABLES or INITIATIVE_PATHS too (that is the placement decision)."
     )
     for table, owner_col in OWN_ROW_TABLES.items():
         cols = set(SQLModel.metadata.tables[table].columns.keys())
