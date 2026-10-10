@@ -23,8 +23,16 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { LegalBasis, ReportReason } from "@/api/generated/initiativeAPI.schemas";
-import { LegalBasis as Basis, ReportReason as Reason } from "@/api/generated/initiativeAPI.schemas";
+import type {
+  LegalBasis,
+  ReportReason,
+  SecurityTopic,
+} from "@/api/generated/initiativeAPI.schemas";
+import {
+  LegalBasis as Basis,
+  ReportReason as Reason,
+  SecurityTopic as Topic,
+} from "@/api/generated/initiativeAPI.schemas";
 import { ContactDialog } from "@/components/tickets/ContactDialog";
 import { EvidencePicker } from "@/components/tickets/Evidence";
 import { Button } from "@/components/ui/button";
@@ -83,9 +91,17 @@ const BASES: LegalBasis[] = [
   Basis.other,
 ];
 
+/** What a security report can be about, in the order they are offered. */
+const SECURITY_TOPICS: SecurityTopic[] = [
+  Topic.vulnerability,
+  Topic.account_compromise,
+  Topic.other,
+];
+
 /** What is being filed. */
 export type TicketKind =
   | { stream: "support" }
+  | { stream: "security" }
   | {
       stream: "moderation";
       /** A `SearchEntityType` or a `PlatformReportTarget` value. */
@@ -113,6 +129,7 @@ export const FileTicketDialog = ({
   const [body, setBody] = useState("");
   const [reason, setReason] = useState<ReportReason | "">("");
   const [basis, setBasis] = useState<LegalBasis | "">("");
+  const [topic, setTopic] = useState<SecurityTopic | "">("");
   const [files, setFiles] = useState<File[]>([]);
   // Set, to what the server said, when the people who run the deployment had
   // nowhere to receive this. Kept apart from their address, which may still
@@ -120,10 +137,11 @@ export const FileTicketDialog = ({
   // says why it could not send only where there is no address at all.
   const [nowhere, setNowhere] = useState<string | null>(null);
   const availability = useTicketAvailability(communityId, { enabled: open });
-  const contact = availability.data?.[ticket.stream].contact ?? null;
-  const evidence = availability.data?.[ticket.stream].evidence ?? null;
+  const contact = availability.data?.[ticket.stream]?.contact ?? null;
+  const evidence = availability.data?.[ticket.stream]?.evidence ?? null;
 
   const isReport = ticket.stream === "moderation";
+  const isSecurity = ticket.stream === "security";
   const illegal = reason === Reason.illegal;
   // An illegal or "something else" report has to say what is wrong.
   const detailRequired = illegal || reason === Reason.other;
@@ -135,7 +153,11 @@ export const FileTicketDialog = ({
         ? t("moderation:report.platformContact", { contact: accepted.platform_contact })
         : undefined;
       toast.success(
-        isReport ? t("moderation:report.thanks") : t("help.thanks"),
+        isReport
+          ? t("moderation:report.thanks")
+          : isSecurity
+            ? t("security.thanks")
+            : t("help.thanks"),
         contactLine ? { description: contactLine } : undefined
       );
       onOpenChange(false);
@@ -143,12 +165,17 @@ export const FileTicketDialog = ({
       setBody("");
       setReason("");
       setBasis("");
+      setTopic("");
       setFiles([]);
     },
     onError: (err) => {
       const message = getErrorMessage(
         err,
-        isReport ? "moderation:report.error" : "intake:help.error"
+        isReport
+          ? "moderation:report.error"
+          : isSecurity
+            ? "intake:security.error"
+            : "intake:help.error"
       );
       if (getHttpStatus(err) === 503) {
         setNowhere(message);
@@ -192,6 +219,10 @@ export const FileTicketDialog = ({
         community_id: communityId,
       };
     }
+    if (ticket.stream === "security") {
+      if (!topic || !subject.trim() || !body.trim()) return null;
+      return { stream: "security", type: topic, subject: subject.trim(), body: body.trim() };
+    }
     if (communityId == null || !subject.trim() || !body.trim()) return null;
     return {
       stream: "support",
@@ -206,9 +237,19 @@ export const FileTicketDialog = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{isReport ? t("moderation:report.title") : t("help.title")}</DialogTitle>
+          <DialogTitle>
+            {isReport
+              ? t("moderation:report.title")
+              : isSecurity
+                ? t("security.title")
+                : t("help.title")}
+          </DialogTitle>
           <DialogDescription>
-            {isReport ? t("moderation:report.description") : t("help.description")}
+            {isReport
+              ? t("moderation:report.description")
+              : isSecurity
+                ? t("security.description")
+                : t("help.description")}
           </DialogDescription>
         </DialogHeader>
 
@@ -280,6 +321,23 @@ export const FileTicketDialog = ({
           </div>
         ) : (
           <div className="space-y-4">
+            {isSecurity && (
+              <div className="space-y-2">
+                <Label htmlFor="ticket-topic">{t("security.topicLabel")}</Label>
+                <Select value={topic} onValueChange={(v) => setTopic(v as SecurityTopic)}>
+                  <SelectTrigger id="ticket-topic">
+                    <SelectValue placeholder={t("security.topicPlaceholder")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SECURITY_TOPICS.map((value) => (
+                      <SelectItem key={value} value={value}>
+                        {t(`intake:security.topics.${value}`)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="ticket-subject">{t("help.subjectLabel")}</Label>
               <Input
@@ -291,16 +349,23 @@ export const FileTicketDialog = ({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="ticket-body">{t("help.bodyLabel")}</Label>
+              <Label htmlFor="ticket-body">
+                {isSecurity ? t("security.bodyLabel") : t("help.bodyLabel")}
+              </Label>
               <Textarea
                 id="ticket-body"
                 value={body}
                 onChange={(e) => setBody(e.target.value)}
-                placeholder={t("help.bodyPlaceholder")}
+                placeholder={isSecurity ? t("security.bodyPlaceholder") : t("help.bodyPlaceholder")}
                 rows={6}
                 maxLength={BODY_MAX}
               />
             </div>
+            {/* A report about this server stays here; one about the software
+                itself goes to the project. */}
+            {isSecurity ? (
+              <p className="text-muted-foreground text-xs">{t("security.softwareNote")}</p>
+            ) : null}
             {/* The FAQ is still the faster answer for most of what gets asked,
                 so it stays one click away from the form. */}
             <p className="text-muted-foreground text-xs">
@@ -339,7 +404,11 @@ export const FileTicketDialog = ({
             disabled={!ready || file.isPending}
             onClick={() => ready && file.mutate({ ticket: ready, files })}
           >
-            {isReport ? t("moderation:report.submit") : t("help.submit")}
+            {isReport
+              ? t("moderation:report.submit")
+              : isSecurity
+                ? t("security.submit")
+                : t("help.submit")}
           </Button>
         </DialogFooter>
       </DialogContent>

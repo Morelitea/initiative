@@ -31,6 +31,7 @@ vi.mock("@/hooks/useTickets", async () => {
       data: {
         moderation: { mode: "form", contact: contacts.moderation, evidence: POLICY },
         support: { mode: "form", contact: null, evidence: POLICY },
+        security: { mode: "form", contact: null, evidence: POLICY },
       },
     }),
     useFileTicket: (options: { onError?: (e: unknown) => void }) => {
@@ -254,6 +255,40 @@ describe("FileTicketDialog", () => {
           community_id: 3,
           subject: "Lost my phone",
           body: "I can't sign in.",
+        },
+        files: [],
+      });
+    });
+  });
+
+  describe("reporting a security problem", () => {
+    it("sends what it is about, a line and the words, from nowhere in particular", async () => {
+      renderWithProviders(
+        <FileTicketDialog
+          open
+          onOpenChange={() => {}}
+          ticket={{ stream: "security" }}
+          communityId={null}
+        />,
+        { auth: { user: buildUser() } }
+      );
+      const user = userEvent.setup();
+
+      const send = screen.getByRole("button", { name: "Send report" });
+      await user.type(screen.getByLabelText("What is this about?"), "Cookie without Secure");
+      await user.type(screen.getByLabelText("What did you find?"), "On the sign-in reply.");
+      // Not until it says what kind of problem it is.
+      expect(send).toBeDisabled();
+      await user.click(screen.getByRole("combobox", { name: "What is it about?" }));
+      await user.click(await screen.findByRole("option", { name: "A weakness in this server" }));
+      await user.click(send);
+
+      expect(fileMutate).toHaveBeenCalledWith({
+        ticket: {
+          stream: "security",
+          type: "vulnerability",
+          subject: "Cookie without Secure",
+          body: "On the sign-in reply.",
         },
         files: [],
       });

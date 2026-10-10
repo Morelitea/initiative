@@ -819,5 +819,6 @@
   "MODERATION_MESSAGE_REQUIRED": "Escribe lo que se le dirá",
   "MODERATION_NOBODY_TO_WARN": "Nadie escribió esto, así que no hay a quién avisar",
   "COMMENT_REMOVED": "Este comentario se eliminó",
-  "COMMENT_THREAD_LOCKED": "Un moderador bloqueó los comentarios aquí"
+  "COMMENT_THREAD_LOCKED": "Un moderador bloqueó los comentarios aquí",
+  "SECURITY_NOWHERE_TO_SEND": "Este servidor aún no recibe informes de seguridad. Usa la dirección de abajo."
 }

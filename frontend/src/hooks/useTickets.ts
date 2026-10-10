@@ -12,6 +12,7 @@ import type {
   FiledTicketDetailRead,
   FiledTicketList,
   ModerationTicketCreate,
+  SecurityTicketCreate,
   SupportTicketCreate,
   TaskCaseRead,
   TicketAccepted,
@@ -40,7 +41,7 @@ import type { QueryOpts } from "@/types/query";
 export const FAQ_URL = docsUrl("faq/");
 
 /** One filing, told apart by its stream. */
-export type TicketCreate = SupportTicketCreate | ModerationTicketCreate;
+export type TicketCreate = SupportTicketCreate | ModerationTicketCreate | SecurityTicketCreate;
 
 /** A filing and the files sent with it. */
 export interface TicketFiling {
