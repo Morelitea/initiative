@@ -245,7 +245,9 @@ class InitiativeRolePermission(SQLModel, table=True):
 class InitiativeMember(SQLModel, table=True):
     __tablename__ = "initiative_members"
 
-    initiative_id: int = Field(foreign_key="initiatives.id", primary_key=True)
+    initiative_id: int = Field(
+        foreign_key="initiatives.id", ondelete="CASCADE", primary_key=True
+    )
     user_id: int = Field(foreign_key="users.id", primary_key=True, index=True)
     role_id: Optional[int] = Field(
         default=None,

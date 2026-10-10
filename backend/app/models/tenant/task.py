@@ -48,7 +48,9 @@ class TaskStatus(CreatedByMixin, table=True):
     __tablename__ = "task_statuses"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    project_id: int = Field(foreign_key="projects.id", nullable=False)
+    project_id: int = Field(
+        foreign_key="projects.id", ondelete="CASCADE", nullable=False
+    )
     name: str = Field(
         sa_column=Column(String(length=100), nullable=False),
     )
@@ -109,7 +111,9 @@ class Task(
 
     id: Optional[int] = Field(default=None, primary_key=True)
     project_id: int = Field(foreign_key="projects.id", nullable=False)
-    task_status_id: int = Field(foreign_key="task_statuses.id", nullable=False)
+    task_status_id: int = Field(
+        foreign_key="task_statuses.id", ondelete="RESTRICT", nullable=False
+    )
     title: str = Field(nullable=False)
     # TEXT in DDL (unbounded); sa_column keeps autogen quiet vs AutoString
     description: Optional[str] = Field(default=None, sa_column=Column(Text))
