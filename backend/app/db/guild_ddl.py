@@ -67,6 +67,7 @@ from app.db.authorization import (
 )
 from app.db.frozen import (
     FROZEN_TABLES,
+    LIFECYCLE_COLUMNS,
     freeze_leg,
     frozen_write_triggers,
     frozen_guard_trigger,
@@ -448,6 +449,74 @@ def _private_row_block(table: str, owner_col: str) -> str:
     pred = _PRIVATE_ROW_PREDICATE.format(col=owner_col)
     read = None if table in PRIVATE_ROW_SHARED_READ else pred
     return "\n".join(_policies(table, "private_row", read, pred, restrictive=True))
+
+
+_AUTHORED_SECTION = """\
+-- ===========================================================================
+-- What one person says, written by that person.
+--
+-- initiative_join_requests: read by the requester and by whoever answers the
+--   initiative's queue (its managers, the community's admin, the system
+--   engine); filed by the requester, answered by those who read the queue.
+-- tr_comments_author_guard: only its author changes a comment. Anyone who may
+--   edit what it is on may move it in or out of the trash with that thing; the
+--   system engine moderates, and the community's admin purges.
+-- ==========================================================================="""
+
+#: The requester of a join request, or the system engine.
+_REQUESTER = f"(user_id = {gucs.USER_ID.once} OR {IN_POLICY.system})"
+
+
+def _comment_parent_writable() -> str:
+    """Whether the request may edit what the comment being updated is on."""
+    folded = INITIATIVE_PATHS["comments"].folded
+    assert folded is not None
+    return folded("NEW", True, True)
+
+
+_COMMENT_PARENT_WRITABLE = _comment_parent_writable()
+
+_COMMENT_AUTHOR_GUARD_FN = f"""
+CREATE OR REPLACE FUNCTION public.fn_comment_author_guard() RETURNS trigger
+    LANGUAGE plpgsql AS $comment_author$
+DECLARE
+    lifecycle text[] := ARRAY[{", ".join(f"'{c}'" for c in LIFECYCLE_COLUMNS)}];
+BEGIN
+    IF {IN_POLICY.system} OR ({IN_POLICY.admin} AND {gucs.PURGING}) THEN
+        RETURN NEW;
+    END IF;
+    IF NEW.created_by IS NOT DISTINCT FROM OLD.created_by AND (
+        OLD.created_by = {gucs.USER_ID.once}
+        OR ((to_jsonb(NEW) - lifecycle) IS NOT DISTINCT FROM (to_jsonb(OLD) - lifecycle)
+            AND {_COMMENT_PARENT_WRITABLE})
+    ) THEN
+        RETURN NEW;
+    END IF;
+    RAISE EXCEPTION 'only its author changes a comment' USING ERRCODE = '42501';
+END;
+$comment_author$;
+"""
+
+
+def _authored_block() -> str:
+    queue = managed_write("initiative_id")
+    return "\n".join(
+        [
+            "ALTER TABLE initiative_join_requests ENABLE ROW LEVEL SECURITY;",
+            "ALTER TABLE initiative_join_requests FORCE ROW LEVEL SECURITY;",
+            *_policies(
+                "initiative_join_requests",
+                "join_request",
+                f"({_REQUESTER} OR {queue})",
+                queue,
+                insert=f"({_REQUESTER} AND status = 'pending')",
+            ),
+            _COMMENT_AUTHOR_GUARD_FN,
+            "CREATE OR REPLACE TRIGGER tr_comments_author_guard"
+            " BEFORE UPDATE ON comments FOR EACH ROW"
+            " EXECUTE FUNCTION public.fn_comment_author_guard();",
+        ]
+    )
 
 
 _SEAT_SECTION = """\
@@ -1201,6 +1270,7 @@ def render_guild_rls_ddl() -> str:
         out += "\n\n" + _OWN_ROW_SECTION + "\n\n" + "\n\n".join(own_rows)
     private = [_private_row_block(t, c) for t, c in sorted(PRIVATE_ROW_TABLES.items())]
     out += "\n\n" + _PRIVATE_ROW_SECTION + "\n\n" + "\n\n".join(private)
+    out += "\n\n" + _AUTHORED_SECTION + "\n" + _authored_block()
     seats = [_seat_block(t) for t in sorted(SEAT_TABLES)]
     out += "\n\n" + _SEAT_SECTION + "\n\n" + "\n\n".join(seats)
     out += "\n" + PLUGIN_SECRET_FIELDS_FN + "\n" + PLUGIN_SECRET_FIELDS_TRIGGER

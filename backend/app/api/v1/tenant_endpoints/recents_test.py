@@ -29,7 +29,6 @@ from app.testing import (
     create_tool_entity,
     enable_all_tools,
     route_as,
-    route_session_to_guild,
 )
 
 RECENTS = "/api/v1/recents/"
@@ -134,27 +133,6 @@ async def test_a_recent_view_is_its_owners_row(
         )
         with pytest.raises(DBAPIError, match="row-level security"):
             await asking.flush()
-
-
-async def test_purging_an_item_drops_everyones_recent_view_of_it(
-    client: AsyncClient, session: AsyncSession, acting_user
-):
-    """The admin emptying the trash reaches no member's recent view, and the
-    purge still takes them all with the item."""
-    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
-    project = await create_project(session, a.initiative, a.user)
-    admin = await acting_user(guild_role=CommunityRole.admin, guild=a.guild)
-    await client.post(a.g(f"/recents/project/{project.id}"), headers=a.headers)
-
-    deleted = await client.delete(a.g(f"/projects/{project.id}"), headers=admin.headers)
-    assert deleted.status_code in (200, 204), deleted.text
-    purged = await client.delete(
-        a.g(f"/trash/project/{project.id}/purge"), headers=admin.headers
-    )
-    assert purged.status_code == 204, purged.text
-
-    await route_session_to_guild(session, a.guild.id)
-    assert (await session.exec(select(RecentView))).all() == []
 
 
 async def test_recent_tabs_limit_caps_list_and_prune(

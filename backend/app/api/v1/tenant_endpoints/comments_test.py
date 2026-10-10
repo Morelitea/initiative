@@ -4,6 +4,8 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 from sqlalchemy import delete as sa_delete
+from sqlalchemy import text
+from sqlalchemy.exc import DBAPIError
 
 from app.core.messages import CommentMessages
 from app.core.tools import Tool
@@ -335,6 +337,35 @@ async def test_guild_calendar_comments_reach_every_member(client, session, actin
     )
     assert listed.status_code == 200
     assert [c["content"] for c in listed.json()["comments"]] == ["Game night?"]
+
+
+async def test_a_comment_is_its_authors_to_change(session, acting_user, reading_as):
+    """Neither another member who can edit the task nor the community's admin
+    rewrites someone's comment in the database; its author does."""
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
+    task = await create_task(session, a.project)
+    comment = await create_comment(session, a.user, task=task)
+    other = await acting_user(
+        guild_role=CommunityRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    await create_resource_grant(
+        session, a.project, user=other.user, level=ResourceAccessLevel.write
+    )
+    admin = await acting_user(guild_role=CommunityRole.admin, guild=a.guild)
+    rewrite = text("UPDATE comments SET content = 'Not what I said' WHERE id = :id")
+
+    for outsider in (other, admin):
+        asking = await reading_as(outsider.user.id, a.guild.id)
+        with pytest.raises(DBAPIError, match="only its author changes a comment"):
+            await asking.exec(rewrite, params={"id": comment.id})
+        await asking.rollback()
+    asking = await reading_as(a.user.id, a.guild.id)
+    assert (await asking.exec(rewrite, params={"id": comment.id})).rowcount == 1
 
 
 async def test_a_thread_pages_by_conversation(client, session, acting_user):

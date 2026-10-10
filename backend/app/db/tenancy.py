@@ -128,9 +128,9 @@ GUILD_LEVEL_TABLES: frozenset[str] = frozenset(
         "initiative_role_permissions",
         # Join requests: the requester is by definition NOT yet a member, so an
         # initiative-membership row gate would hide their own request from them
-        # — the same reasoning that keeps initiative_members structural. Who may
-        # read which rows is an app-layer contract (requester sees their own,
-        # managers see their initiative's), pinned by tests.
+        # — the same reasoning that keeps initiative_members structural. Its
+        # own policies admit the requester and whoever answers the
+        # initiative's queue (app.db.guild_ddl._authored_block).
         "initiative_join_requests",
         # Own-row tables (also listed in OWN_ROW_TABLES below): guild-level
         # placement, but rows belong to ONE user and carry own_row_* policies.
@@ -215,13 +215,16 @@ PRIVATE_ROW_TABLES: dict[str, str] = {
     "project_orders": "user_id",
     "post_reads": "user_id",
     "post_poll_votes": "user_id",
+    "reactions": "created_by",
 }
 
 # The private-row tables the rest of the initiative reads (a notice's read
-# count, a poll's tally and who chose what): written by their owner alone, read
+# count, a poll's tally and who chose what, who reacted): written by their owner alone, read
 # under the initiative gate. Every entry here MUST also be in
 # ``PRIVATE_ROW_TABLES`` — enforced in ``tenancy_test.py``.
-PRIVATE_ROW_SHARED_READ: frozenset[str] = frozenset({"post_reads", "post_poll_votes"})
+PRIVATE_ROW_SHARED_READ: frozenset[str] = frozenset(
+    {"post_reads", "post_poll_votes", "reactions"}
+)
 
 # --- Seat overlay on guild-level tables ---------------------------------------
 # Guild-level configuration the community's seat holds. Read within the schema:

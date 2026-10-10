@@ -237,6 +237,23 @@ async def system_session(guild_id: int | None) -> AsyncIterator[AsyncSession]:
         yield session
 
 
+async def exec_as_system(session: AsyncSession, statement: Any) -> None:
+    """Run ``statement`` in ``session``'s community as the platform: on
+    ``session`` when it already is, else in a transaction of its own. For the
+    cleanup a person's purge makes of rows that are other members' alone."""
+    from app.db.request_context import SystemGuild
+    from app.db.session import guild_context, set_rls_context
+
+    context = guild_context(session)
+    if context is None:
+        await session.exec(statement)
+        return
+    async with system_session(context.guild_id) as system:
+        await set_rls_context(system, SystemGuild(context.guild_id))
+        await system.exec(statement)
+        await system.commit()
+
+
 def read_sessionmaker(guild_id: int) -> async_sessionmaker[AsyncSession]:
     """The sessionmaker for reads in ``guild_id``'s community that may trail
     the primary by a moment: on DATABASE_URL_QUERY when it is set, from the
