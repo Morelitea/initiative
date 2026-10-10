@@ -23,7 +23,14 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { specFromApi, specToApi, taskFilterCount } from "@/lib/filters/taskFilters";
-import { cardOf, type NodePath, nodeAt, removable, type Selection } from "@/lib/views/draft";
+import {
+  cardOf,
+  MAX_NAME_LENGTH,
+  type NodePath,
+  nodeAt,
+  removable,
+  type Selection,
+} from "@/lib/views/draft";
 import { type FieldDef, VIEW_NAMESPACES } from "@/lib/views/fields";
 import { editsAField, PAGE_REGIONS } from "@/lib/views/tasks";
 import type { ViewNode } from "@/lib/views/tree";
@@ -501,7 +508,7 @@ const CommittedInput = ({
     <Input
       id={id}
       value={text}
-      maxLength={100}
+      maxLength={MAX_NAME_LENGTH}
       onChange={(event) => setText(event.target.value)}
       onBlur={commit}
       onKeyDown={(event) => {

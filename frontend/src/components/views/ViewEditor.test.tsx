@@ -13,6 +13,7 @@ import {
   buildPropertyDefinition,
   buildTask,
   buildTaskListResponse,
+  buildToolView,
   buildToolViewSet,
 } from "@/__tests__/factories";
 import { buildSavedViewSet } from "@/__tests__/factories/toolView.factory";
@@ -313,6 +314,53 @@ describe("ViewEditor", () => {
         ["unassigned", false],
         ["mine", false],
       ]);
+    });
+
+    it("names a copy of a long-named view within the limit", async () => {
+      const long = "Q".repeat(100);
+      const { user } = editor(
+        "long",
+        vi.fn(),
+        buildToolViewSet({
+          views: [buildToolView({ slug: "long", name: long, is_default: true })],
+        })
+      );
+      await outline();
+
+      await user.click(screen.getByRole("button", { name: /more for this view/i }));
+      await user.click(await screen.findByRole("menuitem", { name: /duplicate/i }));
+      await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+      await waitFor(() => expect(saves).toHaveLength(1));
+      const copy = saves[0].views.at(-1)?.name ?? "";
+      expect(copy).toMatch(/^Q+… copy$/);
+      expect(copy.length).toBe(100);
+    });
+
+    it("keeps open the view opened while a save was under way", async () => {
+      let answer = () => {};
+      server.use(
+        communityHttp.put("/views/", async ({ request }) => {
+          const body = (await request.json()) as ToolViewSetWrite;
+          saves.push(body);
+          await new Promise<void>((resolve) => {
+            answer = resolve;
+          });
+          return HttpResponse.json(buildSavedViewSet(body));
+        })
+      );
+      const { user } = editor("board");
+      await outline();
+
+      await user.click(screen.getByRole("button", { name: /add a view/i }));
+      await user.click(screen.getByRole("button", { name: /^save$/i }));
+      await screen.findByRole("button", { name: /saving/i });
+      await user.click(viewPicker());
+      await user.click(await screen.findByRole("option", { name: "Table" }));
+      answer();
+
+      expect(await screen.findByRole("button", { name: /^save$/i })).toBeDisabled();
+      expect(viewPicker()).toHaveTextContent("Table");
     });
 
     it("stores the filters a view is fixed to", async () => {

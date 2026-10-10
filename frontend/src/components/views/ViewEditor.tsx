@@ -50,6 +50,7 @@ import {
   HOLDERS,
   historyReducer,
   insertAt,
+  MAX_NAME_LENGTH,
   MAX_VIEWS,
   moveNode,
   type NodePath,
@@ -323,13 +324,19 @@ export const ViewEditor = ({
     changeViews(next, VIEW_SELECTED);
     setActive(view.key);
   };
+  /** A copy's name, its source's shortened to leave room for the rest. */
+  const copyName = (from: DraftView) => {
+    const name = viewName({ slug: from.slug ?? "", name: from.name }, t);
+    const over = t("viewEditor.copyOf", { name }).length - MAX_NAME_LENGTH;
+    return t("viewEditor.copyOf", {
+      name: over > 0 ? `${name.slice(0, name.length - over - 1)}…` : name,
+    });
+  };
   const addView = (from?: DraftView) => {
     newKey.current += 1;
     const view: DraftView = {
       key: `new:${newKey.current}`,
-      name: from
-        ? t("viewEditor.copyOf", { name: viewName({ slug: from.slug ?? "", name: from.name }, t) })
-        : t("viewEditor.newView"),
+      name: from ? copyName(from) : t("viewEditor.newView"),
       is_default: false,
       definition: from?.definition ?? { layout: { type: "board" } },
     };
@@ -345,9 +352,12 @@ export const ViewEditor = ({
     openView(next.find((view) => view.is_default) ?? next[0], next);
   };
 
+  // Which view is open when a save answers, which may not be the one open
+  // when it was sent.
+  const opened = useRef(active);
+  opened.current = active;
   const save = () => {
-    // The server keeps the order, which names a view it named meanwhile.
-    const open = views.findIndex((view) => view.key === current?.key);
+    const keys = views.map((view) => view.key);
     put.mutate(
       viewSetWrite(
         set,
@@ -360,7 +370,8 @@ export const ViewEditor = ({
           const answer = draftOf(stored);
           // Waited for only while the read has yet to say it.
           if (!sameDraft(draftOf(latest.current), answer)) setAwaiting(answer);
-          const named = stored.views[open]?.slug;
+          // The server keeps the order, which names a view it named meanwhile.
+          const named = stored.views[keys.indexOf(opened.current)]?.slug;
           if (named) setActive(named);
           toast.success(t("viewEditor.saved"));
         },
