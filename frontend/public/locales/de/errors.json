@@ -121,6 +121,7 @@
   "TASK_DUPLICATE_NOT_FOUND": "Duplizierte Aufgabe nicht gefunden",
   "TASK_NOT_REPEATING": "Diese Aufgabe wiederholt sich nicht",
   "TASK_NO_LATER_OCCURRENCE": "Das ist der letzte Termin der Serie",
+  "TASK_DESCRIPTION_CHANGED": "Jemand hat diese Beschreibung geändert, während du sie bearbeitet hast.",
   "CHECKLIST_ITEM_NOT_FOUND": "Checklisten-Element nicht gefunden",
   "CHECKLIST_DUPLICATE_ITEM_ID": "Zwei Checklisten-Elemente haben dieselbe Kennung",
   "CHECKLIST_TEXT_EMPTY": "Der Text eines Checklisten-Elements darf nicht leer sein",

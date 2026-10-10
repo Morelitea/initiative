@@ -6,29 +6,39 @@ import i18n from "@/__tests__/helpers/i18n-test";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import type { PropertyDefinitionRead, TaskListRead } from "@/api/generated/initiativeAPI.schemas";
 import { taskFields } from "@/lib/views/tasks";
-import { type ViewContext, type ViewNode, ViewTree } from "@/lib/views/tree";
+import {
+  LAYOUT_PARTS,
+  type Parts,
+  renderNode,
+  type ViewContext,
+  type ViewNode,
+  ViewTree,
+} from "@/lib/views/tree";
 import type { TranslateFn } from "@/types/i18n";
 
 const field = (id: string): ViewNode => ({ type: "field", props: { field: id } });
+
+const viewOf = (
+  hidden: string[] = [],
+  definitions: PropertyDefinitionRead[] = [],
+  variant: ViewContext["variant"] = "card"
+): ViewContext => ({
+  fields: taskFields(definitions),
+  variant,
+  isHidden: (fieldId) => hidden.includes(fieldId),
+  env: {
+    t: i18n.getFixedT(null, ["projects", "dates", "relations"]) as TranslateFn,
+    communityPath: (path) => path,
+    taskHref: (task) => `/tasks/${task.id}`,
+  },
+});
 
 const draw = (
   node: ViewNode,
   task: TaskListRead,
   hidden: string[] = [],
   definitions: PropertyDefinitionRead[] = []
-) => {
-  const view: ViewContext = {
-    fields: taskFields(definitions),
-    variant: "card",
-    isHidden: (fieldId) => hidden.includes(fieldId),
-    env: {
-      t: i18n.getFixedT(null, ["projects", "dates", "relations"]) as TranslateFn,
-      communityPath: (path) => path,
-      taskHref: (task) => `/tasks/${task.id}`,
-    },
-  };
-  return renderWithProviders(<ViewTree node={node} item={task} view={view} />);
-};
+) => renderWithProviders(<ViewTree node={node} item={task} view={viewOf(hidden, definitions)} />);
 
 describe("taskFields", () => {
   it("adds one field per property, labelled by name", () => {
@@ -102,5 +112,27 @@ describe("ViewTree", () => {
     );
 
     expect(container.textContent).toBe("Effort:largeStatus:openPhase:beta");
+  });
+});
+
+describe("renderNode", () => {
+  it("draws an item's page through the parts it is given", () => {
+    // The page's regions are layout any kind of item shares; what fills them
+    // is the item's own.
+    const parts: Parts<string> = { ...LAYOUT_PARTS, name: (_node, item) => <p>{item}</p> };
+    const page: ViewNode = {
+      type: "page",
+      children: [
+        { type: "header", children: [{ type: "name" }] },
+        { type: "main", children: [{ type: "field", props: { field: "title" } }] },
+        { type: "side", children: [{ type: "name" }] },
+      ],
+    };
+
+    const { container } = renderWithProviders(
+      <>{renderNode(page, "Ada", viewOf([], [], "page"), parts)}</>
+    );
+
+    expect(container.textContent).toBe("AdaAda");
   });
 });

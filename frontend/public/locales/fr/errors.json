@@ -119,6 +119,7 @@
   "TASK_DUPLICATE_NOT_FOUND": "Tâche dupliquée introuvable",
   "TASK_NOT_REPEATING": "Cette tâche ne se répète pas",
   "TASK_NO_LATER_OCCURRENCE": "C'est la dernière occurrence de la série",
+  "TASK_DESCRIPTION_CHANGED": "Quelqu'un a modifié cette description pendant que vous la modifiiez.",
   "CHECKLIST_ITEM_NOT_FOUND": "Élément de la checklist introuvable",
   "CHECKLIST_DUPLICATE_ITEM_ID": "Deux éléments de la checklist ont le même identifiant",
   "CHECKLIST_TEXT_EMPTY": "Le texte d'un élément ne peut pas être vide",

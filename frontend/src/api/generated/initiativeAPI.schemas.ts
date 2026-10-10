@@ -8064,12 +8064,16 @@ export const PropertyTarget = {
 } as const;
 
 /**
- * Replace-all payload for ``PUT /properties/{target}/{entity_id}``.
+ * Payload for ``PUT /properties/{target}/{entity_id}``: replace-all, or
+ * with ``merge`` only the properties it names.
  *
- * An empty list clears every property value on the entity.
+ * Replacing, an empty list clears every property value on the entity.
  */
 export interface PropertyValuesSetRequest {
   values?: PropertyValueInput[];
+  merge?: boolean;
+  /** @maxItems 100 */
+  removed?: number[];
 }
 
 /**
@@ -9408,6 +9412,7 @@ export interface TaskUpdate {
   properties?: PropertyValueInput[] | null;
   title?: string | null;
   description?: string | null;
+  description_base?: string | null;
   task_status_id?: number | null;
   priority?: TaskPriority | null;
   assignee_ids?: number[] | null;

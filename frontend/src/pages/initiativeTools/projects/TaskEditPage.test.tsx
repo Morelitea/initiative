@@ -1,5 +1,6 @@
 /**
- * The task editor's action row: what it offers, and where deleting leaves you.
+ * The task's page: every field saves on its own, as its kind says, and the
+ * rest of what a task can do is behind one menu.
  *
  * Deleting from a task's page used to drop you at the initiative's projects
  * list — one step further out than you asked to go, and away from the sibling
@@ -9,15 +10,18 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { delay, HttpResponse } from "msw";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   buildInitiative,
   buildPage,
   buildProject,
+  buildProjectTaskStatus,
   buildPropertySummary,
   buildTask,
+  buildUser,
 } from "@/__tests__/factories";
+import { readerCan } from "@/__tests__/factories/can";
 import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
@@ -25,9 +29,16 @@ import {
   type ProjectRead,
   type PropertySummary,
   PropertyType,
+  type TaskRead,
+  type TaskStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
+import { getReadTaskQueryKey } from "@/api/generated/tasks/tasks";
+import { clearStoredServerUrl, setStoredServerUrl } from "@/lib/serverStorage";
 
 import { TaskEditPage } from "./TaskEditPage";
+
+const toasts = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
+vi.mock("@/lib/mascotToast", () => ({ toast: toasts }));
 
 const COMMUNITY_ID = 1;
 const INITIATIVE_ID = 5;
@@ -36,6 +47,9 @@ const TASK_ID = 2726;
 
 const TASK_ROUTE = "/c/$communityId/i/$initiativeId/projects/$projectId/tasks/$taskId";
 
+const TODO = buildProjectTaskStatus({ id: 1, name: "To Do", category: "todo" });
+const DOING = buildProjectTaskStatus({ id: 2, name: "Doing", category: "in_progress" });
+
 /** What the page asked the project list for, newest last. */
 const listed: URLSearchParams[] = [];
 
@@ -43,22 +57,35 @@ const listed: URLSearchParams[] = [];
 const renderTaskPage = ({
   taskProjectId = PROJECT_ID,
   /** What the project reports; a column the task uses can be missing from it. */
-  statuses,
+  statuses = [TODO, DOING],
   recurrence = null,
   lastOccurrence = false,
   properties = [],
   destinations = [],
   keepContentIn = false,
+  description = null,
+  dueDate = null,
+  canEdit = true,
+  refuse,
+  userId,
 }: {
   taskProjectId?: number;
   /** Other projects the person may move the task into. */
   destinations?: ProjectRead[];
   keepContentIn?: boolean;
   properties?: PropertySummary[];
-  statuses?: unknown[];
+  statuses?: TaskStatusRead[];
   recurrence?: string | null;
   /** Deleting just this task trashes it, as nothing comes after it. */
   lastOccurrence?: boolean;
+  description?: string | null;
+  dueDate?: string | null;
+  canEdit?: boolean;
+  /** An answer to an update in place of saving it, when it returns one; it
+   *  may hold the update until it settles. */
+  refuse?: (body: Record<string, unknown>) => Response | undefined | Promise<Response | undefined>;
+  /** Who is signed in. */
+  userId?: number;
 } = {}) => {
   let gone = false;
   const task = {
@@ -68,20 +95,37 @@ const renderTaskPage = ({
       title: "Wire the doorbell",
       recurrence,
       properties,
+      due_date: dueDate,
     }),
+    description,
     series_size: 3,
   };
   const project = buildProject({
     id: taskProjectId,
     initiative_id: INITIATIVE_ID,
     name: "Rewiring",
+    ...(canEdit ? {} : { can: { ...readerCan(), configure: false } }),
   });
   const deleted = vi.fn();
+  /** Every update the page sent, in order. */
+  const sent: Record<string, unknown>[] = [];
 
   server.use(
     communityHttp.get("/tasks/:taskId", () =>
       gone ? new HttpResponse(null, { status: 404 }) : HttpResponse.json(task)
     ),
+    communityHttp.patch("/tasks/:taskId", async ({ request }) => {
+      const body = (await request.json()) as Record<string, unknown>;
+      sent.push(body);
+      const refused = await refuse?.(body);
+      if (refused) return refused;
+      for (const field of ["title", "description", "priority", "start_date", "due_date"]) {
+        if (field in body) Object.assign(task, { [field]: body[field] });
+      }
+      const status = statuses.find((candidate) => candidate.id === body.task_status_id);
+      if (status) Object.assign(task, { task_status_id: status.id, task_status: status });
+      return HttpResponse.json(task);
+    }),
     // The collection routes go first: `:projectId` would otherwise swallow
     // them and answer a list request with a single project.
     communityHttp.get("/projects/", ({ request }) => {
@@ -97,9 +141,7 @@ const renderTaskPage = ({
       HttpResponse.json(buildInitiative({ id: INITIATIVE_ID, keep_content_in: keepContentIn }))
     ),
     communityHttp.get("/projects/:projectId", () => HttpResponse.json(project)),
-    ...(statuses
-      ? [communityHttp.get("/projects/:id/task-statuses/", () => HttpResponse.json(statuses))]
-      : []),
+    communityHttp.get("/projects/:id/task-statuses/", () => HttpResponse.json(statuses)),
     communityHttp.delete("/tasks/:taskId", ({ request }) => {
       const scope = new URL(request.url).searchParams.get("scope");
       gone = scope !== "this" || lastOccurrence;
@@ -108,7 +150,8 @@ const renderTaskPage = ({
     })
   );
 
-  const { router } = renderPage(TaskEditPage, {
+  const { router, unmount, queryClient } = renderPage(TaskEditPage, {
+    ...(userId ? { auth: { user: buildUser({ id: userId }) } } : {}),
     initialRoute: TASK_ROUTE,
     routeParams: {
       communityId: String(COMMUNITY_ID),
@@ -118,10 +161,33 @@ const renderTaskPage = ({
     },
   });
 
-  return { router, deleted, task };
+  return { router, unmount, queryClient, deleted, task, sent };
 };
 
+/** A field on the page, by its label. */
+const fieldNamed = (name: RegExp) => screen.findByRole("group", { name });
+
+const choose = async (field: RegExp, option: RegExp) => {
+  await userEvent.click(within(await fieldNamed(field)).getByRole("combobox"));
+  await userEvent.click(await screen.findByRole("option", { name: option }));
+};
+
+/** Wait for a field to say its save went through. */
+const expectSaved = async (field: RegExp) => {
+  const frame = await fieldNamed(field);
+  await waitFor(() => expect(within(frame).getByRole("status")).toHaveTextContent(/saved/i));
+};
+
+const openDescription = async () =>
+  userEvent.click(
+    within(await fieldNamed(/^description$/i)).getByRole("button", { name: /^edit$/i })
+  );
+
 describe("TaskEditPage", () => {
+  beforeEach(() => {
+    toasts.success.mockClear();
+  });
+
   const openActionsMenu = async () =>
     userEvent.click(await screen.findByRole("button", { name: /more actions/i }));
 
@@ -133,26 +199,459 @@ describe("TaskEditPage", () => {
     await userEvent.click(confirms[confirms.length - 1]);
   };
 
-  it("keeps only save and cancel in the row, with the rest behind one menu", async () => {
+  it("has no save button, and keeps what else a task can do behind one menu", async () => {
     renderTaskPage();
-
-    // Save and cancel are the row; the other four actions used to sit beside
-    // them as buttons and now only exist inside the overflow menu.
-    expect(await screen.findByRole("button", { name: /save task/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /cancel/i })).toBeInTheDocument();
-    for (const name of [/move to project/i, /duplicate task/i, /archive/i, /delete task/i]) {
-      expect(screen.queryByRole("button", { name })).not.toBeInTheDocument();
-    }
 
     await openActionsMenu();
 
     for (const name of [/move to project/i, /duplicate task/i, /archive/i, /delete task/i]) {
       expect(await screen.findByRole("menuitem", { name })).toBeInTheDocument();
     }
+    expect(screen.queryByRole("button", { name: /^save/i })).not.toBeInTheDocument();
   });
 
-  it("saves the task and its changed property values in one request", async () => {
+  it("saves a status as it is chosen, and offers to undo the move", async () => {
+    const { sent } = renderTaskPage();
+
+    await choose(/^status$/i, /doing/i);
+
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0]).toMatchObject({ task_status_id: DOING.id });
+    expect(sent[0]).not.toHaveProperty("title");
+    await waitFor(() => expect(toasts.success).toHaveBeenCalled());
+    const [message, options] = toasts.success.mock.calls[0];
+    expect(message).toBe("Moved to Doing");
+
+    options.action.onClick();
+
+    await waitFor(() => expect(sent).toHaveLength(2));
+    expect(sent[1]).toMatchObject({ task_status_id: TODO.id });
+  });
+
+  it("saves the title on Enter and on leaving it, and Esc puts the saved one back", async () => {
+    const { sent } = renderTaskPage();
+    const title = await screen.findByDisplayValue("Wire the doorbell");
+
+    await userEvent.type(title, " now");
+    expect(sent).toHaveLength(0);
+    await userEvent.keyboard("{Enter}");
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0]).toMatchObject({ title: "Wire the doorbell now" });
+
+    await userEvent.type(title, "!!");
+    await userEvent.keyboard("{Escape}");
+    expect(title).toHaveValue("Wire the doorbell now");
+
+    await userEvent.type(title, " please");
+    await userEvent.tab();
+    await waitFor(() => expect(sent).toHaveLength(2));
+    expect(sent[1]).toMatchObject({ title: "Wire the doorbell now please" });
+  });
+
+  it("writes a description in its own mode, keeps the draft, and saves it over what it read", async () => {
+    const first = renderTaskPage({ description: "Old words", userId: 41 });
+
+    await openDescription();
+    const editor = await screen.findByRole("textbox", { name: /^description$/i });
+    await userEvent.clear(editor);
+    await userEvent.type(editor, "New words");
+    expect(first.sent).toHaveLength(0);
+    first.unmount();
+
+    // The draft is the account's own, on its own server.
+    const other = renderTaskPage({ description: "Old words", userId: 42 });
+    expect(await screen.findByText("Old words")).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: /^description$/i })).not.toBeInTheDocument();
+    other.unmount();
+    setStoredServerUrl("https://elsewhere.example/api/v1");
+    const elsewhere = renderTaskPage({ description: "Old words", userId: 41 });
+    expect(await screen.findByText("Old words")).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: /^description$/i })).not.toBeInTheDocument();
+    elsewhere.unmount();
+    clearStoredServerUrl();
+
+    // Coming back finds the draft where it was left.
+    const { sent } = renderTaskPage({ description: "Old words", userId: 41 });
+    const restored = await screen.findByRole("textbox", { name: /^description$/i });
+    expect(restored).toHaveValue("New words");
+
+    await userEvent.type(restored, "{Control>}{Enter}{/Control}");
+
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0]).toMatchObject({ description: "New words", description_base: "Old words" });
+    expect(await screen.findByText("New words")).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: /^description$/i })).not.toBeInTheDocument();
+  });
+
+  it("keeps a draft but offers nothing that writes once the task is read-only", async () => {
+    const first = renderTaskPage({ description: "Old words", userId: 43 });
+    await openDescription();
+    await userEvent.type(await screen.findByRole("textbox", { name: /^description$/i }), " more");
+    first.unmount();
+
+    const reader = renderTaskPage({ description: "Old words", userId: 43, canEdit: false });
+    const description = await fieldNamed(/^description$/i);
+    expect(await within(description).findByText("Old words")).toBeInTheDocument();
+    expect(within(description).getByText(/draft .* is kept on this device/i)).toBeInTheDocument();
+    expect(within(description).queryByRole("textbox")).not.toBeInTheDocument();
+    expect(within(description).queryByRole("button")).not.toBeInTheDocument();
+    await userEvent.keyboard("{Control>}{Enter}{/Control}");
+    expect(reader.sent).toHaveLength(0);
+    reader.unmount();
+
+    // Editing again finds it where it was left.
+    renderTaskPage({ description: "Old words", userId: 43 });
+    expect(await screen.findByRole("textbox", { name: /^description$/i })).toHaveValue(
+      "Old words more"
+    );
+  });
+
+  it("keeps what is typed while the description saves, as a draft over the saved text", async () => {
+    let release = () => {};
+    const held = new Promise<undefined>((resolve) => {
+      release = () => resolve(undefined);
+    });
+    const { sent } = renderTaskPage({
+      description: "Old words",
+      refuse: (body) => (sent.length === 1 ? held : undefined),
+    });
+
+    await openDescription();
+    const editor = await screen.findByRole("textbox", { name: /^description$/i });
+    await userEvent.type(editor, " one");
+    await userEvent.click(screen.getByRole("button", { name: /^save$/i }));
+    await waitFor(() => expect(sent).toHaveLength(1));
+    await userEvent.type(editor, " two");
+    release();
+
+    await expectSaved(/^description$/i);
+    expect(screen.getByRole("textbox", { name: /^description$/i })).toHaveValue(
+      "Old words one two"
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /^save$/i }));
+    await waitFor(() => expect(sent).toHaveLength(2));
+    expect(sent[1]).toMatchObject({
+      description: "Old words one two",
+      description_base: "Old words one",
+    });
+  });
+
+  it("closes the description's draft when Retry saves it", async () => {
+    let failing = true;
+    const { sent } = renderTaskPage({
+      description: "Old words",
+      refuse: () => (failing ? new HttpResponse(null, { status: 500 }) : undefined),
+    });
+
+    await openDescription();
+    await userEvent.type(await screen.findByRole("textbox", { name: /^description$/i }), " more");
+    await userEvent.click(screen.getByRole("button", { name: /^save$/i }));
+    const description = await fieldNamed(/^description$/i);
+    expect(await within(description).findByRole("alert")).toHaveTextContent(/couldn't save/i);
+
+    failing = false;
+    await userEvent.click(within(description).getByRole("button", { name: /try again/i }));
+
+    await waitFor(() => expect(sent).toHaveLength(2));
+    expect(await screen.findByText("Old words more")).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: /^description$/i })).not.toBeInTheDocument();
+  });
+
+  it("starts another task's page afresh, without this one's open editor", async () => {
+    const { router, queryClient } = renderTaskPage({ description: "Old words" });
+    const other = {
+      ...buildTask({ id: TASK_ID + 1, project_id: PROJECT_ID }),
+      description: "Its words",
+    };
+    server.use(
+      communityHttp.get("/tasks/:taskId", ({ params }) =>
+        params.taskId === String(other.id) ? HttpResponse.json(other) : undefined
+      )
+    );
+    // The other task is already read, so its page draws at once.
+    const otherKey = getReadTaskQueryKey(COMMUNITY_ID, other.id);
+    queryClient.setQueryDefaults(otherKey, { gcTime: Number.POSITIVE_INFINITY });
+    queryClient.setQueryData(otherKey, other);
+
+    await openDescription();
+    expect(await screen.findByRole("textbox", { name: /^description$/i })).toHaveValue("Old words");
+
+    await router.navigate({
+      to: `/c/${COMMUNITY_ID}/i/${INITIATIVE_ID}/projects/${PROJECT_ID}/tasks/${other.id}`,
+    });
+
+    expect(await screen.findByText("Its words")).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: /^description$/i })).not.toBeInTheDocument();
+  });
+
+  it("shows the other version when the description changed meanwhile, and overwrites only when asked", async () => {
+    const { sent, task } = renderTaskPage({
+      description: "Old words",
+      refuse: (body) =>
+        body.description_base === task.description
+          ? undefined
+          : HttpResponse.json({ detail: "TASK_DESCRIPTION_CHANGED" }, { status: 409 }),
+    });
+    await screen.findByText("Old words");
+    // Somebody else saves theirs first.
+    task.description = "Their words";
+
+    await openDescription();
+    await userEvent.type(
+      await screen.findByRole("textbox", { name: /^description$/i }),
+      " and mine"
+    );
+    await userEvent.click(screen.getByRole("button", { name: /^save$/i }));
+
+    const conflict = await screen.findByRole("alert");
+    expect(conflict).toHaveTextContent(/this changed while you were editing/i);
+    expect(await within(conflict).findByText("Their words")).toBeInTheDocument();
+    expect(sent).toHaveLength(1);
+
+    await userEvent.click(within(conflict).getByRole("button", { name: /overwrite/i }));
+
+    await waitFor(() => expect(sent).toHaveLength(2));
+    expect(sent[1]).toMatchObject({
+      description: "Old words and mine",
+      description_base: "Their words",
+    });
+  });
+
+  it("checks the dates as a pair, and saves neither while they are the wrong way round", async () => {
+    const { sent } = renderTaskPage({ dueDate: "2026-08-01T12:00:00" });
+    await userEvent.click(await screen.findByRole("button", { name: /start date/i }));
+    const typed = await screen.findByRole("textbox", { name: /type or pick a date/i });
+
+    await userEvent.type(typed, "2026-08-10{Enter}");
+
+    expect(within(await fieldNamed(/schedule/i)).getByRole("alert")).toBeInTheDocument();
+    expect(sent).toHaveLength(0);
+
+    await userEvent.clear(typed);
+    await userEvent.type(typed, "2026-07-20{Enter}");
+
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0]).toHaveProperty("start_date");
+    expect(sent[0]).not.toHaveProperty("due_date");
+  });
+
+  it("asks which tasks of a repeating series a change is for", async () => {
+    const { sent } = renderTaskPage({ recurrence: "RRULE:FREQ=DAILY" });
+
+    await choose(/^priority$/i, /^high$/i);
+    expect(await screen.findByLabelText(/all tasks in the series \(3\)/i)).toBeInTheDocument();
+    expect(sent).toHaveLength(0);
+    await userEvent.click(screen.getByRole("button", { name: /^save$/i }));
+
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0]).toMatchObject({ priority: "high", scope: "this" });
+  });
+
+  it("shows every field read-only to a reader", async () => {
+    renderTaskPage({ canEdit: false, description: "Old words" });
+
+    expect(await screen.findByDisplayValue("Wire the doorbell")).toBeDisabled();
+    expect(within(await fieldNamed(/^status$/i)).getByRole("combobox")).toBeDisabled();
+    expect(
+      within(await fieldNamed(/^description$/i)).queryByRole("button", { name: /^edit$/i })
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /more actions/i })).not.toBeInTheDocument();
+  });
+
+  it("keeps a failed save's error on its field until Retry sends it again", async () => {
+    let failing = true;
+    const { sent } = renderTaskPage({
+      refuse: () => (failing ? new HttpResponse(null, { status: 500 }) : undefined),
+    });
+
+    await choose(/^priority$/i, /^high$/i);
+
+    const priority = await fieldNamed(/^priority$/i);
+    expect(await within(priority).findByRole("alert")).toHaveTextContent(/couldn't save/i);
+    expect(within(await fieldNamed(/^status$/i)).queryByRole("alert")).not.toBeInTheDocument();
+
+    failing = false;
+    await userEvent.click(within(priority).getByRole("button", { name: /try again/i }));
+
+    await waitFor(() => expect(sent).toHaveLength(2));
+    expect(sent[1]).toMatchObject({ priority: "high" });
+    await waitFor(() => expect(within(priority).queryByRole("alert")).not.toBeInTheDocument());
+  });
+
+  it("sends a task's saves one at a time, so the last change made is the one kept", async () => {
+    let release = () => {};
+    const held = new Promise<undefined>((resolve) => {
+      release = () => resolve(undefined);
+    });
+    // The first answer would come back last, were the second not waiting for it.
+    const { sent, task } = renderTaskPage({ refuse: () => (sent.length === 1 ? held : undefined) });
+
+    await choose(/^priority$/i, /^high$/i);
+    await waitFor(() => expect(sent).toHaveLength(1));
+    await choose(/^priority$/i, /^low$/i);
+    const priority = within(await fieldNamed(/^priority$/i)).getByRole("combobox");
+    expect(priority).toHaveTextContent(/low/i);
+    expect(sent).toHaveLength(1);
+
+    release();
+
+    await waitFor(() => expect(sent).toHaveLength(2));
+    expect(sent.map((body) => body.priority)).toEqual(["high", "low"]);
+    await expectSaved(/^priority$/i);
+    expect(task.priority).toBe("low");
+    expect(priority).toHaveTextContent(/low/i);
+  });
+
+  it("keeps showing the changes not yet saved when the task is read again", async () => {
+    let release = () => {};
+    const held = new Promise<undefined>((resolve) => {
+      release = () => resolve(undefined);
+    });
+    const { sent, queryClient } = renderTaskPage({
+      refuse: (body) => ("priority" in body ? held : undefined),
+    });
+
+    await choose(/^priority$/i, /^high$/i);
+    await waitFor(() => expect(sent).toHaveLength(1));
+    // The title's save waits behind the priority's.
+    const title = await screen.findByDisplayValue("Wire the doorbell");
+    await userEvent.type(title, " now{Enter}");
+    // A read meanwhile has neither change yet.
+    await queryClient.refetchQueries({ queryKey: getReadTaskQueryKey(COMMUNITY_ID, TASK_ID) });
+
+    const priority = within(await fieldNamed(/^priority$/i)).getByRole("combobox");
+    expect(priority).toHaveTextContent(/high/i);
+    expect(title).toHaveValue("Wire the doorbell now");
+    expect(sent).toHaveLength(1);
+
+    release();
+    await expectSaved(/^task$/i);
+    expect(sent[1]).toMatchObject({ title: "Wire the doorbell now" });
+    expect(priority).toHaveTextContent(/high/i);
+    expect(title).toHaveValue("Wire the doorbell now");
+  });
+
+  it("lets no read begun before a save land over it", async () => {
+    const hold = () => {
+      let release = () => {};
+      const held = new Promise<undefined>((resolve) => {
+        release = () => resolve(undefined);
+      });
+      return { held, release };
+    };
+    const titleSave = hold();
+    const prioritySave = hold();
+    const { sent, queryClient } = renderTaskPage({
+      refuse: (body) => ("priority" in body ? prioritySave.held : titleSave.held),
+    });
+    const title = await screen.findByDisplayValue("Wire the doorbell");
+    // A read that takes the task as it is now and answers late.
+    const read = hold();
+    const key = getReadTaskQueryKey(COMMUNITY_ID, TASK_ID);
+    const stale = { ...(queryClient.getQueryData(key) as object) };
+    server.use(
+      communityHttp.get("/tasks/:taskId", async () => {
+        await read.held;
+        return HttpResponse.json(stale);
+      })
+    );
+    void queryClient.refetchQueries({ queryKey: key });
+
+    // The title saves while the priority waits its turn behind it.
+    await userEvent.type(title, " now{Enter}");
+    await waitFor(() => expect(sent).toHaveLength(1));
+    await choose(/^priority$/i, /^high$/i);
+    titleSave.release();
+    await waitFor(() => expect(sent).toHaveLength(2));
+    // The old read answers while the priority is still being saved.
+    read.release();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(queryClient.getQueryData<TaskRead>(key)?.title).toBe("Wire the doorbell now");
+    prioritySave.release();
+  });
+
+  it("writes nothing into the next session when a save lands after it began", async () => {
+    let release = () => {};
+    const held = new Promise<undefined>((resolve) => {
+      release = () => resolve(undefined);
+    });
+    const { sent, unmount, queryClient } = renderTaskPage({ refuse: () => held });
+
+    await choose(/^status$/i, /doing/i);
+    await waitFor(() => expect(sent).toHaveLength(1));
+    // Signed out, and into another server whose task has the same ids.
+    unmount();
+    queryClient.clear();
+    setStoredServerUrl("https://elsewhere.example/api/v1");
+    const key = getReadTaskQueryKey(COMMUNITY_ID, TASK_ID);
+    const theirs = { ...buildTask({ id: TASK_ID, project_id: PROJECT_ID }), title: "Theirs" };
+    queryClient.setQueryData(key, theirs);
+    const landed = new Promise<void>((resolve) =>
+      queryClient.getMutationCache().subscribe((event) => {
+        if (event.type === "updated" && event.action.type === "success") resolve();
+      })
+    );
+
+    release();
+    await landed;
+    clearStoredServerUrl();
+
+    expect(queryClient.getQueryData(key)).toEqual(theirs);
+    expect(queryClient.getQueryState(key)?.isInvalidated).toBe(false);
+    expect(toasts.success).not.toHaveBeenCalled();
+  });
+
+  it("keeps a failed property removal's error on the property, with Retry", async () => {
+    let failing = true;
+    let refuse = () => {};
+    const refused = new Promise<void>((resolve) => {
+      refuse = resolve;
+    });
     const { task } = renderTaskPage({
+      properties: [
+        buildPropertySummary({
+          property_id: 6,
+          name: "Notes",
+          type: PropertyType.text,
+          value: "x",
+        }),
+      ],
+    });
+    const written: { removed?: number[] }[] = [];
+    server.use(
+      communityHttp.put("/properties/:target/:entityId", async ({ request }) => {
+        const body = (await request.json()) as { removed?: number[] };
+        written.push(body);
+        if (failing) {
+          await refused;
+          return new HttpResponse(null, { status: 500 });
+        }
+        task.properties = task.properties.filter((p) => !body.removed?.includes(p.property_id));
+        return HttpResponse.json(task.properties);
+      })
+    );
+
+    const notes = await fieldNamed(/^notes$/i);
+    await userEvent.click(within(notes).getByRole("button", { name: /remove/i }));
+    await waitFor(() => expect(written).toHaveLength(1));
+    refuse();
+
+    expect(await within(notes).findByRole("alert")).toHaveTextContent(/couldn't save/i);
+    failing = false;
+    await userEvent.click(within(notes).getByRole("button", { name: /try again/i }));
+
+    await waitFor(() => expect(written).toHaveLength(2));
+    expect(written[1]).toMatchObject({ removed: [6] });
+    await waitFor(() =>
+      expect(screen.queryByRole("group", { name: /^notes$/i })).not.toBeInTheDocument()
+    );
+  });
+
+  it("saves one property on its own, sending only that one", async () => {
+    // Two people editing different properties both keep what they wrote.
+    const { sent, task } = renderTaskPage({
       properties: [
         buildPropertySummary({
           property_id: 4,
@@ -160,26 +659,48 @@ describe("TaskEditPage", () => {
           type: PropertyType.number,
           value: 1,
         }),
+        buildPropertySummary({
+          property_id: 6,
+          name: "Notes",
+          type: PropertyType.text,
+          value: "x",
+        }),
       ],
     });
-    const sent: Record<string, unknown>[] = [];
-    const put = vi.fn(() => HttpResponse.json([]));
+    const written: { values: { property_id: number; value: unknown }[]; removed?: number[] }[] = [];
     server.use(
-      communityHttp.patch("/tasks/:taskId", async ({ request }) => {
-        sent.push((await request.json()) as Record<string, unknown>);
-        return HttpResponse.json(task);
-      }),
-      communityHttp.put("/properties/:target/:entityId", put)
+      communityHttp.put("/properties/:target/:entityId", async ({ request }) => {
+        const body = (await request.json()) as (typeof written)[number];
+        written.push(body);
+        task.properties = task.properties
+          .filter((p) => !body.removed?.includes(p.property_id))
+          .map((p) => ({
+            ...p,
+            value: body.values.find((v) => v.property_id === p.property_id)?.value ?? p.value,
+          }));
+        return HttpResponse.json(task.properties);
+      })
     );
 
     const hours = await screen.findByPlaceholderText("0");
     await userEvent.clear(hours);
     await userEvent.type(hours, "8");
-    await userEvent.click(screen.getByRole("button", { name: /save task/i }));
+    expect(written).toHaveLength(0);
+    await userEvent.tab();
 
-    await waitFor(() => expect(sent).toHaveLength(1));
-    expect(sent[0].properties).toEqual([{ property_id: 4, value: 8 }]);
-    expect(put).not.toHaveBeenCalled();
+    await waitFor(() => expect(written).toHaveLength(1));
+    expect(written[0]).toEqual({ values: [{ property_id: 4, value: 8 }], merge: true });
+    expect(await within(await fieldNamed(/^hours$/i)).findByRole("status")).toHaveTextContent(
+      /saved/i
+    );
+
+    await userEvent.click(
+      within(await fieldNamed(/^notes$/i)).getByRole("button", { name: /remove/i })
+    );
+
+    await waitFor(() => expect(written).toHaveLength(2));
+    expect(written[1]).toEqual({ values: [], removed: [6], merge: true });
+    expect(sent).toHaveLength(0);
   });
 
   it("reports duplicate progress on the trigger once the menu closes", async () => {
@@ -201,9 +722,8 @@ describe("TaskEditPage", () => {
   });
 
   it("still names a status the project has since dropped", async () => {
-    // The heading badge used to fall back to the task's own status snapshot.
-    // With the badge gone, the select is the only place the status is stated,
-    // so it has to resolve a column the project no longer lists.
+    // The select is the only place the status is stated, so it has to resolve
+    // a column the project no longer lists.
     renderTaskPage({ statuses: [] });
 
     // Radix echoes the trigger's value into a hidden native select, so the

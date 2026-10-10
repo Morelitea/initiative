@@ -589,6 +589,32 @@ async def test_update_task(client: AsyncClient, session: AsyncSession, acting_us
     assert data["description"] == "Updated description"
 
 
+async def test_a_description_written_over_an_old_one_is_refused(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """A description names the one it was written over, and is refused once
+    that is no longer the stored one."""
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
+    task = await create_task(session, a.project, description="First")
+
+    def write(base: str | None):
+        return client.patch(
+            a.g(f"/tasks/{task.id}"),
+            headers=a.headers,
+            json={"description": "Mine", "description_base": base},
+        )
+
+    stale = await write("Older")
+    assert stale.status_code == 409
+    assert stale.json()["detail"] == TaskMessages.DESCRIPTION_CHANGED
+
+    saved = await write("First")
+    assert saved.status_code == 200
+    assert saved.json()["description"] == "Mine"
+
+
 @pytest.mark.parametrize(
     ("method", "payload"),
     [("PATCH", {"title": "Hacked Title"}), ("DELETE", None)],
