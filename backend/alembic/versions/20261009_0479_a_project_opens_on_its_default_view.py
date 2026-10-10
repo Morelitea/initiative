@@ -1,7 +1,7 @@
 """a project opens on its default view
 
 ``projects.default_view_mode`` goes: the view a project opens on is the one of
-its views marked default (``tool_views``, 20261009_0477), and nothing reads the
+its views marked default (``tool_views``, 20261009_0478), and nothing reads the
 column any more.
 
 The downgrade puts the column back, filled from each project's default view
@@ -9,8 +9,8 @@ where the project stores views: that view's layout, ``board`` spelled
 ``kanban``. A project with no stored views, or whose default view has a layout
 the column never named, gets none.
 
-Revision ID: 20261009_0478
-Revises: 20261009_0477
+Revision ID: 20261009_0479
+Revises: 20261009_0478
 Create Date: 2026-10-09
 """
 
@@ -19,8 +19,8 @@ from alembic import op
 
 from app.db.guild_migrations import run_for_each_guild_schema
 
-revision = "20261009_0478"
-down_revision = "20261009_0477"
+revision = "20261009_0479"
+down_revision = "20261009_0478"
 branch_labels = None
 depends_on = None
 

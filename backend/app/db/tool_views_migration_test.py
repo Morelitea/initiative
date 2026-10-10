@@ -1,5 +1,5 @@
-"""Migration 20261009_0477 turns a project's filter presets into its views, and
-20261009_0478 drops the default view mode they no longer need.
+"""Migration 20261009_0478 turns a project's filter presets into its views, and
+20261009_0479 drops the default view mode they no longer need.
 Loaded by path and run on a guild the test builds, the way
 ``file_versions_by_pointer_migration_test`` runs its revision: down to the old
 shape, rows written as an older release wrote them, up, and down again."""
@@ -76,8 +76,8 @@ async def test_presets_become_views_and_come_back(session) -> None:
         name: (await create_project(session, initiative, user, name=name)).id
         for name in names
     }
-    migration = _load("20261009_0477_tool_views")
-    drop_mode = _load("20261009_0478_a_project_opens_on_its_default_view")
+    migration = _load("20261009_0478_tool_views")
+    drop_mode = _load("20261009_0479_a_project_opens_on_its_default_view")
 
     def run(step):
         def apply(sync_session) -> None:
