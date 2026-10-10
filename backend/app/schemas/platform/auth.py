@@ -42,6 +42,15 @@ class VerificationSendResponse(SanitizedBaseModel):
     status: str
 
 
+class AccountChangeDone(VerificationSendResponse):
+    """What answering a "This wasn't me" link did."""
+
+    #: Whether the people who run this server were told, as a security case.
+    platform_told: bool = False
+    #: Who to tell where they weren't, if anybody is named.
+    contact: Optional[str] = None
+
+
 class VerificationConfirmRequest(SanitizedBaseModel):
     token: str = Field(min_length=10)
 

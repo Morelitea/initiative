@@ -50,6 +50,8 @@ from app.testing import (
     create_user,
     drain_notices,
 )
+from app.core.audit_events import AuditEventType
+from app.testing.audit import emitted
 
 
 _keypair = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -253,12 +255,13 @@ async def test_wrong_audience_or_issuer_rejected(
     assert response.json()["detail"] == "BILLING_INVALID_TOKEN"
 
 
-async def test_jti_is_one_shot(client: AsyncClient, session: AsyncSession):
+async def test_jti_is_one_shot(client: AsyncClient, session: AsyncSession, capfd):
     """The same service JWT must not authorize two calls, even with distinct
-    event ids and fresh signatures."""
+    event ids and fresh signatures — and the second is written down."""
     guild = await create_guild(session)
     token = _mint_token(jti="billing-replay-001")
 
+    emitted(capfd)
     first = await _post(
         client, "community-tier", await _tier_payload(guild.id), token=token
     )
@@ -269,6 +272,8 @@ async def test_jti_is_one_shot(client: AsyncClient, session: AsyncSession):
     )
     assert second.status_code == 403
     assert second.json()["detail"] == "BILLING_REPLAYED_TOKEN"
+    (line,) = emitted(capfd, AuditEventType.SECURITY_REPLAY_REJECTED)
+    assert line["detail"]["channel"] == "billing"
 
 
 async def test_oversized_jti_rejected(client: AsyncClient, session: AsyncSession):

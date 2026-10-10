@@ -37,6 +37,7 @@ from app.core.intake import EvidencePolicy, IntakeStream, meta
 from app.core.messages import (
     EvidenceMessages,
     ModerationMessages,
+    SecurityMessages,
     SupportMessages,
     TicketMessages,
 )
@@ -47,6 +48,7 @@ from app.schemas.platform.ticket import (
     FiledTicketList,
     FiledTicketRead,
     ModerationTicketCreate,
+    SecurityTicketCreate,
     StreamAvailabilityRead,
     SupportTicketCreate,
     TicketAccepted,
@@ -57,6 +59,7 @@ from app.schemas.platform.ticket import (
 )
 from app.schemas.tenant.evidence import EvidencePolicyRead, EvidenceRead
 from app.services import audit as audit_service
+from app.services.platform import disclosure as disclosure_service
 from app.services.platform import evidence as evidence_service
 from app.services.platform import tickets as tickets_service
 from app.services.platform.intake import CaseCapReached
@@ -103,7 +106,8 @@ _TICKET = TypeAdapter(TicketCreate)
 
 #: How the filing is sent: the ticket as JSON in one part, and its files.
 TICKET_PART_DESCRIPTION = (
-    "The ticket, as JSON: a support request or a report, told apart by ``stream``."
+    "The ticket, as JSON: a support request, a report or a security problem, "
+    "told apart by ``stream``."
 )
 
 
@@ -179,7 +183,35 @@ async def file_ticket(
 
     if isinstance(ticket, SupportTicketCreate):
         return await _ask_for_help(current_user, ticket, attached)
+    if isinstance(ticket, SecurityTicketCreate):
+        return await _report_security_problem(current_user, ticket, attached)
     return await _report(session, current_user, ticket, attached)
+
+
+async def _report_security_problem(
+    filer: User,
+    payload: SecurityTicketCreate,
+    attached: list[evidence_service.PreparedEvidence],
+) -> TicketAccepted:
+    try:
+        await disclosure_service.report(
+            filer=filer,
+            topic=payload.type,
+            subject=payload.subject,
+            body=payload.body,
+            evidence=attached,
+        )
+    except CaseCapReached as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=TicketMessages.TOO_MANY_OPEN,
+        ) from exc
+    except disclosure_service.NowhereToSend as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=SecurityMessages.NOWHERE_TO_SEND,
+        ) from exc
+    return TicketAccepted()
 
 
 async def _ask_for_help(

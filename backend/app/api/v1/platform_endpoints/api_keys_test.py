@@ -23,6 +23,8 @@ from app.testing.factories import (
     create_user,
     get_auth_headers,
 )
+from app.core.audit_events import AuditEventType
+from app.testing.audit import emitted
 
 
 async def test_list_api_keys_empty(client: AsyncClient, session: AsyncSession):
@@ -321,7 +323,7 @@ async def test_create_api_key_without_expiry_never_expires(
 
 
 async def test_read_only_key_blocks_writes_allows_reads(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, capfd
 ):
     """A read_only key may issue safe reads but is refused on any write."""
     user = await create_user(session, email="ro@example.com")
@@ -341,11 +343,16 @@ async def test_read_only_key_blocks_writes_allows_reads(
     assert read.status_code == 200
 
     # A write (creating another key) is refused at the auth layer.
+    emitted(capfd)
     write = await client.post(
         "/api/v1/me/api-keys", headers=ro_headers, json={"name": "nope"}
     )
     assert write.status_code == 403
     assert write.json()["detail"] == "USER_API_KEY_READ_ONLY"
+    # Written down, against the key that overreached.
+    (line,) = emitted(capfd, AuditEventType.API_KEY_SCOPE_VIOLATION)
+    assert line["target"] == {"type": "api_key", "id": create.json()["api_key"]["id"]}
+    assert line["detail"]["scope"] == "read_only"
 
 
 async def test_guild_bound_key_is_pinned_to_its_guild(

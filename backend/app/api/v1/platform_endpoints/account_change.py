@@ -3,10 +3,13 @@
 Every account notice but a lockout carries a link to a page that reads the
 token here, says what it will do, and on confirmation signs the account out
 everywhere, or undoes the change and signs it out, where the copy was given
-that. The caller holds a token, not a session, so everything runs on the
-system engine.
+that. Either way the people who run the server are told, as a security case
+about the account (``app.services.platform.disclosure``); where nothing is set
+up to receive it, the page names who to tell instead. The caller holds a
+token, not a session, so everything runs on the system engine.
 """
 
+import logging
 from datetime import datetime
 from typing import Any
 
@@ -22,9 +25,9 @@ from app.models.platform.user import User
 from app.models.platform.user_email import UserEmail
 from app.models.platform.user_token import UserToken, UserTokenPurpose
 from app.schemas.platform.auth import (
+    AccountChangeDone,
     AccountChangeRead,
     AccountChangeToken,
-    VerificationSendResponse,
 )
 from app.services import audit as audit_service
 from app.services import email as email_service
@@ -33,6 +36,7 @@ from app.services.content_sockets import sockets as content_sockets
 from app.services.platform import user_tokens
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 def _invalid() -> HTTPException:
@@ -122,6 +126,33 @@ async def _sign_out(
     await content_sockets.revoke_user_everywhere(user.id)
 
 
+async def _tell_the_platform(
+    system_session: AsyncSession, user: User, change: dict[str, Any], status: str
+) -> AccountChangeDone:
+    """File that the account says the change wasn't theirs, and say whether
+    anybody was told, or who to tell."""
+    from app.core.intake import IntakeStream
+    from app.services.platform import disclosure
+    from app.services.platform.intake import contact_for
+
+    try:
+        case = await disclosure.account_compromised(
+            user_id=int(user.id),  # type: ignore[arg-type]
+            what_changed=str(change.get("notice") or "an account change"),
+        )
+    except Exception:  # pragma: no cover - logged; the sign-out stands
+        logger.exception("could not file an account compromise")
+        case = None
+    contact = (
+        None
+        if case is not None
+        else await contact_for(system_session, IntakeStream.security)
+    )
+    return AccountChangeDone(
+        status=status, platform_told=case is not None, contact=contact
+    )
+
+
 @router.post("/account-change/read", response_model=AccountChangeRead)
 @limiter.limit("30/15minutes")
 async def read_account_change(
@@ -152,34 +183,35 @@ async def read_account_change(
     )
 
 
-@router.post("/account-change/sign-out", response_model=VerificationSendResponse)
+@router.post("/account-change/sign-out", response_model=AccountChangeDone)
 @limiter.limit("10/15minutes")
 async def sign_out_everywhere(
     request: Request,
     payload: AccountChangeToken,
     system_session: SystemSessionDep,
-) -> VerificationSendResponse:
+) -> AccountChangeDone:
     """Sign the account out of every browser, phone and computer, and turn off
-    its API keys. Its password, addresses and other ways in stay as they are.
-    The link is spent with the work, so a sign-out that fails leaves it good."""
+    its API keys, and tell the people who run the server. Its password,
+    addresses and other ways in stay as they are. The link is spent with the
+    work, so a sign-out that fails leaves it good."""
     user, change = await _spend(system_session, payload.token)
     if change.get("removed_copy"):
         await system_session.rollback()
         raise _invalid()
     await _sign_out(system_session, user, {**change, "may_undo": False})
-    return VerificationSendResponse(status="signed_out")
+    return await _tell_the_platform(system_session, user, change, "signed_out")
 
 
-@router.post("/account-change/undo", response_model=VerificationSendResponse)
+@router.post("/account-change/undo", response_model=AccountChangeDone)
 @limiter.limit("10/15minutes")
 async def undo_account_change(
     request: Request,
     payload: AccountChangeToken,
     system_session: SystemSessionDep,
-) -> VerificationSendResponse:
+) -> AccountChangeDone:
     """Undo the change the notice reported and sign the account out
-    everywhere, where this copy of the notice may. The account is told what
-    the undo changed."""
+    everywhere, where this copy of the notice may, and tell the people who run
+    the server. The account is told what the undo changed."""
     user, change = await _spend(system_session, payload.token)
     if not change.get("may_undo"):
         await system_session.rollback()
@@ -202,7 +234,7 @@ async def undo_account_change(
         ) from exc
     await _sign_out(system_session, user, change)
     await _announce_undo(system_session, user, change, subject or "")
-    return VerificationSendResponse(status="undone")
+    return await _tell_the_platform(system_session, user, change, "undone")
 
 
 async def _announce_undo(

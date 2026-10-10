@@ -117,6 +117,11 @@ async def availability(
             # form is always there; a report the platform would have to take
             # falls back to the address when nothing is bound.
             offered[stream] = StreamAvailability(TicketMode.form, contact)
+        elif stream is IntakeStream.security and await intake_service.stream_is_bound(
+            stream
+        ):
+            # Anybody signed in may tell the server about a security problem.
+            offered[stream] = StreamAvailability(TicketMode.form, contact)
         elif (
             stream is IntakeStream.support
             and guild_id is not None

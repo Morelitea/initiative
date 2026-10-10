@@ -248,3 +248,37 @@ async def test_an_edit_outside_any_session_records_nothing():
         )
         is False
     )
+
+
+async def test_every_429_is_counted_and_nothing_else():
+    """Whichever limit answered it, a 429 is counted against the address."""
+    from app.services.platform import security_signals
+
+    async def answering(status: int):
+        async def app(_scope, _receive, send):
+            await send({"type": "http.response.start", "status": status, "headers": []})
+            await send({"type": "http.response.body", "body": b""})
+
+        async def receive():
+            return {"type": "http.request", "body": b""}
+
+        async def send(_message):
+            return None
+
+        scope = {
+            "type": "http",
+            "method": "GET",
+            "path": "/x",
+            "client": ("203.0.113.8", 4000),
+            "headers": [],
+        }
+        await RequestAuditMiddleware(app)(scope, receive, send)
+
+    security_signals.discard()
+    try:
+        await answering(200)
+        assert security_signals.pending() == 0
+        await answering(429)
+        assert "rate_limit_burst" in security_signals._counts.rules
+    finally:
+        security_signals.discard()
