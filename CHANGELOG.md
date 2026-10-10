@@ -49,7 +49,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Your recently opened items are yours alone.** Other members can no longer read or change your recent tabs. Community admins still can.
+- **Your recently opened items, favorite projects and project order are yours alone.** Other members can no longer read or change them. Community admins still can.
+- **Only you can answer a poll or mark a notice read as yourself.** Others still see the counts and who answered, as before.
 - **The project task table keeps its rows current.** A task's checklist progress, a swapped assignee and its blocker count now update in the table as they change, as they already did on the board.
 - **The task tables' Columns menu names its columns** ("Start date", "Comments") instead of showing their internal names.
 - **A "New device signed in" prompt about a device that is gone can be cleared.** When the device it named had signed out or been removed, Verify and Not mine both failed with "That device is not set up for encrypted messages" and the prompt stayed. It now goes away on its own, and either button closes it.

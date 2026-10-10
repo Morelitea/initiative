@@ -19,6 +19,7 @@ from app.db.tenancy import (
     GUILD_SCOPED_TABLES,
     INITIATIVE_SCOPED_TABLES,
     LEDGER_TABLES,
+    OWN_ROW_SHARED_READ,
     OWN_ROW_TABLES,
     SEAT_READ_TABLES,
     SEAT_TABLES,
@@ -134,6 +135,9 @@ def test_own_row_tables_are_placed():
         f"OWN_ROW_TABLES entries {sorted(unplaced)} are not placed — add them to "
         "GUILD_LEVEL_TABLES or INITIATIVE_PATHS too (that is the placement decision)."
     )
+    # Shared reading is the initiative gate's: on a guild-level table it would
+    # be no gate at all.
+    assert OWN_ROW_SHARED_READ <= set(OWN_ROW_TABLES) & INITIATIVE_SCOPED_TABLES
     for table, owner_col in OWN_ROW_TABLES.items():
         cols = set(SQLModel.metadata.tables[table].columns.keys())
         assert owner_col in cols, (

@@ -46,6 +46,7 @@ __all__ = [
     "SHARED_TABLES",
     "GUILD_LEVEL_TABLES",
     "MANAGED_TABLES",
+    "OWN_ROW_SHARED_READ",
     "OWN_ROW_TABLES",
     "CREATED_BY_EXEMPT_TABLES",
     "INITIATIVE_SCOPED_TABLES",
@@ -201,9 +202,18 @@ OWN_ROW_TABLES: dict[str, str] = {
     "guild_ai_member_prefs": "user_id",
     "guild_plugin_user_connections": "user_id",
     "plugin_member_consents": "user_id",
-    # One member's own history of what they opened.
+    # One member's own state about something they can reach.
     "recent_views": "user_id",
+    "project_favorites": "user_id",
+    "project_orders": "user_id",
+    "post_reads": "user_id",
+    "post_poll_votes": "user_id",
 }
+
+#: Initiative-scoped own-row tables the rest of the initiative reads (a
+#: notice's read count, a poll's tally and who chose what): only their owner
+#: writes them, and reading is the initiative gate's alone.
+OWN_ROW_SHARED_READ: frozenset[str] = frozenset({"post_reads", "post_poll_votes"})
 
 # --- Seat overlay on guild-level tables ---------------------------------------
 # Guild-level configuration the community's seat holds. Read within the schema:

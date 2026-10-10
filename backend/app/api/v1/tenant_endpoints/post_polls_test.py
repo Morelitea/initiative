@@ -8,13 +8,16 @@ is shown.
 
 from datetime import datetime, timedelta, timezone
 
+import pytest
 from httpx import AsyncClient
-from sqlmodel import select
+from sqlalchemy.exc import DBAPIError
+from sqlmodel import delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import CommunityRole
 from app.models.tenant.post_poll import PostPoll, PostPollVote
-from app.testing import create_post, create_post_poll, lexical_body
+from app.models.tenant.post_read import PostRead
+from app.testing import create_post, create_post_poll, lexical_body, route_as
 
 
 async def _posts_enabled(session: AsyncSession, initiative) -> None:
@@ -566,6 +569,49 @@ async def test_hidden_results_open_when_the_poll_closes(
 # ---------------------------------------------------------------------------
 # The roster
 # ---------------------------------------------------------------------------
+
+
+async def test_a_ballot_and_a_receipt_are_their_owners_to_write(
+    client: AsyncClient, acting_user, session, role_session
+):
+    """Another member reads someone's answer and read receipt, which the
+    tallies and rosters count, but neither writes nor removes one in their
+    name in the database."""
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
+    await _posts_enabled(session, a.initiative)
+    post = await create_post(session, a.initiative, a.user)
+    poll = await create_post_poll(session, post)
+    b, c = [
+        await acting_user(
+            guild_role=CommunityRole.member,
+            guild=a.guild,
+            initiative=a.initiative,
+            initiative_role="member",
+        )
+        for _ in range(2)
+    ]
+    await client.post(
+        a.g("/posts/read"), headers=b.headers, json={"post_ids": [post.id]}
+    )
+    voted = await client.put(
+        a.g(f"/posts/{post.id}/poll/vote"),
+        headers=b.headers,
+        json={"option_ids": [poll.options[0].id]},
+    )
+    assert voted.status_code == 200, voted.text
+
+    asking = await role_session("app_user")
+    await route_as(asking, user_id=c.user.id, guild_id=a.guild.id)
+    assert (await asking.exec(select(PostPollVote.user_id))).all() == [b.user.id]
+    assert (await asking.exec(select(PostRead.user_id))).all() == [b.user.id]
+    for model in (PostPollVote, PostRead):
+        gone = await asking.exec(delete(model).where(model.user_id == b.user.id))
+        assert gone.rowcount == 0, model
+    asking.add(
+        PostPollVote(poll_id=poll.id, option_id=poll.options[1].id, user_id=b.user.id)
+    )
+    with pytest.raises(DBAPIError, match="row-level security"):
+        await asking.flush()
 
 
 async def test_the_roster_names_who_chose_what(

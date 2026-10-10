@@ -11,8 +11,10 @@ import json
 from dataclasses import replace
 from datetime import date, datetime, timezone
 
+import pytest
 from httpx import AsyncClient
 from sqlalchemy import event
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.engine import Engine
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -21,6 +23,8 @@ from app.models.platform.guild import CommunityRole
 from app.core.relationships import RelationshipType
 from app.core.search import SearchEntityType
 from app.models.tenant.initiative import InitiativeRoleModel
+from app.models.tenant.project_favorite import ProjectFavorite
+from app.models.tenant.project_order import ProjectOrder
 from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.models.tenant.task import TaskStatusCategory
 from app.services.tenant import tags as tags_service
@@ -37,7 +41,7 @@ from app.testing.factories import (
     create_task,
     create_task_status,
 )
-from app.testing import checklist_items
+from app.testing import checklist_items, route_as, route_session_to_guild
 
 
 async def test_list_projects_as_admin_shows_all(
@@ -1139,6 +1143,39 @@ async def test_delete_project_without_permission_forbidden(
     assert (
         response.status_code == 404
     )  # RLS hides the content resource from a non-initiative-member (404, not 403)
+
+
+async def test_a_favorite_and_an_order_are_their_owners_rows(
+    client: AsyncClient, session: AsyncSession, acting_user, role_session
+):
+    """Another member who can edit the project neither reads nor writes
+    someone's favorite of it or their place for it in the database."""
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
+    project = await create_project(session, a.initiative, a.user)
+    other = await acting_user(
+        guild_role=CommunityRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    await create_resource_grant(
+        session, project, user=other.user, level=ResourceAccessLevel.write
+    )
+    favorited = await client.post(
+        a.g(f"/projects/{project.id}/favorite"), headers=a.headers
+    )
+    assert favorited.status_code == 204, favorited.text
+    await route_session_to_guild(session, a.guild.id)
+    session.add(ProjectOrder(user_id=a.user.id, project_id=project.id, sort_order=1))
+    await session.commit()
+
+    asking = await role_session("app_user")
+    await route_as(asking, user_id=other.user.id, guild_id=a.guild.id)
+    for model in (ProjectFavorite, ProjectOrder):
+        assert (await asking.exec(select(model))).all() == [], model
+    asking.add(ProjectFavorite(user_id=a.user.id, project_id=project.id))
+    with pytest.raises(DBAPIError, match="row-level security"):
+        await asking.flush()
 
 
 async def test_favoriting_a_project_lists_it_until_it_is_unfavorited(

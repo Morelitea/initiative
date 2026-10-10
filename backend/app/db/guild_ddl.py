@@ -81,6 +81,7 @@ from app.db.tenancy import (
     GUILD_SCOPED_TABLES,
     LEDGER_TABLES,
     MANAGED_TABLES,
+    OWN_ROW_SHARED_READ,
     OWN_ROW_TABLES,
     SEAT_READ_TABLES,
     SEAT_TABLES,
@@ -230,7 +231,9 @@ _OWN_ROW_SECTION = """\
 -- exactly. A settings rung reads them, and writes them only beside a
 -- read_write grant. A read-only PAM grantee is routed to guild_<id>_ro with
 -- none of them set: no rows, by design. On an initiative-scoped table the
--- policies are RESTRICTIVE, so the row also answers its initiative gate.
+-- policies are RESTRICTIVE, so the row also answers its initiative gate; one
+-- in OWN_ROW_SHARED_READ (read counts, poll tallies) is read by the whole
+-- initiative and written by its owner alone.
 -- ==========================================================================="""
 
 # Own-row predicate: the owner column is compared against the request GUC.
@@ -414,8 +417,13 @@ def _own_row_block(table: str, owner_col: str) -> str:
     """RLS for an own-row table: per-command policies admitting the row's
     owner or the routed guild admin. INSERT/UPDATE WITH CHECK use the write
     predicate, so a member can't author rows owned by someone else either.
-    RESTRICTIVE on an initiative-scoped table, whose own block admits."""
-    read = _OWN_ROW_READ_PREDICATE.format(col=owner_col)
+    RESTRICTIVE on an initiative-scoped table, whose own block admits; an
+    ``OWN_ROW_SHARED_READ`` one leaves reading to that block."""
+    read = (
+        "true"
+        if table in OWN_ROW_SHARED_READ
+        else _OWN_ROW_READ_PREDICATE.format(col=owner_col)
+    )
     write = _OWN_ROW_WRITE_PREDICATE.format(col=owner_col)
     restrictive = table in INITIATIVE_SCOPED_TABLES
     return "\n".join(
