@@ -6,6 +6,7 @@ destination: provider, base_url, model, and a shared key); guild members attach
 their own key and pick a connection, but never set a destination.
 """
 
+from datetime import datetime
 from enum import Enum
 from typing import Optional
 
@@ -112,6 +113,17 @@ class MemberAIConnectionView(SanitizedBaseModel):
     # Whether the member may attach their own key to this connection.
     allow_member_keys: bool = True
     is_selected: bool = False
+
+
+class CommunityMemberAIKey(SanitizedBaseModel):
+    """That a member gave one of the community's AI connections a key, as the
+    seat sees it. Never the key."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    user_id: int
+    connection_id: int
+    updated_at: datetime
 
 
 class MemberAIView(SanitizedBaseModel):

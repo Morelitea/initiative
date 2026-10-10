@@ -384,10 +384,11 @@ async def test_rotate_visits_per_guild_schema_settings(engine, monkeypatch):
             )
             await conn.execute(
                 text(
-                    f'INSERT INTO "{schema}".guild_ai_member_keys '  # noqa: S608
-                    "(user_id, connection_scope, connection_id, "
-                    " api_key_encrypted, created_at, updated_at) "
-                    "VALUES (1, 'community', 1, :a, now(), now())"
+                    f'WITH k AS (INSERT INTO "{schema}".guild_ai_member_keys '  # noqa: S608
+                    "(user_id, connection_scope, connection_id, created_at, updated_at) "
+                    "VALUES (1, 'community', 1, now(), now()) RETURNING id) "
+                    f'INSERT INTO "{schema}".ai_member_key_secrets '
+                    "(key_id, api_key_encrypted) SELECT id, :a FROM k"
                 ),
                 {
                     "a": encrypt_field("member-ai", SALT_AI_API_KEY, secret_key=OLD),
@@ -423,7 +424,7 @@ async def test_rotate_visits_per_guild_schema_settings(engine, monkeypatch):
                 ),
             )
             member_ct = await conn.scalar(
-                text(f'SELECT api_key_encrypted FROM "{schema}".guild_ai_member_keys'),
+                text(f'SELECT api_key_encrypted FROM "{schema}".ai_member_key_secrets'),
             )
             sealed = await conn.scalar(
                 text(f'SELECT secrets FROM "{schema}".guild_plugin_secrets'),  # noqa: S608

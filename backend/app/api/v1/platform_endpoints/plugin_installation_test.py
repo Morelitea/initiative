@@ -50,6 +50,7 @@ from app.services.marketplace.registration_lookup import invalidate_registration
 from app.services.tenant import plugin_channels as channels_service
 from app.services.tenant import plugin_metadata as metadata_service
 from app.testing import (
+    create_plugin_user_connection,
     create_plugin_service_registration,
     create_guild,
     create_guild_plugin,
@@ -161,28 +162,22 @@ async def _member_connection(
     with_secret: bool = True,
     blocked: bool = False,
 ) -> GuildPluginUserConnection:
-    await route_session_to_guild(session, guild.id)
-    row = GuildPluginUserConnection(
-        plugin_id=plugin.id,
+    held = with_secret and not blocked
+    return await create_plugin_user_connection(
+        session,
+        plugin,
+        user,
         connection_id=connection_id,
-        user_id=user.id,
         connection_ref=connection_ref,
-        config={"login": "alice"} if with_secret else {},
-        config_secrets=(
+        config={"login": "alice"} if held else {},
+        secrets=(
             {"access_token": encrypt_field(MEMBER_TOKEN, SALT_PLUGIN_CONFIG)}
-            if with_secret
-            else {}
+            if held
+            else None
         ),
-        status="connected" if with_secret else "pending",
+        status="blocked" if blocked else ("connected" if with_secret else "pending"),
+        blocked_at=datetime.now(timezone.utc) if blocked else None,
     )
-    if blocked:
-        row.blocked_at = datetime.now(timezone.utc)
-        row.status = "blocked"
-        row.config_secrets = {}
-    session.add(row)
-    await session.commit()
-    await session.refresh(row)
-    return row
 
 
 def _headers(

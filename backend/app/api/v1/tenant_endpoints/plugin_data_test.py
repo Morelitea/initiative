@@ -63,6 +63,7 @@ from app.testing.fake_vendor import FakeVendor, declarative_plugin
 from app.models.platform.access_grant import AccessGrantPurpose, SettingsLevel
 from app.models.platform.user import UserRole
 from app.testing import (
+    create_plugin_user_connection,
     create_access_grant,
     create_initiative,
     create_project,
@@ -70,7 +71,6 @@ from app.testing import (
     create_task,
     create_user,
     get_auth_headers,
-    guild_of,
     create_plugin_service_registration,
     create_dashboard,
     create_guild_plugin,
@@ -647,20 +647,15 @@ class TestContextToken:
 # ---------------------------------------------------------------------------
 
 
-async def _connect(session: AsyncSession, *, plugin, user_id: int, ref: str) -> None:
+async def _connect(session: AsyncSession, *, plugin, user, ref: str) -> None:
     """Give one member a completed per-member connection."""
-    await route_session_to_guild(session, guild_of(plugin))
-    session.add(
-        GuildPluginUserConnection(
-            plugin_id=plugin.id,
-            connection_id="github",
-            user_id=user_id,
-            connection_ref=ref,
-            config_secrets={"access_token": encrypt_field("tok", SALT_PLUGIN_CONFIG)},
-            status="connected",
-        )
+    await create_plugin_user_connection(
+        session,
+        plugin,
+        user,
+        connection_ref=ref,
+        secrets={"access_token": encrypt_field("tok", SALT_PLUGIN_CONFIG)},
     )
-    await session.commit()
 
 
 class TestConnections:
@@ -704,7 +699,7 @@ class TestConnections:
         self, client, acting_user, session, upstream
     ):
         a, plugin, dashboard = await _workspace(session, acting_user, MY_PRS)
-        await _connect(session, plugin=plugin, user_id=a.user.id, ref="cr_alice")
+        await _connect(session, plugin=plugin, user=a.user, ref="cr_alice")
 
         response = await client.get(
             _url(a, plugin, MY_PRS, dashboard), headers=a.headers
@@ -809,8 +804,8 @@ class TestCache:
             initiative=a.initiative,
             initiative_role="member",
         )
-        await _connect(session, plugin=plugin, user_id=a.user.id, ref="cr_alice")
-        await _connect(session, plugin=plugin, user_id=b.user.id, ref="cr_bob")
+        await _connect(session, plugin=plugin, user=a.user, ref="cr_alice")
+        await _connect(session, plugin=plugin, user=b.user, ref="cr_bob")
 
         upstream.rows = [{"pr": "alice"}]
         alice = await client.get(_url(a, plugin, MY_PRS, dashboard), headers=a.headers)
@@ -829,7 +824,7 @@ class TestCache:
         self, client, acting_user, session, upstream
     ):
         a, plugin, dashboard = await _workspace(session, acting_user, MY_PRS)
-        await _connect(session, plugin=plugin, user_id=a.user.id, ref="cr_alice")
+        await _connect(session, plugin=plugin, user=a.user, ref="cr_alice")
 
         await client.get(_url(a, plugin, MY_PRS, dashboard), headers=a.headers)
         again = await client.get(_url(a, plugin, MY_PRS, dashboard), headers=a.headers)

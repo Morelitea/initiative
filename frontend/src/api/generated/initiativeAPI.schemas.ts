@@ -2620,6 +2620,16 @@ export interface CommunityLocationOutput {
   longitude: number | null;
 }
 
+/**
+ * That a member gave one of the community's AI connections a key, as the
+ * seat sees it. Never the key.
+ */
+export interface CommunityMemberAIKey {
+  user_id: number;
+  connection_id: number;
+  updated_at: string;
+}
+
 export type CommunityRole = (typeof CommunityRole)[keyof typeof CommunityRole];
 
 export const CommunityRole = {

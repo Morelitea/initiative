@@ -35,6 +35,7 @@ from app.services.marketplace import plugin_data as plugin_data_service
 from app.services.marketplace.plugin_refs import ensure_plugin_ref
 from app.services.marketplace.context_jwt_test import _PRIVATE_PEM
 from app.testing import (
+    create_plugin_user_connection,
     create_plugin_service_registration,
     create_guild_plugin,
     emitted,
@@ -303,19 +304,15 @@ async def _connect(session: AsyncSession, installed, target, member) -> None:
         config={"login": "alice"},
         secrets={},
     )
-    await route_session_to_guild(session, installed.guild.id)
-    session.add(
-        GuildPluginUserConnection(
-            plugin_id=target.id,
-            connection_id="account",
-            user_id=member.user.id,
-            connection_ref="cr_member_account",
-            config=config,
-            config_secrets=secrets,
-            status="connected",
-        )
+    await create_plugin_user_connection(
+        session,
+        target,
+        member.user,
+        connection_id="account",
+        connection_ref="cr_member_account",
+        config=config,
+        secrets=secrets,
     )
-    await session.commit()
 
 
 # ---------------------------------------------------------------------------

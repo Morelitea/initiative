@@ -383,6 +383,63 @@ async def test_deleting_platform_connection_purges_member_keys(
     assert await _member_key_rows(session, member.guild.id, conn_id) == []
 
 
+async def test_a_members_key_is_theirs_and_the_seat_revokes_it(
+    client, acting_user, reading_as, session
+):
+    """Only the member reads the key they gave a community connection. The
+    seat sees that they gave one and takes it back; a plain admin does
+    neither."""
+    from sqlmodel import select
+
+    from app.models.tenant.ai_member_key import GuildAIMemberKey
+    from app.models.tenant.ai_member_key_secret import AIMemberKeySecret
+
+    owner = await acting_user()
+    await _set_mode(client, owner, "community")
+    seat = await acting_user(guild_role=CommunityRole.superadmin, initiative=True)
+    r = await client.post(
+        seat.g("/settings/ai/connections"),
+        headers=seat.headers,
+        json={"label": "Team", "provider": "openai"},
+    )
+    conn_id = r.json()["id"]
+    member, other = [
+        await acting_user(guild_role=CommunityRole.member, guild=seat.guild)
+        for _ in range(2)
+    ]
+    admin = await acting_user(guild_role=CommunityRole.admin, guild=seat.guild)
+    r = await client.put(
+        member.g("/settings/ai/me/key"),
+        headers=member.headers,
+        json={"scope": "community", "connection_id": conn_id, "api_key": "sk-mine"},
+    )
+    assert r.status_code == 200, r.text
+
+    for reader, keys, rows in (
+        (member, 1, 1),
+        (seat, 0, 1),
+        (admin, 0, 0),
+        (other, 0, 0),
+    ):
+        asking = await reading_as(reader.user.id, seat.guild.id)
+        assert len((await asking.exec(select(AIMemberKeySecret))).all()) == keys
+        assert len((await asking.exec(select(GuildAIMemberKey))).all()) == rows
+
+    listed = await client.get(seat.g("/settings/ai/members/keys"), headers=seat.headers)
+    assert listed.status_code == 200, listed.text
+    assert [(k["user_id"], k["connection_id"]) for k in listed.json()] == [
+        (member.user.id, conn_id)
+    ]
+    path = seat.g(f"/settings/ai/members/{member.user.id}/keys/{conn_id}")
+    assert (
+        await client.get(seat.g("/settings/ai/members/keys"), headers=admin.headers)
+    ).status_code == 403
+    assert (await client.delete(path, headers=admin.headers)).status_code == 403
+    assert (await client.delete(path, headers=seat.headers)).status_code == 204
+    assert await _member_key_rows(session, seat.guild.id, conn_id) == []
+    assert (await session.exec(select(AIMemberKeySecret))).all() == []
+
+
 async def test_deleting_guild_connection_purges_member_keys(
     client, acting_user, session
 ):

@@ -42,8 +42,9 @@ from app.models.tenant.guild_plugin_user_connection import GuildPluginUserConnec
 from app.services.marketplace.registration_lookup import invalidate_registrations
 from app.services.tenant import plugin_revocation
 from app.services.tenant.plugin_connection_flows import callback_url
-from app.services.tenant.plugin_config import mint_connection_ref
+from app.services.tenant.plugin_connections import load_connection_secrets
 from app.testing import (
+    create_plugin_user_connection,
     create_plugin_service_registration,
     create_guild_plugin,
     create_guild_membership,
@@ -190,22 +191,14 @@ async def _connected(
     session: AsyncSession, actor, plugin, connection_id: str = "github"
 ) -> GuildPluginUserConnection:
     """A member connection as a completed flow leaves it."""
-    await route_session_to_guild(session, actor.guild.id)
-    row = GuildPluginUserConnection(
-        plugin_id=plugin.id,
+    return await create_plugin_user_connection(
+        session,
+        plugin,
+        actor.user,
         connection_id=connection_id,
-        user_id=actor.user.id,
-        connection_ref=mint_connection_ref(),
         config={"login": "someone"},
-        config_secrets={
-            "access_token": encrypt_field("gho_member", SALT_PLUGIN_CONFIG)
-        },
-        status="connected",
+        secrets={"access_token": encrypt_field("gho_member", SALT_PLUGIN_CONFIG)},
     )
-    session.add(row)
-    await session.commit()
-    await session.refresh(row)
-    return row
 
 
 @pytest.fixture
@@ -869,8 +862,41 @@ class TestGovernance:
         assert len(rows) == 1
         assert rows[0].blocked_at is not None
         assert rows[0].blocked_by_id == a.user.id
-        assert rows[0].config_secrets == {}
+        assert rows[0].secret_fields == {}
+        assert await load_connection_secrets(session, rows[0]) == {}
         assert rows[0].status == "blocked"
+
+    async def test_a_members_values_are_theirs_alone(
+        self, acting_user, session: AsyncSession, reading_as
+    ):
+        """The member reads what their connection holds. The seat sees that
+        they connected, and a plain admin and another member see nothing."""
+        from sqlmodel import select
+
+        from app.models.tenant.guild_plugin_user_connection import (
+            GuildPluginUserConnection,
+        )
+        from app.models.tenant.plugin_connection_secret import PluginConnectionSecret
+
+        seat = await acting_user(guild_role=CommunityRole.superadmin)
+        plugin = await _install(session, seat)
+        member, other = [
+            await acting_user(guild_role=CommunityRole.member, guild=seat.guild)
+            for _ in range(2)
+        ]
+        admin = await acting_user(guild_role=CommunityRole.admin, guild=seat.guild)
+        await _connected(session, member, plugin)
+
+        for reader, values, rows in (
+            (member, 1, 1),
+            (seat, 0, 1),
+            (admin, 0, 0),
+            (other, 0, 0),
+        ):
+            asking = await reading_as(reader.user.id, seat.guild.id)
+            held = (await asking.exec(select(PluginConnectionSecret))).all()
+            seen = (await asking.exec(select(GuildPluginUserConnection))).all()
+            assert (len(held), len(seen)) == (values, rows), reader
 
     async def test_a_member_can_be_blocked_before_ever_connecting(
         self, client: AsyncClient, acting_user, session: AsyncSession
@@ -1203,6 +1229,9 @@ class TestRelationshipCascades:
         assert response.status_code == 204, response.text
         assert await _rows(session, a.guild.id) == []
         assert [i.reason for i in recorded_revocations] == ["removed_from_guild"]
+        # A plain admin never reads the member's values; the platform hands
+        # the vendor the token all the same.
+        assert set(recorded_revocations[0].sealed_tokens) == {"access_token"}
 
     async def test_leaving_does_not_touch_another_guild(
         self, client: AsyncClient, acting_user, session: AsyncSession

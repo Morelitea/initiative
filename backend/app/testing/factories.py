@@ -54,6 +54,7 @@ from app.models.tenant.wiki import Wiki, WikiPage
 from app.models.tenant.post_poll import PostPoll, PostPollOption
 from app.models.tenant.guild_plugin import GuildPlugin
 from app.models.tenant.guild_plugin_secret import GuildPluginSecret
+from app.models.tenant.plugin_connection_secret import PluginConnectionSecret
 from app.models.tenant.guild_plugin_user_connection import GuildPluginUserConnection
 from app.models.tenant.calendar_event import CalendarEvent, CalendarEventAttendee
 from app.models.tenant.comment import Comment
@@ -1229,10 +1230,12 @@ async def create_plugin_user_connection(
     user: User,
     *,
     connection_id: str = "github",
+    secrets: dict[str, Any] | None = None,
     **overrides: Any,
 ) -> GuildPluginUserConnection:
     """A member's credential for one of ``plugin``'s connections, as a
-    completed flow leaves it."""
+    completed flow leaves it. ``secrets`` is what it holds, ``{key:
+    ciphertext}``, kept beside it."""
     await route_session_to_guild(session, guild_of(plugin))
     row = GuildPluginUserConnection(
         **{
@@ -1246,6 +1249,9 @@ async def create_plugin_user_connection(
     )
     session.add(row)
     await session.commit()
+    if secrets:
+        session.add(PluginConnectionSecret(connection_row_id=row.id, secrets=secrets))
+        await session.commit()
     await session.refresh(row)
     return row
 

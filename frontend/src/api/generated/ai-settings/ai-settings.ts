@@ -26,6 +26,7 @@ import type {
   AIConnectionTestResponse,
   AIConnectionUpdate,
   AIModelsResponse,
+  CommunityMemberAIKey,
   ConnectionScope,
   HTTPValidationError,
   MemberAIKeyUpdate,
@@ -1431,6 +1432,236 @@ export const useFetchCommunityConnectionModels = <
   TContext
 > => {
   return useMutation(getFetchCommunityConnectionModelsMutationOptions(options), queryClient);
+};
+/**
+ * Who gave which of the community's AI connections a key. Never a key.
+ * @summary List Community Member Keys
+ */
+export const listCommunityMemberKeys = (
+  communityId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<CommunityMemberAIKey[]>(
+    { url: `/api/v1/c/${communityId}/settings/ai/members/keys`, method: "GET", signal },
+    options
+  );
+};
+
+export const getListCommunityMemberKeysQueryKey = (communityId: number) => {
+  return [`/api/v1/c/${communityId}/settings/ai/members/keys`] as const;
+};
+
+export const getListCommunityMemberKeysQueryOptions = <
+  TData = Awaited<ReturnType<typeof listCommunityMemberKeys>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listCommunityMemberKeys>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListCommunityMemberKeysQueryKey(communityId);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listCommunityMemberKeys>>> = ({
+    signal,
+  }) => listCommunityMemberKeys(communityId, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: communityId !== null && communityId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<Awaited<ReturnType<typeof listCommunityMemberKeys>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+};
+
+export type ListCommunityMemberKeysQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listCommunityMemberKeys>>
+>;
+export type ListCommunityMemberKeysQueryError = ErrorType<HTTPValidationError>;
+
+export function useListCommunityMemberKeys<
+  TData = Awaited<ReturnType<typeof listCommunityMemberKeys>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listCommunityMemberKeys>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listCommunityMemberKeys>>,
+          TError,
+          Awaited<ReturnType<typeof listCommunityMemberKeys>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListCommunityMemberKeys<
+  TData = Awaited<ReturnType<typeof listCommunityMemberKeys>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listCommunityMemberKeys>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listCommunityMemberKeys>>,
+          TError,
+          Awaited<ReturnType<typeof listCommunityMemberKeys>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListCommunityMemberKeys<
+  TData = Awaited<ReturnType<typeof listCommunityMemberKeys>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listCommunityMemberKeys>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List Community Member Keys
+ */
+
+export function useListCommunityMemberKeys<
+  TData = Awaited<ReturnType<typeof listCommunityMemberKeys>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  communityId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listCommunityMemberKeys>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListCommunityMemberKeysQueryOptions(communityId, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * Take back the key a member gave one of the community's AI connections.
+ * @summary Revoke Community Member Key
+ */
+export const revokeCommunityMemberKey = (
+  communityId: number,
+  userId: number,
+  connectionId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    {
+      url: `/api/v1/c/${communityId}/settings/ai/members/${userId}/keys/${connectionId}`,
+      method: "DELETE",
+      signal,
+    },
+    options
+  );
+};
+
+export const getRevokeCommunityMemberKeyMutationKey = () => ["revokeCommunityMemberKey"] as const;
+
+export const getRevokeCommunityMemberKeyMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof revokeCommunityMemberKey>>,
+    TError,
+    RevokeCommunityMemberKeyMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof revokeCommunityMemberKey>>,
+  TError,
+  RevokeCommunityMemberKeyMutationVariables,
+  TContext
+> => {
+  const mutationKey = getRevokeCommunityMemberKeyMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof revokeCommunityMemberKey>>,
+    RevokeCommunityMemberKeyMutationVariables
+  > = (props) => {
+    const { communityId, userId, connectionId } = props ?? {};
+
+    return revokeCommunityMemberKey(communityId, userId, connectionId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RevokeCommunityMemberKeyMutationResult = NonNullable<
+  Awaited<ReturnType<typeof revokeCommunityMemberKey>>
+>;
+
+export type RevokeCommunityMemberKeyMutationError = ErrorType<HTTPValidationError>;
+export type RevokeCommunityMemberKeyMutationVariables = {
+  communityId: number;
+  userId: number;
+  connectionId: number;
+};
+
+/**
+ * @summary Revoke Community Member Key
+ */
+export const useRevokeCommunityMemberKey = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof revokeCommunityMemberKey>>,
+      TError,
+      RevokeCommunityMemberKeyMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof revokeCommunityMemberKey>>,
+  TError,
+  RevokeCommunityMemberKeyMutationVariables,
+  TContext
+> => {
+  return useMutation(getRevokeCommunityMemberKeyMutationOptions(options), queryClient);
 };
 /**
  * List the connections available to the member (no keys), whether they've

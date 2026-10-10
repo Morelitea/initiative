@@ -84,6 +84,8 @@ from app.db.tenancy import (
     LEDGER_TABLES,
     MANAGED_TABLES,
     OWN_ROW_TABLES,
+    MEMBER_CREDENTIAL_TABLES,
+    MEMBER_SECRET_TABLES,
     PRIVATE_ROW_SHARED_READ,
     PRIVATE_ROW_TABLES,
     SEAT_READ_TABLES,
@@ -603,6 +605,93 @@ def _authored_block() -> str:
     )
 
 
+_MEMBER_CREDENTIAL_SECTION = """\
+-- ===========================================================================
+-- A member's credentials (app.db.tenancy.MEMBER_CREDENTIAL_TABLES): that they
+-- gave an AI connection a key, their connection to a plug-in's vendor. Read and
+-- written by the member, the community's seat (a lent seat writing beside a
+-- read_write grant) and the system engine; not by a plain admin or a settings
+-- rung. A key for a platform AI connection is the member's and the platform's
+-- alone, so the seat reaches only the community's own.
+--
+-- What they hold (app.db.tenancy.MEMBER_SECRET_TABLES) is the member's and the
+-- system engine's alone: member_secret_* admit the member the credential row
+-- names. Deleting that row takes the secret with it.
+--
+-- tr_plugin_connection_secrets_fields: each write to a connection's secret
+-- values rewrites guild_plugin_user_connections.secret_fields, the keys that
+-- hold a value and a digest of each, as whoever made the write.
+-- ==========================================================================="""
+
+
+def _member_credential_block(table: str, owner: str, seat_rows: str | None) -> str:
+    def seat(leg: str) -> str:
+        return f"({leg} AND {seat_rows})" if seat_rows else leg
+
+    mine = f"{owner} = {gucs.USER_ID.once} OR {IN_POLICY.system}"
+    read = f"({mine} OR {seat(POLICY_SEAT)})"
+    write = f"({mine} OR {seat(_SEAT_WRITES)})"
+    return "\n".join(
+        [
+            f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY;",
+            f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY;",
+            # The shape before this one: the own-row policies.
+            *(f"DROP POLICY IF EXISTS own_row_{c[0]} ON {table};" for c in _COMMANDS),
+            *_policies(table, "member_credential", read, write),
+        ]
+    )
+
+
+def _member_secret_block(table: str, parent: str, column: str) -> str:
+    pred = (
+        f"(EXISTS (SELECT 1 FROM {parent} p WHERE p.id = {table}.{column}"
+        f" AND p.user_id = {gucs.USER_ID.once}) OR {IN_POLICY.system})"
+    )
+    return "\n".join(
+        [
+            f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY;",
+            f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY;",
+            *_policies(table, "member_secret", pred, pred),
+        ]
+    )
+
+
+PLUGIN_CONNECTION_SECRET_FIELDS_FN = """
+CREATE OR REPLACE FUNCTION public.fn_plugin_connection_secret_fields() RETURNS trigger
+    LANGUAGE plpgsql AS $connection_fields$
+DECLARE
+    v_row integer;
+    v_secrets jsonb := '{}'::jsonb;
+    v_fields jsonb;
+BEGIN
+    IF TG_OP = 'DELETE' THEN
+        v_row := OLD.connection_row_id;
+    ELSE
+        v_row := NEW.connection_row_id;
+        v_secrets := NEW.secrets;
+    END IF;
+    SELECT COALESCE(jsonb_object_agg(
+        f.key, encode(sha256(convert_to(f.value, 'UTF8')), 'hex')
+    ), '{}'::jsonb)
+    INTO v_fields
+    FROM jsonb_each_text(v_secrets) f;
+    EXECUTE format(
+        $q$UPDATE %I.guild_plugin_user_connections SET secret_fields = $1
+            WHERE id = $2 AND secret_fields IS DISTINCT FROM $1$q$,
+        TG_TABLE_SCHEMA
+    ) USING v_fields, v_row;
+    RETURN NULL;
+END;
+$connection_fields$;
+"""
+
+PLUGIN_CONNECTION_SECRET_FIELDS_TRIGGER = (
+    "CREATE OR REPLACE TRIGGER tr_plugin_connection_secrets_fields"
+    " AFTER INSERT OR UPDATE OR DELETE ON plugin_connection_secrets FOR EACH ROW"
+    " EXECUTE FUNCTION public.fn_plugin_connection_secret_fields();"
+)
+
+
 _SEAT_SECTION = """\
 -- ===========================================================================
 -- Seat-held guild-level tables (app.db.tenancy.SEAT_TABLES): configuration the
@@ -622,7 +711,10 @@ _SEAT_SECTION = """\
 
 _SEAT_READ_PREDICATE = f"({IN_POLICY.system} OR {POLICY_SEAT})"
 
-_SEAT_WRITE_PREDICATE = f"({IN_POLICY.system} OR ({POLICY_SEAT} AND ({IN_POLICY.admin} OR {IN_POLICY.pam_write})))"
+#: The seat writing: its holder, or a lent seat beside a read_write grant.
+_SEAT_WRITES = f"({POLICY_SEAT} AND ({IN_POLICY.admin} OR {IN_POLICY.pam_write}))"
+
+_SEAT_WRITE_PREDICATE = f"({IN_POLICY.system} OR {_SEAT_WRITES})"
 
 
 # Seat tables a trigger also writes: table -> the leg OR'd into the INSERT
@@ -1355,6 +1447,21 @@ def render_guild_rls_ddl() -> str:
     private = [_private_row_block(t, c) for t, c in sorted(PRIVATE_ROW_TABLES.items())]
     out += "\n\n" + _PRIVATE_ROW_SECTION + "\n\n" + "\n\n".join(private)
     out += "\n\n" + _AUTHORED_SECTION + "\n" + _authored_block()
+    credentials = [
+        _member_credential_block(t, owner, seat_rows)
+        for t, (owner, seat_rows) in sorted(MEMBER_CREDENTIAL_TABLES.items())
+    ]
+    credentials += [
+        _member_secret_block(t, parent, column)
+        for t, (parent, column) in sorted(MEMBER_SECRET_TABLES.items())
+    ]
+    out += "\n\n" + _MEMBER_CREDENTIAL_SECTION + "\n\n" + "\n\n".join(credentials)
+    out += (
+        "\n"
+        + PLUGIN_CONNECTION_SECRET_FIELDS_FN
+        + "\n"
+        + PLUGIN_CONNECTION_SECRET_FIELDS_TRIGGER
+    )
     seats = [_seat_block(t) for t in sorted(SEAT_TABLES)]
     out += "\n\n" + _SEAT_SECTION + "\n\n" + "\n\n".join(seats)
     out += "\n" + PLUGIN_SECRET_FIELDS_FN + "\n" + PLUGIN_SECRET_FIELDS_TRIGGER

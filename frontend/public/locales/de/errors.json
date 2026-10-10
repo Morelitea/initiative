@@ -331,6 +331,7 @@
   "INVALID_TAG_IDS": "Ein oder mehrere Tags existieren nicht mehr",
   "AI_CONNECTION_NOT_FOUND": "KI-Verbindung nicht gefunden.",
   "AI_MEMBER_KEYS_DISABLED": "Persönliche API-Schlüssel sind für diesen Arbeitsbereich deaktiviert.",
+  "AI_MEMBER_KEY_NOT_FOUND": "Dieses Mitglied hat für diese Verbindung keinen Schlüssel.",
   "AI_INVALID_API_KEY": "Der API-Schlüssel wurde abgelehnt. Überprüfe ihn und versuche es erneut.",
   "AI_NOT_ENABLED": "KI-Funktionen sind für diesen Arbeitsbereich nicht aktiviert.",
   "AI_NOT_CONFIGURED": "Es ist kein KI-Anbieter eingerichtet. Wähle einen aus und füge in den KI-Einstellungen seinen API-Schlüssel hinzu.",

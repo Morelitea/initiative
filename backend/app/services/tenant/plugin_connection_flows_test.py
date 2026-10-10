@@ -59,7 +59,9 @@ from app.services.tenant import (
     plugin_revocation,
     plugin_schedules,
 )
+from app.services.tenant.plugin_connections import load_connection_secrets
 from app.testing import (
+    create_plugin_user_connection,
     create_access_grant,
     create_plugin_service_registration,
     create_guild_plugin,
@@ -327,24 +329,19 @@ async def _connected_row(
     ref: str = "cr_account_one",
 ) -> GuildPluginUserConnection:
     """A member connection as a completed flow leaves it."""
-    await route_session_to_guild(session, actor.guild.id)
-    row = GuildPluginUserConnection(
-        plugin_id=plugin.id,
+    return await create_plugin_user_connection(
+        session,
+        plugin,
+        actor.user,
         connection_id=connection_id,
-        user_id=actor.user.id,
         connection_ref=ref,
         config={"login": "alice", "expires_at": int(time.time()) + expires_in},
-        config_secrets={
+        secrets={
             "access_token": encrypt_field("gho_stored", SALT_PLUGIN_CONFIG),
             "refresh_token": encrypt_field("ghr_stored", SALT_PLUGIN_CONFIG),
         },
-        status="connected",
         account_label="@alice",
     )
-    session.add(row)
-    await session.commit()
-    await session.refresh(row)
-    return row
 
 
 def _during_refresh(monkeypatch, vendor: FakeVendor, write) -> None:
@@ -424,12 +421,15 @@ class TestMemberFlow:
         assert row.config["login"] == "alice"
         assert isinstance(row.config["expires_at"], int)
         assert row.connection_ref
-        # Sealed, never stored as it came.
-        assert row.config_secrets["access_token"] != body["access_token"]
+        # Sealed, never stored as it came, beside the row; the row says only
+        # which keys hold one.
+        sealed = await load_connection_secrets(session, row)
+        assert sealed["access_token"] != body["access_token"]
         assert (
-            decrypt_field(row.config_secrets["access_token"], SALT_PLUGIN_CONFIG)
+            decrypt_field(sealed["access_token"], SALT_PLUGIN_CONFIG)
             == body["access_token"]
         )
+        assert "access_token" in row.secret_fields
 
     async def test_reconnecting_keeps_the_handle(
         self, client: AsyncClient, acting_user, session, vendor, registration
@@ -824,9 +824,9 @@ class TestTokens:
         assert first.access_token.startswith("gho_access_")
         refreshed = await _member_row(session, a.guild.id, plugin.id)
         assert refreshed is not None
+        sealed = await load_connection_secrets(session, refreshed)
         assert (
-            decrypt_field(refreshed.config_secrets["refresh_token"], SALT_PLUGIN_CONFIG)
-            != "ghr_stored"
+            decrypt_field(sealed["refresh_token"], SALT_PLUGIN_CONFIG) != "ghr_stored"
         )
 
     async def test_a_member_blocked_during_a_refresh_gets_no_token(
@@ -863,9 +863,9 @@ class TestTokens:
         assert vendor.refreshes == 1
         blocked = await _member_row(session, a.guild.id, plugin.id)
         assert blocked is not None
+        sealed = await load_connection_secrets(session, blocked)
         assert (
-            decrypt_field(blocked.config_secrets["refresh_token"], SALT_PLUGIN_CONFIG)
-            == "ghr_stored"
+            decrypt_field(sealed["refresh_token"], SALT_PLUGIN_CONFIG) == "ghr_stored"
         )
 
     async def test_a_community_connection_cleared_during_a_refresh_stays_cleared(

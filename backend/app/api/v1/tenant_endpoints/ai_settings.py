@@ -30,6 +30,7 @@ from app.schemas.ai_settings import (
     AIConnectionTestResponse,
     AIConnectionUpdate,
     AIModelsResponse,
+    CommunityMemberAIKey,
     ConnectionScope,
     MemberAIKeyUpdate,
     MemberAIPrefUpdate,
@@ -123,6 +124,32 @@ async def fetch_community_connection_models(
 ) -> AIModelsResponse:
     return await ai_settings_service.fetch_guild_connection_models(
         session, connection_id
+    )
+
+
+@router.get("/ai/members/keys", response_model=list[CommunityMemberAIKey])
+async def list_community_member_keys(
+    session: SettingsRLSSessionDep,
+    _ctx: GuildSeatContext,
+) -> list[CommunityMemberAIKey]:
+    """Who gave which of the community's AI connections a key. Never a key."""
+    return await ai_settings_service.list_community_member_keys(session)
+
+
+@router.delete(
+    "/ai/members/{user_id}/keys/{connection_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def revoke_community_member_key(
+    user_id: int,
+    connection_id: int,
+    session: SettingsRLSSessionDep,
+    _ctx: GuildSeatWriteContext,
+    user: CurrentUser,
+) -> None:
+    """Take back the key a member gave one of the community's AI connections."""
+    await ai_settings_service.revoke_community_member_key(
+        session, user_id, connection_id, actor_user_id=user.id
     )
 
 

@@ -123,7 +123,6 @@ async def _seed(session: AsyncSession) -> SimpleNamespace:
             user_id=victim.id,
             connection_scope="community",
             connection_id=1,
-            api_key_encrypted="ciphertext",
         ),
         "ai_pref": GuildAIMemberPref(
             user_id=victim.id,

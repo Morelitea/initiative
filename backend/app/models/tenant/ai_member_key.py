@@ -6,9 +6,10 @@ and guild modes share one code path. References a connection by
 ``platform_ai_connections`` row, ``guild`` -> ``guild_ai_connections`` — so
 the connection definition is not copied per guild.
 
-Guild-level table with app-layer own-user scoping: the ciphertext is never
-returned by the API (reads expose only ``has_key``), and every query filters
-by the acting user.
+The key itself is in ``ai_member_key_secrets``, which only the member and the
+system engine reach. This row says only that the member gave one; the member,
+the system engine, and for a community connection the community's seat reach
+it (``app.db.tenancy.MEMBER_CREDENTIAL_TABLES``).
 """
 
 from datetime import datetime, timezone
@@ -17,8 +18,6 @@ from typing import Optional
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, UniqueConstraint
 from sqlmodel import Field, SQLModel
 from pydantic import ConfigDict
-
-from app.core.encryption import FERNET_SALT, SALT_AI_API_KEY
 
 
 class GuildAIMemberKey(SQLModel, table=True):
@@ -46,11 +45,6 @@ class GuildAIMemberKey(SQLModel, table=True):
     # "platform" -> platform_ai_connections.id, "guild" -> guild_ai_connections.id
     connection_scope: str = Field(sa_column=Column(String(20), nullable=False))
     connection_id: int = Field(sa_column=Column(Integer, nullable=False))
-    api_key_encrypted: str = Field(
-        sa_column=Column(
-            String(2000), nullable=False, info={FERNET_SALT: SALT_AI_API_KEY}
-        )
-    )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
