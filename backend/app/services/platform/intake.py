@@ -831,3 +831,40 @@ async def open_cases_for(user_id: int) -> list[AccountCase]:
         )
         for task_id, project_id, initiative_id in places
     ]
+
+
+async def name_subject_guild(task_id: int, guild_id: int) -> None:
+    """Record that case ``task_id`` is about community ``guild_id``, where it
+    named none: what an access grant asked for it settles."""
+    operations = await configured_operations_guild_id()
+    if operations is None:
+        return
+    async with cohorts.system_session(operations) as session:
+        await set_rls_context(session, SystemGuild(operations))
+        found = (
+            await session.exec(
+                select(Task, Project.initiative_id, IntakeCase.stream)
+                .join(Project, Project.id == Task.project_id)
+                .join(IntakeCase, IntakeCase.task_id == Task.id)
+                .where(Task.id == task_id)
+            )
+        ).first()
+        if found is None:
+            return
+        task, initiative_id, stream = found
+        definitions = await _ensure_field_definitions(
+            session, initiative_id=initiative_id, stream=IntakeStream(stream)
+        )
+        field = definitions.get(CaseField.subject_guild)
+        if field is None:
+            return
+        # This one value alone: everything else the team set on the case
+        # stays as it is.
+        await properties_service.write_values(
+            session,
+            task,
+            [PropertyValueInput(property_id=field.id, value=guild_id)],
+            initiative_id=initiative_id,
+            removed=[],
+        )
+        await session.commit()

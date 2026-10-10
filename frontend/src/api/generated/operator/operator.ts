@@ -22,8 +22,13 @@ import type {
 
 import type {
   AccountDeletionResponse,
+  ClearAgeBlockParams,
+  ClearProfileFieldParams,
+  ClearSecondFactorParams,
+  DeleteUserParams,
   ExportPlatformUsersCsvParams,
   HTTPValidationError,
+  LiftSignInLockParams,
   ListAllUsersParams,
   OperatorAccountCaseRead,
   OperatorDeletionEligibilityResponse,
@@ -33,6 +38,15 @@ import type {
   OperatorUserRead,
   OperatorUsernameUpdate,
   PlatformRoleUpdate,
+  ReactivateUserParams,
+  RemoveUserAvatarParams,
+  RestoreDeletedUserParams,
+  RevokeUserApiKeysParams,
+  SetUserSuspensionParams,
+  SetUserUsernameParams,
+  SignUserOutEverywhereParams,
+  TriggerPasswordResetParams,
+  UpdatePlatformRoleParams,
   VerificationSendResponse,
 } from "../initiativeAPI.schemas";
 
@@ -330,11 +344,12 @@ export function useExportPlatformUsersCsv<
  */
 export const clearSecondFactor = (
   userId: number,
+  params?: ClearSecondFactorParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<void>(
-    { url: `/api/v1/operator/users/${userId}/second-factor`, method: "DELETE", signal },
+    { url: `/api/v1/operator/users/${userId}/second-factor`, method: "DELETE", params, signal },
     options
   );
 };
@@ -369,9 +384,9 @@ export const getClearSecondFactorMutationOptions = <
     Awaited<ReturnType<typeof clearSecondFactor>>,
     ClearSecondFactorMutationVariables
   > = (props) => {
-    const { userId } = props ?? {};
+    const { userId, params } = props ?? {};
 
-    return clearSecondFactor(userId, requestOptions);
+    return clearSecondFactor(userId, params, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -382,7 +397,10 @@ export type ClearSecondFactorMutationResult = NonNullable<
 >;
 
 export type ClearSecondFactorMutationError = ErrorType<HTTPValidationError>;
-export type ClearSecondFactorMutationVariables = { userId: number };
+export type ClearSecondFactorMutationVariables = {
+  userId: number;
+  params?: ClearSecondFactorParams;
+};
 
 /**
  * @summary Clear Second Factor
@@ -415,11 +433,12 @@ export const useClearSecondFactor = <TError = ErrorType<HTTPValidationError>, TC
  */
 export const signUserOutEverywhere = (
   userId: number,
+  params?: SignUserOutEverywhereParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<OperatorUserRead>(
-    { url: `/api/v1/operator/users/${userId}/sessions`, method: "DELETE", signal },
+    { url: `/api/v1/operator/users/${userId}/sessions`, method: "DELETE", params, signal },
     options
   );
 };
@@ -454,9 +473,9 @@ export const getSignUserOutEverywhereMutationOptions = <
     Awaited<ReturnType<typeof signUserOutEverywhere>>,
     SignUserOutEverywhereMutationVariables
   > = (props) => {
-    const { userId } = props ?? {};
+    const { userId, params } = props ?? {};
 
-    return signUserOutEverywhere(userId, requestOptions);
+    return signUserOutEverywhere(userId, params, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -467,7 +486,10 @@ export type SignUserOutEverywhereMutationResult = NonNullable<
 >;
 
 export type SignUserOutEverywhereMutationError = ErrorType<HTTPValidationError>;
-export type SignUserOutEverywhereMutationVariables = { userId: number };
+export type SignUserOutEverywhereMutationVariables = {
+  userId: number;
+  params?: SignUserOutEverywhereParams;
+};
 
 /**
  * @summary Sign User Out Everywhere
@@ -506,11 +528,12 @@ export const useSignUserOutEverywhere = <
 export const clearProfileField = (
   userId: number,
   field: "display_names" | "custom_status" | "decorations",
+  params?: ClearProfileFieldParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<OperatorUserRead>(
-    { url: `/api/v1/operator/users/${userId}/profile/${field}`, method: "DELETE", signal },
+    { url: `/api/v1/operator/users/${userId}/profile/${field}`, method: "DELETE", params, signal },
     options
   );
 };
@@ -545,9 +568,9 @@ export const getClearProfileFieldMutationOptions = <
     Awaited<ReturnType<typeof clearProfileField>>,
     ClearProfileFieldMutationVariables
   > = (props) => {
-    const { userId, field } = props ?? {};
+    const { userId, field, params } = props ?? {};
 
-    return clearProfileField(userId, field, requestOptions);
+    return clearProfileField(userId, field, params, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -561,6 +584,7 @@ export type ClearProfileFieldMutationError = ErrorType<HTTPValidationError>;
 export type ClearProfileFieldMutationVariables = {
   userId: number;
   field: "display_names" | "custom_status" | "decorations";
+  params?: ClearProfileFieldParams;
 };
 
 /**
@@ -716,11 +740,12 @@ export function useListAccountCases<
  */
 export const triggerPasswordReset = (
   userId: number,
+  params?: TriggerPasswordResetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<VerificationSendResponse>(
-    { url: `/api/v1/operator/users/${userId}/reset-password`, method: "POST", signal },
+    { url: `/api/v1/operator/users/${userId}/reset-password`, method: "POST", params, signal },
     options
   );
 };
@@ -755,9 +780,9 @@ export const getTriggerPasswordResetMutationOptions = <
     Awaited<ReturnType<typeof triggerPasswordReset>>,
     TriggerPasswordResetMutationVariables
   > = (props) => {
-    const { userId } = props ?? {};
+    const { userId, params } = props ?? {};
 
-    return triggerPasswordReset(userId, requestOptions);
+    return triggerPasswordReset(userId, params, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -768,7 +793,10 @@ export type TriggerPasswordResetMutationResult = NonNullable<
 >;
 
 export type TriggerPasswordResetMutationError = ErrorType<HTTPValidationError>;
-export type TriggerPasswordResetMutationVariables = { userId: number };
+export type TriggerPasswordResetMutationVariables = {
+  userId: number;
+  params?: TriggerPasswordResetParams;
+};
 
 /**
  * @summary Trigger Password Reset
@@ -893,11 +921,12 @@ export const useResendVerificationEmail = <
  */
 export const reactivateUser = (
   userId: number,
+  params?: ReactivateUserParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<OperatorUserRead>(
-    { url: `/api/v1/operator/users/${userId}/reactivate`, method: "POST", signal },
+    { url: `/api/v1/operator/users/${userId}/reactivate`, method: "POST", params, signal },
     options
   );
 };
@@ -932,9 +961,9 @@ export const getReactivateUserMutationOptions = <
     Awaited<ReturnType<typeof reactivateUser>>,
     ReactivateUserMutationVariables
   > = (props) => {
-    const { userId } = props ?? {};
+    const { userId, params } = props ?? {};
 
-    return reactivateUser(userId, requestOptions);
+    return reactivateUser(userId, params, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -943,7 +972,7 @@ export const getReactivateUserMutationOptions = <
 export type ReactivateUserMutationResult = NonNullable<Awaited<ReturnType<typeof reactivateUser>>>;
 
 export type ReactivateUserMutationError = ErrorType<HTTPValidationError>;
-export type ReactivateUserMutationVariables = { userId: number };
+export type ReactivateUserMutationVariables = { userId: number; params?: ReactivateUserParams };
 
 /**
  * @summary Reactivate User
@@ -986,11 +1015,12 @@ export const useReactivateUser = <TError = ErrorType<HTTPValidationError>, TCont
  */
 export const restoreDeletedUser = (
   userId: number,
+  params?: RestoreDeletedUserParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<OperatorUserRead>(
-    { url: `/api/v1/operator/users/${userId}/restore`, method: "POST", signal },
+    { url: `/api/v1/operator/users/${userId}/restore`, method: "POST", params, signal },
     options
   );
 };
@@ -1025,9 +1055,9 @@ export const getRestoreDeletedUserMutationOptions = <
     Awaited<ReturnType<typeof restoreDeletedUser>>,
     RestoreDeletedUserMutationVariables
   > = (props) => {
-    const { userId } = props ?? {};
+    const { userId, params } = props ?? {};
 
-    return restoreDeletedUser(userId, requestOptions);
+    return restoreDeletedUser(userId, params, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -1038,7 +1068,10 @@ export type RestoreDeletedUserMutationResult = NonNullable<
 >;
 
 export type RestoreDeletedUserMutationError = ErrorType<HTTPValidationError>;
-export type RestoreDeletedUserMutationVariables = { userId: number };
+export type RestoreDeletedUserMutationVariables = {
+  userId: number;
+  params?: RestoreDeletedUserParams;
+};
 
 /**
  * @summary Restore Deleted User
@@ -1080,11 +1113,12 @@ export const useRestoreDeletedUser = <TError = ErrorType<HTTPValidationError>, T
  */
 export const removeUserAvatar = (
   userId: number,
+  params?: RemoveUserAvatarParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<void>(
-    { url: `/api/v1/operator/users/${userId}/avatar`, method: "DELETE", signal },
+    { url: `/api/v1/operator/users/${userId}/avatar`, method: "DELETE", params, signal },
     options
   );
 };
@@ -1119,9 +1153,9 @@ export const getRemoveUserAvatarMutationOptions = <
     Awaited<ReturnType<typeof removeUserAvatar>>,
     RemoveUserAvatarMutationVariables
   > = (props) => {
-    const { userId } = props ?? {};
+    const { userId, params } = props ?? {};
 
-    return removeUserAvatar(userId, requestOptions);
+    return removeUserAvatar(userId, params, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -1132,7 +1166,7 @@ export type RemoveUserAvatarMutationResult = NonNullable<
 >;
 
 export type RemoveUserAvatarMutationError = ErrorType<HTTPValidationError>;
-export type RemoveUserAvatarMutationVariables = { userId: number };
+export type RemoveUserAvatarMutationVariables = { userId: number; params?: RemoveUserAvatarParams };
 
 /**
  * @summary Remove User Avatar
@@ -1175,6 +1209,7 @@ export const useRemoveUserAvatar = <TError = ErrorType<HTTPValidationError>, TCo
 export const setUserUsername = (
   userId: number,
   operatorUsernameUpdate: BodyType<OperatorUsernameUpdate>,
+  params?: SetUserUsernameParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
@@ -1184,6 +1219,7 @@ export const setUserUsername = (
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       data: operatorUsernameUpdate,
+      params,
       signal,
     },
     options
@@ -1220,9 +1256,9 @@ export const getSetUserUsernameMutationOptions = <
     Awaited<ReturnType<typeof setUserUsername>>,
     SetUserUsernameMutationVariables
   > = (props) => {
-    const { userId, data } = props ?? {};
+    const { userId, data, params } = props ?? {};
 
-    return setUserUsername(userId, data, requestOptions);
+    return setUserUsername(userId, data, params, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -1236,6 +1272,7 @@ export type SetUserUsernameMutationError = ErrorType<HTTPValidationError>;
 export type SetUserUsernameMutationVariables = {
   userId: number;
   data: BodyType<OperatorUsernameUpdate>;
+  params?: SetUserUsernameParams;
 };
 
 /**
@@ -1277,6 +1314,7 @@ export const useSetUserUsername = <TError = ErrorType<HTTPValidationError>, TCon
 export const setUserSuspension = (
   userId: number,
   operatorSuspensionUpdate: BodyType<OperatorSuspensionUpdate>,
+  params?: SetUserSuspensionParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
@@ -1286,6 +1324,7 @@ export const setUserSuspension = (
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: operatorSuspensionUpdate,
+      params,
       signal,
     },
     options
@@ -1322,9 +1361,9 @@ export const getSetUserSuspensionMutationOptions = <
     Awaited<ReturnType<typeof setUserSuspension>>,
     SetUserSuspensionMutationVariables
   > = (props) => {
-    const { userId, data } = props ?? {};
+    const { userId, data, params } = props ?? {};
 
-    return setUserSuspension(userId, data, requestOptions);
+    return setUserSuspension(userId, data, params, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -1338,6 +1377,7 @@ export type SetUserSuspensionMutationError = ErrorType<HTTPValidationError>;
 export type SetUserSuspensionMutationVariables = {
   userId: number;
   data: BodyType<OperatorSuspensionUpdate>;
+  params?: SetUserSuspensionParams;
 };
 
 /**
@@ -1373,11 +1413,12 @@ export const useSetUserSuspension = <TError = ErrorType<HTTPValidationError>, TC
  */
 export const liftSignInLock = (
   userId: number,
+  params?: LiftSignInLockParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<OperatorUserRead>(
-    { url: `/api/v1/operator/users/${userId}/sign-in-lock`, method: "DELETE", signal },
+    { url: `/api/v1/operator/users/${userId}/sign-in-lock`, method: "DELETE", params, signal },
     options
   );
 };
@@ -1412,9 +1453,9 @@ export const getLiftSignInLockMutationOptions = <
     Awaited<ReturnType<typeof liftSignInLock>>,
     LiftSignInLockMutationVariables
   > = (props) => {
-    const { userId } = props ?? {};
+    const { userId, params } = props ?? {};
 
-    return liftSignInLock(userId, requestOptions);
+    return liftSignInLock(userId, params, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -1423,7 +1464,7 @@ export const getLiftSignInLockMutationOptions = <
 export type LiftSignInLockMutationResult = NonNullable<Awaited<ReturnType<typeof liftSignInLock>>>;
 
 export type LiftSignInLockMutationError = ErrorType<HTTPValidationError>;
-export type LiftSignInLockMutationVariables = { userId: number };
+export type LiftSignInLockMutationVariables = { userId: number; params?: LiftSignInLockParams };
 
 /**
  * @summary Lift Sign In Lock
@@ -1457,11 +1498,12 @@ export const useLiftSignInLock = <TError = ErrorType<HTTPValidationError>, TCont
  */
 export const revokeUserApiKeys = (
   userId: number,
+  params?: RevokeUserApiKeysParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<OperatorUserRead>(
-    { url: `/api/v1/operator/users/${userId}/api-keys`, method: "DELETE", signal },
+    { url: `/api/v1/operator/users/${userId}/api-keys`, method: "DELETE", params, signal },
     options
   );
 };
@@ -1496,9 +1538,9 @@ export const getRevokeUserApiKeysMutationOptions = <
     Awaited<ReturnType<typeof revokeUserApiKeys>>,
     RevokeUserApiKeysMutationVariables
   > = (props) => {
-    const { userId } = props ?? {};
+    const { userId, params } = props ?? {};
 
-    return revokeUserApiKeys(userId, requestOptions);
+    return revokeUserApiKeys(userId, params, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -1509,7 +1551,10 @@ export type RevokeUserApiKeysMutationResult = NonNullable<
 >;
 
 export type RevokeUserApiKeysMutationError = ErrorType<HTTPValidationError>;
-export type RevokeUserApiKeysMutationVariables = { userId: number };
+export type RevokeUserApiKeysMutationVariables = {
+  userId: number;
+  params?: RevokeUserApiKeysParams;
+};
 
 /**
  * @summary Revoke User Api Keys
@@ -1551,11 +1596,12 @@ export const useRevokeUserApiKeys = <TError = ErrorType<HTTPValidationError>, TC
  */
 export const clearAgeBlock = (
   userId: number,
+  params?: ClearAgeBlockParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<OperatorUserRead>(
-    { url: `/api/v1/operator/users/${userId}/age-block`, method: "DELETE", signal },
+    { url: `/api/v1/operator/users/${userId}/age-block`, method: "DELETE", params, signal },
     options
   );
 };
@@ -1590,9 +1636,9 @@ export const getClearAgeBlockMutationOptions = <
     Awaited<ReturnType<typeof clearAgeBlock>>,
     ClearAgeBlockMutationVariables
   > = (props) => {
-    const { userId } = props ?? {};
+    const { userId, params } = props ?? {};
 
-    return clearAgeBlock(userId, requestOptions);
+    return clearAgeBlock(userId, params, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -1601,7 +1647,7 @@ export const getClearAgeBlockMutationOptions = <
 export type ClearAgeBlockMutationResult = NonNullable<Awaited<ReturnType<typeof clearAgeBlock>>>;
 
 export type ClearAgeBlockMutationError = ErrorType<HTTPValidationError>;
-export type ClearAgeBlockMutationVariables = { userId: number };
+export type ClearAgeBlockMutationVariables = { userId: number; params?: ClearAgeBlockParams };
 
 /**
  * @summary Clear Age Block
@@ -1636,6 +1682,7 @@ export const useClearAgeBlock = <TError = ErrorType<HTTPValidationError>, TConte
 export const updatePlatformRole = (
   userId: number,
   platformRoleUpdate: BodyType<PlatformRoleUpdate>,
+  params?: UpdatePlatformRoleParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
@@ -1645,6 +1692,7 @@ export const updatePlatformRole = (
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       data: platformRoleUpdate,
+      params,
       signal,
     },
     options
@@ -1681,9 +1729,9 @@ export const getUpdatePlatformRoleMutationOptions = <
     Awaited<ReturnType<typeof updatePlatformRole>>,
     UpdatePlatformRoleMutationVariables
   > = (props) => {
-    const { userId, data } = props ?? {};
+    const { userId, data, params } = props ?? {};
 
-    return updatePlatformRole(userId, data, requestOptions);
+    return updatePlatformRole(userId, data, params, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -1697,6 +1745,7 @@ export type UpdatePlatformRoleMutationError = ErrorType<HTTPValidationError>;
 export type UpdatePlatformRoleMutationVariables = {
   userId: number;
   data: BodyType<PlatformRoleUpdate>;
+  params?: UpdatePlatformRoleParams;
 };
 
 /**
@@ -1881,6 +1930,7 @@ export function useCheckUserDeletionEligibility<
 export const deleteUser = (
   userId: number,
   operatorUserDeleteRequest: BodyType<OperatorUserDeleteRequest>,
+  params?: DeleteUserParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
@@ -1890,6 +1940,7 @@ export const deleteUser = (
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
       data: operatorUserDeleteRequest,
+      params,
       signal,
     },
     options
@@ -1926,9 +1977,9 @@ export const getDeleteUserMutationOptions = <
     Awaited<ReturnType<typeof deleteUser>>,
     DeleteUserMutationVariables
   > = (props) => {
-    const { userId, data } = props ?? {};
+    const { userId, data, params } = props ?? {};
 
-    return deleteUser(userId, data, requestOptions);
+    return deleteUser(userId, data, params, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -1940,6 +1991,7 @@ export type DeleteUserMutationError = ErrorType<HTTPValidationError>;
 export type DeleteUserMutationVariables = {
   userId: number;
   data: BodyType<OperatorUserDeleteRequest>;
+  params?: DeleteUserParams;
 };
 
 /**

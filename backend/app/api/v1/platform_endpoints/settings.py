@@ -114,6 +114,8 @@ from app.services.platform import billing as billing_service
 from app.services.platform import billing_ping
 from app.services.platform.retention import COMMUNITY_DELETION
 from app.services.platform import guilds as guilds_service
+from app.services.platform import case_activity, grant_cases
+from app.core.user_display import handle_of
 from app.services.platform.intake import stream_is_bound
 from app.services import audit as audit_service
 from app.services import email as email_service
@@ -1290,6 +1292,15 @@ async def set_platform_community_suspension(
     )
     await session.commit()
     billing_ping.notify_lifecycle_changed(guild_id)
+    if grant is not None:
+        await grant_cases.note(
+            grant.case_task_id,
+            case_activity.ActivityKind.guild_act,
+            f"{handle_of(moderator)} "
+            + ("suspended" if payload.suspended else "lifted the suspension of")
+            + f" community {guild.name} (#{guild_id}): {current.value} to "
+            f"{target.value}.",
+        )
     return _guild_storage_read(
         guild,
         administration,

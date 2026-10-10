@@ -152,6 +152,7 @@ export interface AccessGrantCreate {
    * @maxLength 2000
    */
   reason: string;
+  case_task_id?: number | null;
 }
 
 /**
@@ -276,6 +277,7 @@ export interface AccessGrantRead {
   decided_at: string | null;
   expires_at: string | null;
   revoked_at: string | null;
+  case_task_id: number | null;
   user: UserIdentity | null;
   community_name: string | null;
   community_status: CommunityStatus | null;
@@ -1128,6 +1130,7 @@ export interface BreakGlassCreate {
    * @maxLength 2000
    */
   reason: string;
+  case_task_id?: number | null;
 }
 
 /**
@@ -5214,6 +5217,26 @@ export interface GenerateDescriptionResponse {
  */
 export interface GenerateFileSummaryResponse {
   summary: string;
+}
+
+/**
+ * An open operations case the reader may name as the reason for a grant.
+ */
+export interface GrantCaseRead {
+  task_id: number;
+  title: string;
+  stream: IntakeStream;
+  subject_community_id: number | null;
+  mine: boolean;
+}
+
+/**
+ * The open cases the reader may name, theirs first. ``required`` says
+ * whether a request must name one here.
+ */
+export interface GrantCaseList {
+  items: GrantCaseRead[];
+  required: boolean;
 }
 
 export type ValidationErrorCtx = { [key: string]: unknown };
@@ -9627,6 +9650,7 @@ export interface TaskCaseRead {
   active_status_id?: number | null;
   messages?: CaseMessageRead[];
   evidence?: CaseEvidenceRead[];
+  grants?: AccessGrantRead[];
   subject_community_id?: number | null;
   resource_type?: string | null;
   resource_id?: number | null;
@@ -11101,6 +11125,104 @@ export const ListAllUsersSortDir = {
 
 export type ExportPlatformUsersCsvParams = {
   user_id?: number[] | null;
+};
+
+export type ClearSecondFactorParams = {
+  /**
+   * The operations case this act is for: one the caller can read, still open. The case is told of the act.
+   */
+  case_task_id?: number | null;
+};
+
+export type SignUserOutEverywhereParams = {
+  /**
+   * The operations case this act is for: one the caller can read, still open. The case is told of the act.
+   */
+  case_task_id?: number | null;
+};
+
+export type ClearProfileFieldParams = {
+  /**
+   * The operations case this act is for: one the caller can read, still open. The case is told of the act.
+   */
+  case_task_id?: number | null;
+};
+
+export type TriggerPasswordResetParams = {
+  /**
+   * The operations case this act is for: one the caller can read, still open. The case is told of the act.
+   */
+  case_task_id?: number | null;
+};
+
+export type ReactivateUserParams = {
+  /**
+   * The operations case this act is for: one the caller can read, still open. The case is told of the act.
+   */
+  case_task_id?: number | null;
+};
+
+export type RestoreDeletedUserParams = {
+  /**
+   * The operations case this act is for: one the caller can read, still open. The case is told of the act.
+   */
+  case_task_id?: number | null;
+};
+
+export type RemoveUserAvatarParams = {
+  /**
+   * The operations case this act is for: one the caller can read, still open. The case is told of the act.
+   */
+  case_task_id?: number | null;
+};
+
+export type SetUserUsernameParams = {
+  /**
+   * The operations case this act is for: one the caller can read, still open. The case is told of the act.
+   */
+  case_task_id?: number | null;
+};
+
+export type SetUserSuspensionParams = {
+  /**
+   * The operations case this act is for: one the caller can read, still open. The case is told of the act.
+   */
+  case_task_id?: number | null;
+};
+
+export type LiftSignInLockParams = {
+  /**
+   * The operations case this act is for: one the caller can read, still open. The case is told of the act.
+   */
+  case_task_id?: number | null;
+};
+
+export type RevokeUserApiKeysParams = {
+  /**
+   * The operations case this act is for: one the caller can read, still open. The case is told of the act.
+   */
+  case_task_id?: number | null;
+};
+
+export type ClearAgeBlockParams = {
+  /**
+   * The operations case this act is for: one the caller can read, still open. The case is told of the act.
+   */
+  case_task_id?: number | null;
+};
+
+export type UpdatePlatformRoleParams = {
+  /**
+   * The operations case this act is for: one the caller can read, still open. The case is told of the act.
+   */
+  case_task_id?: number | null;
+};
+
+export type DeleteUserParams = {
+  /**
+   * The operations case this act is for: one the caller can read, still open. The case is told of the act.
+   */
+  case_task_id?: number | null;
 };
 
 export type ListDirectoryCommunitiesParams = {

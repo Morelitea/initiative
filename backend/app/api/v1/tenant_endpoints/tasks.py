@@ -36,6 +36,7 @@ from app.schemas.ai_generation import (
     GenerateDescriptionResponse,
 )
 from app.schemas.recurrence import OccurrenceScope
+from app.schemas.platform.access_grant import AccessGrantRead
 from app.schemas.tenant.task import (
     ChecklistItem,
     ChecklistItemToggle,
@@ -453,7 +454,33 @@ async def read_task_case(
             )
             for item in case.evidence
         ],
+        grants=await _case_grants(guild_context.guild_id, task_id),
     )
+
+
+async def _case_grants(guild_id: int, task_id: int) -> list[AccessGrantRead]:
+    """The access grants asked for case ``task_id``, where this community is
+    the operations community the grants' cases are in. Read on the system
+    engine: grants are shared rows, and the reader of a case is not the
+    approver of its grants."""
+    from sqlmodel import select
+
+    from app.db.session import SystemSessionLocal
+    from app.models.platform.access_grant import AccessGrant
+    from app.services.platform import access_grants as access_grants_service
+    from app.services.platform.intake import configured_operations_guild_id
+
+    if await configured_operations_guild_id() != guild_id:
+        return []
+    async with SystemSessionLocal() as system:
+        grants = (
+            await system.exec(
+                select(AccessGrant)
+                .where(AccessGrant.case_task_id == task_id)
+                .order_by(AccessGrant.requested_at.desc(), AccessGrant.id.desc())
+            )
+        ).all()
+        return await access_grants_service.to_read(list(grants), system_session=system)
 
 
 @router.patch("/{task_id}", response_model=TaskRead)

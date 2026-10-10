@@ -161,6 +161,9 @@ class IntakeStreamMeta:
     #: of an initiative is what lets staff read a case, so a stream whose
     #: cases name people at risk binds where no other stream's staff work.
     isolated: bool = False
+    #: Whether staff may name one of the stream's cases as the reason for an
+    #: access grant, which then reports what the grant did on the case.
+    grant_linkable: bool = False
     #: Topics whose cases talk differently from the stream's own.
     topic_conversation: Mapping[str, Conversation] = field(default_factory=dict)
     #: Topics with a cap of their own on one account's open cases, counted
@@ -204,6 +207,7 @@ STREAMS: dict[IntakeStream, IntakeStreamMeta] = {
         evidence=EvidencePolicy(5, 10 * _MB, IMAGE_TYPES | DOCUMENT_TYPES),
         retention_days=365,
         isolated=True,
+        grant_linkable=True,
     ),
     IntakeStream.moderation: IntakeStreamMeta(
         sources=frozenset({Source.submitted, Source.manual}),
@@ -215,6 +219,7 @@ STREAMS: dict[IntakeStream, IntakeStreamMeta] = {
         evidence=EvidencePolicy(5, 10 * _MB, IMAGE_TYPES | DOCUMENT_TYPES),
         retention_days=90,
         isolated=True,
+        grant_linkable=True,
         # A report is not a conversation; an appeal is one, with the person
         # whose account it is, and they keep one open at a time. It is
         # written from the time-out screen, which opens nothing but itself,
@@ -234,6 +239,7 @@ STREAMS: dict[IntakeStream, IntakeStreamMeta] = {
         max_open_per_filer=5,
         evidence=EvidencePolicy(5, 10 * _MB, IMAGE_TYPES | DOCUMENT_TYPES),
         retention_days=90,
+        grant_linkable=True,
     ),
     IntakeStream.feedback: IntakeStreamMeta(
         sources=frozenset({Source.submitted, Source.manual}),

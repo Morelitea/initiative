@@ -24,13 +24,15 @@ from app.api.deps import (
     SystemSessionDep,
 )
 from app.api.v1.platform_endpoints.session_opening import prove_second_factor
-from app.core.capabilities import Capability
+from app.core.capabilities import Capability, user_has_capability
 from app.core.audit_events import AuditEventType
 from app.core.messages import AccessGrantMessages, AuthMessages
 from app.db.query import build_paginated_response
 from app.models.platform.user import User
 from app.models.platform.access_grant import (
+    AccessGrant,
     AccessGrantPurpose,
+    AccessGrantStatus,
     AccessLevel,
     SettingsLevel,
 )
@@ -43,6 +45,8 @@ from app.schemas.platform.access_grant import (
     BreakGlassCreate,
     SecondFactorAnswer,
     BreakGlassRequirements,
+    GrantCaseList,
+    GrantCaseRead,
 )
 from app.schemas.platform.passkey import PasskeyAuthenticationOptions
 from app.services import audit as audit_service
@@ -50,6 +54,7 @@ from app.services.auth import challenges as challenge_service
 from app.services.auth import passkeys as passkey_service
 from app.services.auth import totp as totp_service
 from app.services.platform import access_grants as service
+from app.services.platform import case_activity, grant_cases
 from app.services.content_sockets import sockets as content_sockets
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -72,6 +77,72 @@ async def _one(grant, *, system_session: AsyncSession | None = None) -> AccessGr
     return reads[0]
 
 
+async def _check_case(
+    actor: User, case_task_id: Optional[int], guild_id: int, *, required: bool
+) -> bool:
+    """Hold the case a grant is asked for to what it may be: one the asker
+    reads, open, of a kind a grant serves, about this community or none yet.
+    Returns whether the link should name the community on it."""
+    if case_task_id is None:
+        if required and await grant_cases.cases_required():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=AccessGrantMessages.CASE_REQUIRED,
+            )
+        return False
+    try:
+        return await grant_cases.check_case(
+            actor, case_task_id=case_task_id, guild_id=guild_id
+        )
+    except grant_cases.GrantCaseError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.code) from exc
+
+
+async def _tell_requested(
+    session: AsyncSession,
+    grants: list[AccessGrant],
+    *,
+    requester: User,
+    guild_name: Optional[str],
+    name_community: bool,
+) -> None:
+    """Tell the case a request names that access was asked for it."""
+    case = grants[0].case_task_id
+    if case is None:
+        return
+    await grant_cases.link(
+        case, guild_id=grants[0].guild_id, name_community=name_community
+    )
+    await grant_cases.note(
+        case,
+        case_activity.ActivityKind.grant_requested,
+        grant_cases.requested_text(grants, guild_name=guild_name, holder=requester),
+    )
+
+
+async def _tell_decided(
+    session: AsyncSession,
+    grant: AccessGrant,
+    *,
+    decided_by: User,
+    guild_name: Optional[str],
+) -> None:
+    """Tell a grant's case how it was decided; an approval also puts a case
+    still waiting to be picked up to work."""
+    if grant.case_task_id is None:
+        return
+    holder = await session.get(User, grant.user_id)
+    await grant_cases.note(
+        grant.case_task_id,
+        case_activity.ActivityKind.grant_decided,
+        grant_cases.decided_text(
+            grant, guild_name=guild_name, holder=holder, decided_by=decided_by
+        ),
+    )
+    if grant.status == AccessGrantStatus.approved.value:
+        await grant_cases.activate(grant.case_task_id)
+
+
 @router.post("/", response_model=AccessGrantRead, status_code=status.HTTP_201_CREATED)
 async def create_access_request(
     payload: AccessGrantCreate,
@@ -83,7 +154,14 @@ async def create_access_request(
     A body may ask for content, settings, or both; each becomes its own pending
     grant so an approver decides about them separately and the log keeps them
     apart. The content one is returned, being the one a caller routes in under.
+
+    Where the operations community takes cases a grant may serve, the request
+    names the case it is for (``case_task_id``): one the requester can read,
+    still open, and about this community or none yet. The case is told.
     """
+    name_community = await _check_case(
+        current_user, payload.case_task_id, payload.community_id, required=True
+    )
     asked = await service.request_grants(
         session,
         requester=current_user,
@@ -106,6 +184,13 @@ async def create_access_request(
         )
     read = await _one(grant, system_session=session)
     await session.commit()
+    await _tell_requested(
+        session,
+        asked,
+        requester=current_user,
+        guild_name=read.community_name,
+        name_community=name_community,
+    )
     return read
 
 
@@ -276,6 +361,9 @@ async def break_glass_access(
     await check_second_factor(
         session, actor=current_user, answer=payload, during="break_glass"
     )
+    name_community = await _check_case(
+        current_user, payload.case_task_id, payload.community_id, required=False
+    )
     replaced = await service.reconcile_break_glass_pair(
         session, actor=current_user, payload=payload
     )
@@ -325,6 +413,16 @@ async def break_glass_access(
         )
     read = await _one(grant, system_session=session)
     await session.commit()
+    await _tell_requested(
+        session,
+        [grant, settings_grant],
+        requester=current_user,
+        guild_name=read.community_name,
+        name_community=name_community,
+    )
+    await _tell_decided(
+        session, grant, decided_by=current_user, guild_name=read.community_name
+    )
     return read
 
 
@@ -395,6 +493,36 @@ async def read_access_grant_limits(
     )
 
 
+@router.get("/cases", response_model=GrantCaseList)
+async def list_grant_cases(
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> GrantCaseList:
+    """The open operations cases the reader can read that a grant may serve,
+    those assigned to them first — what the request and break-glass forms
+    offer. Read as the reader, so it lists only cases they can open."""
+    if not (
+        user_has_capability(current_user, Capability.ACCESS_REQUEST)
+        or user_has_capability(current_user, Capability.DATA_BYPASS)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=AuthMessages.INSUFFICIENT_PRIVILEGES,
+        )
+    return GrantCaseList(
+        items=[
+            GrantCaseRead(
+                task_id=case.task_id,
+                title=case.title,
+                stream=case.stream,
+                subject_community_id=case.subject_guild_id,
+                mine=case.mine,
+            )
+            for case in await grant_cases.readable_open_cases(current_user)
+        ],
+        required=await grant_cases.cases_required(),
+    )
+
+
 @router.post("/{grant_id}/approve", response_model=AccessGrantRead)
 async def approve_access_grant(
     grant_id: int,
@@ -428,6 +556,9 @@ async def approve_access_grant(
     )
     read = await _one(grant, system_session=session)
     await session.commit()
+    await _tell_decided(
+        session, grant, decided_by=current_user, guild_name=read.community_name
+    )
     return read
 
 
@@ -458,6 +589,9 @@ async def deny_access_grant(
     )
     read = await _one(grant, system_session=session)
     await session.commit()
+    await _tell_decided(
+        session, grant, decided_by=current_user, guild_name=read.community_name
+    )
     return read
 
 
@@ -491,6 +625,9 @@ async def revoke_access_grant(
     # PAM access revoked — drop the grantee's live content streams in that guild
     # immediately, don't wait for the bounded re-auth tick.
     await content_sockets.revoke_user(grant.guild_id, grant.user_id)
+    await _tell_decided(
+        session, grant, decided_by=current_user, guild_name=read.community_name
+    )
     return read
 
 

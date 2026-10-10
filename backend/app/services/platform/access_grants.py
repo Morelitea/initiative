@@ -303,6 +303,7 @@ async def request_grants(
             reason=payload.reason,
             requested_duration_minutes=duration,
             requested_by_id=requester.id,
+            case_task_id=payload.case_task_id,
         )
         session.add(grant)
         created.append(grant)
@@ -468,6 +469,7 @@ async def break_glass(
         approved_by_id=actor.id,
         decided_at=now,
         expires_at=now + timedelta(minutes=duration),
+        case_task_id=getattr(payload, "case_task_id", None),
     )
     session.add(grant)
     await session.flush()
@@ -788,11 +790,18 @@ async def process_grant_expiry() -> None:
     """Background sweep: mark the grants whose window has closed."""
     from app.db.session import SystemSessionLocal
 
+    from app.services.platform import grant_cases
+
     async with SystemSessionLocal() as session:
         expired = await expire_due(session)
         await session.commit()
     if expired:
         logger.info("access grants: marked %s expired", expired)
+    # Then each case hears what the grants serving it did.
+    async with SystemSessionLocal() as session:
+        told = await grant_cases.report_activity(session)
+    if told:
+        logger.info("access grants: told %s cases what their grants did", told)
 
 
 async def _enrichment(

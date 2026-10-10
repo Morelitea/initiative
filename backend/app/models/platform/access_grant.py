@@ -201,6 +201,23 @@ class AccessGrant(SQLModel, table=True):
     revoked_at: Optional[datetime] = Field(
         default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
     )
+    #: The operations case this grant serves: a task in the operations
+    #: community, by id. A weak ref, like every case reference on this plane:
+    #: the case is in a community the grant does not name. What the grant
+    #: does is reported there.
+    case_task_id: Optional[int] = Field(
+        default=None, sa_column=Column(Integer, nullable=True)
+    )
+    #: When what the grant did was last reported on its case, while it is
+    #: live.
+    activity_noted_at: Optional[datetime] = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
+    #: When the grant's case was told it had ended, with what it did in all.
+    #: Set once; a grant with no case is closed out with nothing to tell.
+    closed_out_at: Optional[datetime] = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),

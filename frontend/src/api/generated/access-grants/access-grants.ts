@@ -28,6 +28,7 @@ import type {
   AccessGrantRead,
   BreakGlassCreate,
   BreakGlassRequirements,
+  GrantCaseList,
   HTTPValidationError,
   ListAccessGrantQueueParams,
   ListAccessGrantsParams,
@@ -60,6 +61,10 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
  * A body may ask for content, settings, or both; each becomes its own pending
  * grant so an approver decides about them separately and the log keeps them
  * apart. The content one is returned, being the one a caller routes in under.
+ *
+ * Where the operations community takes cases a grant may serve, the request
+ * names the case it is for (``case_task_id``): one the requester can read,
+ * still open, and about this community or none yet. The case is told.
  * @summary Create Access Request
  */
 export const createAccessRequest = (
@@ -830,6 +835,119 @@ export function useReadAccessGrantLimits<
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getReadAccessGrantLimitsQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * The open operations cases the reader can read that a grant may serve,
+ * those assigned to them first — what the request and break-glass forms
+ * offer. Read as the reader, so it lists only cases they can open.
+ * @summary List Grant Cases
+ */
+export const listGrantCases = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<GrantCaseList>(
+    { url: `/api/v1/access-grants/cases`, method: "GET", signal },
+    options
+  );
+};
+
+export const getListGrantCasesQueryKey = () => {
+  return [`/api/v1/access-grants/cases`] as const;
+};
+
+export const getListGrantCasesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listGrantCases>>,
+  TError = ErrorType<HTTPValidationError>,
+>(options?: {
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listGrantCases>>, TError, TData>>;
+  request?: SecondParameter<typeof apiMutator>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListGrantCasesQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listGrantCases>>> = ({ signal }) =>
+    listGrantCases(requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listGrantCases>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListGrantCasesQueryResult = NonNullable<Awaited<ReturnType<typeof listGrantCases>>>;
+export type ListGrantCasesQueryError = ErrorType<HTTPValidationError>;
+
+export function useListGrantCases<
+  TData = Awaited<ReturnType<typeof listGrantCases>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof listGrantCases>>, TError, TData>> &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listGrantCases>>,
+          TError,
+          Awaited<ReturnType<typeof listGrantCases>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListGrantCases<
+  TData = Awaited<ReturnType<typeof listGrantCases>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listGrantCases>>, TError, TData>> &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listGrantCases>>,
+          TError,
+          Awaited<ReturnType<typeof listGrantCases>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListGrantCases<
+  TData = Awaited<ReturnType<typeof listGrantCases>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listGrantCases>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List Grant Cases
+ */
+
+export function useListGrantCases<
+  TData = Awaited<ReturnType<typeof listGrantCases>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listGrantCases>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListGrantCasesQueryOptions(options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;

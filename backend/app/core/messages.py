@@ -775,6 +775,17 @@ class AccessGrantMessages:
     GRANTEE_INELIGIBLE = "ACCESS_GRANT_GRANTEE_INELIGIBLE"
     #: A ``moderate`` grant is for those who hold ``content.moderate``.
     MODERATE_NOT_HELD = "ACCESS_GRANT_MODERATE_NOT_HELD"
+    #: A request names the operations case it is for, where the operations
+    #: community takes cases a grant may serve.
+    CASE_REQUIRED = "ACCESS_GRANT_CASE_REQUIRED"
+    #: No case by that id that the requester can read.
+    CASE_NOT_FOUND = "ACCESS_GRANT_CASE_NOT_FOUND"
+    #: A case of a kind no grant serves (feedback, say).
+    CASE_NOT_LINKABLE = "ACCESS_GRANT_CASE_NOT_LINKABLE"
+    #: The case is closed.
+    CASE_CLOSED = "ACCESS_GRANT_CASE_CLOSED"
+    #: The case is about another community.
+    CASE_OTHER_COMMUNITY = "ACCESS_GRANT_CASE_OTHER_COMMUNITY"
     #: A settings rung reads; changing what it reaches takes a read_write
     #: content grant beside it.
     WRITE_GRANT_REQUIRED = "ACCESS_GRANT_WRITE_REQUIRED"
