@@ -358,5 +358,13 @@
     "undo": "Undo",
     "moved": "Moved to {{status}}",
     "cleared": "{{field}} cleared"
+  },
+  "descriptionField": {
+    "none": "No description yet.",
+    "draftKept": "Your unsaved draft of this description is kept on this device until you can edit it again.",
+    "unsavedTitle": "Discard unsaved changes?",
+    "unsavedBody": "You have an unsaved description. If you leave now, it will be lost.",
+    "leave": "Leave",
+    "stay": "Stay"
   }
 }

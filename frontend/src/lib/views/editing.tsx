@@ -72,13 +72,15 @@ export interface FieldDraft<V> {
  * fails puts the saved value back, and the field says so.
  *
  * @param saved The value as the item has it now.
- * @param commit Saves a value, settling when the save does.
+ * @param commit Saves a value, settling when the save does. It is given the
+ *   saved value the change began from, for a save that names what it was
+ *   written over.
  * @param same When a value is not compared by identity.
  * @param valid Held back from saving while false, as dates the wrong way round.
  */
 export const useFieldDraft = <V,>(
   saved: V,
-  commit: (value: V) => Promise<unknown>,
+  commit: (value: V, from: V) => Promise<unknown>,
   same: (a: V, b: V) => boolean = Object.is,
   valid: (value: V) => boolean = () => true
 ): FieldDraft<V> => {
@@ -105,7 +107,7 @@ export const useFieldDraft = <V,>(
     }
     const saving = { ...current, saving: true };
     set(saving);
-    void commit(current.value).finally(() => {
+    void commit(current.value, current.from).finally(() => {
       if (held.current === saving) set(null);
     });
   };

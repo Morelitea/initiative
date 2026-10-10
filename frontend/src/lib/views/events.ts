@@ -17,7 +17,6 @@ const EVENT_PAGE_REGIONS: Record<Region, ViewNode[]> = {
       props: { direction: "row", gap: "sm", align: "start" },
       children: [field("title"), { type: "actions" }],
     },
-    { type: "notice" },
   ],
   main: [
     at(1, { type: "section", children: [field("description")] }),

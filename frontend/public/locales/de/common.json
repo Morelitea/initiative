@@ -358,5 +358,13 @@
     "undo": "Rückgängig",
     "moved": "Verschoben nach {{status}}",
     "cleared": "{{field}}: Wert entfernt"
+  },
+  "descriptionField": {
+    "none": "Noch keine Beschreibung.",
+    "draftKept": "Ihr nicht gespeicherter Entwurf dieser Beschreibung bleibt auf diesem Gerät, bis Sie sie wieder bearbeiten können.",
+    "unsavedTitle": "Nicht gespeicherte Änderungen verwerfen?",
+    "unsavedBody": "Du hast eine nicht gespeicherte Beschreibung. Wenn du jetzt gehst, geht sie verloren.",
+    "leave": "Verlassen",
+    "stay": "Bleiben"
   }
 }

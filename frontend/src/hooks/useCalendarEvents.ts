@@ -34,6 +34,7 @@ import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useCommunityMutation } from "@/hooks/useApiMutation";
 import {
   type FieldSaveKind,
+  type FieldSaveOptions,
   type ItemEdit,
   useItemFieldSave,
   useShownWithPending,
@@ -102,31 +103,28 @@ const SERIES_FIELDS: (keyof EventPatch)[] = [
   "attendee_ids",
 ];
 
+/** Where an event's page is: the date it shows, and how it asks and moves. */
+export type EventSaveTarget = {
+  /** The date the page was opened at, when it names one. */
+  occurrence?: string | null;
+  /** The date a change is about, by its start in the series. */
+  occurrenceStart: string;
+  askScope: (action: "edit") => Promise<OccurrenceScope | null>;
+  onMoved: (moved: CalendarEventRead) => void;
+};
+
 /**
- * The one way an event's page saves a field ({@link useItemFieldSave}). A
- * change to a repeating event, or to one date of it, asks which dates it is
- * for; "just this" and "from here on" answer with another event (the date's
- * own, or the new series), which `onMoved` takes the page to.
+ * What an event's page adds to a field's save: a change to a repeating event,
+ * or to one date of it, asks which dates it is for, and its Undo is for the
+ * same ones; "just this" and "from here on" answer with another event (the
+ * date's own, or the new series), which `onMoved` takes the page to.
  */
-export const useEventFieldSave = (
+export const eventSaveOptions = (
   event: CalendarEventRead,
-  label: string,
-  {
-    occurrence,
-    occurrenceStart,
-    askScope,
-    onMoved,
-  }: {
-    /** The date the page was opened at, when it names one. */
-    occurrence?: string | null;
-    /** The date a change is about, by its start in the series. */
-    occurrenceStart: string;
-    askScope: (action: "edit") => Promise<OccurrenceScope | null>;
-    onMoved: (moved: CalendarEventRead) => void;
-  }
-) => {
+  { occurrenceStart, askScope, onMoved }: EventSaveTarget
+): FieldSaveOptions<CalendarEventRead, EventPatch> => {
   const repeating = Boolean(event.recurrence) || event.series_id != null;
-  return useItemFieldSave(eventSaves(occurrence), event.id, label, {
+  return {
     prepare: async (edit) => {
       if (!repeating || !("patch" in edit)) return edit;
       if (!SERIES_FIELDS.some((name) => name in edit.patch)) return edit;
@@ -135,13 +133,30 @@ export const useEventFieldSave = (
       const target = event.series_id != null ? { scope } : { scope, occurrence: occurrenceStart };
       return { ...edit, patch: { ...edit.patch, ...target } };
     },
+    // Undone for the dates the change was for.
+    undoWith: (undo, edit) =>
+      "patch" in undo && "patch" in edit
+        ? {
+            ...undo,
+            patch: { ...undo.patch, scope: edit.patch.scope, occurrence: edit.patch.occurrence },
+          }
+        : undo,
     movedTo: (written) => {
       const moved = written.id !== undefined && written.id !== event.id;
       if (moved) onMoved(written as CalendarEventRead);
       return moved;
     },
-  });
+  };
 };
+
+/** The one way an event's page saves a field ({@link useItemFieldSave}), with
+ *  what its page adds ({@link eventSaveOptions}). */
+export const useEventFieldSave = (
+  event: CalendarEventRead,
+  label: string,
+  target: EventSaveTarget
+) =>
+  useItemFieldSave(eventSaves(target.occurrence), event.id, label, eventSaveOptions(event, target));
 
 // ── Mutations ───────────────────────────────────────────────────────────────
 

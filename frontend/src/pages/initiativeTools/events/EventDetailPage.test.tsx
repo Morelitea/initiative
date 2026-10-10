@@ -3,16 +3,17 @@
  * field saved on its own, and a repeating event asked which dates a change is
  * for.
  */
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { buildCalendarEvent } from "@/__tests__/factories";
+import { buildCalendarEvent, buildPropertySummary } from "@/__tests__/factories";
 import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
-import type { CalendarEventRead } from "@/api/generated/initiativeAPI.schemas";
+import { type CalendarEventRead, PropertyType } from "@/api/generated/initiativeAPI.schemas";
+import { toast } from "@/lib/mascotToast";
 
 vi.mock("@/lib/mascotToast", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
@@ -42,6 +43,15 @@ const serve = (
     })
   );
 
+/** The description opens on its preview: turn to its field and write. */
+const writeDescription = async (user: ReturnType<typeof userEvent.setup>, text: string) => {
+  const field = await screen.findByRole("group", { name: /^description$/i });
+  await user.click(within(field).getByRole("tab", { name: /^write$/i }));
+  const editor = await screen.findByRole("textbox", { name: /^description$/i });
+  await user.clear(editor);
+  await user.type(editor, text);
+};
+
 const open = (search: Record<string, unknown> = {}) =>
   renderPage(EventDetailPage, {
     initialRoute: EVENT_ROUTE,
@@ -51,6 +61,8 @@ const open = (search: Record<string, unknown> = {}) =>
 
 beforeEach(() => {
   sent = [];
+  // A description draft is kept on the device.
+  localStorage.clear();
 });
 
 describe("an event's page", () => {
@@ -67,7 +79,7 @@ describe("an event's page", () => {
     expect(screen.getByDisplayValue("Room 2")).toBeInTheDocument();
   });
 
-  it("shows a reader who cannot change it what it is, and nothing to change", async () => {
+  it("shows a reader who cannot change it the event, and nothing to change it with", async () => {
     serve(
       buildCalendarEvent({
         id: 9,
@@ -81,8 +93,9 @@ describe("an event's page", () => {
 
     expect(await screen.findByText("Bring the numbers")).toBeInTheDocument();
     expect(screen.getByText("Room 2")).toBeInTheDocument();
-    expect(screen.getByText("You can see this event, but not change it.")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("Standup")).toBeDisabled();
+    // The page shows it, and no box to change it in.
+    expect(screen.getByRole("heading", { level: 1, name: "Standup" })).toBeInTheDocument();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /more actions/i })).not.toBeInTheDocument();
   });
 
@@ -125,17 +138,86 @@ describe("an event's page", () => {
     open();
     const user = userEvent.setup();
 
-    const description = await screen.findByDisplayValue("Old");
-    await user.clear(description);
-    await user.type(description, "Mine");
-    await user.tab();
-    await user.click(await screen.findByRole("button", { name: "Overwrite" }));
+    await writeDescription(user, "Mine");
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+    const conflict = await screen.findByRole("alert");
+    expect(await within(conflict).findByText("Theirs")).toBeInTheDocument();
+    await user.click(within(conflict).getByRole("button", { name: /overwrite/i }));
 
     await waitFor(() =>
       expect(sent).toEqual([
         { description: "Mine", description_base: "Old" },
         { description: "Mine", description_base: "Theirs" },
       ])
+    );
+  });
+
+  it("writes a description over the one the typing began from, not one landed meanwhile", async () => {
+    const event = buildCalendarEvent({ id: 9, description: "Old" });
+    serve(event, (body) =>
+      body.description_base === event.description
+        ? Object.assign(event, { description: body.description })
+        : HttpResponse.json({ detail: "CALENDAR_EVENT_DESCRIPTION_CHANGED" }, { status: 409 })
+    );
+    const { queryClient } = open();
+    const user = userEvent.setup();
+
+    await writeDescription(user, "Mine");
+    // Someone else's description lands while this one is being typed.
+    event.description = "Theirs";
+    await queryClient.invalidateQueries();
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    await waitFor(() => expect(sent).toEqual([{ description: "Mine", description_base: "Old" }]));
+    expect(await screen.findByRole("button", { name: /overwrite/i })).toBeInTheDocument();
+  });
+
+  it("undoes a cleared location for the dates it was cleared for", async () => {
+    const series = buildCalendarEvent({
+      id: 9,
+      location: "Room 2",
+      recurrence: "RRULE:FREQ=WEEKLY",
+    });
+    serve(series, (body) => ({ ...series, ...body }));
+    open({ occurrence: "2026-10-27T15:00:00.000Z" });
+    const user = userEvent.setup();
+
+    await user.clear(await screen.findByDisplayValue("Room 2"));
+    await user.keyboard("{Enter}");
+    await user.click(await screen.findByLabelText("All events in the series"));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(vi.mocked(toast.success)).toHaveBeenCalled());
+    const [, options] = vi.mocked(toast.success).mock.calls.at(-1) ?? [];
+    options?.action?.onClick(new MouseEvent("click"));
+
+    const target = { scope: "all", occurrence: "2026-10-27T15:00:00.000Z" };
+    await waitFor(() =>
+      expect(sent).toEqual([
+        { location: null, ...target },
+        { location: "Room 2", ...target },
+      ])
+    );
+  });
+
+  it("shows a reader a property's value as it reads elsewhere, a link opening", async () => {
+    serve(
+      buildCalendarEvent({
+        id: 9,
+        can: { edit: false },
+        properties: [
+          buildPropertySummary({
+            name: "Agenda",
+            type: PropertyType.url,
+            value: "https://example.com/agenda",
+          }),
+        ],
+      })
+    );
+    open();
+
+    expect(await screen.findByRole("link", { name: /example\.com\/agenda/ })).toHaveAttribute(
+      "href",
+      "https://example.com/agenda"
     );
   });
 });

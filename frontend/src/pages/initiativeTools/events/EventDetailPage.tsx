@@ -1,6 +1,6 @@
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { Copy, Loader2, MoreHorizontal, Trash2, Unlink } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -77,15 +77,21 @@ export function EventDetailPage() {
       : toolDetailRoute(Tool.calendar, initiativeId, calendarId)
   );
 
+  // Set when the page is left on purpose, so an open draft does not hold it.
+  const leaving = useRef(false);
+  const leave = (to: string) => {
+    leaving.current = true;
+    void navigate({ to });
+  };
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const deleteEvent = useDeleteCalendarEvent({
     onSuccess: () => {
       toast.success(t("eventDeleted"));
-      void navigate({ to: leaveTo });
+      leave(leaveTo);
     },
   });
   const toEvent = (moved: Pick<CalendarEventRead, "id" | "calendar_id">) =>
-    void navigate({ to: gp(eventRoute(initiativeId, moved.calendar_id, moved.id)) });
+    leave(gp(eventRoute(initiativeId, moved.calendar_id, moved.id)));
   const duplicateEvent = useDuplicateCalendarEvent({
     onSuccess: (copy) => {
       toast.success(t("common:subToolDuplicate.done"));
@@ -176,7 +182,7 @@ export function EventDetailPage() {
         targetId={event.id}
         canModerate={canModerate}
         communityId={event.community_id}
-        onGone={() => void navigate({ to: leaveTo })}
+        onGone={() => leave(leaveTo)}
       />
       {canWrite ? (
         <DropdownMenu>
@@ -234,7 +240,6 @@ export function EventDetailPage() {
         event={event}
         page={{
           readOnly: !canWrite,
-          readOnlyMessage: canWrite ? null : t("eventPage.readOnly"),
           initiativeId,
           occurrence,
           occurrenceStart,
@@ -242,6 +247,7 @@ export function EventDetailPage() {
           shownEnd,
           askScope: (action) => scopePrompt.ask(action),
           onMoved: toEvent,
+          leaving,
           actions,
         }}
       />

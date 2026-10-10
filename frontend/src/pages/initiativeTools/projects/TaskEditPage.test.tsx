@@ -507,7 +507,11 @@ describe("TaskEditPage", () => {
   it("shows every field read-only to a reader", async () => {
     renderTaskPage({ canEdit: false, description: "Old words" });
 
-    expect(await screen.findByDisplayValue("Wire the doorbell")).toBeDisabled();
+    // The title is the page's heading, with no box to change it in.
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Wire the doorbell" })
+    ).toBeInTheDocument();
+    expect(screen.queryByDisplayValue("Wire the doorbell")).not.toBeInTheDocument();
     expect(within(await fieldNamed(/^status$/i)).getByRole("combobox")).toBeDisabled();
     const description = await fieldNamed(/^description$/i);
     expect(within(description).getByText("Old words")).toBeInTheDocument();

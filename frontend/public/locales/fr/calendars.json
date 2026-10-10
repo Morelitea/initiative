@@ -148,7 +148,6 @@
     "noDescription": "Aucune description.",
     "when": "Quand",
     "tagsPlaceholder": "Ajouter des étiquettes",
-    "moreFields": "Autres champs",
-    "readOnly": "Vous pouvez voir cet événement, mais pas le modifier."
+    "moreFields": "Autres champs"
   }
 }

@@ -3,10 +3,10 @@ import { CalendarDays, MapPin, Repeat } from "lucide-react";
 import {
   createContext,
   type ReactNode,
+  type RefObject,
   useCallback,
   useContext,
   useMemo,
-  useRef,
   useState,
 } from "react";
 import { useTranslation } from "react-i18next";
@@ -41,17 +41,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
 import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useAuth } from "@/hooks/useAuth";
 import {
+  eventSaveOptions,
   eventSaves,
   useEventFieldSave,
   useOccurrenceAction,
   useUpdateEventRSVP,
 } from "@/hooks/useCalendarEvents";
 import { useCommunityPath } from "@/lib/communityUrl";
-import { getHttpStatus } from "@/lib/errorMessage";
 import { formatDate, formatDateTime } from "@/lib/formatDate";
 import { dateTimeFormat } from "@/lib/intl";
 import { toast } from "@/lib/mascotToast";
@@ -62,6 +61,7 @@ import {
   rulePayload,
   summarizeStored,
 } from "@/lib/recurrence";
+import { referenceRef } from "@/lib/smartChips";
 import { hour12Option } from "@/lib/timeFormat";
 import { eventRoute } from "@/lib/tools";
 import { getUserDisplayName } from "@/lib/userDisplay";
@@ -69,17 +69,16 @@ import type { TranslateFn } from "@/types/i18n";
 
 import { FieldFrame, useFieldDraft } from "./editing";
 import { EVENT_PAGE_KIND } from "./events";
-import { PropertiesField, TagsField, TitleField } from "./fieldEditors";
+import { DescriptionField, PropertiesField, TagsField, TitleField } from "./fieldEditors";
 import { useProjectViewEnv } from "./fields";
 import type { StoredRegions } from "./itemPage";
 import { LAYOUT_PARTS, type Parts, renderNode, type ViewContext } from "./tree";
 
 /** What an event's page shares with its parts, beside the event itself. */
 export interface EventPageContext {
-  /** The server says the reader cannot change the event. */
+  /** The server says the reader cannot change the event: they see it, and
+   *  nothing to change it with. */
   readOnly: boolean;
-  /** Why, when it does. */
-  readOnlyMessage: string | null;
   initiativeId: number | null;
   /** The date of a repeating event the page was opened at, when it names one. */
   occurrence: string | undefined;
@@ -92,6 +91,8 @@ export interface EventPageContext {
   /** Takes the page to the event a change answered with: one date of a
    *  repeating event made its own, or the new series from it. */
   onMoved: (moved: CalendarEventRead) => void;
+  /** Set when the page is left on purpose, so an open draft does not hold it. */
+  leaving: RefObject<boolean>;
   /** Reporting it, and the menu of what else can be done with it. */
   actions: ReactNode;
 }
@@ -176,72 +177,24 @@ const TitleEditor = ({ event, label }: EditorProps) => {
   );
 };
 
-/**
- * The description, saved when its field is left. The save names the
- * description it was written over, and one written over a description that
- * has since changed is refused, so the reader sees the other version and
- * chooses.
- */
+/** The description, as a task's is ({@link DescriptionField}). */
 const DescriptionEditor = ({ event, label }: EditorProps) => {
-  const { t } = useTranslation(["calendars", "common"]);
-  const { readOnly } = useEventPage();
-  const save = useSave(event, label);
-  const current = event.description ?? "";
-  // What was last sent, which a refused save offers to send again.
-  const sent = useRef("");
-  const write = (text: string, base: string | null) => {
-    sent.current = text;
-    const description = text.trim() || null;
-    return save.save({ patch: { description, description_base: base }, shows: { description } });
-  };
-  const draft = useFieldDraft(current, (text) => write(text, event.description ?? null));
-  const conflict = getHttpStatus(save.error) === 409;
-  if (readOnly) {
-    return current ? (
-      <p className="whitespace-pre-wrap text-sm">{current}</p>
-    ) : (
-      <p className="text-muted-foreground text-sm italic">{t("eventPage.noDescription")}</p>
-    );
-  }
+  const { t } = useTranslation("calendars");
+  const page = useEventPage();
   return (
-    <FieldFrame
+    <DescriptionField
+      kind={eventSaves(page.occurrence)}
+      id={event.id}
+      options={eventSaveOptions(event, page)}
       label={label}
-      htmlFor="event-description"
-      save={conflict ? { ...save, state: "idle" } : save}
-      changed={draft.changed}
-      keys={draft.keys}
-    >
-      <Textarea
-        id="event-description"
-        value={draft.value}
-        onChange={(change) => draft.change(change.target.value)}
-        placeholder={t("descriptionPlaceholder")}
-        rows={3}
-      />
-      {conflict ? (
-        <div
-          role="alert"
-          className="space-y-2 rounded-md border border-warning/40 bg-warning/5 px-3 py-2"
-        >
-          <p className="text-sm">{t("common:fieldSave.changed")}</p>
-          <p className="whitespace-pre-wrap rounded-md border bg-background px-3 py-2 text-sm">
-            {current}
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              size="sm"
-              onClick={() => void write(sent.current, event.description ?? null)}
-            >
-              {t("common:fieldSave.overwrite")}
-            </Button>
-            <Button type="button" size="sm" variant="outline" onClick={save.reset}>
-              {t("common:fieldSave.discard")}
-            </Button>
-          </div>
-        </div>
-      ) : null}
-    </FieldFrame>
+      htmlId="event-description"
+      value={event.description}
+      readOnly={page.readOnly}
+      initiativeId={page.initiativeId}
+      subject={referenceRef(SearchEntityType.calendar_event, event.id)}
+      leaving={page.leaving}
+      placeholder={t("descriptionPlaceholder")}
+    />
   );
 };
 
@@ -669,15 +622,6 @@ const EventField = ({ id, event }: { id: string; event: CalendarEventRead }) => 
   return <Editor event={event} label={t(FIELD_LABELS[id as keyof typeof FIELD_LABELS])} />;
 };
 
-const Notice = () => {
-  const { readOnlyMessage } = useEventPage();
-  return readOnlyMessage ? (
-    <p className="rounded-md border border-border bg-muted/50 px-3 py-2 text-muted-foreground text-sm">
-      {readOnlyMessage}
-    </p>
-  ) : null;
-};
-
 const Actions = () => <>{useEventPage().actions}</>;
 
 const Relations = ({ event }: { event: CalendarEventRead }) => (
@@ -698,7 +642,6 @@ const EVENT_PAGE_PARTS: Parts<CalendarEventRead> = {
   rsvp: (_node, event) => <MyAnswer event={event} />,
   properties: (_node, event) => <PropertiesEditor event={event} />,
   relations: (_node, event) => <Relations event={event} />,
-  notice: () => <Notice />,
   actions: () => <Actions />,
 };
 

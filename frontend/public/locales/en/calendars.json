@@ -148,7 +148,6 @@
     "noDescription": "No description.",
     "when": "When",
     "tagsPlaceholder": "Add tags",
-    "moreFields": "More fields",
-    "readOnly": "You can see this event, but not change it."
+    "moreFields": "More fields"
   }
 }

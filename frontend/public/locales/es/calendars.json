@@ -148,7 +148,6 @@
     "noDescription": "Sin descripción.",
     "when": "Cuándo",
     "tagsPlaceholder": "Añadir etiquetas",
-    "moreFields": "Más campos",
-    "readOnly": "Puedes ver este evento, pero no cambiarlo."
+    "moreFields": "Más campos"
   }
 }

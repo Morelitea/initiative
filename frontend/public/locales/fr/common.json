@@ -358,5 +358,13 @@
     "undo": "Annuler",
     "moved": "Déplacé vers {{status}}",
     "cleared": "{{field}} : valeur effacée"
+  },
+  "descriptionField": {
+    "none": "Pas encore de description.",
+    "draftKept": "Votre brouillon non enregistré de cette description est conservé sur cet appareil jusqu'à ce que vous puissiez la modifier à nouveau.",
+    "unsavedTitle": "Abandonner les modifications non enregistrées ?",
+    "unsavedBody": "Vous avez une description non enregistrée. Si vous partez maintenant, elle sera perdue.",
+    "leave": "Quitter",
+    "stay": "Rester"
   }
 }

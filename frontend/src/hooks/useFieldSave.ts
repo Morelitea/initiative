@@ -220,7 +220,8 @@ export const useItemFieldSave = <I, P>(
       void queryClient.invalidateQueries({
         predicate: ({ queryKey }) => lists(queryKey) && !itself(queryKey),
       });
-      if (undo) {
+      // A change that became another item's is undone there, not here.
+      if (undo && !moved) {
         toast.success(options.undoMessage?.(edit) ?? t("fieldSave.cleared", { field: label }), {
           action: {
             label: t("fieldSave.undo"),
