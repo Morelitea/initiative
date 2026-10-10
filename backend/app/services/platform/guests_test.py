@@ -1,7 +1,7 @@
 """Guests: a membership row with an end. It admits its holder until then,
 takes no seat, and only on the demo deployment carries a rung above ``guest``."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 
 import pytest
 from sqlalchemy import func
@@ -15,9 +15,8 @@ from app.services.platform import guests
 from app.services.platform import guilds as guilds_service
 from app.services.platform import users as users_service
 from app.testing import (
-    create_guild_membership,
+    create_guest,
     create_initiative_member,
-    create_user,
     get_auth_headers,
 )
 
@@ -30,18 +29,6 @@ async def _platform(session, *, guests_enabled: bool = True, demo_mode: bool = F
     row.demo_mode = demo_mode
     session.add(row)
     await session.commit()
-
-
-async def _guest(session, guild, *, role=CommunityRole.admin, ends_in=HOUR):
-    user = await create_user(session)
-    await create_guild_membership(
-        session,
-        user=user,
-        guild=guild,
-        role=role,
-        guest_until=datetime.now(timezone.utc) + ends_in,
-    )
-    return user
 
 
 @pytest.mark.parametrize(
@@ -60,7 +47,7 @@ async def test_a_guest_is_admitted_until_its_end_and_as_the_platform_allows(
 ):
     a = await acting_user(guild_role=CommunityRole.admin)
     await _platform(session, guests_enabled=guests_enabled, demo_mode=demo_mode)
-    guest = await _guest(
+    guest = await create_guest(
         session, a.guild, role=CommunityRole.superadmin, ends_in=ends_in
     )
     guild_id, guest_id = a.guild.id, guest.id
@@ -76,23 +63,11 @@ async def test_a_guest_is_admitted_until_its_end_and_as_the_platform_allows(
     assert holds_seat is admitted
 
 
-async def test_the_guest_rung_reaches_nothing_yet(client, acting_user, session):
-    a = await acting_user(guild_role=CommunityRole.admin)
-    await _platform(session)
-    guest = await _guest(session, a.guild, role=CommunityRole.guest)
-
-    response = await client.get(
-        f"/api/v1/c/{a.guild.id}/initiatives/", headers=get_auth_headers(guest)
-    )
-
-    assert response.status_code == 403
-
-
 async def test_guests_take_no_seat_and_are_not_on_the_roster(acting_user, session):
     a = await acting_user(guild_role=CommunityRole.admin)
     await _platform(session, demo_mode=True)
-    await _guest(session, a.guild)
-    await _guest(session, a.guild, role=CommunityRole.guest)
+    await create_guest(session, a.guild, role=CommunityRole.admin)
+    await create_guest(session, a.guild)
     guild_id = a.guild.id
 
     listed = (
@@ -113,7 +88,7 @@ async def test_a_picker_scoped_to_content_names_a_guest_and_the_roster_does_not(
 ):
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
     await _platform(session)
-    guest = await _guest(session, a.guild, role=CommunityRole.guest)
+    guest = await create_guest(session, a.guild)
     await create_initiative_member(session, a.initiative, guest)
     guest_id = guest.id
 
@@ -132,9 +107,9 @@ async def test_a_picker_scoped_to_content_names_a_guest_and_the_roster_does_not(
 async def test_an_ended_guest_is_swept_away(acting_user, session, monkeypatch):
     a = await acting_user(guild_role=CommunityRole.admin)
     await _platform(session)
-    ended = await _guest(session, a.guild, role=CommunityRole.guest, ends_in=-HOUR)
-    staying = await _guest(session, a.guild, role=CommunityRole.guest)
-    rejoined = await _guest(session, a.guild, role=CommunityRole.guest, ends_in=-HOUR)
+    ended = await create_guest(session, a.guild, ends_in=-HOUR)
+    staying = await create_guest(session, a.guild)
+    rejoined = await create_guest(session, a.guild, ends_in=-HOUR)
     guild_id, ended_id, staying_id = a.guild.id, ended.id, staying.id
     rejoined_id = rejoined.id
     # Found ended, then back as a member before the sweep reaches the guild.
@@ -177,7 +152,7 @@ async def test_a_guest_rung_is_not_changed_as_a_member_role(
 ):
     a = await acting_user(guild_role=CommunityRole.superadmin)
     await _platform(session)
-    guest = await _guest(session, a.guild, role=CommunityRole.guest)
+    guest = await create_guest(session, a.guild)
 
     response = await client.patch(
         f"/api/v1/communities/{a.guild.id}/members/{guest.id}",

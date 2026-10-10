@@ -83,6 +83,12 @@ class GuildRoleKind(StrEnum):
     #: An installed plug-in's request: only what ``app.db.plugin_rls.PLUGIN_TABLE_ACCESS``
     #: names, no default privileges, and ``plugin_install_base`` for ``public``.
     plugin = "_plugin"
+    #: A guest's request: only what ``app.db.guest_access.GUEST_TABLE_ACCESS``
+    #: names, the row narrowing ``TO guest_base`` there, and ``guest_base`` for
+    #: ``public``. No default privileges.
+    guest = "_guest"
+    #: The same, SELECT-only: a guest in a ``read_only`` community.
+    guest_read_only = "_guest_ro"
 
 
 def guild_role_name(guild_id: int, kind: GuildRoleKind = GuildRoleKind.full) -> str:
@@ -594,11 +600,18 @@ def _grant_statements(schema: str, guild_id: int) -> list[str]:
     "no member/permission management" line. The query role holds no shared
     floor: its schema and the routed community's members. The plug-in role (an
     installed plug-in's requests) holds only what ``_plugin_role_grant_statements``
-    renders.
+    renders, and the guest roles only what ``guest_role_grant_statements`` does.
     """
-    role, ro_role, support_role, query_role, seat_role, plugin_role = _guild_roles(
-        guild_id
-    )
+    (
+        role,
+        ro_role,
+        support_role,
+        query_role,
+        seat_role,
+        plugin_role,
+        guest_role,
+        guest_ro_role,
+    ) = _guild_roles(guild_id)
     stmts = [
         # Account-erasure maintenance: direct, table-bounded access lets the
         # app_admin login retain BYPASSRLS while it removes embedded names.
@@ -689,6 +702,14 @@ def _grant_statements(schema: str, guild_id: int) -> list[str]:
     # Plug-in role: table by table from the plug-in registry, with no default
     # privileges and no guild role composed in.
     stmts.extend(_plugin_role_grant_statements(schema, plugin_role))
+    # Guest roles: table by table from the guest registry, likewise.
+    from app.db.guest_access import guest_role_grant_statements
+
+    members = f'"{APP_LOGIN_ROLE}", "{SYSTEM_LOGIN_ROLE}"'
+    for guest, writes in ((guest_role, True), (guest_ro_role, False)):
+        stmts.extend(
+            guest_role_grant_statements(schema, guest, writes=writes, members=members)
+        )
     return stmts
 
 

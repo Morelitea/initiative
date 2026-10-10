@@ -1405,6 +1405,7 @@ def render_retired_functions_ddl() -> str:
 
 
 def render_guild_rls_ddl() -> str:
+    from app.db.guest_access import render_guest_rls_ddl
     from app.db.holds import render_holds_ddl
     from app.db.moderation_log import render_moderation_log_ddl
 
@@ -1472,6 +1473,7 @@ def render_guild_rls_ddl() -> str:
     # policies join the ones already there.
     plugin_blocks = [_plugin_block(t) for t in sorted(PLUGIN_POLICY_TABLES)]
     out += "\n\n" + _PLUGIN_SECTION + "\n\n" + "\n\n".join(plugin_blocks)
+    out += "\n\n" + render_guest_rls_ddl()
     out += "\n\n" + _SHARING_SECTION + "\n\n" + _sharing_block()
     out += "\n\n" + _DRAFT_SECTION + "\n\n" + _draft_block()
     out += "\n\n" + render_holds_ddl()

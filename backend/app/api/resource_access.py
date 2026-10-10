@@ -368,9 +368,12 @@ async def grant_initial_sharing(
     """Share a resource that has just been made: its maker owns it — the
     table's own trigger wrote that row as the resource went in — and ``grants``
     says who else may reach it. An installed plug-in applies only the sharing its
-    create asked for (:func:`apply_plugin_initial_sharing`). The row is flushed
-    first; the caller commits.
+    create asked for (:func:`apply_plugin_initial_sharing`). A guest shares
+    nothing: what they make is theirs alone. The row is flushed first; the
+    caller commits.
     """
+    if actor.guest:
+        return
     if actor.user_id is None or user is None:
         await apply_plugin_initial_sharing(
             session,

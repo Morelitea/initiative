@@ -506,8 +506,12 @@ STANDING_FIELDS: tuple[tuple[str, str, str], ...] = (
     # change to any of it, whatever their rung. A grant is not held.
     _read(gucs.CONTENT_HOLD),
     # A ``moderate`` content grant covers the request: held content is
-    # readable (``app.db.holds``). Last, as ``ALTER TYPE`` appends.
+    # readable (``app.db.holds``).
     _read(gucs.PAM_MODERATE),
+    # A guest's request, and the initiatives of the items shared with them one
+    # at a time. Last, as ``ALTER TYPE`` appends.
+    _read(gucs.GUEST),
+    _read(gucs.GUEST_ITEM_INITIATIVES),
 )
 _STANDING_NAMES = frozenset(name for name, _type, _expr in STANDING_FIELDS)
 
@@ -627,6 +631,14 @@ class Legs:
     @property
     def pam_moderate(self) -> str:
         return self.field("pam_moderate")
+
+    @property
+    def guest(self) -> str:
+        return self.field("guest")
+
+    @property
+    def guest_items(self) -> str:
+        return self.field("guest_item_initiatives")
 
     @property
     def pam_any(self) -> str:
@@ -767,6 +779,10 @@ BEGIN
             OR {_B.pam_at_level("p_need_write")}
             OR ({_B.this_guild}
                 AND p_initiative_id = ANY ({_B.field("member_initiatives")}))
+            -- A guest's initiatives of the items shared with them one at a
+            -- time: sharing (gate 4) still decides which rows.
+            OR ({_B.this_guild}
+                AND p_initiative_id = ANY ({_B.guest_items}))
         )
     ;
 END
@@ -796,6 +812,10 @@ END
 $function$
 
 """
+
+#: Each tool's view key: all a guest's role permits in an initiative they reach
+#: only through items shared with them.
+_VIEW_KEYS = sql_values(tool.view_permission for tool in Tool)
 
 #: Gate 3: what a member's role in the initiative permits.
 #:
@@ -827,6 +847,8 @@ BEGIN
                  AND NOT ((p_initiative_id::text || ':' || p_key)
                               = ANY ({_B.field("role_denies")}))
              )
+             OR (p_initiative_id = ANY ({_B.guest_items})
+                 AND p_key IN ({_VIEW_KEYS}))
         ))
     ;
 END
@@ -862,8 +884,8 @@ p_tool IS NULL
 #: The grant rows on ``(p_tool, p_resource_id)`` that reach this reader: one
 #: naming them, one on an initiative role they hold, one shared with every
 #: member of an initiative they are in (or of the community, on a row that
-#: belongs to no initiative), or one naming the installed plug-in the request is
-#: for. Written over the row alias ``g``.
+#: belongs to no initiative, unless they are a guest), or one naming the
+#: installed plug-in the request is for. Written over the row alias ``g``.
 GRANT_REACHES_READER = f"""\
 g.resource_type = p_tool
               AND g.resource_id = p_resource_id
@@ -873,7 +895,7 @@ g.resource_type = p_tool
                     AND g.role_id = ANY ({_B.field("member_role_ids")}))
                 OR (g.all_initiative_members
                     AND {_B.this_guild}
-                    AND (g.initiative_id IS NULL
+                    AND ((g.initiative_id IS NULL AND NOT {_B.guest})
                          OR g.initiative_id = ANY ({_B.field("member_initiatives")})))
                 OR (g.plugin_install_id IS NOT NULL
                     AND g.plugin_install_id = {_B.install_id})
@@ -893,7 +915,8 @@ def _highest_rung_case() -> str:
 
 
 #: The rung the request holds on one row, or NULL for none. A content grant
-#: lends its own rung beside whatever the grant rows give, and never owner.
+#: lends its own rung beside whatever the grant rows give, and never owner;
+#: nor is a guest ever more than a writer.
 RESOURCE_LEVEL = f"""\
 CREATE OR REPLACE FUNCTION resource_level(p_tool text, p_resource_id integer, p_user_id integer, p_initiative_id integer, p_st standing)
  RETURNS text
@@ -905,7 +928,8 @@ DECLARE
 BEGIN
     IF {FULL_ACCESS}
     THEN
-        RETURN '{ResourceAccessLevel.owner.value}';
+        RETURN CASE WHEN {_B.guest} THEN '{ResourceAccessLevel.write.value}'
+                    ELSE '{ResourceAccessLevel.owner.value}' END;
     END IF;
     SELECT CASE
              {_highest_rung_case()}
@@ -919,6 +943,9 @@ BEGIN
     END IF;
     IF {_B.pam_read} AND v_level IS NULL THEN
         RETURN '{ResourceAccessLevel.read.value}';
+    END IF;
+    IF {_B.guest} AND v_level = '{ResourceAccessLevel.owner.value}' THEN
+        RETURN '{ResourceAccessLevel.write.value}';
     END IF;
     RETURN v_level;
 END
@@ -990,8 +1017,8 @@ _SHARES = f"""(v_level = '{_OWNER}'
 #: - ``delete``: owner, the row can be changed, and the request may change
 #:   the row itself (as ``edit``).
 #: - ``share``: as delete, and see ``_SHARES`` above.
-#: - ``configure`` (projects): owner or a manager of the initiative, and the
-#:   row can be changed.
+#: - ``configure`` (projects): owner or a manager of the initiative who is
+#:   not a guest, and the row can be changed.
 #: - ``export``: owner, on a row of no initiative or of one the request reads
 #:   that does not keep its content in. Allowed even when archived, since
 #:   exporting changes nothing.
@@ -1031,7 +1058,7 @@ BEGIN
             v_actions := v_actions || 'share'::text;
         END IF;
         IF v_level = '{_OWNER}'
-           OR ({_B.this_guild}
+           OR ({_B.this_guild} AND NOT {_B.guest}
                AND p_initiative_id = ANY ({_B.field("manager_initiatives")})) THEN
             v_actions := v_actions || 'configure'::text;
         END IF;
@@ -1204,9 +1231,9 @@ def _initiative_tool_actions() -> str:
 #: ``can``:
 #:
 #: - ``manage``: change its settings, members and roles — a community admin
-#:   or one of its managers.
+#:   or one of its managers who is not a guest.
 #: - ``moderate``: act on its moderation reports — "Full access" or a
-#:   community admin (:data:`INITIATIVE_FULL_ACCESS`).
+#:   community admin (:data:`INITIATIVE_FULL_ACCESS`), never a guest.
 #: - ``view:<tool>`` and ``create:<tool>`` per tool.
 INITIATIVE_ACTIONS = f"""\
 CREATE OR REPLACE FUNCTION initiative_actions(p_initiative_id integer, p_user_id integer, p_st standing)
@@ -1223,11 +1250,11 @@ BEGIN
         RETURN v_actions;
     END IF;
     IF {_B.system} OR {_B.admin}
-       OR ({_B.this_guild}
+       OR ({_B.this_guild} AND NOT {_B.guest}
            AND p_initiative_id = ANY ({_B.field("manager_initiatives")})) THEN
         v_actions := v_actions || 'manage'::text;
     END IF;
-    IF initiative_full_access(p_initiative_id, true, p_st) THEN
+    IF NOT {_B.guest} AND initiative_full_access(p_initiative_id, true, p_st) THEN
         v_actions := v_actions || 'moderate'::text;
     END IF;
 {_initiative_tool_actions()}

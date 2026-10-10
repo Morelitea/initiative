@@ -426,6 +426,26 @@ async def create_guild_membership(
     return membership
 
 
+async def create_guest(
+    session: AsyncSession,
+    guild: Guild,
+    *,
+    role: CommunityRole = CommunityRole.guest,
+    ends_in: timedelta = timedelta(hours=1),
+) -> User:
+    """A new account that is a guest of ``guild`` until ``ends_in`` from now.
+    The platform's guest switch is the caller's to set."""
+    user = await create_user(session)
+    await create_guild_membership(
+        session,
+        user=user,
+        guild=guild,
+        role=role,
+        guest_until=datetime.now(timezone.utc) + ends_in,
+    )
+    return user
+
+
 #: Where :func:`create_user` leaves the ``client``-sector reference an access
 #: token names the account by. Not a column — it is the value of a row in
 #: ``identity_refs``, carried on the object so the sync token helpers below can
