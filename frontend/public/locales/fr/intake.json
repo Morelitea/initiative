@@ -149,6 +149,13 @@
     "fromTeam": "L'équipe ({{name}})",
     "someone": "Quelqu'un",
     "conversationLabel": "Conversation avec {{name}}",
+    "access": {
+      "title": "Accès",
+      "listLabel": "Accès demandés pour ce dossier",
+      "none": "Aucun accès n'a été demandé pour ce dossier.",
+      "request": "Demander l'accès",
+      "endsIn": "se termine dans {{minutes}} min"
+    },
     "holds": {
       "title": "Retenues",
       "none": "Rien n'est retenu dans ce dossier.",

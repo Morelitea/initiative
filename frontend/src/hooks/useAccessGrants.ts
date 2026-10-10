@@ -10,9 +10,11 @@ import {
   getBreakGlassRequirementsQueryKey,
   getListAccessGrantQueueQueryKey,
   getListAccessGrantsQueryKey,
+  getListGrantCasesQueryKey,
   getReadAccessGrantLimitsQueryKey,
   listAccessGrantQueue,
   listAccessGrants,
+  listGrantCases,
   readAccessGrantLimits,
   revokeAccessGrant,
 } from "@/api/generated/access-grants/access-grants";
@@ -24,6 +26,7 @@ import type {
   AccessGrantRead,
   BreakGlassCreate,
   BreakGlassRequirements,
+  GrantCaseList,
 } from "@/api/generated/initiativeAPI.schemas";
 import { useApiMutation } from "@/hooks/useApiMutation";
 import type { MutationOpts } from "@/types/mutation";
@@ -96,6 +99,20 @@ export const useAccessGrantLimits = (options?: { enabled?: boolean }) =>
     queryFn: () => readAccessGrantLimits(),
     enabled: options?.enabled ?? true,
   });
+
+/**
+ * The open operations cases a grant may be asked for, the reader's own first,
+ * and whether a request must name one. Read as the reader, so it lists only
+ * cases they can open.
+ */
+export const useGrantCases = (options?: { enabled?: boolean; search?: string }) => {
+  const params = options?.search ? { search: options.search } : undefined;
+  return useQuery<GrantCaseList>({
+    queryKey: getListGrantCasesQueryKey(params),
+    queryFn: () => listGrantCases(params),
+    enabled: options?.enabled,
+  });
+};
 
 export const useCreateAccessRequest = (
   options?: MutationOpts<AccessGrantRead, AccessGrantCreate>

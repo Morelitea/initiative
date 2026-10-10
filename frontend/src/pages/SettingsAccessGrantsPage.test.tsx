@@ -10,7 +10,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildPage, buildUser } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
-import type { PlatformCommunityStorageRead } from "@/api/generated/initiativeAPI.schemas";
+import type {
+  GrantCaseList,
+  PlatformCommunityStorageRead,
+} from "@/api/generated/initiativeAPI.schemas";
 
 const createRequest = vi.fn();
 const breakGlass = vi.fn();
@@ -66,6 +69,11 @@ const noPages = <TPage,>(): UseInfiniteQueryResult<InfiniteData<TPage, number>, 
   isFetchingPreviousPage: false,
 });
 
+/** The open cases a grant may name, and whether a request must. */
+let grantCases: GrantCaseList = { items: [], required: false };
+/** What the server finds past the first page, by what was typed. */
+let searchedCases: Record<string, GrantCaseList> = {};
+
 /** The approver's pending queue, as a test sets it. */
 let pendingQueue: UseInfiniteQueryResult<InfiniteData<unknown, number>, Error> = noPages();
 
@@ -100,6 +108,12 @@ vi.mock(import("@/hooks/useAccessGrants"), async (importOriginal) => ({
   useAccessGrantQueue: ((status?: string) =>
     status === "pending" ? pendingQueue : noPages()) as never,
   useAccessGrantLimits: () => answered({ max_duration_minutes: requestCeiling }),
+  useGrantCases: (options?: { search?: string }) =>
+    answered(
+      options?.search
+        ? (searchedCases[options.search] ?? { items: [], required: false })
+        : grantCases
+    ),
   useCreateAccessRequest: () => idle(createRequest),
   useCancelAccessRequest: () => idle(),
   useBreakGlass: () => idle(breakGlass),
@@ -178,6 +192,7 @@ describe("SettingsAccessGrantsPage", () => {
     requestCeiling = 240;
     searched = undefined;
     pendingQueue = noPages();
+    grantCases = { items: [], required: false };
   });
 
   it("names whoever asked by their handle, never their address", async () => {
@@ -395,5 +410,178 @@ describe("SettingsAccessGrantsPage", () => {
     await user.click(screen.getByRole("button", { name: /^break glass$/i }));
 
     expect(breakGlass.mock.calls[0][0]).toMatchObject({ community_id: 7 });
+    expect(breakGlass.mock.calls[0][0].case_task_id).toBeUndefined();
+  });
+
+  describe("the case a grant is for", () => {
+    const spamWave = {
+      task_id: 31,
+      title: "Spam wave",
+      stream: "moderation",
+      subject_community_id: 7,
+      mine: true,
+    } as const;
+    const lostPhone = {
+      task_id: 32,
+      title: "Lost phone",
+      stream: "support",
+      subject_community_id: null,
+      mine: false,
+    } as const;
+
+    /** Choose a case in the form's picker (the first, or the one given). */
+    const pickCase = async (user: ReturnType<typeof userEvent.setup>, name: RegExp, picker = 0) => {
+      await user.click((await screen.findAllByRole("combobox", { name: "Case" }))[picker]);
+      await user.click(await screen.findByRole("option", { name }));
+    };
+
+    it("finds a case past the first page on the server", async () => {
+      const older = {
+        ...lostPhone,
+        task_id: 9,
+        title: "An old case",
+        mine: false,
+        subject_community_id: 7,
+      };
+      grantCases = { items: [spamWave], required: false };
+      searchedCases = { "old case": { items: [older], required: false } };
+      const user = userEvent.setup();
+      render();
+
+      await user.click(await screen.findByRole("combobox", { name: "Case" }));
+      await user.type(screen.getByPlaceholderText(/search/i), "old case");
+      await user.click(await screen.findByRole("option", { name: /#9 · An old case/ }));
+      await user.type(screen.getByLabelText(/reason/i), "looking into a report");
+      await user.click(screen.getByRole("button", { name: /request access/i }));
+
+      // Its community comes with it, as one from the first page's would.
+      expect(createRequest.mock.calls[0][0]).toMatchObject({
+        case_task_id: 9,
+        community_id: older.subject_community_id,
+      });
+      searchedCases = {};
+    });
+
+    it("names each case by number and title, its stream, and whether it is yours", async () => {
+      grantCases = { items: [spamWave, lostPhone], required: false };
+      const user = userEvent.setup();
+      render();
+
+      await user.click(await screen.findByRole("combobox", { name: "Case" }));
+
+      expect(
+        await screen.findByRole("option", { name: /#31 · Spam wave.*Moderation · yours/ })
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("option", { name: /#32 · Lost phone.*Support/ })
+      ).not.toHaveTextContent("yours");
+    });
+
+    it("will not send a request without a case where one is required, and sends the one chosen", async () => {
+      grantCases = { items: [spamWave, lostPhone], required: true };
+      const user = userEvent.setup();
+      render();
+
+      await pickCommunity(user);
+      await user.type(screen.getByLabelText(/reason/i), "looking into a report");
+
+      expect(screen.getByRole("button", { name: /request access/i })).toBeDisabled();
+      expect(screen.getByText("Choose the case this access is for.")).toBeInTheDocument();
+
+      await pickCase(user, /Lost phone/);
+      await user.click(screen.getByRole("button", { name: /request access/i }));
+
+      expect(createRequest.mock.calls[0][0]).toMatchObject({ community_id: 7, case_task_id: 32 });
+    });
+
+    it("says when a case is required and there is none to name", async () => {
+      grantCases = { items: [], required: true };
+      render();
+
+      expect(await screen.findByText(/no open case you can name/)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /request access/i })).toBeDisabled();
+    });
+
+    it("sends no case where none is required and none was chosen", async () => {
+      grantCases = { items: [spamWave], required: false };
+      const user = userEvent.setup();
+      render();
+
+      await pickCommunity(user);
+      await user.type(screen.getByLabelText(/reason/i), "a short look");
+      await user.click(screen.getByRole("button", { name: /request access/i }));
+
+      expect(createRequest.mock.calls[0][0].case_task_id).toBeUndefined();
+    });
+
+    it("starts with the case it was opened for, and the community that case is about", async () => {
+      grantCases = { items: [lostPhone, spamWave], required: true };
+      const user = userEvent.setup();
+      render(["access.request"], { case: 31, form: "request" });
+
+      expect(await screen.findByRole("combobox", { name: "Case" })).toHaveTextContent(
+        "#31 · Spam wave"
+      );
+      expect(screen.getByRole("combobox", { name: "Community" })).toHaveTextContent("#7");
+
+      await user.type(screen.getByLabelText(/reason/i), "the spam wave");
+      await user.click(screen.getByRole("button", { name: /request access/i }));
+
+      expect(createRequest.mock.calls[0][0]).toMatchObject({ community_id: 7, case_task_id: 31 });
+    });
+
+    it("takes the community the case is about until another is picked", async () => {
+      grantCases = { items: [spamWave], required: false };
+      const user = userEvent.setup();
+      render();
+
+      await pickCase(user, /Spam wave/);
+      expect(screen.getByRole("combobox", { name: "Community" })).toHaveTextContent("#7");
+      expect(screen.queryByText(/This case is about community/)).toBeNull();
+    });
+
+    it("warns, without refusing, when the community picked is not the case's", async () => {
+      grantCases = { items: [spamWave], required: true };
+      const user = userEvent.setup();
+      render();
+
+      await pickCase(user, /Spam wave/);
+      await pickCommunity(user, /Gone Community/);
+
+      expect(
+        screen.getByText("This case is about community #7, not the one chosen.")
+      ).toBeInTheDocument();
+      await user.type(screen.getByLabelText(/reason/i), "the spam wave");
+      await user.click(screen.getByRole("button", { name: /request access/i }));
+
+      expect(createRequest.mock.calls[0][0]).toMatchObject({ community_id: 9, case_task_id: 31 });
+    });
+
+    it("breaks glass for the case chosen", async () => {
+      grantCases = { items: [spamWave, lostPhone], required: true };
+      const user = userEvent.setup();
+      render(["data.bypass"]);
+
+      expect(await screen.findByText(/Optional\. Without one/)).toBeInTheDocument();
+      await pickCase(user, /Lost phone/);
+      await pickCommunity(user);
+      await user.type(screen.getByLabelText(/reason/i), "incident 12");
+      await user.click(screen.getByRole("button", { name: /^break glass$/i }));
+
+      expect(breakGlass.mock.calls[0][0]).toMatchObject({ community_id: 7, case_task_id: 32 });
+    });
+
+    it("breaks glass without a case, even where a request needs one", async () => {
+      grantCases = { items: [spamWave], required: true };
+      const user = userEvent.setup();
+      render(["data.bypass"]);
+
+      await pickCommunity(user);
+      await user.type(await screen.findByLabelText(/reason/i), "incident 12");
+      await user.click(screen.getByRole("button", { name: /^break glass$/i }));
+
+      expect(breakGlass).toHaveBeenCalledTimes(1);
+      expect(breakGlass.mock.calls[0][0].case_task_id).toBeUndefined();
+    });
   });
 });

@@ -833,5 +833,10 @@
   "COMMUNITY_SUSPENSION_NEEDS_GRANT": "Para suspender una comunidad o levantar su suspensión necesitas una concesión de moderación vigente sobre ella. Solicítala en Acceso.",
   "COMMUNITY_NOT_SUSPENDABLE": "Esta comunidad no se puede suspender desde el estado en el que está ahora.",
   "COMMUNITY_NOT_SUSPENDED": "Esta comunidad no está suspendida, así que no hay ninguna suspensión que levantar.",
-  "OPERATOR_CANNOT_ACT_ON_SELF": "No puedes hacer esto con tu propia cuenta desde aquí. Cámbialo en tu propia configuración."
+  "OPERATOR_CANNOT_ACT_ON_SELF": "No puedes hacer esto con tu propia cuenta desde aquí. Cámbialo en tu propia configuración.",
+  "ACCESS_GRANT_CASE_REQUIRED": "Elige el caso para el que es este acceso.",
+  "ACCESS_GRANT_CASE_NOT_FOUND": "No se encontró ese caso, o no puedes abrirlo.",
+  "ACCESS_GRANT_CASE_NOT_LINKABLE": "No se puede pedir acceso para un caso de este tipo.",
+  "ACCESS_GRANT_CASE_CLOSED": "Ese caso está cerrado.",
+  "ACCESS_GRANT_CASE_OTHER_COMMUNITY": "Ese caso trata de otra comunidad."
 }

@@ -1972,6 +1972,15 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
     # What the security rules counted, per key and window
     # (app.services.platform.security_signals). Keys are HMACs, never an
     # address or an account.
+    "access_grant_activity": SharedTable(
+        rls=FORCED_NO_POLICY,
+        grants=Grants(
+            # The request audit middleware adds a row per request served
+            # through a grant, the grant sweep reads them into its case's
+            # digests, and they go with their grant — all on the system engine.
+            app_admin=frozenset({SELECT, INSERT, DELETE}),
+        ),
+    ),
     "security_signal_windows": SharedTable(
         rls=FORCED_NO_POLICY,
         grants=Grants(

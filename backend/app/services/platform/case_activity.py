@@ -39,6 +39,18 @@ class ActivityKind(str, Enum):
     community_settled = "community_settled"
     #: What this case is about should be held, and nothing has held it yet.
     hold_requested = "hold_requested"
+    #: Somebody asked for access to a community for this case.
+    grant_requested = "grant_requested"
+    #: An access request for this case was approved, denied or revoked.
+    grant_decided = "grant_decided"
+    #: What a grant for this case did, so far or in all.
+    grant_digest = "grant_digest"
+    #: A moderation act taken under a grant for this case.
+    moderation_act = "moderation_act"
+    #: A community's status changed under a grant for this case.
+    guild_act = "guild_act"
+    #: Staff acted on an account for this case.
+    account_act = "account_act"
 
 
 def repeat_text(*, occurrences: int, detail: str | None) -> str:

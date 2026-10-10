@@ -17,7 +17,7 @@
 
 import { Link } from "@tanstack/react-router";
 import { Eraser, ImageOff, KeyRound, LogOut } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -25,6 +25,7 @@ import {
   UserAction,
   type UserRole,
 } from "@/api/generated/initiativeAPI.schemas";
+import { CasePicker } from "@/components/platform/CasePicker";
 import { Section, SettingRow } from "@/components/platform/SettingRow";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -41,6 +42,8 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { ProfileAvatar } from "@/components/user/ProfileAvatar";
+import { useGrantCases } from "@/hooks/useAccessGrants";
+import { useAuth } from "@/hooks/useAuth";
 import {
   type OperatorProfileField,
   useOperatorAccountCases,
@@ -55,6 +58,7 @@ import {
 import { useServerForm } from "@/hooks/useServerForm";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { toast } from "@/lib/mascotToast";
+import { Capability, hasAnyCapability } from "@/lib/permissions";
 import { getUserHandle } from "@/lib/userDisplay";
 import type { TranslateFn } from "@/types/i18n";
 
@@ -190,79 +194,110 @@ export const UserOperatorSettingsSheet = ({
   const [apiKeysConfirm, setApiKeysConfirm] = useState(false);
   const [signOutConfirm, setSignOutConfirm] = useState(false);
   const [clearing, setClearing] = useState<OperatorProfileField | null>(null);
+  // The acts here may be taken for an operations case, which hears of each.
+  // Chosen afresh for each account the sheet opens on.
+  const { user: viewer } = useAuth();
+  const mayNameCase = hasAnyCapability(viewer, [Capability.accessRequest, Capability.dataBypass]);
+  const grantCases = useGrantCases({ enabled: open && mayNameCase });
+  const [caseTaskId, setCaseTaskId] = useState<number | null>(null);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a new account starts with no case
+  useEffect(() => {
+    setCaseTaskId(null);
+  }, [user?.id]);
 
-  const setUsername = useOperatorSetUsername({
-    onSuccess: () => toast.success(t("platformUsers.usernameChanged")),
-    onError: (err) => toast.error(getErrorMessage(err, "settings:platformUsers.actionError")),
-  });
+  const setUsername = useOperatorSetUsername(
+    {
+      onSuccess: () => toast.success(t("platformUsers.usernameChanged")),
+      onError: (err) => toast.error(getErrorMessage(err, "settings:platformUsers.actionError")),
+    },
+    caseTaskId
+  );
 
-  const setSuspension = useOperatorSetSuspension({
-    onSuccess: () => {
-      setSuspendOpen(false);
-      setSuspendReason("");
+  const setSuspension = useOperatorSetSuspension(
+    {
+      onSuccess: () => {
+        setSuspendOpen(false);
+        setSuspendReason("");
+      },
+      onError: (err) => toast.error(getErrorMessage(err, "settings:platformUsers.actionError")),
     },
-    onError: (err) => toast.error(getErrorMessage(err, "settings:platformUsers.actionError")),
-  });
+    caseTaskId
+  );
 
-  const updateRole = useOperatorUpdatePlatformRole({
-    onSuccess: (_data, variables) => {
-      toast.success(
-        t("platformUsers.roleChangeSuccess", {
-          role: platformRoleLabel(variables.role, t as TranslateFn),
-        })
-      );
-      setRoleConfirm(null);
+  const updateRole = useOperatorUpdatePlatformRole(
+    {
+      onSuccess: (_data, variables) => {
+        toast.success(
+          t("platformUsers.roleChangeSuccess", {
+            role: platformRoleLabel(variables.role, t as TranslateFn),
+          })
+        );
+        setRoleConfirm(null);
+      },
+      onError: (err) => {
+        toast.error(getErrorMessage(err, "settings:platformUsers.roleChangeError"));
+        setRoleConfirm(null);
+      },
     },
-    onError: (err) => {
-      toast.error(getErrorMessage(err, "settings:platformUsers.roleChangeError"));
-      setRoleConfirm(null);
-    },
-  });
+    caseTaskId
+  );
 
-  const removeAvatar = useOperatorRemoveAvatar({
-    onSuccess: () => {
-      toast.success(t("platformUsers.sheet.avatarRemoved"));
-      setAvatarConfirm(false);
+  const removeAvatar = useOperatorRemoveAvatar(
+    {
+      onSuccess: () => {
+        toast.success(t("platformUsers.sheet.avatarRemoved"));
+        setAvatarConfirm(false);
+      },
+      onError: (err) => {
+        toast.error(getErrorMessage(err, "settings:platformUsers.actionError"));
+        setAvatarConfirm(false);
+      },
     },
-    onError: (err) => {
-      toast.error(getErrorMessage(err, "settings:platformUsers.actionError"));
-      setAvatarConfirm(false);
-    },
-  });
+    caseTaskId
+  );
 
-  const revokeApiKeys = useOperatorRevokeApiKeys({
-    onSuccess: () => {
-      toast.success(t("platformUsers.sheet.apiKeysRevoked"));
-      setApiKeysConfirm(false);
+  const revokeApiKeys = useOperatorRevokeApiKeys(
+    {
+      onSuccess: () => {
+        toast.success(t("platformUsers.sheet.apiKeysRevoked"));
+        setApiKeysConfirm(false);
+      },
+      onError: (err) => {
+        toast.error(getErrorMessage(err, "settings:platformUsers.actionError"));
+        setApiKeysConfirm(false);
+      },
     },
-    onError: (err) => {
-      toast.error(getErrorMessage(err, "settings:platformUsers.actionError"));
-      setApiKeysConfirm(false);
-    },
-  });
+    caseTaskId
+  );
 
-  const signOut = useOperatorSignOutEverywhere({
-    onSuccess: () => {
-      toast.success(t("platformUsers.sheet.signOutDone"));
-      setSignOutConfirm(false);
+  const signOut = useOperatorSignOutEverywhere(
+    {
+      onSuccess: () => {
+        toast.success(t("platformUsers.sheet.signOutDone"));
+        setSignOutConfirm(false);
+      },
+      onError: (err) => {
+        toast.error(getErrorMessage(err, "settings:platformUsers.actionError"));
+        setSignOutConfirm(false);
+      },
     },
-    onError: (err) => {
-      toast.error(getErrorMessage(err, "settings:platformUsers.actionError"));
-      setSignOutConfirm(false);
-    },
-  });
+    caseTaskId
+  );
 
-  const clearField = useOperatorClearProfileField({
-    onSuccess: (_data, variables) => {
-      const entry = PROFILE_FIELDS.find((item) => item.field === variables.field);
-      if (entry) toast.success(t(`platformUsers.sheet.clear.${entry.key}.done`));
-      setClearing(null);
+  const clearField = useOperatorClearProfileField(
+    {
+      onSuccess: (_data, variables) => {
+        const entry = PROFILE_FIELDS.find((item) => item.field === variables.field);
+        if (entry) toast.success(t(`platformUsers.sheet.clear.${entry.key}.done`));
+        setClearing(null);
+      },
+      onError: (err) => {
+        toast.error(getErrorMessage(err, "settings:platformUsers.actionError"));
+        setClearing(null);
+      },
     },
-    onError: (err) => {
-      toast.error(getErrorMessage(err, "settings:platformUsers.actionError"));
-      setClearing(null);
-    },
-  });
+    caseTaskId
+  );
 
   if (!user) return null;
 
@@ -302,6 +337,23 @@ export const UserOperatorSettingsSheet = ({
             <SheetTitle>{getUserHandle(user)}</SheetTitle>
             <SheetDescription>{t("platformUsers.sheet.description")}</SheetDescription>
           </SheetHeader>
+
+          {mayNameCase && (grantCases.data?.items.length ?? 0) > 0 ? (
+            <div className="space-y-1 pt-4">
+              <Label htmlFor="operator-user-case">{t("platformUsers.sheet.forCase")}</Label>
+              <CasePicker
+                cases={grantCases.data?.items ?? []}
+                value={caseTaskId}
+                onChange={setCaseTaskId}
+                optional
+                loading={grantCases.isLoading}
+                aria-label={t("platformUsers.sheet.forCase")}
+              />
+              <p className="text-muted-foreground text-xs">
+                {t("platformUsers.sheet.forCaseHelp")}
+              </p>
+            </div>
+          ) : null}
 
           <div className="space-y-6 py-6">
             {(showIdentity || showAvatar || clearable.length > 0) && (

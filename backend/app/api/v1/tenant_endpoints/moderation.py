@@ -47,6 +47,7 @@ from app.services.platform.holds import HoldWhy
 from app.services.tenant import moderation as moderation_service
 from app.services.tenant import moderation_acts
 from app.services.tenant import sharing_overview
+from app.services.platform import grant_cases
 
 router = APIRouter()
 
@@ -185,6 +186,11 @@ async def settle_report(
         removal_reason=payload.removal_reason,
         message=(payload.message or "").strip() or None,
     )
+    await grant_cases.note_act(
+        guild_context,
+        f"Settled report {report.id} in community #{guild_context.guild_id} as "
+        f"{payload.outcome.value.replace('_', ' ')}.",
+    )
     # The same reporter figures the list carries: a settled report is the same
     # shape as an open one, and answering zero would have the page replace what
     # it already had with nothing.
@@ -320,6 +326,13 @@ async def moderate(
             note=payload.note,
         ),
     )
+    await grant_cases.note_act(
+        guild_context,
+        f"{payload.act.value.replace('_', ' ').capitalize()}: {payload.target_type} "
+        f"{payload.target_id} in community #{guild_context.guild_id}"
+        + (f", for {payload.reason.value}" if payload.reason else "")
+        + f" (moderation act {action.id}).",
+    )
     return await _one(session, action)
 
 
@@ -342,6 +355,11 @@ async def restore_removal(
         actor_id=current_user.id,
         action_id=action_id,
         note=payload.note,
+    )
+    await grant_cases.note_act(
+        guild_context,
+        f"Put back what moderation act {action_id} removed, in community "
+        f"#{guild_context.guild_id}.",
     )
     read = await _one(session, action)
     read.restorable = False

@@ -131,7 +131,11 @@ export const CaseHolds = ({ taskId, communityId, resourceType, resourceId }: Cas
       {holds.isError ? (
         <p className="text-muted-foreground text-sm">
           {t("case.holds.needGrant", { community: communityId })}{" "}
-          <Link to="/settings/operator/access" className="underline underline-offset-2">
+          <Link
+            to="/settings/operator/access"
+            search={{ form: "request", case: taskId, community: communityId }}
+            className="underline underline-offset-2"
+          >
             {t("case.holds.requestAccess")}
           </Link>
         </p>

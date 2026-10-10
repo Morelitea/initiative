@@ -473,17 +473,19 @@ AgeViewerDep = Annotated[AgeViewer, Depends(get_age_viewer)]
 FactorExemptUser = Annotated[User, Depends(get_active_user_exempt_from_factor)]
 
 
-def require_capability(capability: Capability) -> Callable:
-    """Dependency factory gating an endpoint on a platform capability.
+def require_capability(capability: Capability, *alternatives: Capability) -> Callable:
+    """Dependency factory gating an endpoint on a platform capability, or on
+    any one of several where each is reason enough.
 
     Access is expressed against the capability model rather than a hardcoded
     role name (see ``app.core.capabilities``).
     """
+    accepted = (capability, *alternatives)
 
     async def dependency(
         current_user: Annotated[User, Depends(get_current_active_user)],
     ) -> User:
-        if not user_has_capability(current_user, capability):
+        if not any(user_has_capability(current_user, held) for held in accepted):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=AuthMessages.INSUFFICIENT_PRIVILEGES,

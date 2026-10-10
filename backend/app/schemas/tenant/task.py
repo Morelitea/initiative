@@ -17,6 +17,7 @@ from app.schemas.base import (
 from app.schemas.query import PageMeta
 from app.schemas.recurrence import OccurrenceScope, TaskRule
 
+from app.schemas.platform.access_grant import AccessGrantRead
 from app.schemas.platform.user import PersonShape, UserPublic
 from app.schemas.tenant.evidence import EvidenceRead
 from app.schemas.tenant.plugin_data import PluginValueSummary
@@ -342,6 +343,9 @@ class TaskCaseRead(SanitizedBaseModel):
     messages: List[CaseMessageRead] = Field(default_factory=list)
     #: What was attached to the case, oldest first.
     evidence: List[CaseEvidenceRead] = Field(default_factory=list)
+    #: The access grants asked for this case, newest first: who holds each,
+    #: on which community, at what level, and where it stands.
+    grants: List[AccessGrantRead] = Field(default_factory=list)
     #: What the case is about, as it was opened with: the community, and the
     #: kind and id of the thing in it, where it names them.
     subject_community_id: Optional[int] = None

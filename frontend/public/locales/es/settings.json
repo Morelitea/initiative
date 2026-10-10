@@ -921,7 +921,9 @@
         "filed": "Presentado por esta cuenta",
         "about": "Sobre esta cuenta",
         "help": "Para abrir un caso necesitas acceso al proyecto donde se guarda."
-      }
+      },
+      "forCase": "Para el caso",
+      "forCaseHelp": "Opcional. Lo que hagas aquí se anota en el caso que elijas."
     },
     "deleted": "Eliminada",
     "erasedOn": "Se borra el {{date}}",
@@ -1034,7 +1036,18 @@
     "communityLabel": "Comunidad",
     "communityPlaceholder": "Elige una comunidad",
     "communitySearch": "Buscar por nombre o número…",
-    "communityEmpty": "No se encontraron comunidades."
+    "communityEmpty": "No se encontraron comunidades.",
+    "caseLabel": "Caso",
+    "casePlaceholder": "Elige un caso",
+    "caseSearch": "Buscar por título o número…",
+    "caseEmpty": "No se encontraron casos abiertos.",
+    "caseNone": "Ningún caso",
+    "caseYours": "tuyo",
+    "caseRequiredHint": "Elige el caso para el que es este acceso.",
+    "caseRequiredNoneOpen": "Aquí el acceso se solicita para un caso, y no hay ningún caso abierto que puedas indicar. Abre uno primero.",
+    "caseOptionalHint": "Opcional. Sin uno, anota después a mano en el caso lo que hiciste.",
+    "caseOtherCommunity": "Este caso trata de la comunidad #{{community}}, no de la elegida.",
+    "caseMark": "Caso #{{id}}"
   },
   "platformLayout": {
     "title": "Configuración de la plataforma",

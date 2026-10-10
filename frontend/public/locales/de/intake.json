@@ -149,6 +149,13 @@
     "fromTeam": "Das Team ({{name}})",
     "someone": "Jemand",
     "conversationLabel": "Gespräch mit {{name}}",
+    "access": {
+      "title": "Zugriff",
+      "listLabel": "Für diesen Fall beantragter Zugriff",
+      "none": "Für diesen Fall wurde noch kein Zugriff beantragt.",
+      "request": "Zugriff beantragen",
+      "endsIn": "endet in {{minutes}} Min."
+    },
     "holds": {
       "title": "Zurückhaltungen",
       "none": "In diesem Fall wird nichts zurückgehalten.",

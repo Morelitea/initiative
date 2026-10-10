@@ -253,11 +253,12 @@ async def request_grants(
     await _lock_user_guild_grants(
         session, user_id=requester.id, guild_id=payload.community_id
     )
-    guild = await guilds_service.get_guild(session, guild_id=payload.community_id)
-    if guild is None:
+    try:
+        guild = await guilds_service.get_guild(session, guild_id=payload.community_id)
+    except ValueError:
         raise AccessGrantError(
             AccessGrantMessages.COMMUNITY_NOT_FOUND, status.HTTP_404_NOT_FOUND
-        )
+        ) from None
 
     # Members don't need a grant — they already have standing access.
     membership = await guilds_service.get_membership(
@@ -303,6 +304,7 @@ async def request_grants(
             reason=payload.reason,
             requested_duration_minutes=duration,
             requested_by_id=requester.id,
+            case_task_id=payload.case_task_id,
         )
         session.add(grant)
         created.append(grant)
@@ -409,11 +411,12 @@ async def break_glass(
         raise AccessGrantError(
             AccessGrantMessages.MODERATE_NOT_HELD, status.HTTP_403_FORBIDDEN
         )
-    guild = await guilds_service.get_guild(session, guild_id=payload.community_id)
-    if guild is None:
+    try:
+        await guilds_service.get_guild(session, guild_id=payload.community_id)
+    except ValueError:
         raise AccessGrantError(
             AccessGrantMessages.COMMUNITY_NOT_FOUND, status.HTTP_404_NOT_FOUND
-        )
+        ) from None
 
     # A member already has standing access — nothing to break glass for.
     membership = await guilds_service.get_membership(
@@ -468,6 +471,7 @@ async def break_glass(
         approved_by_id=actor.id,
         decided_at=now,
         expires_at=now + timedelta(minutes=duration),
+        case_task_id=getattr(payload, "case_task_id", None),
     )
     session.add(grant)
     await session.flush()
@@ -788,11 +792,18 @@ async def process_grant_expiry() -> None:
     """Background sweep: mark the grants whose window has closed."""
     from app.db.session import SystemSessionLocal
 
+    from app.services.platform import grant_cases
+
     async with SystemSessionLocal() as session:
         expired = await expire_due(session)
         await session.commit()
     if expired:
         logger.info("access grants: marked %s expired", expired)
+    # Then each case hears what the grants serving it did.
+    async with SystemSessionLocal() as session:
+        told = await grant_cases.report_activity(session)
+    if told:
+        logger.info("access grants: told %s cases what their grants did", told)
 
 
 async def _enrichment(
