@@ -1233,26 +1233,43 @@ class SurfaceOpenability:
 
 @dataclass(frozen=True)
 class ItemOpenability:
-    """Where one viewer meets a plug-in on items, and what they may run."""
+    """Where one viewer meets a plug-in on items, and what of it they meet."""
 
     #: The initiatives whose items show the viewer the plug-in's values.
     initiatives: tuple[int, ...]
+    #: The declared fields and parts whose connections hold what they need.
+    fields: tuple[str, ...]
+    parts: tuple[str, ...]
     #: The declared actions the viewer may run on those items.
     actions: tuple[str, ...]
 
 
+def _declared(definition: dict[str, Any], block: str, id_key: str) -> list[dict]:
+    entries = definition.get(block)
+    return [
+        entry
+        for entry in (entries if isinstance(entries, list) else [])
+        if isinstance(entry, dict) and isinstance(entry.get(id_key), str)
+    ]
+
+
 def item_openability(
-    definition: Any,
+    plugin: Any,
     *,
     placements: Sequence[PluginPlacement],
     is_guild_admin: bool,
     member_role_ids: Collection[int],
     age_allows: bool = True,
+    frozen: bool = False,
 ) -> ItemOpenability:
     """:data:`ITEM_SURFACE` measured against each placement, as
-    :func:`surface_openability` measures a page. An action whose write
-    endpoint is admin-only is the community's admins' alone."""
-    definition = definition if isinstance(definition, dict) else {}
+    :func:`surface_openability` measures a page. A field, a part or an action
+    is offered while the community's connections it requires hold a value
+    (:func:`~app.services.tenant.plugin_config.installation_meets`), and an
+    action while those its write endpoint requires do too. An admin-only
+    endpoint's action is the community's admins' alone, and a frozen
+    community runs none."""
+    definition = plugin.definition if isinstance(plugin.definition, dict) else {}
     initiatives = tuple(
         row.initiative_id
         for row in sorted(placements, key=lambda row: row.initiative_id)
@@ -1267,21 +1284,28 @@ def item_openability(
         is SurfaceAccess.open
     )
     if not initiatives:
-        return ItemOpenability(initiatives=(), actions=())
-    declared = definition.get("endpoints")
+        return ItemOpenability(initiatives=(), fields=(), parts=(), actions=())
+
+    def met(entry: dict) -> bool:
+        return plugin_config_service.installation_meets(plugin, entry.get("requires"))
+
     endpoints = {
-        endpoint.get("id"): endpoint
-        for endpoint in (declared if isinstance(declared, list) else [])
-        if isinstance(endpoint, dict)
+        endpoint["id"]: endpoint
+        for endpoint in _declared(definition, "endpoints", "id")
     }
-    actions = definition.get("actions")
     return ItemOpenability(
         initiatives=initiatives,
-        actions=tuple(
+        fields=tuple(
+            f["key"] for f in _declared(definition, "fields", "key") if met(f)
+        ),
+        parts=tuple(p["id"] for p in _declared(definition, "parts", "id") if met(p)),
+        actions=()
+        if frozen
+        else tuple(
             action["id"]
-            for action in (actions if isinstance(actions, list) else [])
-            if isinstance(action, dict)
-            and isinstance(action.get("id"), str)
+            for action in _declared(definition, "actions", "id")
+            if met(action)
+            and met(endpoints.get(action.get("endpoint")) or {})
             and (
                 is_guild_admin
                 or not is_admin_only(endpoints.get(action.get("endpoint")))

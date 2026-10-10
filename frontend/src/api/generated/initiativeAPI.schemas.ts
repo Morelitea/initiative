@@ -2892,6 +2892,8 @@ export interface CommunityPluginDetail {
   placements: PluginPlacementRead[];
   surface_access: PluginSurfaceAccessRead[];
   item_initiatives: number[];
+  item_fields: string[];
+  item_parts: string[];
   item_actions: string[];
   granted_scopes: string[];
   mandatory: boolean;
@@ -2968,6 +2970,8 @@ export interface CommunityPluginRead {
   placements: PluginPlacementRead[];
   surface_access: PluginSurfaceAccessRead[];
   item_initiatives: number[];
+  item_fields: string[];
+  item_parts: string[];
   item_actions: string[];
   granted_scopes: string[];
   mandatory: boolean;

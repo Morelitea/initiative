@@ -4,7 +4,9 @@ An action is declared in the install's pinned definition, offered on some kinds
 of item, and names one of the plug-in's write endpoints. Initiative only
 connects, and checks, in order, that the connection may be made:
 
-1. the pinned definition declares the action on this kind of item;
+1. the pinned definition declares the action on this kind of item, the
+   community's content is not frozen, and the community's connections the
+   action requires hold a value;
 2. the reader can read the item, through the ordinary resource path;
 3. the install is placed in the item's initiative with a role the reader holds
    (:func:`~app.services.tenant.guild_plugins.surface_access`, as a page
@@ -41,7 +43,7 @@ from app.services.marketplace.plugin_data import PluginDataError
 from app.services.marketplace.plugin_refs import ensure_plugin_ref
 from app.services.marketplace.registration_lookup import RegistrationSnapshot
 from app.services.marketplace.service_plugins import is_admin_only
-from app.services.tenant import guild_plugins
+from app.services.tenant import guild_plugins, plugin_config
 from app.services.tenant.guild_plugins import SurfaceAccess
 
 __all__ = ["run_action"]
@@ -157,6 +159,12 @@ async def run_action(
         raise PluginDataError(PluginDataMessages.ACTION_NOT_FOUND, 404)
     if not plugin.enabled:
         raise PluginDataError(PluginDataMessages.PLUGIN_DISABLED, 409)
+    # A frozen community's content changes through nothing, a plug-in's
+    # write included.
+    if context.content_read_only:
+        raise _not_offered()
+    if not plugin_config.installation_meets(plugin, action.get("requires")):
+        raise PluginDataError(PluginDataMessages.NEEDS_CONFIGURATION, 409)
     registration = await plugin_data._load_registration(None, plugin=plugin)
 
     install_id = int(plugin.id or 0)

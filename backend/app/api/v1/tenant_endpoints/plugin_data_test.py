@@ -45,7 +45,7 @@ from app.core.config import settings
 from app.core.encryption import SALT_PLUGIN_CONFIG, encrypt_field
 from app.core.messages import PluginDataMessages, GuildPluginMessages
 from app.models.platform.plugin_service_registration import PluginServiceRegistration
-from app.models.platform.guild import CommunityRole
+from app.models.platform.guild import CommunityRole, CommunityStatus, Guild
 from app.models.tenant.guild_plugin_user_connection import GuildPluginUserConnection
 from app.models.tenant.initiative import InitiativeMember
 from app.models.tenant.plugin_metadata import PluginMetadata
@@ -1878,6 +1878,40 @@ class TestActions:
             user_id=member.user.id,
         )
         assert "act" not in claims and "member" not in claims
+
+    async def test_an_unmet_connection_or_a_frozen_community_runs_nothing(
+        self, client, acting_user, session, plugin_write
+    ):
+        admin, member, plugin, tasks = await _action_board(session, acting_user)
+        token = {"key": "token", "type": "secret", "required": True}
+        plugin.definition = {
+            **plugin.definition,
+            "connections": [{"id": "admin", "scope": "static", "fields": [token]}],
+            "actions": [
+                {**plugin.definition["actions"][0], "requires": {"all_of": ["admin"]}}
+            ],
+        }
+        session.add(plugin)
+        await session.commit()
+        body = {"entity_type": "task", "entity_id": tasks["shared"]}
+
+        unmet = await client.post(
+            _run(member, plugin), headers=member.headers, json=body
+        )
+        guild = await session.get(Guild, admin.guild.id)
+        assert guild is not None
+        guild.status = CommunityStatus.read_only.value
+        session.add(guild)
+        await session.commit()
+        frozen = await client.post(
+            _run(member, plugin), headers=member.headers, json=body
+        )
+
+        assert unmet.status_code == 409, unmet.text
+        assert unmet.json()["detail"] == PluginDataMessages.NEEDS_CONFIGURATION
+        assert frozen.status_code == 403, frozen.text
+        assert frozen.json()["detail"] == PluginDataMessages.ACTION_NOT_OFFERED
+        assert plugin_write.calls == []
 
     @pytest.mark.parametrize(
         ("who", "task", "body", "status_code", "detail"),

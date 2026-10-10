@@ -51,6 +51,8 @@ const install = {
   enabled: true,
   definition,
   item_initiatives: [7],
+  item_fields: ["ci.state", "ci.url", "event.only"],
+  item_parts: ["builds"],
   item_actions: ["rerun"],
 };
 
@@ -79,21 +81,26 @@ const draw = (card: ViewNode, item: TaskListRead = task) => {
 };
 
 describe("pluginsOnItems", () => {
-  it("keeps what an install declares on tasks where the reader meets it", () => {
+  it("keeps what an install declares on tasks, of what the server offers the reader", () => {
     const plugins = pluginsOnItems(
       [
         install,
         { ...install, id: 4, enabled: false },
         { ...install, id: 5, item_initiatives: [8] },
+        // Its connection holds nothing, so the server offers less of it.
+        { ...install, id: 6, item_fields: ["ci.url"], item_parts: [], item_actions: [] },
       ],
       7
     );
 
-    expect([...plugins.keys()]).toEqual([3]);
-    const plugin = plugins.get(3);
+    expect([...plugins.keys()]).toEqual([3, 6]);
+    const [plugin, unmet] = [plugins.get(3), plugins.get(6)];
     expect([...(plugin?.fields.keys() ?? [])]).toEqual(["ci.state", "ci.url"]);
-    // Only the actions the server says this reader may run.
+    expect([...(plugin?.parts.keys() ?? [])]).toEqual(["builds"]);
     expect([...(plugin?.actions.keys() ?? [])]).toEqual(["rerun"]);
+    expect([...(unmet?.fields.keys() ?? [])]).toEqual(["ci.url"]);
+    expect(unmet?.parts.size).toBe(0);
+    expect(unmet?.actions.size).toBe(0);
   });
 });
 

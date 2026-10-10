@@ -262,6 +262,10 @@ class CommunityPluginRead(SanitizedBaseModel):
     #: The initiatives whose items show the viewer this plug-in's values and
     #: parts.
     item_initiatives: List[int] = []
+    #: The declared fields and parts offered there: those whose connections
+    #: hold what they require.
+    item_fields: List[str] = []
+    item_parts: List[str] = []
     #: The declared actions the viewer may run on those items.
     item_actions: List[str] = []
     #: The scopes the community's seat granted this install: empty until the
@@ -555,11 +559,12 @@ def serialize_guild_plugin(
         age_allows=age_allows,
     )
     on_items = item_openability(
-        definition,
+        plugin,
         placements=placements,
         is_guild_admin=context.is_admin,
         member_role_ids=context.member_role_ids,
         age_allows=age_allows,
+        frozen=context.content_read_only,
     )
     features = definition.get("features")
     service_state = install_state or InstallState()
@@ -595,6 +600,8 @@ def serialize_guild_plugin(
             for one in openability
         ],
         item_initiatives=list(on_items.initiatives),
+        item_fields=list(on_items.fields),
+        item_parts=list(on_items.parts),
         item_actions=list(on_items.actions),
         granted_scopes=sorted(plugin.granted_scopes or []),
         mandatory=service_state.mandatory,

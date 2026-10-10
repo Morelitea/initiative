@@ -472,6 +472,8 @@ describe("TaskEditPage", () => {
               enabled: true,
               definition: { actions: [action, { ...action, id: "hidden", menu: false }] },
               item_initiatives: [INITIATIVE_ID],
+              item_fields: [],
+              item_parts: [],
               item_actions: ["link", "hidden"],
             },
           ],

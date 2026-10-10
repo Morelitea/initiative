@@ -59,7 +59,7 @@ type PluginActionDecl = {
 };
 
 /** One install as a reader meets it on one kind of item: what it declares
- *  there, and only the actions this reader may run. */
+ *  there, of what the server offers this reader. */
 export type PluginOnItems = {
   id: number;
   fields: ReadonlyMap<string, PluginFieldDecl>;
@@ -70,11 +70,18 @@ export type PluginOnItems = {
 /** A task: the kind of item plug-ins are drawn on so far. */
 const KIND = "task";
 
-const declared = <T extends { on: string[] }>(definition: object, block: string, id: keyof T) => {
+/** What a block declares on tasks, of what the server offers the reader. */
+const declared = <T extends { on: string[] }>(
+  definition: object,
+  block: string,
+  id: keyof T,
+  offered: string[]
+) => {
   const entries = (definition as Record<string, unknown>)[block];
   return new Map(
     (Array.isArray(entries) ? (entries as T[]) : [])
       .filter((entry) => Array.isArray(entry?.on) && entry.on.includes(KIND))
+      .filter((entry) => offered.includes(String(entry[id])))
       .map((entry) => [String(entry[id]), entry])
   );
 };
@@ -84,7 +91,13 @@ const declared = <T extends { on: string[] }>(definition: object, block: string,
 export const pluginsOnItems = (
   installs: Pick<
     CommunityPluginRead,
-    "id" | "enabled" | "definition" | "item_initiatives" | "item_actions"
+    | "id"
+    | "enabled"
+    | "definition"
+    | "item_initiatives"
+    | "item_fields"
+    | "item_parts"
+    | "item_actions"
   >[],
   initiativeId: number
 ): ReadonlyMap<number, PluginOnItems> =>
@@ -92,17 +105,23 @@ export const pluginsOnItems = (
     installs
       .filter((install) => install.enabled && install.item_initiatives.includes(initiativeId))
       .map((install) => {
-        const actions = declared<PluginActionDecl>(install.definition, "actions", "id");
-        for (const id of actions.keys()) {
-          if (!install.item_actions.includes(id)) actions.delete(id);
-        }
         return [
           install.id,
           {
             id: install.id,
-            fields: declared<PluginFieldDecl>(install.definition, "fields", "key"),
-            parts: declared<PluginPartDecl>(install.definition, "parts", "id"),
-            actions,
+            fields: declared<PluginFieldDecl>(
+              install.definition,
+              "fields",
+              "key",
+              install.item_fields
+            ),
+            parts: declared<PluginPartDecl>(install.definition, "parts", "id", install.item_parts),
+            actions: declared<PluginActionDecl>(
+              install.definition,
+              "actions",
+              "id",
+              install.item_actions
+            ),
           },
         ];
       })

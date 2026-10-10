@@ -120,14 +120,14 @@ const PROPERTY_BY_ID = /^property:([1-9][0-9]*)$/;
 
 /** The field a node names. A stored view names a property by its definition
  *  id, which the server checks; the fields are keyed as the table's columns
- *  are, by name. */
+ *  are, by name, and a property may be named with digits. */
 const fieldNamed = (
   fields: ReadonlyMap<string, FieldDef>,
   node: ViewNode
 ): FieldDef | undefined => {
   const id = String(node.props?.field);
   const byId = PROPERTY_BY_ID.exec(id);
-  return fields.get(id) ?? (byId ? propertyField(fields, Number(byId[1])) : undefined);
+  return byId ? propertyField(fields, Number(byId[1])) : fields.get(id);
 };
 
 type StackProps = {
