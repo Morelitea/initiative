@@ -10,12 +10,15 @@ from sqlmodel import select
 from app.core.messages import GuildMessages
 from app.models.platform.guild import CommunityRole, GuildMembership
 from app.models.platform.user_profile_view import MemberProfile
+from app.services import cross_guild
 from app.services.platform import app_settings as app_settings_service
+from app.services.platform import contacts as contacts_service
 from app.services.platform import guests
 from app.services.platform import guilds as guilds_service
 from app.services.platform import users as users_service
 from app.testing import (
     create_guest,
+    create_guild_membership,
     create_initiative_member,
     create_resource_grant,
     create_task,
@@ -238,3 +241,22 @@ async def test_a_guest_given_items_opens_their_initiative_but_not_its_roster(
     assert opened.json()["can"]["roster"] is False
     assert opened.json()["can"]["create"] == []
     assert roster.status_code == 403
+
+
+async def test_a_guests_community_is_left_out_where_members_are_offered_more(
+    client, acting_user, session
+):
+    a = await acting_user(guild_role=CommunityRole.admin)
+    elsewhere = await acting_user(guild_role=CommunityRole.admin)
+    await _platform(session)
+    guest = await create_guest(session, a.guild)
+    await create_guild_membership(session, user=guest, guild=elsewhere.guild)
+    guild_id, elsewhere_id, guest_id = a.guild.id, elsewhere.guild.id, guest.id
+
+    shared = await cross_guild.member_guild_ids(session, guest_id)
+    offered = await cross_guild.member_guild_ids(session, guest_id, guests=False)
+    contacts = await contacts_service.ordered_member_guilds(session, user_id=guest_id)
+
+    assert shared == sorted([guild_id, elsewhere_id])
+    assert offered == [elsewhere_id]
+    assert [row[0] for row in contacts] == [elsewhere_id]
