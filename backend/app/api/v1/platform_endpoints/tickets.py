@@ -36,8 +36,8 @@ from fastapi.exceptions import RequestValidationError
 from pydantic import TypeAdapter, ValidationError
 
 from app.api.deps import (
-    AccountHolder,
-    AccountHolderSessionDep,
+    TicketHolder,
+    TicketHolderSessionDep,
     UploadUserDep,
     UserSessionDep,
     get_current_active_user,
@@ -182,8 +182,8 @@ def _refuse_suspended() -> HTTPException:
 
 @me_router.post("", response_model=TicketAccepted, status_code=status.HTTP_202_ACCEPTED)
 async def file_ticket(
-    session: AccountHolderSessionDep,
-    current_user: AccountHolder,
+    session: TicketHolderSessionDep,
+    current_user: TicketHolder,
     payload: Annotated[str, Form(description=TICKET_PART_DESCRIPTION)],
     files: Annotated[list[UploadFile], File()] = [],  # noqa: B006
 ) -> TicketAccepted:
@@ -369,7 +369,7 @@ def _filed(ticket: tickets_service.FiledTicket) -> FiledTicketRead:
 
 
 @me_router.get("", response_model=FiledTicketList)
-async def list_filed_tickets(current_user: AccountHolder) -> FiledTicketList:
+async def list_filed_tickets(current_user: TicketHolder) -> FiledTicketList:
     """The cases the reader filed, most recently moved first."""
     filed = await tickets_service.list_filed(current_user)
     return FiledTicketList(items=[_filed(ticket) for ticket in filed])
@@ -377,7 +377,7 @@ async def list_filed_tickets(current_user: AccountHolder) -> FiledTicketList:
 
 @me_router.get("/{task_id}", response_model=FiledTicketDetailRead)
 async def read_filed_ticket(
-    task_id: int, current_user: AccountHolder
+    task_id: int, current_user: TicketHolder
 ) -> FiledTicketDetailRead:
     """One case the reader filed, with what has been said to them about it.
 
@@ -421,7 +421,7 @@ async def read_filed_ticket(
 async def reply_to_filed_ticket(
     task_id: int,
     body: Annotated[str, Form()],
-    current_user: AccountHolder,
+    current_user: TicketHolder,
     files: Annotated[list[UploadFile], File()] = [],  # noqa: B006
 ) -> FiledTicketDetailRead:
     """Answer on a case the reader filed. Returns the case as it now stands.

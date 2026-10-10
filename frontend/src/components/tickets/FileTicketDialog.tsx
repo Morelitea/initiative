@@ -205,7 +205,7 @@ export const FileTicketDialog = ({
   const askingInstead = canAskInstead && feedbackType === Feedback.problem && needsAnswer;
   const sentAs = askingInstead ? "support" : ticket.stream;
   const contact = availability.data?.[sentAs]?.contact ?? null;
-  const evidence = availability.data?.[ticket.stream]?.evidence ?? null;
+  const evidence = availability.data?.[sentAs]?.evidence ?? null;
   const illegal = reason === Reason.illegal;
   // An illegal or "something else" report has to say what is wrong.
   const detailRequired = illegal || reason === Reason.other;

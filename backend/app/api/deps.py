@@ -416,11 +416,32 @@ async def get_account_holder_exempt_from_factor(
     return await _active_user(request, current_user, admit_suspended=True)
 
 
+async def get_ticket_holder(
+    request: Request,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> User:
+    """The caller on a route that files or follows their own tickets.
+
+    An active account is held to the deployment's second-factor rule, as on
+    any route. A suspended one is not: its time-out screen, where it appeals
+    and follows the appeal, is reachable without the factor, and it cannot
+    enrol one while suspended. What it may do on these routes is the routes'
+    own narrower question.
+    """
+    user = await _active_user(request, current_user, admit_suspended=True)
+    if user.status != UserStatus.suspended:
+        await _require_platform_factor(request, session, user)
+    return user
+
+
 #: The caller on a time-out allow-list route. See :func:`_active_user`.
 AccountHolder = Annotated[User, Depends(get_current_account_holder)]
 FactorExemptAccountHolder = Annotated[
     User, Depends(get_account_holder_exempt_from_factor)
 ]
+#: The caller on the ticket routes. See :func:`get_ticket_holder`.
+TicketHolder = Annotated[User, Depends(get_ticket_holder)]
 
 
 async def get_active_user_exempt_from_factor(
@@ -2024,7 +2045,16 @@ async def get_factor_exempt_account_holder_session(
     return await _apply_user_session_context(session, current_user)
 
 
+async def get_ticket_holder_session(
+    session: SessionDep,
+    current_user: TicketHolder,
+) -> AsyncSession:
+    """The platform-path session for a ticket route."""
+    return await _apply_user_session_context(session, current_user)
+
+
 AccountHolderSessionDep = Annotated[AsyncSession, Depends(get_account_holder_session)]
+TicketHolderSessionDep = Annotated[AsyncSession, Depends(get_ticket_holder_session)]
 FactorExemptAccountHolderSessionDep = Annotated[
     AsyncSession, Depends(get_factor_exempt_account_holder_session)
 ]

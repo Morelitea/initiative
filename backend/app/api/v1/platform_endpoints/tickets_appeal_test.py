@@ -291,3 +291,38 @@ async def test_a_report_still_has_no_conversation(client, session, appeals_desk)
     ).all()
     assert [c.audience for c in said] == [CommentAudience.filer]
     await set_rls_context(session, Unattributed())
+
+
+async def test_a_suspended_account_appeals_without_the_factor_it_cannot_enrol(
+    client, session, appeals_desk
+):
+    """Its time-out screen is reachable without the deployment's second
+    factor, and a suspended account cannot enrol one, so its appeal is too.
+    An active account is still asked."""
+    from app.core.login_methods import SecondFactorRequirement
+    from app.services.platform import app_settings as app_settings_service
+
+    account = await create_user(session)
+    await _suspend(client, session, account)
+    await set_rls_context(session, Unattributed())
+    row = await app_settings_service.get_app_settings(session)
+    row.second_factor_requirement = SecondFactorRequirement.everyone
+    session.add(row)
+    await session.commit()
+    headers = get_auth_headers(account)
+
+    assert (await _appeal(client, headers)).status_code == 202
+    listed = await client.get(TICKETS, headers=headers)
+    assert listed.status_code == 200, listed.text
+    task_id = listed.json()["items"][0]["task_id"]
+    assert (
+        await client.get(f"{TICKETS}/{task_id}", headers=headers)
+    ).status_code == 200
+    answered = await client.post(
+        f"{TICKETS}/{task_id}/replies", data={"body": "Still me."}, headers=headers
+    )
+    assert answered.status_code == 201, answered.text
+
+    active = await create_user(session)
+    refused = await client.get(TICKETS, headers=get_auth_headers(active))
+    assert refused.status_code == 401, refused.text

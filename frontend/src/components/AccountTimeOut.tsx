@@ -28,6 +28,10 @@ import { queryClient } from "@/lib/queryClient";
 /** Matches the column behind it, so the field stops where the server would. */
 const BODY_MAX = 5000;
 
+/** How often an appeal is read again. This screen stands in for the app, and
+ *  with it the stream that would say the team answered. */
+const APPEAL_POLL_MS = 30_000;
+
 /** Asking for the suspension to be lifted, in their own words. */
 const AppealDialog = ({
   open,
@@ -127,7 +131,10 @@ export const AccountTimeOut = () => {
   // Set when an appeal found nothing to take it after all.
   const [nowhere, setNowhere] = useState(false);
   const appealId = data?.appeal_task_id ?? null;
-  const appeal = useFiledTicket(appealId ?? 0, { enabled: appealId != null });
+  const appeal = useFiledTicket(appealId ?? 0, {
+    enabled: appealId != null,
+    refetchInterval: APPEAL_POLL_MS,
+  });
   // One appeal open at a time: another once the last is closed.
   const appealOpen = appealId != null && appeal.data?.state !== FilerState.closed;
   const canAppeal = Boolean(data?.can_appeal) && !nowhere && !appealOpen;
