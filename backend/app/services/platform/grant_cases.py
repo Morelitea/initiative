@@ -35,6 +35,7 @@ from app.core.user_display import handle_of
 from app.db import cohorts
 from app.db.request_context import SystemGuild
 from app.db.session import set_rls_context
+from app.db.soft_delete_filter import select_including_deleted
 from app.models.platform.access_grant import AccessGrant, AccessGrantStatus
 from app.models.platform.access_grant_activity import AccessGrantActivity
 from app.models.platform.user import User
@@ -283,8 +284,9 @@ async def note(
 
 async def case_exists(task_id: int) -> bool:
     """Whether case ``task_id`` is still there to be told: the operations
-    community is configured and the case has not been purged. Where it cannot
-    be read, it is taken to be there."""
+    community is configured and the case has not been purged. A case in the
+    trash may yet be restored, so it is still there; where it cannot be read,
+    it is taken to be there."""
     guild_id = await configured_operations_guild_id()
     if guild_id is None:
         return False
@@ -292,7 +294,9 @@ async def case_exists(task_id: int) -> bool:
         async with cohorts.system_session(guild_id) as session:
             await set_rls_context(session, SystemGuild(guild_id))
             found = (
-                await session.exec(select(Task.id).where(Task.id == task_id))
+                await session.exec(
+                    select_including_deleted(Task.id).where(Task.id == task_id)
+                )
             ).first()
     except Exception:  # noqa: BLE001 — logged; asked again on the next pass
         logger.exception("grant cases: could not read case %s", task_id)

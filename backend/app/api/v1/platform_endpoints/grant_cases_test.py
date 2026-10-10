@@ -707,6 +707,14 @@ async def test_a_grant_whose_case_is_gone_is_closed_out_untold(
     target = await create_guild(session)
     task_id = await _case()
     assert await grant_cases.case_exists(task_id)
+    # One in the trash may be restored, so it is still there.
+    await set_rls_context(session, SystemGuild(desk["guild_id"]))
+    trashed = (await session.exec(select(Task).where(Task.id == task_id))).one()
+    trashed.deleted_at = datetime.now(timezone.utc)
+    session.add(trashed)
+    await session.commit()
+    await set_rls_context(session, Unattributed())
+    assert await grant_cases.case_exists(task_id)
     purged = task_id + 10_000
     assert not await grant_cases.case_exists(purged)
     grant = await _live_grant(
