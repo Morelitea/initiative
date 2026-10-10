@@ -43,6 +43,8 @@ from app.core import audit_context, metrics
 from app.core.audit_events import AuditEventType
 from app.core.config import settings
 from app.services import audit as audit_service
+from app.core.security_rules import Signal
+from app.services.platform import security_signals
 
 logger = logging.getLogger(__name__)
 
@@ -198,6 +200,10 @@ class RequestAuditMiddleware:
             status = str(answered.get("status", 500))
             metrics.http_requests.labels(method, label, status).inc()
             metrics.http_request_duration.labels(method, label).observe(elapsed)
+            if answered.get("status") == 429:
+                # Every 429, whichever limit answered it, is counted by the
+                # security rules and never written down one by one.
+                security_signals.signal(Signal.rate_limited)
             if context.is_privileged:
                 audit_service.emit(
                     event_type=AuditEventType.PAM_REQUEST,

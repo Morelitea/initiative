@@ -101,6 +101,8 @@ We recommend always running the latest release. This project hasn't reached a st
 
 If you discover a security vulnerability, please report it responsibly. **Do not open a public GitHub issue.**
 
+This address is for problems with **the Initiative software itself**. A problem with one particular server that runs it (a misconfiguration, an account someone else got into) goes to whoever runs that server: use **Report a security problem** in the app, or the address in the server's `/.well-known/security.txt`. Operators who receive a report about the software forward it here.
+
 ### How to Report
 
 Email **security@beyonders.studio** with:

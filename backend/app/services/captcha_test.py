@@ -170,10 +170,18 @@ async def test_provider_rejection_surfaces_as_400_invalid(monkeypatch):
         captcha_service.httpx, "AsyncClient", lambda *a, **k: fake_client
     )
 
+    from app.services.platform import security_signals
+
+    security_signals.discard()
     with pytest.raises(HTTPException) as exc:
-        await captcha_service.verify_or_raise("tok", remote_ip=None)
+        await captcha_service.verify_or_raise("tok", remote_ip="192.0.2.44")
     assert exc.value.status_code == 400
     assert exc.value.detail == "CAPTCHA_INVALID"
+    # Counted against the address, for the security rules.
+    try:
+        assert "captcha_burst" in security_signals._counts.rules
+    finally:
+        security_signals.discard()
 
 
 async def test_network_error_fails_closed(monkeypatch):

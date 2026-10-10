@@ -51,7 +51,11 @@ from app.core.request_audit import RequestAuditMiddleware
 from app.core.routing import MOUNTED, route_endpoint
 from app.core.version import __version__
 from app.core.smart_chips import SmartChipKind
-from app.schemas.platform.ticket import ModerationTicketCreate, SupportTicketCreate
+from app.schemas.platform.ticket import (
+    ModerationTicketCreate,
+    SecurityTicketCreate,
+    SupportTicketCreate,
+)
 from app.db.errors import INSUFFICIENT_PRIVILEGE_SQLSTATE, dbapi_sqlstate
 from app.db.frozen import FROZEN_PARENT_CONSTRAINT, frozen_refusal
 from app.db.session import SystemSessionLocal
@@ -713,7 +717,11 @@ def custom_openapi() -> dict:
     # What a filing's ``payload`` part holds. The route takes it as a JSON
     # string beside the files, so the shapes are published here instead.
     _, ticket_schemas = models_json_schema(
-        [(SupportTicketCreate, "validation"), (ModerationTicketCreate, "validation")],
+        [
+            (SupportTicketCreate, "validation"),
+            (ModerationTicketCreate, "validation"),
+            (SecurityTicketCreate, "validation"),
+        ],
         ref_template="#/components/schemas/{model}",
     )
     for name, schema in ticket_schemas.get("$defs", {}).items():

@@ -1961,6 +1961,18 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             plugin_install_base=None,
         ),
     ),
+    # What the security rules counted, per key and window
+    # (app.services.platform.security_signals). Keys are HMACs, never an
+    # address or an account.
+    "security_signal_windows": SharedTable(
+        rls=FORCED_NO_POLICY,
+        grants=Grants(
+            # Every instance adds its counts here, stamps a window that crossed
+            # its rule's threshold, and the intake sweep drops windows no rule
+            # can still read — all on the system engine.
+            app_admin=DML,
+        ),
+    ),
     # Spent client-assertion jtis from the plug-in token endpoint. Hangs off a
     # registration, which is platform-wide.
     "plugin_assertion_jtis": SharedTable(

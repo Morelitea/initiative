@@ -188,5 +188,25 @@
     "reveal": "{{name}} anzeigen",
     "view": "{{name}} ansehen",
     "open": "{{name}} öffnen"
+  },
+  "security": {
+    "action": "Sicherheitsproblem melden",
+    "cardTitle": "Sicherheitsproblem melden",
+    "cardDescription": "Eine Schwachstelle in diesem Server gefunden, oder jemand anderes ist in dein Konto gelangt? Sag es den Betreibern.",
+    "title": "Sicherheitsproblem melden",
+    "description": "Die Betreiber dieses Servers lesen das, und du kannst es unter Meine Tickets verfolgen.",
+    "topicLabel": "Worum geht es?",
+    "topicPlaceholder": "Eins wählen",
+    "topics": {
+      "vulnerability": "Eine Schwachstelle in diesem Server",
+      "account_compromise": "Jemand anderes ist in mein Konto gelangt",
+      "other": "Etwas anderes"
+    },
+    "bodyLabel": "Was hast du gefunden?",
+    "bodyPlaceholder": "Was du gesehen hast, wo, und wie man es wieder sieht.",
+    "softwareNote": "Ein Problem mit der Initiative-Software selbst statt mit diesem Server geht an das Projekt: siehe SECURITY.md.",
+    "submit": "Meldung senden",
+    "thanks": "Gesendet. Du kannst es unter Meine Tickets verfolgen.",
+    "error": "Das konnte nicht gesendet werden. Versuch es gleich noch einmal."
   }
 }

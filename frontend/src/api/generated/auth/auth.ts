@@ -21,6 +21,7 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  AccountChangeDone,
   AccountChangeRead,
   AccountChangeToken,
   BeginPasskeySignUpParams,
@@ -3812,8 +3813,9 @@ export const useReadAccountChange = <TError = ErrorType<HTTPValidationError>, TC
 };
 /**
  * Sign the account out of every browser, phone and computer, and turn off
- * its API keys. Its password, addresses and other ways in stay as they are.
- * The link is spent with the work, so a sign-out that fails leaves it good.
+ * its API keys, and tell the people who run the server. Its password,
+ * addresses and other ways in stay as they are. The link is spent with the
+ * work, so a sign-out that fails leaves it good.
  * @summary Sign Out Everywhere
  */
 export const signOutEverywhere = (
@@ -3821,7 +3823,7 @@ export const signOutEverywhere = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<VerificationSendResponse>(
+  return apiMutator<AccountChangeDone>(
     {
       url: `/api/v1/auth/account-change/sign-out`,
       method: "POST",
@@ -3902,8 +3904,8 @@ export const useSignOutEverywhere = <TError = ErrorType<HTTPValidationError>, TC
 };
 /**
  * Undo the change the notice reported and sign the account out
- * everywhere, where this copy of the notice may. The account is told what
- * the undo changed.
+ * everywhere, where this copy of the notice may, and tell the people who run
+ * the server. The account is told what the undo changed.
  * @summary Undo Account Change
  */
 export const undoAccountChange = (
@@ -3911,7 +3913,7 @@ export const undoAccountChange = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<VerificationSendResponse>(
+  return apiMutator<AccountChangeDone>(
     {
       url: `/api/v1/auth/account-change/undo`,
       method: "POST",

@@ -161,6 +161,10 @@ async def hourly_pass() -> None:
         name="hourly",
         scans=[notifications.digest_gc_scan(now=datetime.now(timezone.utc))],
     )
+    # Windows no security rule can still read.
+    from app.services.platform import security_signals
+
+    await security_signals.sweep()
 
 
 def _claims() -> list[tuple[Scope, Visit]]:
@@ -187,6 +191,7 @@ def start_background_tasks() -> list[asyncio.Task]:
         EMAIL_OUTBOX_POLL_SECONDS,
         process_email_outbox,
     )
+    from app.services.platform import security_signals
     from app.services.platform.presence import (
         ACTIVITY_FLUSH_SECONDS,
         process_activity_flush,
@@ -279,6 +284,14 @@ def start_background_tasks() -> list[asyncio.Task]:
             Loop("activity-flush", interval=ACTIVITY_FLUSH_SECONDS).run(
                 process_activity_flush
             )
+        ),
+        # What the security rules counted in this process, added to the
+        # deployment's totals, and a case opened for any key that crossed.
+        asyncio.create_task(
+            Loop(
+                "security-signals",
+                interval=security_signals.FLUSH_INTERVAL.total_seconds(),
+            ).run(security_signals.process_flush)
         ),
         asyncio.create_task(
             Loop("oidc-refresh-sync", interval=OIDC_SYNC_POLL_SECONDS).run(

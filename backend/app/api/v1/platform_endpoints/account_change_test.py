@@ -26,11 +26,16 @@ from app.services import email as email_service
 from app.services.auth import account_changes, addresses, held_changes
 from app.services.auth import sessions as session_service
 from app.services.platform import email_outbox, user_tokens
+from app.services.platform import security_signals_test as signals
 from app.testing import create_user, signed_in_headers
 
 READ = "/api/v1/auth/account-change/read"
 SIGN_OUT = "/api/v1/auth/account-change/sign-out"
 UNDO = "/api/v1/auth/account-change/undo"
+
+
+# The security suite's fixture, by name.
+security_desk = signals.security_desk
 
 
 @pytest.fixture
@@ -146,7 +151,7 @@ async def test_a_link_signs_the_account_out_everywhere_once(
 
     response = await client.post(SIGN_OUT, json={"token": token})
     assert response.status_code == 200, response.text
-    assert response.json() == {"status": "signed_out"}
+    assert response.json()["status"] == "signed_out"
 
     session.expire_all()
     assert (await session.get(User, user_id)).token_version == version + 1
@@ -283,7 +288,7 @@ async def test_undoing_a_proved_address_takes_it_back_and_the_primary_with_it(
 
     response = await client.post(UNDO, json={"token": links["mine@example.com"]})
     assert response.status_code == 200, response.text
-    assert response.json() == {"status": "undone"}
+    assert response.json()["status"] == "undone"
     assert await _held(session, user_id) == {"mine@example.com"}
     assert await _primary(session, user_id) == "mine@example.com"
     assert (await session.get(User, user_id)).token_version == version + 1
@@ -568,3 +573,45 @@ async def test_a_waiting_change_is_cancelled_from_an_older_address(
     await email_outbox._run_pass(session, now=datetime.now(timezone.utc))
     response = await client.post(READ, json={"token": mailed["only-one@example.com"]})
     assert response.json()["undo"] == "hold"
+
+
+async def test_saying_it_wasnt_them_tells_the_people_running_the_server(
+    client: AsyncClient, session: AsyncSession, mailed, security_desk
+):
+    """A security case about the account, once however many links it
+    follows."""
+    from sqlmodel import select
+
+    from app.db.request_context import SystemGuild, Unattributed
+    from app.db.session import set_rls_context
+    from app.models.tenant.intake import IntakeCase
+
+    user = await create_user(session, email="told@example.com")
+    first = (await _send(session, mailed, user))["told@example.com"]
+    response = await client.post(SIGN_OUT, json={"token": first})
+    assert response.status_code == 200, response.text
+    assert response.json()["platform_told"] is True
+    assert response.json()["contact"] is None
+
+    second = (await _send(session, mailed, user))["told@example.com"]
+    assert (await client.post(SIGN_OUT, json={"token": second})).status_code == 200
+
+    await set_rls_context(session, SystemGuild(security_desk.id))
+    (case,) = (await session.exec(select(IntakeCase))).all()
+    assert case.dedupe_key == f"compromise:{user.id}"
+    assert case.occurrences == 2
+    await set_rls_context(session, Unattributed())
+
+
+async def test_with_nobody_to_tell_the_page_names_the_address(
+    client: AsyncClient, session: AsyncSession, mailed
+):
+    from app.api.v1.platform_endpoints import tickets_test
+
+    await tickets_test._set_contacts(session, security="security@example.org")
+    user = await create_user(session, email="alone@example.com")
+    token = (await _send(session, mailed, user))["alone@example.com"]
+    response = await client.post(SIGN_OUT, json={"token": token})
+    assert response.status_code == 200, response.text
+    assert response.json()["platform_told"] is False
+    assert response.json()["contact"] == "security@example.org"

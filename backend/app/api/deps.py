@@ -134,6 +134,27 @@ CREDENTIAL_API_KEY = CredentialKind.api_key.value
 CREDENTIAL_INSTALL = "install"
 
 
+def _key_overreached(
+    request: Request, authenticated: Authenticated, scope: str
+) -> None:
+    """Write down an API key reaching past what it was made for. Refused, so
+    there is no transaction to ride: the line goes now."""
+    from app.core.audit_events import AuditEventType
+    from app.services import audit as audit_service
+
+    api_key = authenticated.api_key
+    if api_key is None:
+        return
+    audit_service.emit(
+        event_type=AuditEventType.API_KEY_SCOPE_VIOLATION,
+        actor_user_id=authenticated.user.id,
+        target_user_id=authenticated.user.id,
+        target_type="api_key",
+        target_id=api_key.id,
+        detail={"scope": scope, "method": request.method},
+    )
+
+
 def _admit(
     request: Request,
     authenticated: Authenticated,
@@ -155,6 +176,7 @@ def _admit(
         and api_key.read_only
         and request.method not in _SAFE_HTTP_METHODS
     ):
+        _key_overreached(request, authenticated, "read_only")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=UserMessages.API_KEY_READ_ONLY,
@@ -165,6 +187,7 @@ def _admit(
         else (api_key.guild_id, api_key.resource_type, api_key.resource_id)
     )
     if names != resource:
+        _key_overreached(request, authenticated, "resource")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=UserMessages.API_KEY_RESOURCE_ONLY,

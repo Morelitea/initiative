@@ -19,7 +19,8 @@
   },
   "actions": {
     "addTask": "Agregar tarea",
-    "addFile": "Agregar archivo"
+    "addFile": "Agregar archivo",
+    "reportSecurityProblem": "Informar de un problema de seguridad"
   },
   "pages": {
     "myTasks": "Mis Tareas",

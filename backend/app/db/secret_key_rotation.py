@@ -449,6 +449,22 @@ async def rotate_secret_key(*, dry_run: bool = False) -> RotationSummary:
 
     log = logger.warning if summary.failed else logger.info
     log("%s", summary.render())
+    if not dry_run and summary.rotated:
+        # Startup re-runs this while the previous key is still set, finding
+        # nothing the second time: only a run that sealed something again is
+        # one worth a line.
+        from app.core.audit_events import AuditEventType
+        from app.services import audit as audit_service
+
+        audit_service.emit(
+            event_type=AuditEventType.PLATFORM_SECRET_KEY_ROTATED,
+            actor_user_id=None,
+            detail={
+                "rotated": summary.rotated,
+                "skipped": summary.skipped,
+                "failed": summary.failed,
+            },
+        )
     return summary
 
 

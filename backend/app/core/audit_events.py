@@ -382,6 +382,38 @@ class AuditEventType(str, Enum):
     API_KEY_DELETED = "api_key.deleted", AuditCategory.AUTHENTICATION
     #: Switched off by staff rather than deleted by its holder, who still sees it.
     API_KEY_REVOKED = "api_key.revoked", AuditCategory.AUTHENTICATION
+    #: A key reached past what it was made for: a read-only key writing, or a
+    #: key named for one thing reaching another. Refused, so nothing changed.
+    API_KEY_SCOPE_VIOLATION = (
+        "api_key.scope_violation",
+        AuditCategory.AUTHENTICATION,
+        2,
+        False,
+    )
+    #: A one-time token, assertion or nonce was presented again and refused.
+    #: ``detail.channel`` says which.
+    SECURITY_REPLAY_REJECTED = (
+        "security.replay_rejected",
+        AuditCategory.AUTHENTICATION,
+        1,
+        False,
+    )
+    #: A security rule saw enough of something within its window to open a
+    #: case (``app.core.security_rules``): one line per key and window, however
+    #: many events it took.
+    SECURITY_THRESHOLD_CROSSED = (
+        "security.threshold_crossed",
+        AuditCategory.PLATFORM,
+        1,
+        False,
+    )
+    #: Everything encrypted under the deployment's secret key was sealed again
+    #: under a new one.
+    PLATFORM_SECRET_KEY_ROTATED = (
+        "platform.secret_key_rotated",
+        AuditCategory.CONFIGURATION,
+        1,
+    )
     PLUGIN_INSTALLED = "plugin.installed", AuditCategory.LIFECYCLE
     PLUGIN_UNINSTALLED = "plugin.uninstalled", AuditCategory.LIFECYCLE
     WEBHOOK_CREATED = "webhook.created", AuditCategory.LIFECYCLE

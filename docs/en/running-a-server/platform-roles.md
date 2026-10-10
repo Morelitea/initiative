@@ -147,6 +147,10 @@ It's all one page, **Settings → Platform → Intake**. Pick the community, the
 
 Give security and moderation an initiative each, so only the people working those cases can read them. The page says so if two kinds share one.
 
+**Security cases open themselves.** The server watches what its audit log records, and a run of something that looks wrong opens a security case: many failed sign-ins from one address, a spent session token used again, many wrong second-factor codes, a one-time token presented twice, an account made an operator or owner, an operator breaking glass, staff clearing someone's second factor, the user list exported, an API key reaching past what it may do, and floods of refused cross-site requests, rate-limit hits or captchas from one address. A run that goes on is one case, with a note each time it carries on. The thresholds are set in code, not in settings. Each case points at a `security.threshold_crossed` line in the audit log, which names what was counted.
+
+People report security problems from the app too, into the same project. Where the security kind is bound, `/.well-known/security.txt` names your security address (or the general one) and the in-app form; with no address at all it's a 404. A problem with the Initiative software rather than your server belongs with the project: forward it, and put its key in the case's `tracker_key`.
+
 The people who asked follow their cases from **My Tickets**. Pick the status that means **Waiting on the requester**, and the one their answer moves a case to; **Set this up for me** picks both. With none picked, requesters see Received, In progress and Closed, and never "Waiting on you". Answer them from the panel on the case, which is kept apart from its comments, so the team's own discussion stays the team's.
 
 ## Held content

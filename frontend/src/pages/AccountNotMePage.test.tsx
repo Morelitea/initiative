@@ -50,6 +50,33 @@ describe("AccountNotMePage", () => {
     expect(refreshUser).toHaveBeenCalledTimes(1);
   });
 
+  it("says the people running the server were told, or who to tell", async () => {
+    const user = userEvent.setup();
+    let told = true;
+    server.use(
+      http.post("/api/v1/auth/account-change/read", () =>
+        HttpResponse.json({ notice: "passkey.added", sign_out: true, undo: null, subject: null })
+      ),
+      http.post("/api/v1/auth/account-change/sign-out", () =>
+        HttpResponse.json(
+          told
+            ? { status: "signed_out", platform_told: true, contact: null }
+            : { status: "signed_out", platform_told: false, contact: "security@example.org" }
+        )
+      )
+    );
+
+    const first = renderPage(AccountNotMePage, PAGE);
+    await user.click(await screen.findByRole("button", { name: /sign out everywhere/i }));
+    expect(await screen.findByText(/have been told/i)).toBeInTheDocument();
+    first.unmount();
+
+    told = false;
+    renderPage(AccountNotMePage, PAGE);
+    await user.click(await screen.findByRole("button", { name: /sign out everywhere/i }));
+    expect(await screen.findByText(/security@example\.org/)).toBeInTheDocument();
+  });
+
   it("says so when the link has expired or been used", async () => {
     server.use(
       http.post("/api/v1/auth/account-change/read", () =>

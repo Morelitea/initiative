@@ -19,6 +19,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Reporting something illegal tells the platform too.** A report names the law it falls under, and goes to the community's moderators and to whoever runs the server at once; the reporter follows it under their tickets. Where the server takes no reports, the reporter is told who to contact. A child-safety report takes no attachments.
 - **Report wiki pages, queue items and events.**
 
+- **The server raises its own security cases.** A run of something that looks wrong opens one case in the security project: many failed sign-ins from one address, a spent session token used again, many wrong second-factor codes, a one-time token presented twice, a new operator or owner, an operator breaking glass, a cleared second factor, an exported user list, an API key reaching past what it may do, and floods of refused cross-site requests, rate-limit hits or captchas from one address. Counting costs no database writes per attempt, and a run that goes on stays one case.
+- **Report a security problem from the app.** Under User settings › Security, in My Tickets and in the command palette. You follow it, and talk with the team about it, in My Tickets.
+- **`/.well-known/security.txt`** names the server's security address and, where reports are taken in the app, the form.
+- **"This wasn't me" tells the people who run the server.** Following it from an account email now opens a security case about the account, or names who to tell where nobody is set up to hear it.
+- **More of what was refused is in the audit log:** replayed billing tokens and plug-in assertions, API keys reaching past their scope, and secret-key rotations.
+
 ### Changed
 
 - **A project's saved filters are now views.** One menu on a project lists its views, and each is a layout with its own filters: Table, Board, Calendar, Incomplete, Unassigned and Mine to begin with. Saved filter sets someone made or changed became views of their own with the project's default layout, and links to them still open them. Your own filter changes on a view are kept for you alone, and Reset to view puts back its filters. People who can configure the project can save the current filters as a new view, update a view, and rename, reorder, delete or choose the default one under the project's settings › Views.

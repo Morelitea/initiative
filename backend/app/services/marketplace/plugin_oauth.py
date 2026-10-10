@@ -84,6 +84,8 @@ from app.services.marketplace import (
 )
 from app.services.marketplace.registration_lookup import RegistrationSnapshot
 from app.db.request_context import SystemGuild
+from app.core.audit_events import AuditEventType
+from app.services import audit as audit_service
 
 logger = logging.getLogger(__name__)
 
@@ -348,6 +350,14 @@ async def _verify_signed_assertion(
     ).first()
     await session.commit()
     if spent is None:
+        audit_service.emit(
+            event_type=AuditEventType.SECURITY_REPLAY_REJECTED,
+            actor_user_id=None,
+            detail={
+                "channel": "plugin_member_assertion" if member else "plugin_assertion",
+                "install": issuer,
+            },
+        )
         raise fail("the assertion was already used")
     return snapshot, dict(claims)
 

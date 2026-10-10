@@ -819,5 +819,6 @@
   "MODERATION_MESSAGE_REQUIRED": "Écrivez ce qui lui sera dit",
   "MODERATION_NOBODY_TO_WARN": "Personne n'a écrit ceci, il n'y a donc personne à avertir",
   "COMMENT_REMOVED": "Ce commentaire a été retiré",
-  "COMMENT_THREAD_LOCKED": "Un modérateur a verrouillé les commentaires ici"
+  "COMMENT_THREAD_LOCKED": "Un modérateur a verrouillé les commentaires ici",
+  "SECURITY_NOWHERE_TO_SEND": "Ce serveur ne reçoit pas encore de signalements de sécurité. Utilisez plutôt l'adresse ci-dessous."
 }

@@ -19,7 +19,8 @@
   },
   "actions": {
     "addTask": "Add Task",
-    "addFile": "Add file"
+    "addFile": "Add file",
+    "reportSecurityProblem": "Report a security problem"
   },
   "pages": {
     "myTasks": "My Tasks",

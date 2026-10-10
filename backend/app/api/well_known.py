@@ -1,4 +1,10 @@
-"""The association files a phone reads before an app may run a passkey
+"""What this deployment publishes under ``/.well-known``.
+
+``security.txt`` (RFC 9116) says where to report a security problem with this
+server: its security contact, and the in-app form where security reports are
+taken. It is a 404 where no address is set, rather than naming nobody.
+
+The association files are what a phone reads before an app may run a passkey
 ceremony for this deployment.
 
 Both are served only when the deployment's address can carry a passkey at all
@@ -11,7 +17,7 @@ SPA catch-all reserves the prefix in ``app.main``).
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 
 from app.core import native_apps
 from app.services.auth import passkeys as passkey_service
@@ -51,3 +57,25 @@ async def apple_app_site_association() -> JSONResponse:
     return JSONResponse(
         {"webcredentials": {"apps": list(native_apps.IOS_APP_IDS)}}, headers=_CACHE
     )
+
+
+@router.get("/security.txt")
+async def security_txt() -> PlainTextResponse:
+    """Where to report a security problem with this server."""
+    from app.core.config import settings
+    from app.core.intake import IntakeStream
+    from app.db import cohorts
+    from app.services.platform import disclosure
+    from app.services.platform.intake import contact_for, stream_is_bound
+
+    async with cohorts.system_session(None) as session:
+        contact = await contact_for(session, IntakeStream.security)
+    form = (
+        f"{settings.APP_URL.rstrip('/')}/my-tickets?report=security"
+        if await stream_is_bound(IntakeStream.security)
+        else None
+    )
+    body = disclosure.security_txt(contact=contact, form_url=form)
+    if body is None:
+        raise HTTPException(status_code=404)
+    return PlainTextResponse(body, headers=_CACHE)
