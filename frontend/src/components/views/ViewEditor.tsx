@@ -355,6 +355,21 @@ export const ViewEditor = ({
     of.kind === "part" && tree !== null && HOLDERS.has(nodeAt(tree, of.path)?.type ?? "");
   const tools: CanvasTools = {
     locked: saving,
+    revision: draft,
+    knows: (of) =>
+      of.kind === "column"
+        ? columns.includes(of.field)
+        : of.kind === "part" &&
+          tree !== null &&
+          nodeAt(tree, of.path) !== undefined &&
+          // The page itself is the outline's top row, not a part.
+          !(onPage && of.path.length === 0),
+    inside: (of) => {
+      const node = of.kind === "part" && tree ? nodeAt(tree, of.path) : undefined;
+      return of.kind === "part" && node && HOLDERS.has(node.type) && !node.children?.length
+        ? { parent: of.path, index: 0 }
+        : null;
+    },
     nameOf: (of) => {
       if (of.kind === "column") {
         const field = fields.get(of.field);

@@ -83,11 +83,12 @@ import {
   isAnonymizedUser,
 } from "@/lib/userDisplay";
 
+import { indexPaths } from "./draft";
 import { FieldFrame, useFieldDraft } from "./editing";
 import { type FieldKind, useProjectViewEnv } from "./fields";
 import { PluginFieldOnPage, PluginPartView, pluginFields, usePluginsOnItems } from "./plugins";
 import { type StoredRegions, taskFields, taskPageTree } from "./tasks";
-import { LAYOUT_PARTS, type Parts, renderNode, type ViewContext, type ViewNode } from "./tree";
+import { LAYOUT_PARTS, type Parts, renderNode, type ViewContext } from "./tree";
 
 /** What the task's page shares with its parts, beside the task itself. */
 export interface TaskPageContext {
@@ -902,8 +903,9 @@ export const TaskPageView = ({
   task: TaskRead;
   page: TaskPageContext;
   layout?: StoredRegions | null;
-  /** While the layout is edited: the path of each of its parts. */
-  editing?: WeakMap<ViewNode, string>;
+  /** The layout is being edited: each part is marked with its path, which
+   *  the editor's page tree shares, More fields being past the side's end. */
+  editing?: boolean;
 }) => {
   const { t, i18n } = useTranslation("tasks");
   const communityId = useActiveCommunityId();
@@ -913,6 +915,7 @@ export const TaskPageView = ({
     [gp, page.initiativeId, task.project_id]
   );
   const env = useProjectViewEnv(taskHref);
+  const tree = useMemo(() => taskPageTree(layout, t("edit.moreFields")), [layout, t]);
   const plugins = usePluginsOnItems(page.initiativeId);
   // The page's labels are the fields' own.
   const view = useMemo<ViewContext>(
@@ -921,11 +924,10 @@ export const TaskPageView = ({
       plugins,
       variant: "page",
       env,
-      editing,
+      editing: editing ? indexPaths(tree) : undefined,
     }),
-    [plugins, i18n.language, env, editing]
+    [plugins, i18n.language, env, editing, tree]
   );
-  const tree = useMemo(() => taskPageTree(layout, t("edit.moreFields")), [layout, t]);
   return (
     // Another task's page starts afresh, with none of this one's drafts.
     <PageContext.Provider key={`${communityId}:${task.id}`} value={page}>

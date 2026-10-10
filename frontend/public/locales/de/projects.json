@@ -360,6 +360,8 @@
     "add": "Hinzufügen",
     "addBefore": "Vor {{name}} hinzufügen",
     "addAfter": "Nach {{name}} hinzufügen",
+    "addInto": "Zu {{name}} hinzufügen",
+    "emptyGroup": "Leer. Lege hier einen Teil ab oder füge einen hinzu.",
     "builtIn": "Eingebaut",
     "properties": "Eigenschaften",
     "layoutParts": "Layout",

@@ -360,6 +360,8 @@
     "add": "Ajouter",
     "addBefore": "Ajouter avant {{name}}",
     "addAfter": "Ajouter après {{name}}",
+    "addInto": "Ajouter à {{name}}",
+    "emptyGroup": "Vide. Déposez une partie ici, ou ajoutez-en une.",
     "builtIn": "Intégrés",
     "properties": "Propriétés",
     "layoutParts": "Mise en page",

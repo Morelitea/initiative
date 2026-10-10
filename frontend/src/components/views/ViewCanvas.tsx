@@ -1,10 +1,12 @@
 import { GripVertical, MoreHorizontal, Plus } from "lucide-react";
 import {
+  type ComponentProps,
   type KeyboardEvent,
   type MouseEvent,
   type ReactNode,
   type SyntheticEvent,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -84,6 +86,14 @@ const refuseKey = (event: KeyboardEvent) => {
 export type CanvasTools = {
   /** A save is under way, and nothing changes until it answers. */
   locked: boolean;
+  /** What is being edited: a drag under way ends when it changes, as an undo
+   *  may have put another part where the dragged one was. */
+  revision: unknown;
+  /** Whether it is a part the editor has, as against one the page draws of
+   *  its own (More fields). */
+  knows: (of: Selection) => boolean;
+  /** Where adding into it puts a part: an empty group's first place. */
+  inside: (of: Selection) => Place | null;
   /** What a part or a column is called. */
   nameOf: (of: Selection) => string;
   /** Where adding before and after it puts a part, and whether its group
@@ -126,6 +136,15 @@ const boxOf = (marked: Element, origin: Element): Box => {
 /** Where a dragged part would go: beside a part, or into a group. */
 type Drop = { over: Selection; element: Element; after: boolean; into: boolean };
 
+/** A part dragged by one pointer, and where it would go. */
+type Drag = { from: Selection; pointer: number; drop: Drop | null };
+
+type Boxes = { selected: Box | null; hovered: Box | null; drop: Box | null };
+
+const NO_BOXES: Boxes = { selected: null, hovered: null, drop: null };
+
+const sameBoxes = (a: Boxes, b: Boxes) => JSON.stringify(a) === JSON.stringify(b);
+
 /**
  * What is being edited, drawn as its readers will see it, at the width
  * chosen. Nothing in it can be changed or opened: a click selects the part it
@@ -159,16 +178,24 @@ const CanvasFrame = ({
   const [clicked, setClicked] = useState<Element | null>(null);
   // Held while an Add picker is open, so its point stays where it was.
   const [picking, setPicking] = useState(false);
-  const [drag, setDrag] = useState<{ from: Selection; drop: Drop | null } | null>(null);
-  // Measured again as the canvas lays out or scrolls within itself.
+  const [drag, setDrag] = useState<Drag | null>(null);
+  // Measured after each draw, once what is drawn is on the page, and again as
+  // the canvas lays out, scrolls within itself, or draws anew underneath.
+  const [boxes, setBoxes] = useState<Boxes>(NO_BOXES);
   const [, setLaidOut] = useState(0);
+
+  // The part an element is in, where it is one the editor has.
+  const known = (target: EventTarget | null): Selection | null => {
+    const of = target ? partAt(target) : null;
+    return of && tools.knows(of) ? of : null;
+  };
 
   const selectedRule = rule(selection);
   const hoveredRule = hovered && !sameSelection(hovered.of, selection) ? rule(hovered.of) : null;
 
   const point = (target: EventTarget | null) => {
     if (picking || drag) return;
-    const of = target ? partAt(target) : null;
+    const of = known(target);
     const element = target instanceof Element ? target.closest("[data-view-node]") : null;
     if (of && element) setHovered({ of, element });
   };
@@ -177,7 +204,7 @@ const CanvasFrame = ({
   // the page.
   const select = (event: MouseEvent) => {
     refuse(event);
-    const part = partAt(event.target);
+    const part = known(event.target);
     if (!part) return;
     setClicked(event.target instanceof Element ? event.target.closest("[data-view-node]") : null);
     onSelect(part);
@@ -187,14 +214,20 @@ const CanvasFrame = ({
     const holder = content.current;
     if (!holder) return;
     const relayout = () => setLaidOut((count) => count + 1);
-    const observer = new ResizeObserver(relayout);
-    observer.observe(holder);
+    const resized = new ResizeObserver(relayout);
+    resized.observe(holder);
+    const redrawn = new MutationObserver(relayout);
+    redrawn.observe(holder, { childList: true, subtree: true, attributes: true });
     holder.addEventListener("scroll", relayout, true);
     return () => {
-      observer.disconnect();
+      resized.disconnect();
+      redrawn.disconnect();
       holder.removeEventListener("scroll", relayout, true);
     };
   }, []);
+
+  // A change to what is edited ends a drag: its part may be elsewhere now.
+  useEffect(() => setDrag(null), [tools.revision]);
 
   // A drag follows the pointer anywhere on the screen, and Esc lets it go.
   useEffect(() => {
@@ -203,7 +236,8 @@ const CanvasFrame = ({
       const holder = content.current;
       const hit = document.elementsFromPoint?.(x, y).find((each) => holder?.contains(each));
       const element = hit?.closest("[data-view-node]");
-      const over = hit ? partAt(hit) : null;
+      const part = hit ? partAt(hit) : null;
+      const over = part && tools.knows(part) ? part : null;
       if (!element || !over || !frame.current) return null;
       // Never onto itself or into what it holds.
       const fromKey = keyOf(drag.from) ?? "";
@@ -220,31 +254,40 @@ const CanvasFrame = ({
         : y - at.top > box.top + box.height / 2;
       return { over, element, after, into: tools.holds(over) };
     };
-    const onMove = (event: PointerEvent) =>
+    // Only the pointer that took hold of the part moves it; a cancelled one
+    // lets it go.
+    const onMove = (event: PointerEvent) => {
+      if (event.pointerId !== drag.pointer) return;
       setDrag((current) =>
         current ? { ...current, drop: dropAt(event.clientX, event.clientY) } : current
       );
+    };
     const onUp = (event: PointerEvent) => {
+      if (event.pointerId !== drag.pointer) return;
       const drop = dropAt(event.clientX, event.clientY);
       if (drop) tools.move(drag.from, drop.over, drop.after);
       setDrag(null);
+    };
+    const onCancel = (event: PointerEvent) => {
+      if (event.pointerId === drag.pointer) setDrag(null);
     };
     const onKey = (event: globalThis.KeyboardEvent) => {
       if (event.key === "Escape") setDrag(null);
     };
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onCancel);
     window.addEventListener("keydown", onKey);
     return () => {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onCancel);
       window.removeEventListener("keydown", onKey);
     };
   }, [drag, tools]);
 
-  // Measured on every draw: what is drawn may have moved. The element held
-  // for a part is the one pointed at or clicked while it is still drawn (a
-  // board draws a part on every card), and else the part's first.
+  // The element held for a part is the one pointed at or clicked while it is
+  // still drawn (a board draws a part on every card), and else its first.
   const measure = (of: Selection, held: Element | null | undefined): Box | null => {
     const key = keyOf(of);
     if (key === null || !frame.current) return null;
@@ -254,11 +297,19 @@ const CanvasFrame = ({
         : content.current?.querySelector(`[data-view-node=${quoted(key)}]`);
     return element ? boxOf(element, frame.current) : null;
   };
+  // Every draw, with no list: what is drawn may have moved.
+  useLayoutEffect(() => {
+    const next: Boxes = {
+      selected: measure(selection, clicked),
+      hovered: hovered ? measure(hovered.of, hovered.element) : null,
+      drop: drag?.drop ? measure(drag.drop.over, drag.drop.element) : null,
+    };
+    if (!sameBoxes(next, boxes)) setBoxes(next);
+  });
   const selectedKey = keyOf(selection);
-  const selectedBox = measure(selection, clicked);
-  const hoveredBox = hovered ? measure(hovered.of, hovered.element) : null;
+  const { selected: selectedBox, hovered: hoveredBox, drop: dropBox } = boxes;
   const around = hovered && !tools.locked ? tools.around(hovered.of) : null;
-  const dropBox = drag?.drop ? measure(drag.drop.over, drag.drop.element) : null;
+  const inside = hovered && !tools.locked ? tools.inside(hovered.of) : null;
 
   return (
     <div className="h-full overflow-auto bg-muted/40 p-6">
@@ -312,7 +363,7 @@ const CanvasFrame = ({
                   onPointerDown={(event) => {
                     event.preventDefault();
                     setHovered(null);
-                    setDrag({ from: selection, drop: null });
+                    setDrag({ from: selection, pointer: event.pointerId, drop: null });
                   }}
                 >
                   <GripVertical className="h-3 w-3" aria-hidden="true" />
@@ -332,28 +383,52 @@ const CanvasFrame = ({
                   >
                     {tools.addAt(
                       around[side],
-                      <button
-                        type="button"
-                        className="flex h-5 w-5 items-center justify-center rounded-full border border-primary bg-background text-primary shadow-sm hover:bg-primary hover:text-primary-foreground"
-                        aria-label={t(
+                      <AddPoint
+                        label={t(
                           side === "before" ? "viewEditor.addBefore" : "viewEditor.addAfter",
                           { name }
                         )}
-                      >
-                        <Plus className="h-3 w-3" aria-hidden="true" />
-                      </button>,
+                      />,
                       setPicking
                     )}
                   </div>
                 );
               })
             : null}
+          {hovered && hoveredBox && inside && !drag ? (
+            <div
+              className="pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2"
+              style={{
+                left: hoveredBox.left + hoveredBox.width / 2,
+                top: hoveredBox.top + hoveredBox.height / 2,
+              }}
+            >
+              {tools.addAt(
+                inside,
+                <AddPoint label={t("viewEditor.addInto", { name: tools.nameOf(hovered.of) })} />,
+                setPicking
+              )}
+            </div>
+          ) : null}
           {drag?.drop && dropBox ? <DropMark box={dropBox} drop={drag.drop} tools={tools} /> : null}
         </div>
       </div>
     </div>
   );
 };
+
+/** A point that opens the Add picker. Its props are the trigger's, as the
+ *  picker passes them. */
+const AddPoint = ({ label, ...props }: { label: string } & ComponentProps<"button">) => (
+  <button
+    type="button"
+    className="flex h-5 w-5 items-center justify-center rounded-full border border-primary bg-background text-primary shadow-sm hover:bg-primary hover:text-primary-foreground"
+    aria-label={label}
+    {...props}
+  >
+    <Plus className="h-3 w-3" aria-hidden="true" />
+  </button>
+);
 
 /** Where a part's add point sits: at the middle of the edge it adds on. */
 const addPoint = (box: Box, side: "before" | "after", across: boolean) =>
@@ -538,7 +613,6 @@ export const PageCanvas = ({
   const listed = useTasks(params);
   const first = listed.data?.items[0]?.id ?? null;
   const task = useTask(first).data;
-  const paths = useMemo(() => indexPaths(page), [page]);
   const layout = useMemo(
     () => ({
       header: page.children?.[0]?.children ?? [],
@@ -554,7 +628,7 @@ export const PageCanvas = ({
         <TaskPageView
           task={task}
           layout={layout}
-          editing={paths}
+          editing
           page={{
             readOnly: false,
             // Drawn here so it can be placed; a reader sees it only when they

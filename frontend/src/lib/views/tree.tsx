@@ -135,12 +135,24 @@ const stackClassName = ({ direction, gap = "xs", wrap, align, tone }: StackProps
     : cn("w-full min-w-0", SPACE[gap], tone && TONE[tone]);
 };
 
+/** While a tree is edited, a group with nothing in it still takes room, to
+ *  drop a part into or add one; readers never see it. */
+const emptyWhileEdited = (node: ViewNode, view: ViewContext): ReactNode =>
+  view.editing && !node.children?.length ? (
+    <div className="flex min-h-10 w-full items-center justify-center rounded-md border border-dashed px-2 text-center text-muted-foreground text-xs">
+      {view.env.t("viewEditor.emptyGroup")}
+    </div>
+  ) : null;
+
 // A region of an item's page: it draws its parts in a column, and places
 // itself on the page's grid.
 const region =
   (className: string) =>
   <I,>(node: ViewNode, item: I, view: ViewContext, parts: Parts<I>) => (
-    <div className={cn("min-w-0", className)}>{renderChildren(node, item, view, parts)}</div>
+    <div className={cn("min-w-0", className)}>
+      {renderChildren(node, item, view, parts)}
+      {emptyWhileEdited(node, view)}
+    </div>
   );
 
 // Where a part of a column falls once the page is a single column.
@@ -172,6 +184,7 @@ const column =
           {renderNode(child, item, view, parts)}
         </div>
       ))}
+      {emptyWhileEdited(node, view)}
     </div>
   );
 
@@ -180,6 +193,7 @@ export const LAYOUT_PARTS = {
   stack: <I,>(node: ViewNode, item: I, view: ViewContext, parts: Parts<I>) => (
     <div className={stackClassName((node.props ?? {}) as StackProps)}>
       {renderChildren(node, item, view, parts)}
+      {emptyWhileEdited(node, view)}
     </div>
   ),
   /** An item's own page, which holds its header, main and side regions. */
@@ -198,6 +212,7 @@ export const LAYOUT_PARTS = {
       collapsed={node.props?.collapsed === true}
     >
       {renderChildren(node, item, view, parts)}
+      {emptyWhileEdited(node, view)}
     </Section>
   ),
 };
