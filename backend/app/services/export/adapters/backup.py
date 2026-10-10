@@ -454,6 +454,7 @@ async def _build_scope(
                     description=i.description,
                     color=i.color,
                     tools=_initiative_tool_states(params, i),
+                    join_policy=i.join_policy,
                 )
                 for i in initiatives
             ],

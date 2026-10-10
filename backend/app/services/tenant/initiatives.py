@@ -1140,12 +1140,13 @@ async def create_imported_initiative(
     color: str | None,
     tool_flags: dict[str, bool],
     manager_id: int,
+    join_policy: InitiativeJoinPolicy | None = None,
 ) -> Initiative:
     """Create an initiative for a backup import: the exact create-endpoint
     sequence (row → built-in roles → creator as PM), with the name suffixed
     on collision (always-create policy) instead of 409ing, and the tool
-    master switches taken from the backup manifest. Flush-only — the backup
-    orchestrator owns its per-chunk transaction."""
+    master switches and join policy taken from the backup manifest.
+    Flush-only — the backup orchestrator owns its per-chunk transaction."""
     from app.core.tools import DEFAULT_ENABLED_TOOLS, Tool
     from app.services.import_engine.common import unique_name
 
@@ -1154,6 +1155,7 @@ async def create_imported_initiative(
         name=unique_name(existing, name),
         description=description,
         color=color,
+        join_policy=(join_policy or InitiativeJoinPolicy.private).value,
         **{
             # A manifest that says nothing about a tool falls back to that
             # tool's own default rather than to off: a backup written before

@@ -44,6 +44,8 @@ from app.core.search import SearchEntityType
 from app.core.tools import BULK_EXPORT_TOOLS, Tool, tool_envelope_type
 from app.core.messages import ImportEngineMessages
 from app.models.platform.user import User
+from app.models.tenant.import_job import ImportJob, ImportJobStatus
+from app.models.tenant.initiative import Initiative
 from app.schemas.tenant.backup_export import (
     BACKUP_SCHEMA_VERSION,
     MIN_SUPPORTED_IMPORT_VERSION,
@@ -57,13 +59,19 @@ from app.schemas.tenant.import_job import (
     BackupPlanPerson,
     EntryResult,
 )
+from app.services import guild_work
 from app.services.import_engine import engine as import_engine
+from app.services.import_engine import limits as import_limits
 from app.services.import_engine.archive_assets import (
     ArchiveAsset,
     remove_written,
     restore_assets,
 )
-from app.services.import_engine.common import handle_key, unique_name
+from app.services.import_engine.common import (
+    handle_key,
+    load_guild_member_handles,
+    unique_name,
+)
 from app.services.tenant.attachments import claim_shown
 from app.services.import_engine.contract import (
     EnvelopeImportResult,
@@ -318,6 +326,51 @@ def plan_backup(
     )
 
 
+async def stage_backup_job(
+    session: AsyncSession,
+    *,
+    guild_id: int,
+    user: User,
+    payload: Path,
+    status: ImportJobStatus,
+    anchor: datetime | None = None,
+) -> ImportJob:
+    """Plan the backup zip at ``payload``, stage it in the community's storage
+    and add its job, created by ``user``, to ``session`` without committing.
+
+    ``session`` is routed into the community, and the plan suggests who each
+    name in the archive is from the roster it reads there. A ``staged`` job
+    waits for the seat to confirm the plan; a ``queued`` one goes straight to
+    the worker. ``anchor`` is as for :func:`apply_backup`. Raises
+    ``IMPORT_JOB_LIMIT_REACHED`` once ``user`` has too many jobs open."""
+    existing_names = set((await session.exec(select(Initiative.name))).all())
+    roster = await load_guild_member_handles(session, guild_id=guild_id)
+    plan = await asyncio.to_thread(
+        plan_backup,
+        payload,
+        existing_initiative_names=existing_names,
+        member_ids_by_handle=roster,
+    )
+    await import_engine.count_active_jobs_locked(session, user=user)
+    payload_ref = await asyncio.to_thread(
+        import_engine.stage_payload_file, guild_id, payload, suffix="zip"
+    )
+    job = ImportJob(
+        created_by=user.id,
+        source="backup",
+        params={"anchor": anchor.isoformat()} if anchor is not None else {},
+        payload_ref=payload_ref,
+        plan=plan.model_dump(mode="json"),
+        status=status,
+        expires_at=datetime.now(timezone.utc)
+        + timedelta(hours=import_limits.IMPORT_STAGED_TTL_HOURS),
+    )
+    session.add(job)
+    if status is ImportJobStatus.queued:
+        guild_work.wake(session, guild_work.DATA_JOBS, guild_id)
+    return job
+
+
 def _manifest_tool_flags(tools: dict[str, str] | None) -> dict[str, bool]:
     """A manifest's per-tool states as initiative master-switch fields.
 
@@ -412,7 +465,6 @@ async def apply_backup(
             entries_by_initiative.setdefault(entry.initiative_id, []).append(entry)
 
         since_refresh = 0
-        from app.models.tenant.initiative import Initiative
 
         # One context for the whole bundle. Its collector matters because an edge
         # routinely crosses two entries applied by two different importers, so
@@ -452,6 +504,7 @@ async def apply_backup(
                     color=mi.color,
                     tool_flags=_manifest_tool_flags(mi.tools),
                     manager_id=user.id,
+                    join_policy=mi.join_policy,
                 )
             result.initiatives.append(
                 {
@@ -848,7 +901,6 @@ async def _apply_initiative_structure(session, initiative, user: User, payload) 
         InitiativeRolePermission,
         PermissionKey,
     )
-    from app.services.import_engine.common import load_guild_member_handles
 
     roles = {
         role.name: role
