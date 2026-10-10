@@ -29,6 +29,7 @@ const initiative = buildInitiative({
 
 vi.mock("@/hooks/useInitiatives", () => ({
   useInitiatives: () => ({ data: [initiative] }),
+  useInitiative: () => ({ data: initiative }),
 }));
 
 import { toast } from "@/lib/mascotToast";

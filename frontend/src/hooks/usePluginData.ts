@@ -31,6 +31,7 @@ import {
   type PluginWidgetCatalogResponse,
 } from "@/api/pluginData";
 import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
+import { useCommunities } from "@/hooks/useCommunities";
 
 /** The client's own ceiling on how long a plug-in's rows are reused, in seconds.
  *  Mirrors the proxy's `MAX_CACHE_TTL_SECONDS`; both exist because a listing
@@ -68,10 +69,12 @@ export const pluginDataKey = (
  *  a disabled plug-in's widgets have nothing to draw. */
 export const usePluginWidgetCatalog = (enabled = true) => {
   const communityId = useActiveCommunityId();
+  // A guest reaches no plug-in of the community's.
+  const communityWide = Boolean(useCommunities().activeCommunity?.can.community_wide);
   return useQuery<PluginWidgetCatalogResponse>({
     queryKey: pluginWidgetCatalogKey(communityId),
     queryFn: () => getPluginWidgetCatalog(communityId),
-    enabled: enabled && Number.isFinite(communityId) && communityId > 0,
+    enabled: enabled && communityWide && Number.isFinite(communityId) && communityId > 0,
     // Installing or upgrading a plug-in invalidates this explicitly; between those
     // it is effectively static for the page's lifetime.
     staleTime: 5 * 60_000,

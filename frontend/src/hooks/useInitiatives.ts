@@ -39,6 +39,7 @@ import {
 import { invalidate, q } from "@/api/query-keys";
 import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useCommunityMutation } from "@/hooks/useApiMutation";
+import { useCommunities } from "@/hooks/useCommunities";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { toast } from "@/lib/mascotToast";
 import type { MutationOpts } from "@/types/mutation";
@@ -102,15 +103,16 @@ export const useInitiativesForCommunity = (
  * Deliberately separate from {@link useInitiatives}, which keeps its contract of
  * "initiatives you are in" — a directory entry carries only what an initiative
  * published about itself (name, colour, description, roster size) plus the
- * caller's own state, never its content.
+ * caller's own state, never its content. A guest has no directory to read.
  */
 export const useInitiativeDirectory = (options?: QueryOpts<InitiativeDirectoryEntry[]>) => {
   const communityId = useActiveCommunityId();
+  const communityWide = Boolean(useCommunities().activeCommunity?.can.community_wide);
   const { enabled: userEnabled = true, ...rest } = options ?? {};
   return useQuery<InitiativeDirectoryEntry[]>({
     queryKey: getListInitiativeDirectoryQueryKey(communityId),
     queryFn: () => listInitiativeDirectory(communityId),
-    enabled: communityId > 0 && userEnabled,
+    enabled: communityId > 0 && communityWide && userEnabled,
     ...rest,
   });
 };

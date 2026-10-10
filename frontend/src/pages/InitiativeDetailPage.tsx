@@ -204,7 +204,12 @@ export const InitiativeDetailPage = ({ tool }: InitiativeDetailPageProps = {}) =
                 <span aria-hidden>·</span>
               </>
             ) : null}
-            <InitiativeMembersPeek initiativeId={initiative.id} memberCount={memberCount} />
+            {/* A guest given items here reads its headcount and nobody in it. */}
+            {initiative.can.roster ? (
+              <InitiativeMembersPeek initiativeId={initiative.id} memberCount={memberCount} />
+            ) : (
+              <span>{t("detail.member", { count: memberCount })}</span>
+            )}
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">

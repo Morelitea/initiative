@@ -1,7 +1,8 @@
 /**
  * Plug-ins installed in the current community.
  *
- * Every member reads this — the sidebar has to know what is there — while
+ * Every member reads this — the sidebar has to know what is there — and no
+ * guest does, the plug-ins being the community's rather than shared with them;
  * installing, renaming, disabling and removing are community-admin actions the
  * server enforces. The UI mirrors that by hiding the affordances, not by
  * deciding it.
@@ -30,6 +31,7 @@ import {
 import { invalidate, q } from "@/api/query-keys";
 import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useCommunityMutation } from "@/hooks/useApiMutation";
+import { useCommunities } from "@/hooks/useCommunities";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
 
@@ -37,10 +39,13 @@ const pluginsKey = (communityId: number) => getListCommunityPluginsQueryKey(comm
 
 export const useCommunityPlugins = (options?: QueryOpts<CommunityPluginListResponse>) => {
   const communityId = useActiveCommunityId();
+  const communityWide = Boolean(useCommunities().activeCommunity?.can.community_wide);
+  const { enabled = true, ...rest } = options ?? {};
   return useQuery<CommunityPluginListResponse>({
     queryKey: pluginsKey(communityId),
     queryFn: () => listCommunityPlugins(communityId),
-    ...options,
+    enabled: enabled && communityWide,
+    ...rest,
   });
 };
 

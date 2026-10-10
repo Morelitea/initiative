@@ -47,10 +47,11 @@ export function buildInitiativeMember(
 
 /** What the reader may do in an initiative. Fail-closed like a member's
  *  defaults: the tools an initiative starts with may be viewed, nothing made,
- *  nothing run. */
+ *  nothing run, and the roster read as any member reads it. */
 export const initiativeCan = (overrides: Partial<InitiativeCan> = {}): InitiativeCan => ({
   manage: false,
   moderate: false,
+  roster: true,
   view: TOOLS.filter((tool) => DEFAULT_ENABLED_TOOLS.has(tool)),
   create: [],
   ...overrides,
