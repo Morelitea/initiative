@@ -128,10 +128,16 @@ export const TASK_CARD: ViewNode = {
   ],
 };
 
+/** A part of a page's column, and where it falls once the page is one column. */
+const at = (order: number, node: ViewNode): ViewNode => ({
+  ...node,
+  props: { ...node.props, order },
+});
+
 /**
  * A task's page as shipped: the title, who made it and what else can be done
  * with it across the top; what the task is in the main column; and the fields
- * that place it beside them.
+ * that place it beside them. On one column, the fields follow the description.
  */
 export const TASK_PAGE: ViewNode = {
   type: "page",
@@ -151,16 +157,16 @@ export const TASK_PAGE: ViewNode = {
     {
       type: "main",
       children: [
-        { type: "section", children: [field("description")] },
-        field("checklist"),
-        { type: "case" },
-        { type: "comments" },
+        at(1, { type: "section", children: [field("description")] }),
+        at(3, field("checklist")),
+        at(4, { type: "case" }),
+        at(6, { type: "comments" }),
       ],
     },
     {
       type: "side",
       children: [
-        {
+        at(2, {
           type: "section",
           children: [
             { type: "status" },
@@ -171,8 +177,8 @@ export const TASK_PAGE: ViewNode = {
             field("tags"),
             { type: "properties" },
           ],
-        },
-        { type: "relations" },
+        }),
+        at(5, { type: "relations" }),
       ],
     },
   ],

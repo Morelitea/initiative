@@ -219,6 +219,15 @@ describe("MarkdownComposer", () => {
     expect(field()).toBeInTheDocument();
   });
 
+  it("stays on the field while text is typed into an empty preview-first one", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<Host defaultMode="preview" />);
+
+    await user.type(field(), "Plan");
+
+    expect(field()).toHaveValue("Plan");
+  });
+
   it("settles on the preview once a late-loading draft arrives", async () => {
     const { rerender } = renderWithProviders(<LateHost value="" />);
     expect(screen.getByRole("textbox")).toBeInTheDocument();

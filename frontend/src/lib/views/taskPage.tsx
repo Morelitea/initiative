@@ -131,6 +131,7 @@ const TitleEditor = ({ task, label }: EditorProps) => {
       label={label}
       htmlFor="task-title"
       hideLabel
+      statusBelow
       save={save}
       changed={draft.changed}
       keys={draft.keys}
@@ -172,9 +173,9 @@ const readDescriptionDraft = (key: string): DescriptionDraft | null => {
 };
 
 /**
- * The description, edited in a mode the reader opens and saved only with
- * Save (or Ctrl/Cmd+Enter). The draft is kept on the device until it is saved
- * or discarded. The save names the description it was written over, and one
+ * The description, in a composer that opens on its preview, saved only with
+ * Save (or Ctrl/Cmd+Enter). What is typed is a draft, kept on the device until
+ * it is saved or discarded. The save names the description it was written over, and one
  * written over a description that has since changed is refused, so the reader
  * sees the other version and chooses.
  */
@@ -240,21 +241,8 @@ const DescriptionEditor = ({ task, label }: EditorProps) => {
       changed={
         open !== null && !conflict && save.state !== "saving" && current !== (open.base ?? "")
       }
-      action={
-        draft === null && !readOnly ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-6 px-2 text-xs"
-            onClick={() => setDraft({ text: current, base: task.description })}
-          >
-            {t("common:edit")}
-          </Button>
-        ) : null
-      }
     >
-      {open === null ? (
+      {readOnly ? (
         <>
           {current ? (
             <div className="rounded-md border border-border/70 border-dashed bg-muted/40 px-3 py-2">
@@ -273,15 +261,16 @@ const DescriptionEditor = ({ task, label }: EditorProps) => {
         <div className="space-y-2">
           <MentionComposer
             id="task-description"
-            value={open.text}
-            onChange={(text) => setDraft({ ...open, text })}
+            value={open?.text ?? current}
+            onChange={(text) => setDraft({ text, base: open ? open.base : task.description })}
             initiativeId={initiativeId ?? 0}
             subject={referenceRef(SearchEntityType.task, task.id)}
             renderPreview={renderDescription}
             onUploadImage={uploadImage}
+            defaultMode="preview"
             placeholder={t("edit.descriptionPlaceholder")}
-            autoFocus
             onKeyDown={(event) => {
+              if (!open) return;
               if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
                 event.preventDefault();
                 submit(open.base);
@@ -310,7 +299,7 @@ const DescriptionEditor = ({ task, label }: EditorProps) => {
               ) : null
             }
           />
-          {conflict ? (
+          {open === null ? null : conflict ? (
             <div
               role="alert"
               className="space-y-2 rounded-md border border-warning/40 bg-warning/5 px-3 py-2"

@@ -5,7 +5,7 @@ import { buildPropertyDefinition, buildPropertySummary, buildTask } from "@/__te
 import i18n from "@/__tests__/helpers/i18n-test";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import type { PropertyDefinitionRead, TaskListRead } from "@/api/generated/initiativeAPI.schemas";
-import { taskFields } from "@/lib/views/tasks";
+import { TASK_PAGE, taskFields } from "@/lib/views/tasks";
 import {
   LAYOUT_PARTS,
   type Parts,
@@ -134,5 +134,38 @@ describe("renderNode", () => {
     );
 
     expect(container.textContent).toBe("AdaAda");
+  });
+
+  it("follows a task's description with its fields once its page is one column", () => {
+    const named = (name: string) => () => <p>{name}</p>;
+    const parts: Parts<null> = {
+      ...LAYOUT_PARTS,
+      field: (node) => <p>{String(node.props?.field)}</p>,
+      status: named("status"),
+      dates: named("dates"),
+      properties: named("properties"),
+      case: named("case"),
+      relations: named("relations"),
+      comments: named("comments"),
+    };
+
+    const { container } = renderWithProviders(
+      <>{renderNode(TASK_PAGE, null, viewOf([], [], "page"), parts)}</>
+    );
+
+    // Each part of a column carries where it falls on the one column.
+    const stacked = [...container.querySelectorAll("div")]
+      .map((part) => ({ order: /(?:^|\s)order-(\d+)/.exec(part.className)?.[1], part }))
+      .filter((entry) => entry.order !== undefined)
+      .sort((a, b) => Number(a.order) - Number(b.order))
+      .map(({ part }) => part.querySelector("p")?.textContent);
+    expect(stacked).toEqual([
+      "description",
+      "status",
+      "checklist",
+      "case",
+      "relations",
+      "comments",
+    ]);
   });
 });
