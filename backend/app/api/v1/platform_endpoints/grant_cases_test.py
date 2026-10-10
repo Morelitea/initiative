@@ -436,9 +436,12 @@ async def test_two_requests_for_one_unnamed_case_settle_one_community(
     first = await create_guild(session)
     second = await create_guild(session)
     task_id = await _case()
-    assert await grant_cases.claim(task_id, guild_id=first.id) is True
-    assert await grant_cases.claim(task_id, guild_id=second.id) is False
-    assert await grant_cases.claim(task_id, guild_id=first.id) is True
+    assert await grant_cases.claim(task_id, guild_id=first.id) == "named"
+    assert await grant_cases.claim(task_id, guild_id=second.id) == "other"
+    assert await grant_cases.claim(task_id, guild_id=first.id) == "held"
+    # A grant that then fails to be made gives the case back unnamed.
+    await grant_cases.release(task_id, guild_id=first.id)
+    assert await grant_cases.claim(task_id, guild_id=second.id) == "named"
 
 
 async def test_the_picker_finds_a_case_by_title_or_number(
@@ -611,4 +614,4 @@ async def test_a_refused_request_leaves_its_case_unnamed(
     response = await _request(client, desk["agent"], 999_999, case_task_id=task_id)
     assert response.status_code == 404, response.text
     other = await create_guild(session)
-    assert await grant_cases.claim(task_id, guild_id=other.id) is True
+    assert await grant_cases.claim(task_id, guild_id=other.id) == "named"

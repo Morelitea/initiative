@@ -281,14 +281,21 @@ async def note(
         return False
 
 
-async def claim(task_id: int, *, guild_id: int) -> bool:
+async def claim(task_id: int, *, guild_id: int) -> str:
     """Settle that the case a grant is asked for is about the grant's
-    community, naming it where the case names none. False where the case is
-    about another — settled under a lock, so two requests at once for one
-    unnamed case cannot each name it."""
+    community, naming it where the case names none: ``named`` (named now),
+    ``held`` (it already was) or ``other`` (it is about another). Under a
+    lock, so two requests at once for one unnamed case cannot each name it."""
     from app.services.platform.intake import claim_subject_guild
 
     return await claim_subject_guild(task_id, guild_id)
+
+
+async def release(task_id: int, *, guild_id: int) -> None:
+    """Undo a :func:`claim` that named the case, for a grant not made."""
+    from app.services.platform.intake import release_subject_guild
+
+    await release_subject_guild(task_id, guild_id)
 
 
 async def activate(task_id: Optional[int]) -> None:
@@ -385,6 +392,8 @@ class ActivitySummary:
     reads: dict[str, int]
     write_count: int
     writes: list[AccessGrantActivity]
+    #: When the latest request counted was recorded, where any was.
+    latest: Optional[datetime] = None
 
 
 async def _activity(
@@ -420,11 +429,27 @@ async def _activity(
             .limit(WRITES_LISTED)
         )
     ).all()
+    latest = (
+        await session.exec(
+            select(func.max(AccessGrantActivity.occurred_at)).where(*window)
+        )
+    ).one()
     return ActivitySummary(
         reads={kind or "other": int(n) for kind, n in read_counts},
         write_count=int(write_count),
         writes=list(writes),
+        latest=latest,
     )
+
+
+def _accounted_to(grant: AccessGrant, summary: ActivitySummary) -> datetime:
+    """How far a case has been told of what ``grant`` did: the latest request
+    counted, or where none was, when the grant ended. A request recorded
+    after this — one the grant let in that was still finishing — is told on
+    its own later."""
+    ended = grant.revoked_at or grant.expires_at or grant.decided_at
+    candidates = [moment for moment in (summary.latest, ended) if moment is not None]
+    return max(candidates) if candidates else utcnow()
 
 
 def digest_text(summary: ActivitySummary, *, heading: str) -> str:
@@ -537,7 +562,7 @@ async def report_activity(
     }
     for grant in ended:
         summary = await _activity(session, int(grant.id), None)
-        grant.closed_out_at = moment
+        grant.closed_out_at = _accounted_to(grant, summary)
         session.add(grant)
         if grant.status == AccessGrantStatus.denied.value:
             # Never used, and its case was told of the denial.
@@ -576,7 +601,7 @@ async def report_activity(
             told += 1
     for grant in late:
         summary = await _activity(session, int(grant.id), grant.closed_out_at)
-        grant.closed_out_at = moment
+        grant.closed_out_at = _accounted_to(grant, summary)
         session.add(grant)
         heading = (
             f"After {_describe(grant, names.get(grant.guild_id), users.get(grant.user_id))}"

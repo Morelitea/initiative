@@ -30,7 +30,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING, Optional, Sequence
+from typing import TYPE_CHECKING, Literal, Optional, Sequence
 
 from sqlalchemy import func
 from sqlmodel import select
@@ -833,14 +833,18 @@ async def open_cases_for(user_id: int) -> list[AccountCase]:
     ]
 
 
-async def claim_subject_guild(task_id: int, guild_id: int) -> bool:
+#: What settling a case's community did: named it now, found it already
+#: named so, or found it about another community.
+ClaimOutcome = Literal["named", "held", "other"]
+
+
+async def claim_subject_guild(task_id: int, guild_id: int) -> ClaimOutcome:
     """Settle that case ``task_id`` is about community ``guild_id``: name it
-    where the case names no community, and answer whether the case is now
-    about that one. Under a lock on the case, so two settlements at once
-    cannot each find it unnamed and both name it."""
+    where the case names no community. Under a lock on the case, so two
+    settlements at once cannot each find it unnamed and both name it."""
     operations = await configured_operations_guild_id()
     if operations is None:
-        return False
+        return "other"
     async with cohorts.system_session(operations) as session:
         await set_rls_context(session, SystemGuild(operations))
         found = (
@@ -853,14 +857,14 @@ async def claim_subject_guild(task_id: int, guild_id: int) -> bool:
             )
         ).first()
         if found is None:
-            return False
+            return "other"
         task, initiative_id, stream = found
         definitions = await _ensure_field_definitions(
             session, initiative_id=initiative_id, stream=IntakeStream(stream)
         )
         field = definitions.get(CaseField.subject_guild)
         if field is None:
-            return False
+            return "other"
         named = (
             await session.exec(
                 select(PropertyValue.value_number)
@@ -871,7 +875,7 @@ async def claim_subject_guild(task_id: int, guild_id: int) -> bool:
         ).first()
         if named is not None:
             await session.rollback()
-            return int(named) == guild_id
+            return "held" if int(named) == guild_id else "other"
         # This one value alone: everything else the team set on the case
         # stays as it is.
         await properties_service.write_values(
@@ -882,4 +886,39 @@ async def claim_subject_guild(task_id: int, guild_id: int) -> bool:
             removed=[],
         )
         await session.commit()
-        return True
+        return "named"
+
+
+async def release_subject_guild(task_id: int, guild_id: int) -> None:
+    """Undo :func:`claim_subject_guild` naming ``guild_id`` on case
+    ``task_id``, for a grant that was not made after all: the case names no
+    community again, where it still names that one."""
+    operations = await configured_operations_guild_id()
+    if operations is None:
+        return
+    async with cohorts.system_session(operations) as session:
+        await set_rls_context(session, SystemGuild(operations))
+        found = (
+            await session.exec(
+                select(IntakeCase.id)
+                .where(IntakeCase.task_id == task_id)
+                .with_for_update()
+            )
+        ).first()
+        if found is None:
+            return
+        named = (
+            await session.exec(
+                select(PropertyValue)
+                .join(
+                    PropertyDefinition,
+                    PropertyDefinition.id == PropertyValue.property_id,
+                )
+                .where(PropertyDefinition.name == CaseField.subject_guild.value)
+                .where(PropertyValue.entity_type == "task")
+                .where(PropertyValue.entity_id == task_id)
+            )
+        ).first()
+        if named is not None and named.value_number == guild_id:
+            await session.delete(named)
+        await session.commit()

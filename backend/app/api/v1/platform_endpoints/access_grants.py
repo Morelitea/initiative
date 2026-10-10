@@ -99,17 +99,28 @@ async def _check_case(
         raise HTTPException(status_code=exc.status_code, detail=exc.code) from exc
 
 
-async def _claim_case(case_task_id: Optional[int], guild_id: int) -> None:
-    """Settle the case a grant names as about the grant's community, under a
-    lock on the case, after the grant has passed its checks and before it is
-    committed: a refusal from either leaves the other undone."""
+async def _commit_with_case(
+    session: AsyncSession, case_task_id: Optional[int], guild_id: int
+) -> None:
+    """Settle the case a grant names as about the grant's community, then
+    commit the grant: after the grant has passed its checks, so a refused
+    request names nothing on its case, and undone if the grant then fails to
+    commit, so the two stand or fall together."""
     if case_task_id is None:
+        await session.commit()
         return
-    if not await grant_cases.claim(case_task_id, guild_id=guild_id):
+    outcome = await grant_cases.claim(case_task_id, guild_id=guild_id)
+    if outcome == "other":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AccessGrantMessages.CASE_OTHER_COMMUNITY,
         )
+    try:
+        await session.commit()
+    except BaseException:
+        if outcome == "named":
+            await grant_cases.release(case_task_id, guild_id=guild_id)
+        raise
 
 
 async def _tell_requested(
@@ -192,9 +203,8 @@ async def create_access_request(
                 "level": requested.access_level,
             },
         )
-    await _claim_case(payload.case_task_id, payload.community_id)
     read = await _one(grant, system_session=session)
-    await session.commit()
+    await _commit_with_case(session, payload.case_task_id, payload.community_id)
     await _tell_requested(
         session,
         asked,
@@ -421,9 +431,8 @@ async def break_glass_access(
                 "self_approved": True,
             },
         )
-    await _claim_case(payload.case_task_id, payload.community_id)
     read = await _one(grant, system_session=session)
-    await session.commit()
+    await _commit_with_case(session, payload.case_task_id, payload.community_id)
     await _tell_requested(
         session,
         [grant, settings_grant],
