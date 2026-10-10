@@ -38,6 +38,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, SQLModel
 
+from app.db.registry_checks import FROM_REGISTRY
 from app.core.tools import METADATA_TARGETS
 
 _TARGET_VALUES = ", ".join(f"'{target}'" for target in METADATA_TARGETS)
@@ -52,6 +53,7 @@ class PluginMetadata(SQLModel, table=True):
         CheckConstraint(
             f"entity_type IN ({_TARGET_VALUES})",
             name="ck_plugin_metadata_entity_type",
+            info={FROM_REGISTRY: True},
         ),
         Index(
             "ix_plugin_metadata_lookup",

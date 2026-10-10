@@ -15,6 +15,7 @@ from sqlalchemy.exc import ProgrammingError
 import app.db.schema_provisioning as schema_provisioning
 from app.db.advisory_locks import LockNamespace, advisory_lock
 from app.db.guild_ddl import rendered_constraint_names, rendered_trigger_names
+from app.db.registry_checks import registry_checks
 from app.db.schema_provisioning import (
     GuildRoleKind,
     PLUGIN_ROLE_MACHINERY_READS,
@@ -720,6 +721,25 @@ async def test_guild_schema_matches_guild_template(engine):
                 if await trig(_TEMPLATE_SCHEMA, t) != await trig(schema, t):
                     drift.append(f"triggers: {t}")
             assert drift == [], f"guild schema drifted from guild_template: {drift}"
+
+            # The CHECKs that follow a registry are there, validated, and admit
+            # what the model says.
+            def values(definition: str) -> set[str]:
+                return set(re.findall(r"'([^']*)'", definition))
+
+            for table, check in registry_checks():
+                row = (
+                    await conn.execute(
+                        text(
+                            "SELECT convalidated v, pg_get_constraintdef(oid) d "
+                            "FROM pg_constraint WHERE conname=:n "
+                            "AND conrelid=(:ns||'.'||:t)::regclass"
+                        ),
+                        {"n": check.name, "ns": schema, "t": table.name},
+                    )
+                ).one()
+                assert row.v, check.name
+                assert values(row.d) == values(str(check.sqltext)), check.name
     finally:
         async with engine.begin() as conn:
             await drop_guild_schema(conn, _GID_DRIFT)

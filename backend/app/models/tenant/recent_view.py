@@ -1,16 +1,16 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, Text
+from sqlalchemy import CheckConstraint, Column, DateTime, Text
 from sqlmodel import Field, SQLModel
 
 from app.core.tools import Tool
+from app.db.registry_checks import FROM_REGISTRY
 
 
-# Allowed values, derived from the canonical Tool enum. They mirror the CHECK
-# constraint on the table (baseline + migration
-# ``20260704_0128_canonical_tool_naming.py``) — a new tool needs a guild
-# migration extending that constraint.
+# Allowed values, derived from the canonical Tool enum. The CHECK below is
+# rendered from them at boot (``app.db.registry_checks``).
 RECENT_ENTITY_TYPES: tuple[str, ...] = tuple(t.value for t in Tool)
+_ENTITY_TYPE_VALUES = ", ".join(f"'{kind}'" for kind in RECENT_ENTITY_TYPES)
 
 
 class RecentView(SQLModel, table=True):
@@ -22,9 +22,15 @@ class RecentView(SQLModel, table=True):
     """
 
     __tablename__ = "recent_views"
+    __table_args__ = (
+        CheckConstraint(
+            f"entity_type IN ({_ENTITY_TYPE_VALUES})",
+            name="ck_recent_views_entity_type",
+            info={FROM_REGISTRY: True},
+        ),
+    )
 
     user_id: int = Field(foreign_key="users.id", primary_key=True)
-    # DDL: unbounded TEXT constrained by ck_recent_views_entity_type, not length
     entity_type: str = Field(sa_column=Column(Text, primary_key=True, nullable=False))
     entity_id: int = Field(primary_key=True)
     last_viewed_at: datetime = Field(

@@ -39,6 +39,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field
 
+from app.db.registry_checks import FROM_REGISTRY
 from app.core.tools import VIEW_TOOLS, VIEWS_SHARED
 from app.models.tenant._mixins import CreatedByMixin
 
@@ -55,11 +56,16 @@ _TARGET = ("initiative_id", "tool", "tool_id")
 class ToolView(CreatedByMixin, table=True):
     __tablename__ = "tool_views"
     __table_args__ = (
-        CheckConstraint(f"tool IN ({_TOOL_VALUES})", name="ck_tool_views_tool"),
+        CheckConstraint(
+            f"tool IN ({_TOOL_VALUES})",
+            name="ck_tool_views_tool",
+            info={FROM_REGISTRY: True},
+        ),
         # A shared page names no instance, and every other tool's view names one.
         CheckConstraint(
             f"(tool IN ({_SHARED_VALUES})) = (tool_id IS NULL)",
             name="ck_tool_views_target",
+            info={FROM_REGISTRY: True},
         ),
         CheckConstraint(
             f"(kind = '{VIEW_KIND}' AND name IS NOT NULL AND slug IS NOT NULL"

@@ -200,7 +200,7 @@ SYSTEM_GUILD_MAINTENANCE_SEQUENCE_GRANTS: dict[str, tuple[str, ...]] = {
 #: A schema's comment records one digest per part; a boot re-applies only the
 #: parts whose digest moved, except that new structure re-applies every part,
 #: since the others reach the tables it adds.
-PARTS = ("schema", "grants", "rls", "capture", "search")
+PARTS = ("schema", "checks", "grants", "rls", "capture", "search")
 _STAMP_PREFIX = "provisioned:"
 
 
@@ -209,7 +209,8 @@ class ProvisioningBundle:
     """The per-process render of everything provisioning applies.
 
     ``schema_ddl`` is reflected LIVE from the Alembic-maintained
-    ``guild_template`` schema; ``rls_ddl`` is rendered from the
+    ``guild_template`` schema; ``checks_ddl`` from the CHECKs the models mark as
+    following a registry (``app.db.registry_checks``); ``rls_ddl`` from the
     ``INITIATIVE_PATHS`` registry (see ``app.db.guild_ddl``). There are no
     committed artifacts — new guilds match the template + registry by
     construction. ``digests`` hashes each part's render (the grants as
@@ -218,6 +219,7 @@ class ProvisioningBundle:
     """
 
     schema_ddl: str
+    checks_ddl: str
     rls_ddl: str
     capture_ddl: str
     search_ddl: str
@@ -257,9 +259,11 @@ async def get_provisioning_bundle() -> ProvisioningBundle:
             return _bundle
         from app.db.event_capture import render_guild_capture_ddl
         from app.db.guild_ddl import render_guild_rls_ddl, render_guild_schema_ddl
+        from app.db.registry_checks import render_guild_registry_check_ddl
         from app.db.search_index import render_guild_search_ddl
 
         schema_ddl = await render_guild_schema_ddl(db_session.provisioning_engine)
+        checks_ddl = render_guild_registry_check_ddl()
         rls_ddl = render_guild_rls_ddl()
         capture_ddl = render_guild_capture_ddl()
         # Naming the operator class in the rendered text is what makes the
@@ -270,11 +274,13 @@ async def get_provisioning_bundle() -> ProvisioningBundle:
         grants = _grant_statements("__stamp__", 0)
         _bundle = ProvisioningBundle(
             schema_ddl=schema_ddl,
+            checks_ddl=checks_ddl,
             rls_ddl=rls_ddl,
             capture_ddl=capture_ddl,
             search_ddl=search_ddl,
             digests={
                 "schema": _digest(schema_ddl),
+                "checks": _digest(checks_ddl),
                 "grants": _digest(*grants),
                 "rls": _digest(rls_ddl),
                 "capture": _digest(capture_ddl),
@@ -304,6 +310,16 @@ async def apply_guild_schema(conn: AsyncConnection, schema: str) -> None:
     raw = await conn.get_raw_connection()
     # search_path so unqualified CREATEs land in the schema and intra-schema FKs
     # resolve there; reset to public so it doesn't leak onto the pooled connection.
+    await raw.driver_connection.execute(
+        f'SET search_path TO "{schema}", public;\n{ddl}\nSET search_path TO public;'
+    )
+
+
+async def apply_guild_checks(conn: AsyncConnection, schema: str) -> None:
+    """Assert the registry CHECKs on ``schema``'s tables
+    (``app.db.registry_checks``), with the search_path pointed at it."""
+    ddl = (await get_provisioning_bundle()).checks_ddl
+    raw = await conn.get_raw_connection()
     await raw.driver_connection.execute(
         f'SET search_path TO "{schema}", public;\n{ddl}\nSET search_path TO public;'
     )
@@ -698,6 +714,8 @@ async def _apply_parts(
     if "schema" in parts:
         await conn.exec_driver_sql(f'CREATE SCHEMA IF NOT EXISTS "{schema}"')
         await apply_guild_schema(conn, schema)  # canonical Alembic-owned table DDL
+    if "checks" in parts:
+        await apply_guild_checks(conn, schema)  # CHECKs that follow a registry
     if "grants" in parts:
         roles = _guild_roles(guild_id)
         existing = await _existing_roles(conn, roles)

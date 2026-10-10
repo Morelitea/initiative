@@ -16,6 +16,7 @@ from typing import Optional
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     Column,
     DateTime,
     ForeignKey,
@@ -27,6 +28,11 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import TSVECTOR
 from sqlmodel import Field, SQLModel
 
+from app.core.search import SearchEntityType
+from app.db.registry_checks import FROM_REGISTRY
+
+_ENTITY_TYPE_VALUES = ", ".join(f"'{kind.value}'" for kind in SearchEntityType)
+
 
 class SearchEntry(SQLModel, table=True):
     """One indexed chunk of one entity.
@@ -37,8 +43,14 @@ class SearchEntry(SQLModel, table=True):
     """
 
     __tablename__ = "search_entries"
+    __table_args__ = (
+        CheckConstraint(
+            f"entity_type IN ({_ENTITY_TYPE_VALUES})",
+            name="ck_search_entries_entity_type",
+            info={FROM_REGISTRY: True},
+        ),
+    )
 
-    # DDL: unbounded TEXT constrained by ck_search_entries_entity_type
     entity_type: str = Field(sa_column=Column(Text, primary_key=True, nullable=False))
     entity_id: int = Field(primary_key=True)
     chunk_ix: int = Field(

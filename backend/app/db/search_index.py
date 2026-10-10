@@ -579,6 +579,7 @@ NOT_SEARCHABLE: dict[str, str] = {
     "gallery_image_versions": "history of a picture already indexed",
     "post_polls": "the question a notice asks, reached from the notice",
     "post_poll_options": "a poll's choices, reached from the notice",
+    "calendar_event_answers": "one invitee's answer, reached from the event",
     "initiatives": "structural; discovery is the join surface, not search",
     "event_reminder_dispatches": "scheduler bookkeeping",
     "task_assignment_digest_items": "scheduler bookkeeping",
@@ -1002,24 +1003,6 @@ _HEADER = """\
 
 
 SEARCH_INDEX = "ix_search_entries_tsv"
-ENTITY_TYPE_CHECK = "ck_search_entries_entity_type"
-
-
-def _entity_type_check_block() -> str:
-    """DDL asserting the entity-type CHECK names exactly the indexed set.
-
-    Rendered here rather than migrated so the list has one home. A migration
-    would freeze a snapshot of it, and the next source added would be rejected
-    at write time by a constraint nobody remembered to widen; because this text
-    names the types, adding one moves the provisioning stamp and the next boot
-    re-asserts the constraint for every guild.
-    """
-    values = ", ".join(f"'{t.value}'" for t in entity_types())
-    return (
-        f"ALTER TABLE search_entries DROP CONSTRAINT IF EXISTS {ENTITY_TYPE_CHECK};\n"
-        f"ALTER TABLE search_entries ADD CONSTRAINT {ENTITY_TYPE_CHECK}\n"
-        f"    CHECK (entity_type IN ({values}));"
-    )
 
 
 def _index_block(opclass: str | None) -> str:
@@ -1076,7 +1059,6 @@ def render_guild_search_ddl(opclass: str | None = None) -> str:
         for table, source in sorted(SEARCH_SOURCES.items())
         for parent in archive_parents(table, source)
     )
-    blocks.append(_entity_type_check_block())
     blocks.append(_index_block(opclass))
     return _HEADER + "\n\n" + "\n\n".join(blocks) + "\n"
 
