@@ -87,14 +87,7 @@ import { FieldFrame, useFieldDraft } from "./editing";
 import { type FieldKind, useProjectViewEnv } from "./fields";
 import { PluginFieldOnPage, PluginPartView, pluginFields, usePluginsOnItems } from "./plugins";
 import { taskFields, taskPageTree } from "./tasks";
-import {
-  fieldNamed,
-  LAYOUT_PARTS,
-  type Parts,
-  renderNode,
-  type ViewContext,
-  type ViewNode,
-} from "./tree";
+import { LAYOUT_PARTS, type Parts, renderNode, type ViewContext, type ViewNode } from "./tree";
 
 /** What the task's page shares with its parts, beside the task itself. */
 export interface TaskPageContext {
@@ -870,8 +863,8 @@ const Comments = ({ task }: { task: TaskRead }) => {
 const TASK_PAGE_PARTS: Parts<TaskRead> = {
   ...LAYOUT_PARTS,
   field: (node, task, view) => {
-    const field = fieldNamed(view.fields, node);
-    if (!field || (field.hideable && view.isHidden(field.id))) return null;
+    const field = view.fields.get(String(node.props?.field));
+    if (!field) return null;
     // A plug-in's value is the plug-in's to change.
     if (field.source === "plugin") return <PluginFieldOnPage field={field} item={task} />;
     const Editor = FIELD_EDITORS[field.kind];
@@ -915,13 +908,12 @@ export const TaskPageView = ({
   );
   const env = useProjectViewEnv(taskHref);
   const plugins = usePluginsOnItems(page.initiativeId);
-  // The page's labels are the fields' own; no field is hidden on it yet.
+  // The page's labels are the fields' own.
   const view = useMemo<ViewContext>(
     () => ({
       fields: taskFields([], pluginFields(plugins, i18n.language)),
       plugins,
       variant: "page",
-      isHidden: () => false,
       env,
     }),
     [plugins, i18n.language, env]

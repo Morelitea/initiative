@@ -113,8 +113,6 @@ export const ProjectTasksKanbanView = ({
       plugins,
       card,
       variant: "card",
-      // The card draws what it names.
-      isHidden: (fieldId) => !namesField(card, fieldId),
       env,
       editing,
     }),
@@ -180,7 +178,7 @@ export const ProjectTasksKanbanView = ({
           </div>
         </div>
         <DragOverlay>
-          {activeTask ? <TaskDragOverlay task={activeTask} isHidden={view.isHidden} /> : null}
+          {activeTask ? <TaskDragOverlay task={activeTask} card={card} /> : null}
         </DragOverlay>
       </DndContext>
     </MentionedPeopleScope>
@@ -216,17 +214,10 @@ const getDroppableType = (
   id: UniqueIdentifier
 ): string | undefined => containers.find((container) => container.id === id)?.data.current?.type;
 
-const TaskDragOverlay = ({
-  task,
-  isHidden,
-}: {
-  task: TaskListRead;
-  isHidden: ViewContext["isHidden"];
-}) => {
+const TaskDragOverlay = ({ task, card }: { task: TaskListRead; card: ViewNode }) => {
   const { t } = useTranslation("projects");
-  // The thing being dragged is the card, so it drops the same fields the card
-  // dropped — otherwise picking one up puts back what you just turned off.
-  const shows = (fieldId: string) => !isHidden(fieldId);
+  // The thing being dragged is the card, so it shows what the card names.
+  const shows = (fieldId: string) => namesField(card, fieldId);
   return (
     <div className="w-64 space-y-3 rounded-lg border bg-card p-3 shadow-lg">
       <div className="space-y-1">

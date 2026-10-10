@@ -5,7 +5,7 @@ import { namePropertyColumns } from "@/components/properties/propertyColumns";
 import { isEmptyPropertyValue } from "@/components/properties/propertyHelpers";
 import { iconForPropertyType } from "@/components/properties/propertyTypeIcons";
 
-import type { FieldDef } from "./fields";
+import { type FieldDef, propertyFieldId } from "./fields";
 import type { ViewNode } from "./tree";
 
 const builtin = (
@@ -19,9 +19,9 @@ const builtin = (
 
 /**
  * Everything a task view can show: the built-ins, then one field per property
- * the initiative defines, then the plug-ins' (`pluginFields`). A property's id
- * is its table column's id, so the Fields menu and the table name it
- * identically and two that share a name stay apart.
+ * the initiative defines, then the plug-ins' (`pluginFields`). Each is keyed
+ * by the id a view stores it under, which a table's column shares; two
+ * properties that share a name are told apart in their labels.
  */
 export const taskFields = (
   definitions: PropertyDefinitionRead[],
@@ -79,13 +79,12 @@ export const taskFields = (
     }),
     builtin({ id: "tags", kind: "tags", value: (task) => task.tags }),
     ...namePropertyColumns(definitions).map(
-      ({ definition, id, label }): FieldDef => ({
-        id,
+      ({ definition, label }): FieldDef => ({
+        id: propertyFieldId(definition.id),
         kind: "property",
         source: "property",
         label,
         hideable: true,
-        propertyId: definition.id,
         icon: iconForPropertyType(definition.type),
         value: (task) => {
           const summary = task.properties?.find((s) => s.property_id === definition.id);

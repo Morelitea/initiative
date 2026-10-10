@@ -383,6 +383,9 @@
     "roomy": "Aéré",
     "wrap": "Passer à la ligne",
     "ownWidth": "Garder la largeur de chaque élément",
-    "muted": "Texte atténué"
+    "muted": "Texte atténué",
+    "titleHelp": "Chaque tâche affiche son titre, qui l’ouvre.",
+    "holdsTitle": "Ce groupe contient le titre, que chaque tâche affiche : il reste.",
+    "savingBody": "Vos vues sont encore en cours d’enregistrement. Quitter maintenant peut faire perdre vos modifications si l’enregistrement échoue."
   }
 }

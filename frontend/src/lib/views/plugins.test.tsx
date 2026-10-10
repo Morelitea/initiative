@@ -71,7 +71,6 @@ const draw = (card: ViewNode, item: TaskListRead = task) => {
     fields: taskFields([], pluginFields(plugins, "en")),
     plugins,
     variant: "card" as const,
-    isHidden: () => false,
     env: {
       t: i18n.getFixedT(null, ["projects", "dates", "relations"]) as TranslateFn,
       communityPath: (path: string) => path,

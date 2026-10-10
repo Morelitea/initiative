@@ -53,6 +53,10 @@ export type FieldKind =
   | "property"
   | "plugin";
 
+/** A property's field, by its definition id: what a view stores, so renaming
+ *  the property keeps every view that shows it. */
+export const propertyFieldId = (definitionId: number) => `property:${definitionId}`;
+
 /** Anything a view can show about an item. */
 export type FieldDef = {
   id: string;
@@ -66,8 +70,6 @@ export type FieldDef = {
   value: (item: ViewItem) => unknown;
   /** A title cannot be hidden: a card with no title is not a card. */
   hideable: boolean;
-  /** A property field's definition id. */
-  propertyId?: number;
   /** A plug-in field's install and declaration. */
   plugin?: { install: number; field: PluginFieldDecl };
   /** The sentence the value sits in, as an i18n key ("Due: {{date}}"). */

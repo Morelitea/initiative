@@ -126,6 +126,71 @@ describe("ViewEditor", () => {
     ]);
   });
 
+  it("changes nothing while a save is under way, and still asks before leaving", async () => {
+    let answer = () => {};
+    server.use(
+      communityHttp.put("/views/", async ({ request }) => {
+        const body = (await request.json()) as ToolViewSetWrite;
+        await new Promise<void>((resolve) => {
+          answer = resolve;
+        });
+        return HttpResponse.json(buildSavedViewSet(body));
+      })
+    );
+    const { user, onClose } = editor("board");
+    await within(await canvas()).findByText(/priority: medium/i);
+
+    await user.click(within(await outline()).getByRole("button", { name: /hide priority/i }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    expect(await screen.findByRole("button", { name: /saving/i })).toBeDisabled();
+    expect(within(await outline()).getByRole("button", { name: /hide tags/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^undo$/i })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: /close the editor/i }));
+    expect(await screen.findByText(/still being saved/i)).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: /keep editing/i }));
+
+    answer();
+    expect(await screen.findByRole("button", { name: /^save$/i })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: /close the editor/i }));
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("adds a plug-in's field to a table as a column", async () => {
+    server.use(
+      communityHttp.get("/plugins/", () =>
+        HttpResponse.json({
+          items: [
+            {
+              id: 3,
+              name: "CI",
+              enabled: true,
+              definition: {
+                fields: [{ key: "ci.state", name: { en: "Build" }, kind: "badge", on: ["task"] }],
+              },
+              item_initiatives: [1],
+              item_fields: ["ci.state"],
+              item_parts: [],
+              item_actions: [],
+            },
+          ],
+        })
+      )
+    );
+    const { user } = editor("table");
+
+    await user.click(await within(await outline()).findByRole("button", { name: /^add$/i }));
+    expect(await screen.findByText("CI")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Build" }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    await waitFor(() => expect(saves).toHaveLength(1));
+    expect(saves[0].views.find((view) => view.slug === "table")?.definition.columns?.at(-1)).toBe(
+      "plugin:3:ci.state"
+    );
+  });
+
   it("asks before leaving with changes, and leaves at once without", async () => {
     const { user, onClose } = editor("board");
     await within(await canvas()).findByText(/priority: medium/i);

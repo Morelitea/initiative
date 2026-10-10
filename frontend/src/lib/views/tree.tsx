@@ -7,6 +7,7 @@ import {
   FIELD_RENDERERS,
   type FieldDef,
   isEmptyValue,
+  propertyFieldId,
   type ViewEnv,
   type ViewItem,
   type ViewVariant,
@@ -34,7 +35,6 @@ export type ViewContext = {
   /** While the view is edited: the path of each part of its tree. */
   editing?: WeakMap<ViewNode, string>;
   variant: ViewVariant;
-  isHidden: (fieldId: string) => boolean;
   env: ViewEnv;
 };
 
@@ -87,7 +87,7 @@ const renderField = (
   view: ViewContext,
   key?: number
 ): ReactNode => {
-  if ((field.hideable && view.isHidden(field.id)) || isEmptyValue(value)) return null;
+  if (isEmptyValue(value)) return null;
   const Renderer = FIELD_RENDERERS[field.kind];
   return (
     <Renderer
@@ -101,7 +101,7 @@ const renderField = (
   );
 };
 
-/** A property whose definition has not arrived: drawn, and never hidden. */
+/** A property whose definition has not arrived: drawn all the same. */
 const UNLOADED_PROPERTY: FieldDef = {
   id: "",
   kind: "property",
@@ -109,39 +109,6 @@ const UNLOADED_PROPERTY: FieldDef = {
   label: "",
   hideable: false,
   value: () => null,
-};
-
-// A view's property fields by definition id, indexed once per view rather than
-// searched once per card.
-const propertyIndexes = new WeakMap<ReadonlyMap<string, FieldDef>, Map<number, FieldDef>>();
-
-const propertyField = (
-  fields: ReadonlyMap<string, FieldDef>,
-  propertyId: number
-): FieldDef | undefined => {
-  let index = propertyIndexes.get(fields);
-  if (!index) {
-    index = new Map();
-    for (const field of fields.values()) {
-      if (field.propertyId !== undefined) index.set(field.propertyId, field);
-    }
-    propertyIndexes.set(fields, index);
-  }
-  return index.get(propertyId);
-};
-
-const PROPERTY_BY_ID = /^property:([1-9][0-9]*)$/;
-
-/** The field a node names. A stored view names a property by its definition
- *  id, which the server checks; the fields are keyed as the table's columns
- *  are, by name, and a property may be named with digits. */
-export const fieldNamed = (
-  fields: ReadonlyMap<string, FieldDef>,
-  node: ViewNode
-): FieldDef | undefined => {
-  const id = String(node.props?.field);
-  const byId = PROPERTY_BY_ID.exec(id);
-  return byId ? propertyField(fields, Number(byId[1])) : fields.get(id);
 };
 
 type StackProps = {
@@ -241,15 +208,15 @@ const PARTS: Parts<ViewItem> = {
   // the card lays out what is inside it.
   card: (node, item, view, parts) => renderChildren(node, item, view, parts),
   field: (node, item, view) => {
-    const field = fieldNamed(view.fields, node);
+    const field = view.fields.get(String(node.props?.field));
     return field ? renderField(field, field.value(item), item, view) : null;
   },
   // Every property the item carries, in its own order: a shipped tree cannot
-  // name them. Each is hidden by its own field, found by definition id.
+  // name them.
   properties: (_node, item, view) =>
     nonEmptyPropertySummaries(item.properties).map((summary) =>
       renderField(
-        propertyField(view.fields, summary.property_id) ?? UNLOADED_PROPERTY,
+        view.fields.get(propertyFieldId(summary.property_id)) ?? UNLOADED_PROPERTY,
         summary,
         item,
         view,

@@ -15,72 +15,76 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { EyeOff, GripVertical, LayoutList, Plus } from "lucide-react";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { ToolViewWrite, ViewDefinitionInput } from "@/api/generated/initiativeAPI.schemas";
+import type { ToolViewWrite } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import {
+  addableFields,
   cardOf,
-  changeAt,
   columnsOf,
-  fieldRef,
-  insertAt,
-  moveWithin,
-  nodeAt,
+  type NodePath,
   pathKey,
   pathOf,
-  withCard,
+  removable,
+  type Selection,
+  sameSelection,
+  showsAllProperties,
 } from "@/lib/views/draft";
 import { type FieldDef, VIEW_NAMESPACES } from "@/lib/views/fields";
 import type { PluginOnItems } from "@/lib/views/plugins";
-import { TASK_COLUMNS } from "@/lib/views/tasks";
-import { fieldNamed, namesField, type ViewNode } from "@/lib/views/tree";
+import type { ViewNode } from "@/lib/views/tree";
 import { localized } from "@/lib/widgets/widgetMeta";
 import type { TranslateFn } from "@/types/i18n";
 
-/** Where a part of the card is put when it is added: into the group that is
- *  selected, after the part that is, or at the end of the card. */
-const placeFor = (card: ViewNode, selected: string): { parent: number[]; index?: number } => {
-  if (!selected.startsWith("card:")) return { parent: [] };
-  const path = [...pathOf(selected.slice("card:".length))];
-  const node = nodeAt(card, path);
-  if (!node) return { parent: [] };
-  if (node.type === "card" || node.type === "stack") return { parent: path };
-  const index = path.pop() ?? 0;
-  return { parent: path, index: index + 1 };
+import type { ViewEdits } from "./ViewEditor";
+
+/** A plug-in as the picker offers it: its name, and its parts by theirs. */
+type PickerPlugin = {
+  id: number;
+  name: string;
+  parts: { id: string; name: string; description?: string }[];
 };
 
-const sameParent = (a: string, b: string) =>
-  a.split(".").slice(0, -1).join(".") === b.split(".").slice(0, -1).join(".");
-
-type OutlineProps = {
-  view: ToolViewWrite;
-  fields: ReadonlyMap<string, FieldDef>;
-  plugins: ReadonlyMap<number, PluginOnItems>;
-  selected: string;
-  onSelect: (selected: string) => void;
-  onChange: (definition: ViewDefinitionInput) => void;
-};
+const parentKey = (key: string) => pathKey(pathOf(key).slice(0, -1));
 
 /**
  * What the view is made of, as a list beside the canvas: the view itself,
  * then a board's card part by part or a table's columns in order. A row is
- * dragged to move it, hidden from its own row, and selected to change it.
+ * dragged to move it among its siblings, hidden from its own row, and
+ * selected to change it. Add offers what is not there yet, under where it
+ * comes from.
  */
 export const ViewOutline = ({
   view,
   fields,
   plugins,
-  selected,
-  onSelect,
-  onChange,
-}: OutlineProps) => {
+  selection,
+  edits,
+  locked,
+}: {
+  view: ToolViewWrite;
+  fields: ReadonlyMap<string, FieldDef>;
+  plugins: ReadonlyMap<number, PluginOnItems>;
+  selection: Selection;
+  edits: ViewEdits;
+  /** A save is under way, and nothing changes until it answers. */
+  locked: boolean;
+}) => {
   const { t, i18n } = useTranslation(VIEW_NAMESPACES);
   const translate = t as TranslateFn;
-  // The plug-ins as the picker names them, with their parts.
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+  const { definition } = view;
+  const layout = definition.layout.type;
+  const card = cardOf(definition);
+  const columns = columnsOf(definition);
   const offeredPlugins: PickerPlugin[] = [...plugins.values()].map((plugin) => ({
     id: plugin.id,
     name: plugin.name,
@@ -90,13 +94,6 @@ export const ViewOutline = ({
       description: localized(part.description, i18n.language),
     })),
   }));
-  const sensors = useSensors(
-    useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-  );
-  const { definition } = view;
-  const layout = definition.layout.type;
 
   const labelOf = (field: FieldDef) =>
     field.source === "builtin" ? translate(field.label) : field.label;
@@ -116,90 +113,52 @@ export const ViewOutline = ({
         return part?.name ?? translate("viewEditor.missingPart");
       }
       case "field": {
-        const field = fieldNamed(fields, node);
+        const field = fields.get(String(node.props?.field));
         return field ? labelOf(field) : translate("viewEditor.missingField");
       }
       default:
         return node.type;
     }
   };
-
-  const card = cardOf(definition);
-  const changeCard = (next: ViewNode) => onChange(withCard(definition, next));
-  const columns = columnsOf(definition);
-  const columnField = (ref: string) => fieldNamed(fields, { type: "field", props: { field: ref } });
+  const isSelected = (other: Selection) => sameSelection(selection, other);
 
   const onCardDragEnd = ({ active, over }: DragEndEvent) => {
     const from = String(active.id);
     const to = over ? String(over.id) : null;
-    if (!to || from === to || !sameParent(from, to)) return;
-    const parent = pathOf(from).slice(0, -1);
-    changeCard(moveWithin(card, parent, pathOf(from).at(-1) ?? 0, pathOf(to).at(-1) ?? 0));
+    // A part moves among its own siblings.
+    if (!to || from === to || parentKey(from) !== parentKey(to)) return;
+    edits.movePart(pathOf(from).slice(0, -1), pathOf(from).at(-1) ?? 0, pathOf(to).at(-1) ?? 0);
   };
   const onColumnDragEnd = ({ active, over }: DragEndEvent) => {
     if (!over || active.id === over.id) return;
-    const next = [...columns];
-    const from = next.indexOf(String(active.id));
-    const to = next.indexOf(String(over.id));
-    const [moved] = next.splice(from, 1);
-    next.splice(to, 0, moved);
-    onChange({ ...definition, columns: next });
+    edits.moveColumn(columns.indexOf(String(active.id)), columns.indexOf(String(over.id)));
   };
 
-  const rows = (parent: ViewNode, parentPath: number[], depth: number) => {
+  const partRows = (parent: ViewNode, parentPath: NodePath, depth: number): ReactNode => {
     const children = parent.children ?? [];
     const keys = children.map((_, index) => pathKey([...parentPath, index]));
     return (
       <SortableContext items={keys} strategy={verticalListSortingStrategy}>
         {children.map((child, index) => {
-          const key = keys[index];
-          const field = child.type === "field" ? fieldNamed(fields, child) : undefined;
+          const path = [...parentPath, index];
           return (
-            <div key={key}>
+            <div key={keys[index]}>
               <OutlineRow
-                id={key}
+                id={keys[index]}
                 depth={depth}
                 label={partLabel(child)}
-                selected={selected === `card:${key}`}
-                onSelect={() => onSelect(`card:${key}`)}
-                // A card always has its title.
-                onHide={
-                  field?.hideable === false
-                    ? undefined
-                    : () => {
-                        changeCard(changeAt(card, pathOf(key), () => null));
-                        onSelect("card:");
-                      }
-                }
+                selected={isSelected({ kind: "part", path })}
+                onSelect={() => edits.select({ kind: "part", path })}
+                onHide={removable(child, fields) ? () => edits.removePart(path) : undefined}
+                locked={locked}
               />
-              {child.children ? rows(child, [...parentPath, index], depth + 1) : null}
+              {child.children ? partRows(child, path, depth + 1) : null}
             </div>
           );
         })}
       </SortableContext>
     );
   };
-
-  // What can still be added, grouped as the picker shows it.
-  const place = placeFor(card, selected);
-  const add = (node: ViewNode) => changeCard(insertAt(card, place.parent, node, place.index));
-  const allFields = [...fields.values()];
-  const offered = (field: FieldDef) =>
-    layout === "board"
-      ? !namesField(card, fieldRef(field)) && !namesField(card, field.id)
-      : !columns.includes(fieldRef(field));
-  const columnFields = allFields.filter(
-    (field) => field.source !== "builtin" || TABLE_BUILTINS.has(field.id)
-  );
-  const pickable = (layout === "board" ? allFields : columnFields).filter(offered);
-  const fieldNode = (field: FieldDef): ViewNode => ({
-    type: "field",
-    props: { field: fieldRef(field) },
-  });
-  const choose = (field: FieldDef) =>
-    layout === "board"
-      ? add(fieldNode(field))
-      : onChange({ ...definition, columns: [...columns, fieldRef(field)] });
 
   return (
     <nav aria-label={translate("viewEditor.outline")} className="flex h-full flex-col">
@@ -209,8 +168,8 @@ export const ViewOutline = ({
           depth={0}
           label={view.name}
           icon={<LayoutList className="h-4 w-4" aria-hidden="true" />}
-          selected={selected === "view"}
-          onSelect={() => onSelect("view")}
+          selected={isSelected({ kind: "view" })}
+          onSelect={() => edits.select({ kind: "view" })}
           fixed
         />
         {layout === "board" ? (
@@ -219,11 +178,11 @@ export const ViewOutline = ({
               id="card"
               depth={1}
               label={partLabel(card)}
-              selected={selected === "card:"}
-              onSelect={() => onSelect("card:")}
+              selected={isSelected({ kind: "part", path: [] })}
+              onSelect={() => edits.select({ kind: "part", path: [] })}
               fixed
             />
-            {rows(card, [], 2)}
+            {partRows(card, [], 2)}
           </DndContext>
         ) : null}
         {layout === "table" ? (
@@ -232,27 +191,19 @@ export const ViewOutline = ({
               {translate("viewEditor.columns")}
             </p>
             <SortableContext items={columns} strategy={verticalListSortingStrategy}>
-              {columns.map((ref) => {
-                const field = columnField(ref);
+              {columns.map((id) => {
+                const field = fields.get(id);
                 return (
                   <OutlineRow
-                    key={ref}
-                    id={ref}
+                    key={id}
+                    id={id}
                     depth={1}
                     label={field ? labelOf(field) : translate("viewEditor.missingField")}
-                    selected={selected === `column:${ref}`}
-                    onSelect={() => onSelect(`column:${ref}`)}
-                    onHide={
-                      field?.hideable === false
-                        ? undefined
-                        : () => {
-                            onChange({
-                              ...definition,
-                              columns: columns.filter((each) => each !== ref),
-                            });
-                            onSelect("view");
-                          }
-                    }
+                    selected={isSelected({ kind: "column", field: id })}
+                    onSelect={() => edits.select({ kind: "column", field: id })}
+                    // A table always has its title.
+                    onHide={field?.hideable === false ? undefined : () => edits.removeColumn(id)}
+                    locked={locked}
                   />
                 );
               })}
@@ -263,11 +214,17 @@ export const ViewOutline = ({
       {layout === "calendar" ? null : (
         <div className="border-t p-3">
           <AddPicker
-            fields={pickable}
+            fields={addableFields(definition, fields)}
             labelOf={labelOf}
-            onField={choose}
-            plugins={layout === "board" ? offeredPlugins : []}
-            onPart={(plugin, part) => add({ type: "plugin", props: { plugin, part } })}
+            onField={(field) =>
+              layout === "board"
+                ? edits.addPart({ type: "field", props: { field: field.id } })
+                : edits.addColumn(field.id)
+            }
+            plugins={offeredPlugins}
+            // A table draws fields only; a card takes parts as well.
+            withParts={layout === "board"}
+            onPart={(plugin, part) => edits.addPart({ type: "plugin", props: { plugin, part } })}
             layoutParts={
               layout === "board"
                 ? [
@@ -275,7 +232,7 @@ export const ViewOutline = ({
                       label: translate("viewEditor.group"),
                       node: { type: "stack", props: { align: "start" }, children: [] },
                     },
-                    ...(namesProperties(card)
+                    ...(showsAllProperties(card)
                       ? []
                       : [
                           {
@@ -286,26 +243,14 @@ export const ViewOutline = ({
                   ]
                 : []
             }
-            onLayout={add}
+            onLayout={edits.addPart}
+            locked={locked}
           />
         </div>
       )}
     </nav>
   );
 };
-
-/** The built-in fields a table draws as a column. */
-const TABLE_BUILTINS = new Set(TASK_COLUMNS);
-
-/** A plug-in as the picker offers it: its name, and its parts by theirs. */
-type PickerPlugin = {
-  id: number;
-  name: string;
-  parts: { id: string; name: string; description?: string }[];
-};
-
-const namesProperties = (node: ViewNode): boolean =>
-  node.type === "properties" || (node.children ?? []).some(namesProperties);
 
 const OutlineRow = ({
   id,
@@ -316,21 +261,24 @@ const OutlineRow = ({
   onSelect,
   onHide,
   fixed = false,
+  locked = false,
 }: {
   id: string;
   depth: number;
   label: string;
-  icon?: React.ReactNode;
+  icon?: ReactNode;
   selected: boolean;
   onSelect: () => void;
+  /** Absent: the row cannot be hidden. */
   onHide?: () => void;
   /** It has no place to move to. */
   fixed?: boolean;
+  locked?: boolean;
 }) => {
   const { t } = useTranslation("projects");
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id,
-    disabled: fixed,
+    disabled: fixed || locked,
   });
   return (
     <div
@@ -350,8 +298,9 @@ const OutlineRow = ({
       ) : (
         <button
           type="button"
-          className="flex h-7 w-6 cursor-grab items-center justify-center text-muted-foreground"
+          className="flex h-7 w-6 cursor-grab items-center justify-center text-muted-foreground disabled:cursor-not-allowed"
           aria-label={t("viewEditor.move", { name: label })}
+          disabled={locked}
           {...attributes}
           {...listeners}
         >
@@ -373,6 +322,7 @@ const OutlineRow = ({
           size="icon"
           className="h-7 w-7 opacity-0 focus-visible:opacity-100 group-hover:opacity-100"
           aria-label={t("viewEditor.hide", { name: label })}
+          disabled={locked}
           onClick={onHide}
         >
           <EyeOff className="h-4 w-4" />
@@ -382,61 +332,86 @@ const OutlineRow = ({
   );
 };
 
+type PickerGroupEntry = {
+  key: string;
+  heading: string;
+  fields: FieldDef[];
+  plugin: number;
+  parts: PickerPlugin["parts"];
+};
+
 /** What can be added, shown as things rather than ids: fields by where they
- *  come from, each plug-in's parts under its name, and the layout parts. */
+ *  come from, each plug-in's fields and parts under its name, and the layout
+ *  parts. */
 const AddPicker = ({
   fields,
   labelOf,
   onField,
   plugins,
+  withParts,
   onPart,
   layoutParts,
   onLayout,
+  locked,
 }: {
   fields: FieldDef[];
   labelOf: (field: FieldDef) => string;
   onField: (field: FieldDef) => void;
   plugins: PickerPlugin[];
+  withParts: boolean;
   onPart: (plugin: number, part: string) => void;
   layoutParts: { label: string; node: ViewNode }[];
   onLayout: (node: ViewNode) => void;
+  locked: boolean;
 }) => {
   const { t } = useTranslation("projects");
   const [open, setOpen] = useState(false);
-  const groups = [
+  const groups: PickerGroupEntry[] = [
     {
+      key: "builtin",
       heading: t("viewEditor.builtIn"),
-      items: fields.filter((field) => field.source === "builtin"),
+      fields: fields.filter((field) => field.source === "builtin"),
+      plugin: 0,
+      parts: [],
     },
     {
+      key: "properties",
       heading: t("viewEditor.properties"),
-      items: fields.filter((field) => field.source === "property"),
+      fields: fields.filter((field) => field.source === "property"),
+      plugin: 0,
+      parts: [],
     },
     ...plugins.map((plugin) => ({
+      key: `plugin:${plugin.id}`,
       heading: plugin.name,
-      items: fields.filter(
-        (field) => field.source === "plugin" && field.plugin?.install === plugin.id
-      ),
+      fields: fields.filter((field) => field.plugin?.install === plugin.id),
+      plugin: plugin.id,
+      parts: withParts ? plugin.parts : [],
     })),
-  ].filter((group) => group.items.length > 0);
-  const partGroups = plugins.filter((plugin) => plugin.parts.length > 0);
+  ].filter((group) => group.fields.length > 0 || group.parts.length > 0);
   const pick = (run: () => void) => {
     run();
     setOpen(false);
   };
-  const nothing = groups.length === 0 && partGroups.length === 0 && layoutParts.length === 0;
+  const nothing = groups.length === 0 && layoutParts.length === 0;
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button type="button" variant="outline" size="sm" className="w-full" disabled={nothing}>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="w-full"
+          disabled={nothing || locked}
+        >
           <Plus className="h-4 w-4" />
           {t("viewEditor.add")}
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start" className="max-h-96 w-72 overflow-y-auto p-2">
         {groups.map((group) => (
-          <PickerGroup key={group.heading} heading={group.heading}>
-            {group.items.map((field) => {
+          <PickerGroup key={group.key} heading={group.heading}>
+            {group.fields.map((field) => {
               const Icon = field.icon;
               return (
                 <PickerItem key={field.id} onClick={() => pick(() => onField(field))}>
@@ -447,15 +422,11 @@ const AddPicker = ({
                 </PickerItem>
               );
             })}
-          </PickerGroup>
-        ))}
-        {partGroups.map((plugin) => (
-          <PickerGroup key={`parts:${plugin.id}`} heading={plugin.name}>
-            {plugin.parts.map((part) => (
+            {group.parts.map((part) => (
               <PickerItem
-                key={part.id}
+                key={`part:${part.id}`}
                 description={part.description}
-                onClick={() => pick(() => onPart(plugin.id, part.id))}
+                onClick={() => pick(() => onPart(group.plugin, part.id))}
               >
                 {part.name}
               </PickerItem>
@@ -476,7 +447,7 @@ const AddPicker = ({
   );
 };
 
-const PickerGroup = ({ heading, children }: { heading: string; children: React.ReactNode }) => (
+const PickerGroup = ({ heading, children }: { heading: string; children: ReactNode }) => (
   <div className="py-1">
     <p className="px-2 pb-1 font-medium text-muted-foreground text-xs">{heading}</p>
     {children}
@@ -490,7 +461,7 @@ const PickerItem = ({
 }: {
   description?: string;
   onClick: () => void;
-  children: React.ReactNode;
+  children: ReactNode;
 }) => (
   <button
     type="button"

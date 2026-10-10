@@ -383,6 +383,9 @@
     "roomy": "Großzügig",
     "wrap": "Auf mehrere Zeilen umbrechen",
     "ownWidth": "Eigene Breite jedes Teils behalten",
-    "muted": "Gedämpfter Text"
+    "muted": "Gedämpfter Text",
+    "titleHelp": "Jede Aufgabe zeigt ihren Titel, der sie öffnet.",
+    "holdsTitle": "Diese Gruppe enthält den Titel, den jede Aufgabe zeigt, also bleibt sie.",
+    "savingBody": "Deine Ansichten werden noch gespeichert. Wenn du jetzt gehst und das Speichern fehlschlägt, gehen deine Änderungen verloren."
   }
 }

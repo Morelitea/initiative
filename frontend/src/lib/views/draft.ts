@@ -27,11 +27,6 @@ export const withCard = (definition: ViewDefinitionInput, card: ViewNode): ViewD
 export const columnsOf = (definition: ViewDefinitionInput): string[] =>
   definition.columns ?? TASK_COLUMNS;
 
-/** How a view names a field when it is stored: a property by its definition
- *  id, which survives a rename, and any other field by its own id. */
-export const fieldRef = (field: FieldDef): string =>
-  field.propertyId === undefined ? field.id : `property:${field.propertyId}`;
-
 /** Where a node is in a tree: the child it is at each level below the root. */
 export type NodePath = readonly number[];
 
@@ -83,6 +78,94 @@ export const moveWithin = (root: ViewNode, parent: NodePath, from: number, to: n
     if (moved) children.splice(to, 0, moved);
     return { ...holder, children };
   });
+
+const nodesIn = (node: ViewNode): ViewNode[] => [node, ...(node.children ?? []).flatMap(nodesIn)];
+
+/** Whether a part can be taken off the card: not one that is, or holds, a
+ *  field every card shows (its title, which opens the task). */
+export const removable = (node: ViewNode, fields: ReadonlyMap<string, FieldDef>): boolean =>
+  !nodesIn(node).some(
+    (each) => each.type === "field" && fields.get(String(each.props?.field))?.hideable === false
+  );
+
+/** The built-in fields a table draws as a column. */
+const TABLE_BUILTINS = new Set(TASK_COLUMNS);
+
+/** The fields a view can still add: a card's not on it (and no property alone
+ *  where it shows them all), a table's not among its columns and drawn as
+ *  one. */
+export const addableFields = (
+  definition: ViewDefinitionInput,
+  fields: ReadonlyMap<string, FieldDef>
+): FieldDef[] => {
+  const all = [...fields.values()];
+  if (definition.layout.type === "board") {
+    const card = cardOf(definition);
+    const named = new Set(
+      nodesIn(card).flatMap((node) => (node.type === "field" ? [String(node.props?.field)] : []))
+    );
+    const showsProperties = nodesIn(card).some((node) => node.type === "properties");
+    return all.filter(
+      (field) => !named.has(field.id) && !(showsProperties && field.source === "property")
+    );
+  }
+  if (definition.layout.type === "table") {
+    const columns = new Set(columnsOf(definition));
+    return all.filter(
+      (field) =>
+        !columns.has(field.id) && (field.source !== "builtin" || TABLE_BUILTINS.has(field.id))
+    );
+  }
+  return [];
+};
+
+/** Whether a card shows every property, as a part of its own. */
+export const showsAllProperties = (card: ViewNode): boolean =>
+  nodesIn(card).some((node) => node.type === "properties");
+
+/** What the editor has selected: the view itself, a part of its card by
+ *  path, or one of its table's columns by field. */
+export type Selection =
+  | { kind: "view" }
+  | { kind: "part"; path: NodePath }
+  | { kind: "column"; field: string };
+
+export const VIEW_SELECTED: Selection = { kind: "view" };
+
+export const sameSelection = (a: Selection, b: Selection): boolean =>
+  a.kind === b.kind &&
+  (a.kind !== "part" || pathKey(a.path) === pathKey((b as { path: NodePath }).path)) &&
+  (a.kind !== "column" || a.field === (b as { field: string }).field);
+
+const startsWith = (path: NodePath, prefix: NodePath) =>
+  prefix.length <= path.length && prefix.every((index, depth) => path[depth] === index);
+
+/** Where the part at `path` is once a child of `parent` moved from `from` to
+ *  `to`: the moved part goes with it, and its siblings between close up. */
+export const pathAfterMove = (
+  path: NodePath,
+  parent: NodePath,
+  from: number,
+  to: number
+): NodePath => {
+  if (path.length <= parent.length || !startsWith(path, parent)) return path;
+  const index = path[parent.length];
+  let next = index;
+  if (index === from) next = to;
+  else if (from < index && index <= to) next = index - 1;
+  else if (to <= index && index < from) next = index + 1;
+  return [...parent, next, ...path.slice(parent.length + 1)];
+};
+
+/** Where the part at `path` is once the part at `removed` is taken out, or
+ *  null when it went with it. */
+export const pathAfterRemove = (path: NodePath, removed: NodePath): NodePath | null => {
+  if (startsWith(path, removed)) return null;
+  const depth = removed.length - 1;
+  if (path.length <= depth || !startsWith(path, removed.slice(0, depth))) return path;
+  if (path[depth] < removed[depth]) return path;
+  return [...path.slice(0, depth), path[depth] - 1, ...path.slice(depth + 1)];
+};
 
 /** Every node of a tree by its path key, for the canvas to find the part a
  *  click landed on. Keyed by the node itself, so a tree drawn twice (a card

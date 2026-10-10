@@ -1,16 +1,22 @@
 import { describe, expect, it } from "vitest";
 
+import { buildPropertyDefinition } from "@/__tests__/factories";
 import type { ToolViewWrite } from "@/api/generated/initiativeAPI.schemas";
 
 import {
+  addableFields,
   changeAt,
   historyReducer,
   indexPaths,
   insertAt,
   moveWithin,
   nodeAt,
+  pathAfterMove,
+  pathAfterRemove,
+  removable,
   startHistory,
 } from "./draft";
+import { taskFields } from "./tasks";
 import type { ViewNode } from "./tree";
 
 const field = (id: string): ViewNode => ({ type: "field", props: { field: id } });
@@ -75,5 +81,54 @@ describe("historyReducer", () => {
     expect(historyReducer(history, { type: "reset", views: view("A") })).toEqual(
       startHistory(view("A"))
     );
+  });
+});
+
+describe("what the editor allows", () => {
+  const fields = taskFields([buildPropertyDefinition({ id: 12, name: "Effort" })]);
+
+  it("never takes off the title, nor a group that holds it", () => {
+    expect(removable(field("tags"), fields)).toBe(true);
+    expect(removable(field("title"), fields)).toBe(false);
+    expect(removable(nodeAt(CARD, [0]) as ViewNode, fields)).toBe(false);
+  });
+
+  it("offers a card what it does not show, and no property alone where it shows them all", () => {
+    const ids = (card: ViewNode) =>
+      addableFields({ layout: { type: "board" }, card: card as never }, fields).map(
+        (each) => each.id
+      );
+
+    expect(ids(CARD)).not.toContain("tags");
+    expect(ids(CARD)).toContain("property:12");
+    expect(
+      ids({ ...CARD, children: [...(CARD.children ?? []), { type: "properties" }] })
+    ).not.toContain("property:12");
+  });
+
+  it("offers a table the fields it draws as columns and has not", () => {
+    const ids = addableFields(
+      { layout: { type: "table" }, columns: ["title", "dueDate"] },
+      fields
+    ).map((each) => each.id);
+
+    expect(ids).toEqual(["startDate", "priority", "comments", "tags", "property:12"]);
+  });
+});
+
+describe("a selection as the card changes", () => {
+  it("follows the part it names when parts move", () => {
+    // The group's third part moves to the front.
+    expect(pathAfterMove([0, 2], [0], 2, 0)).toEqual([0, 0]);
+    expect(pathAfterMove([0, 0], [0], 2, 0)).toEqual([0, 1]);
+    expect(pathAfterMove([0, 3, 1], [0], 2, 0)).toEqual([0, 3, 1]);
+    expect(pathAfterMove([1], [0], 2, 0)).toEqual([1]);
+  });
+
+  it("closes up after a part is taken out, and is gone with it", () => {
+    expect(pathAfterRemove([0, 2], [0, 1])).toEqual([0, 1]);
+    expect(pathAfterRemove([0, 0], [0, 1])).toEqual([0, 0]);
+    expect(pathAfterRemove([0, 1, 3], [0, 1])).toBeNull();
+    expect(pathAfterRemove([1], [0, 1])).toEqual([1]);
   });
 });

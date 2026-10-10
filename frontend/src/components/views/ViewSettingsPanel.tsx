@@ -1,10 +1,9 @@
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
   TaskSortFieldId,
   type ToolViewWrite,
-  type ViewDefinitionInput,
   type ViewLayoutType,
   type ViewSortDirection,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -20,86 +19,82 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { cardOf, changeAt, columnsOf, nodeAt, pathOf, withCard } from "@/lib/views/draft";
+import { cardOf, nodeAt, removable, type Selection } from "@/lib/views/draft";
 import { type FieldDef, VIEW_NAMESPACES } from "@/lib/views/fields";
 import type { ViewNode } from "@/lib/views/tree";
 import type { TranslateFn } from "@/types/i18n";
+
+import type { ViewEdits } from "./ViewEditor";
 
 const NO_SORT = "none";
 
 /**
  * The settings of the one thing selected, and only those: the view's own
  * (its name, layout, default and order) on the view, a group's arrangement on
- * a group, and a way to take a field off the card or out of the table.
+ * a group, and a way to take a part off the card or a column out of the
+ * table, where it may go.
  */
 export const ViewSettingsPanel = ({
   view,
   fields,
-  selected,
-  onChange,
-  onRename,
-  onMakeDefault,
-  onSelect,
+  selection,
+  edits,
+  locked,
 }: {
   view: ToolViewWrite;
   fields: ReadonlyMap<string, FieldDef>;
-  selected: string;
-  onChange: (definition: ViewDefinitionInput) => void;
-  onRename: (name: string) => void;
-  onMakeDefault: () => void;
-  onSelect: (selected: string) => void;
+  selection: Selection;
+  edits: ViewEdits;
+  /** A save is under way, and nothing changes until it answers. */
+  locked: boolean;
+}) => (
+  // Disabled as one, so a save under way leaves every control as it was.
+  <fieldset disabled={locked} className="min-w-0">
+    <SelectedSettings view={view} fields={fields} selection={selection} edits={edits} />
+  </fieldset>
+);
+
+const SelectedSettings = ({
+  view,
+  fields,
+  selection,
+  edits,
+}: {
+  view: ToolViewWrite;
+  fields: ReadonlyMap<string, FieldDef>;
+  selection: Selection;
+  edits: ViewEdits;
 }) => {
   const { t } = useTranslation(VIEW_NAMESPACES);
   const translate = t as TranslateFn;
-  const { definition } = view;
 
-  if (selected === "view") {
-    return (
-      <ViewSettings
-        view={view}
-        fields={fields}
-        onChange={onChange}
-        onRename={onRename}
-        onMakeDefault={onMakeDefault}
-      />
-    );
+  if (selection.kind === "view") {
+    return <ViewSettings view={view} fields={fields} edits={edits} />;
   }
 
-  if (selected.startsWith("column:")) {
-    const ref = selected.slice("column:".length);
+  if (selection.kind === "column") {
+    const keeps = fields.get(selection.field)?.hideable === false;
     return (
       <Panel heading={translate("viewEditor.column")}>
-        <p className="text-muted-foreground text-sm">{translate("viewEditor.columnHelp")}</p>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            onChange({
-              ...definition,
-              columns: columnsOf(definition).filter((each) => each !== ref),
-            });
-            onSelect("view");
-          }}
-        >
-          {translate("viewEditor.remove")}
-        </Button>
+        <p className="text-muted-foreground text-sm">
+          {translate(keeps ? "viewEditor.titleHelp" : "viewEditor.columnHelp")}
+        </p>
+        {keeps ? null : (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => edits.removeColumn(selection.field)}
+          >
+            {translate("viewEditor.remove")}
+          </Button>
+        )}
       </Panel>
     );
   }
 
-  const card = cardOf(definition);
-  const path = pathOf(selected.slice("card:".length));
-  const node = nodeAt(card, path);
-  if (!node) return <Panel heading={translate("viewEditor.settings")}>{null}</Panel>;
-  const change = (next: ViewNode | null) =>
-    onChange(
-      withCard(
-        definition,
-        changeAt(card, path, () => next)
-      )
-    );
-
+  const node = nodeAt(cardOf(view.definition), selection.path);
+  if (!node) return null;
   if (node.type === "card") {
     return (
       <Panel heading={translate("viewEditor.card")}>
@@ -107,34 +102,44 @@ export const ViewSettingsPanel = ({
       </Panel>
     );
   }
+  const canRemove = removable(node, fields);
+  const remove = canRemove ? (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      onClick={() => edits.removePart(selection.path)}
+    >
+      {translate("viewEditor.remove")}
+    </Button>
+  ) : null;
+
   if (node.type === "stack") {
-    return <GroupSettings node={node} onChange={change} />;
+    return (
+      <GroupSettings node={node} onChange={(next) => edits.changePart(selection.path, next)}>
+        {remove ?? (
+          <p className="text-muted-foreground text-xs">{translate("viewEditor.holdsTitle")}</p>
+        )}
+      </GroupSettings>
+    );
   }
   const help =
     node.type === "properties"
-      ? translate("viewEditor.propertiesHelp")
+      ? "viewEditor.propertiesHelp"
       : node.type === "plugin"
-        ? translate("viewEditor.pluginPartHelp")
-        : translate("viewEditor.fieldHelp");
+        ? "viewEditor.pluginPartHelp"
+        : canRemove
+          ? "viewEditor.fieldHelp"
+          : "viewEditor.titleHelp";
   return (
     <Panel heading={translate("viewEditor.settings")}>
-      <p className="text-muted-foreground text-sm">{help}</p>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        onClick={() => {
-          change(null);
-          onSelect("card:");
-        }}
-      >
-        {translate("viewEditor.remove")}
-      </Button>
+      <p className="text-muted-foreground text-sm">{translate(help)}</p>
+      {remove}
     </Panel>
   );
 };
 
-const Panel = ({ heading, children }: { heading: string; children: React.ReactNode }) => (
+const Panel = ({ heading, children }: { heading: string; children: ReactNode }) => (
   <section className="space-y-4 p-4">
     <h2 className="font-medium text-sm">{heading}</h2>
     {children}
@@ -144,15 +149,11 @@ const Panel = ({ heading, children }: { heading: string; children: React.ReactNo
 const ViewSettings = ({
   view,
   fields,
-  onChange,
-  onRename,
-  onMakeDefault,
+  edits,
 }: {
   view: ToolViewWrite;
   fields: ReadonlyMap<string, FieldDef>;
-  onChange: (definition: ViewDefinitionInput) => void;
-  onRename: (name: string) => void;
-  onMakeDefault: () => void;
+  edits: ViewEdits;
 }) => {
   const { t } = useTranslation(VIEW_NAMESPACES);
   const translate = t as TranslateFn;
@@ -163,7 +164,7 @@ const ViewSettings = ({
   useEffect(() => setName(view.name), [view.name]);
   const commitName = () => {
     const trimmed = name.trim();
-    if (trimmed && trimmed !== view.name) onRename(trimmed);
+    if (trimmed && trimmed !== view.name) edits.rename(trimmed);
     else setName(view.name);
   };
   const [sort] = definition.sort ?? [];
@@ -188,7 +189,7 @@ const ViewSettings = ({
         <Select
           value={definition.layout.type}
           onValueChange={(type) =>
-            onChange({ ...definition, layout: { type: type as ViewLayoutType } })
+            edits.setDefinition({ ...definition, layout: { type: type as ViewLayoutType } })
           }
         >
           <SelectTrigger id="view-layout">
@@ -212,7 +213,7 @@ const ViewSettings = ({
           // one stops being it.
           disabled={view.is_default ?? false}
           onCheckedChange={(checked) => {
-            if (checked) onMakeDefault();
+            if (checked) edits.makeDefault();
           }}
         />
       </div>
@@ -222,17 +223,12 @@ const ViewSettings = ({
           <Select
             value={sort?.field ?? NO_SORT}
             onValueChange={(field) =>
-              onChange({
+              edits.setDefinition({
                 ...definition,
                 sort:
                   field === NO_SORT
                     ? null
-                    : [
-                        {
-                          field: field as TaskSortFieldId,
-                          direction: sort?.direction ?? "asc",
-                        },
-                      ],
+                    : [{ field: field as TaskSortFieldId, direction: sort?.direction ?? "asc" }],
               })
             }
           >
@@ -255,7 +251,7 @@ const ViewSettings = ({
             <Select
               value={sort.direction ?? "asc"}
               onValueChange={(direction) =>
-                onChange({
+                edits.setDefinition({
                   ...definition,
                   sort: [{ ...sort, direction: direction as ViewSortDirection }],
                 })
@@ -276,30 +272,30 @@ const ViewSettings = ({
   );
 };
 
-/** A group's arrangement, as plain choices. */
+/** A group's arrangement, as plain choices. Each sets one prop, and the
+ *  group's default is the prop left out. */
 const GroupSettings = ({
   node,
   onChange,
+  children,
 }: {
   node: ViewNode;
-  onChange: (next: ViewNode | null) => void;
+  onChange: (next: ViewNode) => void;
+  children: ReactNode;
 }) => {
   const { t } = useTranslation("projects");
   const props = node.props ?? {};
-  const set = (key: string, value: unknown) =>
-    onChange({ ...node, props: { ...props, [key]: value === undefined ? undefined : value } });
-  const flag = (key: string, label: string) => (
+  const set = (key: string, value: unknown) => {
+    const { [key]: _left, ...rest } = props;
+    onChange({ ...node, props: value === undefined ? rest : { ...rest, [key]: value } });
+  };
+  const flag = (key: string, on: unknown, label: string) => (
     <div className="flex items-center justify-between gap-2">
       <Label htmlFor={`group-${key}`}>{label}</Label>
       <Switch
         id={`group-${key}`}
-        checked={Boolean(props[key])}
-        onCheckedChange={(checked) =>
-          set(
-            key,
-            checked ? (key === "align" ? "start" : key === "tone" ? "muted" : true) : undefined
-          )
-        }
+        checked={props[key] === on}
+        onCheckedChange={(checked) => set(key, checked ? on : undefined)}
       />
     </div>
   );
@@ -335,9 +331,10 @@ const GroupSettings = ({
           </SelectContent>
         </Select>
       </div>
-      {props.direction === "row" ? flag("wrap", t("viewEditor.wrap")) : null}
-      {flag("align", t("viewEditor.ownWidth"))}
-      {flag("tone", t("viewEditor.muted"))}
+      {props.direction === "row" ? flag("wrap", true, t("viewEditor.wrap")) : null}
+      {flag("align", "start", t("viewEditor.ownWidth"))}
+      {flag("tone", "muted", t("viewEditor.muted"))}
+      {children}
     </Panel>
   );
 };

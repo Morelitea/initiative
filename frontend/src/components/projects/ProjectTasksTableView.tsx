@@ -40,7 +40,6 @@ import { fieldColumnId } from "@/lib/views/columns";
 import { useProjectViewEnv } from "@/lib/views/fields";
 import { pluginFields, usePluginsOnItems } from "@/lib/views/plugins";
 import { TASK_COLUMNS, taskFields } from "@/lib/views/tasks";
-import { fieldNamed } from "@/lib/views/tree";
 
 type ProjectTasksListViewProps = {
   projectId: number;
@@ -208,11 +207,7 @@ const ProjectTasksTableViewComponent = ({
   // The columns the view shows, in its order: its own, or the shipped ones.
   // What the view leaves out is hidden, as are the columns that only group.
   const shown = useMemo(
-    () =>
-      (viewColumns ?? TASK_COLUMNS).flatMap((id) => {
-        const field = fieldNamed(fields, { type: "field", props: { field: id } });
-        return field ? [fieldColumnId(field.id)] : [];
-      }),
+    () => (viewColumns ?? TASK_COLUMNS).filter((id) => fields.has(id)).map(fieldColumnId),
     [viewColumns, fields]
   );
   const columnVisibility = useMemo(

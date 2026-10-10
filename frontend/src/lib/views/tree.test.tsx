@@ -19,13 +19,11 @@ import type { TranslateFn } from "@/types/i18n";
 const field = (id: string): ViewNode => ({ type: "field", props: { field: id } });
 
 const viewOf = (
-  hidden: string[] = [],
   definitions: PropertyDefinitionRead[] = [],
   variant: ViewContext["variant"] = "card"
 ): ViewContext => ({
   fields: taskFields(definitions),
   variant,
-  isHidden: (fieldId) => hidden.includes(fieldId),
   env: {
     t: i18n.getFixedT(null, ["projects", "dates", "relations"]) as TranslateFn,
     communityPath: (path) => path,
@@ -33,27 +31,26 @@ const viewOf = (
   },
 });
 
-const draw = (
-  node: ViewNode,
-  task: TaskListRead,
-  hidden: string[] = [],
-  definitions: PropertyDefinitionRead[] = []
-) => renderWithProviders(<ViewTree node={node} item={task} view={viewOf(hidden, definitions)} />);
+const draw = (node: ViewNode, task: TaskListRead, definitions: PropertyDefinitionRead[] = []) =>
+  renderWithProviders(<ViewTree node={node} item={task} view={viewOf(definitions)} />);
 
 describe("taskFields", () => {
-  it("adds one field per property, labelled by name", () => {
+  it("adds one field per property, keyed by its definition id and labelled by name", () => {
     const fields = taskFields([buildPropertyDefinition({ id: 4, name: "Effort" })]);
 
-    expect(fields.get("property:Effort")).toMatchObject({ label: "Effort", source: "property" });
+    expect(fields.get("property:4")).toMatchObject({ label: "Effort", source: "property" });
   });
 
-  it("keeps two properties of the same name apart", () => {
+  it("tells two properties of the same name apart in their labels", () => {
     const fields = taskFields([
       buildPropertyDefinition({ id: 4, name: "Status" }),
       buildPropertyDefinition({ id: 9, name: "Status" }),
     ]);
 
-    expect([...fields.keys()].slice(-2)).toEqual(["property:Status (#4)", "property:Status (#9)"]);
+    expect([...fields.values()].slice(-2).map((field) => field.label)).toEqual([
+      "Status (#4)",
+      "Status (#9)",
+    ]);
   });
 });
 
@@ -69,7 +66,7 @@ describe("ViewTree", () => {
     expect(screen.getByText(/priority: medium/i)).toBeInTheDocument();
   });
 
-  it("skips a hidden field and one with nothing in it", () => {
+  it("skips a field with nothing in it", () => {
     const node: ViewNode = {
       type: "stack",
       children: [field("priority"), field("description"), field("comments"), field("dueDate")],
@@ -80,14 +77,13 @@ describe("ViewTree", () => {
       due_date: "2026-08-03T21:15:00Z",
     });
 
-    const { container } = draw(node, task, ["priority"]);
+    const { container } = draw(node, { ...task, priority: "medium" });
 
-    expect(container.textContent).toMatch(/^Due:/);
+    expect(container.textContent).toMatch(/^Priority: medium.*Due:/);
   });
 
-  it("draws the item's properties in its order, each hidden by its own field", () => {
-    // Two that share a name are turned off separately, and one whose
-    // definition has not arrived is still drawn.
+  it("draws every property the item has a value for, in its order", () => {
+    // One whose definition has not arrived is still drawn.
     const definitions = [
       buildPropertyDefinition({ id: 9, name: "Status" }),
       buildPropertyDefinition({ id: 4, name: "Effort" }),
@@ -104,14 +100,9 @@ describe("ViewTree", () => {
       ],
     });
 
-    const { container } = draw(
-      { type: "properties" },
-      task,
-      ["property:Status (#12)"],
-      definitions
-    );
+    const { container } = draw({ type: "properties" }, task, definitions);
 
-    expect(container.textContent).toBe("Effort:largeStatus:openPhase:beta");
+    expect(container.textContent).toBe("Effort:largeStatus:openStatus:shutPhase:beta");
   });
 
   it("draws a property a stored view names by its definition id", () => {
@@ -120,15 +111,10 @@ describe("ViewTree", () => {
     });
 
     // Another property is named "4": the stored id still names Effort.
-    const { container } = draw(
-      field("property:4"),
-      task,
-      [],
-      [
-        buildPropertyDefinition({ id: 4, name: "Effort" }),
-        buildPropertyDefinition({ id: 9, name: "4" }),
-      ]
-    );
+    const { container } = draw(field("property:4"), task, [
+      buildPropertyDefinition({ id: 4, name: "Effort" }),
+      buildPropertyDefinition({ id: 9, name: "4" }),
+    ]);
 
     expect(container.textContent).toBe("Effort:large");
   });
@@ -149,7 +135,7 @@ describe("renderNode", () => {
     };
 
     const { container } = renderWithProviders(
-      <>{renderNode(page, "Ada", viewOf([], [], "page"), parts)}</>
+      <>{renderNode(page, "Ada", viewOf([], "page"), parts)}</>
     );
 
     expect(container.textContent).toBe("AdaAda");
@@ -169,7 +155,7 @@ describe("renderNode", () => {
     };
 
     const { container } = renderWithProviders(
-      <>{renderNode(TASK_PAGE, null, viewOf([], [], "page"), parts)}</>
+      <>{renderNode(TASK_PAGE, null, viewOf([], "page"), parts)}</>
     );
 
     // Each part of a column carries where it falls on the one column.

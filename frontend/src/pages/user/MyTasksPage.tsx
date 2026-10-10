@@ -17,7 +17,6 @@ import {
   type ToolViewOption,
 } from "@/components/initiativeTools/shared/ToolListToolbar";
 import { PullToRefresh } from "@/components/PullToRefresh";
-import { propertyColumnIds } from "@/components/properties/propertyColumns";
 import { SkeletonRegion, TableSkeleton } from "@/components/skeletons/PageSkeletons";
 import { FocusSummary } from "@/components/tasks/FocusSummary";
 import { GlobalTaskFilters } from "@/components/tasks/GlobalTaskFilters";
@@ -87,9 +86,10 @@ export const MyTasksPage = () => {
         ),
     };
   }, [viewT, table.activeCommunityId]);
+  // Property columns start hidden.
   const propertyHiddenIds = useMemo(
-    () => propertyColumnIds(allPropertyDefinitions),
-    [allPropertyDefinitions]
+    () => [...fields.values()].filter((field) => field.source === "property").map(({ id }) => id),
+    [fields]
   );
   const [columnVisibility, setColumnVisibility] = usePersistedColumnVisibility(
     "initiative-my-tasks-columns",

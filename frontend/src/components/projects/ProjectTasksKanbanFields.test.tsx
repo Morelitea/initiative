@@ -10,6 +10,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import {
   buildDefaultTaskStatuses,
+  buildPropertyDefinition,
+  buildPropertySummary,
   buildTask,
   buildTaskListResponse,
   buildToolView,
@@ -65,6 +67,20 @@ describe("a board's card", () => {
     expect(await screen.findByText("Draw the map")).toBeInTheDocument();
     expect(screen.getByText("Start from the coast…")).toBeInTheDocument();
     expect(screen.getByText(/priority: medium/i)).toBeInTheDocument();
+  });
+
+  it("shows a task's properties on a board nobody has laid out", async () => {
+    seedTask({
+      properties: [buildPropertySummary({ property_id: 12, name: "Effort", value: "large" })],
+    });
+    server.use(
+      communityHttp.get("/property-definitions/", () =>
+        HttpResponse.json([buildPropertyDefinition({ id: 12, name: "Effort" })])
+      )
+    );
+    board();
+
+    expect(await screen.findByText("large")).toBeInTheDocument();
   });
 
   it("shows only what the view's card names", async () => {

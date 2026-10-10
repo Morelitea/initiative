@@ -11,7 +11,14 @@ import { ProjectTasksTableView } from "@/components/projects/ProjectTasksTableVi
 import { type useProjectTaskTableState, viewTableSorting } from "@/hooks/useProjectTaskView";
 import { useTasks } from "@/hooks/useTasks";
 import { buildTaskListParams, specFromApi } from "@/lib/filters/taskFilters";
-import { cardOf, indexPaths } from "@/lib/views/draft";
+import {
+  cardOf,
+  indexPaths,
+  pathKey,
+  pathOf,
+  type Selection,
+  sameSelection,
+} from "@/lib/views/draft";
 
 /** How wide the canvas draws the view: the widths a person might read it at. */
 export type PreviewWidth = "desktop" | "tablet" | "phone";
@@ -39,7 +46,7 @@ export const ViewCanvas = ({
   statuses,
   view,
   width,
-  selected,
+  selection,
   onSelect,
 }: {
   projectId: number;
@@ -47,12 +54,11 @@ export const ViewCanvas = ({
   statuses: TaskStatusRead[];
   view: ToolViewWrite;
   width: PreviewWidth;
-  /** What the outline has selected, as `card:<path>` or `column:<field>`. */
-  selected: string;
-  onSelect: (selected: string) => void;
+  selection: Selection;
+  onSelect: (selection: Selection) => void;
 }) => {
   const { t } = useTranslation("projects");
-  const [hovered, setHovered] = useState<string | null>(null);
+  const [hovered, setHovered] = useState<Selection | null>(null);
   const { definition } = view;
   const layout = definition.layout.type;
   const sorting = useMemo(() => viewTableSorting(view), [view]);
@@ -79,21 +85,23 @@ export const ViewCanvas = ({
     [sorting]
   );
 
-  /** The part a pointer is over: the nearest marked one, named as the outline
-   *  names it. */
-  const partAt = (target: EventTarget): string | null => {
+  /** The part a pointer is over: the nearest marked one. A table marks its
+   *  columns by field, and a card its parts by path. */
+  const partAt = (target: EventTarget): Selection | null => {
     const marked = target instanceof Element ? target.closest("[data-view-node]") : null;
-    const node = marked?.getAttribute("data-view-node");
-    if (node === null || node === undefined) return null;
-    return node.startsWith("column:") ? node : `card:${node}`;
+    const value = marked?.getAttribute("data-view-node");
+    if (value === null || value === undefined) return null;
+    return value.startsWith("column:")
+      ? { kind: "column", field: value.slice("column:".length) }
+      : { kind: "part", path: pathOf(value) };
   };
-  const marked = (name: string | null) => {
-    if (!name) return null;
-    const value = name.startsWith("card:") ? name.slice("card:".length) : name;
+  const rule = (of: Selection | null) => {
+    if (!of || of.kind === "view") return null;
+    const value = of.kind === "column" ? `column:${of.field}` : pathKey(of.path);
     return `[data-view-node=${quoted(value)}] > *`;
   };
-  const selectedRule = marked(selected);
-  const hoveredRule = hovered !== selected ? marked(hovered) : null;
+  const selectedRule = rule(selection);
+  const hoveredRule = hovered && !sameSelection(hovered, selection) ? rule(hovered) : null;
 
   // Only what the outline can name is selectable; the rest of the page is
   // the page.

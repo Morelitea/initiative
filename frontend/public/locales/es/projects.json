@@ -383,6 +383,9 @@
     "roomy": "Amplio",
     "wrap": "Pasar a varias líneas",
     "ownWidth": "Mantener el ancho de cada parte",
-    "muted": "Texto atenuado"
+    "muted": "Texto atenuado",
+    "titleHelp": "Cada tarea muestra su título, que la abre.",
+    "holdsTitle": "Este grupo contiene el título, que muestra cada tarea, así que se queda.",
+    "savingBody": "Tus vistas aún se están guardando. Si sales ahora y el guardado falla, puedes perder los cambios."
   }
 }

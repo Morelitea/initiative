@@ -383,6 +383,9 @@
     "roomy": "Roomy",
     "wrap": "Wrap onto more lines",
     "ownWidth": "Keep each part's own width",
-    "muted": "Muted text"
+    "muted": "Muted text",
+    "titleHelp": "Every task shows its title, which opens it.",
+    "holdsTitle": "This group holds the title, which every task shows, so it stays.",
+    "savingBody": "Your views are still being saved. Leaving now may lose your changes if the save fails."
   }
 }
