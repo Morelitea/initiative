@@ -276,9 +276,10 @@
     "layoutsTab": "Layouts",
     "layouts": {
       "heading": "Layouts",
-      "description": "Wie jedes Projekt seine Aufgaben darstellt: jedes Layout, wann es zuletzt geändert wurde, und mit welcher Liste es öffnet. Die Layouts eines Projekts werden in seinem Editor geändert.",
+      "description": "Wie jedes Tool dieser Initiative darstellt, was es enthält: jedes Layout, wann es zuletzt geändert wurde, und mit welcher Liste ein Projekt öffnet. Geändert werden sie jeweils in ihrem Editor.",
       "noProjects": "Diese Initiative hat noch keine Projekte.",
-      "loadError": "Die Layouts konnten nicht geladen werden."
+      "loadError": "Die Layouts konnten nicht geladen werden.",
+      "calendar": "Kalender"
     }
   },
   "advancedTools": "Werkzeuge",

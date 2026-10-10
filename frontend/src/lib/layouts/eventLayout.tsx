@@ -68,8 +68,9 @@ import { getUserDisplayName } from "@/lib/userDisplay";
 import type { TranslateFn } from "@/types/i18n";
 
 import type { StoredRegions } from "./detailLayout";
+import { indexPaths } from "./draft";
 import { FieldFrame, useFieldDraft } from "./editing";
-import { EVENT_LAYOUT } from "./events";
+import { EVENT_FIELDS, EVENT_LAYOUT } from "./events";
 import { DescriptionField, PropertiesField, TagsField, TitleField } from "./fieldEditors";
 import { useProjectLayoutEnv } from "./fields";
 import { LAYOUT_PARTS, type LayoutContext, type Parts, renderNode } from "./tree";
@@ -97,6 +98,9 @@ export interface EventLayoutContext {
   leaving: RefObject<boolean>;
   /** Reporting it, and the menu of what else can be done with it. */
   actions: ReactNode;
+  /** Drawn in the layout editor, where nothing is changed: a description
+   *  draft kept on the device stays there. */
+  preview?: boolean;
 }
 
 const DetailContext = createContext<EventLayoutContext | null>(null);
@@ -195,6 +199,7 @@ const DescriptionEditor = ({ event, label }: EditorProps) => {
       initiativeId={context.initiativeId}
       subject={referenceRef(SearchEntityType.calendar_event, event.id)}
       leaving={context.leaving}
+      preview={context.preview}
       placeholder={t("descriptionPlaceholder")}
     />
   );
@@ -620,18 +625,8 @@ const PropertiesEditor = ({ event }: { event: CalendarEventRead }) => {
   );
 };
 
-/** Each field's label key. */
-const FIELD_LABELS = {
-  title: "eventTitle",
-  description: "eventPage.description",
-  location: "location",
-  recurrence: "repeat",
-  attendees: "attendees",
-  tags: "common:toolSettings.tags",
-} as const;
-
 /** Each field's editor on the event's detail, by its id. */
-const FIELD_EDITORS: Record<keyof typeof FIELD_LABELS, (props: EditorProps) => ReactNode> = {
+const FIELD_EDITORS: Record<keyof typeof EVENT_FIELDS, (props: EditorProps) => ReactNode> = {
   title: TitleEditor,
   description: DescriptionEditor,
   location: LocationEditor,
@@ -645,7 +640,7 @@ const EventField = ({ id, event }: { id: string; event: CalendarEventRead }) => 
   const { t } = useTranslation(["calendars", "common"]);
   if (!Object.hasOwn(FIELD_EDITORS, id)) return null;
   const Editor = FIELD_EDITORS[id as keyof typeof FIELD_EDITORS];
-  return <Editor event={event} label={t(FIELD_LABELS[id as keyof typeof FIELD_LABELS])} />;
+  return <Editor event={event} label={t(EVENT_FIELDS[id as keyof typeof EVENT_FIELDS].label)} />;
 };
 
 const Actions = () => <>{useEventLayout().actions}</>;
@@ -661,7 +656,7 @@ const Relations = ({ event }: { event: CalendarEventRead }) => (
 );
 
 /** The parts an event's detail is drawn from. */
-const EVENT_PAGE_PARTS: Parts<CalendarEventRead> = {
+const EVENT_PARTS: Parts<CalendarEventRead> = {
   ...LAYOUT_PARTS,
   field: (node, event) => <EventField id={String(node.props?.field)} event={event} />,
   dates: (_node, event) => <DatesEditor event={event} />,
@@ -679,20 +674,32 @@ export const EventLayoutView = ({
   event,
   context,
   layout,
+  editing,
 }: {
   event: CalendarEventRead;
   context: EventLayoutContext;
   layout?: StoredRegions | null;
+  /** The layout is being edited: each part is marked with its path, which
+   *  the editor's detail tree shares, More fields being past the side's end. */
+  editing?: boolean;
 }) => {
   const { t } = useTranslation("calendars");
   const communityId = useActiveCommunityId();
   const env = useProjectLayoutEnv(useCallback(NO_TASK, []));
-  const view = useMemo<LayoutContext>(() => ({ fields: new Map(), variant: "detail", env }), [env]);
   const tree = useMemo(() => EVENT_LAYOUT.tree(layout, t("eventPage.moreFields")), [layout, t]);
+  const view = useMemo<LayoutContext>(
+    () => ({
+      fields: new Map(),
+      variant: "detail",
+      env,
+      editing: editing ? indexPaths(tree) : undefined,
+    }),
+    [env, editing, tree]
+  );
   return (
     // Another event's detail starts afresh, with none of this one's drafts.
     <DetailContext.Provider key={`${communityId}:${event.id}`} value={context}>
-      {renderNode(tree, event, view, EVENT_PAGE_PARTS)}
+      {renderNode(tree, event, view, EVENT_PARTS)}
     </DetailContext.Provider>
   );
 };

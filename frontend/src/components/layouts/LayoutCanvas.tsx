@@ -1,4 +1,4 @@
-import { GripVertical, MoreHorizontal, Plus } from "lucide-react";
+import { GripVertical, Plus } from "lucide-react";
 import {
   type ComponentProps,
   type KeyboardEvent,
@@ -16,11 +16,8 @@ import { useTranslation } from "react-i18next";
 import type { TaskListRead, TaskStatusRead } from "@/api/generated/initiativeAPI.schemas";
 import { ProjectTasksKanbanView } from "@/components/projects/ProjectTasksKanbanView";
 import { ProjectTasksTableView } from "@/components/projects/ProjectTasksTableView";
-import { useScopePrompt } from "@/components/recurrence/OccurrenceScopeDialog";
-import { Button } from "@/components/ui/button";
-import { useAuth } from "@/hooks/useAuth";
 import type { ProjectTaskTableState } from "@/hooks/useProjectTaskView";
-import { useTask, useTasks } from "@/hooks/useTasks";
+import { useTasks } from "@/hooks/useTasks";
 import { buildTaskListParams, EMPTY_TASK_FILTERS } from "@/lib/filters/taskFilters";
 import {
   cardOf,
@@ -32,8 +29,6 @@ import {
   type Selection,
   sameSelection,
 } from "@/lib/layouts/draft";
-import { TaskLayoutView } from "@/lib/layouts/taskLayout";
-import type { LayoutNode } from "@/lib/layouts/tree";
 import { cn } from "@/lib/utils";
 
 /** How wide the canvas draws the layout: the widths a person might read it at. */
@@ -153,7 +148,7 @@ const sameBoxes = (a: Boxes, b: Boxes) => JSON.stringify(a) === JSON.stringify(b
  * at, and a handle to drag the selected one elsewhere. It measures what is
  * drawn rather than wrapping it, so the view lays out as its readers see it.
  */
-const CanvasFrame = ({
+export const CanvasFrame = ({
   width,
   selection,
   onSelect,
@@ -566,80 +561,6 @@ export const LayoutCanvas = ({
       ) : null}
       {layout === "calendar" ? (
         <p className="text-muted-foreground text-sm">{t("layoutEditor.calendarNote")}</p>
-      ) : null}
-    </CanvasFrame>
-  );
-};
-
-/** The task's detail being laid out, drawn with one of the project's tasks. */
-export const DetailCanvas = ({
-  projectId,
-  initiativeId,
-  statuses,
-  detail,
-  width,
-  selection,
-  onSelect,
-  tools,
-}: {
-  projectId: number;
-  initiativeId: number;
-  statuses: TaskStatusRead[];
-  /** The detail as one tree: the layout, holding its header, main and side. */
-  detail: LayoutNode;
-  width: PreviewWidth;
-  selection: Selection;
-  onSelect: (selection: Selection) => void;
-  tools: CanvasTools;
-}) => {
-  const { t } = useTranslation("projects");
-  const { user } = useAuth();
-  const scopePrompt = useScopePrompt();
-  const leaving = useRef(true);
-  // One task to draw the detail with: the project's first.
-  const params = useMemo(
-    () => ({ ...buildTaskListParams(EMPTY_TASK_FILTERS, { projectId }), page_size: 1 }),
-    [projectId]
-  );
-  const listed = useTasks(params);
-  const first = listed.data?.items[0]?.id ?? null;
-  const task = useTask(first).data;
-  const layout = useMemo(
-    () => ({
-      header: detail.children?.[0]?.children ?? [],
-      main: detail.children?.[1]?.children ?? [],
-      side: detail.children?.[2]?.children ?? [],
-    }),
-    [detail]
-  );
-
-  return (
-    <CanvasFrame width={width} selection={selection} onSelect={onSelect} tools={tools}>
-      {task ? (
-        <TaskLayoutView
-          task={task}
-          layout={layout}
-          editing
-          context={{
-            readOnly: false,
-            // Drawn here so it can be placed; a reader sees it only when they
-            // cannot change the task.
-            readOnlyMessage: t("layoutEditor.noticePreview"),
-            statuses,
-            initiativeId,
-            currentUserId: user?.id,
-            askScope: scopePrompt.ask,
-            actions: (
-              <Button type="button" variant="outline" size="icon" tabIndex={-1} aria-hidden>
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            ),
-            leaving,
-            preview: true,
-          }}
-        />
-      ) : listed.isSuccess && first === null ? (
-        <p className="text-muted-foreground text-sm">{t("layoutEditor.noTasks")}</p>
       ) : null}
     </CanvasFrame>
   );

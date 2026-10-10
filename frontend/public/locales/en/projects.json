@@ -409,6 +409,25 @@
       "table": "How the project's tasks are listed as a table: which columns, in what order.",
       "board": "How each task shows on the board: what its card holds.",
       "calendar": "The project's tasks on a calendar, by their dates."
+    },
+    "noEvents": "This initiative has no events this year. Add one to see its detail here.",
+    "eventDetail": {
+      "name": "Event detail",
+      "help": "How every event's detail in this initiative is laid out, on each of its calendars. A field placed nowhere is still shown, under More fields.",
+      "shipped": "This is the layout as shipped. Changing it makes it the initiative's own.",
+      "titleHelp": "Every event's detail shows its title.",
+      "toMoreFieldsHelp": "Every event's detail lets this be changed. Removed from here, it moves to More fields.",
+      "parts": {
+        "dates": "When",
+        "rsvp": "Your answer",
+        "actions": "Menu",
+        "relations": "Relations"
+      },
+      "partHelp": {
+        "rsvp": "Whether you're coming, for an event that asks.",
+        "actions": "What else can be done with the event: report, duplicate, detach and delete.",
+        "relations": "What the event is linked to."
+      }
     }
   }
 }

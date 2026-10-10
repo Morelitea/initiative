@@ -4109,8 +4109,23 @@ export const TaskDetailFieldId = {
   tags: "tags",
 } as const;
 
+/**
+ * What an event's detail edits as a field. Its dates, its properties and
+ * your answer are parts of their own.
+ */
+export type EventDetailFieldId = (typeof EventDetailFieldId)[keyof typeof EventDetailFieldId];
+
+export const EventDetailFieldId = {
+  title: "title",
+  description: "description",
+  location: "location",
+  recurrence: "recurrence",
+  attendees: "attendees",
+  tags: "tags",
+} as const;
+
 export interface DetailFieldProps {
-  field: TaskDetailFieldId | string;
+  field: TaskDetailFieldId | EventDetailFieldId | string;
 }
 
 export interface DetailFieldPart {
@@ -4123,9 +4138,9 @@ export interface SectionProps {
   collapsed?: boolean | null;
 }
 
-export type TaskDetailPartType = (typeof TaskDetailPartType)[keyof typeof TaskDetailPartType];
+export type OwnPartType = (typeof OwnPartType)[keyof typeof OwnPartType];
 
-export const TaskDetailPartType = {
+export const OwnPartType = {
   status: "status",
   dates: "dates",
   byline: "byline",
@@ -4134,15 +4149,14 @@ export const TaskDetailPartType = {
   relations: "relations",
   case: "case",
   comments: "comments",
+  rsvp: "rsvp",
 } as const;
 
 /**
- * One of a task layout's own parts, which edit or show more than one field:
- * its status, its start and due dates, who made it, its read-only notice, its
- * menu, its relations, its case and its comments.
+ * One of a detail's own parts.
  */
-export interface TaskDetailPart {
-  type: TaskDetailPartType;
+export interface OwnPart {
+  type: OwnPartType;
 }
 
 /**
@@ -4157,7 +4171,7 @@ export interface SectionPartInput {
     | DetailFieldPart
     | PropertiesPart
     | PluginPart
-    | TaskDetailPart
+    | OwnPart
   )[];
 }
 
@@ -4170,7 +4184,7 @@ export interface DetailStackPartInput {
     | DetailFieldPart
     | PropertiesPart
     | PluginPart
-    | TaskDetailPart
+    | OwnPart
   )[];
 }
 
@@ -4187,7 +4201,7 @@ export interface DetailLayoutDefinitionInput {
         | DetailFieldPart
         | PropertiesPart
         | PluginPart
-        | TaskDetailPart
+        | OwnPart
       )[]
     | null;
   main?:
@@ -4197,7 +4211,7 @@ export interface DetailLayoutDefinitionInput {
         | DetailFieldPart
         | PropertiesPart
         | PluginPart
-        | TaskDetailPart
+        | OwnPart
       )[]
     | null;
   side?:
@@ -4207,7 +4221,7 @@ export interface DetailLayoutDefinitionInput {
         | DetailFieldPart
         | PropertiesPart
         | PluginPart
-        | TaskDetailPart
+        | OwnPart
       )[]
     | null;
 }
@@ -4224,7 +4238,7 @@ export interface SectionPartOutput {
     | DetailFieldPart
     | PropertiesPart
     | PluginPart
-    | TaskDetailPart
+    | OwnPart
   )[];
 }
 
@@ -4237,7 +4251,7 @@ export interface DetailStackPartOutput {
     | DetailFieldPart
     | PropertiesPart
     | PluginPart
-    | TaskDetailPart
+    | OwnPart
   )[];
 }
 
@@ -4254,7 +4268,7 @@ export interface DetailLayoutDefinitionOutput {
         | DetailFieldPart
         | PropertiesPart
         | PluginPart
-        | TaskDetailPart
+        | OwnPart
       )[]
     | null;
   main?:
@@ -4264,7 +4278,7 @@ export interface DetailLayoutDefinitionOutput {
         | DetailFieldPart
         | PropertiesPart
         | PluginPart
-        | TaskDetailPart
+        | OwnPart
       )[]
     | null;
   side?:
@@ -4274,22 +4288,37 @@ export interface DetailLayoutDefinitionOutput {
         | DetailFieldPart
         | PropertiesPart
         | PluginPart
-        | TaskDetailPart
+        | OwnPart
       )[]
     | null;
 }
+
+export type DetailLayoutReadKind = (typeof DetailLayoutReadKind)[keyof typeof DetailLayoutReadKind];
+
+export const DetailLayoutReadKind = {
+  task: "task",
+  calendar_event: "calendar_event",
+} as const;
 
 /**
  * How a target shows one of its items: as shipped until it is changed.
  */
 export interface DetailLayoutRead {
-  kind: "task";
+  kind: DetailLayoutReadKind;
   definition: DetailLayoutDefinitionOutput;
   updated_at: string | null;
 }
 
+export type DetailLayoutWriteKind =
+  (typeof DetailLayoutWriteKind)[keyof typeof DetailLayoutWriteKind];
+
+export const DetailLayoutWriteKind = {
+  task: "task",
+  calendar_event: "calendar_event",
+} as const;
+
 export interface DetailLayoutWrite {
-  kind: "task";
+  kind: DetailLayoutWriteKind;
   definition: DetailLayoutDefinitionInput;
 }
 

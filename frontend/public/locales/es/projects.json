@@ -409,6 +409,25 @@
       "table": "Cómo se listan las tareas del proyecto en una tabla: qué columnas, en qué orden.",
       "board": "Cómo se muestra cada tarea en el tablero: qué contiene su tarjeta.",
       "calendar": "Las tareas del proyecto en un calendario, según sus fechas."
+    },
+    "noEvents": "Esta iniciativa no tiene eventos este año. Añade uno para ver su detalle aquí.",
+    "eventDetail": {
+      "name": "Detalle del evento",
+      "help": "Cómo se organiza el detalle de cada evento de esta iniciativa, en cada uno de sus calendarios. Un campo que no está en ningún sitio se sigue mostrando, en Más campos.",
+      "shipped": "Este es el diseño original. Cambiarlo lo convierte en el de la iniciativa.",
+      "titleHelp": "El detalle de cada evento muestra su título.",
+      "toMoreFieldsHelp": "El detalle de cada evento permite cambiar este campo. Si se quita de aquí, pasa a Más campos.",
+      "parts": {
+        "dates": "Cuándo",
+        "rsvp": "Tu respuesta",
+        "actions": "Menú",
+        "relations": "Relaciones"
+      },
+      "partHelp": {
+        "rsvp": "Si vas a ir, en un evento que lo pregunta.",
+        "actions": "Qué más se puede hacer con el evento: denunciar, duplicar, separar y eliminar.",
+        "relations": "Con qué está vinculado el evento."
+      }
     }
   }
 }

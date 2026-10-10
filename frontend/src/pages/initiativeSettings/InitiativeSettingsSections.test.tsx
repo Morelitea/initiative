@@ -279,9 +279,12 @@ describe("initiative settings sections", () => {
     ).toBeInTheDocument();
   });
 
-  it("lists each project's layouts at /settings/layouts, with their dates", async () => {
-    stubInitiative();
+  it("lists the calendar's and each project's layouts at /settings/layouts", async () => {
+    stubInitiative({ calendars_enabled: true });
     server.use(
+      communityHttp.get("/layouts/", () =>
+        HttpResponse.json(buildToolLayoutSet({ tool: "calendar" }))
+      ),
       communityHttp.get("/layouts/initiative", () =>
         HttpResponse.json([
           {
@@ -312,7 +315,17 @@ describe("initiative settings sections", () => {
 
     renderSection(InitiativeSettingsLayoutsPage, "layouts");
 
+    // In the sidebar's order: the calendar before the projects.
+    const calendar = await screen.findByRole("region", { name: "Calendar" });
+    expect(within(calendar).getByText("Event detail")).toBeInTheDocument();
+    expect(within(calendar).getByRole("link", { name: /edit layouts/i })).toHaveAttribute(
+      "href",
+      `/c/1/i/${INITIATIVE_ID}/calendars/layouts`
+    );
     const launch = await screen.findByRole("region", { name: "Launch" });
+    expect(
+      calendar.compareDocumentPosition(launch) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
     const board = within(launch).getByText("Board").closest("li");
     expect(board).not.toBeNull();
     expect(

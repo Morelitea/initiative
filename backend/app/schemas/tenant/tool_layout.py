@@ -65,6 +65,18 @@ class TaskFieldId(str, Enum):
     tags = "tags"
 
 
+class EventDetailFieldId(str, Enum):
+    """What an event's detail edits as a field. Its dates, its properties and
+    your answer are parts of their own."""
+
+    title = "title"
+    description = "description"
+    location = "location"
+    recurrence = "recurrence"
+    attendees = "attendees"
+    tags = "tags"
+
+
 PROPERTY_FIELD_PREFIX = "property:"
 PLUGIN_FIELD_PREFIX = "plugin:"
 #: The characters a row id is written in.
@@ -136,7 +148,7 @@ TaskDetailFieldId = Enum(
     type=str,
 )
 ColumnFieldId = Union[TaskColumnFieldId, NamedFieldId]
-DetailFieldId = Union[TaskDetailFieldId, PluginFieldId]
+DetailFieldId = Union[TaskDetailFieldId, EventDetailFieldId, PluginFieldId]
 
 
 def _part_id(value: str) -> str:
@@ -239,21 +251,28 @@ class DetailStackPart(_Strict):
     children: List[DetailPart] = Field(default_factory=list)
 
 
-class TaskDetailPart(_Strict):
-    """One of a task layout's own parts, which edit or show more than one field:
-    its status, its start and due dates, who made it, its read-only notice, its
-    menu, its relations, its case and its comments."""
+#: The parts a detail draws as its own, which edit or show more than one
+#: field: a task's status, who made it, its read-only notice, its case and its
+#: comments; an event's answer; and either's dates, menu and relations. Which
+#: of them a kind of detail draws is
+#: ``app.services.tenant.tool_layouts.DETAIL_PARTS``.
+OwnPartType = Literal[
+    "status",
+    "dates",
+    "byline",
+    "notice",
+    "actions",
+    "relations",
+    "case",
+    "comments",
+    "rsvp",
+]
 
-    type: Literal[
-        "status",
-        "dates",
-        "byline",
-        "notice",
-        "actions",
-        "relations",
-        "case",
-        "comments",
-    ]
+
+class OwnPart(_Strict):
+    """One of a detail's own parts."""
+
+    type: OwnPartType
 
 
 DetailPart = Annotated[
@@ -263,7 +282,7 @@ DetailPart = Annotated[
         DetailFieldPart,
         PropertiesPart,
         PluginPart,
-        TaskDetailPart,
+        OwnPart,
     ],
     Field(discriminator="type"),
 ]
@@ -279,7 +298,7 @@ DetailStackPart.model_rebuild()
 ListLayoutKind = Literal["table", "board", "calendar"]
 #: Every kind of thing a detail layout shows one of; which a tool holds is
 #: ``app.core.tools.DETAIL_LAYOUTS``.
-DetailLayoutKind = Literal["task"]
+DetailLayoutKind = Literal["task", "calendar_event"]
 
 
 class ListLayoutDefinition(_Strict):

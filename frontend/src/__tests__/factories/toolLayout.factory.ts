@@ -10,23 +10,28 @@ import type {
 /** When a layout built here was last changed. */
 const CHANGED = "2026-10-01T12:00:00.000Z";
 
-/** A project's layouts as the server reads them until it changes any: its
- *  table (which it opens on), board and calendar, then the task's detail,
- *  each as shipped. `layouts` replaces those of the same kind. */
+/** A target's layouts as the server reads them until it changes any, each as
+ *  shipped: a project's table (which it opens on), board and calendar, then
+ *  its task's detail; or, with `tool: "calendar"`, the initiative calendar's
+ *  calendar and its event's detail. `layouts` replaces those of the same
+ *  kind. */
 export function buildToolLayoutSet(
   overrides: Partial<Omit<ToolLayoutSetRead, "layouts">> & {
     layouts?: (ListLayoutRead | DetailLayoutRead)[];
+    tool?: "project" | "calendar";
   } = {}
 ): ToolLayoutSetRead {
-  const { layouts = [], ...rest } = overrides;
+  const { layouts = [], tool = "project", ...rest } = overrides;
+  const lists: ListLayoutReadKind[] =
+    tool === "project" ? ["table", "board", "calendar"] : ["calendar"];
   const shipped: (ListLayoutRead | DetailLayoutRead)[] = [
-    ...(["table", "board", "calendar"] as ListLayoutReadKind[]).map((kind) => ({
+    ...lists.map((kind, index) => ({
       kind,
-      is_default: kind === "table",
+      is_default: index === 0,
       definition: {},
       updated_at: null,
     })),
-    { kind: "task", definition: {}, updated_at: null },
+    { kind: tool === "project" ? "task" : "calendar_event", definition: {}, updated_at: null },
   ];
   return {
     layouts: shipped.map((each) => layouts.find((layout) => layout.kind === each.kind) ?? each),

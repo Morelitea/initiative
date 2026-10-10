@@ -409,6 +409,25 @@
       "table": "Comment les tâches du projet sont listées en tableau : quelles colonnes, dans quel ordre.",
       "board": "Comment chaque tâche apparaît sur le tableau Kanban : ce que contient sa carte.",
       "calendar": "Les tâches du projet sur un calendrier, selon leurs dates."
+    },
+    "noEvents": "Cette initiative n'a aucun événement cette année. Ajoutez-en un pour voir son détail ici.",
+    "eventDetail": {
+      "name": "Détail de l'événement",
+      "help": "La disposition du détail de chaque événement de cette initiative, dans chacun de ses calendriers. Un champ placé nulle part reste affiché, sous Autres champs.",
+      "shipped": "C'est la disposition d'origine. La modifier en fait celle de l'initiative.",
+      "titleHelp": "Le détail de chaque événement affiche son titre.",
+      "toMoreFieldsHelp": "Le détail de chaque événement permet de modifier ce champ. Retiré d'ici, il passe dans Autres champs.",
+      "parts": {
+        "dates": "Quand",
+        "rsvp": "Votre réponse",
+        "actions": "Menu",
+        "relations": "Relations"
+      },
+      "partHelp": {
+        "rsvp": "Si vous venez, pour un événement qui le demande.",
+        "actions": "Ce qu'on peut faire d'autre avec l'événement : signaler, dupliquer, détacher et supprimer.",
+        "relations": "Ce à quoi l'événement est lié."
+      }
     }
   }
 }

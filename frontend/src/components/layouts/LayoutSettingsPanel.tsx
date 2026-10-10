@@ -25,10 +25,10 @@ import {
   type Selection,
 } from "@/lib/layouts/draft";
 import { type FieldDef, LAYOUT_NAMESPACES } from "@/lib/layouts/fields";
-import { TASK_LAYOUT } from "@/lib/layouts/tasks";
 import type { LayoutNode } from "@/lib/layouts/tree";
 import type { TranslateFn } from "@/types/i18n";
 
+import type { EditableDetail } from "./details";
 import type { LayoutEdits } from "./LayoutEditor";
 
 /**
@@ -90,7 +90,6 @@ export const ListLayoutSettings = ({
           path={selection.path}
           fields={fields}
           edits={edits}
-          onDetail={false}
         />
       )}
     </fieldset>
@@ -98,14 +97,24 @@ export const ListLayoutSettings = ({
 };
 
 /** Putting the open layout back as shipped, or saying it already is. */
-const Shipped = ({ stored, edits }: { stored: boolean; edits: LayoutEdits }) => {
-  const { t } = useTranslation("projects");
+const Shipped = ({
+  stored,
+  edits,
+  shipped = "layoutEditor.shipped",
+}: {
+  stored: boolean;
+  edits: LayoutEdits;
+  /** What says the layout is as shipped. */
+  shipped?: string;
+}) => {
+  const { t } = useTranslation(LAYOUT_NAMESPACES);
+  const translate = t as TranslateFn;
   return stored ? (
     <Button type="button" variant="outline" size="sm" onClick={edits.resetLayout}>
-      {t("layoutEditor.useShipped")}
+      {translate("layoutEditor.useShipped")}
     </Button>
   ) : (
-    <p className="text-muted-foreground text-xs">{t("layoutEditor.shipped")}</p>
+    <p className="text-muted-foreground text-xs">{translate(shipped)}</p>
   );
 };
 
@@ -116,6 +125,7 @@ export type LayoutProject = { id: number; initiativeId: number; statuses: TaskSt
  *  a part's. */
 export const DetailLayoutSettings = ({
   detail,
+  of,
   stored,
   fields,
   selection,
@@ -124,22 +134,24 @@ export const DetailLayoutSettings = ({
 }: {
   /** The detail as one tree: the layout, holding its header, main and side. */
   detail: LayoutNode;
-  /** Whether the project lays out its own detail, as against the shipped one. */
+  of: EditableDetail;
+  /** Whether the target lays out its own detail, as against the shipped one. */
   stored: boolean;
   fields: ReadonlyMap<string, FieldDef>;
   selection: Selection;
   edits: LayoutEdits;
   locked: boolean;
 }) => {
-  const { t } = useTranslation("projects");
+  const { t } = useTranslation(LAYOUT_NAMESPACES);
+  const translate = t as TranslateFn;
   return (
     <fieldset disabled={locked} className="min-w-0">
       {selection.kind === "part" ? (
-        <PartSettings tree={detail} path={selection.path} fields={fields} edits={edits} onDetail />
+        <PartSettings tree={detail} path={selection.path} fields={fields} edits={edits} on={of} />
       ) : (
-        <Panel heading={t("layoutEditor.taskLayout")}>
-          <p className="text-muted-foreground text-sm">{t("layoutEditor.detailHelp")}</p>
-          <Shipped stored={stored} edits={edits} />
+        <Panel heading={translate(of.words.name)}>
+          <p className="text-muted-foreground text-sm">{translate(of.words.help)}</p>
+          <Shipped stored={stored} edits={edits} shipped={of.words.shipped} />
         </Panel>
       )}
     </fieldset>
@@ -178,14 +190,14 @@ const PartSettings = ({
   path,
   fields,
   edits,
-  onDetail,
+  on,
 }: {
   tree: LayoutNode;
   path: NodePath;
   fields: ReadonlyMap<string, FieldDef>;
   edits: LayoutEdits;
-  /** On a detail, as against a card. */
-  onDetail: boolean;
+  /** The detail the part is on; none on a card. */
+  on?: EditableDetail;
 }) => {
   const { t } = useTranslation(LAYOUT_NAMESPACES);
   const translate = t as TranslateFn;
@@ -235,13 +247,13 @@ const PartSettings = ({
     node.type === "plugin"
       ? "layoutEditor.pluginPartHelp"
       : !canRemove
-        ? onDetail
-          ? "layoutEditor.detailTitleHelp"
+        ? on
+          ? on.words.titleHelp
           : "layoutEditor.titleHelp"
-        : onDetail && TASK_LAYOUT.editsAField(node)
-          ? "layoutEditor.toMoreFieldsHelp"
-          : onDetail
-            ? `layoutEditor.partHelp.${node.type}`
+        : on?.spec.editsAField(node)
+          ? on.words.toMoreFieldsHelp
+          : on
+            ? `${on.words.parts}.partHelp.${node.type}`
             : node.type === "properties"
               ? "layoutEditor.propertiesHelp"
               : "layoutEditor.fieldHelp";

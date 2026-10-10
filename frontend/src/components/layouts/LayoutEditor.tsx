@@ -5,11 +5,13 @@ import { useTranslation } from "react-i18next";
 
 import type {
   DetailLayoutDefinitionInput,
+  DetailLayoutRead,
+  GetLayoutsParams,
   ListLayoutDefinitionInput,
   ListLayoutReadKind,
   ToolLayoutSetRead,
 } from "@/api/generated/initiativeAPI.schemas";
-import { detailLayoutLooks, listLayoutLooks } from "@/components/projects/projectTasksConfig";
+import { listLayoutLooks } from "@/components/projects/projectTasksConfig";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
@@ -26,7 +28,6 @@ import {
   detailLayoutOf,
   type LayoutChange,
   listLayouts,
-  projectTarget,
   useSaveLayouts,
 } from "@/hooks/useToolLayouts";
 import { atLeast, useWidthClass } from "@/hooks/useWidthClass";
@@ -53,13 +54,14 @@ import {
   startHistory,
   withCard,
 } from "@/lib/layouts/draft";
-import { pluginFields, usePluginsOnItems } from "@/lib/layouts/plugins";
-import { TASK_LAYOUT, taskFields } from "@/lib/layouts/tasks";
+import { type PluginOnItems, pluginFields, usePluginsOnItems } from "@/lib/layouts/plugins";
+import { taskFields } from "@/lib/layouts/tasks";
 import type { LayoutNode } from "@/lib/layouts/tree";
 import { toast } from "@/lib/mascotToast";
 import type { TranslateFn } from "@/types/i18n";
 
-import { type CanvasTools, DetailCanvas, LayoutCanvas, type PreviewWidth } from "./LayoutCanvas";
+import type { EditableDetail } from "./details";
+import { CanvasFrame, type CanvasTools, LayoutCanvas, type PreviewWidth } from "./LayoutCanvas";
 import {
   type Adders,
   AddPicker,
@@ -76,6 +78,9 @@ import {
 } from "./LayoutSettingsPanel";
 
 const noop = () => {};
+
+/** What the part edits change while nothing is open. */
+const EMPTY_TREE: LayoutNode = { type: "layout", children: [] };
 
 const WIDTHS: { width: PreviewWidth; icon: typeof Laptop }[] = [
   { width: "desktop", icon: Laptop },
@@ -104,19 +109,18 @@ export type LayoutEdits = {
   resetLayout: () => void;
 };
 
-/** The task's detail, in the editor's list beside the lists. */
-const TASK = "task";
+type DetailKind = DetailLayoutRead["kind"];
 
-/** What the editor changes: each list's layout and the task's detail (null:
- *  drawn as shipped), and the list the project opens on. Save stores only
- *  what changed, each on its own. */
+/** What the editor changes: each list's layout and each detail's (null: drawn
+ *  as shipped), and the list the target opens on. Save stores only what
+ *  changed, each on its own. */
 type Draft = {
   lists: Partial<Record<ListLayoutReadKind, ListLayoutDefinitionInput | null>>;
-  detail: DetailLayoutDefinitionInput | null;
+  details: Partial<Record<DetailKind, DetailLayoutDefinitionInput | null>>;
   opensOn: ListLayoutReadKind;
 };
 
-const draftOf = (set: ToolLayoutSetRead): Draft => {
+const draftOf = (set: ToolLayoutSetRead, details: EditableDetail[]): Draft => {
   const lists = listLayouts(set);
   return {
     lists: Object.fromEntries(
@@ -125,10 +129,14 @@ const draftOf = (set: ToolLayoutSetRead): Draft => {
         layout.updated_at ? (layout.definition as ListLayoutDefinitionInput) : null,
       ])
     ),
-    detail: detailLayoutOf(set, TASK),
+    details: Object.fromEntries(
+      details.map(({ spec }) => [spec.kind, detailLayoutOf(set, spec.kind)])
+    ),
     opensOn: lists.find((layout) => layout.is_default)?.kind ?? "table",
   };
 };
+
+const NO_PLUGINS: ReadonlyMap<number, PluginOnItems> = new Map();
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
@@ -143,10 +151,12 @@ const changesFrom = (base: Draft, draft: Draft): LayoutChange[] => {
     if (same(definition, base.lists[kind])) continue;
     changes.push(definition ? { save: { kind, definition } } : { reset: kind });
   }
-  if (!same(draft.detail, base.detail)) {
-    changes.push(
-      draft.detail ? { save: { kind: TASK, definition: draft.detail } } : { reset: TASK }
-    );
+  for (const [kind, definition] of Object.entries(draft.details) as [
+    DetailKind,
+    DetailLayoutDefinitionInput | null,
+  ][]) {
+    if (same(definition, base.details[kind])) continue;
+    changes.push(definition ? { save: { kind, definition } } : { reset: kind });
   }
   if (draft.opensOn !== base.opensOn) changes.push({ opensOn: draft.opensOn });
   return changes;
@@ -178,11 +188,11 @@ const stillThere = (selection: Selection, tree: LayoutNode, columns: string[]): 
 };
 
 /**
- * A project's layouts, edited where they are seen: its table, board and
- * calendar, and the task's detail. It takes the whole screen: which layout is
- * open and what can be done across the top, the outline of it on the left, it
- * drawn with the project's tasks in the middle, and the settings of what is
- * selected on the right.
+ * A target's layouts, edited where they are seen: a project's table, board and
+ * calendar and its task's detail, or the initiative calendar's event detail.
+ * It takes the whole screen: which layout is open and what can be done across
+ * the top, the outline of it on the left, it drawn with the target's own in
+ * the middle, and the settings of what is selected on the right.
  *
  * Every change is a draft until Save, which stores each layout that changed on
  * its own, so the others keep their dates; readers see the saved layouts until
@@ -190,13 +200,21 @@ const stillThere = (selection: Selection, tree: LayoutNode, columns: string[]): 
  * or during a save, asks first.
  */
 export const LayoutEditor = ({
+  target,
+  initiativeId,
   project,
+  details,
   set,
   initialKind,
   onClose,
 }: {
-  project: LayoutProject;
-  /** The project's layouts, read by someone who may change them. */
+  target: GetLayoutsParams;
+  initiativeId: number;
+  /** The project whose lists these are. A target with no project lays out
+   *  its details alone. */
+  project?: LayoutProject;
+  details: EditableDetail[];
+  /** The target's layouts, read by someone who may change them. */
   set: ToolLayoutSetRead;
   /** The layout to open on: a list's kind, or the task's detail. */
   initialKind?: string;
@@ -205,42 +223,48 @@ export const LayoutEditor = ({
   const { t, i18n } = useTranslation(["projects", "common"]);
   const translate = t as TranslateFn;
   const wide = atLeast(useWidthClass(), "md");
-  const [base, setBase] = useState(() => draftOf(set));
+  const [base, setBase] = useState(() => draftOf(set, details));
   const [history, dispatch] = useReducer(historyReducer<Draft>, base, startHistory<Draft>);
   const draft = history.present;
-  const kinds = listLayouts(set).map((layout) => layout.kind);
-  const [active, setActive] = useState(
-    initialKind && (initialKind === TASK || kinds.includes(initialKind as ListLayoutReadKind))
+  // The lists offered, which only a project's are so far.
+  const kinds = project ? listLayouts(set).map((layout) => layout.kind) : [];
+  const offered = [...kinds, ...details.map(({ spec }) => spec.kind)];
+  const [active, setActive] = useState<string>(
+    initialKind && offered.includes(initialKind as ListLayoutReadKind)
       ? initialKind
-      : draft.opensOn
+      : project
+        ? draft.opensOn
+        : (details[0]?.spec.kind ?? "")
   );
   const [selected, setSelected] = useState<Selection>(LAYOUT_SELECTED);
-  const onDetail = active === TASK;
+  const openDetail = details.find(({ spec }) => spec.kind === active);
+  const onDetail = openDetail !== undefined;
   const current: ListLayout | null = onDetail
     ? null
     : {
         kind: active as ListLayoutReadKind,
         definition: draft.lists[active as ListLayoutReadKind] ?? {},
       };
+  const stored = openDetail ? (draft.details[openDetail.spec.kind] ?? null) : null;
   const detail = useMemo(
-    () => TASK_LAYOUT.root(draft.detail as StoredRegions | null),
-    [draft.detail]
+    () => (openDetail ? openDetail.spec.root(stored as StoredRegions | null) : null),
+    [openDetail, stored]
   );
   // The tree the part edits change.
-  const tree = current ? cardOf(current.definition) : detail;
+  const tree = current ? cardOf(current.definition) : (detail ?? EMPTY_TREE);
   const columns = current ? columnsOf(current.definition) : [];
   const selection = stillThere(selected, tree, columns) ? selected : LAYOUT_SELECTED;
   const [width, setWidth] = useState<PreviewWidth>("desktop");
   const dirty = !same(draft, base);
 
-  const save = useSaveLayouts(projectTarget(project.id));
+  const save = useSaveLayouts(target);
   const saving = save.isPending;
 
   // Someone else's change, read while nothing is changed here, is what the
   // editor starts from. One read mid-edit is set aside: Save sends only what
   // this editor changed, against what it started from.
   const adopt = (stored: ToolLayoutSetRead) => {
-    const fresh = draftOf(stored);
+    const fresh = draftOf(stored, details);
     setSeen(stored);
     setBase(fresh);
     dispatch({ type: "reset", present: fresh });
@@ -251,11 +275,14 @@ export const LayoutEditor = ({
     if (!dirty) adopt(set);
   }
 
-  const { data: definitions = [] } = useProperties({ initiativeId: project.initiativeId });
-  const plugins = usePluginsOnItems(project.initiativeId);
+  const { data: definitions = [] } = useProperties({ initiativeId });
+  const installed = usePluginsOnItems(initiativeId);
+  // The plug-ins that draw on what is open: a list's tasks, or a detail that
+  // takes them.
+  const plugins = openDetail && !openDetail.plugins ? NO_PLUGINS : installed;
   const fields = useMemo(
-    () => taskFields(definitions, pluginFields(plugins, i18n.language)),
-    [definitions, plugins, i18n.language]
+    () => (openDetail?.fields ?? taskFields)(definitions, pluginFields(plugins, i18n.language)),
+    [openDetail, definitions, plugins, i18n.language]
   );
 
   const changeDraft = (next: Draft, then?: Selection) => {
@@ -268,11 +295,19 @@ export const LayoutEditor = ({
       changeDraft({ ...draft, lists: { ...draft.lists, [current.kind]: definition } }, then);
     }
   };
+  const changeDetail = (layout: DetailLayoutDefinitionInput | null, then?: Selection) => {
+    if (openDetail) {
+      changeDraft(
+        { ...draft, details: { ...draft.details, [openDetail.spec.kind]: layout } },
+        then
+      );
+    }
+  };
   /** The open tree, changed: a board's card, or the detail, which is then the
-   *  project's own. */
+   *  target's own. */
   const changeTree = (next: LayoutNode, then?: Selection) => {
     if (current) changeList(withCard(current.definition, next), then);
-    else changeDraft({ ...draft, detail: storedLayout(next) }, then);
+    else changeDetail(storedLayout(next), then);
   };
 
   const edits: LayoutEdits = {
@@ -311,7 +346,7 @@ export const LayoutEditor = ({
             { ...draft, lists: { ...draft.lists, [current.kind]: null } },
             LAYOUT_SELECTED
           )
-        : changeDraft({ ...draft, detail: null }, LAYOUT_SELECTED),
+        : changeDetail(null, LAYOUT_SELECTED),
     moveColumn: (from, to) => {
       if (!current) return;
       const next = [...columns];
@@ -336,10 +371,16 @@ export const LayoutEditor = ({
 
   // What Add offers, in the outline and at a point on the canvas, and what a
   // pick does there.
-  const { labelOf, partLabel, pickerPlugins } = usePartLabel(fields, plugins);
+  const { labelOf, partLabel, pickerPlugins } = usePartLabel(
+    fields,
+    plugins,
+    openDetail?.words.parts
+  );
   const choices = current
     ? listChoices(current, fields, pickerPlugins, translate)
-    : detailChoices(detail, fields, pickerPlugins, translate);
+    : detail && openDetail
+      ? detailChoices(detail, openDetail, fields, pickerPlugins, translate)
+      : { fields: [], plugins: [], parts: [] };
   const addersAt = (place?: Place): Adders =>
     current?.kind === "table"
       ? { onField: (field) => edits.addColumn(field.id, place?.index), onPart: noop, onNode: noop }
@@ -500,8 +541,12 @@ export const LayoutEditor = ({
                 {translate(listLayoutLooks[kind].labelKey)}
               </SelectItem>
             ))}
-            <SelectSeparator />
-            <SelectItem value={TASK}>{translate(detailLayoutLooks.task.labelKey)}</SelectItem>
+            {kinds.length > 0 ? <SelectSeparator /> : null}
+            {details.map(({ spec, words }) => (
+              <SelectItem key={spec.kind} value={spec.kind}>
+                {translate(words.name)}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
         <div className="flex-1" />
@@ -562,7 +607,7 @@ export const LayoutEditor = ({
       {/* A screen too narrow to edit on keeps the draft, and says so. */}
       {!wide ? (
         <p className="p-6 text-muted-foreground text-sm">{t("layoutEditor.compact")}</p>
-      ) : current ? (
+      ) : current && project ? (
         <div className="grid min-h-0 flex-1 grid-cols-[16rem_minmax(0,1fr)_18rem]">
           <aside className="min-h-0 border-r">
             <ListLayoutOutline
@@ -600,11 +645,12 @@ export const LayoutEditor = ({
             />
           </aside>
         </div>
-      ) : (
+      ) : detail && openDetail ? (
         <div className="grid min-h-0 flex-1 grid-cols-[16rem_minmax(0,1fr)_18rem]">
           <aside className="min-h-0 border-r">
             <DetailLayoutOutline
               detail={detail}
+              of={openDetail}
               fields={fields}
               plugins={plugins}
               choices={choices}
@@ -615,21 +661,15 @@ export const LayoutEditor = ({
             />
           </aside>
           <main className="min-h-0">
-            <DetailCanvas
-              projectId={project.id}
-              initiativeId={project.initiativeId}
-              statuses={project.statuses}
-              detail={detail}
-              width={width}
-              selection={selection}
-              onSelect={setSelected}
-              tools={tools}
-            />
+            <CanvasFrame width={width} selection={selection} onSelect={setSelected} tools={tools}>
+              {openDetail.preview(detail)}
+            </CanvasFrame>
           </main>
           <aside className="min-h-0 overflow-y-auto border-l">
             <DetailLayoutSettings
               detail={detail}
-              stored={draft.detail !== null}
+              of={openDetail}
+              stored={stored !== null}
               fields={fields}
               selection={selection}
               edits={edits}
@@ -637,7 +677,7 @@ export const LayoutEditor = ({
             />
           </aside>
         </div>
-      )}
+      ) : null}
       <ConfirmDialog
         open={asking || blocker.status === "blocked"}
         onOpenChange={(open) => {

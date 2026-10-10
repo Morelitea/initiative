@@ -4,7 +4,10 @@
  * and the layout a detail is stored as.
  */
 
-import type { DetailLayoutDefinitionInput } from "@/api/generated/initiativeAPI.schemas";
+import type {
+  DetailLayoutDefinitionInput,
+  DetailLayoutRead,
+} from "@/api/generated/initiativeAPI.schemas";
 
 import type { LayoutNode } from "./tree";
 
@@ -56,10 +59,20 @@ export const storedLayout = (root: LayoutNode): DetailLayoutDefinitionInput => {
   } as DetailLayoutDefinitionInput;
 };
 
+/** The parts any detail lays out with, as against its own. */
+const LAYOUT_PARTS = new Set(["section", "stack", "field", "properties", "plugin"]);
+
 /** One kind of detail: as shipped, and as a stored layout draws it. */
 export interface DetailLayoutSpec {
+  /** What its layout is stored as. */
+  kind: DetailLayoutRead["kind"];
   /** The regions as shipped. */
   shipped: Record<Region, LayoutNode[]>;
+  /** The detail's own parts, each placed at most once: what the shipped
+   *  detail draws beside its fields and the parts that lay them out. */
+  ownParts: string[];
+  /** The built-in fields it edits: those the shipped detail places. */
+  detailFields: ReadonlySet<string>;
   /** Whether a part edits a field: placed nowhere, it is drawn under More
    *  fields rather than gone. */
   editsAField: (node: LayoutNode) => boolean;
@@ -85,18 +98,21 @@ export interface DetailLayoutSpec {
  * fields falls on one column, after everything else.
  */
 export const detailLayoutSpec = ({
+  kind,
   shipped,
   fieldParts,
   moreOrder,
 }: {
+  kind: DetailLayoutRead["kind"];
   shipped: Record<Region, LayoutNode[]>;
   fieldParts: readonly string[];
   moreOrder: number;
 }): DetailLayoutSpec => {
   const editing = new Set(fieldParts);
   const editsAField = (node: LayoutNode) => editing.has(node.type);
+  const shippedNodes = nodesIn(Object.values(shipped).flat());
   /** What the shipped detail edits, in its order. */
-  const shippedFields = nodesIn(Object.values(shipped).flat()).filter(editsAField);
+  const shippedFields = shippedNodes.filter(editsAField);
   /** Where the shipped detail puts each of its column parts on one column. */
   const shippedOrder = new Map(
     [...shipped.main, ...shipped.side].map((node) => [anchorOf(node), Number(node.props?.order)])
@@ -131,7 +147,14 @@ export const detailLayoutSpec = ({
   };
 
   return {
+    kind,
     shipped,
+    ownParts: [
+      ...new Set(shippedNodes.map((node) => node.type).filter((type) => !LAYOUT_PARTS.has(type))),
+    ],
+    detailFields: new Set(
+      shippedNodes.filter((node) => node.type === "field").map((node) => String(node.props?.field))
+    ),
     editsAField,
     unplacedFields,
     root: (stored) => {

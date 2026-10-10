@@ -546,7 +546,7 @@ const Comments = ({ task }: { task: TaskRead }) => {
 };
 
 /** The parts a task's detail is drawn from. */
-const TASK_PAGE_PARTS: Parts<TaskRead> = {
+const TASK_PARTS: Parts<TaskRead> = {
   ...LAYOUT_PARTS,
   field: (node, task, view) => {
     const field = view.fields.get(String(node.props?.field));
@@ -613,7 +613,7 @@ export const TaskLayoutView = ({
   return (
     // Another task's detail starts afresh, with none of this one's drafts.
     <DetailContext.Provider key={`${communityId}:${task.id}`} value={context}>
-      {renderNode(tree, task, view, TASK_PAGE_PARTS)}
+      {renderNode(tree, task, view, TASK_PARTS)}
     </DetailContext.Provider>
   );
 };

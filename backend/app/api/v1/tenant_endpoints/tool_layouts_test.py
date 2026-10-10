@@ -352,6 +352,10 @@ def _deep(depth: int) -> dict[str, Any]:
     return node
 
 
+def _field(field: str) -> dict[str, Any]:
+    return {"type": "field", "props": {"field": field}}
+
+
 def _plugin_part(plugin: int) -> dict[str, Any]:
     return {"type": "plugin", "props": {"plugin": plugin, "part": "builds"}}
 
@@ -481,7 +485,10 @@ async def test_a_shared_tool_is_laid_out_by_the_initiatives_managers(
     async def can_configure(actor: Any) -> bool:
         response = await client.get(url, params=params, headers=actor.headers)
         assert response.status_code == 200, response.text
-        assert [layout["kind"] for layout in response.json()["layouts"]] == ["calendar"]
+        assert [layout["kind"] for layout in response.json()["layouts"]] == [
+            "calendar",
+            "calendar_event",
+        ]
         return response.json()["can_configure"]
 
     assert (await can_configure(manager), await can_configure(member)) == (True, False)
@@ -516,6 +523,77 @@ async def test_a_shared_tool_is_laid_out_by_the_initiatives_managers(
     outsider.add(row("calendar"))
     with pytest.raises(DBAPIError):
         await outsider.commit()
+
+
+def _detail(kind: str, *side: dict[str, Any]) -> dict[str, Any]:
+    return {"kind": kind, "definition": {"side": list(side)}}
+
+
+@pytest.mark.parametrize(
+    ("target", "payload"),
+    [
+        ("calendar", _detail("calendar_event", {"type": "status"})),
+        (
+            "calendar",
+            _detail(
+                "calendar_event",
+                {"type": "section", "children": [_field("checklist")]},
+            ),
+        ),
+        ("calendar", _detail("calendar_event", _plugin_part(3))),
+        ("calendar", _detail("calendar_event", _field("plugin:3:ci.state"))),
+        ("project", _detail("task", {"type": "rsvp"})),
+        ("project", _detail("task", _field("location"))),
+        ("project", _detail("calendar_event")),
+    ],
+    ids=[
+        "a task's part on an event",
+        "a task's field on an event",
+        "a plug-in's part on an event",
+        "a plug-in's field on an event",
+        "an event's part on a task",
+        "an event's field on a task",
+        "an event's detail on a project",
+    ],
+)
+async def test_a_detail_draws_only_what_its_kind_has(
+    client: AsyncClient, acting_user, target: str, payload: dict[str, Any]
+):
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
+    params = (
+        _project(a)
+        if target == "project"
+        else {"tool": "calendar", "initiative_id": a.initiative.id}
+    )
+
+    response = await client.put(
+        a.g("/layouts/"), params=params, json=payload, headers=a.headers
+    )
+
+    assert response.status_code == 400, response.text
+    assert response.json()["detail"] == "TOOL_LAYOUTS_KIND_NOT_ALLOWED"
+
+
+async def test_the_calendar_lays_out_its_event_detail(client: AsyncClient, acting_user):
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
+    params = {"tool": "calendar", "initiative_id": a.initiative.id}
+    event = _detail(
+        "calendar_event",
+        {"type": "rsvp"},
+        {"type": "section", "children": [{"type": "dates"}, _field("location")]},
+    )
+
+    saved = await client.put(
+        a.g("/layouts/"), params=params, json=event, headers=a.headers
+    )
+
+    assert saved.status_code == 200, saved.text
+    layout = {each["kind"]: each for each in saved.json()["layouts"]}["calendar_event"]
+    assert [part["type"] for part in layout["definition"]["side"]] == [
+        "rsvp",
+        "section",
+    ]
+    assert layout["updated_at"] is not None
 
 
 @pytest.mark.parametrize(

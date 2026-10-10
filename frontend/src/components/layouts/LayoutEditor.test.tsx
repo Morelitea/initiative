@@ -9,6 +9,7 @@ import { HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  buildCalendarEvent,
   buildDefaultTaskStatuses,
   buildPropertyDefinition,
   buildSavedLayoutSet,
@@ -24,13 +25,16 @@ import type {
   ListLayoutWrite,
   ToolLayoutSetRead,
 } from "@/api/generated/initiativeAPI.schemas";
-import { useProjectLayouts } from "@/hooks/useToolLayouts";
+import { calendarTarget, projectTarget, useToolLayouts } from "@/hooks/useToolLayouts";
 import type { LayoutNode } from "@/lib/layouts/tree";
 
+import { eventDetail, taskDetail } from "./details";
 import { LayoutEditor } from "./LayoutEditor";
 
 const STATUSES = buildDefaultTaskStatuses(1);
 const PROJECT = { id: 1, initiativeId: 1, statuses: STATUSES };
+const PROJECT_DETAILS = [taskDetail(PROJECT)];
+const CALENDAR_DETAILS = [eventDetail(1)];
 
 type Write = ListLayoutWrite | DetailLayoutWrite;
 
@@ -44,13 +48,23 @@ const saved = (kind: string) =>
     ?.definition as Record<string, unknown> | undefined;
 
 /** The editor as its page holds it: on the project's layouts as read, which
- *  each save writes its answer over. */
-const editor = (kind: string, onClose = vi.fn(), set = buildToolLayoutSet()) => {
+ *  each save writes its answer over. With `calendar`, on the initiative
+ *  calendar's instead. */
+const editor = (kind: string, onClose = vi.fn(), set = buildToolLayoutSet(), calendar = false) => {
   server.use(communityHttp.get("/layouts/", () => HttpResponse.json(set)));
+  const target = calendar ? calendarTarget(1) : projectTarget(1);
   const Page = () => {
-    const read = useProjectLayouts(1).data;
+    const read = useToolLayouts(target).data;
     return read ? (
-      <LayoutEditor project={PROJECT} set={read} initialKind={kind} onClose={onClose} />
+      <LayoutEditor
+        target={target}
+        initiativeId={1}
+        project={calendar ? undefined : PROJECT}
+        details={calendar ? CALENDAR_DETAILS : PROJECT_DETAILS}
+        set={read}
+        initialKind={kind}
+        onClose={onClose}
+      />
     ) : null;
   };
   renderPage(Page);
@@ -471,6 +485,28 @@ describe("LayoutEditor", () => {
       await user.click(screen.getByRole("button", { name: /^save$/i }));
 
       await waitFor(() => expect(sent).toEqual([{ reset: "task" }]));
+    });
+  });
+
+  describe("the calendar's event detail", () => {
+    it("lays out the event detail alone, sending it and nothing else", async () => {
+      const event = buildCalendarEvent({ id: 9, title: "Standup", location: "Room 2" });
+      server.use(
+        communityHttp.get("/calendar-entries/", () =>
+          HttpResponse.json({ events: [event], tasks: [], task_occurrences: [] })
+        ),
+        communityHttp.get("/calendar-events/:eventId", () => HttpResponse.json(event))
+      );
+      const { user } = editor("", vi.fn(), buildToolLayoutSet({ tool: "calendar" }), true);
+      expect(await within(await canvas()).findByDisplayValue("Room 2")).toBeInTheDocument();
+
+      await user.click(
+        within(await outline()).getByRole("button", { name: /move location to more fields/i })
+      );
+      await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+      await waitFor(() => expect(sent).toHaveLength(1));
+      expect(JSON.stringify(saved("calendar_event"))).not.toContain('"location"');
     });
   });
 });

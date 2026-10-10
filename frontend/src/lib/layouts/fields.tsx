@@ -92,7 +92,10 @@ export type LayoutEnv = {
   taskHref: (task: LayoutItem) => string;
 };
 
-export const LAYOUT_NAMESPACES = ["projects", "tasks", "dates", "relations"] as const;
+// The namespaces a layout's names are in, loaded together so none shows as a
+// key: an event's fields are named in `calendars`, whether or not an event is
+// drawn beside them.
+export const LAYOUT_NAMESPACES = ["projects", "tasks", "dates", "relations", "calendars"] as const;
 
 /** The env of a project's views: one community, and its tasks' pages. */
 export const useProjectLayoutEnv = (taskHref: (taskId: number) => string): LayoutEnv => {

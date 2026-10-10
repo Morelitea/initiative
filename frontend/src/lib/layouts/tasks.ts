@@ -140,7 +140,7 @@ export const TASK_CARD: LayoutNode = {
  * with it across the top; what the task is in the main column; and the fields
  * that place it beside them. On one column, the fields follow the description.
  */
-const TASK_PAGE_REGIONS: Record<Region, LayoutNode[]> = {
+const TASK_DETAIL_REGIONS: Record<Region, LayoutNode[]> = {
   header: [
     {
       type: "stack",
@@ -175,7 +175,8 @@ const TASK_PAGE_REGIONS: Record<Region, LayoutNode[]> = {
 
 /** A task's detail: its status, dates and properties edit fields as a field does. */
 export const TASK_LAYOUT = detailLayoutSpec({
-  shipped: TASK_PAGE_REGIONS,
+  kind: "task",
+  shipped: TASK_DETAIL_REGIONS,
   fieldParts: ["field", "status", "dates", "properties"],
   moreOrder: 7,
 });

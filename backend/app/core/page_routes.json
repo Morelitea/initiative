@@ -22,6 +22,7 @@
   "/c/$communityId/i/$initiativeId/calendars/$calendarId/settings/",
   "/c/$communityId/i/$initiativeId/calendars/$calendarId/settings/access",
   "/c/$communityId/i/$initiativeId/calendars/$calendarId/settings/advanced",
+  "/c/$communityId/i/$initiativeId/calendars/layouts",
   "/c/$communityId/i/$initiativeId/counter-groups/",
   "/c/$communityId/i/$initiativeId/counter-groups/$counterGroupId/",
   "/c/$communityId/i/$initiativeId/counter-groups/$counterGroupId/counter/$counterId",

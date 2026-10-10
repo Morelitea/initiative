@@ -1,4 +1,4 @@
-import { Calendar, FileText, Kanban, type LucideIcon, Table } from "lucide-react";
+import { Calendar, CalendarDays, FileText, Kanban, type LucideIcon, Table } from "lucide-react";
 
 import type {
   DetailLayoutRead,
@@ -39,6 +39,7 @@ export const listLayoutLooks: Record<ListLayoutReadKind, Look> = {
 /** Each detail layout's icon, and its name in `projects`. */
 export const detailLayoutLooks: Record<DetailLayoutRead["kind"], Look> = {
   task: { icon: FileText, labelKey: "layoutEditor.taskLayout" },
+  calendar_event: { icon: CalendarDays, labelKey: "layoutEditor.eventDetail.name" },
 };
 
 /** Any layout's icon and name. */

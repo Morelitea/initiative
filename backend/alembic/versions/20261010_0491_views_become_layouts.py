@@ -129,7 +129,8 @@ def _apply_upgrade() -> None:
         sa.CheckConstraint(_TOOL_CHECK, name="ck_tool_layouts_tool"),
         sa.CheckConstraint(_TARGET_CHECK, name="ck_tool_layouts_target"),
         sa.CheckConstraint(
-            "kind IN ('table', 'board', 'calendar', 'task', 'default')",
+            "kind IN ('table', 'board', 'calendar', 'task', 'calendar_event',"
+            " 'default')",
             name="ck_tool_layouts_kind",
         ),
         sa.ForeignKeyConstraint(

@@ -27,22 +27,53 @@ from app.db.session import require_guild_context
 from app.models.tenant.tool_layout import ToolLayout
 from app.schemas.tenant.tool_layout import (
     MAX_DEFINITION_BYTES,
+    PLUGIN_FIELD_PREFIX,
     MAX_DEPTH,
     MAX_NODES,
     MAX_PLUGIN_PARTS,
     CardPart,
     DetailLayoutDefinition,
     DetailLayoutRead,
+    DetailFieldPart,
     DetailLayoutWrite,
     DetailStackPart,
+    EventDetailFieldId,
     ListLayoutDefinition,
     ListLayoutRead,
     PluginPart,
     SectionPart,
     StackPart,
+    TaskDetailFieldId,
     ToolLayoutRead,
     ToolLayoutWrite,
 )
+
+
+#: The parts any detail lays out with.
+_LAYOUT_PARTS = frozenset({"stack", "section", "field", "properties"})
+
+#: The parts each kind of detail draws. Plug-ins draw on tasks so far.
+DETAIL_PARTS: dict[str, frozenset[str]] = {
+    "task": _LAYOUT_PARTS
+    | {
+        "plugin",
+        "status",
+        "dates",
+        "byline",
+        "notice",
+        "actions",
+        "relations",
+        "case",
+        "comments",
+    },
+    "calendar_event": _LAYOUT_PARTS | {"dates", "rsvp", "actions", "relations"},
+}
+
+#: The built-in fields each kind of detail edits.
+DETAIL_FIELDS: dict[str, frozenset[str]] = {
+    "task": frozenset(field.value for field in TaskDetailFieldId),
+    "calendar_event": frozenset(field.value for field in EventDetailFieldId),
+}
 
 
 @dataclass(frozen=True)
@@ -156,6 +187,19 @@ def _within_limits(stored: dict[str, Any], roots: list[Any], loose: int) -> None
         raise _bad_request(ToolLayoutMessages.TOO_MANY_PLUGIN_PARTS)
 
 
+def _drawn_on(part: Any, kind: str) -> bool:
+    """Whether a kind of detail draws the part: one of its own parts, or one of
+    its fields. A plug-in's field is drawn where its parts are."""
+    if part.type not in DETAIL_PARTS[kind]:
+        return False
+    if not isinstance(part, DetailFieldPart):
+        return True
+    field = getattr(part.props.field, "value", part.props.field)
+    if field.startswith(PLUGIN_FIELD_PREFIX):
+        return "plugin" in DETAIL_PARTS[kind]
+    return field in DETAIL_FIELDS[kind]
+
+
 def _require(kind: str, kinds: tuple[str, ...]) -> None:
     if kind not in kinds:
         raise _bad_request(ToolLayoutMessages.KIND_NOT_ALLOWED)
@@ -175,6 +219,10 @@ def check(target: Target, write: ToolLayoutWrite) -> dict[str, Any]:
             for part in region or ()
         ]
         _within_limits(stored, roots, 0)
+        if not all(
+            _drawn_on(part, write.kind) for root in roots for part, _ in _parts(root, 1)
+        ):
+            raise _bad_request(ToolLayoutMessages.KIND_NOT_ALLOWED)
     else:
         _require(write.kind, LIST_LAYOUTS.get(target.tool, ()))
         assert isinstance(definition, ListLayoutDefinition)

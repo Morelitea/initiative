@@ -11,10 +11,11 @@ import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { useMemo } from "react";
 
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { taskDetail } from "@/components/layouts/details";
 import { LayoutEditor } from "@/components/layouts/LayoutEditor";
 import { ToolSettingsPermissionRequired } from "@/components/tools/settings/ToolSettingsGuard";
 import { useProject, useProjectTaskStatuses } from "@/hooks/useProjects";
-import { useProjectLayouts } from "@/hooks/useToolLayouts";
+import { projectTarget, useProjectLayouts } from "@/hooks/useToolLayouts";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { toolSettingsRoute } from "@/lib/tools";
 
@@ -36,6 +37,7 @@ export const ProjectLayoutEditorPage = () => {
         : null,
     [project, statuses]
   );
+  const details = useMemo(() => (editing ? [taskDetail(editing)] : []), [editing]);
 
   if (!project || !editing || !set) return null;
   if (!set.can_configure) return <ToolSettingsPermissionRequired />;
@@ -44,7 +46,10 @@ export const ProjectLayoutEditorPage = () => {
       // Another project's editor starts afresh: a draft, and the question
       // before leaving it, belong to the project they were made for.
       key={project.id}
+      target={projectTarget(project.id)}
+      initiativeId={project.initiative_id}
       project={editing}
+      details={details}
       set={set}
       initialKind={layout}
       onClose={() =>

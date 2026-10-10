@@ -1,6 +1,7 @@
 /**
  * How an instance of a tool lists what it holds, and shows one of them: its
  * layouts. A project has a table, a board and a calendar, and a task's detail;
+ * the initiative's calendar has the event's detail;
  * each is drawn as shipped until it is changed, and is changed on its own. How
  * a person narrows a list, and sorts it, is theirs (their view, kept by
  * {@link useProjectTaskView}), not the layout's.
@@ -42,6 +43,12 @@ import type { MutationOpts } from "@/types/mutation";
 export const projectTarget = (projectId: number): GetLayoutsParams => ({
   tool: Tool.project,
   tool_id: projectId,
+});
+
+/** The initiative's calendar, whose layouts every calendar in it shares. */
+export const calendarTarget = (initiativeId: number): GetLayoutsParams => ({
+  tool: Tool.calendar,
+  initiative_id: initiativeId,
 });
 
 export const toolLayoutsQuery = (communityId: number, target: GetLayoutsParams) => ({

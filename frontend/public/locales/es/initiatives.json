@@ -276,9 +276,10 @@
     "layoutsTab": "Diseños",
     "layouts": {
       "heading": "Diseños",
-      "description": "Cómo cada proyecto muestra sus tareas: cada diseño, cuándo cambió por última vez y en qué lista se abre. Los diseños de un proyecto se cambian en su editor.",
+      "description": "Cómo muestra cada herramienta de esta iniciativa lo que contiene: cada diseño, cuándo cambió por última vez y en qué lista se abre un proyecto. Se cambian en el editor de cada una.",
       "noProjects": "Esta iniciativa aún no tiene proyectos.",
-      "loadError": "No se pudieron cargar los diseños."
+      "loadError": "No se pudieron cargar los diseños.",
+      "calendar": "Calendario"
     }
   },
   "advancedTools": "Herramientas",

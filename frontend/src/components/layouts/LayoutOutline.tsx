@@ -19,7 +19,6 @@ import { EyeOff, FileText, GripVertical, LayoutList, Plus } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { TaskDetailFieldId } from "@/api/generated/initiativeAPI.schemas";
 import { listLayoutLooks } from "@/components/projects/projectTasksConfig";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -44,12 +43,12 @@ import {
 } from "@/lib/layouts/draft";
 import { type FieldDef, LAYOUT_NAMESPACES } from "@/lib/layouts/fields";
 import type { PluginOnItems } from "@/lib/layouts/plugins";
-import { TASK_LAYOUT } from "@/lib/layouts/tasks";
 import type { LayoutNode } from "@/lib/layouts/tree";
 import { cn } from "@/lib/utils";
 import { localized } from "@/lib/widgets/widgetMeta";
 import type { TranslateFn } from "@/types/i18n";
 
+import type { EditableDetail } from "./details";
 import type { LayoutEdits } from "./LayoutEditor";
 
 /** A plug-in as the picker offers it: its name, and its parts by theirs. */
@@ -116,28 +115,31 @@ export const listChoices = (
  *  each, plug-in parts, sections and groups. */
 export const detailChoices = (
   detail: LayoutNode,
+  { spec, words }: EditableDetail,
   fields: ReadonlyMap<string, FieldDef>,
   plugins: PickerPlugin[],
   translate: TranslateFn
 ): AddChoices => {
   const named = namedFields(detail);
-  const pageFields = new Set<string>(Object.values(TaskDetailFieldId));
   return {
     fields: [...fields.values()].filter(
       (field) =>
         !named.has(field.id) &&
-        ((field.source === "builtin" && pageFields.has(field.id)) || field.source === "plugin")
+        ((field.source === "builtin" && spec.detailFields.has(field.id)) ||
+          field.source === "plugin")
     ),
     plugins: plugins.map((plugin) => ({
       ...plugin,
       parts: addablePluginParts(detail, plugin.id, plugin.parts),
     })),
     parts: [
-      ...DETAIL_PARTS.filter((type) => !holdsPart(detail, type)).map((type) => ({
-        group: "builtin" as const,
-        label: translate(`layoutEditor.parts.${type}`),
-        node: { type },
-      })),
+      ...spec.ownParts
+        .filter((type) => !holdsPart(detail, type))
+        .map((type) => ({
+          group: "builtin" as const,
+          label: translate(`${words.parts}.parts.${type}`),
+          node: { type },
+        })),
       ...(holdsPart(detail, "properties")
         ? []
         : [
@@ -161,18 +163,6 @@ export const detailChoices = (
   };
 };
 
-/** The parts of a task's detail that are its own, which it places at most once. */
-const DETAIL_PARTS = [
-  "status",
-  "dates",
-  "comments",
-  "relations",
-  "case",
-  "byline",
-  "notice",
-  "actions",
-] as const;
-
 /** Rows that stay where they are: a detail's regions. */
 const FIXED = new Set<string>(LAYOUT_REGIONS);
 
@@ -194,7 +184,9 @@ const usePickerPlugins = (plugins: ReadonlyMap<number, PluginOnItems>): PickerPl
 /** What a part is called in the outline and the settings. */
 export const usePartLabel = (
   fields: ReadonlyMap<string, FieldDef>,
-  plugins: ReadonlyMap<number, PluginOnItems>
+  plugins: ReadonlyMap<number, PluginOnItems>,
+  /** Where the names of the open detail's own parts are. */
+  partWords = "layoutEditor"
 ) => {
   const { t } = useTranslation(LAYOUT_NAMESPACES);
   const translate = t as TranslateFn;
@@ -228,8 +220,12 @@ export const usePartLabel = (
         const field = fields.get(String(node.props?.field));
         return field ? labelOf(field) : translate("layoutEditor.missingField");
       }
-      default:
+      case "header":
+      case "main":
+      case "side":
         return translate(`layoutEditor.parts.${node.type}`);
+      default:
+        return translate(`${partWords}.parts.${node.type}`);
     }
   };
   return { labelOf, partLabel, pickerPlugins };
@@ -373,6 +369,7 @@ export const ListLayoutOutline = ({
  */
 export const DetailLayoutOutline = ({
   detail,
+  of,
   fields,
   plugins,
   choices,
@@ -383,6 +380,8 @@ export const DetailLayoutOutline = ({
 }: {
   /** The detail as one tree: the layout, holding its header, main and side. */
   detail: LayoutNode;
+  /** Which kind of detail it is. */
+  of: EditableDetail;
   fields: ReadonlyMap<string, FieldDef>;
   plugins: ReadonlyMap<number, PluginOnItems>;
   choices: AddChoices;
@@ -393,9 +392,9 @@ export const DetailLayoutOutline = ({
 }) => {
   const { t } = useTranslation(LAYOUT_NAMESPACES);
   const translate = t as TranslateFn;
-  const { labelOf, partLabel } = usePartLabel(fields, plugins);
+  const { labelOf, partLabel } = usePartLabel(fields, plugins, of.words.parts);
   const regions = detail.children ?? [];
-  const unplaced = TASK_LAYOUT.unplacedFields({
+  const unplaced = of.spec.unplacedFields({
     header: regions[0]?.children ?? [],
     main: regions[1]?.children ?? [],
     side: regions[2]?.children ?? [],
@@ -406,7 +405,7 @@ export const DetailLayoutOutline = ({
         <OutlineRow
           id="layout"
           depth={0}
-          label={translate("layoutEditor.taskLayout")}
+          label={translate(of.words.name)}
           icon={<FileText className="h-4 w-4" aria-hidden="true" />}
           selected={sameSelection(selection, { kind: "layout" })}
           onSelect={() => edits.select({ kind: "layout" })}
@@ -420,7 +419,7 @@ export const DetailLayoutOutline = ({
             FIXED.has(node.type) || !removable(node, fields)
               ? null
               : translate(
-                  TASK_LAYOUT.editsAField(node) ? "layoutEditor.toMoreFields" : "layoutEditor.hide",
+                  of.spec.editsAField(node) ? "layoutEditor.toMoreFields" : "layoutEditor.hide",
                   {
                     name: partLabel(node),
                   }
@@ -433,7 +432,7 @@ export const DetailLayoutOutline = ({
         {unplaced.length > 0 ? (
           <div className="pt-2">
             <p className="px-2 font-medium text-muted-foreground text-xs">
-              {translate("tasks:edit.moreFields")}
+              {translate(of.words.moreFields)}
             </p>
             <ul className="text-muted-foreground text-sm">
               {unplaced.map((node) => (

@@ -360,7 +360,8 @@ class ToolLayoutMessages:
     # The tool takes no layouts, or the target names an instance where the tool
     # has one page per initiative (or the other way round).
     TARGET_INVALID = "TOOL_LAYOUTS_TARGET_INVALID"
-    # A kind of layout this tool does not draw.
+    # A kind of layout this tool does not draw, or a part or field a detail
+    # does not.
     KIND_NOT_ALLOWED = "TOOL_LAYOUTS_KIND_NOT_ALLOWED"
     # A layout over its node, depth or size limit.
     TOO_LARGE = "TOOL_LAYOUTS_TOO_LARGE"

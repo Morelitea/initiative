@@ -33,7 +33,9 @@ import {
 import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useInitiative } from "@/hooks/useInitiatives";
 import { useReadOnOpen } from "@/hooks/useNotifications";
+import { calendarTarget, detailLayoutOf, useToolLayouts } from "@/hooks/useToolLayouts";
 import { useCommunityPath } from "@/lib/communityUrl";
+import type { StoredRegions } from "@/lib/layouts/detailLayout";
 import { EventLayoutView } from "@/lib/layouts/eventLayout";
 import { toast } from "@/lib/mascotToast";
 import { eventRoute, toolDetailRoute, toolListRoute } from "@/lib/tools";
@@ -114,8 +116,13 @@ export function EventDetailPage() {
   // calendar has no moderators to offer it to.
   const initiativeQuery = useInitiative(event?.initiative_id ?? null);
   const canModerate = event?.initiative_id != null && Boolean(initiativeQuery.data?.can.moderate);
+  // The initiative's calendars share one event detail; an event on a
+  // community-level calendar draws the shipped one.
+  const layoutsQuery = useToolLayouts(
+    event?.initiative_id != null ? calendarTarget(event.initiative_id) : null
+  );
 
-  if (eventQuery.isLoading) {
+  if (eventQuery.isLoading || layoutsQuery.isLoading) {
     return (
       <SkeletonRegion label={t("loadingEvent")}>
         <DetailPageSkeleton actions={2} />
@@ -236,6 +243,7 @@ export function EventDetailPage() {
       <ToolBreadcrumb tool={Tool.calendar} initiativeId={initiativeId} trail={[]} />
       <EventLayoutView
         event={event}
+        layout={detailLayoutOf(layoutsQuery.data, "calendar_event") as StoredRegions | null}
         context={{
           readOnly: !canWrite,
           initiativeId,

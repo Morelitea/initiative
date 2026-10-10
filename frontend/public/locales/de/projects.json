@@ -409,6 +409,25 @@
       "table": "Wie die Aufgaben des Projekts als Tabelle aufgelistet werden: welche Spalten, in welcher Reihenfolge.",
       "board": "Wie jede Aufgabe auf dem Board erscheint: was ihre Karte zeigt.",
       "calendar": "Die Aufgaben des Projekts in einem Kalender, nach ihren Daten."
+    },
+    "noEvents": "Diese Initiative hat dieses Jahr keine Termine. Füge einen hinzu, um sein Detail hier zu sehen.",
+    "eventDetail": {
+      "name": "Termindetail",
+      "help": "Wie das Detail jedes Termins in dieser Initiative aufgebaut ist, in jedem ihrer Kalender. Ein Feld, das nirgends platziert ist, wird trotzdem angezeigt, unter Weitere Felder.",
+      "shipped": "Das ist das Layout, wie es ausgeliefert wird. Eine Änderung macht es zum eigenen Layout der Initiative.",
+      "titleHelp": "Das Detail jedes Termins zeigt seinen Titel.",
+      "toMoreFieldsHelp": "Das Detail jedes Termins lässt dieses Feld ändern. Von hier entfernt, wandert es nach Weitere Felder.",
+      "parts": {
+        "dates": "Wann",
+        "rsvp": "Deine Antwort",
+        "actions": "Menü",
+        "relations": "Verknüpfungen"
+      },
+      "partHelp": {
+        "rsvp": "Ob du kommst, bei einem Termin, der danach fragt.",
+        "actions": "Was sonst mit dem Termin möglich ist: melden, duplizieren, lösen und löschen.",
+        "relations": "Womit der Termin verknüpft ist."
+      }
     }
   }
 }

@@ -276,9 +276,10 @@
     "layoutsTab": "Layouts",
     "layouts": {
       "heading": "Layouts",
-      "description": "How each project draws its tasks: each layout, when it was last changed, and which list it opens on. A project's layouts are changed in its editor.",
+      "description": "How each tool in this initiative draws what it holds: each layout, when it was last changed, and which list a project opens on. They are changed in each one's editor.",
       "noProjects": "This initiative has no projects yet.",
-      "loadError": "Couldn't load the layouts."
+      "loadError": "Couldn't load the layouts.",
+      "calendar": "Calendar"
     }
   },
   "advancedTools": "Tools",

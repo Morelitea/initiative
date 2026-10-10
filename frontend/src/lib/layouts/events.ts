@@ -1,5 +1,26 @@
 import { at, detailLayoutSpec, type Region } from "./detailLayout";
+import type { FieldDef, FieldKind } from "./fields";
 import type { LayoutNode } from "./tree";
+
+/** An event's fields, each with its label's key and the kind of value it is. */
+export const EVENT_FIELDS = {
+  title: { label: "calendars:eventTitle", kind: "title" },
+  description: { label: "calendars:eventPage.description", kind: "excerpt" },
+  location: { label: "calendars:location", kind: "excerpt" },
+  recurrence: { label: "calendars:repeat", kind: "recurrence" },
+  attendees: { label: "calendars:attendees", kind: "people" },
+  tags: { label: "common:toolSettings.tags", kind: "tags" },
+} as const satisfies Record<string, { label: string; kind: FieldKind }>;
+
+/** An event's fields as the editor names them. An event is drawn in its
+ *  detail alone so far, so none has a value to draw elsewhere. */
+export const eventFields = (): Map<string, FieldDef> =>
+  new Map(
+    Object.entries(EVENT_FIELDS).map(([id, { label, kind }]) => [
+      id,
+      { id, kind, label, source: "builtin", hideable: id !== "title", value: () => null },
+    ])
+  );
 
 const field = (id: string): LayoutNode => ({ type: "field", props: { field: id } });
 
@@ -10,7 +31,7 @@ const field = (id: string): LayoutNode => ({ type: "field", props: { field: id }
  * it reads as the event's detail always has: the description, when and where,
  * your answer, who is coming, tags, relations, then properties.
  */
-const EVENT_PAGE_REGIONS: Record<Region, LayoutNode[]> = {
+const EVENT_DETAIL_REGIONS: Record<Region, LayoutNode[]> = {
   header: [
     {
       type: "stack",
@@ -36,7 +57,8 @@ const EVENT_PAGE_REGIONS: Record<Region, LayoutNode[]> = {
 
 /** An event's detail: its dates and properties edit fields as a field does. */
 export const EVENT_LAYOUT = detailLayoutSpec({
-  shipped: EVENT_PAGE_REGIONS,
+  kind: "calendar_event",
+  shipped: EVENT_DETAIL_REGIONS,
   fieldParts: ["field", "dates", "properties"],
   moreOrder: 8,
 });
