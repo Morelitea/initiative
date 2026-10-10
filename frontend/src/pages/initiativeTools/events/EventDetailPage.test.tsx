@@ -221,18 +221,39 @@ describe("an event's page", () => {
   });
 
   it("saves a new repeat only when asked, never a rule picked on the way", async () => {
-    serve(buildCalendarEvent({ id: 9, recurrence: "RRULE:FREQ=WEEKLY" }));
+    const event = buildCalendarEvent({ id: 9, recurrence: "RRULE:FREQ=WEEKLY" });
+    let reply = () => {};
+    const replied = new Promise<void>((resolve) => {
+      reply = resolve;
+    });
+    serve(event);
+    server.use(
+      communityHttp.patch("/calendar-events/:eventId", async ({ request }) => {
+        const { tz: _tz, ...body } = (await request.json()) as Record<string, unknown>;
+        sent.push(body);
+        await replied;
+        return HttpResponse.json(Object.assign(event, body));
+      })
+    );
     open();
     const user = userEvent.setup();
 
     // A number that cannot be emptied, set as a whole.
-    fireEvent.change(await screen.findByLabelText(/repeat every/i), { target: { value: "2" } });
+    const every = await screen.findByLabelText(/repeat every/i);
+    fireEvent.change(every, { target: { value: "2" } });
     await user.tab();
     expect(sent).toEqual([]);
     await user.click(screen.getByRole("button", { name: /^save$/i }));
-
     await waitFor(() => expect(sent).toHaveLength(1));
     expect(String(sent[0].recurrence)).toContain("INTERVAL=2");
+
+    // Another rule picked while that one saves stays picked once it has.
+    fireEvent.change(every, { target: { value: "3" } });
+    reply();
+    await waitFor(() => expect(event.recurrence).toContain("INTERVAL=2"));
+    await user.click(await screen.findByRole("button", { name: /^save$/i }));
+    await waitFor(() => expect(sent).toHaveLength(2));
+    expect(String(sent[1].recurrence)).toContain("INTERVAL=3");
   });
 });
 

@@ -318,11 +318,13 @@ const RepeatEditor = ({ event, label }: EditorProps) => {
   const changed = picked !== undefined && !sameJson(picked, saved);
   const commit = async () => {
     if (picked === undefined || picked === "custom") return;
+    const rule = picked;
     const sent = await save.save({
-      patch: rulePayload(picked, { allDay: event.all_day }),
+      patch: rulePayload(rule, { allDay: event.all_day }),
       shows: {},
     });
-    if (sent) setPicked(undefined);
+    // A rule picked while this one was saving is still to be saved.
+    if (sent) setPicked((current) => (current === rule ? undefined : current));
   };
   const openAlone = useOccurrenceAction(event.id, "open", { onSuccess: onMoved });
   const restoreDate = useOccurrenceAction(event.id, "restore", {
