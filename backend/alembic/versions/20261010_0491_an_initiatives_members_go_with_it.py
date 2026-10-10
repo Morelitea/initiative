@@ -48,7 +48,7 @@ _FIND = sa.text(
     SELECT c.conname
       FROM pg_constraint c
      WHERE c.conrelid = CAST(:table AS regclass)
-       AND c.contype = CAST(:kind AS "char")
+       AND c.contype::text = :kind
        AND (CAST(:column AS text) IS NULL OR EXISTS (
              SELECT 1 FROM pg_attribute a
               WHERE a.attrelid = c.conrelid
