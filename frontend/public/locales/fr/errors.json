@@ -33,6 +33,7 @@
   "COMMUNITY_CREATION_DISABLED": "La création de communauté est désactivée",
   "FREE_COMMUNITY_ALREADY_HELD": "Vous avez déjà une communauté gratuite. Une autre nécessite un forfait — choisissez-en un et nous la créerons.",
   "COMMUNITY_CREATION_LIMIT_REACHED": "Vous avez créé autant de communautés que possible en 24 heures. Réessayez plus tard.",
+  "COMMUNITY_CREATION_DEMO_ACCOUNT": "Les comptes de démonstration ne peuvent pas créer de communautés",
   "COMMUNITY_OWNER_REQUIRES_CAPABILITY": "Seul le personnel de la plateforme peut créer une communauté pour quelqu'un d'autre",
   "COMMUNITY_OWNER_NOT_FOUND": "Ce compte n'existe pas ou ne peut pas recevoir de communauté",
   "COMMUNITY_NOT_FOUND": "Communauté introuvable",
@@ -827,5 +828,7 @@
   "SECURITY_NOWHERE_TO_SEND": "Ce serveur ne reçoit pas encore de signalements de sécurité. Utilisez plutôt l'adresse ci-dessous.",
   "FEEDBACK_NOWHERE_TO_SEND": "Ce serveur ne reçoit pas encore de retours. Utilisez plutôt l'adresse ci-dessous.",
   "APPEAL_NOT_SUSPENDED": "Votre compte n'est pas suspendu : il n'y a rien à contester.",
-  "APPEAL_NOWHERE_TO_SEND": "Ce serveur ne reçoit pas encore de recours. Utilisez plutôt l'adresse ci-dessous."
+  "APPEAL_NOWHERE_TO_SEND": "Ce serveur ne reçoit pas encore de recours. Utilisez plutôt l'adresse ci-dessous.",
+  "DEMO_LINK_NOT_FOUND": "Ce lien de démonstration ne fonctionne plus. Demandez-en un nouveau à la personne qui vous l'a envoyé.",
+  "DEMO_BUSY": "Tous les espaces de démonstration sont occupés. Réessayez dans une minute."
 }

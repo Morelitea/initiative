@@ -87,6 +87,7 @@ from app.api.v1.platform_endpoints import (
     billing,
     config,
     contacts,
+    demo,
     guild_reference,
     guild_provider_connections,
     guilds,
@@ -129,6 +130,8 @@ api_router.include_router(config.router, tags=["config"])
 # Unauthenticated: the signup form links to them.
 api_router.include_router(legal.router, tags=["legal"])
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
+# Opening a demo link; 404 unless the deployment runs as the demo.
+api_router.include_router(demo.router, prefix="/demo", tags=["demo"])
 # Mounted on the same prefix: the factor routes are part of /auth, kept in
 # their own module rather than growing the sign-in one.
 api_router.include_router(second_factor.router, prefix="/auth", tags=["auth"])

@@ -4035,6 +4035,32 @@ export interface DeletionEligibilityResponse {
 }
 
 /**
+ * A demo link's token, read from the link's fragment.
+ */
+export interface DemoRedeem {
+  /**
+   * @minLength 1
+   * @maxLength 128
+   */
+  token: string;
+  captcha_token?: string | null;
+}
+
+/**
+ * A visitor signed in to their own copy of the pitch.
+ *
+ * The copy is filled in the background by the import ``import_job_id``
+ * names; the account and its session end when the copy does.
+ */
+export interface DemoRedemption {
+  access_token: string;
+  token_type?: string;
+  refresh_token?: string | null;
+  community_id: number;
+  import_job_id: number;
+}
+
+/**
  * What this reader may do about that account, right now.
  *
  * ``denied`` covers every refusal with no distinguishing field: a policy that
@@ -6735,6 +6761,7 @@ export interface OperatorUserRead {
   has_federated_identity: boolean;
   has_password: boolean;
   password_required: boolean;
+  demo_expires_at: string | null;
   initiative_roles: UserInitiativeRole[];
   purge_at: string | null;
   sign_in_locked_until: string | null;
@@ -9929,6 +9956,7 @@ export interface UserRead {
   has_federated_identity: boolean;
   has_password: boolean;
   password_required: boolean;
+  demo_expires_at: string | null;
   initiative_roles: UserInitiativeRole[];
   readonly can_create_communities: boolean;
   /**

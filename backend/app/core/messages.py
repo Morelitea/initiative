@@ -177,6 +177,8 @@ class GuildMessages:
     COMMUNITY_CREATION_DISABLED = "COMMUNITY_CREATION_DISABLED"
     FREE_COMMUNITY_ALREADY_HELD = "FREE_COMMUNITY_ALREADY_HELD"
     COMMUNITY_CREATION_LIMIT_REACHED = "COMMUNITY_CREATION_LIMIT_REACHED"
+    #: A demo visitor's account holds its copy and creates no community.
+    COMMUNITY_CREATION_DEMO_ACCOUNT = "COMMUNITY_CREATION_DEMO_ACCOUNT"
     # Naming another user as a new guild's admin is platform-staff only.
     COMMUNITY_OWNER_REQUIRES_CAPABILITY = "COMMUNITY_OWNER_REQUIRES_CAPABILITY"
     # ...and that user has to exist already; we never create one.
@@ -1760,6 +1762,16 @@ class ContactGrantMessages:
     #: Accepting something nobody asked for, or accepting your own request.
     NO_REQUEST = "CONTACT_GRANT_NO_REQUEST"
     CANNOT_GRANT_SELF = "CONTACT_GRANT_CANNOT_GRANT_SELF"
+
+
+class DemoMessages:
+    """The demo deployment's links."""
+
+    #: The link is unknown, revoked, expired or used up, or its pitch has
+    #: nothing published.
+    DEMO_LINK_NOT_FOUND = "DEMO_LINK_NOT_FOUND"
+    #: No demo space is free right now.
+    DEMO_BUSY = "DEMO_BUSY"
 
 
 class ContactMessages:

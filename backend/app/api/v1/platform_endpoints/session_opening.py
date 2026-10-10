@@ -615,6 +615,7 @@ async def issue_session(
     device_name: str | None = None,
     install: uuid.UUID | None = None,
     replaces: uuid.UUID | None = None,
+    ends_by: datetime | None = None,
 ) -> OpenedSession:
     """Stage a session and mint the access token for it.
 
@@ -663,6 +664,7 @@ async def issue_session(
         ip=audit_context.client_ip(),
         device_name=device_name,
         install_id=install,
+        ends_by=ends_by,
     )
     issued.session.continues_since = since
     for ended in (replaces, previous):
@@ -688,6 +690,7 @@ async def open_session(
     provider_auth: dict[str, Any] | None = None,
     device_name: str | None = None,
     device: bool | None = None,
+    ends_by: datetime | None = None,
 ) -> Token:
     """Open the session a sign-in earned, and hand back its token.
 
@@ -706,6 +709,9 @@ async def open_session(
 
     Anything the caller staged in ``system_session`` — a credential's counter,
     a spent challenge — commits with the session, or goes with it.
+
+    ``ends_by`` is the latest the session may last, whatever the deployment's
+    lifetimes would allow.
     """
     if device is None:
         device = is_device(request)
@@ -728,6 +734,7 @@ async def open_session(
             provider_auth=provider_auth,
             device_name=device_name if device else None,
             install=(install_id(request) or uuid.uuid4()) if device else None,
+            ends_by=ends_by,
         )
     issued.set_cookies(response)
     return issued.to_token(include_refresh=device)
