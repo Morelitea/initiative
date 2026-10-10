@@ -10,14 +10,12 @@ A layout is stored when it is changed, so its ``updated_at`` is its own; what
 is not stored is drawn as shipped. Its policies, change capture and freeze are
 rendered by the provisioning run.
 
-A list layout holds how its items are drawn (a board's card, a table's
-columns, how an item opens); what a person narrows a list to, and how they
-sort it, are theirs. So from each target's stored views:
+A list layout holds how what it lists is drawn (a board's card, a table's
+columns); what a person narrows a list to, and how they sort it, are theirs. So from each target's stored views:
 
 * each list kind keeps what the view of that kind drew, read from the view
   with that kind's slug, or else the first of that kind holding no filters,
-  and is stored only if that says anything; an item opening on its own
-  (``opens: page``) is ``opens: full``;
+  and is stored only if that says anything;
 * the default is kept where it is not the shipped one (a project's table);
 * an item layout keeps its definition, under its item kind;
 * the views that only filtered a list are not kept.
@@ -53,7 +51,7 @@ _LISTS: dict[str, tuple[str, ...]] = {
     "calendar": ("calendar",),
 }
 #: What a list layout holds.
-_LIST_KEYS = ("card", "columns", "opens")
+_LIST_KEYS = ("card", "columns")
 _DEFAULT = "default"
 #: The views a project shipped before this revision: (slug, name, layout,
 #: filters).
@@ -208,8 +206,6 @@ def _views_to_layouts() -> None:
                 for key in _LIST_KEYS
                 if key in view.definition
             }
-            if definition.get("opens") == "page":
-                definition["opens"] = "full"
             if definition:
                 layout(kind, definition, view)
         opened = next((view for view in views if view.is_default), None)
@@ -341,8 +337,6 @@ def _layouts_to_views() -> None:
                 drawn = stored.get(slug)
                 if drawn is not None:
                     definition.update(drawn.definition)
-                    if definition.get("opens") == "full":
-                        definition["opens"] = "page"
                 rows.append(
                     {
                         **base,

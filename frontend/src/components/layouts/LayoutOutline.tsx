@@ -19,14 +19,11 @@ import { EyeOff, FileText, GripVertical, LayoutList, Plus } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import {
-  TaskDetailFieldId,
-  type ToolViewWrite,
-  type ViewDefinitionInput,
-} from "@/api/generated/initiativeAPI.schemas";
+import { TaskDetailFieldId } from "@/api/generated/initiativeAPI.schemas";
+import { listLayoutLooks } from "@/components/projects/projectTasksConfig";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { cn } from "@/lib/utils";
+import { LAYOUT_REGIONS } from "@/lib/layouts/detailLayout";
 import {
   addableFields,
   addablePluginParts,
@@ -36,6 +33,7 @@ import {
   dropOn,
   HOLDERS,
   holdsPart,
+  type ListLayout,
   type NodePath,
   namedFields,
   pathKey,
@@ -45,10 +43,10 @@ import {
   sameSelection,
 } from "@/lib/layouts/draft";
 import { type FieldDef, LAYOUT_NAMESPACES } from "@/lib/layouts/fields";
-import { LAYOUT_REGIONS } from "@/lib/layouts/detailLayout";
 import type { PluginOnItems } from "@/lib/layouts/plugins";
 import { TASK_LAYOUT } from "@/lib/layouts/tasks";
 import type { LayoutNode } from "@/lib/layouts/tree";
+import { cn } from "@/lib/utils";
 import { localized } from "@/lib/widgets/widgetMeta";
 import type { TranslateFn } from "@/types/i18n";
 
@@ -75,19 +73,19 @@ export type Adders = {
   onNode: (node: LayoutNode) => void;
 };
 
-/** What a view can add: a card's fields and parts, or a table's columns. */
+/** What a list layout can add: a card's fields and parts, or a table's
+ *  columns. */
 export const listChoices = (
-  definition: ViewDefinitionInput,
+  layout: ListLayout,
   fields: ReadonlyMap<string, FieldDef>,
   plugins: PickerPlugin[],
   translate: TranslateFn
 ): AddChoices => {
-  const layout = definition.layout.type;
-  if (layout === "calendar") return { fields: [], plugins: [], parts: [] };
-  const card = cardOf(definition);
-  const board = layout === "board";
+  if (layout.kind === "calendar") return { fields: [], plugins: [], parts: [] };
+  const card = cardOf(layout.definition);
+  const board = layout.kind === "board";
   return {
-    fields: addableFields(definition, fields),
+    fields: addableFields(layout, fields),
     // A table draws fields only; a card takes parts as well.
     plugins: plugins.map((plugin) => ({
       ...plugin,
@@ -100,13 +98,13 @@ export const listChoices = (
             : [
                 {
                   group: "properties" as const,
-                  label: translate("viewEditor.allProperties"),
+                  label: translate("layoutEditor.allProperties"),
                   node: { type: "properties" },
                 },
               ]),
           {
             group: "layout" as const,
-            label: translate("viewEditor.group"),
+            label: translate("layoutEditor.group"),
             node: { type: "stack", props: { align: "start" }, children: [] },
           },
         ]
@@ -114,15 +112,15 @@ export const listChoices = (
   };
 };
 
-/** What a task's page can add: its fields not placed, its own parts once
+/** What a task's detail can add: its fields not placed, its own parts once
  *  each, plug-in parts, sections and groups. */
 export const detailChoices = (
-  page: LayoutNode,
+  detail: LayoutNode,
   fields: ReadonlyMap<string, FieldDef>,
   plugins: PickerPlugin[],
   translate: TranslateFn
 ): AddChoices => {
-  const named = namedFields(page);
+  const named = namedFields(detail);
   const pageFields = new Set<string>(Object.values(TaskDetailFieldId));
   return {
     fields: [...fields.values()].filter(
@@ -132,39 +130,39 @@ export const detailChoices = (
     ),
     plugins: plugins.map((plugin) => ({
       ...plugin,
-      parts: addablePluginParts(page, plugin.id, plugin.parts),
+      parts: addablePluginParts(detail, plugin.id, plugin.parts),
     })),
     parts: [
-      ...PAGE_PARTS.filter((type) => !holdsPart(page, type)).map((type) => ({
+      ...DETAIL_PARTS.filter((type) => !holdsPart(detail, type)).map((type) => ({
         group: "builtin" as const,
-        label: translate(`viewEditor.parts.${type}`),
+        label: translate(`layoutEditor.parts.${type}`),
         node: { type },
       })),
-      ...(holdsPart(page, "properties")
+      ...(holdsPart(detail, "properties")
         ? []
         : [
             {
               group: "properties" as const,
-              label: translate("viewEditor.allProperties"),
+              label: translate("layoutEditor.allProperties"),
               node: { type: "properties" },
             },
           ]),
       {
         group: "layout" as const,
-        label: translate("viewEditor.section"),
+        label: translate("layoutEditor.section"),
         node: { type: "section", children: [] },
       },
       {
         group: "layout" as const,
-        label: translate("viewEditor.group"),
+        label: translate("layoutEditor.group"),
         node: { type: "stack", children: [] },
       },
     ],
   };
 };
 
-/** The parts of a task's page that are its own, which it places at most once. */
-const PAGE_PARTS = [
+/** The parts of a task's detail that are its own, which it places at most once. */
+const DETAIL_PARTS = [
   "status",
   "dates",
   "comments",
@@ -175,7 +173,7 @@ const PAGE_PARTS = [
   "actions",
 ] as const;
 
-/** Rows that stay where they are: an item page's regions. */
+/** Rows that stay where they are: a detail's regions. */
 const FIXED = new Set<string>(LAYOUT_REGIONS);
 
 const INTO = "into:";
@@ -206,32 +204,32 @@ export const usePartLabel = (
   const partLabel = (node: LayoutNode): string => {
     switch (node.type) {
       case "card":
-        return translate("viewEditor.card");
+        return translate("layoutEditor.card");
       case "stack":
         return node.props?.direction === "row"
-          ? translate("viewEditor.row")
-          : translate("viewEditor.group");
+          ? translate("layoutEditor.row")
+          : translate("layoutEditor.group");
       // An untitled section is told apart by what it starts with.
       case "section": {
         if (typeof node.props?.title === "string" && node.props.title) return node.props.title;
         const [first] = node.children ?? [];
         return first
-          ? translate("viewEditor.sectionWith", { name: partLabel(first) })
-          : translate("viewEditor.section");
+          ? translate("layoutEditor.sectionWith", { name: partLabel(first) })
+          : translate("layoutEditor.section");
       }
       case "properties":
-        return translate("viewEditor.allProperties");
+        return translate("layoutEditor.allProperties");
       case "plugin": {
         const plugin = pickerPlugins.find((each) => each.id === Number(node.props?.plugin));
         const part = plugin?.parts.find((each) => each.id === node.props?.part);
-        return part?.name ?? translate("viewEditor.missingPart");
+        return part?.name ?? translate("layoutEditor.missingPart");
       }
       case "field": {
         const field = fields.get(String(node.props?.field));
-        return field ? labelOf(field) : translate("viewEditor.missingField");
+        return field ? labelOf(field) : translate("layoutEditor.missingField");
       }
       default:
-        return translate(`viewEditor.parts.${node.type}`);
+        return translate(`layoutEditor.parts.${node.type}`);
     }
   };
   return { labelOf, partLabel, pickerPlugins };
@@ -252,7 +250,7 @@ const useOutlineSensors = () =>
  * comes from.
  */
 export const ListLayoutOutline = ({
-  view,
+  layout: open,
   fields,
   plugins,
   choices,
@@ -261,7 +259,7 @@ export const ListLayoutOutline = ({
   edits,
   locked,
 }: {
-  view: ToolViewWrite;
+  layout: ListLayout;
   fields: ReadonlyMap<string, FieldDef>;
   plugins: ReadonlyMap<number, PluginOnItems>;
   /** What Add offers, and what a pick does. */
@@ -276,8 +274,7 @@ export const ListLayoutOutline = ({
   const translate = t as TranslateFn;
   const sensors = useOutlineSensors();
   const { labelOf, partLabel } = usePartLabel(fields, plugins);
-  const { definition } = view;
-  const layout = definition.layout.type;
+  const { definition, kind: layout } = open;
   const card = cardOf(definition);
   const columns = columnsOf(definition);
   const isSelected = (other: Selection) => sameSelection(selection, other);
@@ -288,15 +285,15 @@ export const ListLayoutOutline = ({
   };
 
   return (
-    <nav aria-label={translate("viewEditor.outline")} className="flex h-full flex-col">
+    <nav aria-label={translate("layoutEditor.outline")} className="flex h-full flex-col">
       <div className="flex-1 space-y-1 overflow-y-auto p-3">
         <OutlineRow
-          id="view"
+          id="layout"
           depth={0}
-          label={view.name}
+          label={translate(listLayoutLooks[layout].labelKey)}
           icon={<LayoutList className="h-4 w-4" aria-hidden="true" />}
-          selected={isSelected({ kind: "view" })}
-          onSelect={() => edits.select({ kind: "view" })}
+          selected={isSelected({ kind: "layout" })}
+          onSelect={() => edits.select({ kind: "layout" })}
           fixed
         />
         {layout === "board" ? (
@@ -315,7 +312,7 @@ export const ListLayoutOutline = ({
               partLabel={partLabel}
               hideAction={(node) =>
                 removable(node, fields)
-                  ? translate("viewEditor.hide", { name: partLabel(node) })
+                  ? translate("layoutEditor.hide", { name: partLabel(node) })
                   : null
               }
               selection={selection}
@@ -327,12 +324,12 @@ export const ListLayoutOutline = ({
         {layout === "table" ? (
           <DndContext sensors={sensors} onDragEnd={onColumnDragEnd}>
             <p className="px-2 pt-2 font-medium text-muted-foreground text-xs">
-              {translate("viewEditor.columns")}
+              {translate("layoutEditor.columns")}
             </p>
             <SortableContext items={columns} strategy={verticalListSortingStrategy}>
               {columns.map((id) => {
                 const field = fields.get(id);
-                const label = field ? labelOf(field) : translate("viewEditor.missingField");
+                const label = field ? labelOf(field) : translate("layoutEditor.missingField");
                 return (
                   <OutlineRow
                     key={id}
@@ -346,7 +343,7 @@ export const ListLayoutOutline = ({
                       field?.hideable === false
                         ? undefined
                         : {
-                            label: translate("viewEditor.hide", { name: label }),
+                            label: translate("layoutEditor.hide", { name: label }),
                             run: () => edits.removeColumn(id),
                           }
                     }
@@ -368,14 +365,14 @@ export const ListLayoutOutline = ({
 };
 
 /**
- * A task's page as a list beside the canvas: the page, its header, main and
+ * A task's detail as a list beside the canvas: the layout, its header, main and
  * side with their parts, then the fields placed nowhere, which every task
  * still shows under More fields. A row is dragged to move it, into another
  * region or section as well; taking off a part that changes a field sends the
  * field to More fields.
  */
 export const DetailLayoutOutline = ({
-  page,
+  detail,
   fields,
   plugins,
   choices,
@@ -384,8 +381,8 @@ export const DetailLayoutOutline = ({
   edits,
   locked,
 }: {
-  /** The page as one tree: the page, holding its header, main and side. */
-  page: LayoutNode;
+  /** The detail as one tree: the layout, holding its header, main and side. */
+  detail: LayoutNode;
   fields: ReadonlyMap<string, FieldDef>;
   plugins: ReadonlyMap<number, PluginOnItems>;
   choices: AddChoices;
@@ -397,33 +394,33 @@ export const DetailLayoutOutline = ({
   const { t } = useTranslation(LAYOUT_NAMESPACES);
   const translate = t as TranslateFn;
   const { labelOf, partLabel } = usePartLabel(fields, plugins);
-  const regions = page.children ?? [];
+  const regions = detail.children ?? [];
   const unplaced = TASK_LAYOUT.unplacedFields({
     header: regions[0]?.children ?? [],
     main: regions[1]?.children ?? [],
     side: regions[2]?.children ?? [],
   });
   return (
-    <nav aria-label={translate("viewEditor.outline")} className="flex h-full flex-col">
+    <nav aria-label={translate("layoutEditor.outline")} className="flex h-full flex-col">
       <div className="flex-1 space-y-1 overflow-y-auto p-3">
         <OutlineRow
-          id="view"
+          id="layout"
           depth={0}
-          label={translate("viewEditor.taskPage")}
+          label={translate("layoutEditor.taskLayout")}
           icon={<FileText className="h-4 w-4" aria-hidden="true" />}
-          selected={sameSelection(selection, { kind: "view" })}
-          onSelect={() => edits.select({ kind: "view" })}
+          selected={sameSelection(selection, { kind: "layout" })}
+          onSelect={() => edits.select({ kind: "layout" })}
           fixed
         />
         <PartTree
-          root={page}
+          root={detail}
           depth={1}
           partLabel={partLabel}
           hideAction={(node) =>
             FIXED.has(node.type) || !removable(node, fields)
               ? null
               : translate(
-                  TASK_LAYOUT.editsAField(node) ? "viewEditor.toMoreFields" : "viewEditor.hide",
+                  TASK_LAYOUT.editsAField(node) ? "layoutEditor.toMoreFields" : "layoutEditor.hide",
                   {
                     name: partLabel(node),
                   }
@@ -563,7 +560,7 @@ const EndSlot = ({ id, depth, empty }: { id: string; depth: number; empty: boole
       )}
       style={{ paddingLeft: `${depth * 0.75 + 1.75}rem` }}
     >
-      {empty ? t("viewEditor.empty") : t("viewEditor.dropHere")}
+      {empty ? t("layoutEditor.empty") : t("layoutEditor.dropHere")}
     </div>
   );
 };
@@ -615,7 +612,7 @@ const OutlineRow = ({
         <button
           type="button"
           className="flex h-7 w-6 cursor-grab items-center justify-center text-muted-foreground disabled:cursor-not-allowed"
-          aria-label={t("viewEditor.move", { name: label })}
+          aria-label={t("layoutEditor.move", { name: label })}
           disabled={locked}
           {...attributes}
           {...listeners}
@@ -686,7 +683,7 @@ export const AddPicker = ({
   const groups: PickerGroupEntry[] = [
     {
       key: "builtin",
-      heading: t("viewEditor.builtIn"),
+      heading: t("layoutEditor.builtIn"),
       fields: fields.filter((field) => field.source === "builtin"),
       plugin: 0,
       plugins: [],
@@ -694,7 +691,7 @@ export const AddPicker = ({
     },
     {
       key: "properties",
-      heading: t("viewEditor.properties"),
+      heading: t("layoutEditor.properties"),
       fields: fields.filter((field) => field.source === "property"),
       plugin: 0,
       plugins: [],
@@ -710,7 +707,7 @@ export const AddPicker = ({
     })),
     {
       key: "layout",
-      heading: t("viewEditor.layoutParts"),
+      heading: t("layoutEditor.layoutParts"),
       fields: [],
       plugin: 0,
       plugins: [],
@@ -727,14 +724,14 @@ export const AddPicker = ({
         {trigger ?? (
           <Button type="button" variant="outline" size="sm" className="w-full">
             <Plus className="h-4 w-4" />
-            {t("viewEditor.add")}
+            {t("layoutEditor.add")}
           </Button>
         )}
       </PopoverTrigger>
       <PopoverContent
         align="start"
         className="max-h-96 w-72 overflow-y-auto p-2"
-        aria-label={t("viewEditor.add")}
+        aria-label={t("layoutEditor.add")}
       >
         {groups.map((group) => (
           <PickerGroup key={group.key} heading={group.heading}>

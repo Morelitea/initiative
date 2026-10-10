@@ -34,13 +34,13 @@ import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useInitiative } from "@/hooks/useInitiatives";
 import { useReadOnOpen } from "@/hooks/useNotifications";
 import { useCommunityPath } from "@/lib/communityUrl";
+import { EventLayoutView } from "@/lib/layouts/eventLayout";
 import { toast } from "@/lib/mascotToast";
 import { eventRoute, toolDetailRoute, toolListRoute } from "@/lib/tools";
-import { EventLayoutView } from "@/lib/layouts/eventLayout";
 
 /**
- * An event's page: every field of it, each saved on its own where the reader
- * may change it, laid out as the task page is. A repeating event opened at
+ * An event's detail: every field of it, each saved on its own where the reader
+ * may change it, laid out as the task detail is. A repeating event opened at
  * one of its dates shows that date, and a change to it asks which dates it is
  * for.
  */
@@ -236,7 +236,7 @@ export function EventDetailPage() {
       <ToolBreadcrumb tool={Tool.calendar} initiativeId={initiativeId} trail={[]} />
       <EventLayoutView
         event={event}
-        page={{
+        context={{
           readOnly: !canWrite,
           initiativeId,
           occurrence,

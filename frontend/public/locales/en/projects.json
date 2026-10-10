@@ -38,32 +38,11 @@
     "archived": "Archived",
     "statusCategory": "Status category"
   },
-  "views": {
-    "label": "View",
-    "reset": "Reset to view",
-    "update": "Update “{{name}}”",
-    "saveAs": "Save as view",
-    "saveAsDescription": "Everyone in this project will see this view, with the layout and filters on screen now.",
-    "name": "View name",
-    "namePlaceholder": "e.g. Blocked work",
-    "setDefault": "Make this the project's default",
-    "saved": "View saved",
-    "unavailable": "That view no longer exists on this project, so another of its views is shown instead.",
-    "saveError": "Couldn't save the views",
-    "loadError": "Couldn't load this project's views.",
-    "heading": "Views",
-    "description": "The views everyone in this project can pick from, in this order. The default is what the project opens on.",
-    "default": "Default",
-    "delete": "Delete view",
-    "deleteNamed": "Delete “{{name}}”",
-    "deleteConfirm": "Delete “{{name}}”? Anyone using it will fall back to the project default.",
-    "moveUp": "Move “{{name}}” up",
-    "moveDown": "Move “{{name}}” down",
-    "shipped": {
-      "incomplete": "Incomplete",
-      "unassigned": "Unassigned",
-      "mine": "Mine"
-    }
+  "layouts": {
+    "label": "Layout",
+    "loadError": "Couldn't load this project's layouts.",
+    "heading": "Layouts",
+    "description": "How this project draws its tasks: each layout, when it was last changed, and which list it opens on. Everyone in the project sees them; what each person filters and sorts by is their own."
   },
   "createDialog": {
     "title": "Create project",
@@ -321,12 +300,10 @@
     "commentedOn": "commented on",
     "loadMore": "Load more"
   },
-  "viewEditor": {
-    "open": "Edit views",
-    "openTaskPage": "Edit task page",
-    "title": "Edit views",
+  "layoutEditor": {
+    "open": "Edit layouts",
+    "title": "Edit layouts",
     "close": "Close the editor",
-    "view": "View being edited",
     "previewWidth": "Preview width",
     "width": {
       "desktop": "Desktop",
@@ -342,9 +319,9 @@
     "unsavedBody": "Your changes haven't been saved. Leaving discards them.",
     "leave": "Leave",
     "stay": "Keep editing",
-    "compact": "Views are edited on a wider screen. Open this page on a tablet or a computer.",
+    "compact": "Layouts are edited on a wider screen. Open this page on a tablet or a computer.",
     "canvas": "Preview",
-    "calendarNote": "A calendar view has no card or columns to lay out. Its name and whether it opens first are set on the right.",
+    "calendarNote": "A calendar has no card or columns to lay out. Whether the project opens on it is set on the right.",
     "outline": "Outline",
     "card": "Card",
     "row": "Row",
@@ -371,15 +348,7 @@
     "propertiesHelp": "Shows every property a task has a value for.",
     "pluginPartHelp": "Drawn by the plug-in from its own values and actions.",
     "fieldHelp": "Shows this field when a task has a value for it.",
-    "viewHeading": "View",
-    "name": "Name",
-    "layout": "Layout",
-    "default": "Open this view first",
-    "sort": "Sort by",
-    "sortNone": "The project's order",
-    "direction": "Direction",
-    "ascending": "Ascending",
-    "descending": "Descending",
+    "layout": "Layout being edited",
     "arrange": "Arrange",
     "stacked": "One above another",
     "sideBySide": "Side by side",
@@ -392,21 +361,16 @@
     "titleHelp": "Every task shows its title, which opens it.",
     "holdsTitle": "It holds the title, which every task shows, so it stays.",
     "savingBody": "Your changes are still being saved. Leaving now may lose them if the save fails.",
-    "taskPage": "Task page",
     "noticePreview": "Shown to someone who can't change the task, saying why.",
-    "noTasks": "This project has no tasks yet. Add one to see its page here.",
+    "noTasks": "This project has no tasks yet. Add one to see its detail here.",
     "empty": "Empty",
     "dropHere": "Drop here",
-    "pageHelp": "How every task's page in this project is laid out. A field placed nowhere is still shown, under More fields.",
-    "useShippedPage": "Use the shipped page",
-    "shippedPage": "This is the page as shipped. Changing it makes it the project's own.",
     "section": "Section",
     "sectionWith": "Section with {{name}}",
     "sectionTitle": "Title",
     "startFolded": "Start folded",
     "toMoreFields": "Move {{name}} to More fields",
-    "toMoreFieldsHelp": "Every task's page lets this be changed. Removed from here, it moves to More fields.",
-    "pageTitleHelp": "Every task's page shows its title.",
+    "toMoreFieldsHelp": "Every task's detail lets this be changed. Removed from here, it moves to More fields.",
     "parts": {
       "header": "Header",
       "main": "Main",
@@ -421,9 +385,9 @@
       "comments": "Comments"
     },
     "regionHelp": {
-      "header": "Across the top of the page, above both columns.",
+      "header": "Across the top, above both columns.",
       "main": "The wide column.",
-      "side": "The narrow column beside Main. On a phone the page is one column; the phone preview shows its order."
+      "side": "The narrow column beside Main. On a phone the detail is one column; the phone preview shows its order."
     },
     "partHelp": {
       "comments": "The task's comments, and writing a new one.",
@@ -433,13 +397,18 @@
       "notice": "Tells someone who can't change the task why.",
       "actions": "What else can be done with the task: move, duplicate, archive, delete, and plug-in actions."
     },
-    "addView": "Add a view",
-    "viewActions": "More for this view",
-    "duplicateView": "Duplicate",
-    "deleteView": "Delete",
-    "newView": "New view",
-    "copyOf": "{{name}} copy",
-    "filters": "Filters",
-    "filtersHelp": "The view shows only tasks that match these. Readers can narrow it further with their own filters."
+    "taskLayout": "Task detail",
+    "detailHelp": "How every task's detail in this project is laid out. A field placed nowhere is still shown, under More fields.",
+    "useShipped": "Use the shipped layout",
+    "shipped": "This is the layout as shipped. Changing it makes it the project's own.",
+    "detailTitleHelp": "Every task's detail shows its title.",
+    "opensFirst": "Opens first",
+    "asShipped": "As shipped",
+    "saveError": "Couldn't save the layouts",
+    "listHelp": {
+      "table": "How the project's tasks are listed as a table: which columns, in what order.",
+      "board": "How each task shows on the board: what its card holds.",
+      "calendar": "The project's tasks on a calendar, by their dates."
+    }
   }
 }

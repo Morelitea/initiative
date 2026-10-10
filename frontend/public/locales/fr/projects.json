@@ -38,32 +38,11 @@
     "archived": "Archivées",
     "statusCategory": "Catégorie de statut"
   },
-  "views": {
-    "label": "Vue",
-    "reset": "Revenir à la vue",
-    "update": "Mettre à jour « {{name}} »",
-    "saveAs": "Enregistrer comme vue",
-    "saveAsDescription": "Tout le monde dans ce projet verra cette vue, avec la disposition et les filtres affichés maintenant.",
-    "name": "Nom de la vue",
-    "namePlaceholder": "p. ex. Travail bloqué",
-    "setDefault": "En faire la vue par défaut du projet",
-    "saved": "Vue enregistrée",
-    "unavailable": "Cette vue n'existe plus dans ce projet ; une autre de ses vues est affichée à la place.",
-    "saveError": "Impossible d'enregistrer les vues",
-    "loadError": "Impossible de charger les vues de ce projet.",
-    "heading": "Vues",
-    "description": "Les vues que tout le monde dans ce projet peut choisir, dans cet ordre. La vue par défaut est celle avec laquelle le projet s'ouvre.",
-    "default": "Par défaut",
-    "delete": "Supprimer la vue",
-    "deleteNamed": "Supprimer « {{name}} »",
-    "deleteConfirm": "Supprimer « {{name}} » ? Ceux qui l'utilisent reviendront à la vue par défaut du projet.",
-    "moveUp": "Monter « {{name}} »",
-    "moveDown": "Descendre « {{name}} »",
-    "shipped": {
-      "incomplete": "Non terminées",
-      "unassigned": "Non attribuées",
-      "mine": "Les miennes"
-    }
+  "layouts": {
+    "label": "Disposition",
+    "loadError": "Impossible de charger les dispositions de ce projet.",
+    "heading": "Dispositions",
+    "description": "Comment ce projet présente ses tâches : chaque disposition, sa dernière modification, et la liste sur laquelle il s'ouvre. Tout le projet les voit ; ce que chacun filtre et trie lui appartient."
   },
   "createDialog": {
     "title": "Créer un projet",
@@ -321,12 +300,10 @@
     "commentedOn": "a commenté",
     "loadMore": "Charger plus"
   },
-  "viewEditor": {
-    "open": "Modifier les vues",
-    "openTaskPage": "Modifier la page de tâche",
-    "title": "Modifier les vues",
+  "layoutEditor": {
+    "open": "Modifier les dispositions",
+    "title": "Modifier les dispositions",
     "close": "Fermer l’éditeur",
-    "view": "Vue en cours de modification",
     "previewWidth": "Largeur de l’aperçu",
     "width": {
       "desktop": "Ordinateur",
@@ -342,9 +319,9 @@
     "unsavedBody": "Vos modifications n'ont pas été enregistrées. Quitter les abandonne.",
     "leave": "Quitter",
     "stay": "Continuer",
-    "compact": "Les vues se modifient sur un écran plus large. Ouvrez cette page sur une tablette ou un ordinateur.",
+    "compact": "Les dispositions se modifient sur un écran plus large. Ouvrez cette page sur une tablette ou un ordinateur.",
     "canvas": "Aperçu",
-    "calendarNote": "Une vue calendrier n’a ni carte ni colonnes à disposer. Son nom et son ouverture par défaut se règlent à droite.",
+    "calendarNote": "Un calendrier n’a ni carte ni colonnes à disposer. Le fait que le projet s’ouvre dessus se règle à droite.",
     "outline": "Plan",
     "card": "Carte",
     "row": "Ligne",
@@ -371,15 +348,7 @@
     "propertiesHelp": "Affiche chaque propriété pour laquelle une tâche a une valeur.",
     "pluginPartHelp": "Dessiné par le plug-in à partir de ses propres valeurs et actions.",
     "fieldHelp": "Affiche ce champ quand une tâche a une valeur pour lui.",
-    "viewHeading": "Vue",
-    "name": "Nom",
-    "layout": "Disposition",
-    "default": "Ouvrir cette vue en premier",
-    "sort": "Trier par",
-    "sortNone": "L’ordre du projet",
-    "direction": "Sens",
-    "ascending": "Croissant",
-    "descending": "Décroissant",
+    "layout": "Disposition modifiée",
     "arrange": "Agencement",
     "stacked": "L’un au-dessus de l’autre",
     "sideBySide": "Côte à côte",
@@ -392,21 +361,16 @@
     "titleHelp": "Chaque tâche affiche son titre, qui l’ouvre.",
     "holdsTitle": "Il contient le titre, que chaque tâche affiche, il reste donc.",
     "savingBody": "Vos modifications sont encore en cours d'enregistrement. Quitter maintenant peut les perdre si l'enregistrement échoue.",
-    "taskPage": "Page de tâche",
     "noticePreview": "Affiché à qui ne peut pas modifier la tâche, pour dire pourquoi.",
-    "noTasks": "Ce projet n'a encore aucune tâche. Ajoutez-en une pour voir sa page ici.",
+    "noTasks": "Ce projet n'a encore aucune tâche. Ajoutez-en une pour voir son détail ici.",
     "empty": "Vide",
     "dropHere": "Déposer ici",
-    "pageHelp": "La mise en page de chaque page de tâche de ce projet. Un champ placé nulle part reste affiché, sous Autres champs.",
-    "useShippedPage": "Utiliser la page d'origine",
-    "shippedPage": "C'est la page d'origine. La modifier en fait celle du projet.",
     "section": "Section",
     "sectionWith": "Section avec {{name}}",
     "sectionTitle": "Titre",
     "startFolded": "Repliée au départ",
     "toMoreFields": "Déplacer {{name}} vers Autres champs",
-    "toMoreFieldsHelp": "Chaque page de tâche permet de modifier ce champ. Retiré d'ici, il passe dans Autres champs.",
-    "pageTitleHelp": "Chaque page de tâche affiche son titre.",
+    "toMoreFieldsHelp": "Le détail de chaque tâche permet de modifier ce champ. Retiré d'ici, il passe dans Autres champs.",
     "parts": {
       "header": "En-tête",
       "main": "Principal",
@@ -421,9 +385,9 @@
       "comments": "Commentaires"
     },
     "regionHelp": {
-      "header": "En haut de la page, au-dessus des deux colonnes.",
+      "header": "En haut, au-dessus des deux colonnes.",
       "main": "La colonne large.",
-      "side": "La colonne étroite à côté de Principal. Sur un téléphone, la page tient en une colonne ; l'aperçu téléphone montre son ordre."
+      "side": "La colonne étroite à côté de Principal. Sur un téléphone, le détail tient en une colonne ; l'aperçu téléphone montre son ordre."
     },
     "partHelp": {
       "comments": "Les commentaires de la tâche, et l'écriture d'un nouveau.",
@@ -433,13 +397,18 @@
       "notice": "Dit pourquoi à qui ne peut pas modifier la tâche.",
       "actions": "Ce qu'on peut faire d'autre avec la tâche : déplacer, dupliquer, archiver, supprimer, et les actions des plug-ins."
     },
-    "addView": "Ajouter une vue",
-    "viewActions": "Plus pour cette vue",
-    "duplicateView": "Dupliquer",
-    "deleteView": "Supprimer",
-    "newView": "Nouvelle vue",
-    "copyOf": "Copie de {{name}}",
-    "filters": "Filtres",
-    "filtersHelp": "La vue n'affiche que les tâches qui y correspondent. Chacun peut la restreindre davantage avec ses propres filtres."
+    "taskLayout": "Détail de la tâche",
+    "detailHelp": "La disposition du détail de chaque tâche de ce projet. Un champ placé nulle part reste affiché, sous Autres champs.",
+    "useShipped": "Utiliser la disposition d'origine",
+    "shipped": "C'est la disposition d'origine. La modifier en fait celle du projet.",
+    "detailTitleHelp": "Le détail de chaque tâche affiche son titre.",
+    "opensFirst": "S'ouvre en premier",
+    "asShipped": "D'origine",
+    "saveError": "Impossible d'enregistrer les dispositions",
+    "listHelp": {
+      "table": "Comment les tâches du projet sont listées en tableau : quelles colonnes, dans quel ordre.",
+      "board": "Comment chaque tâche apparaît sur le tableau Kanban : ce que contient sa carte.",
+      "calendar": "Les tâches du projet sur un calendrier, selon leurs dates."
+    }
   }
 }

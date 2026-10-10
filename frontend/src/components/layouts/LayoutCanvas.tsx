@@ -13,23 +13,19 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 
-import type {
-  TaskListRead,
-  TaskStatusRead,
-  ToolViewWrite,
-} from "@/api/generated/initiativeAPI.schemas";
+import type { TaskListRead, TaskStatusRead } from "@/api/generated/initiativeAPI.schemas";
 import { ProjectTasksKanbanView } from "@/components/projects/ProjectTasksKanbanView";
 import { ProjectTasksTableView } from "@/components/projects/ProjectTasksTableView";
 import { useScopePrompt } from "@/components/recurrence/OccurrenceScopeDialog";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
-import { type useProjectTaskTableState, viewTableSorting } from "@/hooks/useProjectTaskView";
+import type { ProjectTaskTableState } from "@/hooks/useProjectTaskView";
 import { useTask, useTasks } from "@/hooks/useTasks";
-import { buildTaskListParams, specFromApi } from "@/lib/filters/taskFilters";
-import { cn } from "@/lib/utils";
+import { buildTaskListParams, EMPTY_TASK_FILTERS } from "@/lib/filters/taskFilters";
 import {
   cardOf,
   indexPaths,
+  type ListLayout,
   type Place,
   pathKey,
   pathOf,
@@ -38,8 +34,9 @@ import {
 } from "@/lib/layouts/draft";
 import { TaskLayoutView } from "@/lib/layouts/taskLayout";
 import type { LayoutNode } from "@/lib/layouts/tree";
+import { cn } from "@/lib/utils";
 
-/** How wide the canvas draws the view: the widths a person might read it at. */
+/** How wide the canvas draws the layout: the widths a person might read it at. */
 export type PreviewWidth = "desktop" | "tablet" | "phone";
 
 const MAX_WIDTH: Record<PreviewWidth, string | undefined> = {
@@ -57,8 +54,8 @@ const quoted = (value: string) => `"${value.replace(/["\\]/g, "\\$&")}"`;
 /** The part an element is in: the nearest marked one. A table marks its
  *  columns by field, and a tree its parts by path. */
 const partAt = (target: EventTarget): Selection | null => {
-  const marked = target instanceof Element ? target.closest("[data-view-node]") : null;
-  const value = marked?.getAttribute("data-view-node");
+  const marked = target instanceof Element ? target.closest("[data-layout-node]") : null;
+  const value = marked?.getAttribute("data-layout-node");
   if (value === null || value === undefined) return null;
   return value.startsWith("column:")
     ? { kind: "column", field: value.slice("column:".length) }
@@ -66,9 +63,9 @@ const partAt = (target: EventTarget): Selection | null => {
 };
 
 const rule = (of: Selection | null) => {
-  if (!of || of.kind === "view") return null;
+  if (!of || of.kind === "layout") return null;
   const value = of.kind === "column" ? `column:${of.field}` : pathKey(of.path);
-  return `[data-view-node=${quoted(value)}] > *`;
+  return `[data-layout-node=${quoted(value)}] > *`;
 };
 
 /** Nothing on the canvas is used: a key, a paste or a drop goes nowhere. */
@@ -196,7 +193,7 @@ const CanvasFrame = ({
   const point = (target: EventTarget | null) => {
     if (picking || drag) return;
     const of = known(target);
-    const element = target instanceof Element ? target.closest("[data-view-node]") : null;
+    const element = target instanceof Element ? target.closest("[data-layout-node]") : null;
     if (of && element) setHovered({ of, element });
   };
 
@@ -206,7 +203,7 @@ const CanvasFrame = ({
     refuse(event);
     const part = known(event.target);
     if (!part) return;
-    setClicked(event.target instanceof Element ? event.target.closest("[data-view-node]") : null);
+    setClicked(event.target instanceof Element ? event.target.closest("[data-layout-node]") : null);
     onSelect(part);
   };
 
@@ -235,7 +232,7 @@ const CanvasFrame = ({
     const dropAt = (x: number, y: number): Drop | null => {
       const holder = content.current;
       const hit = document.elementsFromPoint?.(x, y).find((each) => holder?.contains(each));
-      const element = hit?.closest("[data-view-node]");
+      const element = hit?.closest("[data-layout-node]");
       const part = hit ? partAt(hit) : null;
       const over = part && tools.knows(part) ? part : null;
       if (!element || !over || !frame.current) return null;
@@ -292,9 +289,9 @@ const CanvasFrame = ({
     const key = keyOf(of);
     if (key === null || !frame.current) return null;
     const element =
-      held?.isConnected && held.getAttribute("data-view-node") === key
+      held?.isConnected && held.getAttribute("data-layout-node") === key
         ? held
-        : content.current?.querySelector(`[data-view-node=${quoted(key)}]`);
+        : content.current?.querySelector(`[data-layout-node=${quoted(key)}]`);
     return element ? boxOf(element, frame.current) : null;
   };
   // Every draw, with no list: what is drawn may have moved.
@@ -344,7 +341,7 @@ const CanvasFrame = ({
           onDropCapture={refuse}
           onMouseOver={(event) => point(event.target)}
           onFocus={(event) => point(event.target)}
-          aria-label={t("viewEditor.canvas")}
+          aria-label={t("layoutEditor.canvas")}
           role="region"
         >
           {children}
@@ -359,7 +356,7 @@ const CanvasFrame = ({
                 <button
                   type="button"
                   className="pointer-events-auto -ml-0.5 cursor-grab touch-none"
-                  aria-label={t("viewEditor.move", { name: tools.nameOf(selection) })}
+                  aria-label={t("layoutEditor.move", { name: tools.nameOf(selection) })}
                   onPointerDown={(event) => {
                     event.preventDefault();
                     setHovered(null);
@@ -385,7 +382,7 @@ const CanvasFrame = ({
                       around[side],
                       <AddPoint
                         label={t(
-                          side === "before" ? "viewEditor.addBefore" : "viewEditor.addAfter",
+                          side === "before" ? "layoutEditor.addBefore" : "layoutEditor.addAfter",
                           { name }
                         )}
                       />,
@@ -405,7 +402,7 @@ const CanvasFrame = ({
             >
               {tools.addAt(
                 inside,
-                <AddPoint label={t("viewEditor.addInto", { name: tools.nameOf(hovered.of) })} />,
+                <AddPoint label={t("layoutEditor.addInto", { name: tools.nameOf(hovered.of) })} />,
                 setPicking
               )}
             </div>
@@ -483,12 +480,12 @@ const DropMark = ({ box, drop, tools }: { box: Box; drop: Drop; tools: CanvasToo
   return <div className="absolute bg-primary" style={edge} />;
 };
 
-/** The view being edited, with the project's own tasks. */
+/** The list layout being edited, with the project's own tasks. */
 export const LayoutCanvas = ({
   projectId,
   initiativeId,
   statuses,
-  view,
+  layout: open,
   width,
   selection,
   onSelect,
@@ -497,20 +494,16 @@ export const LayoutCanvas = ({
   projectId: number;
   initiativeId: number;
   statuses: TaskStatusRead[];
-  view: ToolViewWrite;
+  layout: ListLayout;
   width: PreviewWidth;
   selection: Selection;
   onSelect: (selection: Selection) => void;
   tools: CanvasTools;
 }) => {
   const { t } = useTranslation("projects");
-  const { definition } = view;
-  const layout = definition.layout.type;
-  const sorting = useMemo(() => viewTableSorting(view), [view]);
-  const params = useMemo(
-    () => buildTaskListParams(specFromApi(definition.filters), { projectId }),
-    [definition.filters, projectId]
-  );
+  const { definition, kind: layout } = open;
+  // Every task, in the project's order: filters and sorts are each person's.
+  const params = useMemo(() => buildTaskListParams(EMPTY_TASK_FILTERS, { projectId }), [projectId]);
   const tasks = useTasks(params).data?.items ?? NO_TASKS;
 
   const card = cardOf(definition);
@@ -521,13 +514,12 @@ export const LayoutCanvas = ({
     for (const task of tasks) (groups[task.task_status_id] ??= []).push(task);
     return groups;
   }, [tasks, statuses]);
-  // Sorted as the view is, and not remembered: the reader's own sort is theirs.
-  const tableState = useMemo<ReturnType<typeof useProjectTaskTableState>>(
+  const tableState = useMemo<ProjectTaskTableState>(
     () => [
-      { grouping: [], sorting },
+      { grouping: [], sorting: [] },
       { setGrouping: noop, setSorting: noop },
     ],
-    [sorting]
+    []
   );
 
   return (
@@ -554,7 +546,6 @@ export const LayoutCanvas = ({
       ) : null}
       {layout === "table" ? (
         <ProjectTasksTableView
-          key={JSON.stringify(sorting)}
           projectId={projectId}
           initiativeId={initiativeId}
           tasks={tasks}
@@ -574,18 +565,18 @@ export const LayoutCanvas = ({
         />
       ) : null}
       {layout === "calendar" ? (
-        <p className="text-muted-foreground text-sm">{t("viewEditor.calendarNote")}</p>
+        <p className="text-muted-foreground text-sm">{t("layoutEditor.calendarNote")}</p>
       ) : null}
     </CanvasFrame>
   );
 };
 
-/** The task page being laid out, drawn with one of the project's tasks. */
-export const PageCanvas = ({
+/** The task's detail being laid out, drawn with one of the project's tasks. */
+export const DetailCanvas = ({
   projectId,
   initiativeId,
   statuses,
-  page,
+  detail,
   width,
   selection,
   onSelect,
@@ -594,8 +585,8 @@ export const PageCanvas = ({
   projectId: number;
   initiativeId: number;
   statuses: TaskStatusRead[];
-  /** The page as one tree: the page, holding its header, main and side. */
-  page: LayoutNode;
+  /** The detail as one tree: the layout, holding its header, main and side. */
+  detail: LayoutNode;
   width: PreviewWidth;
   selection: Selection;
   onSelect: (selection: Selection) => void;
@@ -605,9 +596,9 @@ export const PageCanvas = ({
   const { user } = useAuth();
   const scopePrompt = useScopePrompt();
   const leaving = useRef(true);
-  // One task to draw the page with: the project's first.
+  // One task to draw the detail with: the project's first.
   const params = useMemo(
-    () => ({ ...buildTaskListParams(specFromApi(null), { projectId }), page_size: 1 }),
+    () => ({ ...buildTaskListParams(EMPTY_TASK_FILTERS, { projectId }), page_size: 1 }),
     [projectId]
   );
   const listed = useTasks(params);
@@ -615,11 +606,11 @@ export const PageCanvas = ({
   const task = useTask(first).data;
   const layout = useMemo(
     () => ({
-      header: page.children?.[0]?.children ?? [],
-      main: page.children?.[1]?.children ?? [],
-      side: page.children?.[2]?.children ?? [],
+      header: detail.children?.[0]?.children ?? [],
+      main: detail.children?.[1]?.children ?? [],
+      side: detail.children?.[2]?.children ?? [],
     }),
-    [page]
+    [detail]
   );
 
   return (
@@ -629,11 +620,11 @@ export const PageCanvas = ({
           task={task}
           layout={layout}
           editing
-          page={{
+          context={{
             readOnly: false,
             // Drawn here so it can be placed; a reader sees it only when they
             // cannot change the task.
-            readOnlyMessage: t("viewEditor.noticePreview"),
+            readOnlyMessage: t("layoutEditor.noticePreview"),
             statuses,
             initiativeId,
             currentUserId: user?.id,
@@ -648,7 +639,7 @@ export const PageCanvas = ({
           }}
         />
       ) : listed.isSuccess && first === null ? (
-        <p className="text-muted-foreground text-sm">{t("viewEditor.noTasks")}</p>
+        <p className="text-muted-foreground text-sm">{t("layoutEditor.noTasks")}</p>
       ) : null}
     </CanvasFrame>
   );

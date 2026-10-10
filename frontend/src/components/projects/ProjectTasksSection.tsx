@@ -38,8 +38,7 @@ import { ProjectTaskComposer } from "@/components/projects/ProjectTaskComposer";
 import { ProjectTasksFilters } from "@/components/projects/ProjectTasksFilters";
 import { ProjectTasksKanbanView } from "@/components/projects/ProjectTasksKanbanView";
 import { ProjectTasksTableView } from "@/components/projects/ProjectTasksTableView";
-import { ProjectViewDialog } from "@/components/projects/ProjectViewDialog";
-import { viewLayouts, viewName } from "@/components/projects/projectTasksConfig";
+import { listLayoutLooks } from "@/components/projects/projectTasksConfig";
 import {
   computeMidpoint,
   isDraggingDown,
@@ -74,12 +73,6 @@ import {
   useProjectTaskView,
 } from "@/hooks/useProjectTaskView";
 import {
-  useProjectViews,
-  usePutProjectViews,
-  viewSetWrite,
-  viewWrites,
-} from "@/hooks/useToolLayouts";
-import {
   type UpdateTaskVariables,
   useArchiveDoneTasks,
   useBulkArchiveTasks,
@@ -96,18 +89,16 @@ import {
   buildTaskListParams,
   EMPTY_TASK_FILTERS,
   matchesDueWindow,
-  specToApi,
   type TaskFilterSpec,
   taskFilterCount,
 } from "@/lib/filters/taskFilters";
-import type { ViewSearch } from "@/lib/filters/views";
+import { cardOf } from "@/lib/layouts/draft";
 import { toast } from "@/lib/mascotToast";
 import { getProjectColor } from "@/lib/projectColor";
 import { rulePayload } from "@/lib/recurrence";
 import { getItem, setItem } from "@/lib/storage";
 import { taskReadToListRow } from "@/lib/taskUtils";
 import { browserTimezone } from "@/lib/timezones";
-import { cardOf } from "@/lib/layouts/draft";
 
 /** A status change on screen whose request has not answered yet. */
 type PendingStatus = { vars: UpdateTaskVariables; status: TaskStatusRead };
@@ -156,157 +147,56 @@ export const ProjectTasksSection = ({
   // task and its property values in one request.
   const [composerValue, setComposerValue] = useState<TaskFormValue>(() => emptyTaskFormValue());
   const navigate = useNavigate();
-  const search = useSearch({ strict: false }) as ViewSearch;
+  const search = useSearch({ strict: false }) as { layout?: string };
   const {
     filtersLoaded,
-    viewsLoaded,
-    viewsFailed,
-    retryViews,
-    retryingViews,
-    views,
+    layoutsLoaded,
+    layoutsFailed,
+    retryLayouts,
+    retryingLayouts,
+    layouts,
     canConfigure,
-    view,
     layout,
-    modified,
-    unresolvedView,
+    kind,
+    filtered,
     appliedSpec,
-    setOwnFilters,
-    rememberView,
-    hasOwnFilters,
+    sorting,
+    setFilters,
+    setSorting,
+    rememberLayout,
   } = useProjectTaskView({ projectId, taskStatuses, search });
-  const viewSet = useProjectViews(projectId).data;
 
-  const setSearchParams = useCallback(
-    (next: { view?: string; preset?: string }) => {
+  /** Show the `next` list layout, and come back to it. The URL names it, so
+   *  a link opens the same layout for whoever follows it. */
+  const selectLayout = useCallback(
+    (next: string) => {
+      const chosen = layouts.find((each) => each.kind === next);
+      if (!chosen) return;
+      rememberLayout(chosen.kind);
       // replace: the back button is for moving between resources, not for
-      // stepping back through views.
-      // resetScroll: naming the view in the URL is bookkeeping about the list
-      // you are already looking at — the router's default would throw you
-      // back to the top of it on every pick.
+      // stepping back through layouts.
+      // resetScroll: naming the layout in the URL is bookkeeping about the
+      // list you are already looking at — the router's default would throw
+      // you back to the top of it on every pick.
       void navigate({
         to: ".",
-        search: ((prev: Record<string, unknown>) => ({ ...prev, ...next })) as never,
+        search: ((prev: Record<string, unknown>) => ({ ...prev, layout: chosen.kind })) as never,
         replace: true,
         resetScroll: false,
       });
     },
-    [navigate]
+    [layouts, rememberLayout, navigate]
   );
 
-  // A view the URL names shows its own filters, and arriving by such a link
-  // makes it this person's current view with their own filters for it
-  // dropped, so coming back without the param finds what the link showed. A
-  // link from before views (`?preset=`, `?view=kanban`) is rewritten to name
-  // it. Once per slug: the preference write is debounced and optimistic, and
-  // re-firing it every render would race the router.
-  const rememberedViewRef = useRef<string | null>(null);
-  const urlNamesView = Boolean(search.preset ?? search.view) && !unresolvedView;
-  useEffect(() => {
-    if (!filtersLoaded || !view || !urlNamesView) return;
-    if (search.preset !== undefined || search.view !== view.slug) {
-      setSearchParams({ preset: undefined, view: view.slug });
-    }
-    if (rememberedViewRef.current === view.slug) return;
-    rememberedViewRef.current = view.slug;
-    rememberView(view.slug, true);
-  }, [
-    filtersLoaded,
-    view,
-    urlNamesView,
-    search.preset,
-    search.view,
-    setSearchParams,
-    rememberView,
-  ]);
-
-  /** Switch to a view. The URL names it only while it shows the view's own
-   *  filters: one this person has filters of their own for is remembered
-   *  instead, so picking it finds them as they were left. */
-  const selectView = useCallback(
-    (slug: string) => {
-      rememberedViewRef.current = slug;
-      rememberView(slug);
-      setSearchParams({ preset: undefined, view: hasOwnFilters(slug) ? undefined : slug });
-    },
-    [rememberView, hasOwnFilters, setSearchParams]
-  );
-
-  /** Keep `next` as this person's own filters for the view on screen. They
-   *  come off the URL at once: a link naming the view has to show the view,
-   *  not one person's edit of it. */
-  const applySpec = useCallback(
-    (next: TaskFilterSpec) => {
-      setOwnFilters(next);
-      setSearchParams({ preset: undefined, view: undefined });
-    },
-    [setOwnFilters, setSearchParams]
-  );
-
-  /** Back to the view's own filters, which the URL can name again. */
-  const resetView = useCallback(() => {
-    if (!view) return;
-    setOwnFilters(null);
-    rememberedViewRef.current = view.slug;
-    setSearchParams({ view: view.slug });
-  }, [view, setOwnFilters, setSearchParams]);
-
-  const viewOptions = useMemo(
+  const layoutOptions = useMemo(
     () =>
-      views.map((each) => ({
-        slug: each.slug,
-        name: viewName(each, t),
-        icon: viewLayouts[each.definition.layout.type].icon,
+      layouts.map((each) => ({
+        slug: each.kind,
+        name: t(listLayoutLooks[each.kind].labelKey as never),
+        icon: listLayoutLooks[each.kind].icon,
       })),
-    [views, t]
+    [layouts, t]
   );
-  const activeViewName = view ? viewName(view, t) : "";
-
-  const [viewDialogOpen, setViewDialogOpen] = useState(false);
-  const putViews = usePutProjectViews(projectId);
-
-  /** Save the layout and filters on screen as a new view, and switch to it:
-   *  the view this person tweaked goes back to its own filters. */
-  const saveAsView = ({ name, isDefault }: { name: string; isDefault: boolean }) => {
-    if (!viewSet) return;
-    const existing = viewWrites(viewSet).map((each) =>
-      isDefault ? { ...each, is_default: false } : each
-    );
-    const created = {
-      name,
-      is_default: isDefault,
-      definition: { layout: { type: layout }, filters: specToApi(appliedSpec) },
-    };
-    putViews.mutate(viewSetWrite(viewSet, [...existing, created]), {
-      onSuccess: (saved) => {
-        setViewDialogOpen(false);
-        setOwnFilters(null);
-        // Named from the saved set: the set on screen is the one before it.
-        const made = saved.views.find((each) => !existing.some(({ slug }) => slug === each.slug));
-        if (made) {
-          rememberedViewRef.current = made.slug;
-          rememberView(made.slug, true);
-          setSearchParams({ preset: undefined, view: made.slug });
-        }
-        toast.success(t("views.saved"));
-      },
-    });
-  };
-
-  /** Fold the current, tweaked filters back into the view they sit on. */
-  const updateView = () => {
-    if (!viewSet || !view) return;
-    const writes = viewWrites(viewSet).map((each) =>
-      each.slug === view.slug
-        ? { ...each, definition: { ...each.definition, filters: specToApi(appliedSpec) } }
-        : each
-    );
-    putViews.mutate(viewSetWrite(viewSet, writes), {
-      onSuccess: () => {
-        resetView();
-        toast.success(t("views.saved"));
-      },
-    });
-  };
 
   // Closed until asked for. The filter button carries a count of what's set, so
   // a narrowed list still says so with the panel shut — and the fields no
@@ -317,7 +207,7 @@ export const ProjectTasksSection = ({
   // the default as narrowing it.
   const activeFilterCount = taskFilterCount(appliedSpec);
 
-  const clearFilters = useCallback(() => applySpec(EMPTY_TASK_FILTERS), [applySpec]);
+  const clearFilters = useCallback(() => setFilters(null), [setFilters]);
 
   const [localOverride, setLocalOverride] = useState<TaskListRead[] | null>(null);
   const [isComposerOpen, setIsComposerOpen] = useState(initialComposerOpen ?? false);
@@ -337,9 +227,9 @@ export const ProjectTasksSection = ({
 
   const [activeTaskId, setActiveTaskId] = useState<number | null>(null);
   const [selectedTasks, setSelectedTasks] = useState<TaskListRead[]>([]);
-  // A selection belongs to the list it was made in: switching project or view
-  // starts with none.
-  const selectionList = `${projectId}:${view?.slug ?? ""}`;
+  // A selection belongs to the list it was made in: switching project or
+  // layout starts with none.
+  const selectionList = `${projectId}:${kind}`;
   const [selectedIn, setSelectedIn] = useState(selectionList);
   if (selectedIn !== selectionList) {
     setSelectedIn(selectionList);
@@ -347,13 +237,13 @@ export const ProjectTasksSection = ({
   }
 
   // An export lists the tasks in the order the reader sees them: the table's
-  // own sort while it is showing, and the project's order in every other view.
-  const tableState = useProjectTaskTableState(projectId, view);
-  const tableSorting = tableState[0].sorting;
+  // own sort while it is showing, and the project's order in every other
+  // layout.
+  const tableState = useProjectTaskTableState(projectId, kind, sorting, setSorting);
   const exportSorting = useMemo(() => {
-    const sorting = taskViewSorting(layout, tableSorting);
-    return sorting.length > 0 ? { sorting, tz: browserTimezone() } : {};
-  }, [layout, tableSorting]);
+    const fields = taskViewSorting(kind, sorting);
+    return fields.length > 0 ? { sorting: fields, tz: browserTimezone() } : {};
+  }, [kind, sorting]);
   const [isBulkEditDialogOpen, setIsBulkEditDialogOpen] = useState(false);
   const [isBulkEditTagsDialogOpen, setIsBulkEditTagsDialogOpen] = useState(false);
   const [isArchiveDialogOpen, setIsArchiveDialogOpen] = useState(false);
@@ -380,7 +270,7 @@ export const ProjectTasksSection = ({
   );
 
   const tasksQuery = useTasks(taskListParams, {
-    enabled: Number.isFinite(projectId) && filtersLoaded && viewsLoaded,
+    enabled: Number.isFinite(projectId) && filtersLoaded && layoutsLoaded,
   });
 
   const projectTasks = useMemo(() => tasksQuery.data?.items ?? [], [tasksQuery.data]);
@@ -949,19 +839,19 @@ export const ProjectTasksSection = ({
     setActiveTaskId(null);
   };
 
-  if (viewsFailed) {
+  if (layoutsFailed) {
     return (
       <div className="flex flex-col items-center">
         <StatusMessage
           icon={<AlertTriangle className="size-6" aria-hidden />}
-          title={t("views.loadError")}
+          title={t("layouts.loadError")}
         />
         <Button
           type="button"
           variant="outline"
           size="sm"
-          disabled={retryingViews}
-          onClick={retryViews}
+          disabled={retryingLayouts}
+          onClick={retryLayouts}
         >
           {t("common:tryAgain")}
         </Button>
@@ -984,20 +874,20 @@ export const ProjectTasksSection = ({
             onOpenChange: setFiltersOpen,
             activeCount: activeFilterCount,
           }}
-          // The project's views, each a layout with its own filters, so one
-          // control picks both.
+          // The project's list layouts; this person's filters for each come
+          // with it.
           viewControl={
             <ToolViewSelect
-              views={viewOptions}
-              activeSlug={view?.slug ?? null}
-              modified={modified}
-              onSelect={selectView}
-              label={t("views.label")}
+              views={layoutOptions}
+              activeSlug={layout?.kind ?? null}
+              modified={filtered}
+              onSelect={selectLayout}
+              label={t("layouts.label")}
               modifiedLabel={t("filters.modified")}
             />
           }
           trailing={
-            /* resumePending: this is the view's single adopter of a stored
+            /* resumePending: this is the list's single adopter of a stored
                in-flight job (the selection button must not double-handle it). */
             keepsContentIn ? undefined : (
               <ExportTasksButton
@@ -1034,59 +924,21 @@ export const ProjectTasksSection = ({
           }
         />
 
-        {unresolvedView ? (
-          <Alert variant="default" className="mb-2">
-            <AlertDescription>{t("views.unavailable")}</AlertDescription>
-          </Alert>
-        ) : null}
-
         <ToolFilterPanel
           open={filtersOpen}
           onOpenChange={setFiltersOpen}
           onClear={clearFilters}
           activeCount={activeFilterCount}
-          actions={
-            <>
-              {/* Picking the view again can't undo an edit — it is already the
-                  selected value — so getting back to it is its own control,
-                  and it is for everyone, not just curators. */}
-              {modified ? (
-                <Button variant="ghost" size="sm" onClick={resetView} title={activeViewName}>
-                  <RotateCcw className="h-4 w-4" />
-                  {t("views.reset")}
-                </Button>
-              ) : null}
-              {canConfigure ? (
-                <>
-                  {modified ? (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={updateView}
-                      disabled={putViews.isPending}
-                    >
-                      <Save className="h-4 w-4" />
-                      {t("views.update", { name: activeViewName })}
-                    </Button>
-                  ) : null}
-                  <Button variant="ghost" size="sm" onClick={() => setViewDialogOpen(true)}>
-                    <BookmarkPlus className="h-4 w-4" />
-                    {t("views.saveAs")}
-                  </Button>
-                </>
-              ) : null}
-            </>
-          }
         >
           <ProjectTasksFilters
             memberScope={{ type: "canOpen", tool: Tool.project, id: projectId }}
             taskStatuses={sortedTaskStatuses}
             value={appliedSpec}
-            onChange={applySpec}
+            onChange={setFilters}
           />
         </ToolFilterPanel>
 
-        {layout === "board" ? (
+        {kind === "board" ? (
           <ProjectTasksKanbanView
             projectId={projectId}
             initiativeId={initiativeId}
@@ -1111,11 +963,11 @@ export const ProjectTasksSection = ({
                 : undefined
             }
             isArchivingDoneTasks={archiveDoneTasks.isPending}
-            card={view ? cardOf(view.definition) : undefined}
+            card={layout ? cardOf(layout.definition) : undefined}
           />
         ) : null}
 
-        {layout === "table" ? (
+        {kind === "table" ? (
           <div className="space-y-4">
             {selectedTasks.length > 0 && canEditTaskDetails && (
               <TaskBulkEditPanel
@@ -1148,7 +1000,7 @@ export const ProjectTasksSection = ({
               // The table seeds its grouping and sorting once, at mount, and
               // each view keeps its own, so moving between projects or views has
               // to be a fresh table rather than the previous one's.
-              key={projectTaskTableKey(projectId, view?.slug ?? "")}
+              key={projectTaskTableKey(projectId, kind)}
               projectId={projectId}
               initiativeId={initiativeId}
               tasks={statusFilteredTasks}
@@ -1165,7 +1017,7 @@ export const ProjectTasksSection = ({
               onTaskSelectionChange={setSelectedTasks}
               onExitSelection={() => setSelectedTasks([])}
               tableState={tableState}
-              viewColumns={view?.definition.columns}
+              viewColumns={layout?.definition.columns}
             />
             {canEditTaskDetails && (
               <div className="flex justify-end">
@@ -1187,7 +1039,7 @@ export const ProjectTasksSection = ({
             )}
           </div>
         ) : null}
-        {layout === "calendar" ? (
+        {kind === "calendar" ? (
           <CalendarView
             entries={calendarEntries}
             viewMode={calendarViewMode}
@@ -1279,15 +1131,6 @@ export const ProjectTasksSection = ({
             onSuccess={() => {}}
           />
         </>
-      ) : null}
-
-      {canConfigure ? (
-        <ProjectViewDialog
-          open={viewDialogOpen}
-          onOpenChange={setViewDialogOpen}
-          isSubmitting={putViews.isPending}
-          onSubmit={saveAsView}
-        />
       ) : null}
 
       <ConfirmDialog

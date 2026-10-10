@@ -7,10 +7,10 @@ import {
   FIELD_RENDERERS,
   type FieldDef,
   isEmptyValue,
-  propertyFieldId,
   type LayoutEnv,
   type LayoutItem,
   type LayoutVariant,
+  propertyFieldId,
 } from "./fields";
 import { type PluginOnItems, PluginPartView } from "./plugins";
 import { Section } from "./section";
@@ -63,7 +63,7 @@ export const renderNode = <I,>(
   return path === undefined ? (
     drawn
   ) : (
-    <div className="contents" data-view-node={path}>
+    <div className="contents" data-layout-node={path}>
       {drawn}
     </div>
   );
@@ -140,7 +140,7 @@ const stackClassName = ({ direction, gap = "xs", wrap, align, tone }: StackProps
 const emptyWhileEdited = (node: LayoutNode, view: LayoutContext): ReactNode =>
   view.editing && !node.children?.length ? (
     <div className="flex min-h-10 w-full items-center justify-center rounded-md border border-dashed px-2 text-center text-muted-foreground text-xs">
-      {view.env.t("viewEditor.emptyGroup")}
+      {view.env.t("layoutEditor.emptyGroup")}
     </div>
   ) : null;
 

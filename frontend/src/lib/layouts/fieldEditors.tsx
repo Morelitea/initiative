@@ -1,5 +1,5 @@
 /**
- * Field editors any item's page shares (a task's, an event's): the title, the
+ * Field editors any detail shares (a task's, an event's): the title, the
  * tags and the custom properties, each saved on its own through the save of
  * the item's kind.
  */
@@ -50,7 +50,7 @@ import { FieldFrame, useFieldDraft } from "./editing";
 
 const sameJson = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
-/** An item's title, which is its page's heading. It cannot be emptied:
+/** An item's title, which is its detail's heading. It cannot be emptied:
  *  leaving it blank puts the saved one back. A reader who cannot change it
  *  sees the heading alone. */
 export const TitleField = <I extends { title: string }, P extends { title?: string | null }>({
@@ -345,7 +345,7 @@ export const DescriptionField = <
 }: {
   kind: FieldSaveKind<I, P>;
   id: number;
-  /** What the item's page adds to its saves. */
+  /** What the detail adds to its saves. */
   options: FieldSaveOptions<I, P>;
   label: string;
   htmlId: string;

@@ -34,12 +34,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/u
 import { TableRow } from "@/components/ui/table";
 import type { useProjectTaskTableState } from "@/hooks/useProjectTaskView";
 import { useProperties } from "@/hooks/useProperties";
-import type { AppColumnDef } from "@/lib/table";
-import { cn } from "@/lib/utils";
 import { fieldColumnId } from "@/lib/layouts/columns";
 import { useProjectLayoutEnv } from "@/lib/layouts/fields";
 import { pluginFields, usePluginsOnItems } from "@/lib/layouts/plugins";
 import { TASK_COLUMNS, taskFields } from "@/lib/layouts/tasks";
+import type { AppColumnDef } from "@/lib/table";
+import { cn } from "@/lib/utils";
 
 type ProjectTasksListViewProps = {
   projectId: number;
@@ -407,7 +407,7 @@ const ProjectTasksTableViewComponent = ({
       return {
         ...column,
         header: (context: Parameters<typeof header>[0]) => (
-          <span className="contents" data-view-node={`column:${fieldId}`}>
+          <span className="contents" data-layout-node={`column:${fieldId}`}>
             {header(context)}
           </span>
         ),

@@ -55,7 +55,6 @@ _TABLE = {
     "kind": "table",
     "definition": {
         "columns": ["title", "dueDate", "property:12", "plugin:3:ci.state"],
-        "opens": "full",
     },
 }
 #: A task's layout: the regions left out are drawn as shipped.
@@ -376,7 +375,6 @@ def _task(*side: dict[str, Any]) -> dict[str, Any]:
         (_table(columns=["assignees"]), 422, None),
         (_table(sort=[{"field": "dueDate"}]), 422, None),
         (_table(filters={"assignees": ["me"]}), 422, None),
-        (_table(opens="page"), 422, None),
         (_task({"type": "field", "props": {"field": "startDate"}}), 422, None),
         (_task({"type": "field", "props": {"field": "property:12"}}), 422, None),
         (_task({"type": "card"}), 422, None),
@@ -400,7 +398,6 @@ def _task(*side: dict[str, Any]) -> dict[str, Any]:
         "a column the table cannot draw",
         "a sort, which is a person's",
         "filters, which are a person's",
-        "opening on a page",
         "a date alone on a task",
         "a property alone on a task",
         "a card on a task",
@@ -479,7 +476,7 @@ async def test_a_shared_tool_is_laid_out_by_the_initiatives_managers(
     )
     url = manager.g("/layouts/")
     params = {"tool": "calendar", "initiative_id": manager.initiative.id}
-    calendar = {"kind": "calendar", "definition": {"opens": "panel"}}
+    calendar = {"kind": "calendar", "definition": {}}
 
     async def can_configure(actor: Any) -> bool:
         response = await client.get(url, params=params, headers=actor.headers)

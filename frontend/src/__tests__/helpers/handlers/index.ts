@@ -10,7 +10,7 @@ import { propertyHandlers } from "./property.handlers";
 import { tagHandlers } from "./tag.handlers";
 import { taskHandlers } from "./task.handlers";
 import { toolCountHandlers } from "./toolCount.handlers";
-import { toolViewHandlers } from "./toolView.handlers";
+import { toolLayoutHandlers } from "./toolLayout.handlers";
 import { userHandlers } from "./user.handlers";
 import { versionHandlers } from "./version.handlers";
 
@@ -19,7 +19,7 @@ export const handlers = [
   ...communityHandlers,
   ...initiativeHandlers,
   ...projectHandlers,
-  ...toolViewHandlers,
+  ...toolLayoutHandlers,
   ...taskHandlers,
   ...tagHandlers,
   ...fileHandlers,

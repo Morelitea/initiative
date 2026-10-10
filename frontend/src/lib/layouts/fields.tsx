@@ -36,8 +36,8 @@ import { PluginField, type PluginFieldDecl } from "./plugins";
 /** What a view draws. Tasks for now; other kinds join as their tools move. */
 export type LayoutItem = TaskListRead;
 
-/** Where a field is drawn. On an item's page it is its editor, which the
- *  item's page parts draw (`taskPage.tsx`). */
+/** Where a field is drawn. On a detail it is its editor, which the
+ *  detail parts draw (`taskLayout.tsx`). */
 export type LayoutVariant = "card" | "cell" | "detail";
 
 export type FieldKind =

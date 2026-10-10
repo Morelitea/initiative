@@ -40,7 +40,6 @@ import { useCommunities } from "@/hooks/useCommunities";
 import { useInitiative } from "@/hooks/useInitiatives";
 import { useReadOnOpen } from "@/hooks/useNotifications";
 import { useProject, useProjectTaskStatuses, useWritableProjects } from "@/hooks/useProjects";
-import { taskPageOf, useProjectViews } from "@/hooks/useToolLayouts";
 import {
   useDeleteTask,
   useDuplicateTask,
@@ -48,14 +47,15 @@ import {
   useSkipTask,
   useTask,
 } from "@/hooks/useTasks";
+import { detailLayoutOf, useProjectLayouts } from "@/hooks/useToolLayouts";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { getHttpStatus } from "@/lib/errorMessage";
-import { toast } from "@/lib/mascotToast";
-import { queryClient } from "@/lib/queryClient";
-import { taskRoute, toolDetailRoute, toolListRoute } from "@/lib/tools";
 import type { StoredRegions } from "@/lib/layouts/detailLayout";
 import { usePluginMenuActions } from "@/lib/layouts/plugins";
 import { TaskLayoutView } from "@/lib/layouts/taskLayout";
+import { toast } from "@/lib/mascotToast";
+import { queryClient } from "@/lib/queryClient";
+import { taskRoute, toolDetailRoute, toolListRoute } from "@/lib/tools";
 
 type MoveTaskVariables = {
   targetProjectId: number;
@@ -102,10 +102,10 @@ export const TaskEditPage = () => {
   }, [taskProjectId, projectId]);
 
   const taskStatusesQuery = useProjectTaskStatuses(projectId ?? null);
-  // The task's project's views carry how its page is laid out, and a move
-  // takes the page to its new project's. A set that cannot be read draws the
-  // page as shipped.
-  const viewsQuery = useProjectViews(taskProjectId ?? null);
+  // The task's project's layouts say how its detail is laid out, and a move
+  // takes the detail to its new project's. A set that cannot be read draws
+  // the detail as shipped.
+  const layoutsQuery = useProjectLayouts(taskProjectId ?? null);
   const task = taskQuery.data;
   const showTask = (shown: TaskRead) =>
     queryClient.setQueryData<TaskRead>(getReadTaskQueryKey(communityId, parsedTaskId), shown);
@@ -259,7 +259,7 @@ export const TaskEditPage = () => {
     taskQuery.isLoading ||
     isProjectContextLoading ||
     taskStatusesQuery.isLoading ||
-    viewsQuery.isLoading
+    layoutsQuery.isLoading
   ) {
     return <TaskEditSkeleton label={t("edit.loadingTask")} />;
   }
@@ -392,8 +392,8 @@ export const TaskEditPage = () => {
       />
       <TaskLayoutView
         task={task}
-        layout={taskPageOf(viewsQuery.data) as StoredRegions | null}
-        page={{
+        layout={detailLayoutOf(layoutsQuery.data, "task") as StoredRegions | null}
+        context={{
           readOnly: isReadOnly,
           readOnlyMessage,
           statuses: taskStatusesQuery.data ?? [],

@@ -169,7 +169,7 @@ const FieldSaveStatus = ({ save }: { save: FieldSave }) => {
 };
 
 /**
- * One field on an item's page: its label, its own save state with Retry, a
+ * One field on a detail: its label, its own save state with Retry, a
  * note when it changed underneath an edit, and the editor.
  *
  * A field whose label is hidden has no row for its save state, so the state

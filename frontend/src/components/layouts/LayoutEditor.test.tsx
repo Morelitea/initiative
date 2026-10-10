@@ -1,50 +1,56 @@
 /**
- * The view editor, worked as a manager works it: change the open view in the
- * outline or on the canvas, see it at once, and nothing is stored until Save.
+ * The layout editor, worked as a manager works it: change the open layout in
+ * the outline or on the canvas, see it at once, and nothing is stored until
+ * Save, which sends only the layouts that changed.
  */
 import { createEvent, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse } from "msw";
-import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   buildDefaultTaskStatuses,
   buildPropertyDefinition,
+  buildSavedLayoutSet,
   buildTask,
   buildTaskListResponse,
-  buildToolView,
-  buildToolViewSet,
+  buildToolLayoutSet,
 } from "@/__tests__/factories";
-import { buildSavedViewSet } from "@/__tests__/factories/toolView.factory";
 import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
-import type { ToolViewSetRead, ToolViewSetWrite } from "@/api/generated/initiativeAPI.schemas";
-import { useProjectViews } from "@/hooks/useToolLayouts";
+import type {
+  DetailLayoutWrite,
+  ListLayoutWrite,
+  ToolLayoutSetRead,
+} from "@/api/generated/initiativeAPI.schemas";
+import { useProjectLayouts } from "@/hooks/useToolLayouts";
 import type { LayoutNode } from "@/lib/layouts/tree";
 
-import { TASK_PAGE, LayoutEditor } from "./LayoutEditor";
+import { LayoutEditor } from "./LayoutEditor";
 
 const STATUSES = buildDefaultTaskStatuses(1);
+const PROJECT = { id: 1, initiativeId: 1, statuses: STATUSES };
 
-let saves: ToolViewSetWrite[] = [];
+type Write = ListLayoutWrite | DetailLayoutWrite;
 
-/** The editor as its page holds it: on the project's views as read, which a
- *  save writes its answer over. */
-const editor = (slug: string, onClose = vi.fn(), set = buildToolViewSet()) => {
-  server.use(communityHttp.get("/views/", () => HttpResponse.json(set)));
+/** Each request a save made, in order: a layout saved, one put back as
+ *  shipped, or the list the project opens on. */
+let sent: Array<{ save: Write } | { reset: string } | { opensOn: string }> = [];
+
+/** What the save of `kind` stored. */
+const saved = (kind: string) =>
+  sent.flatMap((each) => ("save" in each && each.save.kind === kind ? [each.save] : []))[0]
+    ?.definition as Record<string, unknown> | undefined;
+
+/** The editor as its page holds it: on the project's layouts as read, which
+ *  each save writes its answer over. */
+const editor = (kind: string, onClose = vi.fn(), set = buildToolLayoutSet()) => {
+  server.use(communityHttp.get("/layouts/", () => HttpResponse.json(set)));
   const Page = () => {
-    const read = useProjectViews(1).data;
+    const read = useProjectLayouts(1).data;
     return read ? (
-      <LayoutEditor
-        projectId={1}
-        initiativeId={1}
-        statuses={STATUSES}
-        set={read}
-        initialSlug={slug}
-        onClose={onClose}
-      />
+      <LayoutEditor project={PROJECT} set={read} initialKind={kind} onClose={onClose} />
     ) : null;
   };
   renderPage(Page);
@@ -66,7 +72,7 @@ const outline = () => screen.findByRole("navigation", { name: /outline/i });
 const canvas = () => screen.findByRole("region", { name: /preview/i });
 
 beforeEach(() => {
-  saves = [];
+  sent = [];
   server.use(
     communityHttp.get("/tasks/:taskId", () =>
       HttpResponse.json({
@@ -95,10 +101,19 @@ beforeEach(() => {
     communityHttp.get("/property-definitions/", () =>
       HttpResponse.json([buildPropertyDefinition({ id: 12, name: "Effort" })])
     ),
-    communityHttp.put("/views/", async ({ request }) => {
-      const body = (await request.json()) as ToolViewSetWrite;
-      saves.push(body);
-      return HttpResponse.json(buildSavedViewSet(body));
+    communityHttp.put("/layouts/", async ({ request }) => {
+      const body = (await request.json()) as Write;
+      sent.push({ save: body });
+      return HttpResponse.json(buildSavedLayoutSet(buildToolLayoutSet(), body));
+    }),
+    communityHttp.delete("/layouts/:kind", ({ params }) => {
+      sent.push({ reset: String(params.kind) });
+      return HttpResponse.json(buildToolLayoutSet());
+    }),
+    communityHttp.put("/layouts/default", async ({ request }) => {
+      const { kind } = (await request.json()) as { kind: string };
+      sent.push({ opensOn: kind });
+      return HttpResponse.json<ToolLayoutSetRead>(buildToolLayoutSet());
     })
   );
 });
@@ -111,11 +126,12 @@ describe("LayoutEditor", () => {
     await user.click(within(await outline()).getByRole("button", { name: /hide priority/i }));
 
     expect(within(await canvas()).queryByText(/priority: medium/i)).not.toBeInTheDocument();
-    expect(saves).toEqual([]);
+    expect(sent).toEqual([]);
     await user.click(screen.getByRole("button", { name: /^save$/i }));
-    await waitFor(() => expect(saves).toHaveLength(1));
-    const board = saves[0].views.find((view) => view.slug === "board");
-    expect(JSON.stringify(board?.definition.card)).not.toContain('"priority"');
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(JSON.stringify(saved("board")?.card)).not.toContain('"priority"');
+    // The other layouts are not sent, so they keep their dates.
+    expect(sent).toHaveLength(1);
   });
 
   it("puts back what was undone", async () => {
@@ -147,8 +163,8 @@ describe("LayoutEditor", () => {
     await user.click(await screen.findByRole("button", { name: "Effort" }));
     await user.click(screen.getByRole("button", { name: /^save$/i }));
 
-    await waitFor(() => expect(saves).toHaveLength(1));
-    expect(saves[0].views.find((view) => view.slug === "table")?.definition.columns).toEqual([
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(saved("table")?.columns).toEqual([
       "title",
       "startDate",
       "dueDate",
@@ -162,12 +178,12 @@ describe("LayoutEditor", () => {
   it("changes nothing while a save is under way, and still asks before leaving", async () => {
     let answer = () => {};
     server.use(
-      communityHttp.put("/views/", async ({ request }) => {
-        const body = (await request.json()) as ToolViewSetWrite;
+      communityHttp.put("/layouts/", async ({ request }) => {
+        const body = (await request.json()) as Write;
         await new Promise<void>((resolve) => {
           answer = resolve;
         });
-        return HttpResponse.json(buildSavedViewSet(body));
+        return HttpResponse.json(buildSavedLayoutSet(buildToolLayoutSet(), body));
       })
     );
     const { user, onClose } = editor("board");
@@ -218,58 +234,18 @@ describe("LayoutEditor", () => {
     await user.click(screen.getByRole("button", { name: "Build" }));
     await user.click(screen.getByRole("button", { name: /^save$/i }));
 
-    await waitFor(() => expect(saves).toHaveLength(1));
-    expect(saves[0].views.find((view) => view.slug === "table")?.definition.columns?.at(-1)).toBe(
-      "plugin:3:ci.state"
-    );
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect((saved("table")?.columns as string[] | undefined)?.at(-1)).toBe("plugin:3:ci.state");
   });
 
-  it("opens the default view when another save takes away the open one", async () => {
-    const shipped = buildToolViewSet();
-    const refreshed = buildSavedViewSet({
-      views: shipped.views.filter((view) => !["unassigned", "mine"].includes(view.slug)),
-      item_layouts: [],
-    });
-    const Refreshing = () => {
-      const [set, setSet] = useState<ToolViewSetRead>(shipped);
-      return (
-        <>
-          <button type="button" onClick={() => setSet(refreshed)}>
-            refresh
-          </button>
-          <LayoutEditor
-            projectId={1}
-            initiativeId={1}
-            statuses={STATUSES}
-            set={set}
-            initialSlug="mine"
-            onClose={vi.fn()}
-          />
-        </>
-      );
-    };
-    renderPage(Refreshing);
-    const user = userEvent.setup();
-    expect(await screen.findByRole("combobox", { name: /^view being edited$/i })).toHaveTextContent(
-      "Mine"
-    );
+  it("opens the project on the open list as a change of its own", async () => {
+    const { user } = editor("board");
+    await outline();
 
-    await user.click(screen.getByRole("button", { name: "refresh" }));
-    expect(screen.getByRole("combobox", { name: /^view being edited$/i })).toHaveTextContent(
-      "Table"
-    );
-    const name = screen.getByLabelText(/^name$/i);
-    await user.clear(name);
-    await user.type(name, "Everything{Enter}");
+    await user.click(screen.getByRole("switch", { name: /opens first/i }));
     await user.click(screen.getByRole("button", { name: /^save$/i }));
 
-    await waitFor(() => expect(saves).toHaveLength(1));
-    expect(saves[0].views.map((view) => [view.slug, view.name, view.is_default])).toEqual([
-      ["table", "Everything", true],
-      ["board", "Board", false],
-      ["calendar", "Calendar", false],
-      ["incomplete", "Incomplete", false],
-    ]);
+    await waitFor(() => expect(sent).toEqual([{ opensOn: "board" }]));
   });
 
   it("asks before leaving with changes, and leaves at once without", async () => {
@@ -296,10 +272,14 @@ describe("LayoutEditor", () => {
       await user.click(within(picker).getByRole("button", { name: "Group" }));
       await user.click(screen.getByRole("button", { name: /^save$/i }));
 
-      await waitFor(() => expect(saves).toHaveLength(1));
-      const card = saves[0].views.find((view) => view.slug === "board")?.definition.card;
+      await waitFor(() => expect(sent).toHaveLength(1));
+      const card = saved("board")?.card;
       // The row holding Priority starts with the group, Priority after it.
-      expect((card?.children?.[1] as LayoutNode | undefined)?.children?.slice(0, 2)).toEqual([
+      expect(
+        (
+          (card as LayoutNode | undefined)?.children?.[1] as LayoutNode | undefined
+        )?.children?.slice(0, 2)
+      ).toEqual([
         { type: "stack", props: { align: "start" }, children: [] },
         { type: "field", props: { field: "priority" } },
       ]);
@@ -315,8 +295,8 @@ describe("LayoutEditor", () => {
       await user.click(within(picker).getByRole("button", { name: "Effort" }));
       await user.click(screen.getByRole("button", { name: /^save$/i }));
 
-      await waitFor(() => expect(saves).toHaveLength(1));
-      expect(saves[0].views.find((view) => view.slug === "table")?.definition.columns).toEqual([
+      await waitFor(() => expect(sent).toHaveLength(1));
+      expect(saved("table")?.columns).toEqual([
         "title",
         "startDate",
         "dueDate",
@@ -391,9 +371,11 @@ describe("LayoutEditor", () => {
       under(empty, () => firePointer("pointerUp", window, 1));
       await user.click(screen.getByRole("button", { name: /^save$/i }));
 
-      await waitFor(() => expect(saves).toHaveLength(1));
-      const card = saves[0].views.find((view) => view.slug === "board")?.definition.card;
-      expect((card?.children?.[1] as LayoutNode | undefined)?.children?.[0]).toEqual({
+      await waitFor(() => expect(sent).toHaveLength(1));
+      const card = saved("board")?.card;
+      expect(
+        ((card as LayoutNode | undefined)?.children?.[1] as LayoutNode | undefined)?.children?.[0]
+      ).toEqual({
         type: "stack",
         props: { align: "start" },
         children: [{ type: "field", props: { field: "priority" } }],
@@ -422,122 +404,22 @@ describe("LayoutEditor", () => {
       }
       await user.click(screen.getByRole("button", { name: /^save$/i }));
 
-      await waitFor(() => expect(saves).toHaveLength(1));
-      const card = saves[0].views.find((view) => view.slug === "board")?.definition.card;
-      expect((card?.children?.[0] as LayoutNode | undefined)?.children?.slice(0, 2)).toEqual([
+      await waitFor(() => expect(sent).toHaveLength(1));
+      const card = saved("board")?.card;
+      expect(
+        (
+          (card as LayoutNode | undefined)?.children?.[0] as LayoutNode | undefined
+        )?.children?.slice(0, 2)
+      ).toEqual([
         { type: "field", props: { field: "priority" } },
         { type: "field", props: { field: "title" } },
       ]);
     });
   });
 
-  describe("the set of views", () => {
-    const viewPicker = () => screen.getByRole("combobox", { name: /view being edited/i });
-
-    it("adds a view, and keeps it open once the server names it", async () => {
-      const { user } = editor("board");
-      await outline();
-
-      await user.click(screen.getByRole("button", { name: /add a view/i }));
-      expect(viewPicker()).toHaveTextContent("New view");
-      const name = screen.getByLabelText(/^name$/i);
-      await user.clear(name);
-      await user.type(name, "Sprint{Enter}");
-      await user.click(screen.getByRole("button", { name: /^save$/i }));
-
-      await waitFor(() => expect(saves).toHaveLength(1));
-      expect(saves[0].views.at(-1)).toEqual({
-        name: "Sprint",
-        is_default: false,
-        definition: { layout: { type: "board" } },
-      });
-      expect(await screen.findByRole("button", { name: /^save$/i })).toBeDisabled();
-      expect(viewPicker()).toHaveTextContent("Sprint");
-    });
-
-    it("deletes the default view and passes the default on", async () => {
-      const { user } = editor("table");
-      await outline();
-
-      await user.click(screen.getByRole("button", { name: /more for this view/i }));
-      await user.click(await screen.findByRole("menuitem", { name: /delete/i }));
-      expect(viewPicker()).toHaveTextContent("Board");
-      await user.click(screen.getByRole("button", { name: /^save$/i }));
-
-      await waitFor(() => expect(saves).toHaveLength(1));
-      expect(saves[0].views.map((view) => [view.slug, view.is_default])).toEqual([
-        ["board", true],
-        ["calendar", false],
-        ["incomplete", false],
-        ["unassigned", false],
-        ["mine", false],
-      ]);
-    });
-
-    it("names a copy of a long-named view within the limit", async () => {
-      const long = "Q".repeat(100);
-      const { user } = editor(
-        "long",
-        vi.fn(),
-        buildToolViewSet({
-          views: [buildToolView({ slug: "long", name: long, is_default: true })],
-        })
-      );
-      await outline();
-
-      await user.click(screen.getByRole("button", { name: /more for this view/i }));
-      await user.click(await screen.findByRole("menuitem", { name: /duplicate/i }));
-      await user.click(screen.getByRole("button", { name: /^save$/i }));
-
-      await waitFor(() => expect(saves).toHaveLength(1));
-      const copy = saves[0].views.at(-1)?.name ?? "";
-      expect(copy).toMatch(/^Q+… copy$/);
-      expect(copy.length).toBe(100);
-    });
-
-    it("keeps open the view opened while a save was under way", async () => {
-      let answer = () => {};
-      server.use(
-        communityHttp.put("/views/", async ({ request }) => {
-          const body = (await request.json()) as ToolViewSetWrite;
-          saves.push(body);
-          await new Promise<void>((resolve) => {
-            answer = resolve;
-          });
-          return HttpResponse.json(buildSavedViewSet(body));
-        })
-      );
-      const { user } = editor("board");
-      await outline();
-
-      await user.click(screen.getByRole("button", { name: /add a view/i }));
-      await user.click(screen.getByRole("button", { name: /^save$/i }));
-      await screen.findByRole("button", { name: /saving/i });
-      await user.click(viewPicker());
-      await user.click(await screen.findByRole("option", { name: "Table" }));
-      answer();
-
-      expect(await screen.findByRole("button", { name: /^save$/i })).toBeDisabled();
-      expect(viewPicker()).toHaveTextContent("Table");
-    });
-
-    it("stores the filters a view is fixed to", async () => {
-      const { user } = editor("board");
-      await outline();
-
-      await user.click(screen.getByRole("switch", { name: /show archived/i }));
-      await user.click(screen.getByRole("button", { name: /^save$/i }));
-
-      await waitFor(() => expect(saves).toHaveLength(1));
-      expect(
-        saves[0].views.find((view) => view.slug === "board")?.definition.filters
-      ).toMatchObject({ include_archived: true });
-    });
-  });
-
-  describe("the task page", () => {
-    it("moves a field taken off it to More fields, and stores the page whole", async () => {
-      const { user } = editor(TASK_PAGE);
+  describe("the task's detail", () => {
+    it("moves a field taken off it to More fields, and stores the layout whole", async () => {
+      const { user } = editor("task");
       expect(await within(await canvas()).findByDisplayValue("Draw the map")).toBeInTheDocument();
 
       await user.click(
@@ -546,15 +428,13 @@ describe("LayoutEditor", () => {
 
       expect(within(await outline()).getByText("More fields")).toBeInTheDocument();
       await user.click(screen.getByRole("button", { name: /^save$/i }));
-      await waitFor(() => expect(saves).toHaveLength(1));
-      const [layout] = saves[0].item_layouts ?? [];
-      expect(layout?.item_kind).toBe("task");
-      expect(JSON.stringify(layout?.definition.side)).not.toContain('"tags"');
-      expect(JSON.stringify(layout?.definition)).not.toContain('"order"');
+      await waitFor(() => expect(sent).toHaveLength(1));
+      expect(JSON.stringify(saved("task")?.side)).not.toContain('"tags"');
+      expect(JSON.stringify(saved("task"))).not.toContain('"order"');
     });
 
     it("adds a section where it was asked for, titled as typed", async () => {
-      const { user } = editor(TASK_PAGE);
+      const { user } = editor("task");
 
       await user.click(
         await within(await outline()).findByRole("button", { name: "Side", pressed: false })
@@ -564,30 +444,33 @@ describe("LayoutEditor", () => {
       await user.type(screen.getByLabelText(/^title$/i), "Planning{Enter}");
       await user.click(screen.getByRole("button", { name: /^save$/i }));
 
-      await waitFor(() => expect(saves).toHaveLength(1));
-      expect(saves[0].item_layouts?.[0]?.definition.side?.at(-1)).toEqual({
+      await waitFor(() => expect(sent).toHaveLength(1));
+      expect((saved("task")?.side as LayoutNode[] | undefined)?.at(-1)).toEqual({
         type: "section",
         props: { title: "Planning" },
         children: [],
       });
     });
 
-    it("goes back to the shipped page", async () => {
+    it("goes back to the shipped layout", async () => {
       const { user } = editor(
-        TASK_PAGE,
+        "task",
         vi.fn(),
-        buildToolViewSet({
-          item_layouts: [
-            { id: 1, item_kind: "task", definition: { main: [{ type: "comments" }] } },
+        buildToolLayoutSet({
+          layouts: [
+            {
+              kind: "task",
+              definition: { main: [{ type: "comments" }] },
+              updated_at: "2026-10-01T12:00:00.000Z",
+            },
           ],
         })
       );
 
-      await user.click(await screen.findByRole("button", { name: /use the shipped page/i }));
+      await user.click(await screen.findByRole("button", { name: /use the shipped layout/i }));
       await user.click(screen.getByRole("button", { name: /^save$/i }));
 
-      await waitFor(() => expect(saves).toHaveLength(1));
-      expect(saves[0].item_layouts).toEqual([]);
+      await waitFor(() => expect(sent).toEqual([{ reset: "task" }]));
     });
   });
 });

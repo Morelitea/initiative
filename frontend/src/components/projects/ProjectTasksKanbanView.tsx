@@ -27,11 +27,11 @@ import { MentionText } from "@/components/user/MentionText";
 import { MentionedPeopleScope, ReportMentionedPeople } from "@/hooks/useMentionedPeople";
 import { useProperties } from "@/hooks/useProperties";
 import { formatDateTime } from "@/lib/formatDate";
-import { cn } from "@/lib/utils";
 import { useProjectLayoutEnv } from "@/lib/layouts/fields";
 import { pluginFields, usePluginsOnItems } from "@/lib/layouts/plugins";
 import { TASK_CARD, taskFields } from "@/lib/layouts/tasks";
-import { namesField, type LayoutContext, type LayoutNode } from "@/lib/layouts/tree";
+import { type LayoutContext, type LayoutNode, namesField } from "@/lib/layouts/tree";
+import { cn } from "@/lib/utils";
 
 import { TaskAssigneeList } from "./TaskAssigneeList";
 

@@ -38,32 +38,11 @@
     "archived": "Archivadas",
     "statusCategory": "Categoría de estado"
   },
-  "views": {
-    "label": "Vista",
-    "reset": "Restablecer la vista",
-    "update": "Actualizar «{{name}}»",
-    "saveAs": "Guardar como vista",
-    "saveAsDescription": "Todos los miembros de este proyecto verán esta vista, con el diseño y los filtros que se ven ahora.",
-    "name": "Nombre de la vista",
-    "namePlaceholder": "p. ej. Trabajo bloqueado",
-    "setDefault": "Convertir en la predeterminada del proyecto",
-    "saved": "Vista guardada",
-    "unavailable": "Esa vista ya no existe en este proyecto, así que se muestra otra de sus vistas.",
-    "saveError": "No se pudieron guardar las vistas",
-    "loadError": "No se pudieron cargar las vistas de este proyecto.",
-    "heading": "Vistas",
-    "description": "Las vistas que cualquiera del proyecto puede elegir, en este orden. La predeterminada es con la que se abre el proyecto.",
-    "default": "Predeterminada",
-    "delete": "Eliminar vista",
-    "deleteNamed": "Eliminar «{{name}}»",
-    "deleteConfirm": "¿Eliminar «{{name}}»? Quien la use volverá a la predeterminada del proyecto.",
-    "moveUp": "Subir «{{name}}»",
-    "moveDown": "Bajar «{{name}}»",
-    "shipped": {
-      "incomplete": "Pendientes",
-      "unassigned": "Sin asignar",
-      "mine": "Mías"
-    }
+  "layouts": {
+    "label": "Diseño",
+    "loadError": "No se pudieron cargar los diseños de este proyecto.",
+    "heading": "Diseños",
+    "description": "Cómo este proyecto muestra sus tareas: cada diseño, cuándo cambió por última vez y en qué lista se abre. Todo el proyecto los ve; lo que cada persona filtra y ordena es suyo."
   },
   "createDialog": {
     "title": "Crear proyecto",
@@ -321,12 +300,10 @@
     "commentedOn": "comentó en",
     "loadMore": "Cargar más"
   },
-  "viewEditor": {
-    "open": "Editar vistas",
-    "openTaskPage": "Editar la página de tarea",
-    "title": "Editar vistas",
+  "layoutEditor": {
+    "open": "Editar diseños",
+    "title": "Editar diseños",
     "close": "Cerrar el editor",
-    "view": "Vista en edición",
     "previewWidth": "Ancho de la vista previa",
     "width": {
       "desktop": "Ordenador",
@@ -342,9 +319,9 @@
     "unsavedBody": "Tus cambios no se han guardado. Si sales, se descartan.",
     "leave": "Salir",
     "stay": "Seguir editando",
-    "compact": "Las vistas se editan en una pantalla más ancha. Abre esta página en una tableta o un ordenador.",
+    "compact": "Los diseños se editan en una pantalla más ancha. Abre esta página en una tableta o un ordenador.",
     "canvas": "Vista previa",
-    "calendarNote": "Una vista de calendario no tiene tarjeta ni columnas que organizar. Su nombre y si se abre primero se ajustan a la derecha.",
+    "calendarNote": "Un calendario no tiene tarjeta ni columnas que organizar. Si el proyecto se abre en él se ajusta a la derecha.",
     "outline": "Esquema",
     "card": "Tarjeta",
     "row": "Fila",
@@ -371,15 +348,7 @@
     "propertiesHelp": "Muestra cada propiedad para la que una tarea tiene un valor.",
     "pluginPartHelp": "La dibuja el plug-in con sus propios valores y acciones.",
     "fieldHelp": "Muestra este campo cuando una tarea tiene un valor para él.",
-    "viewHeading": "Vista",
-    "name": "Nombre",
-    "layout": "Diseño",
-    "default": "Abrir esta vista primero",
-    "sort": "Ordenar por",
-    "sortNone": "El orden del proyecto",
-    "direction": "Sentido",
-    "ascending": "Ascendente",
-    "descending": "Descendente",
+    "layout": "Diseño que se edita",
     "arrange": "Disposición",
     "stacked": "Uno encima de otro",
     "sideBySide": "Uno al lado de otro",
@@ -392,21 +361,16 @@
     "titleHelp": "Cada tarea muestra su título, que la abre.",
     "holdsTitle": "Contiene el título, que cada tarea muestra, así que se queda.",
     "savingBody": "Tus cambios aún se están guardando. Si sales ahora, puedes perderlos si el guardado falla.",
-    "taskPage": "Página de tarea",
     "noticePreview": "Se muestra a quien no puede cambiar la tarea, para decirle por qué.",
-    "noTasks": "Este proyecto aún no tiene tareas. Añade una para ver su página aquí.",
+    "noTasks": "Este proyecto aún no tiene tareas. Añade una para ver su detalle aquí.",
     "empty": "Vacío",
     "dropHere": "Soltar aquí",
-    "pageHelp": "Cómo se organiza la página de cada tarea de este proyecto. Un campo que no está en ningún sitio se sigue mostrando, en Más campos.",
-    "useShippedPage": "Usar la página original",
-    "shippedPage": "Esta es la página original. Cambiarla la convierte en la del proyecto.",
     "section": "Sección",
     "sectionWith": "Sección con {{name}}",
     "sectionTitle": "Título",
     "startFolded": "Empezar plegada",
     "toMoreFields": "Mover {{name}} a Más campos",
-    "toMoreFieldsHelp": "La página de cada tarea permite cambiar este campo. Si se quita de aquí, pasa a Más campos.",
-    "pageTitleHelp": "La página de cada tarea muestra su título.",
+    "toMoreFieldsHelp": "El detalle de cada tarea permite cambiar este campo. Si se quita de aquí, pasa a Más campos.",
     "parts": {
       "header": "Encabezado",
       "main": "Principal",
@@ -421,9 +385,9 @@
       "comments": "Comentarios"
     },
     "regionHelp": {
-      "header": "En la parte superior de la página, sobre las dos columnas.",
+      "header": "Arriba, sobre las dos columnas.",
       "main": "La columna ancha.",
-      "side": "La columna estrecha junto a Principal. En un teléfono la página es una sola columna; la vista previa de teléfono muestra su orden."
+      "side": "La columna estrecha junto a Principal. En un teléfono el detalle es una sola columna; la vista previa de teléfono muestra su orden."
     },
     "partHelp": {
       "comments": "Los comentarios de la tarea, y escribir uno nuevo.",
@@ -433,13 +397,18 @@
       "notice": "Le dice a quien no puede cambiar la tarea por qué.",
       "actions": "Qué más se puede hacer con la tarea: mover, duplicar, archivar, eliminar y las acciones de plug-ins."
     },
-    "addView": "Añadir una vista",
-    "viewActions": "Más para esta vista",
-    "duplicateView": "Duplicar",
-    "deleteView": "Eliminar",
-    "newView": "Vista nueva",
-    "copyOf": "Copia de {{name}}",
-    "filters": "Filtros",
-    "filtersHelp": "La vista solo muestra las tareas que coinciden con estos. Cada persona puede acotarla más con sus propios filtros."
+    "taskLayout": "Detalle de la tarea",
+    "detailHelp": "Cómo se organiza el detalle de cada tarea de este proyecto. Un campo que no está en ningún sitio se sigue mostrando, en Más campos.",
+    "useShipped": "Usar el diseño original",
+    "shipped": "Este es el diseño original. Cambiarlo lo convierte en el del proyecto.",
+    "detailTitleHelp": "El detalle de cada tarea muestra su título.",
+    "opensFirst": "Se abre primero",
+    "asShipped": "Original",
+    "saveError": "No se pudieron guardar los diseños",
+    "listHelp": {
+      "table": "Cómo se listan las tareas del proyecto en una tabla: qué columnas, en qué orden.",
+      "board": "Cómo se muestra cada tarea en el tablero: qué contiene su tarjeta.",
+      "calendar": "Las tareas del proyecto en un calendario, según sus fechas."
+    }
   }
 }

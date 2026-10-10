@@ -1,130 +1,142 @@
 /**
- * A project's views — the shared, named, ordered ways its tasks are shown, each
- * a layout with fixed filters — as opposed to the filters one person keeps on
- * top of a view, which {@link useProjectTaskView} remembers.
+ * How an instance of a tool lists what it holds, and shows one of them: its
+ * layouts. A project has a table, a board and a calendar, and a task's detail;
+ * each is drawn as shipped until it is changed, and is changed on its own. How
+ * a person narrows a list, and sorts it, is theirs (their view, kept by
+ * {@link useProjectTaskView}), not the layout's.
  *
  * The set carries `can_configure`, computed server-side (the project's owner,
  * the initiative's managers, a community admin). Permission is never derived
  * client-side, and this is the one request that answers it for the tasks page
- * and the settings tab alike.
+ * and the settings alike.
  */
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
-  type GetViewsParams,
   type DetailLayoutDefinitionInput,
+  type DetailLayoutRead,
+  type DetailLayoutWrite,
+  type GetLayoutsParams,
+  type ListLayoutRead,
+  type ListLayoutReadKind,
+  type ListLayoutWrite,
   Tool,
-  type ToolViewSetRead,
-  type ToolViewSetWrite,
-  type ToolViewWrite,
+  type ToolLayoutSetRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
-  getGetInitiativeViewsQueryKey,
-  getGetViewsQueryKey,
-  getInitiativeViews,
-  getViews,
-  putViews,
-} from "@/api/generated/views/views";
+  getGetInitiativeLayoutsQueryKey,
+  getGetLayoutsQueryKey,
+  getInitiativeLayouts,
+  getLayouts,
+  putDefaultLayout,
+  putLayout,
+  resetLayout,
+} from "@/api/generated/layouts/layouts";
 import { invalidate, q } from "@/api/query-keys";
 import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
-import { useOptimisticMutation } from "@/hooks/useApiMutation";
+import { useCommunityMutation } from "@/hooks/useApiMutation";
 import type { MutationOpts } from "@/types/mutation";
 
-const target = (projectId: number): GetViewsParams => ({ tool: Tool.project, tool_id: projectId });
-
-export const projectViewsQuery = (communityId: number, projectId: number) => ({
-  queryKey: getGetViewsQueryKey(communityId, target(projectId)),
-  queryFn: () => getViews(communityId, target(projectId)),
+/** A project's layouts, which are its own. */
+export const projectTarget = (projectId: number): GetLayoutsParams => ({
+  tool: Tool.project,
+  tool_id: projectId,
 });
 
-export const useProjectViews = (projectId: number | null) => {
+export const toolLayoutsQuery = (communityId: number, target: GetLayoutsParams) => ({
+  queryKey: getGetLayoutsQueryKey(communityId, target),
+  queryFn: () => getLayouts(communityId, target),
+});
+
+/** A target's layouts, or nothing while `target` is null. */
+export const useToolLayouts = (target: GetLayoutsParams | null) => {
   const communityId = useActiveCommunityId();
-  return useQuery<ToolViewSetRead>({
-    ...projectViewsQuery(communityId, projectId ?? 0),
-    enabled: projectId !== null && Number.isFinite(projectId),
-    // The client keeps previous data by default, which across a project switch
-    // would show the last project's views — and its `can_configure`, which
-    // gates the curation controls. Showing one project's permissions while
-    // another loads is not a stale list, it is the wrong answer.
+  return useQuery<ToolLayoutSetRead>({
+    ...toolLayoutsQuery(communityId, target ?? projectTarget(0)),
+    enabled: target !== null,
+    // The client keeps previous data by default, which across a target switch
+    // would show the last target's layouts — and its `can_configure`, which
+    // gates the editor. Showing one target's permissions while another loads
+    // is not a stale list, it is the wrong answer.
     placeholderData: undefined,
   });
 };
 
-/** Every project's views in an initiative the reader can open, for its
+export const useProjectLayouts = (projectId: number | null) =>
+  useToolLayouts(
+    projectId !== null && Number.isFinite(projectId) ? projectTarget(projectId) : null
+  );
+
+/** Every project's layouts in an initiative the reader can open, for its
  *  settings, with whether the reader may change each. */
-export const useInitiativeViews = (initiativeId: number) => {
+export const useInitiativeLayouts = (initiativeId: number) => {
   const communityId = useActiveCommunityId();
   const params = { initiative_id: initiativeId };
   return useQuery({
-    queryKey: getGetInitiativeViewsQueryKey(communityId, params),
-    queryFn: () => getInitiativeViews(communityId, params),
+    queryKey: getGetInitiativeLayoutsQueryKey(communityId, params),
+    queryFn: () => getInitiativeLayouts(communityId, params),
     // Another initiative's projects, while this one's load, would be listed
     // under this one's addresses.
     placeholderData: undefined,
   });
 };
 
-/** Replace the project's whole set. The first save stores the shipped views
- *  with the change in it, since they are what `views` was read from. */
-export const usePutProjectViews = (
-  projectId: number,
-  options?: MutationOpts<ToolViewSetRead, ToolViewSetWrite>
-) =>
-  useOptimisticMutation<ToolViewSetRead, ToolViewSetRead, ToolViewSetWrite>(
+const isList = (layout: ListLayoutRead | DetailLayoutRead): layout is ListLayoutRead =>
+  "is_default" in layout;
+
+/** The ways a target lists what it holds, in the order its tool draws them. */
+export const listLayouts = (set: Pick<ToolLayoutSetRead, "layouts"> | undefined) =>
+  (set?.layouts ?? []).filter(isList);
+
+/** The target's details, in the order its tool draws them. */
+export const detailLayouts = (set: Pick<ToolLayoutSetRead, "layouts"> | undefined) =>
+  (set?.layouts ?? []).filter((layout): layout is DetailLayoutRead => !isList(layout));
+
+/** One detail's layout as changed, or null where it is drawn as shipped. */
+export const detailLayoutOf = (
+  set: ToolLayoutSetRead | undefined,
+  kind: DetailLayoutRead["kind"]
+): DetailLayoutDefinitionInput | null => {
+  const layout = detailLayouts(set).find((each) => each.kind === kind);
+  return layout?.updated_at ? (layout.definition as DetailLayoutDefinitionInput) : null;
+};
+
+/** One change to a target's layouts: one saved, one put back as shipped, or
+ *  the list it opens on. */
+export type LayoutChange =
+  | { save: ListLayoutWrite | DetailLayoutWrite }
+  | { reset: ListLayoutReadKind | DetailLayoutRead["kind"] }
+  | { opensOn: ListLayoutReadKind };
+
+/** Make `changes`, one request each, in order, writing each answer to the
+ *  target's set as it comes. Each layout keeps its own date: nothing else is
+ *  sent, so nothing else changes. Answers with the set as the last change
+ *  left it. */
+export const useSaveLayouts = (
+  target: GetLayoutsParams,
+  options?: MutationOpts<ToolLayoutSetRead | undefined, LayoutChange[]>
+) => {
+  const queryClient = useQueryClient();
+  return useCommunityMutation<ToolLayoutSetRead | undefined, LayoutChange[]>(
     {
-      queryKey: (communityId) => getGetViewsQueryKey(communityId, target(projectId)),
-      // A view saved for the first time has no slug until the server names it,
-      // so it appears with the answer.
-      apply: (set, write) => ({
-        ...set,
-        stored: true,
-        views: write.views.flatMap(({ slug, name, is_default = false, definition }, position) =>
-          slug
-            ? [
-                {
-                  id: set.views.find((view) => view.slug === slug)?.id ?? null,
-                  slug,
-                  name,
-                  position,
-                  is_default,
-                  definition,
-                },
-              ]
-            : []
-        ),
-      }),
-      seed: (_, set) => set,
-      // The set itself is the answer; the initiative's list of sets reads anew.
-      invalidate: () => invalidate(q.initiativeViews()),
-      mutationFn: (communityId, data) => putViews(communityId, data, target(projectId)),
-      errorKey: "projects:views.saveError",
+      mutationFn: async (communityId, changes) => {
+        let set: ToolLayoutSetRead | undefined;
+        for (const change of changes) {
+          set =
+            "save" in change
+              ? await putLayout(communityId, change.save, target)
+              : "reset" in change
+                ? await resetLayout(communityId, change.reset, target)
+                : await putDefaultLayout(communityId, { kind: change.opensOn }, target);
+          queryClient.setQueryData(getGetLayoutsQueryKey(communityId, target), set);
+        }
+        return set;
+      },
+      // The set is each answer; the initiative's list of layouts reads anew.
+      invalidate: () => invalidate(q.initiativeLayouts()),
+      errorKey: "projects:layoutEditor.saveError",
     },
     options
   );
-
-/** The project's task page layout, or null where it draws the shipped page. */
-export const taskPageOf = (set: ToolViewSetRead | undefined): DetailLayoutDefinitionInput | null =>
-  (set?.item_layouts.find((layout) => layout.item_kind === "task")?.definition as
-    | DetailLayoutDefinitionInput
-    | undefined) ?? null;
-
-/** `set` to save with its views replaced by `views`, in order, and its task
- *  page by `taskPage` where given (null: the shipped page). */
-export const viewSetWrite = (
-  set: ToolViewSetRead,
-  views: ToolViewWrite[],
-  taskPage: DetailLayoutDefinitionInput | null = taskPageOf(set)
-): ToolViewSetWrite => ({
-  views,
-  item_layouts: taskPage ? [{ item_kind: "task", definition: taskPage }] : [],
-});
-
-/** `set`'s views as a save takes them, to change and pass to {@link viewSetWrite}. */
-export const viewWrites = (set: ToolViewSetRead): ToolViewWrite[] =>
-  set.views.map(({ name, slug, is_default, definition }) => ({
-    name,
-    slug,
-    is_default,
-    definition,
-  }));
+};

@@ -334,7 +334,7 @@ async def test_views_become_layouts_and_come_back(session) -> None:
     }
     task = {"main": [{"type": "comments"}]}
     await session.run_sync(run(layouts._apply_downgrade))
-    await view(drawn, 0, "table", definition={**_TABLE, "opens": "page"})
+    await view(drawn, 0, "table", definition={**_TABLE, "columns": ["title"]})
     await view(drawn, 1, "board", definition={**_BOARD, "card": card}, is_default=True)
     await view(drawn, 2, "calendar", definition=_CALENDAR)
     await view(drawn, 3, "mine", definition=_MINE)
@@ -353,7 +353,7 @@ async def test_views_become_layouts_and_come_back(session) -> None:
     assert [tuple(row) for row in rows] == [
         (drawn, "board", {"card": card}),
         (drawn, "default", {"kind": "board"}),
-        (drawn, "table", {"opens": "full"}),
+        (drawn, "table", {"columns": ["title"]}),
         (drawn, "task", task),
     ]
 
@@ -366,7 +366,7 @@ async def test_views_become_layouts_and_come_back(session) -> None:
         )
     ).all()
     assert [tuple(row) for row in back] == [
-        ("table", False, {**_TABLE, "opens": "page"}, None),
+        ("table", False, {**_TABLE, "columns": ["title"]}, None),
         ("board", True, {**_BOARD, "card": card}, None),
         ("calendar", False, _CALENDAR, None),
         ("incomplete", False, _INCOMPLETE, None),

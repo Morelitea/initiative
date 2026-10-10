@@ -1,26 +1,34 @@
 /**
- * The view editor's changes, kept apart from what is saved: a tree (a card or
- * an item's page) edited by path, and the draft with every change since it was
+ * The layout editor's changes, kept apart from what is saved: a tree (a card or
+ * a detail) edited by path, and the draft with every change since it was
  * opened, to undo and redo.
  */
 
-import type { CardPartInput, ViewDefinitionInput } from "@/api/generated/initiativeAPI.schemas";
+import type {
+  CardPartInput,
+  ListLayoutDefinitionInput,
+  ListLayoutReadKind,
+} from "@/api/generated/initiativeAPI.schemas";
 
 import type { FieldDef } from "./fields";
 import { TASK_CARD, TASK_COLUMNS } from "./tasks";
 import type { LayoutNode } from "./tree";
 
-/** A view's card: its own, or the shipped one. */
-export const cardOf = (definition: ViewDefinitionInput): LayoutNode =>
+/** A list layout as the editor changes it: which list it is, and how it draws
+ *  what it lists. */
+export type ListLayout = { kind: ListLayoutReadKind; definition: ListLayoutDefinitionInput };
+
+/** A board's card: its own, or the shipped one. */
+export const cardOf = (definition: ListLayoutDefinitionInput): LayoutNode =>
   (definition.card as LayoutNode | null | undefined) ?? TASK_CARD;
 
-export const withCard = (definition: ViewDefinitionInput, card: LayoutNode): ViewDefinitionInput => ({
-  ...definition,
-  card: card as CardPartInput,
-});
+export const withCard = (
+  definition: ListLayoutDefinitionInput,
+  card: LayoutNode
+): ListLayoutDefinitionInput => ({ ...definition, card: card as CardPartInput });
 
-/** A view's table columns, as field ids in order: its own, or the shipped ones. */
-export const columnsOf = (definition: ViewDefinitionInput): string[] =>
+/** A table's columns, as field ids in order: its own, or the shipped ones. */
+export const columnsOf = (definition: ListLayoutDefinitionInput): string[] =>
   definition.columns ?? TASK_COLUMNS;
 
 /** Where a node is in a tree: the child it is at each level below the root. */
@@ -83,7 +91,10 @@ export const moveNode = (root: LayoutNode, from: NodePath, to: NodePath): Layout
   );
 };
 
-const nodesIn = (node: LayoutNode): LayoutNode[] => [node, ...(node.children ?? []).flatMap(nodesIn)];
+const nodesIn = (node: LayoutNode): LayoutNode[] => [
+  node,
+  ...(node.children ?? []).flatMap(nodesIn),
+];
 
 /** Whether a part can be taken off the card: not one that is, or holds, a
  *  field every card shows (its title, which opens the task). */
@@ -95,15 +106,15 @@ export const removable = (node: LayoutNode, fields: ReadonlyMap<string, FieldDef
 /** The built-in fields a table draws as a column. */
 const TABLE_BUILTINS = new Set(TASK_COLUMNS);
 
-/** The fields a view can still add: a card's not on it (and no property alone
- *  where it shows them all), a table's not among its columns and drawn as
- *  one. */
+/** The fields a list layout can still add: a card's not on it (and no
+ *  property alone where it shows them all), a table's not among its columns
+ *  and drawn as one. */
 export const addableFields = (
-  definition: ViewDefinitionInput,
+  { kind, definition }: ListLayout,
   fields: ReadonlyMap<string, FieldDef>
 ): FieldDef[] => {
   const all = [...fields.values()];
-  if (definition.layout.type === "board") {
+  if (kind === "board") {
     const card = cardOf(definition);
     const named = namedFields(card);
     const showsProperties = holdsPart(card, "properties");
@@ -111,7 +122,7 @@ export const addableFields = (
       (field) => !named.has(field.id) && !(showsProperties && field.source === "property")
     );
   }
-  if (definition.layout.type === "table") {
+  if (kind === "table") {
     const columns = new Set(columnsOf(definition));
     return all.filter(
       (field) =>
@@ -121,14 +132,14 @@ export const addableFields = (
   return [];
 };
 
-/** What the editor has selected: the view (or page) itself, a part of its
- *  tree by path, or one of its table's columns by field. */
+/** What the editor has selected: the layout itself, a part of its tree by
+ *  path, or one of its table's columns by field. */
 export type Selection =
-  | { kind: "view" }
+  | { kind: "layout" }
   | { kind: "part"; path: NodePath }
   | { kind: "column"; field: string };
 
-export const LAYOUT_SELECTED: Selection = { kind: "view" };
+export const LAYOUT_SELECTED: Selection = { kind: "layout" };
 
 export const sameSelection = (a: Selection, b: Selection): boolean =>
   a.kind === b.kind &&
@@ -194,11 +205,8 @@ export const dropInto = (root: LayoutNode, from: NodePath, holder: NodePath): No
 /** The parts that hold others, where a part can be added or dropped. */
 export const HOLDERS = new Set(["card", "stack", "section", "header", "main", "side"]);
 
-/** How long a view's name or a section's title may be, as the server allows. */
-export const MAX_NAME_LENGTH = 100;
-
-/** How many views a project may have, as the server allows. */
-export const MAX_VIEWS = 40;
+/** How long a section's title may be, as the server allows. */
+export const MAX_TITLE_LENGTH = 100;
 
 /** How many parts of one install a tree may place, as the server allows. */
 export const MAX_PLUGIN_PARTS = 3;

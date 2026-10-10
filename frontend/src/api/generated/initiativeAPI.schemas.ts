@@ -5989,15 +5989,6 @@ export const TaskColumnFieldId = {
   tags: "tags",
 } as const;
 
-export type ListLayoutDefinitionOutputOpens =
-  | (typeof ListLayoutDefinitionOutputOpens)[keyof typeof ListLayoutDefinitionOutputOpens]
-  | null;
-
-export const ListLayoutDefinitionOutputOpens = {
-  panel: "panel",
-  full: "full",
-} as const;
-
 /**
  * How a list draws its items. What it leaves out is drawn as shipped: a
  * board with no ``card`` draws the shipped card, a table with no ``columns``
@@ -6006,7 +5997,6 @@ export const ListLayoutDefinitionOutputOpens = {
 export interface ListLayoutDefinitionOutput {
   card?: CardPartOutput | null;
   columns?: (TaskColumnFieldId | string)[] | null;
-  opens?: ListLayoutDefinitionOutputOpens;
 }
 
 /**
@@ -6200,15 +6190,6 @@ export interface LegalIndexRead {
   required: string[];
 }
 
-export type ListLayoutDefinitionInputOpens =
-  | (typeof ListLayoutDefinitionInputOpens)[keyof typeof ListLayoutDefinitionInputOpens]
-  | null;
-
-export const ListLayoutDefinitionInputOpens = {
-  panel: "panel",
-  full: "full",
-} as const;
-
 /**
  * How a list draws its items. What it leaves out is drawn as shipped: a
  * board with no ``card`` draws the shipped card, a table with no ``columns``
@@ -6217,7 +6198,6 @@ export const ListLayoutDefinitionInputOpens = {
 export interface ListLayoutDefinitionInput {
   card?: CardPartInput | null;
   columns?: (TaskColumnFieldId | string)[] | null;
-  opens?: ListLayoutDefinitionInputOpens;
 }
 
 export type ListLayoutWriteKind = (typeof ListLayoutWriteKind)[keyof typeof ListLayoutWriteKind];

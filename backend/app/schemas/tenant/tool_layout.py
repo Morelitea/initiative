@@ -289,8 +289,6 @@ class ListLayoutDefinition(_Strict):
 
     card: Optional[CardPart] = None
     columns: Optional[List[ColumnFieldId]] = None
-    #: How an item opens: in a side panel, or full size on its own.
-    opens: Optional[Literal["panel", "full"]] = None
 
 
 class DetailLayoutDefinition(_Strict):

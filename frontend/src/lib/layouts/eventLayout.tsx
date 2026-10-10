@@ -67,14 +67,14 @@ import { eventRoute } from "@/lib/tools";
 import { getUserDisplayName } from "@/lib/userDisplay";
 import type { TranslateFn } from "@/types/i18n";
 
+import type { StoredRegions } from "./detailLayout";
 import { FieldFrame, useFieldDraft } from "./editing";
 import { EVENT_LAYOUT } from "./events";
 import { DescriptionField, PropertiesField, TagsField, TitleField } from "./fieldEditors";
 import { useProjectLayoutEnv } from "./fields";
-import type { StoredRegions } from "./detailLayout";
-import { LAYOUT_PARTS, type Parts, renderNode, type LayoutContext } from "./tree";
+import { LAYOUT_PARTS, type LayoutContext, type Parts, renderNode } from "./tree";
 
-/** What an event's page shares with its parts, beside the event itself. */
+/** What an event's detail shares with its parts, beside the event itself. */
 export interface EventLayoutContext {
   /** The server says the reader cannot change the event: they see it, and
    *  nothing to change it with. */
@@ -93,18 +93,18 @@ export interface EventLayoutContext {
   onMoved: (moved: CalendarEventRead) => void;
   /** Takes the page to the date it shows, moved with every date of its series. */
   onShifted: (start: string) => void;
-  /** Set when the page is left on purpose, so an open draft does not hold it. */
+  /** Set when the detail is left on purpose, so an open draft does not hold it. */
   leaving: RefObject<boolean>;
   /** Reporting it, and the menu of what else can be done with it. */
   actions: ReactNode;
 }
 
-const PageContext = createContext<EventLayoutContext | null>(null);
+const DetailContext = createContext<EventLayoutContext | null>(null);
 
 const useEventLayout = (): EventLayoutContext => {
-  const page = useContext(PageContext);
-  if (!page) throw new Error("An event page part is drawn outside its page");
-  return page;
+  const context = useContext(DetailContext);
+  if (!context) throw new Error("An event detail part is drawn outside its detail");
+  return context;
 };
 
 type EditorProps = { event: CalendarEventRead; label: string };
@@ -163,7 +163,7 @@ const formatRange = (start: string, end: string, allDay: boolean): string => {
     : `${formatDay(start, false)}, ${formatTime(start)} - ${formatDay(end, false)}, ${formatTime(end)}`;
 };
 
-/** The event's title, which is the page's heading. */
+/** The event's title, which is the detail's heading. */
 const TitleEditor = ({ event, label }: EditorProps) => {
   const { t } = useTranslation("calendars");
   const { readOnly } = useEventLayout();
@@ -182,19 +182,19 @@ const TitleEditor = ({ event, label }: EditorProps) => {
 /** The description, as a task's is ({@link DescriptionField}). */
 const DescriptionEditor = ({ event, label }: EditorProps) => {
   const { t } = useTranslation("calendars");
-  const page = useEventLayout();
+  const context = useEventLayout();
   return (
     <DescriptionField
-      kind={eventSaves(page.occurrence)}
+      kind={eventSaves(context.occurrence)}
       id={event.id}
-      options={eventSaveOptions(event, page)}
+      options={eventSaveOptions(event, context)}
       label={label}
       htmlId="event-description"
       value={event.description}
-      readOnly={page.readOnly}
-      initiativeId={page.initiativeId}
+      readOnly={context.readOnly}
+      initiativeId={context.initiativeId}
       subject={referenceRef(SearchEntityType.calendar_event, event.id)}
-      leaving={page.leaving}
+      leaving={context.leaving}
       placeholder={t("descriptionPlaceholder")}
     />
   );
@@ -630,7 +630,7 @@ const FIELD_LABELS = {
   tags: "common:toolSettings.tags",
 } as const;
 
-/** Each field's editor on the event's page, by its id. */
+/** Each field's editor on the event's detail, by its id. */
 const FIELD_EDITORS: Record<keyof typeof FIELD_LABELS, (props: EditorProps) => ReactNode> = {
   title: TitleEditor,
   description: DescriptionEditor,
@@ -660,7 +660,7 @@ const Relations = ({ event }: { event: CalendarEventRead }) => (
   />
 );
 
-/** The parts an event's page is drawn from. */
+/** The parts an event's detail is drawn from. */
 const EVENT_PAGE_PARTS: Parts<CalendarEventRead> = {
   ...LAYOUT_PARTS,
   field: (node, event) => <EventField id={String(node.props?.field)} event={event} />,
@@ -671,17 +671,17 @@ const EVENT_PAGE_PARTS: Parts<CalendarEventRead> = {
   actions: () => <Actions />,
 };
 
-// An event's page draws no task, so nothing asks it for a task's address.
+// An event's detail draws no task, so nothing asks it for a task's address.
 const NO_TASK = () => "";
 
-/** An event's page, drawn from its initiative's layout, or as shipped. */
+/** An event's detail, drawn from its initiative's layout, or as shipped. */
 export const EventLayoutView = ({
   event,
-  page,
+  context,
   layout,
 }: {
   event: CalendarEventRead;
-  page: EventLayoutContext;
+  context: EventLayoutContext;
   layout?: StoredRegions | null;
 }) => {
   const { t } = useTranslation("calendars");
@@ -690,9 +690,9 @@ export const EventLayoutView = ({
   const view = useMemo<LayoutContext>(() => ({ fields: new Map(), variant: "detail", env }), [env]);
   const tree = useMemo(() => EVENT_LAYOUT.tree(layout, t("eventPage.moreFields")), [layout, t]);
   return (
-    // Another event's page starts afresh, with none of this one's drafts.
-    <PageContext.Provider key={`${communityId}:${event.id}`} value={page}>
+    // Another event's detail starts afresh, with none of this one's drafts.
+    <DetailContext.Provider key={`${communityId}:${event.id}`} value={context}>
       {renderNode(tree, event, view, EVENT_PAGE_PARTS)}
-    </PageContext.Provider>
+    </DetailContext.Provider>
   );
 };

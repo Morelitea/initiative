@@ -494,14 +494,14 @@ const wikiPages = (wikiId: number): Spec => ({
 /** One page's own read. */
 const wikiPage = (pageId: number): Spec => ({ communityExact: [`/api/v1/wiki-pages/${pageId}`] });
 
-// ── Views (community) ────────────────────────────────────────────────────────
+// ── Layouts (community) ──────────────────────────────────────────────────────
 
-/** An initiative's list of its tools' views, for its settings. */
-const initiativeViews = (): Spec => ({ communityExact: ["/api/v1/views/initiative"] });
+/** An initiative's list of its tools' layouts, for its settings. */
+const initiativeLayouts = (): Spec => ({ communityExact: ["/api/v1/layouts/initiative"] });
 
-/** Every set of views (one path serves them all, its target in the params),
+/** Every set of layouts (one path serves them all, its target in the params),
  *  and the initiatives' lists of them. */
-const views = (): Spec => compose({ communityExact: ["/api/v1/views/"] }, initiativeViews());
+const layouts = (): Spec => compose({ communityExact: ["/api/v1/layouts/"] }, initiativeLayouts());
 
 // ── Version (personal) ───────────────────────────────────────────────────────
 
@@ -532,8 +532,8 @@ const toolLists = (which: Tool): Spec => {
     communityPrefix: [`/api/v1/tools/${which}/counts`],
   });
   if (which === Tool.calendar) return compose(lists, allCalendarEvents());
-  // An initiative's list of views names its projects, by name.
-  if (which === Tool.project) return compose(lists, initiativeViews());
+  // An initiative's list of layouts names its projects, by name.
+  if (which === Tool.project) return compose(lists, initiativeLayouts());
   return lists;
 };
 
@@ -696,8 +696,8 @@ export const q = {
   toolSubtree,
   userStats,
   version,
-  initiativeViews,
-  views,
+  initiativeLayouts,
+  layouts,
   wiki,
   wikiPage,
   wikiPages,

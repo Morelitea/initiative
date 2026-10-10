@@ -1,16 +1,8 @@
 import { type ReactNode, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import {
-  TaskSortFieldId,
-  type TaskStatusRead,
-  Tool,
-  type ToolViewWrite,
-  type ViewLayoutType,
-  type ViewSortDirection,
-} from "@/api/generated/initiativeAPI.schemas";
-import { ProjectTasksFilters } from "@/components/projects/ProjectTasksFilters";
-import { viewLayouts } from "@/components/projects/projectTasksConfig";
+import type { TaskStatusRead } from "@/api/generated/initiativeAPI.schemas";
+import { listLayoutLooks } from "@/components/projects/projectTasksConfig";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,78 +14,117 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { specFromApi, specToApi, taskFilterCount } from "@/lib/filters/taskFilters";
+import { LAYOUT_REGIONS } from "@/lib/layouts/detailLayout";
 import {
   cardOf,
-  MAX_NAME_LENGTH,
+  type ListLayout,
+  MAX_TITLE_LENGTH,
   type NodePath,
   nodeAt,
   removable,
   type Selection,
 } from "@/lib/layouts/draft";
 import { type FieldDef, LAYOUT_NAMESPACES } from "@/lib/layouts/fields";
-import { LAYOUT_REGIONS } from "@/lib/layouts/detailLayout";
 import { TASK_LAYOUT } from "@/lib/layouts/tasks";
 import type { LayoutNode } from "@/lib/layouts/tree";
 import type { TranslateFn } from "@/types/i18n";
 
 import type { LayoutEdits } from "./LayoutEditor";
 
-const NO_SORT = "none";
-
 /**
- * The settings of the one thing selected, and only those: the view's own
- * (its name, layout, default and order) on the view, a group's arrangement on
- * a group, and a way to take a part off the card or a column out of the
- * table, where it may go.
+ * The settings of the one thing selected, and only those: the list layout's
+ * own (whether the project opens on it, and putting it back as shipped) on the
+ * layout, a group's arrangement on a group, and a way to take a part off the
+ * card or a column out of the table, where it may go.
  */
 export const ListLayoutSettings = ({
-  view,
-  project,
-  fields,
-  selection,
-  edits,
-  locked,
-}: {
-  view: ToolViewWrite;
-  project: LayoutProject;
-  fields: ReadonlyMap<string, FieldDef>;
-  selection: Selection;
-  edits: LayoutEdits;
-  /** A save is under way, and nothing changes until it answers. */
-  locked: boolean;
-}) => (
-  // Disabled as one, so a save under way leaves every control as it was.
-  <fieldset disabled={locked} className="min-w-0">
-    {selection.kind === "view" ? (
-      <ViewSettings view={view} project={project} fields={fields} edits={edits} />
-    ) : selection.kind === "column" ? (
-      <ColumnSettings field={selection.field} fields={fields} edits={edits} />
-    ) : (
-      <PartSettings
-        tree={cardOf(view.definition)}
-        path={selection.path}
-        fields={fields}
-        edits={edits}
-        onPage={false}
-      />
-    )}
-  </fieldset>
-);
-
-/** The settings of what is selected on a task's page: the page's own, or a
- *  part's. */
-export const DetailLayoutSettings = ({
-  page,
+  layout,
+  opensFirst,
   stored,
   fields,
   selection,
   edits,
   locked,
 }: {
-  /** The page as one tree: the page, holding its header, main and side. */
-  page: LayoutNode;
-  /** Whether the project lays out its own page, as against the shipped one. */
+  layout: ListLayout;
+  /** Whether the project opens on it. */
+  opensFirst: boolean;
+  /** Whether the project changed it, as against drawing it as shipped. */
+  stored: boolean;
+  fields: ReadonlyMap<string, FieldDef>;
+  selection: Selection;
+  edits: LayoutEdits;
+  /** A save is under way, and nothing changes until it answers. */
+  locked: boolean;
+}) => {
+  const { t } = useTranslation(LAYOUT_NAMESPACES);
+  const translate = t as TranslateFn;
+  return (
+    // Disabled as one, so a save under way leaves every control as it was.
+    <fieldset disabled={locked} className="min-w-0">
+      {selection.kind === "layout" ? (
+        <Panel heading={translate(listLayoutLooks[layout.kind].labelKey)}>
+          <p className="text-muted-foreground text-sm">
+            {translate(`layoutEditor.listHelp.${layout.kind}`)}
+          </p>
+          <div className="flex items-center justify-between gap-2">
+            <Label htmlFor="layout-default">{translate("layoutEditor.opensFirst")}</Label>
+            <Switch
+              id="layout-default"
+              checked={opensFirst}
+              // The project always opens on one list: choosing another is how
+              // this one stops being it.
+              disabled={opensFirst}
+              onCheckedChange={(checked) => {
+                if (checked) edits.makeDefault();
+              }}
+            />
+          </div>
+          <Shipped stored={stored} edits={edits} />
+        </Panel>
+      ) : selection.kind === "column" ? (
+        <ColumnSettings field={selection.field} fields={fields} edits={edits} />
+      ) : (
+        <PartSettings
+          tree={cardOf(layout.definition)}
+          path={selection.path}
+          fields={fields}
+          edits={edits}
+          onDetail={false}
+        />
+      )}
+    </fieldset>
+  );
+};
+
+/** Putting the open layout back as shipped, or saying it already is. */
+const Shipped = ({ stored, edits }: { stored: boolean; edits: LayoutEdits }) => {
+  const { t } = useTranslation("projects");
+  return stored ? (
+    <Button type="button" variant="outline" size="sm" onClick={edits.resetLayout}>
+      {t("layoutEditor.useShipped")}
+    </Button>
+  ) : (
+    <p className="text-muted-foreground text-xs">{t("layoutEditor.shipped")}</p>
+  );
+};
+
+/** The project whose layouts are open: whose statuses its preview draws. */
+export type LayoutProject = { id: number; initiativeId: number; statuses: TaskStatusRead[] };
+
+/** The settings of what is selected on a task's detail: the layout's own, or
+ *  a part's. */
+export const DetailLayoutSettings = ({
+  detail,
+  stored,
+  fields,
+  selection,
+  edits,
+  locked,
+}: {
+  /** The detail as one tree: the layout, holding its header, main and side. */
+  detail: LayoutNode;
+  /** Whether the project lays out its own detail, as against the shipped one. */
   stored: boolean;
   fields: ReadonlyMap<string, FieldDef>;
   selection: Selection;
@@ -104,17 +135,11 @@ export const DetailLayoutSettings = ({
   return (
     <fieldset disabled={locked} className="min-w-0">
       {selection.kind === "part" ? (
-        <PartSettings tree={page} path={selection.path} fields={fields} edits={edits} onPage />
+        <PartSettings tree={detail} path={selection.path} fields={fields} edits={edits} onDetail />
       ) : (
-        <Panel heading={t("viewEditor.taskPage")}>
-          <p className="text-muted-foreground text-sm">{t("viewEditor.pageHelp")}</p>
-          {stored ? (
-            <Button type="button" variant="outline" size="sm" onClick={edits.resetPage}>
-              {t("viewEditor.useShippedPage")}
-            </Button>
-          ) : (
-            <p className="text-muted-foreground text-xs">{t("viewEditor.shippedPage")}</p>
-          )}
+        <Panel heading={t("layoutEditor.taskLayout")}>
+          <p className="text-muted-foreground text-sm">{t("layoutEditor.detailHelp")}</p>
+          <Shipped stored={stored} edits={edits} />
         </Panel>
       )}
     </fieldset>
@@ -133,13 +158,13 @@ const ColumnSettings = ({
   const { t } = useTranslation("projects");
   const keeps = fields.get(field)?.hideable === false;
   return (
-    <Panel heading={t("viewEditor.column")}>
+    <Panel heading={t("layoutEditor.column")}>
       <p className="text-muted-foreground text-sm">
-        {t(keeps ? "viewEditor.titleHelp" : "viewEditor.columnHelp")}
+        {t(keeps ? "layoutEditor.titleHelp" : "layoutEditor.columnHelp")}
       </p>
       {keeps ? null : (
         <Button type="button" variant="outline" size="sm" onClick={() => edits.removeColumn(field)}>
-          {t("viewEditor.remove")}
+          {t("layoutEditor.remove")}
         </Button>
       )}
     </Panel>
@@ -153,13 +178,14 @@ const PartSettings = ({
   path,
   fields,
   edits,
-  onPage,
+  onDetail,
 }: {
   tree: LayoutNode;
   path: NodePath;
   fields: ReadonlyMap<string, FieldDef>;
   edits: LayoutEdits;
-  onPage: boolean;
+  /** On a detail, as against a card. */
+  onDetail: boolean;
 }) => {
   const { t } = useTranslation(LAYOUT_NAMESPACES);
   const translate = t as TranslateFn;
@@ -167,16 +193,16 @@ const PartSettings = ({
   if (!node) return null;
   if (node.type === "card") {
     return (
-      <Panel heading={translate("viewEditor.card")}>
-        <p className="text-muted-foreground text-sm">{translate("viewEditor.cardHelp")}</p>
+      <Panel heading={translate("layoutEditor.card")}>
+        <p className="text-muted-foreground text-sm">{translate("layoutEditor.cardHelp")}</p>
       </Panel>
     );
   }
   if ((LAYOUT_REGIONS as readonly string[]).includes(node.type)) {
     return (
-      <Panel heading={translate(`viewEditor.parts.${node.type}`)}>
+      <Panel heading={translate(`layoutEditor.parts.${node.type}`)}>
         <p className="text-muted-foreground text-sm">
-          {translate(`viewEditor.regionHelp.${node.type}`)}
+          {translate(`layoutEditor.regionHelp.${node.type}`)}
         </p>
       </Panel>
     );
@@ -184,10 +210,10 @@ const PartSettings = ({
   const canRemove = removable(node, fields);
   const remove = canRemove ? (
     <Button type="button" variant="outline" size="sm" onClick={() => edits.removePart(path)}>
-      {translate("viewEditor.remove")}
+      {translate("layoutEditor.remove")}
     </Button>
   ) : (
-    <p className="text-muted-foreground text-xs">{translate("viewEditor.holdsTitle")}</p>
+    <p className="text-muted-foreground text-xs">{translate("layoutEditor.holdsTitle")}</p>
   );
   const change = (next: LayoutNode) => edits.changePart(path, next);
 
@@ -207,20 +233,20 @@ const PartSettings = ({
   }
   const help =
     node.type === "plugin"
-      ? "viewEditor.pluginPartHelp"
+      ? "layoutEditor.pluginPartHelp"
       : !canRemove
-        ? onPage
-          ? "viewEditor.pageTitleHelp"
-          : "viewEditor.titleHelp"
-        : onPage && TASK_LAYOUT.editsAField(node)
-          ? "viewEditor.toMoreFieldsHelp"
-          : onPage
-            ? `viewEditor.partHelp.${node.type}`
+        ? onDetail
+          ? "layoutEditor.detailTitleHelp"
+          : "layoutEditor.titleHelp"
+        : onDetail && TASK_LAYOUT.editsAField(node)
+          ? "layoutEditor.toMoreFieldsHelp"
+          : onDetail
+            ? `layoutEditor.partHelp.${node.type}`
             : node.type === "properties"
-              ? "viewEditor.propertiesHelp"
-              : "viewEditor.fieldHelp";
+              ? "layoutEditor.propertiesHelp"
+              : "layoutEditor.fieldHelp";
   return (
-    <Panel heading={translate("viewEditor.settings")}>
+    <Panel heading={translate("layoutEditor.settings")}>
       <p className="text-muted-foreground text-sm">{translate(help)}</p>
       {canRemove ? remove : null}
     </Panel>
@@ -233,138 +259,6 @@ const Panel = ({ heading, children }: { heading: string; children: ReactNode }) 
     {children}
   </section>
 );
-
-/** The project whose view is open: whose people, statuses and properties its
- *  filters name. */
-export type LayoutProject = { id: number; initiativeId: number; statuses: TaskStatusRead[] };
-
-const ViewSettings = ({
-  view,
-  project,
-  fields,
-  edits,
-}: {
-  view: ToolViewWrite;
-  project: LayoutProject;
-  fields: ReadonlyMap<string, FieldDef>;
-  edits: LayoutEdits;
-}) => {
-  const { t } = useTranslation(LAYOUT_NAMESPACES);
-  const translate = t as TranslateFn;
-  const { definition } = view;
-  const [sort] = definition.sort ?? [];
-
-  return (
-    <Panel heading={translate("viewEditor.viewHeading")}>
-      <div className="space-y-2">
-        <Label htmlFor="view-name">{translate("viewEditor.name")}</Label>
-        <CommittedInput id="view-name" value={view.name} onCommit={edits.rename} />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="view-layout">{translate("viewEditor.layout")}</Label>
-        <Select
-          value={definition.layout.type}
-          onValueChange={(type) =>
-            edits.setDefinition({ ...definition, layout: { type: type as ViewLayoutType } })
-          }
-        >
-          <SelectTrigger id="view-layout">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {Object.entries(viewLayouts).map(([type, layout]) => (
-              <SelectItem key={type} value={type}>
-                {translate(layout.labelKey)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="flex items-center justify-between gap-2">
-        <Label htmlFor="view-default">{translate("viewEditor.default")}</Label>
-        <Switch
-          id="view-default"
-          checked={view.is_default ?? false}
-          // The set always opens on one view: choosing another is how this
-          // one stops being it.
-          disabled={view.is_default ?? false}
-          onCheckedChange={(checked) => {
-            if (checked) edits.makeDefault();
-          }}
-        />
-      </div>
-      {definition.layout.type === "table" ? (
-        <div className="space-y-2">
-          <Label htmlFor="view-sort">{translate("viewEditor.sort")}</Label>
-          <Select
-            value={sort?.field ?? NO_SORT}
-            onValueChange={(field) =>
-              edits.setDefinition({
-                ...definition,
-                sort:
-                  field === NO_SORT
-                    ? null
-                    : [{ field: field as TaskSortFieldId, direction: sort?.direction ?? "asc" }],
-              })
-            }
-          >
-            <SelectTrigger id="view-sort">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={NO_SORT}>{translate("viewEditor.sortNone")}</SelectItem>
-              {Object.values(TaskSortFieldId).map((field) => {
-                const def = fields.get(field);
-                return (
-                  <SelectItem key={field} value={field}>
-                    {def ? translate(def.label) : field}
-                  </SelectItem>
-                );
-              })}
-            </SelectContent>
-          </Select>
-          {sort ? (
-            <Select
-              value={sort.direction ?? "asc"}
-              onValueChange={(direction) =>
-                edits.setDefinition({
-                  ...definition,
-                  sort: [{ ...sort, direction: direction as ViewSortDirection }],
-                })
-              }
-            >
-              <SelectTrigger aria-label={translate("viewEditor.direction")}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="asc">{translate("viewEditor.ascending")}</SelectItem>
-                <SelectItem value="desc">{translate("viewEditor.descending")}</SelectItem>
-              </SelectContent>
-            </Select>
-          ) : null}
-        </div>
-      ) : null}
-      <div className="space-y-2 border-t pt-4">
-        <p className="font-medium text-sm">{translate("viewEditor.filters")}</p>
-        <p className="text-muted-foreground text-xs">{translate("viewEditor.filtersHelp")}</p>
-        <ProjectTasksFilters
-          memberScope={{ type: "canOpen", tool: Tool.project, id: project.id }}
-          taskStatuses={project.statuses}
-          initiativeId={project.initiativeId}
-          value={specFromApi(definition.filters)}
-          // A view that filters nothing stores none.
-          onChange={(spec) =>
-            edits.setDefinition({
-              ...definition,
-              filters: taskFilterCount(spec) === 0 ? null : specToApi(spec),
-            })
-          }
-          stacked
-        />
-      </div>
-    </Panel>
-  );
-};
 
 /** A group's arrangement, as plain choices. Each sets one prop, and the
  *  group's default is the prop left out. */
@@ -394,9 +288,9 @@ const GroupSettings = ({
     </div>
   );
   return (
-    <Panel heading={t("viewEditor.group")}>
+    <Panel heading={t("layoutEditor.group")}>
       <div className="space-y-2">
-        <Label htmlFor="group-direction">{t("viewEditor.arrange")}</Label>
+        <Label htmlFor="group-direction">{t("layoutEditor.arrange")}</Label>
         <Select
           value={props.direction === "row" ? "row" : "column"}
           onValueChange={(direction) => set("direction", direction === "row" ? "row" : undefined)}
@@ -405,13 +299,13 @@ const GroupSettings = ({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="column">{t("viewEditor.stacked")}</SelectItem>
-            <SelectItem value="row">{t("viewEditor.sideBySide")}</SelectItem>
+            <SelectItem value="column">{t("layoutEditor.stacked")}</SelectItem>
+            <SelectItem value="row">{t("layoutEditor.sideBySide")}</SelectItem>
           </SelectContent>
         </Select>
       </div>
       <div className="space-y-2">
-        <Label htmlFor="group-gap">{t("viewEditor.spacing")}</Label>
+        <Label htmlFor="group-gap">{t("layoutEditor.spacing")}</Label>
         <Select
           value={props.gap === "sm" ? "sm" : "xs"}
           onValueChange={(gap) => set("gap", gap === "sm" ? "sm" : undefined)}
@@ -420,14 +314,14 @@ const GroupSettings = ({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="xs">{t("viewEditor.tight")}</SelectItem>
-            <SelectItem value="sm">{t("viewEditor.roomy")}</SelectItem>
+            <SelectItem value="xs">{t("layoutEditor.tight")}</SelectItem>
+            <SelectItem value="sm">{t("layoutEditor.roomy")}</SelectItem>
           </SelectContent>
         </Select>
       </div>
-      {props.direction === "row" ? flag("wrap", true, t("viewEditor.wrap")) : null}
-      {flag("align", "start", t("viewEditor.ownWidth"))}
-      {flag("tone", "muted", t("viewEditor.muted"))}
+      {props.direction === "row" ? flag("wrap", true, t("layoutEditor.wrap")) : null}
+      {flag("align", "start", t("layoutEditor.ownWidth"))}
+      {flag("tone", "muted", t("layoutEditor.muted"))}
       {children}
     </Panel>
   );
@@ -452,9 +346,9 @@ const SectionSettings = ({
     onChange({ ...node, props: value === undefined ? rest : { ...rest, [key]: value } });
   };
   return (
-    <Panel heading={t("viewEditor.section")}>
+    <Panel heading={t("layoutEditor.section")}>
       <div className="space-y-2">
-        <Label htmlFor="section-title">{t("viewEditor.sectionTitle")}</Label>
+        <Label htmlFor="section-title">{t("layoutEditor.sectionTitle")}</Label>
         <CommittedInput
           id="section-title"
           value={title}
@@ -471,7 +365,7 @@ const SectionSettings = ({
         />
       </div>
       <div className="flex items-center justify-between gap-2">
-        <Label htmlFor="section-collapsed">{t("viewEditor.startFolded")}</Label>
+        <Label htmlFor="section-collapsed">{t("layoutEditor.startFolded")}</Label>
         <Switch
           id="section-collapsed"
           checked={props.collapsed === true}
@@ -509,7 +403,7 @@ const CommittedInput = ({
     <Input
       id={id}
       value={text}
-      maxLength={MAX_NAME_LENGTH}
+      maxLength={MAX_TITLE_LENGTH}
       onChange={(event) => setText(event.target.value)}
       onBlur={commit}
       onKeyDown={(event) => {

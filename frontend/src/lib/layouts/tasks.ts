@@ -5,8 +5,8 @@ import { namePropertyColumns } from "@/components/properties/propertyColumns";
 import { isEmptyPropertyValue } from "@/components/properties/propertyHelpers";
 import { iconForPropertyType } from "@/components/properties/propertyTypeIcons";
 
-import { type FieldDef, propertyFieldId } from "./fields";
 import { at, detailLayoutSpec, type Region } from "./detailLayout";
+import { type FieldDef, propertyFieldId } from "./fields";
 import type { LayoutNode } from "./tree";
 
 const builtin = (
@@ -136,7 +136,7 @@ export const TASK_CARD: LayoutNode = {
 };
 
 /**
- * A task's page as shipped: the title, who made it and what else can be done
+ * A task's detail as shipped: the title, who made it and what else can be done
  * with it across the top; what the task is in the main column; and the fields
  * that place it beside them. On one column, the fields follow the description.
  */
@@ -173,7 +173,7 @@ const TASK_PAGE_REGIONS: Record<Region, LayoutNode[]> = {
   ],
 };
 
-/** A task's page: its status, dates and properties edit fields as a field does. */
+/** A task's detail: its status, dates and properties edit fields as a field does. */
 export const TASK_LAYOUT = detailLayoutSpec({
   shipped: TASK_PAGE_REGIONS,
   fieldParts: ["field", "status", "dates", "properties"],

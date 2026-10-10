@@ -8,15 +8,15 @@ import type { PropertyDefinitionRead, TaskListRead } from "@/api/generated/initi
 import { TASK_LAYOUT, taskFields } from "@/lib/layouts/tasks";
 
 /** The page as shipped. */
-const TASK_PAGE = TASK_LAYOUT.tree(undefined, "");
+const TASK_DETAIL = TASK_LAYOUT.tree(undefined, "");
 
 import {
   LAYOUT_PARTS,
-  type Parts,
-  renderNode,
   type LayoutContext,
   type LayoutNode,
   LayoutTree,
+  type Parts,
+  renderNode,
 } from "@/lib/layouts/tree";
 import type { TranslateFn } from "@/types/i18n";
 
@@ -125,7 +125,7 @@ describe("LayoutTree", () => {
 });
 
 describe("renderNode", () => {
-  it("draws an item's page through the parts it is given", () => {
+  it("draws a detail through the parts it is given", () => {
     // The page's regions are layout any kind of item shares; what fills them
     // is the item's own.
     const parts: Parts<string> = { ...LAYOUT_PARTS, name: (_node, item) => <p>{item}</p> };
@@ -159,7 +159,7 @@ describe("renderNode", () => {
     };
 
     const { container } = renderWithProviders(
-      <>{renderNode(TASK_PAGE, null, viewOf([], "detail"), parts)}</>
+      <>{renderNode(TASK_DETAIL, null, viewOf([], "detail"), parts)}</>
     );
 
     // Each part of a column carries where it falls on the one column.
@@ -179,7 +179,7 @@ describe("renderNode", () => {
   });
 });
 
-describe("a task page's tree", () => {
+describe("a task detail's tree", () => {
   const regions = (tree: LayoutNode) =>
     Object.fromEntries((tree.children ?? []).map((region) => [region.type, region.children]));
 
@@ -192,7 +192,7 @@ describe("a task page's tree", () => {
 
     const page = regions(TASK_LAYOUT.tree({ main: [work], side: [] }, "More fields"));
 
-    expect(page.header).toEqual(regions(TASK_PAGE).header);
+    expect(page.header).toEqual(regions(TASK_DETAIL).header);
     // Drawn where the shipped page puts what it starts with on one column.
     expect(page.main).toEqual([{ ...work, props: { ...work.props, order: 1 } }]);
     const [more] = page.side ?? [];
@@ -211,7 +211,7 @@ describe("a task page's tree", () => {
 
   it("adds no More fields where a layout places every field", () => {
     expect(
-      regions(TASK_LAYOUT.tree({ main: regions(TASK_PAGE).main }, "More fields")).side
-    ).toEqual(regions(TASK_PAGE).side);
+      regions(TASK_LAYOUT.tree({ main: regions(TASK_DETAIL).main }, "More fields")).side
+    ).toEqual(regions(TASK_DETAIL).side);
   });
 });

@@ -1,6 +1,6 @@
 /**
- * `/projects/$projectId/views` — the project's views and its task page,
- * edited in place.
+ * `/projects/$projectId/layouts` — the project's layouts (its table, board and
+ * calendar, and the task's detail), edited in place.
  *
  * Who may is the server's answer on the set (the project's owner, the
  * initiative's managers, a community admin). The editor itself says when the
@@ -8,18 +8,19 @@
  */
 
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
+import { useMemo } from "react";
 
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { LayoutEditor } from "@/components/layouts/LayoutEditor";
 import { ToolSettingsPermissionRequired } from "@/components/tools/settings/ToolSettingsGuard";
-import { TASK_PAGE, LayoutEditor } from "@/components/layouts/LayoutEditor";
 import { useProject, useProjectTaskStatuses } from "@/hooks/useProjects";
-import { useProjectViews } from "@/hooks/useToolLayouts";
+import { useProjectLayouts } from "@/hooks/useToolLayouts";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { toolSettingsRoute } from "@/lib/tools";
 
-export const ProjectViewEditorPage = () => {
+export const ProjectLayoutEditorPage = () => {
   const { projectId } = useParams({ strict: false }) as { projectId?: string };
-  const { view, page } = useSearch({ strict: false }) as { view?: string; page?: "task" };
+  const { layout } = useSearch({ strict: false }) as { layout?: string };
   const parsedId = projectId ? Number(projectId) : Number.NaN;
   const id = Number.isFinite(parsedId) ? parsedId : null;
   const navigate = useNavigate();
@@ -27,20 +28,28 @@ export const ProjectViewEditorPage = () => {
 
   const project = useProject(id).data;
   const statuses = useProjectTaskStatuses(id).data;
-  const set = useProjectViews(id).data;
+  const set = useProjectLayouts(id).data;
+  const editing = useMemo(
+    () =>
+      project && statuses
+        ? { id: project.id, initiativeId: project.initiative_id, statuses }
+        : null,
+    [project, statuses]
+  );
 
-  if (!project || !statuses || !set || id === null) return null;
+  if (!project || !editing || !set) return null;
   if (!set.can_configure) return <ToolSettingsPermissionRequired />;
   return (
     <LayoutEditor
-      projectId={id}
-      initiativeId={project.initiative_id}
-      statuses={statuses}
+      // Another project's editor starts afresh: a draft, and the question
+      // before leaving it, belong to the project they were made for.
+      key={project.id}
+      project={editing}
       set={set}
-      initialSlug={page === "task" ? TASK_PAGE : view}
+      initialKind={layout}
       onClose={() =>
         void navigate({
-          to: gp(`${toolSettingsRoute(Tool.project, project.initiative_id, id)}/views`),
+          to: gp(`${toolSettingsRoute(Tool.project, project.initiative_id, project.id)}/layouts`),
         })
       }
     />

@@ -4,10 +4,10 @@ import type { LayoutNode } from "./tree";
 const field = (id: string): LayoutNode => ({ type: "field", props: { field: id } });
 
 /**
- * An event's page as shipped: its title and what else can be done with it
+ * An event's detail as shipped: its title and what else can be done with it
  * across the top; what it is and who is coming in the main column; and when
  * and where it is, with its tags and properties, beside them. On one column
- * it reads as the event page always has: the description, when and where,
+ * it reads as the event's detail always has: the description, when and where,
  * your answer, who is coming, tags, relations, then properties.
  */
 const EVENT_PAGE_REGIONS: Record<Region, LayoutNode[]> = {
@@ -34,7 +34,7 @@ const EVENT_PAGE_REGIONS: Record<Region, LayoutNode[]> = {
   ],
 };
 
-/** An event's page: its dates and properties edit fields as a field does. */
+/** An event's detail: its dates and properties edit fields as a field does. */
 export const EVENT_LAYOUT = detailLayoutSpec({
   shipped: EVENT_PAGE_REGIONS,
   fieldParts: ["field", "dates", "properties"],

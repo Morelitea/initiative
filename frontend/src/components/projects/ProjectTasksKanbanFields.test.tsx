@@ -14,8 +14,7 @@ import {
   buildPropertySummary,
   buildTask,
   buildTaskListResponse,
-  buildToolView,
-  buildToolViewSet,
+  buildToolLayoutSet,
   buildUserSummary,
 } from "@/__tests__/factories";
 import { communityHttp } from "@/__tests__/helpers/communityHttp";
@@ -50,7 +49,7 @@ const board = () =>
         taskHref={(taskId) => `/tasks/${taskId}`}
       />
     ),
-    { routerSearch: { view: "board" } }
+    { routerSearch: { layout: "board" } }
   );
 
 beforeEach(() => {
@@ -83,19 +82,19 @@ describe("a board's card", () => {
     expect(await screen.findByText("large")).toBeInTheDocument();
   });
 
-  it("shows the shipped card for a stored view that lays out none", async () => {
+  it("shows the shipped card for a board laid out with none", async () => {
     server.use(
-      communityHttp.get("/views/", () =>
+      communityHttp.get("/layouts/", () =>
         HttpResponse.json(
-          buildToolViewSet({
-            stored: true,
-            views: [
-              buildToolView({
-                slug: "board",
+          buildToolLayoutSet({
+            layouts: [
+              {
+                kind: "board",
                 is_default: true,
-                // As the server sends a view stored without a card.
-                definition: { layout: { type: "board" }, card: null, columns: null },
-              }),
+                // As the server sends a board changed to hold no card.
+                definition: { card: null, columns: null },
+                updated_at: "2026-10-01T12:00:00.000Z",
+              },
             ],
           })
         )
@@ -106,25 +105,24 @@ describe("a board's card", () => {
     expect(await screen.findByText(/priority: medium/i)).toBeInTheDocument();
   });
 
-  it("shows only what the view's card names", async () => {
+  it("shows only what the board's card names", async () => {
     seedTask({ description_excerpt: "Start from the coast…", has_description: true });
     server.use(
-      communityHttp.get("/views/", () =>
+      communityHttp.get("/layouts/", () =>
         HttpResponse.json(
-          buildToolViewSet({
-            stored: true,
-            views: [
-              buildToolView({
-                slug: "board",
+          buildToolLayoutSet({
+            layouts: [
+              {
+                kind: "board",
                 is_default: true,
                 definition: {
-                  layout: { type: "board" },
                   card: {
                     type: "card",
                     children: [{ type: "field", props: { field: "title" } }],
                   },
                 },
-              }),
+                updated_at: "2026-10-01T12:00:00.000Z",
+              },
             ],
           })
         )

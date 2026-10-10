@@ -273,16 +273,12 @@
       "turnedOffNote": "These grant nothing until the tool is turned back on under Details. Nothing in them is lost meanwhile."
     },
     "managerDescription": "Managers run this initiative — its members, its roles and its settings — and can view and create in every tool. Which individual items they can open is still decided by how each one is shared.",
-    "viewsTab": "Views",
-    "views": {
-      "heading": "Views",
-      "description": "Each project's views, and whether it lays out its own task page. A project's views are changed in its editor.",
+    "layoutsTab": "Layouts",
+    "layouts": {
+      "heading": "Layouts",
+      "description": "How each project draws its tasks: each layout, when it was last changed, and which list it opens on. A project's layouts are changed in its editor.",
       "noProjects": "This initiative has no projects yet.",
-      "loadError": "Couldn't load the views.",
-      "default": "Opens first",
-      "shippedViews": "The shipped views",
-      "ownTaskPage": "Its own task page",
-      "shippedTaskPage": "The shipped task page"
+      "loadError": "Couldn't load the layouts."
     }
   },
   "advancedTools": "Tools",

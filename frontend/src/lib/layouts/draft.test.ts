@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { buildPropertyDefinition } from "@/__tests__/factories";
 
+import { type StoredRegions, storedLayout } from "./detailLayout";
 import {
   addableFields,
   addablePluginParts,
@@ -19,7 +20,6 @@ import {
   removable,
   startHistory,
 } from "./draft";
-import { type StoredRegions, storedLayout } from "./detailLayout";
 import { TASK_LAYOUT, taskFields } from "./tasks";
 import type { LayoutNode } from "./tree";
 
@@ -91,7 +91,7 @@ describe("what the editor allows", () => {
 
   it("offers a card what it does not show, and no property alone where it shows them all", () => {
     const ids = (card: LayoutNode) =>
-      addableFields({ layout: { type: "board" }, card: card as never }, fields).map(
+      addableFields({ kind: "board", definition: { card: card as never } }, fields).map(
         (each) => each.id
       );
 
@@ -104,7 +104,7 @@ describe("what the editor allows", () => {
 
   it("offers a table the fields it draws as columns and has not", () => {
     const ids = addableFields(
-      { layout: { type: "table" }, columns: ["title", "dueDate"] },
+      { kind: "table", definition: { columns: ["title", "dueDate"] } },
       fields
     ).map((each) => each.id);
 
@@ -175,7 +175,7 @@ describe("where a dragged part lands", () => {
   });
 });
 
-describe("a task page laid out", () => {
+describe("a task detail laid out", () => {
   it("is stored whole, without the shipped page's one-column order", () => {
     const shipped = TASK_LAYOUT.root(null);
     // Relations to the top of Main, then Checklist into the Description section.
@@ -195,12 +195,7 @@ describe("a task page laid out", () => {
     // Stored after any change: no one-column order of its own, and a plug-in
     // part added after the checklist.
     const stored = storedLayout(
-      insertAt(
-        TASK_LAYOUT.root(null),
-        [1],
-        { type: "plugin", props: { plugin: 3, part: "ci" } },
-        2
-      )
+      insertAt(TASK_LAYOUT.root(null), [1], { type: "plugin", props: { plugin: 3, part: "ci" } }, 2)
     );
     const tree = TASK_LAYOUT.tree(stored as StoredRegions, "More fields");
     const orders = (index: number) =>

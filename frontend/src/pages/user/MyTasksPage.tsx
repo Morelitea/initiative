@@ -31,10 +31,10 @@ import { usePersistedTableState } from "@/hooks/usePersistedTableState";
 import { useProperties } from "@/hooks/useProperties";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { communityPath, useCommunityPath } from "@/lib/communityUrl";
-import { getProjectColor } from "@/lib/projectColor";
-import { entityRefRoute, taskRoute } from "@/lib/tools";
 import { LAYOUT_NAMESPACES, type LayoutEnv } from "@/lib/layouts/fields";
 import { taskFields } from "@/lib/layouts/tasks";
+import { getProjectColor } from "@/lib/projectColor";
+import { entityRefRoute, taskRoute } from "@/lib/tools";
 import type { TranslateFn } from "@/types/i18n";
 
 export const MyTasksPage = () => {

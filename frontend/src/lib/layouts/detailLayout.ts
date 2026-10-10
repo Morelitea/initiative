@@ -1,22 +1,22 @@
 /**
- * An item's own page laid out from a tree, for any kind of item that has one
- * (a task, an event): its regions, where each part falls once the page is one
- * column, the fields placed nowhere, and the layout a page is stored as.
+ * A detail (a task's, an event's) laid out from a tree: its regions, where
+ * each part falls once the detail is one column, the fields placed nowhere,
+ * and the layout a detail is stored as.
  */
 
 import type { DetailLayoutDefinitionInput } from "@/api/generated/initiativeAPI.schemas";
 
 import type { LayoutNode } from "./tree";
 
-/** An item page's regions, in the order a page holds them. */
+/** A detail's regions, in the order a detail holds them. */
 export const LAYOUT_REGIONS = ["header", "main", "side"] as const;
 
 export type Region = (typeof LAYOUT_REGIONS)[number];
 
-/** An item layout's regions, as stored: one it leaves out is drawn as shipped. */
+/** A detail layout's regions, as stored: one it leaves out is drawn as shipped. */
 export type StoredRegions = Partial<Record<Region, LayoutNode[] | null>>;
 
-/** A part of a page's column, and where it falls once the page is one column. */
+/** A part of a detail's column, and where it falls once the detail is one column. */
 export const at = (order: number, node: LayoutNode): LayoutNode => ({
   ...node,
   props: { ...node.props, order },
@@ -34,7 +34,7 @@ const anchorOf = (node: LayoutNode): string | undefined =>
     ? (node.children ?? []).map(anchorOf).find((anchor) => anchor !== undefined)
     : placedAs(node);
 
-/** A part without the shipped page's one-column `order`, at any depth: a
+/** A part without the shipped detail's one-column `order`, at any depth: a
  *  shipped part may have been moved into a section. */
 const withoutOrder = ({ props, children, ...node }: LayoutNode): LayoutNode => {
   const { order: _order, ...rest } = props ?? {};
@@ -45,8 +45,8 @@ const withoutOrder = ({ props, children, ...node }: LayoutNode): LayoutNode => {
   };
 };
 
-/** The layout a page tree is stored as. Every region is stored, and without
- *  the shipped page's one-column `order`: a stored region keeps its own. */
+/** The layout a detail tree is stored as. Every region is stored, and without
+ *  the shipped detail's one-column `order`: a stored region keeps its own. */
 export const storedLayout = (root: LayoutNode): DetailLayoutDefinitionInput => {
   const region = (index: number) => (root.children?.[index]?.children ?? []).map(withoutOrder);
   return {
@@ -56,31 +56,31 @@ export const storedLayout = (root: LayoutNode): DetailLayoutDefinitionInput => {
   } as DetailLayoutDefinitionInput;
 };
 
-/** One kind of item's page: as shipped, and as a stored layout draws it. */
+/** One kind of detail: as shipped, and as a stored layout draws it. */
 export interface DetailLayoutSpec {
   /** The regions as shipped. */
   shipped: Record<Region, LayoutNode[]>;
   /** Whether a part edits a field: placed nowhere, it is drawn under More
    *  fields rather than gone. */
   editsAField: (node: LayoutNode) => boolean;
-  /** What the shipped page edits and `regions` place nowhere, in its order. */
+  /** What the shipped detail edits and `regions` place nowhere, in its order. */
   unplacedFields: (regions: Record<Region, LayoutNode[]>) => LayoutNode[];
-  /** The page as one tree to edit by path: the page, holding its header,
+  /** The detail as one tree to edit by path: the detail, holding its header,
    *  main and side in that order. */
   root: (stored: StoredRegions | null | undefined) => LayoutNode;
   /**
-   * The page from a stored layout: each region as stored, or as shipped where
-   * the layout leaves it out. What the shipped page edits and the layout
+   * The detail from a stored layout: each region as stored, or as shipped where
+   * the layout leaves it out. What the shipped detail edits and the layout
    * places nowhere is drawn in a "More fields" section at the side, so a
-   * field still has a place on a page nobody laid out for it. A stored part
+   * field still has a place on a detail nobody laid out for it. A stored part
    * carries no `order`: where it falls on one column is worked out here, so a
-   * page laid out anew still reads as the shipped one does on a phone.
+   * detail laid out anew still reads as the shipped one does on a phone.
    */
   tree: (stored: StoredRegions | null | undefined, moreFields: string) => LayoutNode;
 }
 
 /**
- * A kind of item's page, from how it ships: its regions, with each column
+ * A kind of detail, from how it ships: its regions, with each column
  * part's one-column `order`; the part types that edit a field; and where More
  * fields falls on one column, after everything else.
  */
@@ -95,16 +95,16 @@ export const detailLayoutSpec = ({
 }): DetailLayoutSpec => {
   const editing = new Set(fieldParts);
   const editsAField = (node: LayoutNode) => editing.has(node.type);
-  /** What the shipped page edits, in its order. */
+  /** What the shipped detail edits, in its order. */
   const shippedFields = nodesIn(Object.values(shipped).flat()).filter(editsAField);
-  /** Where the shipped page puts each of its column parts on one column. */
+  /** Where the shipped detail puts each of its column parts on one column. */
   const shippedOrder = new Map(
     [...shipped.main, ...shipped.side].map((node) => [anchorOf(node), Number(node.props?.order)])
   );
 
   /**
-   * A column's parts with where each falls once the page is one column, as
-   * the shipped page interleaves its columns: a part the shipped page has
+   * A column's parts with where each falls once the detail is one column, as
+   * the shipped detail interleaves its columns: a part the shipped detail has
    * falls where it puts it, any other right after the part before it, and a
    * column keeps its own order (a part never falls before one above it).
    * Parts that fall together keep the main column's ahead of the side's.

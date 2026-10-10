@@ -64,16 +64,16 @@ import {
   isAnonymizedUser,
 } from "@/lib/userDisplay";
 
+import type { StoredRegions } from "./detailLayout";
 import { indexPaths } from "./draft";
 import { FieldFrame, useFieldDraft } from "./editing";
 import { DescriptionField, PropertiesField, TagsField, TitleField } from "./fieldEditors";
 import { type FieldKind, useProjectLayoutEnv } from "./fields";
-import type { StoredRegions } from "./detailLayout";
 import { PluginFieldOnDetail, PluginPartView, pluginFields, usePluginsOnItems } from "./plugins";
 import { TASK_LAYOUT, taskFields } from "./tasks";
-import { LAYOUT_PARTS, type Parts, renderNode, type LayoutContext } from "./tree";
+import { LAYOUT_PARTS, type LayoutContext, type Parts, renderNode } from "./tree";
 
-/** What the task's page shares with its parts, beside the task itself. */
+/** What the task's detail shares with its parts, beside the task itself. */
 export interface TaskLayoutContext {
   /** The server says the reader cannot change the task. */
   readOnly: boolean;
@@ -86,26 +86,26 @@ export interface TaskLayoutContext {
   askScope: ReturnType<typeof useScopePrompt>["ask"];
   /** The overflow menu of what else can be done with the task. */
   actions: ReactNode;
-  /** Set when the page is left on purpose, so an open draft does not hold it. */
+  /** Set when the detail is left on purpose, so an open draft does not hold it. */
   leaving: RefObject<boolean>;
   /** Drawn in the layout editor, where nothing is changed: a description
    *  draft kept on the device stays there. */
   preview?: boolean;
 }
 
-const PageContext = createContext<TaskLayoutContext | null>(null);
+const DetailContext = createContext<TaskLayoutContext | null>(null);
 
 const useTaskLayout = (): TaskLayoutContext => {
-  const page = useContext(PageContext);
-  if (!page) throw new Error("A task page part is drawn outside its page");
-  return page;
+  const context = useContext(DetailContext);
+  if (!context) throw new Error("A task detail part is drawn outside its detail");
+  return context;
 };
 
 type EditorProps = { task: TaskRead; label: string };
 
 const sameJson = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
-/** The task's title, which is the page's heading. */
+/** The task's title, which is the detail's heading. */
 const TitleEditor = ({ task, label }: EditorProps) => {
   const { t } = useTranslation("tasks");
   const { readOnly, askScope } = useTaskLayout();
@@ -432,7 +432,7 @@ const Checklist = ({ task }: EditorProps) => {
   return <TaskChecklist taskId={task.id} items={task.checklist ?? []} canEdit={!readOnly} />;
 };
 
-/** Each field's editor on the task's page, by its kind. */
+/** Each field's editor on the task's detail, by its kind. */
 const FIELD_EDITORS: Partial<Record<FieldKind, ComponentType<EditorProps>>> = {
   title: TitleEditor,
   excerpt: DescriptionEditor,
@@ -545,7 +545,7 @@ const Comments = ({ task }: { task: TaskRead }) => {
   );
 };
 
-/** The parts a task's page is drawn from. */
+/** The parts a task's detail is drawn from. */
 const TASK_PAGE_PARTS: Parts<TaskRead> = {
   ...LAYOUT_PARTS,
   field: (node, task, view) => {
@@ -575,31 +575,31 @@ const TASK_PAGE_PARTS: Parts<TaskRead> = {
   ),
 };
 
-/** A task's page, drawn from its project's item layout, or as shipped. */
+/** A task's detail, drawn from its project's layout, or as shipped. */
 export const TaskLayoutView = ({
   task,
-  page,
+  context,
   layout,
   editing,
 }: {
   task: TaskRead;
-  page: TaskLayoutContext;
+  context: TaskLayoutContext;
   layout?: StoredRegions | null;
   /** The layout is being edited: each part is marked with its path, which
-   *  the editor's page tree shares, More fields being past the side's end. */
+   *  the editor's detail tree shares, More fields being past the side's end. */
   editing?: boolean;
 }) => {
   const { t, i18n } = useTranslation("tasks");
   const communityId = useActiveCommunityId();
   const gp = useCommunityPath();
   const taskHref = useCallback(
-    (taskId: number) => gp(taskRoute(page.initiativeId, task.project_id, taskId)),
-    [gp, page.initiativeId, task.project_id]
+    (taskId: number) => gp(taskRoute(context.initiativeId, task.project_id, taskId)),
+    [gp, context.initiativeId, task.project_id]
   );
   const env = useProjectLayoutEnv(taskHref);
   const tree = useMemo(() => TASK_LAYOUT.tree(layout, t("edit.moreFields")), [layout, t]);
-  const plugins = usePluginsOnItems(page.initiativeId);
-  // The page's labels are the fields' own.
+  const plugins = usePluginsOnItems(context.initiativeId);
+  // The detail's labels are the fields' own.
   const view = useMemo<LayoutContext>(
     () => ({
       fields: taskFields([], pluginFields(plugins, i18n.language)),
@@ -611,9 +611,9 @@ export const TaskLayoutView = ({
     [plugins, i18n.language, env, editing, tree]
   );
   return (
-    // Another task's page starts afresh, with none of this one's drafts.
-    <PageContext.Provider key={`${communityId}:${task.id}`} value={page}>
+    // Another task's detail starts afresh, with none of this one's drafts.
+    <DetailContext.Provider key={`${communityId}:${task.id}`} value={context}>
       {renderNode(tree, task, view, TASK_PAGE_PARTS)}
-    </PageContext.Provider>
+    </DetailContext.Provider>
   );
 };

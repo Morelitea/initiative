@@ -306,7 +306,7 @@ export const PluginField = ({ value, field, variant }: FieldRendererProps) => {
   );
 };
 
-/** A plug-in field on an item's page: its name above its value, which the
+/** A plug-in field on a detail: its name above its value, which the
  *  plug-in alone changes. */
 export const PluginFieldOnDetail = ({ field, item }: { field: FieldDef; item: PluginItem }) => {
   if (!field.plugin) return null;

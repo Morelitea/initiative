@@ -16,13 +16,13 @@ import { TaskStatusSelector } from "@/components/tasks/TaskStatusSelector";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
+import { type FieldColumnOptions, fieldColumn } from "@/lib/layouts/columns";
+import type { FieldDef, LayoutEnv } from "@/lib/layouts/fields";
 import { summarizeStored } from "@/lib/recurrence";
 import { dateSortingFn, firstTagName, prioritySortingFn, textSortingFn } from "@/lib/sorting";
 import type { AppColumnDef } from "@/lib/table";
 import { getTaskDateStatus, getTaskDateStatusLabel } from "@/lib/taskDateStatus";
 import { entityRefRoute, initiativeRoute, toolDetailRoute } from "@/lib/tools";
-import { type FieldColumnOptions, fieldColumn } from "@/lib/layouts/columns";
-import type { FieldDef, LayoutEnv } from "@/lib/layouts/fields";
 import type { TranslateFn } from "@/types/i18n";
 
 interface GlobalTaskColumnsOptions {

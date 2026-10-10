@@ -38,32 +38,11 @@
     "archived": "Archiviert",
     "statusCategory": "Statuskategorie"
   },
-  "views": {
-    "label": "Ansicht",
-    "reset": "Auf Ansicht zurücksetzen",
-    "update": "„{{name}}“ aktualisieren",
-    "saveAs": "Als Ansicht speichern",
-    "saveAsDescription": "Alle in diesem Projekt sehen diese Ansicht, mit dem Layout und den Filtern, die gerade zu sehen sind.",
-    "name": "Name der Ansicht",
-    "namePlaceholder": "z. B. Blockierte Aufgaben",
-    "setDefault": "Als Standard des Projekts festlegen",
-    "saved": "Ansicht gespeichert",
-    "unavailable": "Diese Ansicht gibt es in diesem Projekt nicht mehr; stattdessen wird eine andere seiner Ansichten angezeigt.",
-    "saveError": "Ansichten konnten nicht gespeichert werden",
-    "loadError": "Die Ansichten dieses Projekts konnten nicht geladen werden.",
-    "heading": "Ansichten",
-    "description": "Die Ansichten, aus denen alle in diesem Projekt wählen können, in dieser Reihenfolge. Der Standard bestimmt, womit das Projekt öffnet.",
-    "default": "Standard",
-    "delete": "Ansicht löschen",
-    "deleteNamed": "„{{name}}“ löschen",
-    "deleteConfirm": "„{{name}}“ löschen? Wer sie nutzt, fällt auf den Projektstandard zurück.",
-    "moveUp": "„{{name}}“ nach oben",
-    "moveDown": "„{{name}}“ nach unten",
-    "shipped": {
-      "incomplete": "Unerledigt",
-      "unassigned": "Nicht zugewiesen",
-      "mine": "Meine"
-    }
+  "layouts": {
+    "label": "Layout",
+    "loadError": "Die Layouts dieses Projekts konnten nicht geladen werden.",
+    "heading": "Layouts",
+    "description": "Wie dieses Projekt seine Aufgaben darstellt: jedes Layout, wann es zuletzt geändert wurde, und mit welcher Liste es öffnet. Alle im Projekt sehen sie; wonach jemand filtert und sortiert, gehört ihm selbst."
   },
   "createDialog": {
     "title": "Projekt erstellen",
@@ -321,12 +300,10 @@
     "commentedOn": "kommentierte",
     "loadMore": "Mehr laden"
   },
-  "viewEditor": {
-    "open": "Ansichten bearbeiten",
-    "openTaskPage": "Aufgabenseite bearbeiten",
-    "title": "Ansichten bearbeiten",
+  "layoutEditor": {
+    "open": "Layouts bearbeiten",
+    "title": "Layouts bearbeiten",
     "close": "Editor schließen",
-    "view": "Bearbeitete Ansicht",
     "previewWidth": "Vorschaubreite",
     "width": {
       "desktop": "Computer",
@@ -342,9 +319,9 @@
     "unsavedBody": "Deine Änderungen wurden nicht gespeichert. Wenn du gehst, werden sie verworfen.",
     "leave": "Verlassen",
     "stay": "Weiter bearbeiten",
-    "compact": "Ansichten werden auf einem breiteren Bildschirm bearbeitet. Öffne diese Seite auf einem Tablet oder Computer.",
+    "compact": "Layouts werden auf einem breiteren Bildschirm bearbeitet. Öffne diese Seite auf einem Tablet oder Computer.",
     "canvas": "Vorschau",
-    "calendarNote": "Eine Kalenderansicht hat keine Karte und keine Spalten zum Anordnen. Ihr Name und ob sie zuerst geöffnet wird, stellst du rechts ein.",
+    "calendarNote": "Ein Kalender hat keine Karte und keine Spalten zum Anordnen. Ob das Projekt damit öffnet, stellst du rechts ein.",
     "outline": "Gliederung",
     "card": "Karte",
     "row": "Zeile",
@@ -371,15 +348,7 @@
     "propertiesHelp": "Zeigt jede Eigenschaft, für die eine Aufgabe einen Wert hat.",
     "pluginPartHelp": "Vom Plug-in aus seinen eigenen Werten und Aktionen gezeichnet.",
     "fieldHelp": "Zeigt dieses Feld, wenn eine Aufgabe einen Wert dafür hat.",
-    "viewHeading": "Ansicht",
-    "name": "Name",
-    "layout": "Layout",
-    "default": "Diese Ansicht zuerst öffnen",
-    "sort": "Sortieren nach",
-    "sortNone": "Reihenfolge des Projekts",
-    "direction": "Richtung",
-    "ascending": "Aufsteigend",
-    "descending": "Absteigend",
+    "layout": "Bearbeitetes Layout",
     "arrange": "Anordnung",
     "stacked": "Untereinander",
     "sideBySide": "Nebeneinander",
@@ -392,21 +361,16 @@
     "titleHelp": "Jede Aufgabe zeigt ihren Titel, der sie öffnet.",
     "holdsTitle": "Es enthält den Titel, den jede Aufgabe zeigt, und bleibt daher.",
     "savingBody": "Deine Änderungen werden noch gespeichert. Wenn du jetzt gehst, können sie verloren gehen, falls das Speichern fehlschlägt.",
-    "taskPage": "Aufgabenseite",
     "noticePreview": "Wird jemandem angezeigt, der die Aufgabe nicht ändern kann, und sagt warum.",
-    "noTasks": "Dieses Projekt hat noch keine Aufgaben. Füge eine hinzu, um ihre Seite hier zu sehen.",
+    "noTasks": "Dieses Projekt hat noch keine Aufgaben. Füge eine hinzu, um ihr Detail hier zu sehen.",
     "empty": "Leer",
     "dropHere": "Hier ablegen",
-    "pageHelp": "Wie jede Aufgabenseite in diesem Projekt aufgebaut ist. Ein Feld, das nirgends platziert ist, wird trotzdem angezeigt, unter Weitere Felder.",
-    "useShippedPage": "Ausgelieferte Seite verwenden",
-    "shippedPage": "Das ist die Seite, wie sie ausgeliefert wird. Eine Änderung macht sie zur eigenen Seite des Projekts.",
     "section": "Abschnitt",
     "sectionWith": "Abschnitt mit {{name}}",
     "sectionTitle": "Titel",
     "startFolded": "Eingeklappt beginnen",
     "toMoreFields": "{{name}} nach Weitere Felder verschieben",
-    "toMoreFieldsHelp": "Jede Aufgabenseite lässt dieses Feld ändern. Von hier entfernt, wandert es nach Weitere Felder.",
-    "pageTitleHelp": "Jede Aufgabenseite zeigt ihren Titel.",
+    "toMoreFieldsHelp": "Das Detail jeder Aufgabe lässt dieses Feld ändern. Von hier entfernt, wandert es nach Weitere Felder.",
     "parts": {
       "header": "Kopf",
       "main": "Hauptbereich",
@@ -421,9 +385,9 @@
       "comments": "Kommentare"
     },
     "regionHelp": {
-      "header": "Oben auf der Seite, über beiden Spalten.",
+      "header": "Ganz oben, über beiden Spalten.",
       "main": "Die breite Spalte.",
-      "side": "Die schmale Spalte neben dem Hauptbereich. Auf einem Telefon ist die Seite einspaltig; die Telefonvorschau zeigt ihre Reihenfolge."
+      "side": "Die schmale Spalte neben dem Hauptbereich. Auf einem Telefon ist das Detail einspaltig; die Telefonvorschau zeigt ihre Reihenfolge."
     },
     "partHelp": {
       "comments": "Die Kommentare der Aufgabe und das Schreiben eines neuen.",
@@ -433,13 +397,18 @@
       "notice": "Sagt jemandem, der die Aufgabe nicht ändern kann, warum.",
       "actions": "Was sonst mit der Aufgabe möglich ist: verschieben, duplizieren, archivieren, löschen und Plug-in-Aktionen."
     },
-    "addView": "Ansicht hinzufügen",
-    "viewActions": "Mehr zu dieser Ansicht",
-    "duplicateView": "Duplizieren",
-    "deleteView": "Löschen",
-    "newView": "Neue Ansicht",
-    "copyOf": "{{name}} (Kopie)",
-    "filters": "Filter",
-    "filtersHelp": "Die Ansicht zeigt nur Aufgaben, die hierzu passen. Jede Person kann sie mit eigenen Filtern weiter eingrenzen."
+    "taskLayout": "Aufgabendetail",
+    "detailHelp": "Wie das Detail jeder Aufgabe in diesem Projekt aufgebaut ist. Ein Feld, das nirgends platziert ist, wird trotzdem angezeigt, unter Weitere Felder.",
+    "useShipped": "Ausgeliefertes Layout verwenden",
+    "shipped": "Das ist das Layout, wie es ausgeliefert wird. Eine Änderung macht es zum eigenen Layout des Projekts.",
+    "detailTitleHelp": "Das Detail jeder Aufgabe zeigt ihren Titel.",
+    "opensFirst": "Wird zuerst geöffnet",
+    "asShipped": "Wie ausgeliefert",
+    "saveError": "Layouts konnten nicht gespeichert werden",
+    "listHelp": {
+      "table": "Wie die Aufgaben des Projekts als Tabelle aufgelistet werden: welche Spalten, in welcher Reihenfolge.",
+      "board": "Wie jede Aufgabe auf dem Board erscheint: was ihre Karte zeigt.",
+      "calendar": "Die Aufgaben des Projekts in einem Kalender, nach ihren Daten."
+    }
   }
 }
