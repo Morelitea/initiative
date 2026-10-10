@@ -16,6 +16,7 @@ from pydantic import AfterValidator, BaseModel, EmailStr, Field, RootModel, Secr
 from pydantic import model_validator
 
 from app.core import usernames
+from app.models.platform.guild import MEMBER_DISPLAY_NAME_MAX_LENGTH
 from app.models.platform.guild import CommunityCategory, CommunityRole
 from app.models.platform.user import UserRole
 from app.models.tenant.initiative import InitiativeJoinPolicy
@@ -43,7 +44,7 @@ class Persona(BaseModel):
 
     handle: Handle
     #: What the persona is called in every community it is seated in.
-    display_name: str = Field(min_length=1)
+    display_name: str = Field(min_length=1, max_length=MEMBER_DISPLAY_NAME_MAX_LENGTH)
     #: Text the persona's picture is drawn from; none leaves it without one.
     avatar_seed: str | None = None
 

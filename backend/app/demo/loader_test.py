@@ -13,6 +13,7 @@ from sqlmodel import select
 from app.core.config import settings
 from app.core.moderation import HoldReason, HoldVia
 from app.core.security import verify_password
+from app.services.import_engine.engine import read_payload
 from app.demo import loader, shapes
 from app.demo.loader import DemoModeRequired, load
 from app.models.platform.guild import CommunityRole, Guild, GuildMembership
@@ -314,6 +315,7 @@ async def test_changes_to_the_manifest_apply_on_reload(demo, session):
     )
     library = shapes.read_library(operations)
     assert library is not None and library.shapes == []
+    assert read_payload(operations, shapes.bundle_key("bakery")) is None
 
     manifest["communities"][0]["directory"] = None
     path.write_text(json.dumps(manifest))
