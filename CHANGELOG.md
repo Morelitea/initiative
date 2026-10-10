@@ -65,6 +65,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Dragging a repeating event on the calendar always asks which dates it moves.** One whose repeat couldn't be read was moved whole without asking; dragging now asks exactly when the event's own page does, and names the same dates.
 - **Repeats keep their days when a template or listing moves its dates.** A project made from a template, or a listing installed on a start date, moved a repeat by a set number of days, which could leave a Monday series' skipped and edited occurrences on Tuesdays. A repeat now lands on its own days nearest the move: a Monday series stays on Mondays, one on the 15th stays on the 15th, and its skipped and edited occurrences stay matched.
 - **A task page laid out for a project reads the same on a phone.** Once a project's task page had been changed in the view editor, a phone showed all of the main column before the side, so a task's status, people and dates sat below its whole comment thread. The page now keeps the shipped order on one column: the description, then the fields, the checklist, the case, relations and comments, with anything added falling next to what it was placed beside.
 - **Search leaves out what is inside archived work.** Comments, wiki pages, queue items, counters, pictures and events no longer show as live results once the project, wiki, queue, counter group, gallery or calendar they are in is archived. They come back when it does, and a search that asks for archived work still finds them.

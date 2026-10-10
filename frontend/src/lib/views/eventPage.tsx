@@ -17,7 +17,7 @@ import {
   SearchEntityType,
   Tool,
 } from "@/api/generated/initiativeAPI.schemas";
-import { utcDateKey } from "@/components/calendar/eventCalendarEntry";
+import { isRepeating, utcDateKey } from "@/components/calendar/eventCalendarEntry";
 import { ToolRelationsPanel } from "@/components/entities/ToolRelationsPanel";
 import {
   EventDateTimeFields,
@@ -259,7 +259,7 @@ const DatesEditor = ({ event }: { event: CalendarEventRead }) => {
   const { readOnly, shownStart, shownEnd } = useEventPage();
   const label = t("eventPage.when");
   const save = useSave(event, label);
-  const repeating = Boolean(event.recurrence) || event.series_id != null;
+  const repeating = isRepeating(event);
   const draft = useFieldDraft(
     timingOf(shownStart, shownEnd, event.all_day),
     (timing) => {

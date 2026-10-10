@@ -8,12 +8,10 @@ import {
   SearchEntityType,
   Tool,
 } from "@/api/generated/initiativeAPI.schemas";
+import { isRepeating, occurrenceTarget } from "@/components/calendar/eventCalendarEntry";
 import { ModerationMenu } from "@/components/moderation/ModerationMenu";
 import { ReportButton } from "@/components/moderation/ReportButton";
-import {
-  type OccurrenceScope,
-  useScopePrompt,
-} from "@/components/recurrence/OccurrenceScopeDialog";
+import { useScopePrompt } from "@/components/recurrence/OccurrenceScopeDialog";
 import { DetailPageSkeleton, SkeletonRegion } from "@/components/skeletons/PageSkeletons";
 import { ToolAccessStatus } from "@/components/ToolAccessStatus";
 import { ToolBreadcrumb } from "@/components/tools/ToolBreadcrumb";
@@ -141,11 +139,9 @@ export function EventDetailPage() {
   const shownEnd = new Date(
     Date.parse(shownStart) + Date.parse(event.end_at) - Date.parse(event.start_at)
   ).toISOString();
-  const repeating = Boolean(event.recurrence) || event.series_id != null;
+  const repeating = isRepeating(event);
   // The occurrence a change here is about, by its start in the series.
   const occurrenceStart = event.original_start ?? shownStart;
-  const scoped = (scope: OccurrenceScope) =>
-    event.series_id != null ? { scope } : { scope, occurrence: occurrenceStart };
 
   const handleDelete = async () => {
     if (!repeating) {
@@ -153,7 +149,9 @@ export function EventDetailPage() {
       return;
     }
     const scope = await scopePrompt.ask("delete");
-    if (scope) deleteEvent.mutate({ eventId: parsedId, ...scoped(scope) });
+    if (scope) {
+      deleteEvent.mutate({ eventId: parsedId, ...occurrenceTarget(event, scope, occurrenceStart) });
+    }
   };
 
   // Opened at one date of a repeating event: that date alone, or the series.

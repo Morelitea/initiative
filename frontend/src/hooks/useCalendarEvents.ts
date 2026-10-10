@@ -29,6 +29,7 @@ import {
   PropertyTarget,
 } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
+import { isRepeating, occurrenceTarget } from "@/components/calendar/eventCalendarEntry";
 import type { OccurrenceScope } from "@/components/recurrence/OccurrenceScopeDialog";
 import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useCommunityMutation } from "@/hooks/useApiMutation";
@@ -126,15 +127,17 @@ export const eventSaveOptions = (
   event: CalendarEventRead,
   { occurrence, occurrenceStart, askScope, onMoved, onShifted }: EventSaveTarget
 ): FieldSaveOptions<CalendarEventRead, EventPatch> => {
-  const repeating = Boolean(event.recurrence) || event.series_id != null;
+  const repeating = isRepeating(event);
   return {
     prepare: async (edit) => {
       if (!repeating || !("patch" in edit)) return edit;
       if (!SERIES_FIELDS.some((name) => name in edit.patch)) return edit;
       const scope = await askScope("edit");
       if (scope === null) return null;
-      const target = event.series_id != null ? { scope } : { scope, occurrence: occurrenceStart };
-      return { ...edit, patch: { ...edit.patch, ...target } };
+      return {
+        ...edit,
+        patch: { ...edit.patch, ...occurrenceTarget(event, scope, occurrenceStart) },
+      };
     },
     // Undone for the dates the change was for.
     undoWith: (undo, edit) =>
