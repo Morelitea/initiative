@@ -102,10 +102,16 @@ const usePreselectedCommunity = (form: AccessGrantsForm): PickedCommunity | null
 const useCaseChoice = (form: AccessGrantsForm) => {
   const search = useSearch({ strict: false }) as AccessGrantsSearch;
   const cases = useGrantCases();
-  const [caseTaskId, setCaseTaskId] = useState<number | null>(
+  const [caseTaskId, setChosenId] = useState<number | null>(
     search.form === form ? (search.case ?? null) : null
   );
+  // A case a search found is not in the first page, so it is kept as chosen.
+  const [found, setFound] = useState<GrantCaseRead | undefined>(undefined);
   const items = cases.data?.items ?? [];
+  const setCaseTaskId = (taskId: number | null, picked?: GrantCaseRead) => {
+    setChosenId(taskId);
+    setFound(picked);
+  };
   return {
     items,
     loading: cases.isLoading,
@@ -113,7 +119,11 @@ const useCaseChoice = (form: AccessGrantsForm) => {
     required: cases.data?.required ?? false,
     caseTaskId,
     setCaseTaskId,
-    chosen: caseTaskId == null ? undefined : items.find((item) => item.task_id === caseTaskId),
+    chosen:
+      caseTaskId == null
+        ? undefined
+        : (items.find((item) => item.task_id === caseTaskId) ??
+          (found?.task_id === caseTaskId ? found : undefined)),
   };
 };
 

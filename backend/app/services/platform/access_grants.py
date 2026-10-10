@@ -253,11 +253,12 @@ async def request_grants(
     await _lock_user_guild_grants(
         session, user_id=requester.id, guild_id=payload.community_id
     )
-    guild = await guilds_service.get_guild(session, guild_id=payload.community_id)
-    if guild is None:
+    try:
+        guild = await guilds_service.get_guild(session, guild_id=payload.community_id)
+    except ValueError:
         raise AccessGrantError(
             AccessGrantMessages.COMMUNITY_NOT_FOUND, status.HTTP_404_NOT_FOUND
-        )
+        ) from None
 
     # Members don't need a grant — they already have standing access.
     membership = await guilds_service.get_membership(
@@ -410,11 +411,12 @@ async def break_glass(
         raise AccessGrantError(
             AccessGrantMessages.MODERATE_NOT_HELD, status.HTTP_403_FORBIDDEN
         )
-    guild = await guilds_service.get_guild(session, guild_id=payload.community_id)
-    if guild is None:
+    try:
+        await guilds_service.get_guild(session, guild_id=payload.community_id)
+    except ValueError:
         raise AccessGrantError(
             AccessGrantMessages.COMMUNITY_NOT_FOUND, status.HTTP_404_NOT_FOUND
-        )
+        ) from None
 
     # A member already has standing access — nothing to break glass for.
     membership = await guilds_service.get_membership(

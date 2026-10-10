@@ -52,6 +52,8 @@ DIGEST_INTERVAL = timedelta(minutes=60)
 #: request the grant let in may still be finishing, and is recorded when it
 #: does.
 ENDED_GRACE = timedelta(minutes=10)
+#: How far back a grant closed out may still hear of a request it let in.
+LATE_LOOKBACK = timedelta(days=1)
 #: How many changes a digest lists before it says how many more there were.
 WRITES_LISTED = 20
 #: How many open cases the picker offers.
@@ -493,12 +495,29 @@ async def report_activity(
             .with_for_update(skip_locked=True)
         )
     ).all()
+    # A request a grant let in that was still running when the grant was
+    # closed out is recorded after it: its case hears of it on its own.
+    late = (
+        await session.exec(
+            select(AccessGrant)
+            .where(AccessGrant.case_task_id.is_not(None))
+            .where(AccessGrant.closed_out_at.is_not(None))
+            .where(AccessGrant.closed_out_at >= moment - LATE_LOOKBACK)
+            .where(
+                select(AccessGrantActivity.id)
+                .where(AccessGrantActivity.grant_id == AccessGrant.id)
+                .where(AccessGrantActivity.occurred_at > AccessGrant.closed_out_at)
+                .exists()
+            )
+            .with_for_update(skip_locked=True)
+        )
+    ).all()
     names = {
         g.id: g.name
         for g in (
             await session.exec(
                 select(Guild).where(
-                    Guild.id.in_({grant.guild_id for grant in [*ended, *live]})
+                    Guild.id.in_({grant.guild_id for grant in [*ended, *live, *late]})
                 )
             )
         ).all()
@@ -509,7 +528,7 @@ async def report_activity(
             await session.exec(
                 select(User).where(
                     User.id.in_(
-                        {grant.user_id for grant in [*ended, *live]}
+                        {grant.user_id for grant in [*ended, *live, *late]}
                         | {g.revoked_by_id for g in ended if g.revoked_by_id}
                     )
                 )
@@ -548,6 +567,20 @@ async def report_activity(
         heading = (
             f"{_describe(grant, names.get(grant.guild_id), users.get(grant.user_id))}"
             " since the last note:"
+        )
+        if await note(
+            grant.case_task_id,
+            case_activity.ActivityKind.grant_digest,
+            digest_text(summary, heading=heading),
+        ):
+            told += 1
+    for grant in late:
+        summary = await _activity(session, int(grant.id), grant.closed_out_at)
+        grant.closed_out_at = moment
+        session.add(grant)
+        heading = (
+            f"After {_describe(grant, names.get(grant.guild_id), users.get(grant.user_id))}"
+            " ended, requests it had let in finished:"
         )
         if await note(
             grant.case_task_id,

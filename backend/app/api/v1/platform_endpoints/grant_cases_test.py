@@ -560,3 +560,55 @@ async def test_an_account_act_without_a_case_tells_nothing(
     )
     assert response.status_code == 200, response.text
     assert await _notes(session, desk, task_id) == []
+
+
+async def test_a_request_finishing_after_close_out_is_told_on_its_own(
+    session: AsyncSession, desk
+):
+    target = await create_guild(session)
+    task_id = await _case()
+    grant = await _live_grant(
+        session,
+        user=desk["agent"].user,
+        guild_id=target.id,
+        case=task_id,
+        ago=timedelta(minutes=30),
+    )
+    grant_id = grant.id
+    closed_at = grant.expires_at + grant_cases.ENDED_GRACE * 2
+    await set_rls_context(session, Unattributed())
+    assert await grant_cases.report_activity(session, now=closed_at) == 1
+
+    session.add(
+        AccessGrantActivity(
+            grant_id=grant_id,
+            occurred_at=closed_at + timedelta(minutes=1),
+            method="PATCH",
+            route="/api/v1/c/{community_id}/tasks/{task_id}",
+            status=200,
+            is_write=True,
+            target_type="task",
+            target_id=12,
+        )
+    )
+    await session.commit()
+    await set_rls_context(session, Unattributed())
+    later = closed_at + timedelta(minutes=5)
+    assert await grant_cases.report_activity(session, now=later) == 1
+    final = (await _notes(session, desk, task_id))[-1]
+    assert "requests it had let in finished" in final.content
+    assert "(task 12)" in final.content
+    # Told once.
+    await set_rls_context(session, Unattributed())
+    assert await grant_cases.report_activity(session, now=later) == 0
+
+
+async def test_a_refused_request_leaves_its_case_unnamed(
+    client: AsyncClient, session: AsyncSession, desk
+):
+    """A grant the server refuses settles nothing on the case it named."""
+    task_id = await _case()
+    response = await _request(client, desk["agent"], 999_999, case_task_id=task_id)
+    assert response.status_code == 404, response.text
+    other = await create_guild(session)
+    assert await grant_cases.claim(task_id, guild_id=other.id) is True

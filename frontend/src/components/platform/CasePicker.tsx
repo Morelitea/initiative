@@ -36,7 +36,9 @@ export const CasePicker = ({
   cases: GrantCaseRead[];
   /** The chosen case's task id. It may name a case the list no longer holds. */
   value: number | null;
-  onChange: (taskId: number | null) => void;
+  /** The chosen case's id, and the case itself where the list held it —
+   *  one a search found is not in ``cases``. */
+  onChange: (taskId: number | null, picked?: GrantCaseRead) => void;
   /** Offer a row for choosing no case at all. */
   optional?: boolean;
   loading?: boolean;
@@ -92,7 +94,7 @@ export const CasePicker = ({
       onValueChange={(next) => {
         const picked = shown.find((item) => String(item.task_id) === next);
         setChosenLabel(picked ? caseLabel(picked) : null);
-        onChange(next === NO_CASE ? null : Number(next));
+        onChange(next === NO_CASE ? null : Number(next), picked);
       }}
     />
   );

@@ -81,8 +81,9 @@ async def _check_case(
     actor: User, case_task_id: Optional[int], guild_id: int, *, required: bool
 ) -> None:
     """Hold the case a grant is asked for to what it may be: one the asker
-    reads, open, of a kind a grant serves, and about this community — which
-    a case naming none is settled as, before any grant is made for it."""
+    reads, open, of a kind a grant serves, and about this community or none
+    yet. Settling a case that names none waits for :func:`_claim_case`, once
+    the grant itself has passed its own checks."""
     if case_task_id is None:
         if required and await grant_cases.cases_required():
             raise HTTPException(
@@ -96,6 +97,14 @@ async def _check_case(
         )
     except grant_cases.GrantCaseError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.code) from exc
+
+
+async def _claim_case(case_task_id: Optional[int], guild_id: int) -> None:
+    """Settle the case a grant names as about the grant's community, under a
+    lock on the case, after the grant has passed its checks and before it is
+    committed: a refusal from either leaves the other undone."""
+    if case_task_id is None:
+        return
     if not await grant_cases.claim(case_task_id, guild_id=guild_id):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -183,6 +192,7 @@ async def create_access_request(
                 "level": requested.access_level,
             },
         )
+    await _claim_case(payload.case_task_id, payload.community_id)
     read = await _one(grant, system_session=session)
     await session.commit()
     await _tell_requested(
@@ -411,6 +421,7 @@ async def break_glass_access(
                 "self_approved": True,
             },
         )
+    await _claim_case(payload.case_task_id, payload.community_id)
     read = await _one(grant, system_session=session)
     await session.commit()
     await _tell_requested(

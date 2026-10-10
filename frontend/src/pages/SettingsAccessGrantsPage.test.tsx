@@ -436,7 +436,13 @@ describe("SettingsAccessGrantsPage", () => {
     };
 
     it("finds a case past the first page on the server", async () => {
-      const older = { ...lostPhone, task_id: 9, title: "An old case", mine: false };
+      const older = {
+        ...lostPhone,
+        task_id: 9,
+        title: "An old case",
+        mine: false,
+        subject_community_id: 7,
+      };
       grantCases = { items: [spamWave], required: false };
       searchedCases = { "old case": { items: [older], required: false } };
       const user = userEvent.setup();
@@ -444,7 +450,15 @@ describe("SettingsAccessGrantsPage", () => {
 
       await user.click(await screen.findByRole("combobox", { name: "Case" }));
       await user.type(screen.getByPlaceholderText(/search/i), "old case");
-      expect(await screen.findByRole("option", { name: /#9 · An old case/ })).toBeInTheDocument();
+      await user.click(await screen.findByRole("option", { name: /#9 · An old case/ }));
+      await user.type(screen.getByLabelText(/reason/i), "looking into a report");
+      await user.click(screen.getByRole("button", { name: /request access/i }));
+
+      // Its community comes with it, as one from the first page's would.
+      expect(createRequest.mock.calls[0][0]).toMatchObject({
+        case_task_id: 9,
+        community_id: older.subject_community_id,
+      });
       searchedCases = {};
     });
 
