@@ -13,7 +13,10 @@ from app.models.tenant.import_job import ImportJob, ImportJobStatus
 from app.services.guild_sweeps import Scope, each_guild
 from app.services.import_engine import worker as import_worker
 from app.services.storage import get_guild_storage
+from app.core.tools import CHILD_KINDS, KINDS, Tool
 from app.testing.factories import (
+    create_child_entity,
+    create_tool_entity,
     assign_tag,
     guild_administration,
     create_calendar_event,
@@ -316,40 +319,11 @@ async def test_envelope_import_roundtrips_calendar(client, acting_user, session)
 async def _tool_with_a_row(session, a, tool):
     """A ``tool`` row in ``a``'s initiative and, where the tool holds rows that
     carry properties of their own, one of those."""
-    from app.testing.factories import (
-        create_calendar,
-        create_counter,
-        create_dashboard,
-        create_gallery,
-        create_gallery_image,
-        create_post,
-        create_project,
-        create_queue_item,
-        create_wiki,
-        create_wiki_page,
-    )
-
-    if tool == "project":
-        row = await create_project(session, a.initiative, a.user)
-        return row, await create_task(session, row)
-    if tool == "queue":
-        row = await create_queue(session, a.initiative, a.user)
-        return row, await create_queue_item(session, row)
-    if tool == "counter_group":
-        row = await create_counter_group(session, a.initiative, a.user)
-        return row, await create_counter(session, row)
-    if tool == "calendar":
-        row = await create_calendar(session, a.initiative, a.user)
-        return row, await create_calendar_event(session, row, a.user)
-    if tool == "gallery":
-        row = await create_gallery(session, a.initiative, a.user)
-        return row, await create_gallery_image(session, row, a.user)
-    if tool == "wiki":
-        row = await create_wiki(session, a.initiative, a.user)
-        return row, await create_wiki_page(session, row, a.user)
-    if tool == "dashboard":
-        return await create_dashboard(session, a.initiative, a.user), None
-    return await create_post(session, a.initiative, a.user), None
+    row = await create_tool_entity(session, Tool(tool), a.initiative, a.user)
+    inside = next((k for k in CHILD_KINDS if KINDS[k].parent is Tool(tool)), None)
+    if inside is None:
+        return row, None
+    return row, await create_child_entity(session, inside, row, a.user)
 
 
 @pytest.mark.parametrize(

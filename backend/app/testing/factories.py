@@ -33,7 +33,7 @@ from app.core.relationships import Provenance, RelationshipType
 from app.core.search import SearchEntityType
 from app.models.tenant.relationship import EntityRelationship
 from app.services.tenant import relationships as relationships_service
-from app.core.tools import Tool
+from app.core.tools import CHILD_KINDS, Tool
 from app.core.security import (
     get_password_hash,
     mint_access_token,
@@ -2510,6 +2510,36 @@ async def create_tool_entity(
 ) -> Any:
     """Create one instance of ``tool``'s content, whichever tool it is."""
     return await TOOL_FACTORIES[tool](session, initiative, creator, **overrides)
+
+
+# The same for what lives inside a tool, keyed by ``CHILD_KINDS``: each takes
+# its tool's row and a creator, and the ones that name no creator ignore it.
+CHILD_FACTORIES: dict[str, Any] = {
+    "task": lambda session, project, creator, **kw: create_task(session, project, **kw),
+    "queue_item": lambda session, queue, creator, **kw: create_queue_item(
+        session, queue, **kw
+    ),
+    "calendar_event": create_calendar_event,
+    "counter": lambda session, group, creator, **kw: create_counter(
+        session, group, **kw
+    ),
+    "gallery_image": create_gallery_image,
+    "wiki_page": create_wiki_page,
+}
+
+if set(CHILD_FACTORIES) != set(CHILD_KINDS):
+    raise RuntimeError(
+        f"CHILD_FACTORIES must cover CHILD_KINDS exactly "
+        f"(missing: {sorted(set(CHILD_KINDS) - set(CHILD_FACTORIES))}, "
+        f"unknown: {sorted(set(CHILD_FACTORIES) - set(CHILD_KINDS))})"
+    )
+
+
+async def create_child_entity(
+    session: AsyncSession, kind: str, tool_row: Any, creator: User, **overrides: Any
+) -> Any:
+    """Create one row of ``kind`` inside ``tool_row``, whichever kind it is."""
+    return await CHILD_FACTORIES[kind](session, tool_row, creator, **overrides)
 
 
 async def enable_all_tools(session: AsyncSession, initiative: Initiative) -> Initiative:
