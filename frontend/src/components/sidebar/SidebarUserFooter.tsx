@@ -6,6 +6,7 @@ import {
   CircleQuestionMark,
   CircleUserRound,
   LogOut,
+  MessageSquareHeart,
   Settings,
   ShieldCheck,
   SquareCheckBig,
@@ -19,6 +20,7 @@ import { ThoughtBubble } from "@/components/icons/ThoughtBubble";
 import { AppearanceMenuItems, ThemeIcon } from "@/components/ModeToggle";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { AskForHelpButton } from "@/components/support/AskForHelpButton";
+import { openFeedback, useFeedbackOffered } from "@/components/tickets/FeedbackSheet";
 import { UserHandle } from "@/components/UserHandle";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -74,6 +76,7 @@ export const SidebarUserFooter = ({
   refreshUser,
 }: SidebarUserFooterProps) => {
   const { t } = useTranslation(["nav", "profiles", "common"]);
+  const feedbackOffered = useFeedbackOffered();
   // A fly-out needs a hover to open it and room beside the menu to land in.
   // A phone has neither — the sidebar is already a sheet against the edge — so
   // there the choices behind one are drilled into: the menu becomes that list,
@@ -310,6 +313,11 @@ export const SidebarUserFooter = ({
                           <UserCog className="h-4 w-4" /> {t("mySettings")}
                         </Link>
                       </DropdownMenuItem>
+                      {feedbackOffered ? (
+                        <DropdownMenuItem onSelect={openFeedback}>
+                          <MessageSquareHeart className="h-4 w-4" /> {t("sendFeedback")}
+                        </DropdownMenuItem>
+                      ) : null}
                       {isMobile ? (
                         <DropdownMenuItem
                           onSelect={(event) => {

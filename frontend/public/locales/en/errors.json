@@ -824,5 +824,8 @@
   "MODERATION_NOBODY_TO_WARN": "Nobody wrote this, so there's nobody to warn",
   "COMMENT_REMOVED": "This comment was removed",
   "COMMENT_THREAD_LOCKED": "A moderator locked comments here",
-  "SECURITY_NOWHERE_TO_SEND": "Security reports aren't set up on this server yet. Use the address below instead."
+  "SECURITY_NOWHERE_TO_SEND": "Security reports aren't set up on this server yet. Use the address below instead.",
+  "FEEDBACK_NOWHERE_TO_SEND": "Feedback isn't set up on this server yet. Use the address below instead.",
+  "APPEAL_NOT_SUSPENDED": "Your account isn't suspended, so there is nothing to appeal.",
+  "APPEAL_NOWHERE_TO_SEND": "Appeals aren't set up on this server yet. Use the address below instead."
 }

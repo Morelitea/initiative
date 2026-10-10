@@ -86,14 +86,23 @@
     "action": "Ask for help",
     "title": "Ask for help",
     "description": "Tell us what is going on and somebody will pick it up.",
-    "subjectLabel": "What is this about?",
+    "subjectLabel": "Title",
     "subjectPlaceholder": "One line, so it can be found again",
     "bodyLabel": "What happened?",
     "bodyPlaceholder": "What you were doing, what you expected, and what happened instead.",
     "browseFaq": "Browse the FAQ",
     "submit": "Send",
     "thanks": "Sent. Somebody will pick it up.",
-    "error": "Could not send that. Try again in a moment."
+    "error": "Could not send that. Try again in a moment.",
+    "topicLabel": "What is it about?",
+    "topicPlaceholder": "Choose one",
+    "topics": {
+      "account": "My account",
+      "community": "This community",
+      "billing": "Billing",
+      "data_request": "A copy of this community's data, or deleting it",
+      "other": "Something else"
+    }
   },
   "contact": {
     "title": "Get in touch",
@@ -173,6 +182,19 @@
         "remove": "Released: removed",
         "purge": "Released: purged"
       }
+    },
+    "topics": {
+      "account": "Their account",
+      "community": "Their community",
+      "billing": "Billing",
+      "data_request": "Data request",
+      "other": "Other",
+      "vulnerability": "Vulnerability",
+      "account_compromise": "Account compromise",
+      "idea": "Idea",
+      "problem": "Problem",
+      "praise": "Praise",
+      "appeal": "Suspension appeal"
     }
   },
   "evidence": {
@@ -208,5 +230,41 @@
     "submit": "Send report",
     "thanks": "Sent. You can follow it under My Tickets.",
     "error": "Could not send that. Try again in a moment."
+  },
+  "feedback": {
+    "action": "Send feedback",
+    "title": "Send feedback",
+    "description": "Tell the people who run this server what you think. You can follow it under My Tickets.",
+    "typeLabel": "What kind of feedback is it?",
+    "typePlaceholder": "Choose one",
+    "topics": {
+      "idea": "An idea",
+      "problem": "A problem",
+      "praise": "Praise",
+      "other": "Something else"
+    },
+    "bodyLabel": "What do you want to tell them?",
+    "bodyPlaceholder": "What you'd like, what got in your way, or what you liked.",
+    "needsAnswer": "I need an answer",
+    "needsAnswerHelp": "Sends this as a help request instead, so somebody writes back.",
+    "submit": "Send feedback",
+    "thanks": "Thanks! The people who run this server will read it.",
+    "error": "Could not send that. Try again in a moment.",
+    "context": {
+      "title": "Sent with it",
+      "help": "Where the app was, so they can see what you saw. Nothing here names you or anything you opened.",
+      "remove": "Remove",
+      "fields": {
+        "app_version": "Version",
+        "platform": "Platform",
+        "locale": "Language",
+        "theme": "Theme",
+        "route": "Page",
+        "viewport": "Window"
+      }
+    }
+  },
+  "moderationTopics": {
+    "appeal": "Appeal against your suspension"
   }
 }

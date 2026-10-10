@@ -371,7 +371,8 @@
     },
     "moderationRemoved": "Ein Moderator hat etwas von dir entfernt: {{reason}}",
     "moderationRemovedLegal": "Etwas, das du geschrieben hast, wurde aus rechtlichen Gründen entfernt",
-    "moderationWarned": "Eine Verwarnung der Moderatoren: {{message}}"
+    "moderationWarned": "Eine Verwarnung der Moderatoren: {{message}}",
+    "feedbackRead": "Dein Feedback wurde gelesen"
   },
   "version": {
     "versionInformation": "Versionsinformationen",

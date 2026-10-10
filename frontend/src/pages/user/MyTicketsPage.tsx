@@ -21,6 +21,7 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
 import { useFiledTickets } from "@/hooks/useTickets";
+import { ticketTitle } from "@/lib/ticketTitle";
 
 const TicketRow = ({ ticket }: { ticket: FiledTicketRead }) => {
   const { t } = useTranslation("intake");
@@ -33,9 +34,7 @@ const TicketRow = ({ ticket }: { ticket: FiledTicketRead }) => {
         className="flex items-center gap-3 px-4 py-3 hover:bg-muted focus-visible:bg-muted"
       >
         <div className="min-w-0 flex-1">
-          <p className="truncate font-medium text-sm">
-            {ticket.subject || t(`streams.${ticket.stream}.title`)}
-          </p>
+          <p className="truncate font-medium text-sm">{ticketTitle(t, ticket)}</p>
           <p className="text-muted-foreground text-xs">
             {t(`streams.${ticket.stream}.title`)} · {moved}
           </p>

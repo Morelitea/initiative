@@ -19,6 +19,8 @@ interface StatusMessageProps {
    *  state drops whatever the destination was filtered to. */
   backSearch?: Record<string, unknown>;
   backLabel?: string;
+  /** Something to do about it, drawn beneath the description. */
+  action?: ReactNode;
 }
 
 export function StatusMessage({
@@ -28,6 +30,7 @@ export function StatusMessage({
   backTo,
   backSearch,
   backLabel,
+  action,
 }: StatusMessageProps) {
   return (
     <Empty>
@@ -36,6 +39,7 @@ export function StatusMessage({
         <EmptyTitle>{title}</EmptyTitle>
         {description && <EmptyDescription>{description}</EmptyDescription>}
       </EmptyHeader>
+      {action}
       {backTo && backLabel && (
         <Button variant="link" size="sm" asChild className="px-0">
           <Link to={backTo} search={backSearch}>

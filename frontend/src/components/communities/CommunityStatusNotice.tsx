@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { CommunityStatus } from "@/api/generated/initiativeAPI.schemas";
+import { CommunityStatus, SupportTopic } from "@/api/generated/initiativeAPI.schemas";
 import { ContactDialog } from "@/components/tickets/ContactDialog";
 import { FileTicketDialog } from "@/components/tickets/FileTicketDialog";
 import {
@@ -68,7 +68,7 @@ export const CommunityStatusNotice = ({ community }: { community: CommunityEntry
       <FileTicketDialog
         open
         onOpenChange={close}
-        ticket={{ stream: "support" }}
+        ticket={{ stream: "support", topic: SupportTopic.community }}
         communityId={community.id}
       />
     );

@@ -2,8 +2,10 @@ import { Outlet, useLocation, useRouter } from "@tanstack/react-router";
 import { type ReactNode, Suspense, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
+import { SupportTopic } from "@/api/generated/initiativeAPI.schemas";
 import { SettingsTabsNav } from "@/components/settings/SettingsTabsNav";
 import { SettingsPaneSkeleton } from "@/components/skeletons/PageSkeletons";
+import { HelpLink } from "@/components/support/HelpLink";
 import { Badge } from "@/components/ui/badge";
 import { useCommunities } from "@/hooks/useCommunities";
 import { useCommunityBillingSummary } from "@/hooks/useCommunityBillingSummary";
@@ -105,7 +107,10 @@ export const CommunitySettingsLayout = () => {
           <h1 className="font-semibold text-3xl tracking-tight">{t("communityLayout.title")}</h1>
         </div>
         {statusNotice && (
-          <p className="font-bold text-destructive text-sm">{statusNotice.message}</p>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <p className="font-bold text-destructive text-sm">{statusNotice.message}</p>
+            <HelpLink topic={SupportTopic.community} communityId={activeCommunity?.id ?? null} />
+          </div>
         )}
         {!changesSettings && (
           <p className="text-muted-foreground text-sm">{t("communityLayout.viewOnly")}</p>

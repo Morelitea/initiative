@@ -20,7 +20,8 @@
   "actions": {
     "addTask": "Add Task",
     "addFile": "Add file",
-    "reportSecurityProblem": "Report a security problem"
+    "reportSecurityProblem": "Report a security problem",
+    "sendFeedback": "Send feedback"
   },
   "pages": {
     "myTasks": "My Tasks",

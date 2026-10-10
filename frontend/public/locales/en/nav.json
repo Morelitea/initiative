@@ -98,5 +98,6 @@
   "createWiki": "New Wiki",
   "sidebar": {
     "resize": "Drag to resize the sidebar"
-  }
+  },
+  "sendFeedback": "Send feedback"
 }

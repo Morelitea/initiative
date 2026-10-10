@@ -518,6 +518,10 @@ export const notificationText = (
     case "ticket_updated": {
       const subject = typeof data.subject === "string" && data.subject ? data.subject : null;
       const state = typeof data.state === "string" ? data.state : "";
+      // Feedback closed is feedback read, whether or not the team wrote.
+      if (data.stream === "feedback" && state === "closed") {
+        return t("notifications.feedbackRead");
+      }
       // A reply is the news where there is one; the state says the rest.
       const key = data.replied
         ? "notifications.ticketReplied"

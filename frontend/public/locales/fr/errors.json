@@ -824,5 +824,8 @@
   "MODERATION_NOBODY_TO_WARN": "Personne n'a écrit ceci, il n'y a donc personne à avertir",
   "COMMENT_REMOVED": "Ce commentaire a été retiré",
   "COMMENT_THREAD_LOCKED": "Un modérateur a verrouillé les commentaires ici",
-  "SECURITY_NOWHERE_TO_SEND": "Ce serveur ne reçoit pas encore de signalements de sécurité. Utilisez plutôt l'adresse ci-dessous."
+  "SECURITY_NOWHERE_TO_SEND": "Ce serveur ne reçoit pas encore de signalements de sécurité. Utilisez plutôt l'adresse ci-dessous.",
+  "FEEDBACK_NOWHERE_TO_SEND": "Ce serveur ne reçoit pas encore de retours. Utilisez plutôt l'adresse ci-dessous.",
+  "APPEAL_NOT_SUSPENDED": "Votre compte n'est pas suspendu : il n'y a rien à contester.",
+  "APPEAL_NOWHERE_TO_SEND": "Ce serveur ne reçoit pas encore de recours. Utilisez plutôt l'adresse ci-dessous."
 }

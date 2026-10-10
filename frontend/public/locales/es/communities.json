@@ -371,7 +371,8 @@
     },
     "moderationRemoved": "Un moderador retiró algo que escribiste: {{reason}}",
     "moderationRemovedLegal": "Algo que escribiste se retiró por motivos legales",
-    "moderationWarned": "Un aviso de los moderadores: {{message}}"
+    "moderationWarned": "Un aviso de los moderadores: {{message}}",
+    "feedbackRead": "Tu comentario fue leído"
   },
   "version": {
     "versionInformation": "Información de versión",

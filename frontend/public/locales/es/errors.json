@@ -824,5 +824,8 @@
   "MODERATION_NOBODY_TO_WARN": "Nadie escribió esto, así que no hay a quién avisar",
   "COMMENT_REMOVED": "Este comentario se eliminó",
   "COMMENT_THREAD_LOCKED": "Un moderador bloqueó los comentarios aquí",
-  "SECURITY_NOWHERE_TO_SEND": "Este servidor aún no recibe informes de seguridad. Usa la dirección de abajo."
+  "SECURITY_NOWHERE_TO_SEND": "Este servidor aún no recibe informes de seguridad. Usa la dirección de abajo.",
+  "FEEDBACK_NOWHERE_TO_SEND": "Este servidor aún no recibe comentarios. Usa la dirección de abajo.",
+  "APPEAL_NOT_SUSPENDED": "Tu cuenta no está suspendida, así que no hay nada que apelar.",
+  "APPEAL_NOWHERE_TO_SEND": "Este servidor aún no recibe apelaciones. Usa la dirección de abajo."
 }

@@ -20,7 +20,8 @@
   "actions": {
     "addTask": "Aufgabe hinzufügen",
     "addFile": "Datei hinzufügen",
-    "reportSecurityProblem": "Sicherheitsproblem melden"
+    "reportSecurityProblem": "Sicherheitsproblem melden",
+    "sendFeedback": "Feedback senden"
   },
   "pages": {
     "myTasks": "Meine Aufgaben",

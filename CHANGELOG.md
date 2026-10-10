@@ -26,6 +26,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`/.well-known/security.txt`** names the server's security address and, where reports are taken in the app, the form.
 - **"This wasn't me" tells the people who run the server.** Following it from an account email now opens a security case about the account, or names who to tell where nobody is set up to hear it.
 - **More of what was refused is in the audit log:** replayed billing tokens and plug-in assertions, API keys reaching past their scope, and secret-key rotations.
+- **Ask for help about your own account from anywhere.** Asking for help now starts with what it is about: your account, billing or something else, wherever the server takes help requests, and the community you are in where it takes them from there. Whoever holds a community's seat can also ask for a copy of its data, or for it to be deleted.
+- **"Ask for help" where notices said to contact whoever runs the server:** beside the age question, a read-only or suspended community, and a community that is out of seats or can't be listed for want of them. Where the server takes no help requests, it shows the address it gave.
+- **Appeal a suspension.** A suspended account can appeal from the screen it signs in to, follow the appeal there and talk with the moderators about it, one appeal at a time.
+- **Send feedback.** From the account menu or the command palette: an idea, a problem, praise or something else, with screenshots and, unless you remove it, where the app was — its version, platform, language, theme, page and window size, never anything that names you or what you opened. A problem that needs an answer goes to support instead, and you're told when your feedback has been read.
 
 ### Changed
 

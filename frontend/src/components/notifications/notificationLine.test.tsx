@@ -268,6 +268,14 @@ describe("notificationText — a ticket the reader filed", () => {
     );
   });
 
+  it("says closed feedback was read", () => {
+    const line = notificationText(
+      ticket({ stream: "feedback", subject: null, state: "closed", replied: true }),
+      t
+    );
+    expect(line).toContain("notifications.feedbackRead");
+  });
+
   it("names an untitled ticket as theirs", () => {
     const line = notificationText(ticket({ subject: null, state: "closed" }), t);
     expect(line).toContain("notifications.ticketUnnamed");

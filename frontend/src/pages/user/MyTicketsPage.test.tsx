@@ -44,6 +44,7 @@ describe("MyTicketsPage", () => {
         {
           task_id: 7,
           stream: "support",
+          topic: "account",
           subject: "Lost my phone",
           state: "waiting_on_you",
           opened_at: now,
@@ -52,6 +53,7 @@ describe("MyTicketsPage", () => {
         {
           task_id: 9,
           stream: "feedback",
+          topic: "idea",
           subject: null,
           state: "closed",
           opened_at: now,
@@ -63,8 +65,11 @@ describe("MyTicketsPage", () => {
     const link = await screen.findByRole("link", { name: /Lost my phone/ });
     expect(link).toHaveAttribute("href", "/my-tickets/7");
     expect(screen.getByText("Waiting on you")).toBeInTheDocument();
-    // An untitled ticket goes by its kind.
-    expect(screen.getByRole("link", { name: /Feedback/ })).toHaveAttribute("href", "/my-tickets/9");
+    // An untitled ticket goes by what it is about, beside its kind.
+    expect(screen.getByRole("link", { name: /An idea.*Feedback/ })).toHaveAttribute(
+      "href",
+      "/my-tickets/9"
+    );
   });
 
   it("explains an empty list", async () => {

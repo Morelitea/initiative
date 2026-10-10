@@ -73,7 +73,7 @@ describe("AskForHelpButton", () => {
   it("opens the form where help requests are taken", async () => {
     render(true);
     await userEvent.click(screen.getByRole("button", { name: "Ask for help" }));
-    expect(await screen.findByLabelText("What is this about?")).toBeInTheDocument();
+    expect(await screen.findByLabelText("Title")).toBeInTheDocument();
   });
 
   it("waits on the dialog alone while it loads, leaving the sidebar it sits in", async () => {

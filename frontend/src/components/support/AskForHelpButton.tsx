@@ -1,17 +1,19 @@
 /**
  * "Ask for help", in the sidebar's bottom row.
  *
- * Here wherever there is somebody to ask: a community that takes help
- * requests gets the form, and where the deployment takes none but has said who
- * to write to, the button shows that address. Where there is neither, it is
- * not drawn — the documentation has a button of its own beside it, so a dead
- * end never stands in for one.
+ * Here wherever there is somebody to ask: where the deployment takes help
+ * requests, the form — about the community the reader is in, where it takes
+ * them from there, and always about their own account — and where it takes
+ * none but has said who to write to, that address. Where there is neither, it
+ * is not drawn — the documentation has a button of its own beside it, so a
+ * dead end never stands in for one.
  */
 
 import { LifeBuoy } from "lucide-react";
 import { Suspense, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { SupportTopic } from "@/api/generated/initiativeAPI.schemas";
 import { ContactDialog } from "@/components/tickets/ContactDialog";
 import { FileTicketDialog } from "@/components/tickets/FileTicketDialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -33,7 +35,7 @@ export const AskForHelpButton = () => {
   }, [communityId]);
 
   const support = data?.support;
-  const canAsk = support?.mode === "form" && communityId != null;
+  const canAsk = support?.mode === "form";
   const contact = support?.mode === "email" ? support.contact : null;
   // Nobody to ask from here, or no answer yet: nothing is drawn rather than a
   // control that would lead nowhere.
@@ -72,7 +74,14 @@ export const AskForHelpButton = () => {
             key={communityId}
             open={open}
             onOpenChange={setOpen}
-            ticket={{ stream: "support" }}
+            // About where they are, where that is theirs to ask about;
+            // otherwise on their own account.
+            ticket={{
+              stream: "support",
+              topic: support?.types?.includes(SupportTopic.community)
+                ? SupportTopic.community
+                : SupportTopic.account,
+            }}
             communityId={communityId}
           />
         ) : open && contact ? (

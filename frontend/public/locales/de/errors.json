@@ -824,5 +824,8 @@
   "MODERATION_NOBODY_TO_WARN": "Das hat niemand geschrieben, also gibt es niemanden zu verwarnen",
   "COMMENT_REMOVED": "Dieser Kommentar wurde entfernt",
   "COMMENT_THREAD_LOCKED": "Ein Moderator hat die Kommentare hier gesperrt",
-  "SECURITY_NOWHERE_TO_SEND": "Sicherheitsmeldungen sind auf diesem Server noch nicht eingerichtet. Nutze stattdessen die Adresse unten."
+  "SECURITY_NOWHERE_TO_SEND": "Sicherheitsmeldungen sind auf diesem Server noch nicht eingerichtet. Nutze stattdessen die Adresse unten.",
+  "FEEDBACK_NOWHERE_TO_SEND": "Feedback ist auf diesem Server noch nicht eingerichtet. Nutze stattdessen die Adresse unten.",
+  "APPEAL_NOT_SUSPENDED": "Dein Konto ist nicht gesperrt, es gibt also nichts, wogegen du Einspruch erheben könntest.",
+  "APPEAL_NOWHERE_TO_SEND": "Einsprüche sind auf diesem Server noch nicht eingerichtet. Nutze stattdessen die Adresse unten."
 }
