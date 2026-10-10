@@ -85,6 +85,7 @@ from app.services.marketplace.vendor_values import load_vendor_values
 from app.services.safe_http import ResponseTooLargeError, request_public_target
 from app.services.tenant import plugin_config as plugin_config_service
 from app.services.tenant import guild_plugins as guild_plugins_service
+from app.services.tenant import plugin_connections as connections_service
 from app.services.tenant.plugin_config import (
     mint_connection_ref,
     token_of,
@@ -1128,19 +1129,23 @@ async def _store_member(
             connection_ref=mint_connection_ref(),
             status="pending",
         )
+    stored = (
+        await connections_service.load_connection_secrets(session, row)
+        if row.id is not None
+        else {}
+    )
     config, secrets = plugin_config_service.apply_connection_values(
         connection,
         _managed_only(connection, values),
         current=without_tokens(row.config),
-        current_secrets=without_tokens(row.config_secrets),
+        current_secrets=without_tokens(stored),
         allow_managed=True,
     )
-    row.config, row.config_secrets = seal_tokens(tokens, config=config, secrets=secrets)
+    row.config, sealed = seal_tokens(tokens, config=config, secrets=secrets)
     row.account_label = label
     row.status = "connected"
     row.updated_at = datetime.now(timezone.utc)
-    session.add(row)
-    await session.flush()
+    await connections_service.store_connection_secrets(session, row, sealed)
     return True
 
 
@@ -1256,7 +1261,7 @@ async def _member_row(
 
 
 def _member_tokens(
-    plugin: GuildPlugin, row: GuildPluginUserConnection
+    plugin: GuildPlugin, row: GuildPluginUserConnection, secrets: dict[str, Any]
 ) -> tuple[dict[str, Any], TokenSet]:
     """The flow and token set of a member connection that may be handed out."""
     if row.blocked_at is not None:
@@ -1267,7 +1272,7 @@ def _member_tokens(
         plugin.definition, row.connection_id
     )
     flow = flow_of(connection)
-    tokens = unseal_tokens(row.config, row.config_secrets)
+    tokens = unseal_tokens(row.config, secrets)
     if flow is None or tokens is None or row.status != "connected":
         raise ConnectionFlowError(PluginChannelMessages.CONNECTION_NO_TOKEN)
     return flow, tokens
@@ -1296,7 +1301,9 @@ async def member_token(
     )
     if row is None:
         return None
-    flow, tokens = _member_tokens(plugin, row)
+    flow, tokens = _member_tokens(
+        plugin, row, await connections_service.load_connection_secrets(session, row)
+    )
     renewed = await _renewed(
         flow, public_id=public_id, fields=without_tokens(row.config), tokens=tokens
     )
@@ -1309,7 +1316,8 @@ async def member_token(
     )
     if row is None:
         return None
-    _, current = _member_tokens(plugin, row)
+    stored = await connections_service.load_connection_secrets(session, row)
+    _, current = _member_tokens(plugin, row, stored)
     if current != tokens:
         await session.commit()
         return current
@@ -1319,11 +1327,9 @@ async def member_token(
         session.add(row)
         await session.commit()
         raise ConnectionFlowError(PluginChannelMessages.CONNECTION_EXPIRED)
-    row.config, row.config_secrets = seal_tokens(
-        renewed, config=row.config, secrets=row.config_secrets
-    )
+    row.config, sealed = seal_tokens(renewed, config=row.config, secrets=stored)
     row.updated_at = datetime.now(timezone.utc)
-    session.add(row)
+    await connections_service.store_connection_secrets(session, row, sealed)
     await session.commit()
     return renewed
 

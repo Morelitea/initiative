@@ -23,10 +23,12 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from datetime import datetime, timezone
 
 import httpx
 from fastapi import HTTPException
 from sqlalchemy import text
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel import delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -40,6 +42,7 @@ from app.models.platform.ai_connection import PlatformAIConnection
 from app.models.platform.user import User
 from app.models.tenant.ai_connection import GuildAIConnection, GuildAIConnectionKey
 from app.models.tenant.ai_member_key import GuildAIMemberKey
+from app.models.tenant.ai_member_key_secret import AIMemberKeySecret
 from app.models.tenant.ai_member_pref import GuildAIMemberPref
 from app.services.platform.app_settings import get_app_settings
 from app.schemas.ai_settings import (
@@ -50,6 +53,7 @@ from app.schemas.ai_settings import (
     AIConnectionUpdate,
     AIModelsResponse,
     AIProvider,
+    CommunityMemberAIKey,
     ConnectionScope,
     MemberAIConnectionView,
     MemberAIKeyUpdate,
@@ -398,14 +402,16 @@ async def resolve_ai_settings(
             source=cfg.mode,
         )
 
-    # Member key for the chosen connection (guild-local, own-row RLS), else the
-    # connection's own shared key. Per-connection: a connection that disallows
-    # member keys always uses its own shared key.
+    # Member key for the chosen connection (in its own table, which only the
+    # member reaches), else the connection's own shared key. Per-connection: a
+    # connection that disallows member keys always uses its own shared key.
     member_ciphertext: str | None = None
     if chosen.allow_member_keys:
         member_ciphertext = (
             await session.exec(
-                select(GuildAIMemberKey.api_key_encrypted).where(
+                select(AIMemberKeySecret.api_key_encrypted)
+                .join(GuildAIMemberKey, GuildAIMemberKey.id == AIMemberKeySecret.key_id)
+                .where(
                     GuildAIMemberKey.user_id == user.id,
                     GuildAIMemberKey.connection_scope == chosen.scope,
                     GuildAIMemberKey.connection_id == chosen.id,
@@ -841,8 +847,10 @@ async def delete_guild_connection(
         detail={"scope": ConnectionScope.community.value},
     )
     # Connection administration includes removing every member reference. The
-    # own-row policy on those tables admits the community's administrator,
+    # member keys admit the seat for the community's own connections, and the
+    # prefs' own-row policy admits the community's administrator, both of
     # which the seat holder running this already is in the request's standing.
+    # A key goes with its row (ON DELETE CASCADE).
     await session.exec(
         delete(GuildAIMemberKey).where(
             GuildAIMemberKey.connection_scope == ConnectionScope.community.value,
@@ -894,7 +902,7 @@ async def get_member_ai_view(
         if _provider_or_none(c.provider) is not None
     ]
 
-    # Member's keys + pref (guild-local, own-row RLS).
+    # Member's keys + pref (guild-local; only the member reaches a key).
     member_keys = {
         (k.connection_scope, k.connection_id)
         for k in (
@@ -969,18 +977,24 @@ async def set_member_key(
             )
         )
     ).one_or_none()
-    if existing:
-        existing.api_key_encrypted = encrypt_field(normalized, SALT_AI_API_KEY)
-        session.add(existing)
-    else:
-        session.add(
-            GuildAIMemberKey(
-                user_id=user.id,  # type: ignore[arg-type]
-                connection_scope=payload.scope.value,
-                connection_id=payload.connection_id,
-                api_key_encrypted=encrypt_field(normalized, SALT_AI_API_KEY),
-            )
+    if existing is None:
+        existing = GuildAIMemberKey(
+            user_id=user.id,  # type: ignore[arg-type]
+            connection_scope=payload.scope.value,
+            connection_id=payload.connection_id,
         )
+    existing.updated_at = datetime.now(timezone.utc)
+    session.add(existing)
+    await session.flush()
+    ciphertext = encrypt_field(normalized, SALT_AI_API_KEY)
+    await session.exec(
+        pg_insert(AIMemberKeySecret)
+        .values(key_id=existing.id, api_key_encrypted=ciphertext)
+        .on_conflict_do_update(
+            index_elements=[AIMemberKeySecret.key_id],
+            set_={"api_key_encrypted": ciphertext},
+        )
+    )
     await session.commit()
     return await get_member_ai_view(session, user, guild_id)
 
@@ -1005,6 +1019,55 @@ async def delete_member_key(
         await session.delete(existing)
         await session.commit()
     return await get_member_ai_view(session, user, guild_id)
+
+
+async def list_community_member_keys(
+    session: AsyncSession,
+) -> list[CommunityMemberAIKey]:
+    """Who gave which of the community's own AI connections a key. A key for a
+    platform connection is the member's and the platform's, and not listed."""
+    rows = await session.exec(
+        select(GuildAIMemberKey)
+        .where(GuildAIMemberKey.connection_scope == ConnectionScope.community.value)
+        .order_by(GuildAIMemberKey.connection_id, GuildAIMemberKey.user_id)
+    )
+    return [
+        CommunityMemberAIKey(
+            user_id=row.user_id,
+            connection_id=row.connection_id,
+            updated_at=row.updated_at,
+        )
+        for row in rows.all()
+    ]
+
+
+async def revoke_community_member_key(
+    session: AsyncSession, user_id: int, connection_id: int, *, actor_user_id: int
+) -> None:
+    """Take back the key ``user_id`` gave one of the community's connections.
+    The key goes with the row that says they gave it."""
+    row = (
+        await session.exec(
+            select(GuildAIMemberKey).where(
+                GuildAIMemberKey.user_id == user_id,
+                GuildAIMemberKey.connection_scope == ConnectionScope.community.value,
+                GuildAIMemberKey.connection_id == connection_id,
+            )
+        )
+    ).one_or_none()
+    if row is None:
+        raise HTTPException(status_code=404, detail=AIMessages.MEMBER_KEY_NOT_FOUND)
+    await session.delete(row)
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.AI_MEMBER_KEY_REVOKED,
+        actor_user_id=actor_user_id,
+        guild_id=routed_guild_id(session),
+        target_type="ai_connection",
+        target_id=connection_id,
+        detail={"user_id": user_id},
+    )
+    await session.commit()
 
 
 async def set_member_pref(

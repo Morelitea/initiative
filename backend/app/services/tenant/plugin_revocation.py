@@ -194,7 +194,7 @@ def queue_install_revocations(
         )
 
 
-def queue_revocations_for_rows(
+async def queue_revocations_for_rows(
     session: Any,
     rows: Iterable[Any],
     *,
@@ -203,7 +203,12 @@ def queue_revocations_for_rows(
 ) -> None:
     """Record an intent for each member connection row whose values are about
     to go. ``installs`` gives, per install id, its listing and the definition
-    its connections were made under."""
+    its connections were made under. The sealed values are the member's own,
+    so they are read as the platform, whoever is ending the connection."""
+    from app.services.tenant.plugin_connections import connection_secrets_of
+
+    rows = list(rows)
+    sealed = await connection_secrets_of(session, [row.id for row in rows])
     guild_id = routed_guild_id(session)
     for row in rows:
         listing_uid, definition = installs.get(row.plugin_id, ("", None))
@@ -216,7 +221,7 @@ def queue_revocations_for_rows(
                 definition=definition,
                 connection_id=row.connection_id,
                 config=row.config,
-                secrets=row.config_secrets,
+                secrets=sealed.get(row.id, {}),
                 reason=reason,
                 connection_ref=row.connection_ref,
                 user_id=row.user_id,

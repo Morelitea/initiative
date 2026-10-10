@@ -47,6 +47,8 @@ __all__ = [
     "GUILD_LEVEL_TABLES",
     "MANAGED_TABLES",
     "OWN_ROW_TABLES",
+    "MEMBER_CREDENTIAL_TABLES",
+    "MEMBER_SECRET_TABLES",
     "PRIVATE_ROW_SHARED_READ",
     "PRIVATE_ROW_TABLES",
     "CREATED_BY_EXEMPT_TABLES",
@@ -140,19 +142,17 @@ GUILD_LEVEL_TABLES: frozenset[str] = frozenset(
         "import_jobs",  # same shape as export_jobs: a backup import spans
         # initiatives, and the row's options/plan/report text plus the staged
         # payload it gates must not be guild-wide-readable.
-        # Member-owned AI rows (also in OWN_ROW_TABLES): a member's own key /
-        # connection preference. One member must not read another's key ciphertext
-        # or pref, so these carry own_row_* policies (owner OR guild admin).
-        "guild_ai_member_keys",
+        # A member's own AI connection preference (also in OWN_ROW_TABLES).
         "guild_ai_member_prefs",
-        # A member's own connection to an installed plug-in's vendor. No FK to any
-        # initiative — a plug-in is guild-wide — so it can't use initiative_access.
-        # Rows belong to ONE member and hold that member's credential, so it
-        # carries own_row_* policies: the owner manages their own, and a guild
-        # admin manages every one in their guild (a personal connection is
-        # guild-governed access, not private property). The ciphertext is never
-        # returned by the API to anyone, admin included.
+        # A member's own credentials: that they gave an AI connection a key, and
+        # their connection to an installed plug-in's vendor (MEMBER_CREDENTIAL_TABLES).
+        # No FK to any initiative — a connection and a plug-in are community-wide.
+        "guild_ai_member_keys",
         "guild_plugin_user_connections",
+        # What those credentials hold, beside them (MEMBER_SECRET_TABLES): the
+        # member and the system engine alone.
+        "ai_member_key_secrets",
+        "plugin_connection_secrets",
         # A member's answer to an installed plug-in asking to act as them, one per
         # purpose. The same shape as the connections beside it: no FK to any
         # initiative is required (a purpose may be app-wide), one owner per
@@ -196,9 +196,7 @@ MANAGED_TABLES: dict[str, str] = {
 OWN_ROW_TABLES: dict[str, str] = {
     "export_jobs": "created_by",
     "import_jobs": "created_by",
-    "guild_ai_member_keys": "user_id",
     "guild_ai_member_prefs": "user_id",
-    "guild_plugin_user_connections": "user_id",
     "plugin_member_consents": "user_id",
 }
 
@@ -225,6 +223,31 @@ PRIVATE_ROW_TABLES: dict[str, str] = {
 PRIVATE_ROW_SHARED_READ: frozenset[str] = frozenset(
     {"post_reads", "post_poll_votes", "reactions"}
 )
+
+# --- A member's credentials ----------------------------------------------------
+# Guild-level tables saying that a member holds a credential: table ->
+# (owner column, the rows the seat reaches, or ``None`` for every row). The
+# member, the community's seat and the system engine read and write them —
+# not a plain admin or a settings rung — rendered as ``member_credential_*``
+# policies by ``app.db.guild_ddl.render_guild_rls_ddl``. A key held for a
+# platform AI connection is between the member and the platform, so the seat
+# reaches only the community's own. Every entry here MUST also be in
+# ``GUILD_LEVEL_TABLES`` — enforced in ``tenancy_test.py``.
+MEMBER_CREDENTIAL_TABLES: dict[str, tuple[str, str | None]] = {
+    "guild_ai_member_keys": ("user_id", "connection_scope = 'community'"),
+    "guild_plugin_user_connections": ("user_id", None),
+}
+
+# --- What a member's credentials hold -----------------------------------------
+# The secret values beside a MEMBER_CREDENTIAL_TABLES row: table -> (that
+# table, the column naming the row). Only the member the row names and the
+# system engine reach them, rendered as ``member_secret_*`` policies. Deleting
+# the credential row takes its secret with it (ON DELETE CASCADE). Every entry
+# here MUST also be in ``GUILD_LEVEL_TABLES`` — enforced in ``tenancy_test.py``.
+MEMBER_SECRET_TABLES: dict[str, tuple[str, str]] = {
+    "ai_member_key_secrets": ("guild_ai_member_keys", "key_id"),
+    "plugin_connection_secrets": ("guild_plugin_user_connections", "connection_row_id"),
+}
 
 # --- Seat overlay on guild-level tables ---------------------------------------
 # Guild-level configuration the community's seat holds. Read within the schema:
@@ -301,6 +324,10 @@ CREATED_BY_EXEMPT_TABLES: frozenset[str] = frozenset(
         # An install's secret values, one row per install. The install row
         # names who made it.
         "guild_plugin_secrets",
+        # A member's secret values, one row per credential row, which names
+        # whose it is.
+        "ai_member_key_secrets",
+        "plugin_connection_secrets",
         # A connection's shared key. The connection row names who made it.
         "guild_ai_connection_keys",
         # A ballot: ``user_id`` is the voter, which is both the author of the

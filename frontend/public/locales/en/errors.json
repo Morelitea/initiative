@@ -331,6 +331,7 @@
   "INVALID_TAG_IDS": "One or more tags no longer exist",
   "AI_CONNECTION_NOT_FOUND": "AI connection not found.",
   "AI_MEMBER_KEYS_DISABLED": "Personal API keys are disabled for this workspace.",
+  "AI_MEMBER_KEY_NOT_FOUND": "That member has no key for this connection.",
   "AI_INVALID_API_KEY": "The API key was rejected. Check it and try again.",
   "AI_NOT_ENABLED": "AI features are not enabled for this workspace.",
   "AI_NOT_CONFIGURED": "No AI provider is set up. Choose one and add its API key in AI settings.",

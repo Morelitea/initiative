@@ -23,12 +23,15 @@ from __future__ import annotations
 
 from typing import Any, Optional, Sequence
 
-from sqlalchemy import func
+from sqlalchemy import delete as sa_delete, func
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.tenant.guild_plugin import GuildPlugin
+from app.db.cohorts import as_system, exec_as_system
 from app.models.tenant.guild_plugin_user_connection import GuildPluginUserConnection
+from app.models.tenant.plugin_connection_secret import PluginConnectionSecret
 from app.core.clock import utcnow
 from app.services.tenant.plugin_config import mint_connection_ref
 from app.services.tenant.plugin_revocation import queue_revocations_for_rows
@@ -57,10 +60,10 @@ async def get_connection(
 ) -> Optional[GuildPluginUserConnection]:
     """One member's row for one connection, if it exists.
 
-    Under the table's own-row policies this returns the caller's row when the
-    caller is the member, and any member's row when the session is routed as a
-    guild admin — the same query either way, because the gate is in the
-    database rather than in a branch here.
+    Under the table's policies this returns the caller's row when the caller is
+    the member, and any member's row when the caller holds the community's seat
+    — the same query either way, because the gate is in the database rather
+    than in a branch here.
     """
     return (
         await session.exec(
@@ -141,6 +144,72 @@ async def connection_tallies(
     }
 
 
+# --- what a connection holds -----------------------------------------------
+
+
+async def load_connection_secrets(
+    session: AsyncSession, row: GuildPluginUserConnection
+) -> dict[str, Any]:
+    """One connection's secret values, ``{key: ciphertext}``, tokens included.
+
+    Read on ``session``, which only the member it belongs to and the system
+    engine reach. No row reads as ``{}``.
+    """
+    stored = (
+        await session.exec(
+            select(PluginConnectionSecret.secrets).where(
+                PluginConnectionSecret.connection_row_id == row.id
+            )
+        )
+    ).first()
+    return dict(stored or {})
+
+
+async def connection_secrets_of(
+    session: AsyncSession, row_ids: Sequence[int]
+) -> dict[int, dict[str, Any]]:
+    """The secret values of several connections, by row id, read as the
+    platform (:func:`app.db.cohorts.as_system`) whoever is asking."""
+    if not row_ids:
+        return {}
+    async with as_system(session) as system:
+        rows = await system.exec(
+            select(PluginConnectionSecret).where(
+                PluginConnectionSecret.connection_row_id.in_(list(row_ids))  # type: ignore[attr-defined]
+            )
+        )
+        return {row.connection_row_id: dict(row.secrets or {}) for row in rows.all()}
+
+
+async def store_connection_secrets(
+    session: AsyncSession, row: GuildPluginUserConnection, secrets: dict[str, Any]
+) -> None:
+    """Replace one connection's secret values; an empty map removes its row.
+
+    The trigger on ``plugin_connection_secrets`` rewrites the connection's
+    ``secret_fields`` in the same statement. ``row`` is flushed first so it
+    has an id.
+    """
+    session.add(row)
+    await session.flush()
+    if secrets:
+        await session.exec(
+            pg_insert(PluginConnectionSecret)
+            .values(connection_row_id=row.id, secrets=secrets)
+            .on_conflict_do_update(
+                index_elements=[PluginConnectionSecret.connection_row_id],
+                set_={"secrets": secrets},
+            )
+        )
+    else:
+        await session.exec(
+            sa_delete(PluginConnectionSecret).where(
+                PluginConnectionSecret.connection_row_id == row.id
+            )
+        )
+    await session.refresh(row, attribute_names=["secret_fields"])
+
+
 # --- ending it --------------------------------------------------------------
 
 
@@ -161,7 +230,7 @@ async def _delete_rows(
     """
     if not rows:
         return 0
-    queue_revocations_for_rows(session, rows, reason=reason, installs=installs)
+    await queue_revocations_for_rows(session, rows, reason=reason, installs=installs)
     for row in rows:
         await session.delete(row)
     return len(rows)
@@ -228,16 +297,24 @@ async def block_member_connection(
             status="blocked",
         )
     else:
-        queue_revocations_for_rows(
+        await queue_revocations_for_rows(
             session,
             [row],
             reason="blocked",
             installs={plugin.id: (plugin.listing_uid, plugin.definition)},
         )
+        # The values are the member's own to reach, so the platform clears
+        # them, before this transaction writes the row they hang off.
+        await exec_as_system(
+            session,
+            sa_delete(PluginConnectionSecret).where(
+                PluginConnectionSecret.connection_row_id == row.id
+            ),
+        )
         row.status = "blocked"
 
     row.config = {}
-    row.config_secrets = {}
+    row.secret_fields = {}
     row.account_label = None
     row.blocked_at = utcnow()
     row.blocked_by_id = blocked_by_id
@@ -311,28 +388,32 @@ async def delete_member_connections(
     being removed, deactivating or deleting their account. Their connections in
     other guilds are untouched, because those relationships have not ended.
 
-    The session must already be routed into the guild. Blocked tombstones are
-    left alone: a block outlives a membership, so somebody removed and later
+    The session must already be routed into the guild. Whoever ends the
+    relationship — a plain admin among them — need not reach the member's
+    credentials, so the platform deletes them, in a transaction of its own, and
+    sends the revocations once that commits. Blocked tombstones are left
+    alone: a block outlives a membership, so somebody removed and later
     re-invited does not come back with the block quietly lifted.
     """
-    rows = list(
-        (
-            await session.exec(
-                select(GuildPluginUserConnection).where(
-                    GuildPluginUserConnection.user_id == user_id,
-                    GuildPluginUserConnection.blocked_at.is_(None),
+    async with as_system(session) as system:
+        rows = list(
+            (
+                await system.exec(
+                    select(GuildPluginUserConnection).where(
+                        GuildPluginUserConnection.user_id == user_id,
+                        GuildPluginUserConnection.blocked_at.is_(None),
+                    )
                 )
-            )
-        ).all()
-    )
-    return await _delete_rows(
-        session,
-        rows,
-        reason=reason,
-        installs=await _installs_by_plugin_id(
-            session, plugin_ids={r.plugin_id for r in rows}
-        ),
-    )
+            ).all()
+        )
+        return await _delete_rows(
+            system,
+            rows,
+            reason=reason,
+            installs=await _installs_by_plugin_id(
+                system, plugin_ids={r.plugin_id for r in rows}
+            ),
+        )
 
 
 async def delete_guild_connections(

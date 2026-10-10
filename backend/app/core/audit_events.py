@@ -310,6 +310,9 @@ class AuditEventType(str, Enum):
     AI_CONNECTION_CREATED = "ai_connection.created", AuditCategory.CONFIGURATION
     AI_CONNECTION_UPDATED = "ai_connection.updated", AuditCategory.CONFIGURATION
     AI_CONNECTION_DELETED = "ai_connection.deleted", AuditCategory.CONFIGURATION
+    #: The seat took back the key a member gave one of the community's AI
+    #: connections.
+    AI_MEMBER_KEY_REVOKED = "ai_member_key.revoked", AuditCategory.CONFIGURATION
     PLUGIN_SERVICE_CREATED = "plugin_service.created", AuditCategory.CONFIGURATION
     PLUGIN_SERVICE_UPDATED = "plugin_service.updated", AuditCategory.CONFIGURATION
     PLUGIN_SERVICE_DELETED = "plugin_service.deleted", AuditCategory.CONFIGURATION

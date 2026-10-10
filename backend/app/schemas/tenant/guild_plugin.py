@@ -638,7 +638,7 @@ def serialize_connection(
     else:
         stored_config = (member_row.config or {}) if member_row is not None else {}
         stored_secrets = (
-            (member_row.config_secrets or {}) if member_row is not None else {}
+            (member_row.secret_fields or {}) if member_row is not None else {}
         )
 
     declared = {

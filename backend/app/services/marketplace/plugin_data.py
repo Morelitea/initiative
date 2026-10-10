@@ -507,7 +507,7 @@ async def _resolve_connections(
                 or not plugin_config_service.runs_vendor_flow(connection)
             )
             if not usable or not plugin_config_service.is_satisfied(
-                connection, row.config, row.config_secrets
+                connection, row.config, row.secret_fields
             ):
                 refusal = refusal or PluginDataError(
                     PluginDataMessages.CONNECTION_REQUIRED, 409

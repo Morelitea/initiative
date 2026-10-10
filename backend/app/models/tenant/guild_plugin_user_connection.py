@@ -18,13 +18,13 @@ Two consequences shape the columns:
   member) — so it can select the right credential without holding a user id, an
   email, or a display name, and the same person looks unrelated across plug-ins.
 
-A personal connection is still guild-governed access rather than private
-property, so the row is readable and removable by its owner **or** by a guild
-admin (the ``own_row_*`` policies in ``app.db.tenancy.OWN_ROW_TABLES``). What an
-admin gets is management — see who connected as which vendor account, disconnect
-them, stop them reconnecting. Never the values: ``config_secrets`` serializes to
-nobody, because ending access is the useful power and reading a live credential
-is not part of it.
+A personal connection is still community-governed access rather than private
+property, so the row is readable and removable by its owner **or** by the
+community's seat (``app.db.tenancy.MEMBER_CREDENTIAL_TABLES``). What the seat
+gets is management — see who connected as which vendor account, disconnect
+them, stop them reconnecting. Never the values: they are in
+``plugin_connection_secrets``, which only the member and the system engine
+reach, and this row carries only which keys hold one (``secret_fields``).
 
 ``blocked_at`` leaves the row behind as a tombstone once the values are gone, so
 "this person may not reach that system through us" survives without uninstalling
@@ -47,7 +47,6 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, SQLModel
 
-from app.core.encryption import FERNET_SALT, SALT_PLUGIN_CONFIG
 
 #: Where a connection has got to, as far as this side can tell.
 #:
@@ -113,16 +112,11 @@ class GuildPluginUserConnection(SQLModel, table=True):
         default_factory=dict,
         sa_column=Column(JSONB, nullable=False, server_default="{}"),
     )
-    #: One Fernet ciphertext per secret field, under the same custody as the
-    #: guild-scoped values.
-    config_secrets: dict[str, Any] = Field(
+    #: Which keys of ``plugin_connection_secrets`` hold a value, each with a
+    #: digest of it; kept in step by a trigger on that table.
+    secret_fields: dict[str, Any] = Field(
         default_factory=dict,
-        sa_column=Column(
-            JSONB,
-            nullable=False,
-            server_default="{}",
-            info={FERNET_SALT: SALT_PLUGIN_CONFIG},
-        ),
+        sa_column=Column(JSONB, nullable=False, server_default="{}"),
     )
 
     status: str = Field(

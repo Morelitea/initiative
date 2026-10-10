@@ -331,6 +331,7 @@
   "INVALID_TAG_IDS": "Une ou plusieurs étiquettes n'existent plus",
   "AI_CONNECTION_NOT_FOUND": "Connexion d'IA introuvable.",
   "AI_MEMBER_KEYS_DISABLED": "Les clés d'API personnelles sont désactivées pour cet espace de travail.",
+  "AI_MEMBER_KEY_NOT_FOUND": "Ce membre n'a pas de clé pour cette connexion.",
   "AI_INVALID_API_KEY": "La clé d'API a été refusée. Vérifiez-la et réessayez.",
   "AI_NOT_ENABLED": "Les fonctionnalités d'IA ne sont pas activées pour cet espace de travail.",
   "AI_NOT_CONFIGURED": "Aucun fournisseur d'IA n'est configuré. Choisissez-en un et ajoutez sa clé d'API dans les paramètres d'IA.",
