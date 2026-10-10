@@ -413,9 +413,15 @@ async def load_plugin_platform_signing_key(session: AsyncSession) -> None:
 
 
 async def record_running_version(
-    session: AsyncSession, *, version: str, transitions: Sequence[str] = ()
+    session: AsyncSession,
+    *,
+    version: str,
+    transitions: Sequence[str] = (),
+    demo_mode: bool = False,
 ) -> str | None:
     """Roll the deployment's version pair forward, and say what it was before.
+    Also records whether it runs as the demo (``DEMO_MODE``), which the
+    database reads where a guest's rung is decided.
 
     Called once at boot. When the running version differs from what was last
     recorded, the old value becomes ``previous_version`` — which is what tells
@@ -434,8 +440,13 @@ async def record_running_version(
     started = {
         name: now for name in transitions if name not in settings_row.transitions
     }
-    if settings_row.last_seen_version == version and not started:
+    if (
+        settings_row.last_seen_version == version
+        and not started
+        and settings_row.demo_mode == demo_mode
+    ):
         return settings_row.previous_version
+    settings_row.demo_mode = demo_mode
     if started:
         settings_row.transitions = {**settings_row.transitions, **started}
     if settings_row.last_seen_version != version:

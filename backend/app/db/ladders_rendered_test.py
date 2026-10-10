@@ -49,7 +49,11 @@ def test_the_sharing_ladder_reaches_downward():
     assert WRITE_LEVELS == (ResourceAccessLevel.write, ResourceAccessLevel.owner)
 
 
-@pytest.mark.parametrize("rung", sorted(GUILD_STORED_ROLES, key=lambda r: r.value))
+# A guest's row needs an end, so its standing is read in guests_test.
+@pytest.mark.parametrize(
+    "rung",
+    sorted(GUILD_STORED_ROLES - {CommunityRole.guest}, key=lambda r: r.value),
+)
 async def test_the_standing_reads_the_admin_fact_off_the_ladder(
     acting_user, role_session, rung
 ):

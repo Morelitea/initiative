@@ -49,7 +49,12 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 from app.core.capabilities import Capability, roles_with_capability
 from app.core.config import settings
 from app.db import gucs
-from app.db.authorization import GUILD_ADMIN, SETTINGS_ADMIN, SYSTEM_SESSION
+from app.db.authorization import (
+    GUILD_ADMIN,
+    SETTINGS_ADMIN,
+    SYSTEM_SESSION,
+    live_membership,
+)
 from app.models.platform.user import UserRole
 
 logger = logging.getLogger(__name__)
@@ -137,11 +142,13 @@ def routed_and_own(guild_col: str, user_col: str) -> str:
 
 
 def member_of_guild(col: str = "guild_id") -> str:
-    """The reader is a member of the row's community, by the membership table."""
+    """The reader is a member of the row's community, by the membership table:
+    a member, or a guest whose time has not run out."""
     return (
         "EXISTS (SELECT 1 FROM guild_memberships"
         f" WHERE guild_memberships.guild_id = {{table}}.{col}"
-        f" AND guild_memberships.user_id = {gucs.USER_ID})"
+        f" AND guild_memberships.user_id = {gucs.USER_ID}"
+        f" AND {live_membership('guild_memberships')})"
     )
 
 
@@ -1211,7 +1218,8 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             platform_base=frozenset({SELECT}),
             # No TABLE grant: a column-scoped SELECT on (guild_id, user_id), which a
             # member token's standing reads for the member's own row in the routed
-            # community (install_reads_its_member; migration 20260924_0385).
+            # community (install_reads_its_member; migration 20260924_0385), and
+            # on (guest_until, role), to ask whether that row is live (0488).
             plugin_install_base=None,
         ),
     ),

@@ -37,6 +37,7 @@ from app.models.platform.guild import GuildMembership, CommunityRole
 from app.services import audit as audit_service
 from app.services import email as email_service
 from app.services.auth import addresses
+from app.services.membership import live_membership_clause
 from app.services.auth import identity as identity_service
 from app.services.auth import sessions as session_service
 from app.services.auth import challenges as challenge_service
@@ -1017,8 +1018,10 @@ def visible_to_other_people(status_column=None):
     return column.notin_(sorted(ABSENT_STATUSES, key=lambda s: s.value))
 
 
-def guild_members(statement: _S, *, guild_id: int) -> _S:
+def guild_members(statement: _S, *, guild_id: int, guests: bool = False) -> _S:
     """``statement`` narrowed to the people listed as members of one community.
+    Its guests are listed only with ``guests``, and only while they are in: a
+    picker for content a guest can reach names them, and the roster does not.
 
     ``MemberProfile`` joined to each person's membership row there, so a caller
     may select its columns beside the profile, and the people
@@ -1027,7 +1030,11 @@ def guild_members(statement: _S, *, guild_id: int) -> _S:
     """
     return statement.join(
         GuildMembership, GuildMembership.user_id == MemberProfile.id
-    ).where(GuildMembership.guild_id == guild_id, visible_to_other_people())
+    ).where(
+        GuildMembership.guild_id == guild_id,
+        live_membership_clause() if guests else GuildMembership.guest_until.is_(None),
+        visible_to_other_people(),
+    )
 
 
 async def _reach(user_ids: List[int]) -> tuple[dict[int, str], set[int]]:

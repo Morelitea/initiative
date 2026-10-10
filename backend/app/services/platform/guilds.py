@@ -744,7 +744,10 @@ async def count_members_by_guild(
     rows = (
         await session.exec(
             select(GuildMembership.guild_id, func.count())
-            .where(GuildMembership.guild_id.in_(list(guild_ids)))
+            .where(
+                GuildMembership.guild_id.in_(list(guild_ids)),
+                GuildMembership.guest_until.is_(None),
+            )
             .group_by(GuildMembership.guild_id)
         )
     ).all()
@@ -752,7 +755,8 @@ async def count_members_by_guild(
 
 
 async def count_members(session: AsyncSession, *, guild_id: int) -> int:
-    """Total number of members in a guild.
+    """Total number of members in a guild. A guest takes no seat, so guests
+    are not counted.
 
     The caller must already hold a session that can see the guild's
     ``guild_memberships`` rows — a system-engine session, or one whose RLS
@@ -763,7 +767,10 @@ async def count_members(session: AsyncSession, *, guild_id: int) -> int:
         await session.exec(
             select(func.count())
             .select_from(GuildMembership)
-            .where(GuildMembership.guild_id == guild_id)
+            .where(
+                GuildMembership.guild_id == guild_id,
+                GuildMembership.guest_until.is_(None),
+            )
         )
     ).one()
 
@@ -2315,7 +2322,10 @@ async def list_community_guilds(
     member_count = (
         select(func.count())
         .select_from(GuildMembership)
-        .where(GuildMembership.guild_id == Guild.id)
+        .where(
+            GuildMembership.guild_id == Guild.id,
+            GuildMembership.guest_until.is_(None),
+        )
         .correlate(Guild)
         .scalar_subquery()
     )
@@ -2578,8 +2588,14 @@ async def remove_user_from_guild(
     user_id: int,
     actor_user_id: int | None,
     via: str | None = None,
-) -> None:
-    """Remove a user from a guild, its initiatives, and its plug-ins.
+    only_if: ColumnElement[bool] | None = None,
+) -> bool:
+    """Remove a user from a guild, its initiatives, and its plug-ins. Says
+    whether there was a membership to remove.
+
+    With ``only_if``, the membership row goes first and only while it still
+    matches: one statement checks and deletes it, and nothing else is touched
+    when it no longer does.
 
     Leaving, being removed by an admin and being released by sign-in sync all
     come here: ``actor_user_id`` is the person themselves when they leave, and
@@ -2606,16 +2622,26 @@ async def remove_user_from_guild(
         )
     else:
         reason = via
-    # Read before the delete below takes the row: the record says which standing
-    # the person held when they left.
-    previous_role = (
-        await session.exec(
-            select(GuildMembership.role).where(
-                GuildMembership.guild_id == guild_id,
-                GuildMembership.user_id == user_id,
+    this_row = (
+        GuildMembership.guild_id == guild_id,
+        GuildMembership.user_id == user_id,
+    )
+    if only_if is not None:
+        previous_role = (
+            await session.exec(
+                delete(GuildMembership)
+                .where(*this_row, only_if)
+                .returning(GuildMembership.role)
             )
-        )
-    ).one_or_none()
+        ).scalar_one_or_none()
+        if previous_role is None:
+            return False
+    else:
+        # Read before the delete below takes the row: the record says which
+        # standing the person held when they left.
+        previous_role = (
+            await session.exec(select(GuildMembership.role).where(*this_row))
+        ).one_or_none()
 
     # Remove from all initiatives in this guild
     await initiatives_service.remove_user_from_guild_initiatives(
@@ -2639,15 +2665,13 @@ async def remove_user_from_guild(
     await api_keys_service.delete_resource_keys(user_id=user_id, guild_id=guild_id)
 
     # Remove guild membership
-    stmt = delete(GuildMembership).where(
-        GuildMembership.guild_id == guild_id,
-        GuildMembership.user_id == user_id,
+    removed = only_if is not None or bool(
+        (await session.exec(delete(GuildMembership).where(*this_row))).rowcount
     )
-    result = await session.exec(stmt)
     # Only a real removal is a membership change — mirror the insert side,
     # which pings only on a genuine insert (a no-op remove of a non-member
     # must not nudge billing).
-    if result.rowcount:
+    if removed:
         await audit_service.record(
             session,
             event_type=AuditEventType.GUILD_MEMBER_REMOVED,
@@ -2671,3 +2695,4 @@ async def remove_user_from_guild(
         # than run here: the sweep reads the state this delete leaves behind,
         # and this delete is not committed yet.
         contact_grants_service.queue_stale_grant_sweep(session, user_id)
+    return removed

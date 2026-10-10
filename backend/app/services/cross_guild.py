@@ -15,6 +15,7 @@ from typing import Any, Awaitable, Callable, Optional, Sequence, TypeVar
 
 from sqlmodel import select
 
+from app.services.membership import live_membership_clause
 from app.services.platform import guild_entitlements
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -25,6 +26,7 @@ from app.db.query import effective_page_size, paginate_sequence
 from app.db.session import set_rls_context
 from app.models.platform.guild import (
     LIVE_STATUS_VALUES,
+    CommunityRole,
     Guild,
     GuildMembership,
 )
@@ -75,6 +77,9 @@ async def member_guild_ids(
     await set_rls_context(session, Platform(user_id=user_id))
     conditions = [
         GuildMembership.user_id == user_id,
+        live_membership_clause(),
+        # Twin of the guild path, which a guest rung does not route through yet.
+        GuildMembership.role != CommunityRole.guest,
         Guild.status.in_(LIVE_STATUS_VALUES),
         User.status != UserStatus.suspended,
     ]

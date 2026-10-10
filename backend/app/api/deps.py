@@ -19,6 +19,7 @@ from app.core.capabilities import Capability, user_has_capability
 from app.core.config import API_V1_STR
 from app.core.login_methods import LoginMethod
 from app.core import auth_context
+from app.services.membership import live_membership_clause
 from app.services.tenant import plugin_age
 from app.services.tenant.plugin_age import AgeViewer
 from app.services.auth import credentials
@@ -699,6 +700,7 @@ async def _read_membership_gate(
             .where(
                 GuildMembership.guild_id == guild_id,
                 GuildMembership.user_id == user_id,
+                live_membership_clause(),
             )
         )
     ).one_or_none()
@@ -842,6 +844,9 @@ async def _load_guild_context(
             ),
         )
     membership, guild, asked, age_gate_on = gate
+    # The guest rung has no community role of its own to assume yet.
+    if membership.role == CommunityRole.guest:
+        raise GuildAccessError()
     # Membership access respects the guild's lifecycle status: the statuses
     # that serve members are named, and every other one is refused, on every
     # surface. A suspended community is in time out — its administrators are

@@ -17,11 +17,20 @@ or ``set_rls_context``), exactly like any other guild-scoped query.
 
 from typing import Iterable
 
-from sqlalchemy import ColumnElement, func, select
+from sqlalchemy import ColumnElement, func, or_, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildMembership, CommunityRole
 from app.db.authorization import standing_arg
+
+
+def live_membership_clause() -> ColumnElement[bool]:
+    """``authorization.live_membership`` for a query over ``GuildMembership``:
+    a member's row always, and a guest's while it admits them."""
+    return or_(
+        GuildMembership.guest_until.is_(None),
+        func.guest_membership_live(GuildMembership.guest_until, GuildMembership.role),
+    )
 
 
 # ---------------------------------------------------------------------------

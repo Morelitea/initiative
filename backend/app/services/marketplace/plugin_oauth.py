@@ -86,6 +86,7 @@ from app.services.marketplace.registration_lookup import RegistrationSnapshot
 from app.db.request_context import SystemGuild
 from app.core.audit_events import AuditEventType
 from app.services import audit as audit_service
+from app.services.membership import live_membership_clause
 
 logger = logging.getLogger(__name__)
 
@@ -619,6 +620,7 @@ async def _member_token(
             .where(
                 GuildMembership.guild_id == guild_id,
                 GuildMembership.user_id == user_id,
+                live_membership_clause(),
                 User.status == UserStatus.active,
             )
         )

@@ -5,6 +5,7 @@ from typing import Any, List, Optional, TYPE_CHECKING
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     Column,
     DateTime,
     ForeignKey,
@@ -428,6 +429,11 @@ class CommunityRole(str, Enum):
     # through a settings grant. An ordinary guild admin cannot — the hand that
     # administers a community is not the hand that decides who may enter it.
     superadmin = "superadmin"
+    # An outside person in the community for a set time: a membership row
+    # with ``guest_until`` set, which no seat count or member list includes.
+    # Below ``member``: what a guest reaches is what they were given, not
+    # what the community's members see.
+    guest = "guest"
     # A time-bound PAM/support access grantee acting inside a guild they are
     # NOT a member of. Synthesized for the request only — never a persisted
     # ``guild_memberships`` row (the member-role endpoint rejects assigning
@@ -461,6 +467,7 @@ class CommunityRole(str, Enum):
 #: rather than restating which rungs are which.
 GUILD_LADDER: tuple[CommunityRole, ...] = (
     CommunityRole.support,
+    CommunityRole.guest,
     CommunityRole.member,
     CommunityRole.admin,
     CommunityRole.superadmin,
@@ -510,6 +517,10 @@ class GuildMembership(SQLModel, table=True):
         # The primary key is (guild_id, user_id); this is the other direction,
         # for "which guilds is this user in".
         Index("idx_guild_memberships_user_guild", "user_id", "guild_id"),
+        CheckConstraint(
+            "role <> 'guest' OR guest_until IS NOT NULL",
+            name="ck_guild_memberships_guest_ends",
+        ),
     )
 
     guild_id: int = Field(foreign_key="guilds.id", ondelete="CASCADE", primary_key=True)
@@ -559,6 +570,13 @@ class GuildMembership(SQLModel, table=True):
             nullable=True,
             index=True,
         ),
+    )
+
+    #: When a guest's membership ends; ``NULL`` for a member. A row with it
+    #: set is a guest's: it admits them only until then, and no seat count or
+    #: member list includes it.
+    guest_until: Optional[datetime] = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
     )
 
     guild: Optional[Guild] = Relationship(back_populates="members")
