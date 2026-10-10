@@ -178,6 +178,114 @@ def test_a_repeat_moves_with_its_start():
     assert recurrence.restarted(rule, 1440, EAST, noon, None)[1] == 1440
 
 
+@pytest.mark.parametrize(
+    ("rule", "start", "days", "new_start"),
+    [
+        # Mondays and Wednesdays from a Monday: a Monday again, the nearest.
+        (
+            "FREQ=WEEKLY;BYDAY=MO,WE",
+            datetime(2026, 10, 5, 9),
+            10,
+            datetime(2026, 10, 12, 9),
+        ),
+        # The second Tuesday, and the 15th: the nearest of each.
+        (
+            "FREQ=MONTHLY;BYDAY=2TU",
+            datetime(2026, 10, 13, 9),
+            20,
+            datetime(2026, 11, 10, 9),
+        ),
+        ("FREQ=MONTHLY", datetime(2026, 10, 15, 9), 40, datetime(2026, 11, 15, 9)),
+        # Every day: exactly as far.
+        ("FREQ=DAILY", datetime(2026, 10, 5, 9), 3, datetime(2026, 10, 8, 9)),
+        # Backwards, and as far back as a listing's dates go.
+        (
+            "FREQ=WEEKLY;BYDAY=MO,WE",
+            datetime(2026, 10, 5, 9),
+            -10,
+            datetime(2026, 9, 28, 9),
+        ),
+        ("FREQ=WEEKLY", datetime(2026, 5, 4, 9), -9618, datetime(2000, 1, 3, 9)),
+        # Counted from the month's end.
+        (
+            "FREQ=MONTHLY;BYDAY=-1MO",
+            datetime(2026, 8, 31, 9),
+            30,
+            datetime(2026, 9, 28, 9),
+        ),
+        (
+            "FREQ=MONTHLY;BYMONTHDAY=-1",
+            datetime(2026, 1, 31, 9),
+            29,
+            datetime(2026, 2, 28, 9),
+        ),
+        # A day some months lack, and a place counted from the month's end.
+        (
+            "FREQ=MONTHLY;BYMONTHDAY=31",
+            datetime(2026, 1, 31, 9),
+            40,
+            datetime(2026, 3, 31, 9),
+        ),
+        (
+            "FREQ=MONTHLY;BYDAY=MO",
+            datetime(2026, 10, 26, 9),
+            35,
+            datetime(2026, 11, 30, 9),
+        ),
+    ],
+)
+def test_a_moved_series_keeps_its_days_and_its_exceptions(rule, start, days, new_start):
+    """Its start lands on its rule nearest the move, and what it skipped, where
+    it ends and an occurrence of its own stay on the occurrence they named."""
+    start, new_start = start.replace(tzinfo=UTC), new_start.replace(tzinfo=UTC)
+    second, third, fourth = recurrence.first(rule, start, 0, 4)[1:]
+    text = recurrence.skipped(f"RRULE:{rule};UNTIL={fourth:%Y%m%dT%H%M%SZ}", 0, second)
+
+    series = recurrence.moved(text, start, 0, timedelta(days=days), occurrences=[third])
+
+    assert series.start == new_start
+    new_second, new_third, new_fourth = recurrence.first(
+        f"RRULE:{rule}", new_start, 0, 4
+    )[1:]
+    assert series.occurrences == {third: new_third}
+    assert recurrence.between(series.text, new_start, 0, new_start, new_fourth) == [
+        new_start,
+        new_third,
+        new_fourth,
+    ]
+    assert not recurrence.occurs(series.text, new_start, 0, new_second)
+    assert recurrence.last_start(series.text, new_start, 0) == new_fourth
+
+
+def test_a_skipped_start_moves_however_far_off_it_is():
+    """The 15th of each month, moved a month on: a start skipped sixty years
+    out is still the 15th, a month later."""
+    start = datetime(2026, 1, 15, 9, tzinfo=UTC)
+    text = "RRULE:FREQ=MONTHLY\nEXDATE:20860215T090000Z"
+
+    series = recurrence.moved(text, start, 0, timedelta(days=40))
+
+    assert series.start == datetime(2026, 2, 15, 9, tzinfo=UTC)
+    assert series.text == "RRULE:FREQ=MONTHLY\nEXDATE:20860315T090000Z"
+
+
+def test_a_repeat_that_skips_years_starts_on_one_of_its_own_days():
+    """The fifth Monday of February comes round in 2016 and 2044: moved ten
+    years, it starts on one of them, and so does the edit of its start."""
+    start = datetime(2016, 2, 29, 9, tzinfo=UTC)
+
+    series = recurrence.moved(
+        "RRULE:FREQ=YEARLY;BYMONTH=2;BYDAY=5MO",
+        start,
+        0,
+        timedelta(days=3653),
+        occurrences=[start],
+    )
+
+    assert series.start in (start, datetime(2044, 2, 29, 9, tzinfo=UTC))
+    assert series.occurrences == {start: series.start}
+
+
 def test_imports_read_either_shape():
     """A rule string comes with its shift; the JSON shape older exports carried
     was picked in a zone, which the importer's stands in for."""
