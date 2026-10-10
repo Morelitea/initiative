@@ -28,8 +28,13 @@ read it back.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from app.db.authorization import IN_POLICY, SYSTEM_SESSION
 from app.db.frozen import FROZEN_SQLSTATE, HELD_CONSTRAINT
+
+if TYPE_CHECKING:
+    from app.models.tenant._mixins import HoldMixin
 
 
 def _holdable() -> frozenset[str]:
@@ -41,6 +46,22 @@ def _holdable() -> frozenset[str]:
 
 #: Every table whose rows can be held.
 HOLDABLE_TABLES: frozenset[str] = _holdable()
+
+
+def holdable_model(target_type: str) -> type[HoldMixin] | None:
+    """The model a hold, a report or a moderation act names by
+    ``target_type`` (a ``SearchEntityType`` value), or None for a kind whose
+    rows cannot be held."""
+    from app.core.search import SearchEntityType
+    from app.core.tools import plural_of
+    from app.db.base import MODELS_BY_TABLE
+    from app.models.tenant._mixins import HoldMixin
+
+    if target_type not in SearchEntityType.__members__:
+        return None
+    model = MODELS_BY_TABLE.get(plural_of(target_type))
+    return model if model is not None and issubclass(model, HoldMixin) else None
+
 
 #: The policy that hides held rows, on each holdable table.
 HELD_POLICY = "held_restrict"

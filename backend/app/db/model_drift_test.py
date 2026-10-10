@@ -26,6 +26,7 @@ from sqlmodel import SQLModel
 
 from app.db import base  # noqa: F401 — register every model on SQLModel.metadata
 from app.db.migration_filters import make_include_object
+from app.db.tenancy import GUILD_SCOPED_TABLES
 
 
 def _model_diffs(sync_conn, guild_autogen: bool) -> list:
@@ -59,6 +60,57 @@ async def test_models_match_guild_template(engine):
         "migration with: cd backend && python scripts/gen_guild_migration.py "
         f'"desc". Autogenerate sees:\n{_render(diffs)}'
     )
+
+
+#: ``pg_constraint.confdeltype``, as a model's ``ondelete`` spells it.
+_ON_DELETE = {
+    "a": "NO ACTION",
+    "r": "RESTRICT",
+    "c": "CASCADE",
+    "n": "SET NULL",
+    "d": "SET DEFAULT",
+}
+
+
+async def test_guild_keys_let_go_as_the_models_say(engine):
+    """Every key between two guild tables does on delete what its model says.
+
+    Guild mode leaves keys to the template (their names, and the references
+    out of the schema it omits), so the comparison above never sees them. What
+    a key does on delete is still read from the models: the trash tree skips a
+    key that lets go, and a purge leaves the rest to the database."""
+    async with engine.connect() as conn:
+        rows = (
+            await conn.execute(
+                text(
+                    """
+                    SELECT c.conrelid::regclass::text, a.attname,
+                           c.confdeltype::text
+                      FROM pg_constraint c
+                      JOIN pg_attribute a
+                        ON a.attrelid = c.conrelid AND a.attnum = c.conkey[1]
+                     WHERE c.contype = 'f'
+                       AND c.connamespace = 'guild_template'::regnamespace
+                       AND cardinality(c.conkey) = 1
+                    """
+                )
+            )
+        ).all()
+    in_template = {
+        (table.removeprefix("guild_template."), column): _ON_DELETE[action]
+        for table, column, action in rows
+    }
+    drift = [
+        f"{table.name}.{column.name}: model {declared}, template {actual}"
+        for table in SQLModel.metadata.tables.values()
+        if table.name in GUILD_SCOPED_TABLES
+        for column in table.columns
+        for key in column.foreign_keys
+        if key.column.table.name in GUILD_SCOPED_TABLES
+        and (actual := in_template.get((table.name, column.name))) is not None
+        and actual != (declared := (key.ondelete or "NO ACTION").upper())
+    ]
+    assert not drift, "\n".join(drift)
 
 
 async def test_models_match_public_schema(engine):

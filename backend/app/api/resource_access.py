@@ -29,7 +29,7 @@ from app.core.messages import (
     PluginMessages,
     InitiativeMessages,
 )
-from app.core.tools import KIND_BY_TABLE, Tool
+from app.core.tools import KIND_BY_TABLE, KINDS, Tool
 from app.db.guild_standing import InstallContext
 from app.db.initiative_rls import governing_path
 from app.db.session import require_actor_context
@@ -534,6 +534,24 @@ async def load_child(
         raise _missing(model)
     authorize(kind, parent_of(row), context=context, access=access, action=action)
     return row
+
+
+async def load_kind(
+    session: Any,
+    kind: str,
+    entity_id: int,
+    user: Optional[User],
+    guild_context: ActorContext,
+) -> Any:
+    """A tool or a row inside one, by its kind, read as its own page reads it
+    and refused in its own words."""
+    from app.db.base import MODELS_BY_TABLE
+
+    if KINDS[kind].parent is None:
+        return await load_authorized(
+            session, Tool(kind), entity_id, user, guild_context
+        )
+    return await load_child(session, MODELS_BY_TABLE[KINDS[kind].table], entity_id)
 
 
 def parent_of(row: Any) -> Any:

@@ -46,16 +46,15 @@ from app.core.errors import CodedError
 from app.core.messages import HoldMessages, ModerationMessages
 from app.core.moderation import ModerationAct, RemovalReason
 from app.core.reactions import ReactionTarget
-from app.core.search import SearchEntityType
-from app.core.tools import plural_of
 from app.db import cohorts
 from app.db.guild_standing import GuildContext
+from app.db.holds import holdable_model
 from app.db.query import paginated_query
 from app.db.request_context import SystemGuild
 from app.db.session import set_rls_context
 from app.db.soft_delete_filter import select_including_deleted
 from app.models.platform.notification import NotificationType
-from app.models.tenant._mixins import CommentLockMixin, HoldMixin, hold_models
+from app.models.tenant._mixins import CommentLockMixin, HoldMixin
 from app.models.tenant.comment import Comment
 from app.models.tenant.moderation import ModerationAction
 
@@ -78,20 +77,8 @@ def may_moderate(context: GuildContext, initiative_id: Optional[int]) -> bool:
 # -- What an act is done to -----------------------------------------------------
 
 
-def _targets() -> dict[str, type[HoldMixin]]:
-    """Every kind a report can name, by its ``SearchEntityType`` value. Each
-    carries ``HoldMixin`` (``app.db.holds_test``), which is how they are
-    found."""
-    by_table = {str(model.__tablename__): model for model in hold_models()}
-    return {
-        kind.value: by_table[plural_of(kind.value)]
-        for kind in SearchEntityType
-        if plural_of(kind.value) in by_table
-    }
-
-
 def model_for(target_type: str) -> type[HoldMixin]:
-    model = _targets().get(target_type)
+    model = holdable_model(target_type)
     if model is None:
         raise ActError(ModerationMessages.TARGET_NOT_FOUND, status.HTTP_404_NOT_FOUND)
     return model

@@ -33,7 +33,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.api import resource_access
 from app.api.deps import InstallAccessError, VerifiedInstall, establish_install_access
 from app.core.messages import GuildPluginMessages, PluginDataMessages
-from app.core.tools import KINDS, Tool
+from app.core.tools import KINDS
 from app.db import cohorts
 from app.db.guild_standing import GuildContext
 from app.models.tenant.guild_plugin import GuildPlugin
@@ -47,9 +47,6 @@ from app.services.tenant import guild_plugins, plugin_config
 from app.services.tenant.guild_plugins import SurfaceAccess
 
 __all__ = ["run_action"]
-
-#: The rows inside a tool an action may be run on, by their table.
-_CHILDREN = {model.__tablename__: model for model in resource_access.SUB_TOOLS}
 
 
 def _install_scopes(
@@ -101,15 +98,9 @@ async def _item_initiative(
 ) -> int:
     """The item's initiative, once the reader is found to read it as its own
     routes would let them (404 or 403 otherwise)."""
-    if KINDS[kind].parent is None:
-        row = await resource_access.load_authorized(
-            session, Tool(kind), entity_id, None, context
-        )
-        return int(row.initiative_id)
-    row = await resource_access.load_child(
-        session, _CHILDREN[KINDS[kind].table], entity_id
-    )
-    return int(resource_access.parent_of(row).initiative_id)
+    row = await resource_access.load_kind(session, kind, entity_id, None, context)
+    tool = row if KINDS[kind].parent is None else resource_access.parent_of(row)
+    return int(tool.initiative_id)
 
 
 def _not_offered() -> PluginDataError:

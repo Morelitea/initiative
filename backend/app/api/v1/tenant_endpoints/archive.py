@@ -36,6 +36,7 @@ from app.api.deps import (
 from app.core.plugin_scopes import PluginScopeAccess, scope_name, tool_resource
 from app.core.messages import GuildMessages, InitiativeMessages
 from app.core.tools import ARCHIVE_TARGETS, KINDS, Tool, plural_of
+from app.db.base import MODELS_BY_TABLE
 from app.models.platform.user import User
 from app.models.tenant._mixins import archive_models
 from app.schemas.tenant.archive import ArchivableType, ArchiveResponse
@@ -67,9 +68,17 @@ ArchiveWrite = Annotated[
 #: models are the ones carrying ``ArchiveMixin``, and a target's table is its
 #: own plural, so neither half is written down twice. A target with no
 #: archivable model behind it fails at import rather than at request time.
-_BY_TABLE = {model.__tablename__: model for model in archive_models()}
+
+
+def _archivable(target: str) -> type:
+    model = MODELS_BY_TABLE[plural_of(target)]
+    if model not in archive_models():  # pragma: no cover — a registry mistake
+        raise RuntimeError(f"{target} names no model that can be archived")
+    return model
+
+
 ARCHIVE_REGISTRY: dict[str, type] = {
-    target.value: _BY_TABLE[plural_of(target.value)] for target in ArchivableType
+    target.value: _archivable(target.value) for target in ArchivableType
 }
 
 

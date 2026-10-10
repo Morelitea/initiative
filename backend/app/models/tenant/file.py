@@ -76,7 +76,9 @@ class File(
     }
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    initiative_id: int = Field(foreign_key="initiatives.id", nullable=False)
+    initiative_id: int = Field(
+        foreign_key="initiatives.id", ondelete="CASCADE", nullable=False
+    )
     name: str = Field(nullable=False, index=True, max_length=255)
     content: dict = Field(default_factory=dict, sa_column=_CONTENT)
     created_at: datetime = Field(

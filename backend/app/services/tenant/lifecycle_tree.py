@@ -20,15 +20,13 @@ trashed or archived row freezes everything under it at the database (see
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Mapping, Sequence
-from functools import cache
 from typing import Any, Optional
 
 from sqlalchemy import delete, update
-from sqlalchemy import inspect as sa_inspect
-from sqlalchemy.orm import RelationshipDirection
 from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.db.base import MODELS_BY_TABLE
 from app.db.query import ids_in
 from app.db.soft_delete_filter import SOFT_DELETE_MODELS, select_including_deleted
 
@@ -43,13 +41,15 @@ _MAX_DEPTH = 256
 
 
 def _derive_children() -> dict[type, list[tuple[type, str]]]:
-    by_table = {model.__tablename__: model for model in SOFT_DELETE_MODELS}
     tree: dict[type, list[tuple[type, str]]] = {}
     for child in SOFT_DELETE_MODELS:
         for column in child.__table__.columns:
             for fk in column.foreign_keys:
-                parent = by_table.get(fk.target_fullname.rsplit(".", 1)[0])
-                if parent is None or (fk.ondelete or "").upper() == "SET NULL":
+                parent = MODELS_BY_TABLE.get(fk.column.table.name)
+                if (
+                    parent not in SOFT_DELETE_MODELS
+                    or (fk.ondelete or "").upper() == "SET NULL"
+                ):
                     continue
                 tree.setdefault(parent, []).append((child, column.name))
     return tree
@@ -159,42 +159,10 @@ async def set_columns(
     )
 
 
-@cache
-def _orm_dependents(model: type) -> tuple[tuple[type, Any], ...]:
-    """The rows a model's relationships delete along with it, as
-    ``(table, key column)`` — its task statuses, its members. A bulk DELETE
-    never loads them the way ``session.delete`` does, so it removes them
-    itself, before the rows they hang off. A key the database cascades (a
-    file's versions, which the file also points at) is left to it: those go
-    with the parent, in the same statement."""
-    found: list[tuple[type, Any]] = []
-    for rel in sa_inspect(model).relationships:
-        target = rel.mapper.class_
-        if (
-            "delete" not in rel.cascade
-            or rel.direction is not RelationshipDirection.ONETOMANY
-            or target in SOFT_DELETE_MODELS
-        ):
-            continue
-        for local, remote in rel.local_remote_pairs or ():
-            if local.name != "id":  # pragma: no cover — every one keys on the id
-                raise RuntimeError(f"{model.__name__}.{rel.key} is not keyed on id")
-            if any(
-                (fk.ondelete or "").upper() == "CASCADE" for fk in remote.foreign_keys
-            ):
-                continue
-            found.append((target, remote))
-    return tuple(found)
-
-
 async def delete_rows(session: AsyncSession, model: type, ids: Sequence[int]) -> None:
-    """Delete these rows of ``model`` and what their relationships own."""
-    for target, key in _orm_dependents(model):
-        await session.exec(
-            delete(target)  # type: ignore[call-overload]
-            .where(ids_in(key, ids))
-            .execution_options(synchronize_session=False)
-        )
+    """Delete these rows of ``model``. What hangs off them outside the trash
+    goes with them at the database (``ON DELETE CASCADE``), in the same
+    statement."""
     await session.exec(
         delete(model)  # type: ignore[call-overload]
         .where(ids_in(model.id, ids))  # type: ignore[attr-defined]
