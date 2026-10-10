@@ -629,7 +629,8 @@ export const PluginServiceFormDialog = ({
                   {t("pluginServices.operationsOnlyLabel")}
                 </Label>
                 <p className="text-muted-foreground text-xs">
-                  {t("pluginServices.operationsOnlyHelp")}
+                  {t("pluginServices.operationsOnlyHelp")}{" "}
+                  {t("pluginServices.operationsMandatoryHelp")}
                 </p>
               </div>
               <Switch

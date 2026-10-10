@@ -1037,6 +1037,8 @@
     "mandatoryHelp": "Installed into every community automatically. Community admins cannot remove it or turn it off.",
     "operationsOnlyBadge": "Operations community only",
     "operationsOnlyHelp": "Only the operations community can find and install it. Copies installed in any other community stop working. Nothing is deleted.",
+    "operationsMandatoryBadge": "In the operations community",
+    "operationsMandatoryHelp": "Turned on with Install in every community, it's added to the operations community only, and its admins cannot remove it or turn it off.",
     "keysTitle": "Signing keys",
     "keysHelp": "The public keys this plug-in signs its access-token assertions with. The plug-in is live only once it has a pasted key set or a key set address. It can have both.",
     "jwksLabel": "Pasted key set (JWKS)",

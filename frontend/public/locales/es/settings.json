@@ -1037,6 +1037,8 @@
     "mandatoryHelp": "Se instala automáticamente en todas las comunidades. Los administradores de la comunidad no pueden quitarla ni desactivarla.",
     "operationsOnlyBadge": "Solo la comunidad de operaciones",
     "operationsOnlyHelp": "Solo la comunidad de operaciones puede encontrarla e instalarla. Las copias instaladas en cualquier otra comunidad dejan de funcionar. No se elimina nada.",
+    "operationsMandatoryBadge": "En la comunidad de operaciones",
+    "operationsMandatoryHelp": "Junto con «Instalar en todas las comunidades», se añade solo a la comunidad de operaciones, y sus administradores no pueden quitarla ni desactivarla.",
     "keysTitle": "Claves de firma",
     "keysHelp": "Las claves públicas con las que este complemento firma sus aserciones para tokens de acceso. El complemento solo está activo cuando tiene un conjunto de claves pegado o una dirección del conjunto de claves. Puede tener ambos.",
     "jwksLabel": "Conjunto de claves pegado (JWKS)",

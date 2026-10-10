@@ -183,6 +183,19 @@ describe("SettingsPluginServicesPage", () => {
       expect(screen.getByText("Operations community only")).toBeInTheDocument();
     });
 
+    it("says a mandatory operations-only plug-in is installed in the operations community alone", () => {
+      registrations = [buildRegistration({ mandatory: true, operations_only: true })];
+      renderAsOperator();
+
+      expect(screen.getByText("In the operations community")).toBeInTheDocument();
+      expect(screen.queryByText("In every community")).toBeNull();
+      expect(screen.queryByText("Operations community only")).toBeNull();
+      expect(screen.queryByText(/Installed into every community/)).toBeNull();
+      expect(
+        screen.getByText(/added to the operations community only, and its admins cannot remove it/)
+      ).toBeInTheDocument();
+    });
+
     it("confers no powers beyond the scope ceiling", async () => {
       const user = userEvent.setup();
       renderAsOperator();
@@ -197,19 +210,25 @@ describe("SettingsPluginServicesPage", () => {
   });
 
   describe("registering", () => {
-    it("registers a new service with its keys, leaving the listing to the plug-in", async () => {
+    const fillNewService = async () => {
       const user = userEvent.setup();
       renderAsOperator();
 
       await user.click(screen.getByRole("button", { name: "Add plug-in service" }));
 
       await user.type(await screen.findByLabelText("Plug-in identifier"), "acme.shopify");
-      expect(screen.queryByLabelText("Listing")).toBeNull();
       await user.type(screen.getByLabelText("Base URL"), "https://shopify.example.com");
       await user.type(
         screen.getByLabelText("Key set address"),
         "https://shopify.example.com/.well-known/jwks.json"
       );
+      return user;
+    };
+
+    it("registers a new service with its keys, leaving the listing to the plug-in", async () => {
+      const user = await fillNewService();
+
+      expect(screen.queryByLabelText("Listing")).toBeNull();
       await user.click(screen.getByRole("button", { name: "Save" }));
 
       expect(createMutate).toHaveBeenCalledWith(
@@ -225,6 +244,18 @@ describe("SettingsPluginServicesPage", () => {
           mandatory: false,
           operations_only: false,
         },
+        expect.anything()
+      );
+    });
+
+    it("registers it for the operations community only", async () => {
+      const user = await fillNewService();
+
+      await user.click(screen.getByRole("switch", { name: "Only the operations community" }));
+      await user.click(screen.getByRole("button", { name: "Save" }));
+
+      expect(createMutate).toHaveBeenCalledWith(
+        expect.objectContaining({ operations_only: true, mandatory: false }),
         expect.anything()
       );
     });
@@ -280,6 +311,40 @@ describe("SettingsPluginServicesPage", () => {
       // The stored key set is shown in the box and sent back as it was.
       expect(data.jwks).toEqual(registrations[0].jwks);
       expect(data).not.toHaveProperty("secret");
+    });
+
+    it("keeps operations-only through an unrelated edit", async () => {
+      const user = userEvent.setup();
+      registrations = [buildRegistration({ operations_only: true })];
+      renderAsOperator();
+
+      await user.click(screen.getByRole("button", { name: "Edit" }));
+      await user.type(
+        await screen.findByLabelText("Key set address"),
+        "https://gh.example.com/jwks.json"
+      );
+      await user.click(screen.getByRole("button", { name: "Save" }));
+
+      expect(updateMutate.mock.calls[0][0].data).toMatchObject({
+        jwks_uri: "https://gh.example.com/jwks.json",
+        operations_only: true,
+      });
+    });
+
+    it("saves operations-only off once switched off", async () => {
+      const user = userEvent.setup();
+      registrations = [buildRegistration({ operations_only: true })];
+      renderAsOperator();
+
+      await user.click(screen.getByRole("button", { name: "Edit" }));
+      const operationsOnly = await screen.findByRole("switch", {
+        name: "Only the operations community",
+      });
+      expect(operationsOnly).toBeChecked();
+      await user.click(operationsOnly);
+      await user.click(screen.getByRole("button", { name: "Save" }));
+
+      expect(updateMutate.mock.calls[0][0].data).toMatchObject({ operations_only: false });
     });
 
     it("asks for the vendor values the listing declares, keeping a secret left alone", async () => {
