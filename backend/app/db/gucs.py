@@ -274,9 +274,20 @@ PURGING = Guc("app.purging", Kind.BOOL)
 RESTRUCTURING = Guc("app.restructuring", Kind.BOOL)
 
 
+#: Transaction-local flag marking a transaction as an import.
+#:
+#: An import writes what it brings in under the people it maps the source's
+#: authors to, so the author stamp (``app.db.guild_ddl.AUTHORED_TABLES``)
+#: keeps the author it is given while this is set.
+#:
+#: Raised by the import engine with ``app.db.session.raise_flag`` around the
+#: one call that writes an envelope, and lowered after it.
+IMPORTING = Guc("app.importing", Kind.BOOL)
+
+
 #: Raised for one transaction by the code that needs them
 #: (``app.db.session.raise_flag``), never by a routing.
-FLAGS: tuple[Guc, ...] = (PURGING, RESTRUCTURING)
+FLAGS: tuple[Guc, ...] = (PURGING, RESTRUCTURING, IMPORTING)
 
 #: Everything a routing writes: every variable declared above but the flags, in
 #: the order they are declared.

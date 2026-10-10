@@ -953,7 +953,8 @@ class TestReactionNotifications:
 
 async def test_a_reaction_is_its_reactors_to_change(session, acting_user, reading_as):
     """Another member and the community's admin see someone's reaction but
-    neither take it off nor add one in their name in the database."""
+    neither take it off nor add one in their name in the database: what they
+    add is theirs."""
     from app.models.tenant.reaction import Reaction
     from sqlalchemy.exc import DBAPIError
     from sqlmodel import select
@@ -980,15 +981,19 @@ async def test_a_reaction_is_its_reactors_to_change(session, acting_user, readin
         assert (await asking.exec(select(Reaction.created_by))).all() == [a.user.id]
         gone = await asking.exec(sa_delete(Reaction))
         assert gone.rowcount == 0
-        asking.add(
-            Reaction(
-                target_type="comment",
-                target_id=comment.id,
-                emoji=PARTY,
-                created_by=a.user.id,
-            )
+        mine = Reaction(
+            target_type="comment",
+            target_id=comment.id,
+            emoji=PARTY,
+            created_by=a.user.id,
         )
-        with pytest.raises(DBAPIError, match="row-level security"):
+        asking.add(mine)
+        await asking.flush()
+        await asking.refresh(mine)
+        assert mine.created_by == outsider.user.id
+        mine.created_by = a.user.id
+        asking.add(mine)
+        with pytest.raises(DBAPIError, match="an author does not change"):
             await asking.flush()
 
 
