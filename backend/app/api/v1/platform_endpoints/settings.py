@@ -1024,7 +1024,9 @@ async def list_platform_community_storage(
         # so one of many sharing a name can still be picked.
         number = term.removeprefix("#")
         matches = Guild.name.ilike(f"%{term}%")
-        if number.isdigit():
+        # ASCII digits only, and no more than an id can hold: anything else
+        # is a name to look for.
+        if number.isascii() and number.isdigit() and int(number) < 2**31:
             matches = or_(matches, Guild.id == int(number))
         base = base.where(matches)
     order = _GUILD_SORT_FIELDS[sort_by]

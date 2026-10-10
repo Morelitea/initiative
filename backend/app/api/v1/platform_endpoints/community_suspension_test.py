@@ -288,3 +288,14 @@ async def test_a_community_is_found_by_its_number(client: AsyncClient, session) 
         )
         assert response.status_code == 200, response.text
         assert guild.id in [row["id"] for row in response.json()["items"]]
+
+
+@pytest.mark.parametrize("term", ["²", "#٣", "99999999999999999999"])
+async def test_what_is_not_an_id_is_searched_as_a_name(
+    client: AsyncClient, session, term: str
+) -> None:
+    support = await create_user(session, role=UserRole.support)
+    response = await client.get(
+        COMMUNITIES, params={"search": term}, headers=get_auth_headers(support)
+    )
+    assert response.status_code == 200, response.text
