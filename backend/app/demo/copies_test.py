@@ -129,7 +129,7 @@ async def test_a_link_seats_the_visitor_in_its_role(pitch, client, session, role
     link, _bea, _source = pitch
     token = await link(role)
     copy_id = await copies.build_copy()
-    opened, _headers, me = await _open(client, token)
+    opened, headers, me = await _open(client, token)
     await import_worker.process_import_jobs()
 
     host = await accounts.demo_host(session)
@@ -154,9 +154,10 @@ async def test_a_link_seats_the_visitor_in_its_role(pitch, client, session, role
             )
         ).all()
     )
-    assert initiatives and joined == (
-        set() if role is CommunityRole.admin else initiatives
-    )
+    assert initiatives and joined == initiatives
+    tasks = await client.get(f"/api/v1/c/{copy_id}/tasks/", headers=headers)
+    assert tasks.status_code == 200, tasks.text
+    assert [t["title"] for t in tasks.json()["items"]] == ["Proof the dough"]
 
 
 async def test_an_expired_copy_leaves_no_community_and_no_account(

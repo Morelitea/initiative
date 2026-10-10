@@ -46,6 +46,7 @@ from app.core.messages import ImportEngineMessages
 from app.models.platform.user import User
 from app.models.tenant.import_job import ImportJob, ImportJobStatus
 from app.models.tenant.initiative import Initiative
+from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.schemas.tenant.backup_export import (
     BACKUP_SCHEMA_VERSION,
     MIN_SUPPORTED_IMPORT_VERSION,
@@ -426,7 +427,8 @@ async def apply_backup(
     :func:`zip_bounds.open_zip`. ``anchor``, when given, moves every date the
     envelopes carry by the whole weeks nearest from it to now, so a bundle
     reads as if it had been exported this week. ``join`` names members of the
-    community who join every initiative the bundle creates, as members."""
+    community who join every initiative the bundle creates, as members, where
+    everything the bundle made is shared with the initiative's members to edit."""
     from app.api.deps import establish_guild_access
     from app.services.import_engine.importers import IMPORTERS
     from app.models.platform.guild import CommunityRole
@@ -580,6 +582,8 @@ async def apply_backup(
                 bucket[outcome.status] += 1
                 if heartbeat is not None:
                     await heartbeat()
+            if joining and mi.target_initiative_id is None:
+                await _share_with_members(session, initiative.id)
             await session.commit()
 
         # Everything is in the database; now the names can become edges.
@@ -598,6 +602,28 @@ async def apply_backup(
         await session.commit()
 
         return result
+
+
+async def _share_with_members(session: AsyncSession, initiative_id: int) -> None:
+    """Share each tool the import made in ``initiative_id`` with all of the
+    initiative's members, to edit."""
+    owned = await session.exec(
+        select(ResourceGrant.resource_type, ResourceGrant.resource_id).where(
+            ResourceGrant.initiative_id == initiative_id,
+            ResourceGrant.level == ResourceAccessLevel.owner,
+        )
+    )
+    session.add_all(
+        ResourceGrant(
+            resource_type=resource_type,
+            resource_id=resource_id,
+            initiative_id=initiative_id,
+            level=ResourceAccessLevel.write,
+            all_initiative_members=True,
+        )
+        for resource_type, resource_id in owned.all()
+    )
+    await session.flush()
 
 
 async def _place_files_under_pages(

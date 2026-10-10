@@ -166,7 +166,7 @@ async def redeem(session: AsyncSession, token: str) -> Redemption:
                 status=ImportJobStatus.queued,
                 anchor=anchor,
                 people_map=seated,
-                join=[visitor_id] if role is CommunityRole.member else None,
+                join=[visitor_id] if role is not CommunityRole.superadmin else None,
             )
             await guild_session.flush()
             job_id = cast(int, job.id)
