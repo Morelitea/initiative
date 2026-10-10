@@ -138,6 +138,13 @@ describe("useRecordRecentView", () => {
     await router.navigate({ href: "/c/3/tasks/8?tab=details" });
     await new Promise((resolve) => setTimeout(resolve, 80));
     expect(opened).toEqual(["task 7 direct", "task 7 search", "task 8 search"]);
+
+    // A page that corrects its own address is still at what is open.
+    await router.navigate({ href: "/c/30/tasks/8", replace: true });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    await router.navigate({ href: "/c/30/tasks/8", state: FROM_SEARCH });
+    await waitFor(() => expect(opened).toHaveLength(4));
+    expect(opened[3]).toBe("task 8 search");
     expect(queryClient.getQueryData(key)).toBe(bar);
     expect(queryClient.getQueryState(key)?.isInvalidated).toBe(false);
   });

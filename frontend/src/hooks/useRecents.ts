@@ -132,9 +132,10 @@ export const useRecordOpen = (
     // page is still loading what it names, and `id` is the one being left.
     const searchedAgain =
       !source && arrivedFrom !== undefined && entry !== last.entry && path === last.path;
-    if (id === last.id && each === last.each && !searchedAgain) return;
+    // Kept current whether or not this is an open: an address the page
+    // corrects is still the address of what is open.
     recorded.current = { id, each, entry, path };
-    mutate(id);
+    if (id !== last.id || each !== last.each || searchedAgain) mutate(id);
   }, [id, each, entry, path, arrivedFrom, settled, source, mutate]);
 };
 
