@@ -34,8 +34,10 @@ def write_library(
     guild_id: int, shapes: list[Shape], editors: list[str], base: Path
 ) -> None:
     """Store every shape's bundle, read from ``base``, then the index naming
-    them. Blocking; run it in a thread."""
+    them, then delete the bundles of shapes the new index no longer names.
+    Blocking; run it in a thread."""
     storage = get_guild_storage(guild_id)
+    previous = read_library(guild_id)
     stored = []
     for shape in shapes:
         key = bundle_key(shape.key)
@@ -47,6 +49,10 @@ def write_library(
         library.model_dump_json().encode(),
         content_type="application/json",
     )
+    kept = {shape.bundle for shape in stored}
+    for shape in previous.shapes if previous else []:
+        if shape.bundle not in kept:
+            storage.delete(shape.bundle)
 
 
 def read_library(guild_id: int) -> ShapeLibrary | None:
