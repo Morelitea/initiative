@@ -343,12 +343,56 @@ def _date_slots(tool: Tool, env: dict[str, Any]) -> list[tuple[dict[str, Any], s
     elif tool is Tool.calendar:
         for event in env.get("events") or []:
             if isinstance(event, dict):
-                slots += [(event, "start_at"), (event, "end_at")]
+                slots += [
+                    (event, "start_at"),
+                    (event, "end_at"),
+                    (event, "original_start"),
+                ]
                 slots += _recurrence_slot(event)
     # A date-typed property plans with its date, on whatever carries it.
     for owner, key in _property_lists(env):
         slots += _property_date_slots(owner[key])
     return slots
+
+
+def _history_slots(tool: Tool, env: dict[str, Any]) -> list[tuple[dict[str, Any], str]]:
+    """Every place an item records when something happened to it. A listing
+    carries none of them (:func:`strip_for_listing`); a backup carries them
+    all."""
+    slots: list[tuple[dict[str, Any], str]] = []
+    if tool is Tool.project:
+        project = env.get("project")
+        if isinstance(project, dict):
+            slots.append((project, "archived_at"))
+        for task in env.get("tasks") or []:
+            if isinstance(task, dict):
+                slots += [
+                    (task, "archived_at"),
+                    (task, "created_at"),
+                    (task, "updated_at"),
+                    *_comment_slots(task),
+                ]
+    elif tool is Tool.calendar:
+        for event in env.get("events") or []:
+            if isinstance(event, dict):
+                slots.append((event, "created_at"))
+    elif tool is Tool.wiki:
+        for page in env.get("pages") or []:
+            if isinstance(page, dict):
+                slots += [
+                    (page, "created_at"),
+                    (page, "updated_at"),
+                    *_comment_slots(page),
+                ]
+    return slots
+
+
+def _comment_slots(owner: dict[str, Any]) -> list[tuple[dict[str, Any], str]]:
+    return [
+        (comment, "created_at")
+        for comment in owner.get("comments") or []
+        if isinstance(comment, dict)
+    ]
 
 
 def _parse(value: Any) -> date | datetime | None:
@@ -367,15 +411,16 @@ def _day_of(value: date | datetime) -> date:
 
 
 def shift_dates(tool: Tool, envelope: dict[str, Any], days: int) -> dict[str, Any]:
-    """``envelope`` with every planning date moved by ``days``. Works on a
-    copy; a value that is not a date is left as it was."""
+    """``envelope`` with every date it carries moved by ``days``, the ones it
+    plans with and the ones it records. Works on a copy; a value that is not a
+    date is left as it was."""
     import copy
 
     shifted = copy.deepcopy(envelope)
     if days == 0:
         return shifted
     delta = timedelta(days=days)
-    for owner, key in _date_slots(tool, shifted):
+    for owner, key in [*_date_slots(tool, shifted), *_history_slots(tool, shifted)]:
         parsed = _parse(owner.get(key))
         if parsed is not None:
             owner[key] = (parsed + delta).isoformat()
