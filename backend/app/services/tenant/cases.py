@@ -20,7 +20,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from sqlalchemy.orm import selectinload
 
-from app.core.intake import Conversation, IntakeStream, meta
+from app.core.intake import Conversation, IntakeStream, conversation_for
 from app.models.platform.user_profile_view import MemberProfile
 from app.models.tenant.comment import Comment, CommentAudience
 from app.models.tenant.evidence import Evidence
@@ -33,7 +33,7 @@ class CaseView:
     opened_at: datetime
     filer: Optional[MemberProfile]
     filer_subject: Optional[str]
-    #: What the stream allows with whoever filed it; ``none`` where nobody did.
+    #: What the case allows with whoever filed it; ``none`` where nobody did.
     conversation: Conversation
     awaiting_filer_status_id: Optional[int]
     active_status_id: Optional[int]
@@ -47,6 +47,8 @@ class CaseView:
     subject_guild_id: Optional[int] = None
     resource_type: Optional[str] = None
     resource_id: Optional[int] = None
+    #: What it is about within its stream, as its filer chose.
+    topic: Optional[str] = None
 
 
 async def read_case(session: AsyncSession, task_id: int) -> Optional[CaseView]:
@@ -80,10 +82,11 @@ async def read_case(session: AsyncSession, task_id: int) -> Optional[CaseView]:
         filer=filer,
         filer_subject=case.filer_subject,
         conversation=(
-            meta(stream).conversation
+            conversation_for(stream, case.topic)
             if case.filer_user_id is not None
             else Conversation.none
         ),
+        topic=case.topic,
         awaiting_filer_status_id=binding[0] if binding else None,
         active_status_id=binding[1] if binding else None,
         messages=list(

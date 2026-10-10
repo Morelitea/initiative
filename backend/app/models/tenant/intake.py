@@ -46,6 +46,9 @@ STREAM_LENGTH = 32
 #: Longest subject a filer may give a case: a line, as a task's title is.
 FILER_SUBJECT_LENGTH = 200
 
+#: Longest topic a case may carry: one of a stream's topic values.
+TOPIC_LENGTH = 32
+
 #: Longest dedupe key the writer will store. A key is built from a rule's name
 #: plus the ids it keys on, never from anything a submitter typed.
 DEDUPE_KEY_LENGTH = 200
@@ -175,6 +178,15 @@ class IntakeCase(SQLModel, table=True):
     #: How many times the source has been seen, the opening included.
     occurrences: int = Field(
         default=1, sa_column=Column(Integer, nullable=False, server_default="1")
+    )
+
+    #: What the case is about within its stream, as its filer chose: a support
+    #: topic, a security topic, an appeal. NULL where nobody chose one. Read
+    #: by whoever handles the case, and by its filer, for whom it can change
+    #: how the case talks (``IntakeStreamMeta.conversation_for``).
+    topic: Optional[str] = Field(
+        default=None,
+        sa_column=Column(String(length=TOPIC_LENGTH), nullable=True),
     )
 
     #: The account that filed the case, when a person did. A weak ref like

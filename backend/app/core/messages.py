@@ -689,6 +689,22 @@ class SupportMessages:
     NOWHERE_TO_SEND = "SUPPORT_NOWHERE_TO_SEND"
 
 
+class FeedbackMessages:
+    """Telling whoever runs this server what somebody thinks."""
+
+    #: Nothing is set up to receive feedback here.
+    NOWHERE_TO_SEND = "FEEDBACK_NOWHERE_TO_SEND"
+
+
+class AppealMessages:
+    """Asking for an account's suspension to be lifted."""
+
+    #: The account is not suspended: there is nothing to appeal.
+    NOT_SUSPENDED = "APPEAL_NOT_SUSPENDED"
+    #: Nothing is set up to receive appeals here.
+    NOWHERE_TO_SEND = "APPEAL_NOWHERE_TO_SEND"
+
+
 class TicketMessages:
     """Filing a ticket, whatever kind."""
 

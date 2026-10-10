@@ -704,14 +704,14 @@ async def _ensure_said_to_a_filer(
     Read on the poster's own session: a person who can comment on the task can
     read its case row, and nobody else gets this far.
     """
-    from app.core.intake import Conversation, IntakeStream, meta
+    from app.core.intake import Conversation, IntakeStream, conversation_for
     from app.models.tenant.intake import IntakeCase
 
     if person is None or column != "task_id":
         raise CommentValidationError(CommentMessages.NOT_SAID_TO_A_FILER)
     case = (
         await session.exec(
-            select(IntakeCase.stream, IntakeCase.filer_user_id).where(
+            select(IntakeCase.stream, IntakeCase.filer_user_id, IntakeCase.topic).where(
                 IntakeCase.task_id == entity_id
             )
         )
@@ -719,7 +719,7 @@ async def _ensure_said_to_a_filer(
     if (
         case is None
         or case[1] is None
-        or meta(IntakeStream(case[0])).conversation is Conversation.none
+        or conversation_for(IntakeStream(case[0]), case[2]) is Conversation.none
     ):
         raise CommentValidationError(CommentMessages.NOT_SAID_TO_A_FILER)
 

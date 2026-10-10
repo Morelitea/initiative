@@ -326,6 +326,8 @@ export interface AccountTimeOutRead {
   contact_email?: string | null;
   since?: string | null;
   reason?: string | null;
+  can_appeal?: boolean;
+  appeal_task_id?: number | null;
 }
 
 /**
@@ -943,7 +945,7 @@ export interface BillingPortalHandoffResponse {
 }
 
 export interface BodyFileTicket {
-  /** The ticket, as JSON: a support request, a report or a security problem, told apart by ``stream``. */
+  /** The ticket, as JSON: a support request, a report, a security problem, feedback or an appeal, told apart by ``stream`` (and an appeal by its ``type``). */
   payload: string;
   files?: Blob[];
 }
@@ -4905,6 +4907,7 @@ export interface TicketMessageRead {
 export interface FiledTicketDetailRead {
   task_id: number;
   stream: IntakeStream;
+  topic: string | null;
   subject: string | null;
   state: FilerState;
   opened_at: string;
@@ -4921,6 +4924,7 @@ export interface FiledTicketDetailRead {
 export interface FiledTicketRead {
   task_id: number;
   stream: IntakeStream;
+  topic: string | null;
   subject: string | null;
   state: FilerState;
   opened_at: string;
@@ -9199,6 +9203,7 @@ export const TicketMode = {
 export interface StreamAvailabilityRead {
   mode: TicketMode;
   contact: string | null;
+  types: string[];
   evidence: EvidencePolicyRead;
 }
 
@@ -9316,6 +9321,7 @@ export interface TaskCaseRead {
   opened_at: string;
   filer?: UserPublic | null;
   filer_subject?: string | null;
+  topic?: string | null;
   conversation: Conversation;
   awaiting_filer_status_id?: number | null;
   active_status_id?: number | null;
@@ -10561,6 +10567,60 @@ export const SmartChipKind = {
 } as const;
 
 /**
+ * Asking for a suspended account's suspension to be lifted. Filed by the
+ * account itself, from its time-out screen.
+ */
+export interface AppealTicketCreate {
+  stream: "moderation";
+  type: "appeal";
+  /**
+   * @minLength 1
+   * @maxLength 5000
+   */
+  body: string;
+}
+
+/**
+ * Where the app was when feedback was sent, as the sender saw it before
+ * sending, and could remove. Nothing that names a person or a thing: the
+ * route is its template, with every id left out.
+ */
+export interface FeedbackContext {
+  app_version?: string | null;
+  platform?: string | null;
+  locale?: string | null;
+  theme?: string | null;
+  route?: string | null;
+  viewport?: string | null;
+}
+
+/**
+ * What kind of feedback somebody is sending.
+ */
+export type FeedbackTopic = (typeof FeedbackTopic)[keyof typeof FeedbackTopic];
+
+export const FeedbackTopic = {
+  idea: "idea",
+  problem: "problem",
+  praise: "praise",
+  other: "other",
+} as const;
+
+/**
+ * Telling whoever runs this server what somebody thinks.
+ */
+export interface FeedbackTicketCreate {
+  stream: "feedback";
+  type: FeedbackTopic;
+  /**
+   * @minLength 1
+   * @maxLength 5000
+   */
+  body: string;
+  context?: FeedbackContext | null;
+}
+
+/**
  * Reporting something. The same shape from every surface.
  */
 export interface ModerationTicketCreate {
@@ -10603,11 +10663,25 @@ export interface SecurityTicketCreate {
 }
 
 /**
- * Asking for help, from inside a community.
+ * What somebody asking for help is asking about.
+ */
+export type SupportTopic = (typeof SupportTopic)[keyof typeof SupportTopic];
+
+export const SupportTopic = {
+  account: "account",
+  community: "community",
+  billing: "billing",
+  data_request: "data_request",
+  other: "other",
+} as const;
+
+/**
+ * Asking for help: about a community they are in, or about themselves.
  */
 export interface SupportTicketCreate {
   stream: "support";
-  community_id: number;
+  type?: SupportTopic;
+  community_id?: number | null;
   /**
    * @minLength 1
    * @maxLength 200

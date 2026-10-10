@@ -56,8 +56,11 @@ async def _offered(client, actor, guild_id=None) -> dict:
 
 
 def _offer(answer: dict) -> dict:
-    """What a stream offers, less what it takes as attachments."""
-    return {key: value for key, value in answer.items() if key != "evidence"}
+    """What a stream offers, less what it takes as attachments and the topics
+    its form lists."""
+    return {
+        key: value for key, value in answer.items() if key not in {"evidence", "types"}
+    }
 
 
 async def _set_contacts(session, *, general=None, **streams) -> None:
@@ -204,23 +207,22 @@ async def test_every_support_error_code_is_localized():
         assert not missing, f"{locale}/errors.json is missing {missing}"
 
 
-async def test_the_help_form_is_offered_once_both_halves_are_there(
+async def test_asking_about_a_community_is_offered_once_both_halves_are_there(
     client, session, acting_user, operations
 ):
     """The sidebar draws the control either way, so this answers what it does.
 
-    Both halves have to hold: a form that can only answer "nowhere to send it"
-    is worse than the address it would have replaced.
+    Their own account is theirs to ask about wherever support is taken; the
+    community, only once the operator takes help requests from it too.
     """
     member = await acting_user(guild_role=CommunityRole.member)
 
-    assert (await _offered(client, member, member.guild.id))["support"][
-        "mode"
-    ] == "none"
+    offered = (await _offered(client, member, member.guild.id))["support"]
+    assert offered["mode"] == "form"
+    assert offered["types"] == ["account", "billing", "other"]
     await _set_support(session, member.guild.id, True)
-    assert (await _offered(client, member, member.guild.id))["support"][
-        "mode"
-    ] == "form"
+    offered = (await _offered(client, member, member.guild.id))["support"]
+    assert offered["types"] == ["account", "community", "billing", "other"]
 
 
 async def test_no_form_is_offered_where_nothing_is_bound(client, session, acting_user):
@@ -279,7 +281,7 @@ async def test_help_is_offered_only_from_a_community_the_reader_is_in(
     outsider = await acting_user(guild_role=CommunityRole.member)
 
     offered = await _offered(client, outsider, host.guild.id)
-    assert offered["support"]["mode"] == "none"
+    assert "community" not in offered["support"]["types"]
 
 
 async def test_a_blank_request_is_refused(client, session, acting_user, operations):
@@ -418,3 +420,99 @@ async def test_every_ticket_error_code_is_localized():
         catalogue = json.loads((locales / locale / "errors.json").read_text())
         missing = sorted(codes - set(catalogue))
         assert not missing, f"{locale}/errors.json is missing {missing}"
+
+
+# ── Topics ───────────────────────────────────────────────────────────────────
+
+
+async def test_a_question_about_their_own_account_needs_no_community(
+    client, session, acting_user, operations
+):
+    """Somebody locked out of something has no community to ask from, and the
+    operator's per-community entitlement is not theirs to need. The case
+    names no community: it is not about one."""
+    member = await acting_user(guild_role=CommunityRole.member)
+
+    response = await _ask(client, member, None, type="account")
+    assert response.status_code == 202, response.text
+
+    await set_rls_context(session, SystemGuild(operations["guild"].id))
+    case = (await session.exec(select(IntakeCase))).one()
+    assert case.topic == "account"
+    task = (await session.exec(select(Task).where(Task.id == case.task_id))).one()
+    assert "community" not in (task.description or "")
+
+
+async def test_an_account_question_from_inside_a_community_records_none(
+    client, session, acting_user, operations
+):
+    """A community named beside an account question is not what it is about,
+    and is not recorded as though it were."""
+    member = await acting_user(guild_role=CommunityRole.member)
+
+    response = await _ask(client, member, member.guild.id, type="billing")
+    assert response.status_code == 202, response.text
+
+    await set_rls_context(session, SystemGuild(operations["guild"].id))
+    case = (await session.exec(select(IntakeCase))).one()
+    from app.models.tenant.property import PropertyDefinition, PropertyValue
+
+    held = dict(
+        (
+            await session.exec(
+                select(PropertyDefinition.name, PropertyValue.value_number)
+                .join(
+                    PropertyDefinition,
+                    PropertyDefinition.id == PropertyValue.property_id,
+                )
+                .where(
+                    PropertyValue.entity_type == "task",
+                    PropertyValue.entity_id == case.task_id,
+                )
+            )
+        ).all()
+    )
+    assert held["subject_user"] == member.user.id
+    assert "subject_guild" not in held
+
+
+async def test_a_question_about_a_community_must_name_it(
+    client, session, acting_user, operations
+):
+    member = await acting_user(guild_role=CommunityRole.member)
+    response = await _ask(client, member, None, type="community")
+    assert response.status_code == 422, response.text
+
+
+async def test_a_data_request_is_the_seat_holders_to_make(
+    client, session, acting_user, operations
+):
+    """A copy of a community's data, or its erasure, is asked for by whoever
+    holds its seat — not by any admin, and not by its members."""
+    seat = await acting_user(guild_role=CommunityRole.superadmin)
+    await _set_support(session, seat.guild.id, True)
+    admin = await acting_user(guild_role=CommunityRole.admin, guild=seat.guild)
+
+    offered = (await _offered(client, admin, seat.guild.id))["support"]
+    assert "data_request" not in offered["types"]
+    refused = await _ask(client, admin, seat.guild.id, type="data_request")
+    assert refused.status_code == 403, refused.text
+    assert refused.json()["detail"] == SupportMessages.NOT_AVAILABLE
+
+    offered = (await _offered(client, seat, seat.guild.id))["support"]
+    assert "data_request" in offered["types"]
+    taken = await _ask(client, seat, seat.guild.id, type="data_request")
+    assert taken.status_code == 202, taken.text
+
+    await set_rls_context(session, SystemGuild(operations["guild"].id))
+    case = (await session.exec(select(IntakeCase))).one()
+    assert case.topic == "data_request"
+    assert case.filer_user_id == seat.user.id
+
+
+async def test_a_data_request_needs_the_community_to_take_help_requests(
+    client, session, acting_user, operations
+):
+    seat = await acting_user(guild_role=CommunityRole.superadmin)
+    response = await _ask(client, seat, seat.guild.id, type="data_request")
+    assert response.status_code == 403, response.text

@@ -61,6 +61,7 @@ async def report(
         now=moment,
         filer=CaseFiler(user_id=filer.id, subject=subject, words=body),
         evidence=evidence,
+        topic=topic.value,
     )
     if outcome is None:
         raise NowhereToSend
@@ -87,6 +88,7 @@ async def account_compromised(
             severity=SecurityTopic.account_compromise.value,
         ),
         dedupe_key=f"compromise:{user_id}",
+        topic=SecurityTopic.account_compromise.value,
         detail=f"Followed again, about: {what_changed}.",
         now=moment,
     )

@@ -128,6 +128,7 @@ async def notify_filers() -> int:
                 status_id=status_id,
                 awaiting_status_id=awaiting,
                 stream=IntakeStream(case.stream),
+                topic=case.topic,
                 trashed=deleted_at is not None,
             )
             replied = latest is not None and latest > (

@@ -194,7 +194,7 @@ export function useReadTicketAvailability<
  * to as many ``files`` as the stream takes (``/availability`` says how many,
  * how large and of which types). The reply says that it arrived and nothing
  * more: not who will read it, and for a report not whether one already
- * existed.
+ * existed. A suspended account may file an appeal and nothing else.
  * @summary File Ticket
  */
 export const fileTicket = (
@@ -517,7 +517,8 @@ export function useReadFiledTicket<
  *
  * Sent as ``multipart/form-data``: the answer in ``body``, and any ``files``
  * the stream takes. Paced like a filing into the case's stream: each answer
- * is something a person reads.
+ * is something a person reads. A suspended account answers on its appeal
+ * alone.
  * @summary Reply To Filed Ticket
  */
 export const replyToFiledTicket = (
