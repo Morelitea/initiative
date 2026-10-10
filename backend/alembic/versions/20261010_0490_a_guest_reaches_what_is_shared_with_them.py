@@ -4,7 +4,9 @@
   inherit. It reads what a guest's standing and the community's sign-in check
   read (a guest's own membership row, the routed community, its sign-in rule,
   connections and options, the platform's provider defaults, the guest's own
-  access grants and the deployment's settings) and appends notices. The row
+  access grants and the deployment's settings), reads people's profiles as
+  the community shows them (``guild_member_profiles``, as its members do) and
+  appends notices. The row
   policies on those tables are rendered at boot (``app.db.public_rls``), as
   are the guest roles and their policies in each community's schema
   (``app.db.guest_access``).
@@ -45,6 +47,8 @@ _READS = (
     "platform_provider_defaults",
 )
 _APPENDS = ("notice_outbox",)
+#: People as the community shows them, read as its members read them.
+_PROFILES = "public.guild_member_profiles"
 
 #: The two guest roles of each community, by suffix.
 _GUEST_ROLE_SUFFIXES = ("_guest", "_guest_ro")
@@ -159,6 +163,7 @@ def upgrade() -> None:
     op.execute(f'GRANT USAGE ON SCHEMA public TO "{FLOOR}"')
     op.execute(f'GRANT SELECT ON {", ".join(_READS)} TO "{FLOOR}"')
     op.execute(f'GRANT INSERT ON {", ".join(_APPENDS)} TO "{FLOOR}"')
+    op.execute(f'GRANT SELECT ON {_PROFILES} TO "{FLOOR}"')
     op.execute(
         "ALTER TYPE public.standing ADD ATTRIBUTE guest boolean,"
         " ADD ATTRIBUTE guest_item_initiatives integer[]"

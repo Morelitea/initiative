@@ -2,6 +2,7 @@
 them and the initiatives they are in, and nothing community-wide."""
 
 from dataclasses import replace
+from datetime import datetime, timezone
 
 import pytest
 from sqlalchemy import text
@@ -23,6 +24,8 @@ from app.testing import (
     create_project,
     create_resource_grant,
     create_task,
+    create_upload,
+    get_auth_headers,
     grant_role_permission,
 )
 from app.testing.routing import route_as
@@ -74,6 +77,53 @@ async def test_a_guest_given_one_item_reaches_it_and_nothing_else_there(
     s.add(Project(name="Mine", initiative_id=initiative_id, created_by=guest_id))
     with pytest.raises(DBAPIError):
         await s.flush()
+
+
+async def test_a_guest_opens_a_project_shared_with_them(client, session, acting_user):
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
+    guest = await create_guest(session, a.guild)
+    await create_resource_grant(session, a.project, user=guest)
+
+    response = await client.get(
+        a.g(f"/projects/{a.project.id}"), headers=get_auth_headers(guest)
+    )
+
+    assert response.status_code == 200, response.text
+
+
+async def test_a_guest_makes_a_project_that_is_theirs_alone(
+    client, session, acting_user
+):
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
+    await grant_role_permission(session, a.initiative, "create_projects")
+    guest = await create_guest(session, a.guild)
+    await create_initiative_member(session, a.initiative, guest)
+
+    response = await client.post(
+        a.g("/projects/"),
+        headers=get_auth_headers(guest),
+        json={"name": "Mine", "initiative_id": a.initiative.id},
+    )
+
+    assert response.status_code == 201, response.text
+
+
+async def test_a_guest_reads_the_files_of_the_initiatives_it_reaches(
+    session, acting_user, role_session
+):
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
+    guest = await create_guest(session, a.guild)
+    await create_resource_grant(session, a.project, user=guest)
+    now = datetime.now(timezone.utc)
+    shown = await create_upload(
+        session, a.guild, a.user, initiative_id=a.initiative.id, claimed_at=now
+    )
+    await create_upload(session, a.guild, a.user, claimed_at=now)
+    shown_id, guest_id = shown.id, guest.id
+
+    s, _ = await _routed(role_session, guest_id, a.guild.id)
+
+    assert await _ids(s, "SELECT id FROM uploads") == {shown_id}
 
 
 @pytest.mark.parametrize(

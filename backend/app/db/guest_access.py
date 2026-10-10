@@ -145,9 +145,12 @@ GUEST_ROWS: dict[str, str] = {
         " OR (resource_grants.all_initiative_members"
         f" AND resource_grants.initiative_id = ANY ({_MEMBER_OF})))"
     ),
-    # Files of the initiatives they are in, and their own.
+    # Files of the initiatives they reach, as a member of one reads them, and
+    # their own; none that belongs to the whole community.
     "uploads": (
-        f"(uploads.created_by = {_UID} OR uploads.initiative_id = ANY ({_MEMBER_OF}))"
+        f"(uploads.created_by = {_UID}"
+        f" OR uploads.initiative_id = ANY ({_MEMBER_OF})"
+        f" OR uploads.initiative_id = ANY ({_P.guest_items}))"
     ),
 }
 

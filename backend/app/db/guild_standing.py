@@ -1017,6 +1017,10 @@ class InstallContext:
         return False
 
     @property
+    def guest(self) -> bool:
+        return False
+
+    @property
     def pam_read(self) -> bool:
         return False
 
