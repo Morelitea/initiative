@@ -17,8 +17,8 @@ The table is new and has nothing to carry, so it is created and then locked.
 Every grant that already ended is closed out, so its case is not told of it
 now.
 
-Revision ID: 20261010_0485
-Revises: 20261010_0484
+Revision ID: 20261010_0487
+Revises: 20261010_0486
 Create Date: 2026-10-10
 """
 
@@ -27,8 +27,8 @@ from alembic import op
 
 from app.core.config import settings
 
-revision = "20261010_0485"
-down_revision = "20261010_0484"
+revision = "20261010_0487"
+down_revision = "20261010_0486"
 branch_labels = None
 depends_on = None
 

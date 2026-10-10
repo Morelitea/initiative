@@ -1,4 +1,4 @@
-"""Migration 0485 closes out every grant that had already ended, so the
+"""Migration 0487 closes out every grant that had already ended, so the
 grant sweep tells no case about a grant from before grants had cases.
 
 Run as the provisioning login, which owns ``access_grants`` and is held to its
@@ -25,7 +25,7 @@ _REVISION = (
     Path(__file__).resolve().parents[2]
     / "alembic"
     / "versions"
-    / "20261010_0485_grants_report_to_their_case.py"
+    / "20261010_0487_grants_report_to_their_case.py"
 )
 
 
