@@ -166,10 +166,16 @@ describe("where a dragged part lands", () => {
 describe("a task page laid out", () => {
   it("is stored whole, without the shipped page's one-column order", () => {
     const shipped = taskPageRoot(null);
-    const layout = storedLayout(moveNode(shipped, [2, 1], [1, 0]));
+    // Relations to the top of Main, then Checklist into the Description section.
+    const moved = moveNode(moveNode(shipped, [2, 1], [1, 0]), [1, 2], [1, 1, 1]);
+    const layout = storedLayout(moved);
 
     expect(JSON.stringify(layout)).not.toContain("order");
     expect(layout.main?.[0]).toEqual({ type: "relations" });
+    expect((layout.main?.[1] as ViewNode | undefined)?.children?.[1]).toEqual({
+      type: "field",
+      props: { field: "checklist" },
+    });
     expect(layout.header).toHaveLength(3);
   });
 

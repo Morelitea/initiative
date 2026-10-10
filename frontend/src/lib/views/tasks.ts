@@ -230,14 +230,21 @@ export const taskPageRoot = (stored: StoredRegions | null | undefined): ViewNode
   };
 };
 
+/** A part without the shipped page's one-column `order`, at any depth: a
+ *  shipped part may have been moved into a section. */
+const withoutOrder = ({ props, children, ...node }: ViewNode): ViewNode => {
+  const { order: _order, ...rest } = props ?? {};
+  return {
+    ...node,
+    ...(Object.keys(rest).length > 0 ? { props: rest } : {}),
+    ...(children ? { children: children.map(withoutOrder) } : {}),
+  };
+};
+
 /** The layout a page tree is stored as. Every region is stored, and without
  *  the shipped page's one-column `order`: a stored region keeps its own. */
 export const storedLayout = (root: ViewNode): ItemLayoutDefinitionInput => {
-  const region = (index: number) =>
-    (root.children?.[index]?.children ?? []).map(({ props, ...node }) => {
-      const { order: _order, ...rest } = props ?? {};
-      return Object.keys(rest).length > 0 ? { ...node, props: rest } : node;
-    });
+  const region = (index: number) => (root.children?.[index]?.children ?? []).map(withoutOrder);
   return {
     header: region(0),
     main: region(1),
