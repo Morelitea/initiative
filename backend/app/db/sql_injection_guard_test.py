@@ -55,6 +55,12 @@ ALLOWED_DYNAMIC_SQL: dict[str, str] = {
     "app/db/schema_provisioning.py::apply_guild_schema": (
         "int-derived schema name + reflected guild_template DDL"
     ),
+    "app/db/schema_provisioning.py::_write_stamp": (
+        "int-derived guild_<id> schema name + hex-digest stamp"
+    ),
+    "app/db/schema_provisioning.py::apply_guild_checks": (
+        "int-derived schema name + CHECKs rendered from model declarations (constants)"
+    ),
     "app/db/schema_provisioning.py::apply_guild_rls": (
         "int-derived schema name + registry-rendered RLS DDL (constants)"
     ),

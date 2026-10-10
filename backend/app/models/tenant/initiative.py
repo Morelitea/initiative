@@ -22,6 +22,7 @@ from sqlalchemy.orm import column_property
 from sqlmodel import Field, Relationship, SQLModel
 
 from app.core.tools import DEFAULT_ENABLED_TOOLS, Tool
+from app.db.registry_checks import FROM_REGISTRY
 from app.models.platform.user import ABSENT_STATUSES
 from app.models.platform.user_profile_view import MemberProfile
 from app.models.tenant._mixins import (
@@ -75,9 +76,9 @@ class JoinRequestStatus(str, Enum):
 # Permission keys for role-based access control — derived from the Tool enum,
 # one `{plural}_enabled` + `create_{plural}` pair per tool (projects_enabled,
 # create_projects, …), plus the few EXTRA_PERMISSION_KEYS that are not a tool of
-# their own. A new Tool member gets its keys automatically; only the DB CHECK
-# constraint on initiative_role_permissions still needs a guild migration to
-# accept the new values.
+# their own. A new Tool member gets its keys automatically, and the CHECK on
+# initiative_role_permissions is rendered from them at boot
+# (``app.db.registry_checks``).
 #: Role keys that are not a tool's pair. Each is a capability inside a tool
 #: rather than the tool itself, defaults to off for an ordinary role, and is
 #: held by every manager role.
@@ -207,6 +208,15 @@ class InitiativeRolePermission(SQLModel, table=True):
     """Permission toggles per role."""
 
     __tablename__ = "initiative_role_permissions"
+    __table_args__ = (
+        CheckConstraint(
+            "permission_key IN ("
+            + ", ".join(f"'{key.value}'" for key in PermissionKey)
+            + ")",
+            name="ck_initiative_role_permissions_permission_key",
+            info={FROM_REGISTRY: True},
+        ),
+    )
 
     initiative_role_id: int = Field(
         sa_column=Column(

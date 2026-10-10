@@ -13,6 +13,7 @@ from sqlalchemy import (
 )
 from sqlmodel import Field, Relationship
 
+from app.db.registry_checks import FROM_REGISTRY
 from app.core.reactions import REACTION_TARGETS
 from app.models.tenant._mixins import CreatedByMixin
 from app.models.platform.user_profile_view import MemberProfile
@@ -48,6 +49,7 @@ class Reaction(CreatedByMixin, table=True):
         CheckConstraint(
             f"target_type IN ({_TARGET_VALUES})",
             name="ck_reactions_target_type",
+            info={FROM_REGISTRY: True},
         ),
     )
 

@@ -15,6 +15,7 @@ from sqlalchemy import (
 )
 from sqlmodel import Field
 
+from app.db.registry_checks import FROM_REGISTRY
 from app.models.tenant._mixins import CreatedByMixin
 
 from app.core.relationships import (
@@ -82,10 +83,14 @@ class EntityRelationship(CreatedByMixin, table=True):
     __tablename__ = "relationships"
     __table_args__ = (
         CheckConstraint(
-            f"source_type IN ({_KIND_VALUES})", name="ck_relationships_source_type"
+            f"source_type IN ({_KIND_VALUES})",
+            name="ck_relationships_source_type",
+            info={FROM_REGISTRY: True},
         ),
         CheckConstraint(
-            f"target_type IN ({_KIND_VALUES})", name="ck_relationships_target_type"
+            f"target_type IN ({_KIND_VALUES})",
+            name="ck_relationships_target_type",
+            info={FROM_REGISTRY: True},
         ),
         CheckConstraint(
             f"relationship_type IN ({_TYPE_VALUES})", name="ck_relationships_type"

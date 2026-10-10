@@ -1626,10 +1626,12 @@ _CONSTRAINT_NAME_RE = re.compile(r"ADD CONSTRAINT (\w+)")
 def _registry_ddl() -> str:
     """Everything the registries render into a guild schema, as one text."""
     from app.db.event_capture import render_guild_capture_ddl
+    from app.db.registry_checks import render_guild_registry_check_ddl
     from app.db.search_index import render_guild_search_ddl
 
     return "\n".join(
         (
+            render_guild_registry_check_ddl(),
             render_guild_rls_ddl(),
             render_guild_capture_ddl(),
             render_guild_search_ddl(None),
@@ -1652,9 +1654,10 @@ def rendered_trigger_names() -> frozenset[str]:
 def rendered_constraint_names() -> frozenset[str]:
     """Every constraint name the registries render into a guild schema.
 
-    Today that is the search index's entity-type CHECK, which names the
-    indexed set and is re-asserted per guild so a source added to the registry
-    is admitted everywhere. Read off the rendered DDL, like the triggers.
+    Today those are the CHECKs that follow a registry
+    (``app.db.registry_checks``), re-asserted per guild so a value added to the
+    registry is admitted everywhere. Read off the rendered DDL, like the
+    triggers.
     """
     return frozenset(_CONSTRAINT_NAME_RE.findall(_registry_ddl()))
 

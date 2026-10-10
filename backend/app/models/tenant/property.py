@@ -21,6 +21,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
 
+from app.db.registry_checks import FROM_REGISTRY
 from app.models.tenant._mixins import CreatedByMixin
 
 from app.core.tools import PROPERTY_TARGETS
@@ -147,7 +148,9 @@ class PropertyValue(SQLModel, table=True):
     model_config = ConfigDict(arbitrary_types_allowed=True)
     __table_args__ = (
         CheckConstraint(
-            f"entity_type IN ({_TARGET_VALUES})", name="ck_property_values_entity_type"
+            f"entity_type IN ({_TARGET_VALUES})",
+            name="ck_property_values_entity_type",
+            info={FROM_REGISTRY: True},
         ),
         *(
             Index(

@@ -15,6 +15,7 @@ from sqlalchemy.exc import ProgrammingError
 import app.db.schema_provisioning as schema_provisioning
 from app.db.advisory_locks import LockNamespace, advisory_lock
 from app.db.guild_ddl import rendered_constraint_names, rendered_trigger_names
+from app.db.registry_checks import registry_checks
 from app.db.schema_provisioning import (
     GuildRoleKind,
     PLUGIN_ROLE_MACHINERY_READS,
@@ -720,6 +721,25 @@ async def test_guild_schema_matches_guild_template(engine):
                 if await trig(_TEMPLATE_SCHEMA, t) != await trig(schema, t):
                     drift.append(f"triggers: {t}")
             assert drift == [], f"guild schema drifted from guild_template: {drift}"
+
+            # The CHECKs that follow a registry are there, validated, and admit
+            # what the model says.
+            def values(definition: str) -> set[str]:
+                return set(re.findall(r"'([^']*)'", definition))
+
+            for table, check in registry_checks():
+                row = (
+                    await conn.execute(
+                        text(
+                            "SELECT convalidated v, pg_get_constraintdef(oid) d "
+                            "FROM pg_constraint WHERE conname=:n "
+                            "AND conrelid=(:ns||'.'||:t)::regclass"
+                        ),
+                        {"n": check.name, "ns": schema, "t": table.name},
+                    )
+                ).one()
+                assert row.v, check.name
+                assert values(row.d) == values(str(check.sqltext)), check.name
     finally:
         async with engine.begin() as conn:
             await drop_guild_schema(conn, _GID_DRIFT)
@@ -962,10 +982,10 @@ async def test_backfill_continues_past_a_failing_guild(engine, monkeypatch):
         # module-level name, so patching it here is enough.
         real_apply_parts = schema_provisioning._apply_parts
 
-        async def _flaky_apply_parts(conn, guild_id: int, parts) -> None:
+        async def _flaky_apply_parts(conn, guild_id: int, parts, **kw) -> None:
             if guild_id == bad:
                 raise RuntimeError("forced provisioning failure")
-            await real_apply_parts(conn, guild_id, parts)
+            await real_apply_parts(conn, guild_id, parts, **kw)
 
         monkeypatch.setattr(schema_provisioning, "_apply_parts", _flaky_apply_parts)
 
@@ -1011,12 +1031,15 @@ async def test_backfill_continues_past_a_failing_guild(engine, monkeypatch):
 async def test_backfill_applies_only_stale_parts_and_waits_for_a_held_guild(
     engine, monkeypatch
 ):
-    """A guild behind on one part gets that part alone. A guild another
-    process holds the provisioning lock on is waited for, and found current
-    once it lets go, rather than applied a second time."""
+    """A guild behind on some parts gets those parts alone; its registry
+    CHECKs are validated after they are replaced, and only then is it stamped
+    current. A guild another process holds the provisioning lock on is waited
+    for, and found current once it lets go, rather than applied a second time."""
     partial, held = _GID_BACKFILL_PARTIAL, _GID_BACKFILL_HELD
     bundle = await schema_provisioning.get_provisioning_bundle()
-    stale_rls = bundle.stamp.replace(f"rls={bundle.digests['rls']}", "rls=old")
+    stale_rls = bundle.stamp.replace(f"rls={bundle.digests['rls']}", "rls=old").replace(
+        f"checks={bundle.digests['checks']}", "checks=old"
+    )
     try:
         async with engine.begin() as conn:
             for gid, name in ((partial, "backfill-partial"), (held, "backfill-held")):
@@ -1029,9 +1052,9 @@ async def test_backfill_applies_only_stale_parts_and_waits_for_a_held_guild(
         applied: dict[int, tuple[str, ...]] = {}
         real_apply_parts = schema_provisioning._apply_parts
 
-        async def _recording_apply_parts(conn, guild_id: int, parts) -> None:
+        async def _recording_apply_parts(conn, guild_id: int, parts, **kw) -> None:
             applied[guild_id] = parts
-            await real_apply_parts(conn, guild_id, parts)
+            await real_apply_parts(conn, guild_id, parts, **kw)
 
         monkeypatch.setattr(schema_provisioning, "_apply_parts", _recording_apply_parts)
 
@@ -1060,8 +1083,25 @@ async def test_backfill_applies_only_stale_parts_and_waits_for_a_held_guild(
 
         assert partial not in summary.failed_guild_ids
         assert held not in summary.failed_guild_ids
-        assert applied.get(partial) == ("rls",)
+        assert applied.get(partial) == ("checks", "rls")
         assert held not in applied
+        async with engine.connect() as conn:
+            schema = guild_schema_name(partial)
+            assert (
+                await conn.scalar(
+                    text("SELECT obj_description(to_regnamespace(:s), 'pg_namespace')"),
+                    {"s": schema},
+                )
+                == bundle.stamp
+            )
+            unvalidated = await conn.scalar(
+                text(
+                    "SELECT count(*) FROM pg_constraint "
+                    "WHERE connamespace = to_regnamespace(:s) AND NOT convalidated"
+                ),
+                {"s": schema},
+            )
+            assert unvalidated == 0
     finally:
         async with engine.begin() as conn:
             for gid in (partial, held):
