@@ -5,7 +5,7 @@ import {
   type TaskFilterSpec,
   taskFiltersEqual,
 } from "@/lib/filters/taskFilters";
-import { resolveViewState, type ViewLike, viewLink } from "@/lib/filters/views";
+import { resolveViewState, type ViewLike } from "@/lib/filters/views";
 
 const spec = (overrides: Partial<TaskFilterSpec> = {}): TaskFilterSpec => ({
   ...EMPTY_TASK_FILTERS,
@@ -30,8 +30,6 @@ const VIEWS: ViewLike<TaskFilterSpec>[] = [
   view("incomplete", "table", spec({ status_categories: ["backlog", "todo", "in_progress"] })),
   view("mine", "table", spec({ assignees: ["me"] })),
 ];
-
-const MATCH = { emptySpec: EMPTY_TASK_FILTERS, equals: taskFiltersEqual };
 
 const resolve = (
   args: Partial<
@@ -126,30 +124,30 @@ describe("resolveViewState", () => {
   });
 
   it("opens an old layout link on that layout's first view with no filters", () => {
-    // A preset that held a layout's slug kept it; the layout's view moved.
+    // The shipped layout views took a suffix where a preset held their slug.
     const views = [
       view("mine", "table", spec({ assignees: ["me"] })),
       view("table-2", "table"),
-      view("calendar", "calendar", spec({ due: "overdue" })),
-      view("calendar-2", "calendar"),
-      view("board", "board"),
-      view("kanban", "board", spec(), true),
+      view("board-2", "board", spec(), true),
     ];
 
     expect(resolve({ views, search: { view: "table" } }).view?.slug).toBe("table-2");
-    expect(resolve({ views, search: { view: "kanban" } }).view?.slug).toBe("board");
-    expect(resolve({ views, search: { view: "calendar" } }).view?.slug).toBe("calendar-2");
-    // Its own link would open the layout's view, so it carries none.
-    expect(viewLink(views[2], views, MATCH)).toBeUndefined();
-    expect(viewLink(views[3], views, MATCH)).toBe("calendar-2");
-    expect(viewLink(views[4], views, MATCH)).toBe("board");
+    expect(resolve({ views, search: { view: "kanban" } }).view?.slug).toBe("board-2");
+    expect(resolve({ views, search: { view: "calendar" } }).unresolvedView).toBe(true);
   });
 
-  it("opens a layout's view by its slug when every view of that layout filters", () => {
-    const views = [view("table", "table", spec({ tag_ids: [3] }), true), ...VIEWS.slice(2)];
+  it("opens the view with the slug a link names before any old meaning of it", () => {
+    const views = [
+      view("table", "table", spec({ tag_ids: [3] })),
+      view("board", "board", spec(), true),
+      view("kanban", "board", spec({ assignees: ["me"] })),
+      view("all", "table", spec({ due: "overdue" })),
+    ];
 
     expect(resolve({ views, search: { view: "table" } }).view?.slug).toBe("table");
-    expect(viewLink(views[0], views, MATCH)).toBe("table");
+    expect(resolve({ views, search: { view: "kanban" } }).view?.slug).toBe("kanban");
+    // A changed All kept its slug, so its old link opens it.
+    expect(resolve({ views, search: { preset: "all" } }).view?.slug).toBe("all");
   });
 
   it("says so and carries on when the URL names a view that is gone", () => {

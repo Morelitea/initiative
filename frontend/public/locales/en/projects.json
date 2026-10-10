@@ -50,6 +50,7 @@
     "saved": "View saved",
     "unavailable": "That view no longer exists on this project, so another of its views is shown instead.",
     "saveError": "Couldn't save the views",
+    "loadError": "Couldn't load this project's views.",
     "heading": "Views",
     "description": "The views everyone in this project can pick from, in this order. The default is what the project opens on.",
     "default": "Default",

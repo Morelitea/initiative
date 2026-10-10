@@ -229,7 +229,14 @@ def _row(
 
 
 async def clear(session: AsyncSession, target: Target) -> None:
-    """Return a target to the shipped views."""
+    """Return a target to the shipped views. Changes to one target's set take
+    turns, so each starts from the set the one before it left."""
+    guild_id = require_guild_context(session).guild_id
+    await advisory_lock(
+        session,
+        LockNamespace.TOOL_VIEWS,
+        f"{guild_id}:{target.tool.value}:{target.tool_id}:{target.initiative_id}",
+    )
     await session.exec(delete(ToolView).where(*_of(target)))
     await session.flush()
 
@@ -237,14 +244,7 @@ async def clear(session: AsyncSession, target: Target) -> None:
 async def replace_set(
     session: AsyncSession, target: Target, rows: list[ToolView]
 ) -> None:
-    """Store ``rows`` as the target's whole set. Saves of one target take
-    turns, so each replaces the set the one before it stored."""
-    guild_id = require_guild_context(session).guild_id
-    await advisory_lock(
-        session,
-        LockNamespace.TOOL_VIEWS,
-        f"{guild_id}:{target.tool.value}:{target.tool_id}:{target.initiative_id}",
-    )
+    """Store ``rows`` as the target's whole set, in place of what it held."""
     await clear(session, target)
     session.add_all(rows)
     await session.flush()

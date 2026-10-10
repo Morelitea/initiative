@@ -9,7 +9,7 @@ import {
 } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { Archive, BookmarkPlus, Plus, RotateCcw, Save } from "lucide-react";
+import { AlertTriangle, Archive, BookmarkPlus, Plus, RotateCcw, Save } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -48,6 +48,7 @@ import {
   shouldInsertAfter,
 } from "@/components/projects/taskOrdering";
 import { useScopePrompt } from "@/components/recurrence/OccurrenceScopeDialog";
+import { StatusMessage } from "@/components/StatusMessage";
 import { BulkEditTaskTagsDialog } from "@/components/tasks/BulkEditTaskTagsDialog";
 import { ExportTasksButton } from "@/components/tasks/ExportTasksButton";
 import { TaskBulkEditDialog } from "@/components/tasks/TaskBulkEditDialog";
@@ -158,6 +159,9 @@ export const ProjectTasksSection = ({
   const {
     filtersLoaded,
     viewsLoaded,
+    viewsFailed,
+    retryViews,
+    retryingViews,
     views,
     canConfigure,
     view,
@@ -168,7 +172,6 @@ export const ProjectTasksSection = ({
     setOwnFilters,
     rememberView,
     hasOwnFilters,
-    linkFor,
   } = useProjectTaskView({ projectId, taskStatuses, search });
   const viewSet = useProjectViews(projectId).data;
 
@@ -193,16 +196,14 @@ export const ProjectTasksSection = ({
   // makes it this person's current view with their own filters for it
   // dropped, so coming back without the param finds what the link showed. A
   // link from before views (`?preset=`, `?view=kanban`) is rewritten to name
-  // it, or loses the param where its slug would name another view. Once per
-  // slug: the preference write is debounced and optimistic, and re-firing it
-  // every render would race the router.
+  // it. Once per slug: the preference write is debounced and optimistic, and
+  // re-firing it every render would race the router.
   const rememberedViewRef = useRef<string | null>(null);
   const urlNamesView = Boolean(search.preset ?? search.view) && !unresolvedView;
   useEffect(() => {
     if (!filtersLoaded || !view || !urlNamesView) return;
-    const link = linkFor(view.slug);
-    if (search.preset !== undefined || search.view !== link) {
-      setSearchParams({ preset: undefined, view: link });
+    if (search.preset !== undefined || search.view !== view.slug) {
+      setSearchParams({ preset: undefined, view: view.slug });
     }
     if (rememberedViewRef.current === view.slug) return;
     rememberedViewRef.current = view.slug;
@@ -215,7 +216,6 @@ export const ProjectTasksSection = ({
     search.view,
     setSearchParams,
     rememberView,
-    linkFor,
   ]);
 
   /** Switch to a view. The URL names it only while it shows the view's own
@@ -225,9 +225,9 @@ export const ProjectTasksSection = ({
     (slug: string) => {
       rememberedViewRef.current = slug;
       rememberView(slug);
-      setSearchParams({ preset: undefined, view: hasOwnFilters(slug) ? undefined : linkFor(slug) });
+      setSearchParams({ preset: undefined, view: hasOwnFilters(slug) ? undefined : slug });
     },
-    [rememberView, hasOwnFilters, setSearchParams, linkFor]
+    [rememberView, hasOwnFilters, setSearchParams]
   );
 
   /** Keep `next` as this person's own filters for the view on screen. They
@@ -246,8 +246,8 @@ export const ProjectTasksSection = ({
     if (!view) return;
     setOwnFilters(null);
     rememberedViewRef.current = view.slug;
-    setSearchParams({ view: linkFor(view.slug) });
-  }, [view, setOwnFilters, setSearchParams, linkFor]);
+    setSearchParams({ view: view.slug });
+  }, [view, setOwnFilters, setSearchParams]);
 
   const viewOptions = useMemo(
     () =>
@@ -279,8 +279,13 @@ export const ProjectTasksSection = ({
       onSuccess: (saved) => {
         setViewDialogOpen(false);
         setOwnFilters(null);
-        const slug = saved.views[existing.length]?.slug;
-        if (slug) selectView(slug);
+        // Named from the saved set: the set on screen is the one before it.
+        const made = saved.views.find((each) => !existing.some(({ slug }) => slug === each.slug));
+        if (made) {
+          rememberedViewRef.current = made.slug;
+          rememberView(made.slug, true);
+          setSearchParams({ preset: undefined, view: made.slug });
+        }
         toast.success(t("views.saved"));
       },
     });
@@ -942,6 +947,26 @@ export const ProjectTasksSection = ({
   const handleListDragCancel = () => {
     setActiveTaskId(null);
   };
+
+  if (viewsFailed) {
+    return (
+      <div className="flex flex-col items-center">
+        <StatusMessage
+          icon={<AlertTriangle className="size-6" aria-hidden />}
+          title={t("views.loadError")}
+        />
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={retryingViews}
+          onClick={retryViews}
+        >
+          {t("common:tryAgain")}
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

@@ -13,9 +13,10 @@ mode, stores nothing: the shipped views (Table, Board, Calendar, Incomplete,
 Unassigned, Mine) are the same. Any other project stores the shipped six with
 its changes: a seed it deleted is left out, a seed it edited takes the shipped
 view of its slug, and each other preset follows as a view with the project's
-default layout. The default is the default preset's view, or, where that was
-All, the layout view of the project's default view mode. All itself is the
-shipped Table, so it becomes no view. A preset keeps its slug; where it holds
+default layout. All as seeded is the shipped Table, so it becomes no view;
+renamed or refiltered, it is one more preset. The default is the default
+preset's view, or, where that was All as seeded, the layout view of the
+project's default view mode. A preset keeps its slug; where it holds
 ``table``, ``board`` or ``calendar``, the shipped layout view is suffixed.
 ``project_filter_presets`` goes; ``projects.default_view_mode`` stays, as the
 plug-in API still serves it.
@@ -201,10 +202,16 @@ def _untouched(project: Any, presets: list[Any]) -> bool:
 
 def _project_views(project: Any, presets: list[Any]) -> list[dict[str, Any]]:
     """The views a project stores: the shipped six with its changes, then
-    its other presets."""
+    its other presets, a changed All among them."""
     layout = _MODE_LAYOUT.get(project.default_view_mode or "", "table")
     own = {preset.slug: preset for preset in presets}
-    custom = [preset for preset in presets if preset.slug not in _SEEDS]
+    # All as seeded is the shipped Table; changed, it is a view of its own.
+    custom = [
+        preset
+        for preset in presets
+        if preset.slug not in _SEEDS
+        or (preset.slug == "all" and _SEEDS["all"] != (preset.name, preset.filters))
+    ]
     taken = {preset.slug for preset in custom}
 
     def view(

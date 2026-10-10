@@ -50,6 +50,7 @@
     "saved": "Vue enregistrée",
     "unavailable": "Cette vue n'existe plus dans ce projet ; une autre de ses vues est affichée à la place.",
     "saveError": "Impossible d'enregistrer les vues",
+    "loadError": "Impossible de charger les vues de ce projet.",
     "heading": "Vues",
     "description": "Les vues que tout le monde dans ce projet peut choisir, dans cet ordre. La vue par défaut est celle avec laquelle le projet s'ouvre.",
     "default": "Par défaut",

@@ -512,6 +512,47 @@ describe("ProjectTasksSection views", () => {
     expect(await viewSwitcher()).not.toHaveTextContent(/modified/i);
   });
 
+  it("opens a new view named after an old layout link, not the layout", async () => {
+    captureSaves();
+    const { router } = section();
+    const user = await openFilters();
+    await toggleAssigneeToken(user, /^Unassigned$/);
+
+    await user.click(await screen.findByRole("button", { name: /save as view/i }));
+    await user.type(await screen.findByLabelText(/view name/i), "Kanban");
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    await waitFor(() => expect(urlView(router).view).toBe("kanban"));
+    await waitFor(async () => expect(await viewSwitcher()).toHaveTextContent("Kanban"));
+  });
+
+  it("says the views failed to load, and asks again, before listing any tasks", async () => {
+    let fail = true;
+    let taskRequests = 0;
+    server.use(
+      communityHttp.get("/views/", () =>
+        fail ? new HttpResponse(null, { status: 500 }) : HttpResponse.json(buildToolViewSet())
+      ),
+      communityHttp.get("/tasks/", () => {
+        taskRequests += 1;
+        return HttpResponse.json(buildTaskListResponse([]));
+      })
+    );
+    section();
+    const user = userEvent.setup();
+
+    const retry = await screen.findByRole("button", { name: /try again/i });
+    expect(screen.getByText(/couldn't load this project's views/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /filters/i })).toBeNull();
+    expect(taskRequests).toBe(0);
+
+    fail = false;
+    await user.click(retry);
+
+    await waitFor(async () => expect(await viewSwitcher()).toHaveTextContent("Table"));
+    await waitFor(() => expect(taskRequests).toBe(1));
+  });
+
   it("folds tweaked filters back into the view they sit on", async () => {
     const saves = captureSaves();
     section();

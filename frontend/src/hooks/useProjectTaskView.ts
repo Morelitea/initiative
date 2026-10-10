@@ -28,7 +28,7 @@ import {
   taskFiltersEqual,
   taskSortFields,
 } from "@/lib/filters/taskFilters";
-import { resolveViewState, type StoredViews, type ViewSearch, viewLink } from "@/lib/filters/views";
+import { resolveViewState, type StoredViews, type ViewSearch } from "@/lib/filters/views";
 
 /** A project's view, with its fixed filters as the task filter spec. */
 export type ProjectView = ToolViewRead & { filters: TaskFilterSpec };
@@ -79,9 +79,13 @@ export function useProjectTaskView({
   // The project's shared views. `can_configure` is computed server-side and is
   // what gates every curation affordance.
   const viewsQuery = useProjectViews(projectId);
-  // Settled either way: a set that cannot be read leaves every task in a
-  // table, rather than no list at all.
-  const viewsLoaded = viewsQuery.isSuccess || viewsQuery.isError;
+  // The list waits for its views, which say what it is filtered by. A set
+  // that cannot be read is reported, with a way to ask again, rather than
+  // guessed at.
+  const viewsLoaded = viewsQuery.data !== undefined;
+  const viewsFailed = viewsQuery.isError && !viewsLoaded;
+  const { refetch: refetchViews } = viewsQuery;
+  const retryViews = useCallback(() => void refetchViews(), [refetchViews]);
   const canConfigure = viewsQuery.data?.can_configure ?? false;
   const views = useMemo(() => projectViews(viewsQuery.data?.views), [viewsQuery.data]);
 
@@ -149,18 +153,6 @@ export function useProjectTaskView({
     [writeStored]
   );
 
-  /** What `?view=` carries for the view `slug`, when a link can name it. A
-   *  view just saved is named as it is, until the set it is in arrives. */
-  const linkFor = useCallback(
-    (slug: string) => {
-      const named = views.find((each) => each.slug === slug);
-      return named
-        ? viewLink(named, views, { emptySpec: EMPTY_TASK_FILTERS, equals: taskFiltersEqual })
-        : slug;
-    },
-    [views]
-  );
-
   /** Whether this person keeps filters of their own for `slug`. */
   const hasOwnFilters = useCallback(
     (slug: string) => stored !== null && Object.hasOwn(stored.filters, slug),
@@ -212,6 +204,9 @@ export function useProjectTaskView({
   return {
     filtersLoaded,
     viewsLoaded,
+    viewsFailed,
+    retryViews,
+    retryingViews: viewsQuery.isFetching,
     views,
     canConfigure,
     view,
@@ -223,7 +218,6 @@ export function useProjectTaskView({
     setOwnFilters,
     rememberView,
     hasOwnFilters,
-    linkFor,
   };
 }
 

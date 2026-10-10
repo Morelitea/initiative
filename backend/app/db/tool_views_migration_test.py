@@ -56,15 +56,25 @@ _MINE = {"layout": {"type": "table"}, "filters": {"assignees": ["me"]}}
 async def test_presets_become_views_and_come_back(session) -> None:
     """A project as it was seeded stores nothing and keeps the shipped views.
     Every other stores the shipped six with its changes: an edited seed in its
-    place, a deleted one left out, its own presets after them on its default
-    layout, and the default it chose. A preset holding a shipped layout
+    place, a deleted one left out, its own presets (a changed All among them)
+    after them on its default layout, and the default it chose. A preset holding a shipped layout
     view's slug keeps it. The downgrade puts back the presets and re-seeds
     the projects that stored nothing."""
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
     schema = f"guild_{guild.id}"
     initiative = await create_initiative(session, guild, user)
-    names = ("Seeded", "Table mode", "Edited", "Deleted", "Custom", "Kanban", "Clash")
+    names = (
+        "Seeded",
+        "Table mode",
+        "Edited",
+        "Deleted",
+        "Custom",
+        "Kanban",
+        "Clash",
+        "Renamed All",
+        "Refiltered All",
+    )
     projects = {
         name: (await create_project(session, initiative, user, name=name)).id
         for name in names
@@ -138,6 +148,11 @@ async def test_presets_become_views_and_come_back(session) -> None:
         ("board", "Board", True, '{"assignees": ["me"]}'),
     )
     await mode("Clash", "kanban")
+    await presets("Renamed All", ("all", "Everything", True, "{}"), *_SEEDS[1:])
+    await mode("Renamed All", "kanban")
+    await presets(
+        "Refiltered All", ("all", "All", False, '{"due": "overdue"}'), *_SEEDS[1:]
+    )
 
     await session.run_sync(run(migration._apply_upgrade))
     rows = (
@@ -199,6 +214,20 @@ async def test_presets_become_views_and_come_back(session) -> None:
                 {"layout": {"type": "board"}, "filters": {"assignees": ["me"]}},
             ),
         ],
+        # All changed is kept, as any other preset of the project's.
+        projects["Renamed All"]: [
+            *[(slug, name, False, d) for slug, name, _, d in shipped],
+            ("all", "Everything", True, {"layout": {"type": "board"}, "filters": {}}),
+        ],
+        projects["Refiltered All"]: [
+            *shipped,
+            (
+                "all",
+                "All",
+                False,
+                {"layout": {"type": "table"}, "filters": {"due": "overdue"}},
+            ),
+        ],
     }
 
     await session.run_sync(run(migration._apply_downgrade))
@@ -221,6 +250,10 @@ async def test_presets_become_views_and_come_back(session) -> None:
     assert restored[projects["Clash"]] == [
         *[(slug, name, False, f) for slug, name, _, f in seeds[1:]],
         ("board", "Board", True, {"assignees": ["me"]}),
+    ]
+    assert restored[projects["Renamed All"]] == [
+        *seeds[1:],
+        ("all", "Everything", True, {}),
     ]
     modes = dict(
         (await sql(f"SELECT id, default_view_mode FROM {schema}.projects")).all()

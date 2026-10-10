@@ -50,6 +50,7 @@
     "saved": "Ansicht gespeichert",
     "unavailable": "Diese Ansicht gibt es in diesem Projekt nicht mehr; stattdessen wird eine andere seiner Ansichten angezeigt.",
     "saveError": "Ansichten konnten nicht gespeichert werden",
+    "loadError": "Die Ansichten dieses Projekts konnten nicht geladen werden.",
     "heading": "Ansichten",
     "description": "Die Ansichten, aus denen alle in diesem Projekt wählen können, in dieser Reihenfolge. Der Standard bestimmt, womit das Projekt öffnet.",
     "default": "Standard",

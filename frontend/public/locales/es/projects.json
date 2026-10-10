@@ -50,6 +50,7 @@
     "saved": "Vista guardada",
     "unavailable": "Esa vista ya no existe en este proyecto, así que se muestra otra de sus vistas.",
     "saveError": "No se pudieron guardar las vistas",
+    "loadError": "No se pudieron cargar las vistas de este proyecto.",
     "heading": "Vistas",
     "description": "Las vistas que cualquiera del proyecto puede elegir, en este orden. La predeterminada es con la que se abre el proyecto.",
     "default": "Predeterminada",

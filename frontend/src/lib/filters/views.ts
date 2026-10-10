@@ -51,7 +51,7 @@ export interface ViewResolution<S, W extends ViewLike<S>> {
 }
 
 /** The layouts `?view=` named before a list had views, by the value it
- *  carried. Such a link meant the layout, so it opens the layout's view. */
+ *  carried. Such a link meant the layout. */
 const LEGACY_LAYOUTS: Partial<Record<string, string>> = {
   table: "table",
   kanban: "board",
@@ -71,38 +71,30 @@ interface ViewMatch<S> {
   equals: (a: S, b: S) => boolean;
 }
 
-/** The view a URL names, or null. A link from before views that named a
- *  layout opens the first view of that layout with no filters, and the view
- *  with that slug only when there is none. */
+/** The view a URL names, or null. A view with the slug it names is that
+ *  view, always. Only when the list has none does a link from before views
+ *  mean what it meant then: `?view=` a layout opens the first view of that
+ *  layout with no filters, and `?preset=all` the default view. */
 export function viewNamedBy<S, W extends ViewLike<S>>(
   search: ViewSearch,
   views: readonly W[],
   { emptySpec, equals }: ViewMatch<S>
 ): W | null {
-  const bySlug = (slug: string) => views.find((view) => view.slug === slug) ?? null;
+  const slug = search.preset ?? search.view;
+  if (slug === undefined) return null;
+  const named = views.find((view) => view.slug === slug);
+  if (named) return named;
   if (search.preset !== undefined) {
     return search.preset === "all"
       ? (views.find((view) => view.is_default) ?? views[0] ?? null)
-      : bySlug(search.preset);
+      : null;
   }
-  if (search.view === undefined) return null;
-  const layout = LEGACY_LAYOUTS[search.view];
-  const plain = layout
-    ? views.find(
+  const layout = LEGACY_LAYOUTS[slug];
+  return layout
+    ? (views.find(
         (view) => view.definition.layout.type === layout && equals(view.filters, emptySpec)
-      )
-    : undefined;
-  return plain ?? bySlug(search.view);
-}
-
-/** What `?view=` carries for `view`: its slug, or nothing when its slug
- *  would open another view (one holding a layout's old link). */
-export function viewLink<S, W extends ViewLike<S>>(
-  view: W,
-  views: readonly W[],
-  match: ViewMatch<S>
-): string | undefined {
-  return viewNamedBy({ view: view.slug }, views, match) === view ? view.slug : undefined;
+      ) ?? null)
+    : null;
 }
 
 export interface ResolveViewArgs<S, W extends ViewLike<S>> extends ViewMatch<S> {

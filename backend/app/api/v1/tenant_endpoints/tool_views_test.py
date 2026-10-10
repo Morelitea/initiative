@@ -14,10 +14,12 @@ from sqlalchemy.exc import DBAPIError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.db.advisory_locks import LockNamespace, advisory_lock
 from app.models.platform.guild import CommunityRole
 from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.models.tenant.tool_view import ToolView
 from app.schemas.tenant.tool_view import MAX_DEPTH, MAX_NODES, MAX_VIEWS
+from app.services.tenant import tool_views as tool_views_service
 from app.testing import create_resource_grant, route_session_to_guild
 
 
@@ -157,6 +159,29 @@ async def test_saving_replaces_the_whole_set_and_deleting_returns_to_shipped(
         "unassigned",
         "mine",
     ]
+
+
+async def test_saving_and_resetting_take_turns_on_the_target(
+    client: AsyncClient, acting_user, monkeypatch
+):
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
+    taken: list[tuple[LockNamespace, Any]] = []
+
+    async def recording_lock(conn, namespace, key=None, **kwargs):
+        taken.append((namespace, key))
+        return await advisory_lock(conn, namespace, key, **kwargs)
+
+    monkeypatch.setattr(tool_views_service, "advisory_lock", recording_lock)
+    url, params = a.g("/views/"), _project(a)
+
+    saved = await client.put(url, params=params, json=_TWO, headers=a.headers)
+    reset = await client.delete(url, params=params, headers=a.headers)
+
+    assert (saved.status_code, reset.status_code) == (200, 204)
+    key = f"{a.guild.id}:project:{a.project.id}:{a.initiative.id}"
+    assert taken == [(LockNamespace.TOOL_VIEWS, key)] * 2
 
 
 @pytest.mark.parametrize("who", ["admin", "manager"])
