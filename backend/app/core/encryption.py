@@ -68,6 +68,9 @@ SALT_IMPORT_CREDENTIAL = b"import-credential"
 # What a community or platform moderator wrote when placing a hold: who asked
 # for it, a reference number. Read only by the platform.
 SALT_HOLD_NOTE = b"hold-note"
+# The words a moderator took down, kept in the community's moderation log so
+# a removal can be put back.
+SALT_MODERATION_SNAPSHOT = b"moderation-snapshot"
 # The API token one import job uses to read a foreign site. Held for the
 # length of that job and deleted with it.
 

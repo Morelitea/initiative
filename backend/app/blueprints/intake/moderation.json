@@ -91,6 +91,13 @@
       "position": 5.0,
       "color": "#F59E0B",
       "options": null
+    },
+    {
+      "name": "legal_basis",
+      "type": "text",
+      "position": 6.0,
+      "color": "#DC2626",
+      "options": null
     }
   ],
   "tasks": [

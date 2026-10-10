@@ -1977,6 +1977,45 @@ export interface ReactionGroup {
 }
 
 /**
+ * Who took a comment out of the conversation.
+ */
+export type RemovedBy = (typeof RemovedBy)[keyof typeof RemovedBy];
+
+export const RemovedBy = {
+  moderator: "moderator",
+  author: "author",
+} as const;
+
+/**
+ * Why a moderator took something down. Every reason a report can give,
+ * and two that only a community's own rules give.
+ */
+export type RemovalReason = (typeof RemovalReason)[keyof typeof RemovalReason];
+
+export const RemovalReason = {
+  spam: "spam",
+  harassment: "harassment",
+  hate: "hate",
+  violence: "violence",
+  sexual_content: "sexual_content",
+  self_harm: "self_harm",
+  illegal: "illegal",
+  misinformation: "misinformation",
+  other: "other",
+  off_topic: "off_topic",
+  community_rule: "community_rule",
+} as const;
+
+/**
+ * What a tombstone says in place of a comment: who took it out, and,
+ * for a moderator, why. Never what it said, or who wrote it.
+ */
+export interface CommentRemoval {
+  by: RemovedBy;
+  reason: RemovalReason | null;
+}
+
+/**
  * One comment. ``project_id`` is its own for a comment on a project and
  * the task's for a task comment (filled by the service's serializer).
  */
@@ -2002,6 +2041,7 @@ export interface CommentRead {
   imported_author_name: string | null;
   reactions: ReactionGroup[];
   can_remove: boolean;
+  removed: CommentRemoval | null;
   audience: CommentAudience;
   system_kind: string | null;
 }
@@ -2013,6 +2053,8 @@ export interface CommentRead {
 export interface CommentListResponse {
   comments: CommentRead[];
   next_cursor: string | null;
+  locked: boolean;
+  can_moderate: boolean;
 }
 
 /**
@@ -6078,6 +6120,69 @@ export interface MessageRequestCreate {
 }
 
 /**
+ * What a moderator did, as the moderation log records it.
+ */
+export type ModerationAct = (typeof ModerationAct)[keyof typeof ModerationAct];
+
+export const ModerationAct = {
+  remove: "remove",
+  restore: "restore",
+  lock_comments: "lock_comments",
+  unlock_comments: "unlock_comments",
+  clear_reactions: "clear_reactions",
+  warn: "warn",
+} as const;
+
+/**
+ * A moderator acting on something directly, rather than settling a
+ * report about it.
+ */
+export interface ModerationActCreate {
+  act: ModerationAct;
+  target_type: string;
+  target_id: number;
+  reason?: RemovalReason | null;
+  note?: string | null;
+}
+
+/**
+ * Somebody the moderation log names: who acted, or whose work it was.
+ */
+export interface ModerationPerson {
+  id: number;
+  name: string;
+}
+
+/**
+ * One row of a community's moderation log, as its moderators read it.
+ */
+export interface ModerationActionRead {
+  id: number;
+  initiative_id: number;
+  action: ModerationAct;
+  target_type: string;
+  target_id: number;
+  reason?: RemovalReason | null;
+  note?: string | null;
+  snapshot?: string | null;
+  actor?: ModerationPerson | null;
+  subject?: ModerationPerson | null;
+  report_id?: number | null;
+  hold_id?: number | null;
+  created_at: string;
+  restorable?: boolean;
+}
+
+export interface ModerationLogList {
+  total_count: number;
+  page: number;
+  page_size: number;
+  has_next: boolean;
+  has_prev: boolean;
+  items: ModerationActionRead[];
+}
+
+/**
  * Why somebody is reporting. Closed, so it can be counted and filtered.
  */
 export type ReportReason = (typeof ReportReason)[keyof typeof ReportReason];
@@ -6142,6 +6247,9 @@ export interface ModerationReportRead {
   target_excerpt?: string | null;
   target_link?: ReportTargetLink | null;
   evidence?: EvidenceRead[];
+  legal_basis?: LegalBasis | null;
+  platform_notified_at?: string | null;
+  action_id?: number | null;
 }
 
 export interface ModerationReportList {
@@ -6151,6 +6259,13 @@ export interface ModerationReportList {
   has_next: boolean;
   has_prev: boolean;
   items: ModerationReportRead[];
+}
+
+/**
+ * Putting back what a removal took down.
+ */
+export interface ModerationRestore {
+  note?: string | null;
 }
 
 /**
@@ -6249,6 +6364,8 @@ export const NotificationType = {
   plugin_consent_requested: "plugin_consent_requested",
   plugin_update_pending: "plugin_update_pending",
   ticket_updated: "ticket_updated",
+  moderation_removal: "moderation_removal",
+  moderation_warning: "moderation_warning",
 } as const;
 
 export type NotificationReadData = { [key: string]: unknown };
@@ -6299,6 +6416,7 @@ export const NotificationCategory = {
   connections: "connections",
   jobs: "jobs",
   account: "account",
+  moderation: "moderation",
 } as const;
 
 /**
@@ -7656,6 +7774,7 @@ export interface PostRead {
   is_read: boolean;
   read_count: number;
   reactions_enabled: boolean;
+  comments_locked_at: string | null;
   comment_count: number;
   reactions: ReactionGroup[];
   body: PostReadBody;
@@ -7946,12 +8065,16 @@ export const PropertyTarget = {
 } as const;
 
 /**
- * Replace-all payload for ``PUT /properties/{target}/{entity_id}``.
+ * Payload for ``PUT /properties/{target}/{entity_id}``: replace-all, or
+ * with ``merge`` only the properties it names.
  *
- * An empty list clears every property value on the entity.
+ * Replacing, an empty list clears every property value on the entity.
  */
 export interface PropertyValuesSetRequest {
   values?: PropertyValueInput[];
+  merge?: boolean;
+  /** @maxItems 100 */
+  removed?: number[];
 }
 
 /**
@@ -8605,6 +8728,8 @@ export interface ReportSettle {
   outcome: ReportOutcome;
   note?: string | null;
   hold?: ReportHold | null;
+  removal_reason?: RemovalReason | null;
+  message?: string | null;
 }
 
 /**
@@ -9320,6 +9445,7 @@ export interface TaskUpdate {
   properties?: PropertyValueInput[] | null;
   title?: string | null;
   description?: string | null;
+  description_base?: string | null;
   task_status_id?: number | null;
   priority?: TaskPriority | null;
   assignee_ids?: number[] | null;
@@ -9343,6 +9469,7 @@ export interface TaskUpdate {
 export interface TicketAccepted {
   accepted: boolean;
   venue: ReportVenue | null;
+  platform_contact: string | null;
 }
 
 /**
@@ -10159,6 +10286,7 @@ export interface WikiPageRead {
   smart_link_url: string | null;
   content: WikiPageReadContent;
   content_version: string | null;
+  comments_locked_at: string | null;
 }
 
 /**
@@ -10362,6 +10490,7 @@ export interface ModerationTicketCreate {
   target_id: number;
   reason: ReportReason;
   detail?: string | null;
+  legal_basis?: LegalBasis | null;
   community_id?: number | null;
   stream: "moderation";
 }
@@ -11161,6 +11290,18 @@ export type ArchiveDoneTasksParams = {
 
 export type ListReportsParams = {
   settled?: boolean;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 1
+   * @maximum 200
+   */
+  page_size?: number;
+};
+
+export type ReadModerationLogParams = {
   /**
    * @minimum 1
    */

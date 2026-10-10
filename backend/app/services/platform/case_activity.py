@@ -35,6 +35,10 @@ class ActivityKind(str, Enum):
     hold_released = "hold_released"
     #: A hold on this case is still in place.
     hold_reminder = "hold_reminder"
+    #: The community settled its own report of what this case is about.
+    community_settled = "community_settled"
+    #: What this case is about should be held, and nothing has held it yet.
+    hold_requested = "hold_requested"
 
 
 def repeat_text(*, occurrences: int, detail: str | None) -> str:

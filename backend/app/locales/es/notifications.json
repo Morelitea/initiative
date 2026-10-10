@@ -216,6 +216,10 @@
     "account": {
       "title": "Un aviso sobre tu cuenta",
       "body": "Abre Initiative para leerlo."
+    },
+    "moderation": {
+      "title": "Un aviso de moderación",
+      "body": "Abre Initiative para leerlo."
     }
   },
   "quietHours": {
@@ -247,6 +251,16 @@
       "title": "Notificaciones reanudadas",
       "body_one": "{{count}} cosa ocurrió mientras no estabas.",
       "body_other": "{{count}} cosas ocurrieron mientras no estabas."
+    }
+  },
+  "moderation": {
+    "removed": {
+      "title": "Un moderador eliminó algo que escribiste",
+      "body": "Incumplía las normas de esta comunidad. Abre el aviso para ver el motivo."
+    },
+    "warned": {
+      "title": "Un aviso de los moderadores de esta comunidad",
+      "body": "{{message}}"
     }
   }
 }

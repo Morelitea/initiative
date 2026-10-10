@@ -55,7 +55,8 @@ async def set_properties(
     current_user: ActorUserDep,
     guild_context: PropertiesWrite,
 ) -> List[PropertySummary]:
-    """Replace the custom property values on one tool or sub-tool.
+    """Replace the custom property values on one tool or sub-tool, or with
+    ``merge`` write only the ones named and leave the rest.
 
     Requires write on the tool that governs it: a tool itself, or the tool a
     sub-tool sits in (a task's project, an event's calendar). Each value's
@@ -94,7 +95,11 @@ async def set_properties(
 
     try:
         await properties_service.set_values(
-            session, row, payload.values, initiative_id=initiative_id
+            session,
+            row,
+            payload.values,
+            initiative_id=initiative_id,
+            removed=payload.removed if payload.merge else None,
         )
     except HTTPException:
         await session.rollback()

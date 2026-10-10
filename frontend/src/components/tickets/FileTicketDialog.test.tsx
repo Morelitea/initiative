@@ -85,10 +85,58 @@ describe("FileTicketDialog", () => {
           target_id: 42,
           reason: "harassment",
           detail: null,
+          legal_basis: null,
           community_id: 3,
         },
         files: [],
       });
+    });
+
+    it("asks which law something illegal breaks, and what is wrong with it", async () => {
+      report();
+      const user = userEvent.setup();
+      const send = screen.getByRole("button", { name: "Send report" });
+
+      await chooseReason(user, "Illegal");
+      expect(send).toBeDisabled();
+      await user.click(screen.getByRole("combobox", { name: "Which law?" }));
+      await user.click(await screen.findByRole("option", { name: "Privacy" }));
+      // A law named, and still nothing said about it.
+      expect(send).toBeDisabled();
+      await user.type(screen.getByLabelText("Tell them what you saw"), "My home address.");
+      await user.click(send);
+
+      expect(fileMutate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          ticket: expect.objectContaining({
+            reason: "illegal",
+            legal_basis: "privacy",
+            detail: "My home address.",
+          }),
+        })
+      );
+    });
+
+    it("takes no files with a child-safety report", async () => {
+      report();
+      const user = userEvent.setup();
+
+      await chooseReason(user, "Illegal");
+      await user.click(screen.getByRole("combobox", { name: "Which law?" }));
+      await user.click(await screen.findByRole("option", { name: "Child safety" }));
+
+      expect(screen.getByText(/Don't attach anything/)).toBeInTheDocument();
+      expect(screen.queryByText("Attach files")).not.toBeInTheDocument();
+    });
+
+    it("needs words for a report of something else", async () => {
+      report();
+      const user = userEvent.setup();
+
+      await chooseReason(user, "Other");
+      expect(screen.getByRole("button", { name: "Send report" })).toBeDisabled();
+      await user.type(screen.getByLabelText("Tell them what you saw"), "It's a scam.");
+      expect(screen.getByRole("button", { name: "Send report" })).toBeEnabled();
     });
 
     it("carries the reporter's own words", async () => {

@@ -105,8 +105,9 @@ async def release_hold(
     guild_context: GuildContextDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> ContentHoldRead:
-    """End a hold: ``restore`` it, ``remove`` it to the trash, or ``purge`` it.
-    The platform's alone, under a ``moderate`` grant."""
+    """End a hold: ``restore`` it, ``remove`` it — through the community's
+    moderation log, a comment to a tombstone and anything else to the trash —
+    or ``purge`` it. The platform's alone, under a ``moderate`` grant."""
     hold = await holds_service.release(
         guild_context,
         guild_id=guild_context.guild_id,

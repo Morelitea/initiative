@@ -140,6 +140,10 @@ class TaskCreate(TaskBase, PropertiesOnCreate):
 class TaskUpdate(PropertiesOnUpdate):
     title: Optional[TitleStr] = None
     description: Optional[RichMentionStr] = None
+    #: The description this ``description`` was written over. Given and no
+    #: longer the stored one, the update is refused with
+    #: ``TASK_DESCRIPTION_CHANGED``.
+    description_base: Optional[RichMentionStr] = None
     task_status_id: Optional[int] = None
     priority: Optional[TaskPriority] = None
     assignee_ids: Optional[List[PersonId]] = None

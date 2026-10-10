@@ -216,6 +216,10 @@
     "account": {
       "title": "An account notice",
       "body": "Open Initiative to read it."
+    },
+    "moderation": {
+      "title": "A moderation notice",
+      "body": "Open Initiative to read it."
     }
   },
   "quietHours": {
@@ -247,6 +251,16 @@
       "title": "Notifications resumed",
       "body_one": "{{count}} thing happened while you were away.",
       "body_other": "{{count}} things happened while you were away."
+    }
+  },
+  "moderation": {
+    "removed": {
+      "title": "A moderator removed something you wrote",
+      "body": "It broke this community's rules. Open the notice to see why."
+    },
+    "warned": {
+      "title": "A warning from this community's moderators",
+      "body": "{{message}}"
     }
   }
 }

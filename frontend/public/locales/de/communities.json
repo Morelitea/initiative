@@ -368,7 +368,10 @@
       "task": "Eine Aufgabe",
       "taskObject": "deine Aufgabe",
       "user": "Ein Benutzer"
-    }
+    },
+    "moderationRemoved": "Ein Moderator hat etwas von dir entfernt: {{reason}}",
+    "moderationRemovedLegal": "Etwas, das du geschrieben hast, wurde aus rechtlichen Gründen entfernt",
+    "moderationWarned": "Eine Verwarnung der Moderatoren: {{message}}"
   },
   "version": {
     "versionInformation": "Versionsinformationen",

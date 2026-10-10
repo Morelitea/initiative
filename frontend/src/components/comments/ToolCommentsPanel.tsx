@@ -20,7 +20,12 @@ import { useTranslation } from "react-i18next";
 import type { Tool } from "@/api/generated/initiativeAPI.schemas";
 import type { CommentEntity } from "@/components/comments/CommentSection";
 import { CommentSection } from "@/components/comments/CommentSection";
-import { type CommentThreadParams, useComments, useCommentsCache } from "@/hooks/useComments";
+import {
+  type CommentThreadParams,
+  useComments,
+  useCommentsCache,
+  useCommentThreadState,
+} from "@/hooks/useComments";
 import type { ToolCommentEntity } from "@/lib/tools";
 
 interface ToolCommentsPanelProps {
@@ -60,6 +65,9 @@ export const ToolCommentsPanel = ({
   }, [targetType, entityId]);
 
   const commentsQuery = useComments(params, { enabled: Number.isFinite(entityId) && enabled });
+  const thread = useCommentThreadState(params, {
+    enabled: Number.isFinite(entityId) && enabled,
+  });
   // Write the new row straight into this thread's cache, so the comment
   // appears under the box the moment it posts.
   const cache = useCommentsCache(params);
@@ -78,6 +86,8 @@ export const ToolCommentsPanel = ({
         isLoadingOlder={commentsQuery.isFetchingNextPage}
         onLoadOlder={() => void commentsQuery.fetchNextPage()}
         initiativeId={initiativeId}
+        locked={thread.data?.locked ?? false}
+        canModerate={thread.data?.canModerate ?? false}
         onCommentCreated={(comment) => {
           cache.putComment(comment);
           onCountChange?.(1);

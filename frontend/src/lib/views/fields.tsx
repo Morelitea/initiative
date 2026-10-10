@@ -34,9 +34,9 @@ import type { TranslateFn } from "@/types/i18n";
 /** What a view draws. Tasks for now; other kinds join as their tools move. */
 export type ViewItem = TaskListRead;
 
-/** Where a field is drawn. An item page comes later, a branch in the
- *  renderers below like the table's cell. */
-export type ViewVariant = "card" | "cell";
+/** Where a field is drawn. On an item's page it is its editor, which the
+ *  item's page parts draw (`taskPage.tsx`). */
+export type ViewVariant = "card" | "cell" | "page";
 
 export type FieldKind =
   | "title"

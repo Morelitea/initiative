@@ -119,6 +119,9 @@ async def _resolve_comment(
         raise ReactionNotFoundError(ReactionMessages.TARGET_NOT_FOUND) from exc
     except comments_service.CommentPermissionError as exc:
         raise ReactionPermissionError(ReactionMessages.PERMISSION_DENIED) from exc
+    if comment.removed_at is not None:
+        # A tombstone has nothing left to react to.
+        raise ReactionDisabledError(ReactionMessages.DISABLED)
 
     return TargetContext(
         target=ReactionTarget.comment,

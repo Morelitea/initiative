@@ -91,6 +91,7 @@ export function buildPost(overrides: Partial<PostRead> = {}): PostRead {
     can: ownerCan(),
     comments_enabled: true,
     reactions_enabled: true,
+    comments_locked_at: null,
     comment_count: 0,
     reactions: [],
     tags: [],

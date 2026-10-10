@@ -14,6 +14,7 @@ import {
   Tool,
 } from "@/api/generated/initiativeAPI.schemas";
 import { ToolRelationsPanel } from "@/components/entities/ToolRelationsPanel";
+import { ModerationMenu } from "@/components/moderation/ModerationMenu";
 import { ReportButton } from "@/components/moderation/ReportButton";
 import { PropertyPanel } from "@/components/properties";
 import { LazyImage } from "@/components/shared/LazyImage";
@@ -56,6 +57,8 @@ interface GalleryImageSheetProps {
   onOpenChange: (open: boolean) => void;
   canEdit: boolean;
   canDeleteVersions: boolean;
+  /** Whether this reader moderates the gallery's initiative. */
+  canModerate?: boolean;
   isCover: boolean;
   onSetCover: (imageId: number) => void;
   onRemoved: (imageId: number) => void;
@@ -78,6 +81,7 @@ export const GalleryImageSheet = ({
   onOpenChange,
   canEdit,
   canDeleteVersions,
+  canModerate = false,
   isCover,
   onSetCover,
   onRemoved,
@@ -139,12 +143,25 @@ export const GalleryImageSheet = ({
         <SheetHeader className="text-left">
           <div className="flex items-start justify-between gap-2">
             <SheetTitle className="sr-only">{label || t("common:lightbox.title")}</SheetTitle>
-            <ReportButton
-              targetType={TagTarget.gallery_image}
-              targetId={image.id}
-              authorId={image.created_by}
-              className="shrink-0"
-            />
+            <div className="flex shrink-0 items-center gap-1">
+              <ReportButton
+                targetType={TagTarget.gallery_image}
+                targetId={image.id}
+                authorId={image.created_by}
+              />
+              {/* Taken down or held, the picture is gone from the wall, so the
+                  panel about it goes with it. */}
+              <ModerationMenu
+                targetType={TagTarget.gallery_image}
+                targetId={image.id}
+                canModerate={canModerate}
+                communityId={image.community_id}
+                onGone={() => {
+                  onOpenChange(false);
+                  onRemoved(image.id);
+                }}
+              />
+            </div>
           </div>
           <SheetDescription className="sr-only">{t("sheet.description")}</SheetDescription>
         </SheetHeader>

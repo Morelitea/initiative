@@ -134,8 +134,25 @@ Moderators and community admins see one more entry at the top of the initiative 
 | **Reports** | What people have [reported](communities.md#reporting-something) here, **Open** and **Settled**. Each shows what was reported, how many people reported it, and what they said. |
 | **Members** | Who's in, and what each of them may do. |
 | **Sharing** | How widely each thing here is shared. Open one to change it. |
+| **Log** | What moderators have done here, newest first: what was removed and why, what a removed comment said, locks and warnings. **Put back** undoes a removal. |
 
-Open the reported thing to see it where it lives, then come back and settle it: **Dismiss**, **Content removed**, **Member warned**, or **Send to the platform**, with a note on why if you like. Settling records your decision. It doesn't do the deed — if something needs taking down, take it down first.
+Open the reported thing to see it where it lives, then come back and settle it, with a note on why if you like:
+
+- **Dismiss** — nothing to do.
+- **Remove…** — takes it down, for the reason it was reported for unless you pick another. A comment becomes a line saying it was removed and why, and its replies stay; anything else goes to the bin. Whoever wrote it is told why, never by whom.
+- **Warn…** — sends whoever wrote it what you type, as a notice from the moderators. It never says who reported it.
+- **Send to the platform** — below.
+
+A report of something illegal shows **Platform notified**: it went to whoever runs the server as well, and they look at it whatever you decide here.
+
+You don't need a report to act. Moderators and community admins get a shield menu on comments, posts, pictures, wiki pages, queue items and events:
+
+- **Remove…**, as above.
+- **Lock comments** — the thread still reads, and only moderators add to it. Its owner can't unlock it.
+- **Clear reactions**, on comments and posts.
+- **Hold for the platform…** — below. You won't see it either once it's held.
+
+A project manager runs the work and doesn't moderate it: they can delete their own comments, not other people's. Give a role **Full access** if it should moderate.
 
 **Send to the platform** is for the report that isn't this community's to settle. It goes to whoever runs the server, carrying what the reporters wrote and attached, and asks one question: while they look, should the reported thing stay up?
 

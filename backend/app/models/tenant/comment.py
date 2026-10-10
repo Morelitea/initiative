@@ -159,10 +159,13 @@ class Comment(HoldMixin, CreatedByMixin, SoftDeleteMixin, table=True):
         default=None,
         sa_column=Column(String(200), nullable=True),
     )
+    # A pointer to the comment this answers, not a parent: a reply is its
+    # writer's words, so it stays when the comment it answers is deleted —
+    # under a tombstone — and is never taken to the trash or frozen with it.
     parent_comment_id: Optional[int] = Field(
         default=None,
         sa_column=Column(
-            Integer, ForeignKey("comments.id", ondelete="CASCADE"), nullable=True
+            Integer, ForeignKey("comments.id", ondelete="SET NULL"), nullable=True
         ),
     )
     #: Who it is said to. Members unless somebody chose otherwise when they
@@ -182,6 +185,23 @@ class Comment(HoldMixin, CreatedByMixin, SoftDeleteMixin, table=True):
     system_kind: Optional[str] = Field(
         default=None,
         sa_column=Column(String(length=SYSTEM_KIND_LENGTH), nullable=True),
+    )
+    #: When it became a tombstone: its words gone, its place in the thread
+    #: kept for the replies under it. Set by a moderator's removal, and by its
+    #: author's own deletion once the trash lets go of it with replies still
+    #: under it. Nobody edits a tombstone, or reacts to it.
+    removed_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), nullable=True),
+    )
+    #: A ``RemovalReason``. Null on one its author deleted.
+    removed_reason: Optional[str] = Field(
+        default=None, sa_column=Column(String(length=32), nullable=True)
+    )
+    #: The moderation log row that took it down, where a moderator did; that
+    #: row holds the words. Null on one its author deleted.
+    removal_id: Optional[int] = Field(
+        default=None, sa_column=Column(Integer, nullable=True)
     )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),

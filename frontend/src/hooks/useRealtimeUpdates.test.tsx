@@ -210,7 +210,7 @@ describe("realtime comment frames", () => {
     const thread = seedThread("task_id", ENTITY_ID, { comments: [root, reply, edited] });
     const parents = [{ type: "tasks", id: ENTITY_ID }];
     const asked = serveComments({
-      // 1 was deleted, and its reply went with it.
+      // 1 was deleted; its reply stays, as somebody else's words.
       1: null,
       3: buildComment({ id: 3, ...onTask }),
       4: { ...edited, content: "After" },
@@ -223,7 +223,7 @@ describe("realtime comment frames", () => {
       COMMUNITY
     );
 
-    await vi.waitFor(() => expect(thread.ids()).toEqual([4, 3]));
+    await vi.waitFor(() => expect(thread.ids()).toEqual([2, 4, 3]));
     expect(thread.content(4)).toBe("After");
     expect(asked.sort()).toEqual([1, 3, 4, 5]);
     expect(thread.invalidated()).toBe(false);

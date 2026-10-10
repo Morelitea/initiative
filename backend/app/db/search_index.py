@@ -482,6 +482,7 @@ NOT_SEARCHABLE: dict[str, str] = {
     "intake_bindings": "routing config, reached from the settings page",
     "moderation_reports": "moderation work, reached from its own surface",
     "moderation_report_reporters": "who reported a thing; never a search result",
+    "moderation_actions": "the moderation log, reached from its own surface",
     "intake_cases": "the key -> task map; the task it names is what is indexed",
     "evidence": "files attached to a report or a case, opened only through it",
     "recent_views": "one member's own viewing state",
@@ -548,7 +549,7 @@ def _when_clause(table: str, source: SearchSource) -> str:
     # ``published_at`` is what makes the publication worker's stamp index the
     # notice: no trigger fires on the passage of time, but the write that
     # records the publication is a write like any other.
-    watched.extend(("deleted_at", "published_at", "held_at"))
+    watched.extend(("deleted_at", "published_at", "held_at", "removed_at"))
     columns = SQLModel.metadata.tables[table].columns
     present = [c for c in dict.fromkeys(watched) if c in columns]
     return " OR ".join(f"OLD.{c} IS DISTINCT FROM NEW.{c}" for c in present)
@@ -671,12 +672,15 @@ BEGIN
     -- browsed through the trash surface, not found by searching. So does a row
     -- that has not been published yet — a scheduled notice is a draft, and a
     -- draft is not something the people it will go to can find. Nor is
-    -- content the platform holds (app.db.holds): it reads as absent.
+    -- content the platform holds (app.db.holds): it reads as absent. Nor is
+    -- a comment that is a tombstone: it has no words left to find.
     IF TG_OP = 'DELETE'
        OR (to_jsonb(v_row) ? 'deleted_at'
            AND to_jsonb(v_row) ->> 'deleted_at' IS NOT NULL)
        OR (to_jsonb(v_row) ? 'held_at'
            AND to_jsonb(v_row) ->> 'held_at' IS NOT NULL)
+       OR (to_jsonb(v_row) ? 'removed_at'
+           AND to_jsonb(v_row) ->> 'removed_at' IS NOT NULL)
        OR (to_jsonb(v_row) ? 'published_at'
            AND to_jsonb(v_row) ->> 'published_at' IS NULL) THEN
         EXECUTE format(
@@ -749,8 +753,9 @@ def _live_clause(table: str, row: str) -> str:
 
     Trash is browsed through the trash surface, not found by searching; a row
     whose publication has not happened yet is a draft, which the people it is
-    destined for must not be able to find; and held content reads as absent. Both mirror the same two tests in
-    the trigger function, so the sweep and the triggers index the same set.
+    destined for must not be able to find; held content reads as absent; and a
+    tombstone has no words left to find. Each mirrors the same test in the
+    trigger function, so the sweep and the triggers index the same set.
     """
     columns = SQLModel.metadata.tables[table].columns
     parts = []
@@ -760,6 +765,8 @@ def _live_clause(table: str, row: str) -> str:
         parts.append(f" AND {row}.published_at IS NOT NULL")
     if "held_at" in columns:
         parts.append(f" AND {row}.held_at IS NULL")
+    if "removed_at" in columns:
+        parts.append(f" AND {row}.removed_at IS NULL")
     return "".join(parts)
 
 

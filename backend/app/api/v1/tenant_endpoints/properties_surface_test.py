@@ -185,11 +185,13 @@ async def _scene(surface: Surface, session, acting_user) -> tuple[Actor, Any]:
     return a, await surface.parent(session, a, a.initiative)
 
 
-async def _write(client, a: Actor, surface: Surface, entity_id: int, values: list):
+async def _write(
+    client, a: Actor, surface: Surface, entity_id: int, values: list, **merge: Any
+):
     return await client.put(
         a.g(f"/properties/{surface.kind}/{entity_id}"),
         headers=a.headers,
-        json={"values": values},
+        json={"values": values, **merge},
     )
 
 
@@ -269,6 +271,54 @@ async def test_put_of_nothing_clears_what_was_there(
     assert response.status_code == 200
     assert response.json() == []
     assert await _stored(session, surface, entity) == []
+
+
+async def test_merged_writes_of_different_properties_both_stand(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Two people each save one property of what they read. A merged write
+    names only its own, so neither takes back the other's, and one it takes
+    off goes alone. The seam is every surface's, so one stands for them."""
+    surface = next(s for s in SURFACES if s.kind == "task")
+    a, parent = await _scene(surface, session, acting_user)
+    entity = await surface.make(session, a, parent, "E")
+    note, owner, phase = [
+        await create_property_definition(
+            session, a.initiative, name=name, type=PropertyType.text
+        )
+        for name in ("Note", "Owner", "Phase")
+    ]
+    await _write(
+        client,
+        a,
+        surface,
+        entity,
+        [
+            {"property_id": note.id, "value": "seed"},
+            {"property_id": phase.id, "value": "beta"},
+        ],
+    )
+
+    await _write(
+        client,
+        a,
+        surface,
+        entity,
+        [{"property_id": note.id, "value": "mine"}],
+        merge=True,
+    )
+    response = await _write(
+        client,
+        a,
+        surface,
+        entity,
+        [{"property_id": owner.id, "value": "theirs"}],
+        merge=True,
+        removed=[phase.id],
+    )
+
+    assert response.status_code == 200
+    assert _values(response.json()) == {note.id: "mine", owner.id: "theirs"}
 
 
 # ---------------------------------------------------------------------------

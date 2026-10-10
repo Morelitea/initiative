@@ -25,7 +25,8 @@ import type { ErrorType, BodyType } from "../../mutator";
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 /**
- * Replace the custom property values on one tool or sub-tool.
+ * Replace the custom property values on one tool or sub-tool, or with
+ * ``merge`` write only the ones named and leave the rest.
  *
  * Requires write on the tool that governs it: a tool itself, or the tool a
  * sub-tool sits in (a task's project, an event's calendar). Each value's

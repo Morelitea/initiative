@@ -370,7 +370,8 @@
       "direct_messages": "Direktnachrichten",
       "connections": "Kontakte",
       "jobs": "Exporte und Importe",
-      "account": "Dein Konto"
+      "account": "Dein Konto",
+      "moderation": "Moderation"
     }
   },
   "signInCode": {
@@ -466,6 +467,18 @@
       "m10": "Oktober",
       "m11": "November",
       "m12": "Dezember"
+    }
+  },
+  "moderation": {
+    "removed": {
+      "subject": "Ein Moderator hat etwas von dir entfernt",
+      "title": "Ein Moderator hat etwas von dir entfernt",
+      "body": "Etwas, das du geschrieben hast, hat gegen die Regeln dieser Community verstoßen und wurde entfernt. Die Benachrichtigung in der App nennt den Grund."
+    },
+    "warned": {
+      "subject": "Eine Warnung der Moderatoren dieser Community",
+      "title": "Eine Warnung der Moderatoren dieser Community",
+      "body": "Die Moderatoren schreiben:<br><br>{{message}}"
     }
   }
 }

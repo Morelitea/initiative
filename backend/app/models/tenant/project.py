@@ -7,6 +7,7 @@ from sqlmodel import Field, Relationship
 from app.core.tools import Tool
 from app.models.tenant._mixins import (
     ArchiveMixin,
+    CommentLockMixin,
     CommentsToggleMixin,
     CreatedByMixin,
     HoldMixin,
@@ -24,6 +25,7 @@ if TYPE_CHECKING:  # pragma: no cover - imported lazily for type checking only
 
 class Project(
     HoldMixin,
+    CommentLockMixin,
     CommentsToggleMixin,
     CreatedByMixin,
     ArchiveMixin,

@@ -467,6 +467,18 @@ async def update_task(
     project = task.project
 
     update_data = task_in.model_dump(exclude_unset=True)
+    if "description_base" in update_data:
+        base = update_data.pop("description_base")
+        # Locked until this write commits, so a write naming the same base
+        # reads this one's description.
+        await session.refresh(task, ["description"], with_for_update=True)
+        # A description is written over whole, so one written over a version
+        # that has since moved on is refused: writing it would undo the move.
+        if (task.description or "") != (base or ""):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=TaskMessages.DESCRIPTION_CHANGED,
+            )
     assignee_ids = update_data.pop("assignee_ids", None)
     tag_ids = update_data.pop("tag_ids", None)
     update_data.pop("properties", None)

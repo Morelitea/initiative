@@ -370,7 +370,8 @@
       "direct_messages": "Direct messages",
       "connections": "Connections",
       "jobs": "Exports and imports",
-      "account": "Your account"
+      "account": "Your account",
+      "moderation": "Moderation"
     }
   },
   "signInCode": {
@@ -466,6 +467,18 @@
       "m10": "October",
       "m11": "November",
       "m12": "December"
+    }
+  },
+  "moderation": {
+    "removed": {
+      "subject": "A moderator removed something you wrote",
+      "title": "A moderator removed something you wrote",
+      "body": "Something you wrote broke this community's rules and was taken down. The notice in the app says why."
+    },
+    "warned": {
+      "subject": "A warning from this community's moderators",
+      "title": "A warning from this community's moderators",
+      "body": "The moderators wrote:<br><br>{{message}}"
     }
   }
 }

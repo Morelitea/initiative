@@ -268,8 +268,9 @@ export function useListHolds<
 }
 
 /**
- * End a hold: ``restore`` it, ``remove`` it to the trash, or ``purge`` it.
- * The platform's alone, under a ``moderate`` grant.
+ * End a hold: ``restore`` it, ``remove`` it — through the community's
+ * moderation log, a comment to a tombstone and anything else to the trash —
+ * or ``purge`` it. The platform's alone, under a ``moderate`` grant.
  * @summary Release Hold
  */
 export const releaseHold = (

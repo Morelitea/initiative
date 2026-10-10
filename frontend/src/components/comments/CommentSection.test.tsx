@@ -263,4 +263,105 @@ describe("CommentSection", () => {
         Node.DOCUMENT_POSITION_FOLLOWING
     ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   });
+
+  it("shows a tombstone where a comment was, saying who took it out and never what it said", async () => {
+    const removed = buildComment({
+      id: 1,
+      task_id: 3,
+      content: "",
+      author: null,
+      created_by: null,
+      removed: { by: "moderator", reason: "harassment" },
+    });
+    const legal = buildComment({
+      id: 2,
+      task_id: 3,
+      content: "",
+      author: null,
+      created_by: null,
+      removed: { by: "moderator", reason: "illegal" },
+    });
+    const deleted = buildComment({
+      id: 3,
+      task_id: 3,
+      content: "",
+      author: null,
+      created_by: null,
+      removed: { by: "author", reason: null },
+    });
+    const reply = buildComment({
+      id: 4,
+      task_id: 3,
+      parent_comment_id: 3,
+      content: "Still answering it",
+      created_by: 99,
+      author: {
+        id: 99,
+        username: "someone-else",
+        discriminator: 1002,
+        display_name: "Someone Else",
+        avatar_url: null,
+        presence: "offline",
+      },
+    });
+
+    renderPage(() => (
+      <CommentSection
+        entityType="task"
+        entityId={3}
+        comments={[removed, legal, deleted, reply]}
+        initiativeId={7}
+      />
+    ));
+
+    expect(await screen.findByText("Removed by a moderator · Harassment")).toBeInTheDocument();
+    expect(screen.getByText("Removed for legal reasons")).toBeInTheDocument();
+    expect(screen.getByText("Deleted by its author")).toBeInTheDocument();
+    // The reply reads under the tombstone, where it was said.
+    expect(screen.getByText("Still answering it")).toBeInTheDocument();
+    expect(screen.queryByText("Unavailable")).not.toBeInTheDocument();
+    // Nothing on a tombstone to report: only the reply offers it.
+    expect(await screen.findAllByRole("button", { name: "Report" })).toHaveLength(1);
+  });
+
+  it("keeps the composer from members while a moderator has the thread locked", async () => {
+    renderPage(() => (
+      <CommentSection entityType="task" entityId={3} comments={[]} initiativeId={7} locked />
+    ));
+
+    expect(await screen.findByText("A moderator locked comments here.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /post comment/i })).not.toBeInTheDocument();
+  });
+
+  it("lets a moderator write in a locked thread and act on comments", async () => {
+    const theirs = buildComment({ id: 7, task_id: 3, content: "Out of line" });
+    renderPage(() => (
+      <CommentSection
+        entityType="task"
+        entityId={3}
+        comments={[theirs]}
+        initiativeId={7}
+        locked
+        canModerate
+      />
+    ));
+
+    expect(await screen.findByRole("button", { name: /post comment/i })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Moderate" }));
+    expect(await screen.findByRole("menuitem", { name: "Remove…" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Clear reactions" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Hold for the platform…" })).toBeInTheDocument();
+    // A comment has no thread of its own to lock.
+    expect(screen.queryByRole("menuitem", { name: "Lock comments" })).not.toBeInTheDocument();
+  });
+
+  it("offers members no moderation", async () => {
+    const theirs = buildComment({ id: 7, task_id: 3, content: "Out of line" });
+    renderPage(() => (
+      <CommentSection entityType="task" entityId={3} comments={[theirs]} initiativeId={7} />
+    ));
+
+    await screen.findByText("Out of line");
+    expect(screen.queryByRole("button", { name: "Moderate" })).not.toBeInTheDocument();
+  });
 });

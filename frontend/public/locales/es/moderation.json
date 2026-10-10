@@ -51,7 +51,9 @@
     "calendar_event": "Un evento",
     "counter": "Un contador",
     "counter_group": "Un grupo de contadores",
-    "dashboard": "Un panel"
+    "dashboard": "Un panel",
+    "wiki": "Una wiki",
+    "wiki_page": "Una página de wiki"
   },
   "paging": {
     "newer": "Más recientes",
@@ -68,12 +70,20 @@
     "detailPlaceholder": "Lo que quieras que sepan (opcional)",
     "submit": "Enviar denuncia",
     "thanks": "Gracias, alguien lo revisará.",
-    "error": "No se pudo enviar la denuncia."
+    "error": "No se pudo enviar la denuncia.",
+    "basisLabel": "¿Qué ley?",
+    "basisPlaceholder": "Elige una",
+    "basisHelp": "También se avisa a quienes gestionan este servidor.",
+    "detailRequiredLabel": "Cuenta lo que viste",
+    "detailRequiredPlaceholder": "Explica qué tiene de malo",
+    "childSafetyHelp": "No adjuntes nada. Indica dónde está; se queda donde está para que la plataforma lo gestione.",
+    "platformContact": "También puedes avisar a quienes gestionan este servidor: {{contact}}"
   },
   "areas": {
     "reports": "Denuncias",
     "members": "Miembros",
-    "sharing": "Acceso"
+    "sharing": "Acceso",
+    "log": "Registro"
   },
   "members": {
     "description": "Quién está en esta iniciativa y qué puede hacer cada cual.",
@@ -114,7 +124,8 @@
     "submit": "Retener",
     "held": "Retenido para la plataforma.",
     "error": "No se pudo retener.",
-    "releaseError": "No se pudo levantar la retención."
+    "releaseError": "No se pudo levantar la retención.",
+    "communityWarning": "Una vez retenido, tú tampoco podrás verlo."
   },
   "sendToPlatform": {
     "action": "Enviar a la plataforma",
@@ -127,5 +138,83 @@
     "hideDescription": "Úsalo si la policía o un tribunal te pidió conservarlo, o si puede ser ilegal. Desaparece para todos, incluido tú, y nadie aquí puede cambiarlo ni eliminarlo hasta que la plataforma decida.",
     "leaveSubmit": "Enviar",
     "hideSubmit": "Ocultar y enviar"
-  }
+  },
+  "removalReasons": {
+    "spam": "Spam",
+    "harassment": "Acoso",
+    "hate": "Odio",
+    "violence": "Violencia",
+    "sexual_content": "Contenido sexual",
+    "self_harm": "Autolesión",
+    "illegal": "Motivos legales",
+    "misinformation": "Desinformación",
+    "other": "Otra cosa",
+    "off_topic": "Fuera de tema",
+    "community_rule": "Contra una norma de la comunidad"
+  },
+  "actions": {
+    "dismiss": "Descartar",
+    "remove": "Retirar…",
+    "warn": "Avisar…"
+  },
+  "remove": {
+    "title": "Retirarlo",
+    "description": "Va a la papelera, y quien lo hizo sabrá por qué. Puedes restaurarlo desde el registro.",
+    "commentDescription": "Se quita su texto y en su lugar queda una línea con el motivo. Las respuestas se quedan. Quien lo escribió sabrá por qué, y puedes restaurarlo desde el registro.",
+    "reasonLabel": "Por qué",
+    "reasonPlaceholder": "Elige un motivo",
+    "reasonHelp": "Es lo que se le dice a su autor.",
+    "noteLabel": "Nota para el registro (opcional)",
+    "notePlaceholder": "Solo la ven los moderadores",
+    "submit": "Retirarlo",
+    "done": "Retirado."
+  },
+  "warn": {
+    "title": "Avisar a quien lo escribió",
+    "description": "Recibe lo que escribas aquí como un aviso de los moderadores de esta comunidad. Nunca dice quién lo denunció.",
+    "messageLabel": "Lo que se le dice",
+    "messagePlaceholder": "Qué pasó de la raya y qué esperas en su lugar",
+    "submit": "Enviar aviso",
+    "done": "Aviso enviado."
+  },
+  "menu": {
+    "label": "Moderar",
+    "remove": "Retirar…",
+    "lock": "Bloquear comentarios",
+    "unlock": "Desbloquear comentarios",
+    "locked": "Comentarios bloqueados.",
+    "unlocked": "Comentarios desbloqueados.",
+    "clearReactions": "Quitar reacciones",
+    "clearTitle": "¿Quitar todas las reacciones?",
+    "clearDescription": "Se quitan todas las reacciones. No se puede deshacer.",
+    "cleared": "Reacciones quitadas.",
+    "hold": "Retener para la plataforma…"
+  },
+  "act": {
+    "error": "No se pudo hacer."
+  },
+  "log": {
+    "title": "Lo que han hecho los moderadores aquí, lo más reciente primero.",
+    "empty": "Todavía no se ha hecho nada.",
+    "restore": "Restaurar",
+    "restored": "Restaurado.",
+    "restoreError": "No se pudo restaurar.",
+    "platform": "La plataforma",
+    "someone": "Un moderador",
+    "by": "por {{name}}",
+    "whose": "de {{name}}",
+    "whatItSaid": "Lo que decía",
+    "fromReport": "Al resolver una denuncia",
+    "afterHold": "Al terminar una retención",
+    "acts": {
+      "remove": "Retirado",
+      "restore": "Restaurado",
+      "lock_comments": "Comentarios bloqueados",
+      "unlock_comments": "Comentarios desbloqueados",
+      "clear_reactions": "Reacciones quitadas",
+      "warn": "Avisado"
+    }
+  },
+  "platformNotified": "Plataforma avisada",
+  "suggestHold": "Denunciado como ilegal. Si puede serlo, ocúltalo y envíalo a la plataforma."
 }

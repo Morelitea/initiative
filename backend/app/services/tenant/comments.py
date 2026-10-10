@@ -40,7 +40,9 @@ from app.db.initiative_rls import (
     COMMENT_PARENTS,
     COMMENT_PARENT_COLUMNS as RLS_COMMENT_PARENT_COLUMNS,
 )
+from app.db.query import ids_in
 from app.db.session import guild_context, install_context
+from app.db.soft_delete_filter import select_including_deleted
 from app.models.tenant._mixins import tool_models
 from app.models.tenant.calendar import Calendar
 from app.models.tenant.comment import Comment, CommentAudience, in_thread
@@ -486,18 +488,42 @@ def serialize_comment(comment: Comment, *, viewer_id: Optional[int] = None):
     from app.schemas.tenant.comment import CommentRead
     from app.services.tenant import reactions as reactions_service
 
+    from app.schemas.tenant.comment import CommentRemoval
+
     read = CommentRead.model_validate(comment)
     task_project_id = getattr(comment, "_task_project_id", None)
     if task_project_id is not None:
         read.project_id = task_project_id
-    read.can_remove = viewer_id is not None and (
-        comment.created_by == viewer_id
-        or bool(getattr(comment, "_removes_others", False))
-    )
+    removal = removal_of(comment)
+    if removal is not None:
+        # A tombstone names neither its words nor who wrote them; a deleted
+        # comment with replies still under it reads as one.
+        read.removed = CommentRemoval(by=removal[0], reason=removal[1])
+        read.content = ""
+        read.created_by = None
+        read.author = None
+        read.imported_author_name = None
+        read.updated_at = None
+        return read
+    # Deleting is its author's: a moderator takes a comment down instead.
+    read.can_remove = viewer_id is not None and comment.created_by == viewer_id
     rows = getattr(comment, "_reactions", None)
     if rows:
         read.reactions = reactions_service.summarize(rows, viewer_id=viewer_id)
     return read
+
+
+def removal_of(comment: Comment) -> Optional[tuple[str, Optional[str]]]:
+    """Who took ``comment`` out of the conversation, and why: a moderator,
+    with a reason, or its author. ``None`` while it stands."""
+    if comment.removed_at is not None:
+        if comment.removal_id is not None:
+            return "moderator", comment.removed_reason
+        return "author", None
+    if comment.deleted_at is not None:
+        # In its author's trash with replies under it (``list_comments``).
+        return "author", None
+    return None
 
 
 async def attach_reactions(session: AsyncSession, *comments: Comment) -> None:
@@ -570,37 +596,35 @@ async def _resolved_parent(
     return ctx
 
 
-def removes_others_comments(
-    session: AsyncSession, initiative_id: Optional[int]
-) -> bool:
-    """Whether this request may take down comments other people wrote in
-    ``initiative_id``: a community admin, or a manager of that initiative.
+def moderates_thread(session: AsyncSession, initiative_id: Optional[int]) -> bool:
+    """Whether this request is in the moderation set of the initiative a
+    thread is in (``moderation_acts.may_moderate``): it may take comments down
+    and add to a locked thread.
 
-    Read off the standing the seam computed, so it costs no query and answers
-    exactly what the delete route checks. An installed plug-in and granted access
-    take down nobody's words but their own.
+    Read off the standing the seam computed, so it costs no query. An
+    installed plug-in moderates nothing.
     """
+    from app.services.tenant.moderation_acts import may_moderate
+
     context = guild_context(session)
-    if context is None:
+    if context is None or install_context(session) is not None:
         return False
-    if context.is_admin:
-        return True
-    return initiative_id is not None and initiative_id in context.manager_initiatives
+    return may_moderate(context, initiative_id)
+
+
+def thread_locked(ctx: _ParentContext) -> bool:
+    """Whether a moderator closed this thread to new comments."""
+    row = ctx.extra_row if ctx.extra is not None else ctx.resource
+    return getattr(row, "comments_locked_at", None) is not None
 
 
 def _stamp_parent(
     session: AsyncSession, ctx: _ParentContext, *comments: Comment
 ) -> None:
-    """Record what the parent says about loaded rows, for serialization.
-
-    The task's project — a plain attribute, never the ``project_id`` column
-    (that names a comment ON a project) — and whether this reader may take
-    down other people's comments in the thread, so the client offers Delete
-    exactly where the route allows it.
-    """
-    removes_others = removes_others_comments(session, ctx.initiative_id)
+    """Record what the parent says about loaded rows, for serialization: the
+    task's project — a plain attribute, never the ``project_id`` column (that
+    names a comment ON a project)."""
     for comment in comments:
-        object.__setattr__(comment, "_removes_others", removes_others)
         if ctx.project is not None:
             object.__setattr__(comment, "_task_project_id", ctx.project.id)
 
@@ -739,6 +763,8 @@ async def create_comment(
         # parent is the gate, and its comment switch is the other half.
         access="read",
     )
+    if thread_locked(ctx) and not moderates_thread(session, ctx.initiative_id):
+        raise CommentPermissionError(CommentMessages.LOCKED)
     if parent_comment and getattr(parent_comment, column) != ctx.entity_id:
         raise CommentValidationError(CommentMessages.PARENT_MISMATCH)
     if parent_comment and parent_comment.audience != audience:
@@ -969,7 +995,7 @@ async def list_comments(
     targets: Mapping[str, Optional[int]],
     limit: int,
     cursor: Optional[str] = None,
-) -> tuple[Sequence[Comment], Optional[str]]:
+) -> "ThreadPage":
     """One page of a thread, and the cursor for the next, or None at the end.
 
     A page is ``limit`` conversations — top-level comments, newest first —
@@ -986,13 +1012,27 @@ async def list_comments(
         access="read",
     )
     # A reply whose parent the reader can't see — held for the platform, say
-    # (app.db.holds) — starts a conversation of its own, under a placeholder.
+    # (app.db.holds), or in its author's trash — starts a conversation of its
+    # own, under a placeholder. A tombstone its author left is shown only
+    # while there is a reply under it to keep a place for.
     parent = aliased(Comment)
+    child = aliased(Comment)
     roots = select(Comment.id, Comment.created_at).where(
         getattr(Comment, column) == ctx.entity_id,
         or_(
             Comment.parent_comment_id.is_(None),
-            ~exists().where(parent.id == Comment.parent_comment_id),
+            # Trashed counts as absent here for every reader: the trash's own
+            # row policy lets its deleter and the community's admin see it.
+            ~exists().where(
+                parent.id == Comment.parent_comment_id, parent.deleted_at.is_(None)
+            ),
+        ),
+        ~and_(
+            Comment.removed_at.is_not(None),
+            Comment.removal_id.is_(None),
+            ~exists().where(
+                child.parent_comment_id == Comment.id, child.deleted_at.is_(None)
+            ),
         ),
         in_thread(),
     )
@@ -1010,8 +1050,10 @@ async def list_comments(
         last_id, last_created_at = root_rows[limit - 1]
         next_cursor = keyset_cursor.encode(last_created_at, last_id)
     root_ids = [row[0] for row in root_rows[:limit]]
+    locked = thread_locked(ctx)
+    can_moderate = moderates_thread(session, ctx.initiative_id)
     if not root_ids:
-        return [], None
+        return ThreadPage([], None, locked, can_moderate)
 
     # The conversations on this page, every reply at any depth included.
     thread = (
@@ -1030,10 +1072,82 @@ async def list_comments(
         .order_by(Comment.created_at.asc(), Comment.id.asc())
         .options(selectinload(Comment.author))
     )
-    comments = (await session.exec(stmt)).all()
+    comments = list((await session.exec(stmt)).all())
+    comments = await _with_deleted_parents(
+        session, comments, guild_id=guild_id, column=column, entity_id=ctx.entity_id
+    )
     _stamp_parent(session, ctx, *comments)
     await attach_reactions(session, *comments)
-    return comments, next_cursor
+    return ThreadPage(comments, next_cursor, locked, can_moderate)
+
+
+@dataclass(frozen=True)
+class ThreadPage:
+    """One page of a thread, and what the thread says about writing in it."""
+
+    comments: Sequence[Comment]
+    next_cursor: Optional[str]
+    #: A moderator closed it to new comments.
+    locked: bool
+    #: The reader moderates the initiative it is in.
+    can_moderate: bool
+
+
+async def _with_deleted_parents(
+    session: AsyncSession,
+    comments: list[Comment],
+    *,
+    guild_id: int,
+    column: str,
+    entity_id: int,
+) -> list[Comment]:
+    """``comments`` and, in order, the comments their replies answer that are
+    in their authors' trash — served as tombstones (``serialize_comment``), so
+    the replies read where they were said.
+
+    A trashed row reads only to its deleter and the community's admin, so the
+    tombstones are read as the platform, and only what a tombstone shows:
+    where it sits, and that it was deleted. A parent held for the platform
+    stays absent, under the client's placeholder.
+    """
+    from app.db import cohorts
+    from app.db.request_context import SystemGuild
+    from app.db.session import set_rls_context
+
+    present = {c.id for c in comments}
+    missing = {
+        c.parent_comment_id
+        for c in comments
+        if c.parent_comment_id is not None and c.parent_comment_id not in present
+    }
+    if not missing:
+        return comments
+    async with cohorts.system_session(guild_id) as system:
+        await set_rls_context(system, SystemGuild(guild_id, read_only=True))
+        deleted = list(
+            (
+                await system.exec(
+                    select_including_deleted(Comment)
+                    .where(ids_in(Comment.id, missing))
+                    .where(getattr(Comment, column) == entity_id)
+                    .where(Comment.deleted_at.is_not(None))  # type: ignore[union-attr]
+                    .where(Comment.held_at.is_(None))  # type: ignore[union-attr]
+                    .where(in_thread())
+                )
+            ).all()
+        )
+        system.expunge_all()
+        await system.rollback()
+    if not deleted:
+        return comments
+    from sqlalchemy.orm.attributes import set_committed_value
+
+    for tombstone in deleted:
+        # Nothing it said, or who said it, leaves the platform's read.
+        tombstone.content = ""
+        set_committed_value(tombstone, "author", None)
+        object.__setattr__(tombstone, "_reactions", [])
+    return sorted([*comments, *deleted], key=lambda c: (c.created_at, c.id or 0))
 
 
 async def _tell_the_filer(session: AsyncSession, comment: Comment) -> None:
@@ -1065,12 +1179,19 @@ async def delete_comment(
     await _ensure_parent_access(session, ctx, user=user, access="read")
     _stamp_parent(session, ctx, comment)
 
-    is_author = comment.created_by == user.id
-    if not (is_author or removes_others_comments(session, ctx.initiative_id)):
+    # Deleting is the author's alone; a moderator takes a comment down
+    # instead (``moderation_acts``), which leaves a tombstone and a record.
+    if comment.created_by != user.id:
         raise CommentPermissionError(CommentMessages.AUTHOR_ONLY_DELETE)
+    if comment.removed_at is not None:
+        raise CommentValidationError(CommentMessages.REMOVED)
 
     from app.services.tenant.soft_delete import trash
 
+    # The comment alone goes to its author's trash: a reply is somebody
+    # else's words and stays, under a line saying its author deleted it,
+    # until the comment is restored or the trash lets go of it
+    # (``soft_delete.hard_purge_entities``).
     await trash(
         session,
         comment,
@@ -1105,6 +1226,8 @@ async def update_comment(
     # Only the author can edit their own comment
     if comment.created_by != user.id:
         raise CommentPermissionError(CommentMessages.AUTHOR_ONLY_EDIT)
+    if comment.removed_at is not None:
+        raise CommentValidationError(CommentMessages.REMOVED)
 
     # Verify access to the linked entity (same checks as delete_comment)
     column, entity_id = _comment_target(comment)
@@ -1152,6 +1275,7 @@ async def recent_activity(
 
     conditions = [
         Comment.parent_comment_id.is_(None),
+        Comment.removed_at.is_(None),
         in_thread(),
     ]
     # A comment is reached through its parent — the task's project, or the
