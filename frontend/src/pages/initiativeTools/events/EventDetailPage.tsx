@@ -33,6 +33,7 @@ import {
 import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useInitiative } from "@/hooks/useInitiatives";
 import { useReadOnOpen } from "@/hooks/useNotifications";
+import { useRecordOpen } from "@/hooks/useRecents";
 import { calendarTarget, detailLayoutOf, useToolLayouts } from "@/hooks/useToolLayouts";
 import { useCommunityPath } from "@/lib/communityUrl";
 import type { StoredRegions } from "@/lib/layouts/detailLayout";
@@ -68,6 +69,7 @@ export function EventDetailPage() {
   );
   const event = eventQuery.data;
   useReadOnOpen("calendar_event", event?.id);
+  useRecordOpen("calendar_event", event?.id);
   // The path supplies the initiative while this loads; the entity is the
   // authority once it arrives, and a URL naming a different one is corrected.
   const initiativeId = useCanonicalInitiativeId(event?.initiative_id);

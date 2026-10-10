@@ -1,6 +1,13 @@
 import { type UseQueryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useParams, useRouterState } from "@tanstack/react-router";
+import { useEffect, useRef } from "react";
 
-import type { RecentEntityType, RecentItemRead, Tool } from "@/api/generated/initiativeAPI.schemas";
+import {
+  RecentEntityType,
+  type RecentItemRead,
+  type RecentKind,
+  type ViewSource,
+} from "@/api/generated/initiativeAPI.schemas";
 import {
   clearRecent,
   getListRecentsQueryKey,
@@ -27,21 +34,32 @@ export const useRecents = (options?: QueryOpts<RecentItemRead[]>) => {
   });
 };
 
+const TAB_KINDS = new Set<string>(Object.values(RecentEntityType));
+
 /**
- * Mutation that POSTs ``/recents/{type}/{id}`` to record a recent open. Pages
+ * Mutation that POSTs ``/recents/{type}/{id}`` to record a recent open: of a
+ * tool, which becomes a tab, or of something inside one, which does not. Pages
  * call this in a ``useEffect`` once the entity has loaded and access checks
- * have passed.
+ * have passed. ``source`` is where the open came from; absent is a direct one.
  *
  * ``communityId`` is the entity's OWN community — pass the ``/c/{communityId}`` route param,
  * NOT the active community. The active community is shared across tabs (localStorage +
  * storage events), so recording with it tags the view under the wrong community
  * when another tab is in a different community; the URL path is per-tab.
  */
-export const useRecordRecentView = (entityType: Tool, communityId: number) => {
+export const useRecordRecentView = (
+  entityType: RecentKind,
+  communityId: number,
+  source?: ViewSource
+) => {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (entityId: number) => recordRecent(communityId, entityType, entityId),
+    mutationFn: (entityId: number) =>
+      recordRecent(communityId, entityType, entityId, source ? { source } : undefined),
     onSuccess: (written) => {
+      if (!TAB_KINDS.has(written.entity_type)) {
+        return;
+      }
       // The bar is read across every community the reader is in, so it is
       // read again only for a tab it does not have yet — whose name and icon
       // nothing here knows. Reopening one already there moves it to the front.
@@ -69,6 +87,56 @@ export const useRecordRecentView = (entityType: Tool, communityId: number) => {
       );
     },
   });
+};
+
+interface OpenOptions {
+  /** Where an open inside a page came from (an image in the lightbox, an item
+   *  in its dialog). The history entry there is the page's, not the open's. */
+  source?: ViewSource;
+  /** Record again each time this changes: a wiki is opened by each page. */
+  each?: number;
+}
+
+/**
+ * Records that the reader opened this, once it has loaded (``id`` is set only
+ * after the read passed its access checks), in the community the route
+ * addresses, with where the open came from: the history entry's
+ * ``viewSource``, which a search sets when it navigates. A search that brings
+ * the reader back to what is already open records it again.
+ */
+export const useRecordOpen = (
+  kind: RecentKind,
+  id: number | undefined,
+  { source, each }: OpenOptions = {}
+) => {
+  const { communityId } = useParams({ strict: false }) as { communityId?: string };
+  // Read once a navigation has settled, when the page and its history entry
+  // agree: while one is under way they move at different times.
+  const settled = useRouterState({ select: (state) => state.status === "idle" });
+  const arrivedFrom = useRouterState({
+    select: (state) => state.resolvedLocation?.state.viewSource,
+  });
+  const entry = useRouterState({ select: (state) => state.resolvedLocation?.state.__TSR_key });
+  const path = useRouterState({ select: (state) => state.resolvedLocation?.pathname });
+  const { mutate } = useRecordRecentView(kind, Number(communityId), source ?? arrivedFrom);
+  const recorded = useRef<{ id?: number; each?: number; entry?: string; path?: string }>({});
+  useEffect(() => {
+    // Closed: opening it again is another open.
+    if (!id) {
+      recorded.current = {};
+      return;
+    }
+    if (!settled) return;
+    const last = recorded.current;
+    // A search back to the address of what is open. At another address the
+    // page is still loading what it names, and `id` is the one being left.
+    const searchedAgain =
+      !source && arrivedFrom !== undefined && entry !== last.entry && path === last.path;
+    // Kept current whether or not this is an open: an address the page
+    // corrects is still the address of what is open.
+    recorded.current = { id, each, entry, path };
+    if (id !== last.id || each !== last.each || searchedAgain) mutate(id);
+  }, [id, each, entry, path, arrivedFrom, settled, source, mutate]);
 };
 
 /**

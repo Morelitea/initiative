@@ -33,9 +33,9 @@ from app.core.tools import Tool
 from app.services.tenant.tags import TOOL_TAG_LINKS
 from app.models.tenant.file import File
 from app.models.platform.guild import GuildMembership
-from app.models.tenant.recent_view import RecentView
+from app.models.tenant.recent_view import RecentView, ViewSource
 from app.models.platform.user import User
-from app.schemas.tenant.recent_view import RecentItemRead, RecentViewWrite
+from app.schemas.tenant.recent_view import RecentItemRead, RecentKind, RecentViewWrite
 from app.services.tenant import recent_views as recent_views_service
 from app.services.cross_guild import gather_across_guilds
 from app.services.tenant.recent_views import RecentEntityType
@@ -191,32 +191,36 @@ async def list_recents(
 
 @guild_router.post("/{entity_type}/{entity_id}", response_model=RecentViewWrite)
 async def record_recent(
-    entity_type: RecentEntityType,
+    entity_type: RecentKind,
     entity_id: int,
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
+    source: ViewSource = ViewSource.direct,
 ) -> RecentViewWrite:
-    """Open a tab: record that the caller opened this entity.
+    """Record that the caller opened this: a tool, which becomes a tab, or
+    something inside one, which does not.
 
-    Takes read access, the same the entity's own page takes, and refuses in
-    the tool's own words. A PAM grantee's browsing is transient by design and
-    is not stored.
+    Takes read access, the same the thing's own page takes, and refuses in its
+    tool's own words. A PAM grantee's browsing is transient by design and is
+    not stored.
     """
-    row = await resource_access.load_authorized(
-        session, Tool(entity_type.value), entity_id, current_user, guild_context
+    row = await resource_access.load_kind(
+        session, entity_type.value, entity_id, current_user, guild_context
     )
     record = await recent_views_service.record_view(
         session,
         user_id=current_user.id,
-        entity_type=entity_type,
+        entity_type=entity_type.value,
         entity_id=row.id,
+        source=source,
         persist=not guild_context.is_pam,
     )
     return RecentViewWrite(
         entity_type=entity_type,
         entity_id=row.id,
         last_viewed_at=record.last_viewed_at,
+        source=source,
     )
 
 

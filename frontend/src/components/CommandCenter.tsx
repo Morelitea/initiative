@@ -55,6 +55,7 @@ import { recentRoute } from "@/lib/recentRoute";
 import {
   categoryEntityTypes,
   DEFAULT_SEARCH_CATEGORY,
+  FROM_SEARCH,
   hitIcon,
   SEARCH_CATEGORIES,
   type SearchCategory,
@@ -313,9 +314,9 @@ export function CommandCenter() {
     showPlatformSettings,
   ]);
 
-  const handleSelect = (path: string) => {
+  const handleSelect = (path: string, state?: typeof FROM_SEARCH) => {
     setOpen(false);
-    void router.navigate({ to: path });
+    void router.navigate({ to: path, state });
   };
 
   return (
@@ -394,7 +395,8 @@ export function CommandCenter() {
                     keywords={[effectiveSearch, hit.title.replace(USER_MENTION_PATTERN, " ")]}
                     onSelect={() =>
                       handleSelect(
-                        activeCommunityId ? communityPath(activeCommunityId, path) : path
+                        activeCommunityId ? communityPath(activeCommunityId, path) : path,
+                        FROM_SEARCH
                       )
                     }
                   >

@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 
 import {
   PropertyTarget,
+  RecentKind,
   SearchEntityType,
   Tool,
   WikiPageKind,
@@ -32,7 +33,7 @@ import { useCollaboration } from "@/hooks/useCollaboration";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useInitiative } from "@/hooks/useInitiatives";
 import { useReadOnOpen } from "@/hooks/useNotifications";
-import { useRecordRecentView } from "@/hooks/useRecents";
+import { useRecordOpen } from "@/hooks/useRecents";
 import { atLeast, useRegionWidthClass } from "@/hooks/useWidthClass";
 import { useAddWikiPage, useUpdateWikiPage, useWiki, useWikiPage } from "@/hooks/useWikis";
 import { useCommunityPath } from "@/lib/communityUrl";
@@ -56,12 +57,10 @@ export const WikiPageView = () => {
   const { t } = useTranslation(["wikis", "common", "properties"]);
   const gp = useCommunityPath();
   const {
-    communityId,
     wikiId: wikiIdParam,
     pageId: pageIdParam,
     initiativeId: initiativeIdParam,
   } = useParams({ strict: false }) as {
-    communityId?: string;
     wikiId?: string;
     pageId?: string;
     initiativeId?: string;
@@ -126,14 +125,11 @@ export const WikiPageView = () => {
   const sentTitle = useRef<string | null>(null);
   const loadedPageId = pageQuery.data?.id;
   useReadOnOpen(SearchEntityType.wiki_page, loadedPageId);
-  // Track recently viewed wikis for the layout header tabs bar. A wiki is read
-  // through its pages, so each page that opens opens the wiki.
-  const { mutate: recordView } = useRecordRecentView(Tool.wiki, Number(communityId));
+  // A wiki is read through its pages, so a page that opens opens the wiki,
+  // which is the tab.
   const loadedWikiId = pageQuery.data?.wiki_id;
-  useEffect(() => {
-    if (!loadedPageId || !loadedWikiId) return;
-    recordView(loadedWikiId);
-  }, [loadedPageId, loadedWikiId, recordView]);
+  useRecordOpen(Tool.wiki, loadedWikiId, { each: loadedPageId });
+  useRecordOpen(RecentKind.wiki_page, loadedPageId);
   const loadedTitle = pageQuery.data?.title;
   useEffect(() => {
     sentTitle.current = null;

@@ -9003,13 +9003,44 @@ export interface RecentItemRead {
   original_filename: string | null;
 }
 
+export type RecentKind = (typeof RecentKind)[keyof typeof RecentKind];
+
+export const RecentKind = {
+  project: "project",
+  file: "file",
+  queue: "queue",
+  counter_group: "counter_group",
+  calendar: "calendar",
+  dashboard: "dashboard",
+  post: "post",
+  gallery: "gallery",
+  wiki: "wiki",
+  task: "task",
+  queue_item: "queue_item",
+  calendar_event: "calendar_event",
+  counter: "counter",
+  gallery_image: "gallery_image",
+  wiki_page: "wiki_page",
+} as const;
+
 /**
- * Response body for POST .../{id}/view, common across entity types.
+ * Where an open came from.
+ */
+export type ViewSource = (typeof ViewSource)[keyof typeof ViewSource];
+
+export const ViewSource = {
+  direct: "direct",
+  search: "search",
+} as const;
+
+/**
+ * Response body for recording an open, common across kinds.
  */
 export interface RecentViewWrite {
-  entity_type: RecentEntityType;
+  entity_type: RecentKind;
   entity_id: number;
   last_viewed_at: string;
+  source: ViewSource;
 }
 
 /**
@@ -12631,6 +12662,10 @@ export type ListRosterParams = {
 
 export type ExportUsersCsvParams = {
   user_id?: number[] | null;
+};
+
+export type RecordRecentParams = {
+  source?: ViewSource;
 };
 
 export type ListMyTasksParams = {

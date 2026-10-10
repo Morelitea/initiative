@@ -1,7 +1,7 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { createRouter } from "@tanstack/react-router";
 
-import type { CommunityRead, UserRead } from "@/api/generated/initiativeAPI.schemas";
+import type { CommunityRead, UserRead, ViewSource } from "@/api/generated/initiativeAPI.schemas";
 import { NotFoundPage, RouteErrorPage } from "@/components/errors/ErrorPages";
 import type { NativeSession } from "@/lib/nativeSession";
 
@@ -96,5 +96,14 @@ declare module "@tanstack/react-router" {
      * before the page renders.
      */
     fullBleed?: boolean;
+  }
+
+  interface HistoryState {
+    /**
+     * Where the person came from to open what this entry shows, when it was
+     * somewhere that ordered it for them: a search. Kept in history rather
+     * than the address, so a shared link never carries it.
+     */
+    viewSource?: ViewSource;
   }
 }

@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 
 import type { SearchHit } from "@/api/generated/initiativeAPI.schemas";
-import { SearchEntityType, Tool } from "@/api/generated/initiativeAPI.schemas";
+import { SearchEntityType, Tool, ViewSource } from "@/api/generated/initiativeAPI.schemas";
 import {
   counterRoute,
   eventRoute,
@@ -149,6 +149,9 @@ export const hitIcon = (target: SearchTarget): LucideIcon => {
   const tool = target.tool ?? (target.entity_type as unknown as Tool);
   return TOOL_ICONS[tool] ?? Tag;
 };
+
+/** The history state a hit is opened with, so its open is recorded as a search's. */
+export const FROM_SEARCH = { viewSource: ViewSource.search };
 
 /**
  * The community-relative address of a hit, or `null` when it has none — an entity
