@@ -298,10 +298,15 @@ async def list_initiatives(
     # uses. A time-bound grantee holds no memberships in the guild, so their
     # session stays on that predicate too: the grant is what they navigate by.
     # An installed plug-in's workspace is the initiatives it is placed in, which
-    # its standing carries.
+    # its standing carries. A guest's are the initiatives they are in and those
+    # of the items shared with them, which the same rule answers.
     if current_user is None:
         scope_clause = Initiative.id.in_(guild_context.member_initiatives)
-    elif scope is InitiativeListScope.community or guild_context.is_pam:
+    elif (
+        scope is InitiativeListScope.community
+        or guild_context.is_pam
+        or guild_context.guest
+    ):
         scope_clause = initiative_scope_clause(current_user.id, Initiative.id)
     else:
         scope_clause = Initiative.id.in_(
@@ -734,10 +739,14 @@ async def get_initiative(
             status_code=status.HTTP_404_NOT_FOUND, detail=InitiativeMessages.NOT_FOUND
         )
     # Reachable by an initiative member, by a guild admin (the same override the
-    # RLS admin leg grants), and by a PAM / break-glass grantee — who holds no
-    # membership row in this guild and reads it through the grant for its window.
+    # RLS admin leg grants), by a PAM / break-glass grantee — who holds no
+    # membership row in this guild and reads it through the grant for its window
+    # — and by a guest given items in it.
     if current_user is not None and not _reaches_whole_guild(guild_context):
-        if initiative_id not in guild_context.member_initiatives:
+        if (
+            initiative_id not in guild_context.member_initiatives
+            and initiative_id not in guild_context.guest_item_initiatives
+        ):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=InitiativeMessages.NOT_A_MEMBER,

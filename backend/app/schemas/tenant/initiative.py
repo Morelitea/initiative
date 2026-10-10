@@ -225,6 +225,9 @@ class InitiativeCan(SanitizedBaseModel):
     manage: bool = False
     #: Act on its moderation reports ("Full access", or the community's admin).
     moderate: bool = False
+    #: Read who is in it: its members, the community's admin and a grantee,
+    #: not a guest given items in it.
+    roster: bool = False
     #: The tools the caller may open here.
     view: List[Tool] = Field(default_factory=list)
     #: The tools the caller may make a new one of here.
@@ -382,6 +385,7 @@ def initiative_can(initiative: "Initiative") -> InitiativeCan:
     return InitiativeCan(
         manage="manage" in held,
         moderate="moderate" in held,
+        roster="roster" in held,
         view=[t for t in Tool if f"view:{t.value}" in held],
         create=[t for t in Tool if f"create:{t.value}" in held],
     )

@@ -1021,6 +1021,10 @@ class InstallContext:
         return False
 
     @property
+    def guest_item_initiatives(self) -> tuple[int, ...]:
+        return ()
+
+    @property
     def pam_read(self) -> bool:
         return False
 

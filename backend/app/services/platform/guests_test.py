@@ -216,3 +216,25 @@ async def test_a_guest_holds_no_community_wide_reach_and_is_marked_on_a_roster(
     assert await community_wide(get_auth_headers(guest)) is False
     marked = {m["user"]["id"]: m["guest_until"] for m in roster.json()["items"]}
     assert marked[guest_id] is not None and marked[a.user.id] is None
+
+
+async def test_a_guest_given_items_opens_their_initiative_but_not_its_roster(
+    client, acting_user, session
+):
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
+    await _platform(session)
+    guest = await create_guest(session, a.guild)
+    await create_resource_grant(session, a.project, user=guest)
+    headers, initiative_id = get_auth_headers(guest), a.initiative.id
+
+    listed = await client.get(a.g("/initiatives/"), headers=headers)
+    opened = await client.get(a.g(f"/initiatives/{initiative_id}"), headers=headers)
+    roster = await client.get(
+        a.g(f"/initiatives/{initiative_id}/members"), headers=headers
+    )
+
+    assert [i["id"] for i in listed.json()] == [initiative_id]
+    assert opened.status_code == 200, opened.text
+    assert opened.json()["can"]["roster"] is False
+    assert opened.json()["can"]["create"] == []
+    assert roster.status_code == 403
