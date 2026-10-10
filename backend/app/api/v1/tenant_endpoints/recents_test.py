@@ -19,6 +19,8 @@ from app.models.platform.guild import CommunityRole
 from app.models.tenant.project import Project
 from app.models.tenant.recent_view import RecentView
 from app.models.tenant.resource_grant import ResourceAccessLevel
+from app.services.guild_sweeps import Scope, each_guild
+from app.services.tenant import expiry
 from app.testing import (
     create_calendar,
     create_guild,
@@ -138,8 +140,8 @@ async def test_a_recent_view_is_its_owners_row(
 async def test_recent_tabs_limit_caps_list_and_prune(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """The user's ``recent_tabs_limit`` bounds both what's stored (prune) and
-    what the tabs-bar endpoint returns."""
+    """The user's ``recent_tabs_limit`` bounds what the tabs-bar endpoint
+    returns, and the hourly pass keeps that many."""
     a = await acting_user(guild_role=CommunityRole.member, initiative=True)
 
     # Lower the user's recents cap to 2 via self-update.
@@ -159,11 +161,24 @@ async def test_recent_tabs_limit_caps_list_and_prune(
         assert rv.status_code == 200
         await asyncio.sleep(0.02)
 
-    # Only the two most-recently-opened survive — the rest were pruned.
+    # Only the two most-recently-opened show.
     r = await client.get(RECENTS, headers=a.headers)
     assert r.status_code == 200
     items = r.json()
     assert [i["entity_id"] for i in items] == [projects[3].id, projects[2].id]
+
+    async def kept() -> list[int]:
+        rows = await session.exec(
+            select(RecentView.entity_id).where(RecentView.user_id == a.user.id)
+        )
+        return sorted(rows.all())
+
+    # Recording an open prunes nothing; the hourly pass keeps the two.
+    assert await kept() == sorted(p.id for p in projects)
+    await each_guild(
+        [(Scope.PROVISIONED, await expiry.prepare())], name="test", only=[a.guild.id]
+    )
+    assert await kept() == sorted([projects[3].id, projects[2].id])
 
 
 async def test_recent_tabs_limit_rejects_out_of_range(

@@ -8,15 +8,18 @@ queues, and counter groups.
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Iterable, Sequence
+from typing import TYPE_CHECKING, Iterable, Sequence
 
-from sqlalchemy import tuple_
+from sqlalchemy import text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel import delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.tenant.recent_view import RecentView
 from app.schemas.tenant.recent_view import RecentEntityType
+
+if TYPE_CHECKING:
+    from app.services.tenant.expiry import Expiring
 
 __all__ = ["RecentEntityType"]  # re-export for existing importers
 
@@ -46,55 +49,60 @@ async def record_view(
     entity_type: RecentEntityType,
     entity_id: int,
     persist: bool = True,
-    limit: int | None = None,
 ) -> RecentView:
-    """Upsert a recent-view row, then prune per-user to the user's cap.
+    """Upsert a recent-view row. What a person no longer keeps goes in the
+    hourly pass (:func:`expire`), not here.
 
     ``persist=False`` returns a transient (unsaved) row instead of writing.
     A PAM grantee's browsing is transient by design, so it is not recorded.
     """
-    cap = clamp_recent_limit(limit)
-    now = datetime.now(timezone.utc)
-    if not persist:
-        return RecentView(
-            user_id=user_id,
-            entity_type=entity_type,
-            entity_id=entity_id,
-            last_viewed_at=now,
-        )
-    stmt = (
-        pg_insert(RecentView)
-        .values(
-            user_id=user_id,
-            entity_type=entity_type,
-            entity_id=entity_id,
-            last_viewed_at=now,
-        )
-        .on_conflict_do_update(
-            index_elements=["user_id", "entity_type", "entity_id"],
-            set_={"last_viewed_at": now},
-        )
-    )
-    await session.exec(stmt)
-    # Everything beyond the cap, oldest by last_viewed_at, in one statement.
-    kept = (
-        select(RecentView.entity_type, RecentView.entity_id)
-        .where(RecentView.user_id == user_id)
-        .order_by(RecentView.last_viewed_at.desc())
-        .limit(cap)
-    )
-    await session.exec(
-        delete(RecentView).where(  # type: ignore[arg-type]
-            RecentView.user_id == user_id,
-            tuple_(RecentView.entity_type, RecentView.entity_id).not_in(kept),
-        )
-    )
-    await session.commit()
-    return RecentView(
+    record = RecentView(
         user_id=user_id,
         entity_type=entity_type,
         entity_id=entity_id,
-        last_viewed_at=now,
+        last_viewed_at=datetime.now(timezone.utc),
+    )
+    if not persist:
+        return record
+    await session.exec(
+        pg_insert(RecentView)
+        .values(record.model_dump())
+        .on_conflict_do_update(
+            index_elements=["user_id", "entity_type", "entity_id"],
+            set_={"last_viewed_at": record.last_viewed_at},
+        )
+    )
+    await session.commit()
+    return record
+
+
+async def expire(session: AsyncSession, expiring: Expiring) -> None:
+    """Drop each person's views beyond their newest ``recent_tabs_limit``."""
+    users = list(expiring.tab_limits)
+    await session.exec(
+        text(
+            """
+            DELETE FROM recent_views rv
+            USING (
+                SELECT user_id, entity_type, entity_id,
+                       row_number() OVER (
+                           PARTITION BY user_id ORDER BY last_viewed_at DESC
+                       ) AS n
+                  FROM recent_views
+            ) ranked
+            LEFT JOIN unnest(CAST(:users AS integer[]), CAST(:limits AS integer[]))
+                   AS chosen(user_id, tab_limit)
+                   ON chosen.user_id = ranked.user_id
+            WHERE rv.user_id = ranked.user_id
+              AND rv.entity_type = ranked.entity_type
+              AND rv.entity_id = ranked.entity_id
+              AND ranked.n > COALESCE(chosen.tab_limit, :default_limit)
+            """
+        ).bindparams(
+            users=users,
+            limits=[expiring.tab_limits[user] for user in users],
+            default_limit=DEFAULT_RECENT_VIEWS,
+        )
     )
 
 

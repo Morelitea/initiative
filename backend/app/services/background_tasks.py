@@ -132,27 +132,27 @@ async def slow_pass() -> None:
 
 
 async def hourly_pass() -> None:
-    """Retention and upkeep: trash, expired exports and imports, delivered
-    webhook history, spent digest items, evidence past its keeping, and
-    plug-in auto-updates.
+    """Retention and upkeep: trash, expired exports and imports, every record
+    a community keeps for a while (``app.services.tenant.expiry``), spent
+    digest items, evidence past its keeping, and plug-in auto-updates.
 
     Trash is purged and plug-ins updated in active communities only: a read-only
-    or suspended one is frozen until it returns. Exports and imports expire
-    wherever the schema still exists.
+    or suspended one is frozen until it returns. Exports, imports and expiring
+    records go wherever the schema still exists.
     """
     from app.services import notifications
     from app.services.export import worker as export_worker
     from app.services.guild_sweeps import Scope, each_guild
     from app.services.import_engine import worker as import_worker
     from app.services.platform import evidence, holds
-    from app.services.tenant import plugin_updates, outbox_poller, trash_purge
+    from app.services.tenant import expiry, plugin_updates, trash_purge
 
     await each_guild(
         [
             (Scope.ACTIVE, trash_purge.purge_guild),
             (Scope.PROVISIONED, export_worker.expire_artifacts),
             (Scope.PROVISIONED, import_worker.expire_payloads),
-            (Scope.ACTIVE, outbox_poller.expire_history),
+            (Scope.PROVISIONED, await expiry.prepare()),
             (Scope.ACTIVE, evidence.purge_due),
             # Held content keeps its community whatever its status.
             (Scope.PROVISIONED, holds.remind_due),
