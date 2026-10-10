@@ -1,20 +1,21 @@
 /**
- * The board's Fields menu: what a card shows, and that turning something off
- * actually takes it off the card.
+ * What a board's card shows: the card its view lays out, or the shipped one.
  *
- * The cards are memoized on prop identity, so "the menu changed the state" and
- * "the card re-rendered" are genuinely different claims — these assert the
- * second one, by reading the card.
+ * The cards are memoized on prop identity, so these read the card rather than
+ * the state behind it.
  */
-import { screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { screen, waitFor } from "@testing-library/react";
 import { HttpResponse } from "msw";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import {
   buildDefaultTaskStatuses,
+  buildPropertyDefinition,
+  buildPropertySummary,
   buildTask,
   buildTaskListResponse,
+  buildToolView,
+  buildToolViewSet,
   buildUserSummary,
 } from "@/__tests__/factories";
 import { communityHttp } from "@/__tests__/helpers/communityHttp";
@@ -52,20 +53,14 @@ const board = () =>
     { routerSearch: { view: "board" } }
   );
 
-const openFieldsMenu = async () => {
-  const user = userEvent.setup();
-  await user.click(await screen.findByRole("button", { name: /fields/i }));
-  return user;
-};
-
 beforeEach(() => {
   seedTask();
   localStorage.clear();
   resetTimeFormat();
 });
 
-describe("the board's Fields menu", () => {
-  it("shows every field on a board nobody has configured", async () => {
+describe("a board's card", () => {
+  it("shows every field on a board nobody has laid out", async () => {
     seedTask({ description_excerpt: "Start from the coast…", has_description: true });
     board();
 
@@ -74,46 +69,49 @@ describe("the board's Fields menu", () => {
     expect(screen.getByText(/priority: medium/i)).toBeInTheDocument();
   });
 
-  it("takes a field off the card when it is unchecked", async () => {
-    board();
-    expect(await screen.findByText(/priority: medium/i)).toBeInTheDocument();
-
-    const user = await openFieldsMenu();
-    await user.click(await screen.findByRole("menuitemcheckbox", { name: "Priority" }));
-
-    await waitFor(() => expect(screen.queryByText(/priority: medium/i)).not.toBeInTheDocument());
-    // The card itself stays — this hides a field, not the task.
-    expect(screen.getByText("Draw the map")).toBeInTheDocument();
-  });
-
-  it("never offers to hide the title", async () => {
-    board();
-    await openFieldsMenu();
-
-    const menu = await screen.findByRole("menu");
-    expect(within(menu).queryByRole("menuitemcheckbox", { name: /^title$/i })).toBeNull();
-  });
-
-  it("remembers the choice for next time", async () => {
-    board();
-    const user = await openFieldsMenu();
-    await user.click(await screen.findByRole("menuitemcheckbox", { name: "Priority" }));
-
-    await waitFor(() =>
-      expect(
-        JSON.parse(localStorage.getItem("initiative-project-1-kanban-fields") ?? "{}")
-      ).toMatchObject({ priority: false })
+  it("shows a task's properties on a board nobody has laid out", async () => {
+    seedTask({
+      properties: [buildPropertySummary({ property_id: 12, name: "Effort", value: "large" })],
+    });
+    server.use(
+      communityHttp.get("/property-definitions/", () =>
+        HttpResponse.json([buildPropertyDefinition({ id: 12, name: "Effort" })])
+      )
     );
+    board();
+
+    expect(await screen.findByText("large")).toBeInTheDocument();
   });
 
-  it("offers to put everything back once something is hidden", async () => {
+  it("shows only what the view's card names", async () => {
+    seedTask({ description_excerpt: "Start from the coast…", has_description: true });
+    server.use(
+      communityHttp.get("/views/", () =>
+        HttpResponse.json(
+          buildToolViewSet({
+            stored: true,
+            views: [
+              buildToolView({
+                slug: "board",
+                is_default: true,
+                definition: {
+                  layout: { type: "board" },
+                  card: {
+                    type: "card",
+                    children: [{ type: "field", props: { field: "title" } }],
+                  },
+                },
+              }),
+            ],
+          })
+        )
+      )
+    );
     board();
-    const user = await openFieldsMenu();
-    await user.click(await screen.findByRole("menuitemcheckbox", { name: "Priority" }));
 
-    await user.click(await screen.findByRole("menuitem", { name: /show all fields/i }));
-
-    await waitFor(() => expect(screen.getByText(/priority: medium/i)).toBeInTheDocument());
+    expect(await screen.findByText("Draw the map")).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText(/priority: medium/i)).not.toBeInTheDocument());
+    expect(screen.queryByText("Start from the coast…")).not.toBeInTheDocument();
   });
 });
 

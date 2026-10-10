@@ -7,6 +7,7 @@ import {
   FIELD_RENDERERS,
   type FieldDef,
   isEmptyValue,
+  propertyFieldId,
   type ViewEnv,
   type ViewItem,
   type ViewVariant,
@@ -31,8 +32,9 @@ export type ViewContext = {
   plugins?: ReadonlyMap<number, PluginOnItems>;
   /** A board's card. */
   card?: ViewNode;
+  /** While the view is edited: the path of each part of its tree. */
+  editing?: WeakMap<ViewNode, string>;
   variant: ViewVariant;
-  isHidden: (fieldId: string) => boolean;
   env: ViewEnv;
 };
 
@@ -47,14 +49,25 @@ type Part<I> = (node: ViewNode, item: I, view: ViewContext, parts: Parts<I>) => 
 /** The parts a tree of one kind of item can hold, by node type. */
 export type Parts<I> = Readonly<Record<string, Part<I>>>;
 
-/** Draws one item through a tree. Unknown parts and fields draw nothing. */
+/** Draws one item through a tree. Unknown parts and fields draw nothing.
+ *  While the tree is edited, each part is marked with its path, in an element
+ *  that takes no box of its own, so the editor finds what was clicked. */
 export const renderNode = <I,>(
   node: ViewNode,
   item: I,
   view: ViewContext,
   parts: Parts<I>
-): ReactNode =>
-  Object.hasOwn(parts, node.type) ? parts[node.type](node, item, view, parts) : null;
+): ReactNode => {
+  const drawn = Object.hasOwn(parts, node.type) ? parts[node.type](node, item, view, parts) : null;
+  const path = view.editing?.get(node);
+  return path === undefined ? (
+    drawn
+  ) : (
+    <div className="contents" data-view-node={path}>
+      {drawn}
+    </div>
+  );
+};
 
 const renderChildren = <I,>(
   node: ViewNode,
@@ -74,7 +87,7 @@ const renderField = (
   view: ViewContext,
   key?: number
 ): ReactNode => {
-  if ((field.hideable && view.isHidden(field.id)) || isEmptyValue(value)) return null;
+  if (isEmptyValue(value)) return null;
   const Renderer = FIELD_RENDERERS[field.kind];
   return (
     <Renderer
@@ -88,7 +101,7 @@ const renderField = (
   );
 };
 
-/** A property whose definition has not arrived: drawn, and never hidden. */
+/** A property whose definition has not arrived: drawn all the same. */
 const UNLOADED_PROPERTY: FieldDef = {
   id: "",
   kind: "property",
@@ -96,39 +109,6 @@ const UNLOADED_PROPERTY: FieldDef = {
   label: "",
   hideable: false,
   value: () => null,
-};
-
-// A view's property fields by definition id, indexed once per view rather than
-// searched once per card.
-const propertyIndexes = new WeakMap<ReadonlyMap<string, FieldDef>, Map<number, FieldDef>>();
-
-const propertyField = (
-  fields: ReadonlyMap<string, FieldDef>,
-  propertyId: number
-): FieldDef | undefined => {
-  let index = propertyIndexes.get(fields);
-  if (!index) {
-    index = new Map();
-    for (const field of fields.values()) {
-      if (field.propertyId !== undefined) index.set(field.propertyId, field);
-    }
-    propertyIndexes.set(fields, index);
-  }
-  return index.get(propertyId);
-};
-
-const PROPERTY_BY_ID = /^property:([1-9][0-9]*)$/;
-
-/** The field a node names. A stored view names a property by its definition
- *  id, which the server checks; the fields are keyed as the table's columns
- *  are, by name, and a property may be named with digits. */
-export const fieldNamed = (
-  fields: ReadonlyMap<string, FieldDef>,
-  node: ViewNode
-): FieldDef | undefined => {
-  const id = String(node.props?.field);
-  const byId = PROPERTY_BY_ID.exec(id);
-  return byId ? propertyField(fields, Number(byId[1])) : fields.get(id);
 };
 
 type StackProps = {
@@ -228,15 +208,15 @@ const PARTS: Parts<ViewItem> = {
   // the card lays out what is inside it.
   card: (node, item, view, parts) => renderChildren(node, item, view, parts),
   field: (node, item, view) => {
-    const field = fieldNamed(view.fields, node);
+    const field = view.fields.get(String(node.props?.field));
     return field ? renderField(field, field.value(item), item, view) : null;
   },
   // Every property the item carries, in its own order: a shipped tree cannot
-  // name them. Each is hidden by its own field, found by definition id.
+  // name them.
   properties: (_node, item, view) =>
     nonEmptyPropertySummaries(item.properties).map((summary) =>
       renderField(
-        propertyField(view.fields, summary.property_id) ?? UNLOADED_PROPERTY,
+        view.fields.get(propertyFieldId(summary.property_id)) ?? UNLOADED_PROPERTY,
         summary,
         item,
         view,
@@ -253,24 +233,10 @@ const PARTS: Parts<ViewItem> = {
   ),
 };
 
-/** The fields a tree draws: those it names, and every property where it
- *  draws them all. What the Fields menu offers to hide. */
-export const drawnFields = (node: ViewNode, fields: ReadonlyMap<string, FieldDef>): FieldDef[] => {
-  const named = new Set<string>();
-  let properties = false;
-  const walk = (part: ViewNode) => {
-    if (part.type === "field") {
-      const field = fieldNamed(fields, part);
-      if (field) named.add(field.id);
-    }
-    if (part.type === "properties") properties = true;
-    part.children?.forEach(walk);
-  };
-  walk(node);
-  return [...fields.values()].filter(
-    (field) => named.has(field.id) || (properties && field.source === "property")
-  );
-};
+/** Whether a tree draws a field. */
+export const namesField = (node: ViewNode, fieldId: string): boolean =>
+  (node.type === "field" && node.props?.field === fieldId) ||
+  (node.children ?? []).some((child) => namesField(child, fieldId));
 
 /** Draws one item of a collection through a tree. */
 export const ViewTree = memo(function ViewTree({

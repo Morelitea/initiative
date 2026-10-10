@@ -68,6 +68,7 @@
   "/c/$communityId/i/$initiativeId/projects/$projectId/settings/task-statuses",
   "/c/$communityId/i/$initiativeId/projects/$projectId/settings/views",
   "/c/$communityId/i/$initiativeId/projects/$projectId/tasks/$taskId",
+  "/c/$communityId/i/$initiativeId/projects/$projectId/views",
   "/c/$communityId/i/$initiativeId/queues/",
   "/c/$communityId/i/$initiativeId/queues/$queueId/",
   "/c/$communityId/i/$initiativeId/queues/$queueId/settings",

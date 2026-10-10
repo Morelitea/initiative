@@ -1,4 +1,5 @@
-import { ChevronDown, ChevronUp, Star, Trash2 } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { ChevronDown, ChevronUp, Pencil, Star, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -9,11 +10,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { usePutProjectViews, viewSetWrite, viewWrites } from "@/hooks/useProjectViews";
+import { atLeast, useWidthClass } from "@/hooks/useWidthClass";
 import { specFromApi, taskFilterCount } from "@/lib/filters/taskFilters";
 import { cn } from "@/lib/utils";
 
 type ProjectViewsManagerProps = {
   projectId: number;
+  /** Where the project's views are edited. */
+  editHref?: string;
   /** The project's views, read by someone who may configure them. */
   set: ToolViewSetRead;
 };
@@ -22,13 +26,13 @@ type ProjectViewsManagerProps = {
  * The project's views: their names, their order, and which one it opens on.
  * Every change saves the whole set, and the list waits while one is saving.
  *
- * A view's layout and filters are deliberately not editable here. They are
- * set where they are used — on the task list, then "Save as view" or
- * "Update <view>" — so the filter panel exists once rather than being
- * remounted in settings.
+ * A view's layout, card and columns are laid out in the view editor, which
+ * Edit views opens, and its filters where they are used: on the task list,
+ * then "Save as view" or "Update <view>".
  */
-export const ProjectViewsManager = ({ projectId, set }: ProjectViewsManagerProps) => {
+export const ProjectViewsManager = ({ projectId, editHref, set }: ProjectViewsManagerProps) => {
   const { t } = useTranslation(["projects", "common"]);
+  const wide = atLeast(useWidthClass(), "md");
   const put = usePutProjectViews(projectId);
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
 
@@ -64,9 +68,20 @@ export const ProjectViewsManager = ({ projectId, set }: ProjectViewsManagerProps
   return (
     <>
       <Card>
-        <CardHeader>
-          <CardTitle>{t("views.heading")}</CardTitle>
-          <CardDescription>{t("views.description")}</CardDescription>
+        <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-2">
+          <div className="space-y-1.5">
+            <CardTitle>{t("views.heading")}</CardTitle>
+            <CardDescription>{t("views.description")}</CardDescription>
+          </div>
+          {/* The editor needs room beside its canvas. */}
+          {editHref && wide ? (
+            <Button asChild variant="outline" size="sm">
+              <Link to={editHref}>
+                <Pencil className="h-4 w-4" />
+                {t("viewEditor.open")}
+              </Link>
+            </Button>
+          ) : null}
         </CardHeader>
         <CardContent className="space-y-2">
           {set.views.map((view, index) => (

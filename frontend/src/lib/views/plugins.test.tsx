@@ -10,7 +10,7 @@ import { renderWithProviders } from "@/__tests__/helpers/render";
 import type { TaskListRead } from "@/api/generated/initiativeAPI.schemas";
 import { pluginFieldId, pluginFields, pluginsOnItems } from "@/lib/views/plugins";
 import { taskFields } from "@/lib/views/tasks";
-import { drawnFields, type ViewNode, ViewTree } from "@/lib/views/tree";
+import { type ViewNode, ViewTree } from "@/lib/views/tree";
 import type { TranslateFn } from "@/types/i18n";
 
 const definition = {
@@ -48,6 +48,7 @@ const definition = {
 
 const install = {
   id: 3,
+  name: "CI",
   enabled: true,
   definition,
   item_initiatives: [7],
@@ -70,7 +71,6 @@ const draw = (card: ViewNode, item: TaskListRead = task) => {
     fields: taskFields([], pluginFields(plugins, "en")),
     plugins,
     variant: "card" as const,
-    isHidden: () => false,
     env: {
       t: i18n.getFixedT(null, ["projects", "dates", "relations"]) as TranslateFn,
       communityPath: (path: string) => path,
@@ -164,21 +164,5 @@ describe("a plug-in on a card", () => {
     );
 
     await waitFor(() => expect(ran).toEqual({ entity_type: "task", entity_id: 41 }));
-  });
-
-  it("offers to hide only the fields the card draws", () => {
-    const fields = taskFields([], pluginFields(pluginsOnItems([install], 7), "en"));
-    const card: ViewNode = {
-      type: "card",
-      children: [
-        { type: "field", props: { field: "title" } },
-        { type: "field", props: { field: pluginFieldId(3, "ci.url") } },
-      ],
-    };
-
-    expect(drawnFields(card, fields).map((field) => field.id)).toEqual([
-      "title",
-      pluginFieldId(3, "ci.url"),
-    ]);
   });
 });

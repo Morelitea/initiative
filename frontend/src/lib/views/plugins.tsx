@@ -48,7 +48,13 @@ export type PluginFieldDecl = {
   tone?: Tone;
 };
 
-type PluginPartDecl = { id: string; name: LocalizedText; on: string[]; tree: ViewNode };
+export type PluginPartDecl = {
+  id: string;
+  name: LocalizedText;
+  on: string[];
+  tree: ViewNode;
+  description?: LocalizedText;
+};
 
 type PluginActionDecl = {
   id: string;
@@ -62,6 +68,8 @@ type PluginActionDecl = {
  *  there, of what the server offers this reader. */
 export type PluginOnItems = {
   id: number;
+  /** What the community calls the install. */
+  name: string;
   fields: ReadonlyMap<string, PluginFieldDecl>;
   parts: ReadonlyMap<string, PluginPartDecl>;
   actions: ReadonlyMap<string, PluginActionDecl>;
@@ -92,6 +100,7 @@ export const pluginsOnItems = (
   installs: Pick<
     CommunityPluginRead,
     | "id"
+    | "name"
     | "enabled"
     | "definition"
     | "item_initiatives"
@@ -109,6 +118,7 @@ export const pluginsOnItems = (
           install.id,
           {
             id: install.id,
+            name: install.name,
             fields: declared<PluginFieldDecl>(
               install.definition,
               "fields",

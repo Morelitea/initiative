@@ -1,0 +1,255 @@
+/**
+ * The view editor, worked as a manager works it: change the open view in the
+ * outline or on the canvas, see it at once, and nothing is stored until Save.
+ */
+import { screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { HttpResponse } from "msw";
+import { useState } from "react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import {
+  buildDefaultTaskStatuses,
+  buildPropertyDefinition,
+  buildTask,
+  buildTaskListResponse,
+  buildToolViewSet,
+} from "@/__tests__/factories";
+import { buildSavedViewSet } from "@/__tests__/factories/toolView.factory";
+import { communityHttp } from "@/__tests__/helpers/communityHttp";
+import { server } from "@/__tests__/helpers/msw-server";
+import { renderPage } from "@/__tests__/helpers/render";
+import type { ToolViewSetRead, ToolViewSetWrite } from "@/api/generated/initiativeAPI.schemas";
+
+import { ViewEditor } from "./ViewEditor";
+
+const STATUSES = buildDefaultTaskStatuses(1);
+
+let saves: ToolViewSetWrite[] = [];
+
+const editor = (slug: string, onClose = vi.fn()) => {
+  renderPage(() => (
+    <ViewEditor
+      projectId={1}
+      initiativeId={1}
+      statuses={STATUSES}
+      set={buildToolViewSet()}
+      initialSlug={slug}
+      onClose={onClose}
+    />
+  ));
+  return { user: userEvent.setup(), onClose };
+};
+
+const outline = () => screen.findByRole("navigation", { name: /outline/i });
+const canvas = () => screen.findByRole("region", { name: /preview/i });
+
+beforeEach(() => {
+  saves = [];
+  server.use(
+    communityHttp.get("/tasks/", () =>
+      HttpResponse.json(
+        buildTaskListResponse([
+          buildTask({
+            id: 7,
+            project_id: 1,
+            title: "Draw the map",
+            priority: "medium",
+            task_status_id: STATUSES[0].id,
+          }),
+        ])
+      )
+    ),
+    communityHttp.get("/property-definitions/", () =>
+      HttpResponse.json([buildPropertyDefinition({ id: 12, name: "Effort" })])
+    ),
+    communityHttp.put("/views/", async ({ request }) => {
+      const body = (await request.json()) as ToolViewSetWrite;
+      saves.push(body);
+      return HttpResponse.json(buildSavedViewSet(body));
+    })
+  );
+});
+
+describe("ViewEditor", () => {
+  it("takes a field off the card at once, and stores it only on Save", async () => {
+    const { user } = editor("board");
+    expect(await within(await canvas()).findByText(/priority: medium/i)).toBeInTheDocument();
+
+    await user.click(within(await outline()).getByRole("button", { name: /hide priority/i }));
+
+    expect(within(await canvas()).queryByText(/priority: medium/i)).not.toBeInTheDocument();
+    expect(saves).toEqual([]);
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+    await waitFor(() => expect(saves).toHaveLength(1));
+    const board = saves[0].views.find((view) => view.slug === "board");
+    expect(JSON.stringify(board?.definition.card)).not.toContain('"priority"');
+  });
+
+  it("puts back what was undone", async () => {
+    const { user } = editor("board");
+    await within(await canvas()).findByText(/priority: medium/i);
+
+    await user.click(within(await outline()).getByRole("button", { name: /hide priority/i }));
+    await user.click(screen.getByRole("button", { name: /^undo$/i }));
+
+    expect(within(await canvas()).getByText(/priority: medium/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^save$/i })).toBeDisabled();
+  });
+
+  it("selects the part clicked on the canvas, in the outline", async () => {
+    const { user } = editor("board");
+
+    await user.click(await within(await canvas()).findByText(/priority: medium/i));
+
+    expect(within(await outline()).getByRole("button", { name: "Priority" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+  });
+
+  it("adds a property to a table as a column, named by its id", async () => {
+    const { user } = editor("table");
+
+    await user.click(await within(await outline()).findByRole("button", { name: /^add$/i }));
+    await user.click(await screen.findByRole("button", { name: "Effort" }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    await waitFor(() => expect(saves).toHaveLength(1));
+    expect(saves[0].views.find((view) => view.slug === "table")?.definition.columns).toEqual([
+      "title",
+      "startDate",
+      "dueDate",
+      "priority",
+      "tags",
+      "comments",
+      "property:12",
+    ]);
+  });
+
+  it("changes nothing while a save is under way, and still asks before leaving", async () => {
+    let answer = () => {};
+    server.use(
+      communityHttp.put("/views/", async ({ request }) => {
+        const body = (await request.json()) as ToolViewSetWrite;
+        await new Promise<void>((resolve) => {
+          answer = resolve;
+        });
+        return HttpResponse.json(buildSavedViewSet(body));
+      })
+    );
+    const { user, onClose } = editor("board");
+    await within(await canvas()).findByText(/priority: medium/i);
+
+    await user.click(within(await outline()).getByRole("button", { name: /hide priority/i }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    expect(await screen.findByRole("button", { name: /saving/i })).toBeDisabled();
+    expect(within(await outline()).getByRole("button", { name: /hide tags/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^undo$/i })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: /close the editor/i }));
+    expect(await screen.findByText(/still being saved/i)).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: /keep editing/i }));
+
+    answer();
+    expect(await screen.findByRole("button", { name: /^save$/i })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: /close the editor/i }));
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("adds a plug-in's field to a table as a column", async () => {
+    server.use(
+      communityHttp.get("/plugins/", () =>
+        HttpResponse.json({
+          items: [
+            {
+              id: 3,
+              name: "CI",
+              enabled: true,
+              definition: {
+                fields: [{ key: "ci.state", name: { en: "Build" }, kind: "badge", on: ["task"] }],
+              },
+              item_initiatives: [1],
+              item_fields: ["ci.state"],
+              item_parts: [],
+              item_actions: [],
+            },
+          ],
+        })
+      )
+    );
+    const { user } = editor("table");
+
+    await user.click(await within(await outline()).findByRole("button", { name: /^add$/i }));
+    expect(await screen.findByText("CI")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Build" }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    await waitFor(() => expect(saves).toHaveLength(1));
+    expect(saves[0].views.find((view) => view.slug === "table")?.definition.columns?.at(-1)).toBe(
+      "plugin:3:ci.state"
+    );
+  });
+
+  it("opens the default view when another save takes away the open one", async () => {
+    const shipped = buildToolViewSet();
+    const refreshed = buildSavedViewSet({
+      views: shipped.views.filter((view) => !["unassigned", "mine"].includes(view.slug)),
+      item_layouts: [],
+    });
+    const Refreshing = () => {
+      const [set, setSet] = useState<ToolViewSetRead>(shipped);
+      return (
+        <>
+          <button type="button" onClick={() => setSet(refreshed)}>
+            refresh
+          </button>
+          <ViewEditor
+            projectId={1}
+            initiativeId={1}
+            statuses={STATUSES}
+            set={set}
+            initialSlug="mine"
+            onClose={vi.fn()}
+          />
+        </>
+      );
+    };
+    renderPage(Refreshing);
+    const user = userEvent.setup();
+    expect(await screen.findByRole("combobox", { name: /^view being edited$/i })).toHaveTextContent(
+      "Mine"
+    );
+
+    await user.click(screen.getByRole("button", { name: "refresh" }));
+    expect(screen.getByRole("combobox", { name: /^view being edited$/i })).toHaveTextContent(
+      "Table"
+    );
+    const name = screen.getByLabelText(/^name$/i);
+    await user.clear(name);
+    await user.type(name, "Everything{Enter}");
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    await waitFor(() => expect(saves).toHaveLength(1));
+    expect(saves[0].views.map((view) => [view.slug, view.name, view.is_default])).toEqual([
+      ["table", "Everything", true],
+      ["board", "Board", false],
+      ["calendar", "Calendar", false],
+      ["incomplete", "Incomplete", false],
+    ]);
+  });
+
+  it("asks before leaving with changes, and leaves at once without", async () => {
+    const { user, onClose } = editor("board");
+    await within(await canvas()).findByText(/priority: medium/i);
+
+    await user.click(within(await outline()).getByRole("button", { name: /hide priority/i }));
+    await user.click(screen.getByRole("button", { name: /close the editor/i }));
+    expect(await screen.findByText(/leave without saving/i)).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: /^leave$/i }));
+
+    expect(onClose).toHaveBeenCalled();
+  });
+});

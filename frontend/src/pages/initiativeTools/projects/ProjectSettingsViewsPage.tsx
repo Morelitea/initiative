@@ -10,12 +10,19 @@
 
 import { useParams } from "@tanstack/react-router";
 
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { ProjectViewsManager } from "@/components/projects/ProjectViewsManager";
 import { ToolSettingsPermissionRequired } from "@/components/tools/settings/ToolSettingsGuard";
 import { useProjectViews } from "@/hooks/useProjectViews";
+import { useCommunityPath } from "@/lib/communityUrl";
+import { toolDetailRoute } from "@/lib/tools";
 
 export const ProjectSettingsViewsPage = () => {
-  const { projectId } = useParams({ strict: false }) as { projectId?: string };
+  const { projectId, initiativeId } = useParams({ strict: false }) as {
+    projectId?: string;
+    initiativeId?: string;
+  };
+  const gp = useCommunityPath();
   const parsedId = projectId ? Number(projectId) : Number.NaN;
   const isValidId = Number.isFinite(parsedId);
 
@@ -24,5 +31,11 @@ export const ProjectSettingsViewsPage = () => {
   if (!set) return null;
   if (!set.can_configure) return <ToolSettingsPermissionRequired />;
 
-  return <ProjectViewsManager projectId={parsedId} set={set} />;
+  return (
+    <ProjectViewsManager
+      projectId={parsedId}
+      editHref={gp(`${toolDetailRoute(Tool.project, Number(initiativeId), parsedId)}/views`)}
+      set={set}
+    />
+  );
 };

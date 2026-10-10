@@ -16,6 +16,7 @@ import type {
   TaskStatusRead,
   ToolViewRead,
   ViewLayoutType,
+  ViewSort,
 } from "@/api/generated/initiativeAPI.schemas";
 import { usePersistedTableState } from "@/hooks/usePersistedTableState";
 import { useProjectTaskStatuses } from "@/hooks/useProjects";
@@ -227,7 +228,9 @@ export const projectTaskTableKey = (projectId: number, viewSlug: string) =>
   `initiative-project-${projectId}-${viewSlug}-task-table`;
 
 /** A view's sort, as the table's sorting. */
-export const viewTableSorting = (view: ToolViewRead | null | undefined): SortingState =>
+export const viewTableSorting = (
+  view: { definition: { sort?: ViewSort[] | null } } | null | undefined
+): SortingState =>
   (view?.definition.sort ?? []).map(({ field, direction }) => ({
     id: fieldColumnId(field),
     desc: direction === "desc",
