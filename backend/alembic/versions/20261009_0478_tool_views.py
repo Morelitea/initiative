@@ -25,8 +25,8 @@ The downgrade puts the presets back: one for each of a project's views that
 holds filters and nothing else, and the four seeds for a project that stored
 no views.
 
-Revision ID: 20261009_0477
-Revises: 20261009_0476
+Revision ID: 20261009_0478
+Revises: 20261009_0477
 Create Date: 2026-10-09
 """
 
@@ -39,8 +39,8 @@ from sqlalchemy.dialects import postgresql
 
 from app.db.guild_migrations import run_for_each_guild_schema
 
-revision = "20261009_0477"
-down_revision = "20261009_0476"
+revision = "20261009_0478"
+down_revision = "20261009_0477"
 branch_labels = None
 depends_on = None
 
