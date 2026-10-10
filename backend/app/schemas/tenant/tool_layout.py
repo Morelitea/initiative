@@ -8,8 +8,8 @@ they sort it are theirs, not the layout's.
 A layout is a tree of registered parts: a ``card`` holds what an item shows, a
 ``stack`` lays its children out, a ``field`` draws one field, ``properties``
 draws every property the item carries and ``plugin`` draws one of an installed
-plug-in's parts. An item's layout adds ``section`` and the item's own parts
-(its status, dates, comments and the rest). The parts, their props, the kinds
+plug-in's parts. A detail layout adds ``section`` and the detail's own parts
+(a task's status, dates, comments and the rest). The parts, their props, the kinds
 and the built-in field ids are ``Literal``s or enums, so the generated client
 carries the same vocabulary the renderer keys by. A property's field is named
 ``property:<definition id>``, so renaming it keeps every layout that shows it;
@@ -37,7 +37,7 @@ from app.services.marketplace.manifest_values import (
 MAX_NODES = 300
 MAX_DEPTH = 6
 MAX_DEFINITION_BYTES = 64 * 1024
-#: One plug-in's parts on one item: on a card, or across an item's layout.
+#: One plug-in's parts on one task: on a card, or across its detail.
 MAX_PLUGIN_PARTS = 3
 
 
@@ -130,13 +130,13 @@ TaskColumnFieldId = Enum(
 )
 #: What a task's layout edits as a field. Its status, its dates and its
 #: properties are parts of their own, and its counts are a card's.
-TaskItemFieldId = Enum(
-    "TaskItemFieldId",
+TaskDetailFieldId = Enum(
+    "TaskDetailFieldId",
     {f.name: f.value for f in TaskFieldId if f.value in _PAGE},
     type=str,
 )
 ColumnFieldId = Union[TaskColumnFieldId, NamedFieldId]
-ItemFieldId = Union[TaskItemFieldId, PluginFieldId]
+DetailFieldId = Union[TaskDetailFieldId, PluginFieldId]
 
 
 def _part_id(value: str) -> str:
@@ -209,13 +209,13 @@ CardPart.model_rebuild()
 StackPart.model_rebuild()
 
 
-class ItemFieldProps(_Strict):
-    field: ItemFieldId
+class DetailFieldProps(_Strict):
+    field: DetailFieldId
 
 
-class ItemFieldPart(_Strict):
+class DetailFieldPart(_Strict):
     type: Literal["field"]
-    props: ItemFieldProps
+    props: DetailFieldProps
 
 
 class SectionProps(_Strict):
@@ -226,20 +226,20 @@ class SectionProps(_Strict):
 
 
 class SectionPart(_Strict):
-    """A bordered group of an item layout's parts."""
+    """A bordered group of a detail layout's parts."""
 
     type: Literal["section"]
     props: Optional[SectionProps] = None
-    children: List[ItemPart] = Field(default_factory=list)
+    children: List[DetailPart] = Field(default_factory=list)
 
 
-class ItemStackPart(_Strict):
+class DetailStackPart(_Strict):
     type: Literal["stack"]
     props: Optional[StackProps] = None
-    children: List[ItemPart] = Field(default_factory=list)
+    children: List[DetailPart] = Field(default_factory=list)
 
 
-class TaskItemPart(_Strict):
+class TaskDetailPart(_Strict):
     """One of a task layout's own parts, which edit or show more than one field:
     its status, its start and due dates, who made it, its read-only notice, its
     menu, its relations, its case and its comments."""
@@ -256,20 +256,20 @@ class TaskItemPart(_Strict):
     ]
 
 
-ItemPart = Annotated[
+DetailPart = Annotated[
     Union[
-        ItemStackPart,
+        DetailStackPart,
         SectionPart,
-        ItemFieldPart,
+        DetailFieldPart,
         PropertiesPart,
         PluginPart,
-        TaskItemPart,
+        TaskDetailPart,
     ],
     Field(discriminator="type"),
 ]
 
 SectionPart.model_rebuild()
-ItemStackPart.model_rebuild()
+DetailStackPart.model_rebuild()
 
 
 # -- Definitions --------------------------------------------------------------
@@ -277,9 +277,9 @@ ItemStackPart.model_rebuild()
 #: Every way a layout can list a tool's items; which of them a tool draws is
 #: ``app.core.tools.LIST_LAYOUTS``.
 ListLayoutKind = Literal["table", "board", "calendar"]
-#: Every kind of item a layout can show one of; which a tool holds is
-#: ``app.core.tools.ITEM_LAYOUTS``.
-ItemLayoutKind = Literal["task"]
+#: Every kind of thing a detail layout shows one of; which a tool holds is
+#: ``app.core.tools.DETAIL_LAYOUTS``.
+DetailLayoutKind = Literal["task"]
 
 
 class ListLayoutDefinition(_Strict):
@@ -293,14 +293,14 @@ class ListLayoutDefinition(_Strict):
     opens: Optional[Literal["panel", "full"]] = None
 
 
-class ItemLayoutDefinition(_Strict):
-    """How one item is shown, in three regions, each its parts in order. A
-    region it leaves out is drawn as shipped, and a field placed in none of
-    them is drawn in a "More fields" section."""
+class DetailLayoutDefinition(_Strict):
+    """How one task (or event) is shown on its own, in three regions, each its
+    parts in order. A region it leaves out is drawn as shipped, and a field
+    placed in none of them is drawn in a "More fields" section."""
 
-    header: Optional[List[ItemPart]] = None
-    main: Optional[List[ItemPart]] = None
-    side: Optional[List[ItemPart]] = None
+    header: Optional[List[DetailPart]] = None
+    main: Optional[List[DetailPart]] = None
+    side: Optional[List[DetailPart]] = None
 
 
 # -- Requests -----------------------------------------------------------------
@@ -311,14 +311,14 @@ class ListLayoutWrite(_Strict):
     definition: ListLayoutDefinition
 
 
-class ItemLayoutWrite(_Strict):
-    kind: ItemLayoutKind
-    definition: ItemLayoutDefinition
+class DetailLayoutWrite(_Strict):
+    kind: DetailLayoutKind
+    definition: DetailLayoutDefinition
 
 
 #: One layout as it is changed.
 ToolLayoutWrite = Annotated[
-    Union[ListLayoutWrite, ItemLayoutWrite], Field(discriminator="kind")
+    Union[ListLayoutWrite, DetailLayoutWrite], Field(discriminator="kind")
 ]
 
 
@@ -344,20 +344,20 @@ class ListLayoutRead(SanitizedBaseModel):
     updated_at: Optional[datetime] = None
 
 
-class ItemLayoutRead(SanitizedBaseModel):
+class DetailLayoutRead(SanitizedBaseModel):
     """How a target shows one of its items: as shipped until it is changed."""
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
-    kind: ItemLayoutKind
-    definition: ItemLayoutDefinition
+    kind: DetailLayoutKind
+    definition: DetailLayoutDefinition
     #: When it was last changed; None as shipped.
     updated_at: Optional[datetime] = None
 
 
 #: One of a target's layouts.
 ToolLayoutRead = Annotated[
-    Union[ListLayoutRead, ItemLayoutRead], Field(discriminator="kind")
+    Union[ListLayoutRead, DetailLayoutRead], Field(discriminator="kind")
 ]
 
 

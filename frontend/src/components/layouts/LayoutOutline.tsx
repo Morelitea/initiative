@@ -20,7 +20,7 @@ import { type ReactNode, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
-  TaskPageFieldId,
+  TaskDetailFieldId,
   type ToolViewWrite,
   type ViewDefinitionInput,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -43,16 +43,16 @@ import {
   removable,
   type Selection,
   sameSelection,
-} from "@/lib/views/draft";
-import { type FieldDef, VIEW_NAMESPACES } from "@/lib/views/fields";
-import { PAGE_REGIONS } from "@/lib/views/itemPage";
-import type { PluginOnItems } from "@/lib/views/plugins";
-import { TASK_PAGE_KIND } from "@/lib/views/tasks";
-import type { ViewNode } from "@/lib/views/tree";
+} from "@/lib/layouts/draft";
+import { type FieldDef, LAYOUT_NAMESPACES } from "@/lib/layouts/fields";
+import { LAYOUT_REGIONS } from "@/lib/layouts/detailLayout";
+import type { PluginOnItems } from "@/lib/layouts/plugins";
+import { TASK_LAYOUT } from "@/lib/layouts/tasks";
+import type { LayoutNode } from "@/lib/layouts/tree";
 import { localized } from "@/lib/widgets/widgetMeta";
 import type { TranslateFn } from "@/types/i18n";
 
-import type { ViewEdits } from "./ViewEditor";
+import type { LayoutEdits } from "./LayoutEditor";
 
 /** A plug-in as the picker offers it: its name, and its parts by theirs. */
 type PickerPlugin = {
@@ -62,7 +62,7 @@ type PickerPlugin = {
 };
 
 /** A part the picker offers beside the fields, under the group it names. */
-type PickerPart = { group: "builtin" | "properties" | "layout"; label: string; node: ViewNode };
+type PickerPart = { group: "builtin" | "properties" | "layout"; label: string; node: LayoutNode };
 
 /** What Add offers where something is added: the fields, each plug-in's
  *  parts, and the other parts. */
@@ -72,11 +72,11 @@ export type AddChoices = { fields: FieldDef[]; plugins: PickerPlugin[]; parts: P
 export type Adders = {
   onField: (field: FieldDef) => void;
   onPart: (plugin: number, part: string) => void;
-  onNode: (node: ViewNode) => void;
+  onNode: (node: LayoutNode) => void;
 };
 
 /** What a view can add: a card's fields and parts, or a table's columns. */
-export const viewChoices = (
+export const listChoices = (
   definition: ViewDefinitionInput,
   fields: ReadonlyMap<string, FieldDef>,
   plugins: PickerPlugin[],
@@ -116,14 +116,14 @@ export const viewChoices = (
 
 /** What a task's page can add: its fields not placed, its own parts once
  *  each, plug-in parts, sections and groups. */
-export const pageChoices = (
-  page: ViewNode,
+export const detailChoices = (
+  page: LayoutNode,
   fields: ReadonlyMap<string, FieldDef>,
   plugins: PickerPlugin[],
   translate: TranslateFn
 ): AddChoices => {
   const named = namedFields(page);
-  const pageFields = new Set<string>(Object.values(TaskPageFieldId));
+  const pageFields = new Set<string>(Object.values(TaskDetailFieldId));
   return {
     fields: [...fields.values()].filter(
       (field) =>
@@ -176,7 +176,7 @@ const PAGE_PARTS = [
 ] as const;
 
 /** Rows that stay where they are: an item page's regions. */
-const FIXED = new Set<string>(PAGE_REGIONS);
+const FIXED = new Set<string>(LAYOUT_REGIONS);
 
 const INTO = "into:";
 
@@ -198,12 +198,12 @@ export const usePartLabel = (
   fields: ReadonlyMap<string, FieldDef>,
   plugins: ReadonlyMap<number, PluginOnItems>
 ) => {
-  const { t } = useTranslation(VIEW_NAMESPACES);
+  const { t } = useTranslation(LAYOUT_NAMESPACES);
   const translate = t as TranslateFn;
   const pickerPlugins = usePickerPlugins(plugins);
   const labelOf = (field: FieldDef) =>
     field.source === "builtin" ? translate(field.label) : field.label;
-  const partLabel = (node: ViewNode): string => {
+  const partLabel = (node: LayoutNode): string => {
     switch (node.type) {
       case "card":
         return translate("viewEditor.card");
@@ -251,7 +251,7 @@ const useOutlineSensors = () =>
  * and selected to change it. Add offers what is not there yet, under where it
  * comes from.
  */
-export const ViewOutline = ({
+export const ListLayoutOutline = ({
   view,
   fields,
   plugins,
@@ -268,11 +268,11 @@ export const ViewOutline = ({
   choices: AddChoices;
   adders: Adders;
   selection: Selection;
-  edits: ViewEdits;
+  edits: LayoutEdits;
   /** A save is under way, and nothing changes until it answers. */
   locked: boolean;
 }) => {
-  const { t } = useTranslation(VIEW_NAMESPACES);
+  const { t } = useTranslation(LAYOUT_NAMESPACES);
   const translate = t as TranslateFn;
   const sensors = useOutlineSensors();
   const { labelOf, partLabel } = usePartLabel(fields, plugins);
@@ -374,7 +374,7 @@ export const ViewOutline = ({
  * region or section as well; taking off a part that changes a field sends the
  * field to More fields.
  */
-export const PageOutline = ({
+export const DetailLayoutOutline = ({
   page,
   fields,
   plugins,
@@ -385,20 +385,20 @@ export const PageOutline = ({
   locked,
 }: {
   /** The page as one tree: the page, holding its header, main and side. */
-  page: ViewNode;
+  page: LayoutNode;
   fields: ReadonlyMap<string, FieldDef>;
   plugins: ReadonlyMap<number, PluginOnItems>;
   choices: AddChoices;
   adders: Adders;
   selection: Selection;
-  edits: ViewEdits;
+  edits: LayoutEdits;
   locked: boolean;
 }) => {
-  const { t } = useTranslation(VIEW_NAMESPACES);
+  const { t } = useTranslation(LAYOUT_NAMESPACES);
   const translate = t as TranslateFn;
   const { labelOf, partLabel } = usePartLabel(fields, plugins);
   const regions = page.children ?? [];
-  const unplaced = TASK_PAGE_KIND.unplacedFields({
+  const unplaced = TASK_LAYOUT.unplacedFields({
     header: regions[0]?.children ?? [],
     main: regions[1]?.children ?? [],
     side: regions[2]?.children ?? [],
@@ -423,7 +423,7 @@ export const PageOutline = ({
             FIXED.has(node.type) || !removable(node, fields)
               ? null
               : translate(
-                  TASK_PAGE_KIND.editsAField(node) ? "viewEditor.toMoreFields" : "viewEditor.hide",
+                  TASK_LAYOUT.editsAField(node) ? "viewEditor.toMoreFields" : "viewEditor.hide",
                   {
                     name: partLabel(node),
                   }
@@ -470,13 +470,13 @@ const PartTree = ({
   edits,
   locked,
 }: {
-  root: ViewNode;
+  root: LayoutNode;
   depth: number;
-  partLabel: (node: ViewNode) => string;
+  partLabel: (node: LayoutNode) => string;
   /** What hiding the part is called, or null when it stays. */
-  hideAction: (node: ViewNode) => string | null;
+  hideAction: (node: LayoutNode) => string | null;
   selection: Selection;
-  edits: ViewEdits;
+  edits: LayoutEdits;
   locked: boolean;
 }) => {
   const sensors = useOutlineSensors();
@@ -493,7 +493,7 @@ const PartTree = ({
     if (to && pathKey(to) !== pathKey(from)) edits.movePart(from, to);
   };
 
-  const rows = (parent: ViewNode, parentPath: NodePath, at: number): ReactNode => {
+  const rows = (parent: LayoutNode, parentPath: NodePath, at: number): ReactNode => {
     const children = parent.children ?? [];
     const keys = children.map((_, index) => pathKey([...parentPath, index]));
     return (

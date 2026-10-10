@@ -8,9 +8,9 @@ import i18n from "@/__tests__/helpers/i18n-test";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import type { TaskListRead } from "@/api/generated/initiativeAPI.schemas";
-import { pluginFieldId, pluginFields, pluginsOnItems } from "@/lib/views/plugins";
-import { taskFields } from "@/lib/views/tasks";
-import { type ViewNode, ViewTree } from "@/lib/views/tree";
+import { pluginFieldId, pluginFields, pluginsOnItems } from "@/lib/layouts/plugins";
+import { taskFields } from "@/lib/layouts/tasks";
+import { type LayoutNode, LayoutTree } from "@/lib/layouts/tree";
 import type { TranslateFn } from "@/types/i18n";
 
 const definition = {
@@ -65,7 +65,7 @@ const task = buildTask({
   ],
 });
 
-const draw = (card: ViewNode, item: TaskListRead = task) => {
+const draw = (card: LayoutNode, item: TaskListRead = task) => {
   const plugins = pluginsOnItems([install], 7);
   const view = {
     fields: taskFields([], pluginFields(plugins, "en")),
@@ -77,7 +77,7 @@ const draw = (card: ViewNode, item: TaskListRead = task) => {
       taskHref: ({ id }: TaskListRead) => `/tasks/${id}`,
     },
   };
-  return renderWithProviders(<ViewTree node={card} item={item} view={view} />);
+  return renderWithProviders(<LayoutTree node={card} item={item} view={view} />);
 };
 
 describe("pluginsOnItems", () => {

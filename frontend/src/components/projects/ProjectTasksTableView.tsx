@@ -36,10 +36,10 @@ import type { useProjectTaskTableState } from "@/hooks/useProjectTaskView";
 import { useProperties } from "@/hooks/useProperties";
 import type { AppColumnDef } from "@/lib/table";
 import { cn } from "@/lib/utils";
-import { fieldColumnId } from "@/lib/views/columns";
-import { useProjectViewEnv } from "@/lib/views/fields";
-import { pluginFields, usePluginsOnItems } from "@/lib/views/plugins";
-import { TASK_COLUMNS, taskFields } from "@/lib/views/tasks";
+import { fieldColumnId } from "@/lib/layouts/columns";
+import { useProjectLayoutEnv } from "@/lib/layouts/fields";
+import { pluginFields, usePluginsOnItems } from "@/lib/layouts/plugins";
+import { TASK_COLUMNS, taskFields } from "@/lib/layouts/tasks";
 
 type ProjectTasksListViewProps = {
   projectId: number;
@@ -195,7 +195,7 @@ const ProjectTasksTableViewComponent = ({
 }: ProjectTasksListViewProps) => {
   const { t, i18n } = useTranslation(["projects", "comments", "tasks"]);
   const statusDisabled = !canEditTaskDetails || taskActionsDisabled;
-  const env = useProjectViewEnv(taskHref);
+  const env = useProjectLayoutEnv(taskHref);
 
   // Scoped to the project's initiative so the column list stays focused.
   const { data: propertyDefinitions = [] } = useProperties({ initiativeId });

@@ -8,13 +8,13 @@ import type { CardPartInput, ViewDefinitionInput } from "@/api/generated/initiat
 
 import type { FieldDef } from "./fields";
 import { TASK_CARD, TASK_COLUMNS } from "./tasks";
-import type { ViewNode } from "./tree";
+import type { LayoutNode } from "./tree";
 
 /** A view's card: its own, or the shipped one. */
-export const cardOf = (definition: ViewDefinitionInput): ViewNode =>
-  (definition.card as ViewNode | null | undefined) ?? TASK_CARD;
+export const cardOf = (definition: ViewDefinitionInput): LayoutNode =>
+  (definition.card as LayoutNode | null | undefined) ?? TASK_CARD;
 
-export const withCard = (definition: ViewDefinitionInput, card: ViewNode): ViewDefinitionInput => ({
+export const withCard = (definition: ViewDefinitionInput, card: LayoutNode): ViewDefinitionInput => ({
   ...definition,
   card: card as CardPartInput,
 });
@@ -35,16 +35,16 @@ export const pathKey = (path: NodePath): string => path.join(".");
 
 export const pathOf = (key: string): NodePath => (key === "" ? [] : key.split(".").map(Number));
 
-export const nodeAt = (root: ViewNode, path: NodePath): ViewNode | undefined =>
-  path.reduce<ViewNode | undefined>((node, index) => node?.children?.[index], root);
+export const nodeAt = (root: LayoutNode, path: NodePath): LayoutNode | undefined =>
+  path.reduce<LayoutNode | undefined>((node, index) => node?.children?.[index], root);
 
 /** `root` with the node at `path` changed by `change`, or taken out where it
  *  answers null. Every node off the path is the one it was. */
 export const changeAt = (
-  root: ViewNode,
+  root: LayoutNode,
   path: NodePath,
-  change: (node: ViewNode) => ViewNode | null
-): ViewNode => {
+  change: (node: LayoutNode) => LayoutNode | null
+): LayoutNode => {
   if (path.length === 0) return change(root) ?? root;
   const [index, ...rest] = path;
   const children = [...(root.children ?? [])];
@@ -59,11 +59,11 @@ export const changeAt = (
 /** `root` with `node` among the children of the node at `parent`, at `index`
  *  or last. */
 export const insertAt = (
-  root: ViewNode,
+  root: LayoutNode,
   parent: NodePath,
-  node: ViewNode,
+  node: LayoutNode,
   index?: number
-): ViewNode =>
+): LayoutNode =>
   changeAt(root, parent, (holder) => {
     const children = [...(holder.children ?? [])];
     children.splice(index ?? children.length, 0, node);
@@ -72,7 +72,7 @@ export const insertAt = (
 
 /** `root` with the node at `from` moved to `to`, a path in the tree as it is
  *  after the move. */
-export const moveNode = (root: ViewNode, from: NodePath, to: NodePath): ViewNode => {
+export const moveNode = (root: LayoutNode, from: NodePath, to: NodePath): LayoutNode => {
   const node = nodeAt(root, from);
   if (!node || from.length === 0 || to.length === 0) return root;
   return insertAt(
@@ -83,11 +83,11 @@ export const moveNode = (root: ViewNode, from: NodePath, to: NodePath): ViewNode
   );
 };
 
-const nodesIn = (node: ViewNode): ViewNode[] => [node, ...(node.children ?? []).flatMap(nodesIn)];
+const nodesIn = (node: LayoutNode): LayoutNode[] => [node, ...(node.children ?? []).flatMap(nodesIn)];
 
 /** Whether a part can be taken off the card: not one that is, or holds, a
  *  field every card shows (its title, which opens the task). */
-export const removable = (node: ViewNode, fields: ReadonlyMap<string, FieldDef>): boolean =>
+export const removable = (node: LayoutNode, fields: ReadonlyMap<string, FieldDef>): boolean =>
   !nodesIn(node).some(
     (each) => each.type === "field" && fields.get(String(each.props?.field))?.hideable === false
   );
@@ -128,7 +128,7 @@ export type Selection =
   | { kind: "part"; path: NodePath }
   | { kind: "column"; field: string };
 
-export const VIEW_SELECTED: Selection = { kind: "view" };
+export const LAYOUT_SELECTED: Selection = { kind: "view" };
 
 export const sameSelection = (a: Selection, b: Selection): boolean =>
   a.kind === b.kind &&
@@ -188,7 +188,7 @@ export const dropAt = (from: NodePath, holder: NodePath, index: number): NodePat
 
 /** Where the part at `from` goes when it is dropped at the end of the group
  *  at `holder`, or null where that would put it inside itself. */
-export const dropInto = (root: ViewNode, from: NodePath, holder: NodePath): NodePath | null =>
+export const dropInto = (root: LayoutNode, from: NodePath, holder: NodePath): NodePath | null =>
   dropAt(from, holder, nodeAt(root, holder)?.children?.length ?? 0);
 
 /** The parts that hold others, where a part can be added or dropped. */
@@ -206,7 +206,7 @@ export const MAX_PLUGIN_PARTS = 3;
 /** The parts of an install a tree can still place: each once, and none past
  *  {@link MAX_PLUGIN_PARTS}. */
 export const addablePluginParts = <P extends { id: string }>(
-  tree: ViewNode,
+  tree: LayoutNode,
   install: number,
   parts: P[]
 ): P[] => {
@@ -219,11 +219,11 @@ export const addablePluginParts = <P extends { id: string }>(
 };
 
 /** Whether a tree holds a part of the type. */
-export const holdsPart = (tree: ViewNode, type: string): boolean =>
+export const holdsPart = (tree: LayoutNode, type: string): boolean =>
   nodesIn(tree).some((node) => node.type === type);
 
 /** The fields a tree names. */
-export const namedFields = (tree: ViewNode): Set<string> =>
+export const namedFields = (tree: LayoutNode): Set<string> =>
   new Set(
     nodesIn(tree).flatMap((node) => (node.type === "field" ? [String(node.props?.field)] : []))
   );
@@ -231,9 +231,9 @@ export const namedFields = (tree: ViewNode): Set<string> =>
 /** Every node of a tree by its path key, for the canvas to find the part a
  *  click landed on. Keyed by the node itself, so a tree drawn twice (a card
  *  on every task) names each part once. */
-export const indexPaths = (root: ViewNode): WeakMap<ViewNode, string> => {
-  const paths = new WeakMap<ViewNode, string>();
-  const walk = (node: ViewNode, path: number[]) => {
+export const indexPaths = (root: LayoutNode): WeakMap<LayoutNode, string> => {
+  const paths = new WeakMap<LayoutNode, string>();
+  const walk = (node: LayoutNode, path: number[]) => {
     paths.set(node, pathKey(path));
     node.children?.forEach((child, index) => walk(child, [...path, index]));
   };

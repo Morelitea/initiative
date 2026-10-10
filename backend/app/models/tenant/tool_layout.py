@@ -1,10 +1,11 @@
-"""How an instance of a tool draws its items, and one of them: its layouts.
+"""How an instance of a tool lists what it holds, and shows one of them: its
+layouts.
 
 A row belongs to a target: one instance of a tool (``tool``, ``tool_id``: a
 project), or, for a tool the whole initiative shares, the initiative itself
 (``tool_id`` NULL: the calendar). Its ``kind`` says which layout it is: one way
-the target lists its items (``table``, ``board``, ``calendar``), how it shows
-one of them (``task``), or which list it opens on (``default``). A target has
+the target lists what it holds (``table``, ``board``, ``calendar``), its
+detail (``task``), or which list it opens on (``default``). A target has
 at most one of each.
 
 A row is stored when what it holds is changed, and only then, so its

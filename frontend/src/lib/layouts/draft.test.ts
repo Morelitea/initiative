@@ -19,13 +19,13 @@ import {
   removable,
   startHistory,
 } from "./draft";
-import { type StoredRegions, storedLayout } from "./itemPage";
-import { TASK_PAGE_KIND, taskFields } from "./tasks";
-import type { ViewNode } from "./tree";
+import { type StoredRegions, storedLayout } from "./detailLayout";
+import { TASK_LAYOUT, taskFields } from "./tasks";
+import type { LayoutNode } from "./tree";
 
-const field = (id: string): ViewNode => ({ type: "field", props: { field: id } });
+const field = (id: string): LayoutNode => ({ type: "field", props: { field: id } });
 
-const CARD: ViewNode = {
+const CARD: LayoutNode = {
   type: "card",
   children: [{ type: "stack", children: [field("title"), field("description")] }, field("tags")],
 };
@@ -45,7 +45,7 @@ describe("editing a tree by path", () => {
     const added = insertAt(CARD, [0], field("priority"), 1);
     const within = moveNode(CARD, [0, 0], [0, 1]);
     const out = moveNode(CARD, [0, 1], [2]);
-    const fields = (node: ViewNode | undefined) =>
+    const fields = (node: LayoutNode | undefined) =>
       node?.children?.map((child) => child.props?.field ?? child.type);
 
     expect(fields(nodeAt(added, [0]))).toEqual(["title", "priority", "description"]);
@@ -58,7 +58,7 @@ describe("editing a tree by path", () => {
     const paths = indexPaths(CARD);
 
     expect(paths.get(CARD)).toBe("");
-    expect(paths.get(nodeAt(CARD, [0, 1]) as ViewNode)).toBe("0.1");
+    expect(paths.get(nodeAt(CARD, [0, 1]) as LayoutNode)).toBe("0.1");
   });
 });
 
@@ -86,11 +86,11 @@ describe("what the editor allows", () => {
   it("never takes off the title, nor a group that holds it", () => {
     expect(removable(field("tags"), fields)).toBe(true);
     expect(removable(field("title"), fields)).toBe(false);
-    expect(removable(nodeAt(CARD, [0]) as ViewNode, fields)).toBe(false);
+    expect(removable(nodeAt(CARD, [0]) as LayoutNode, fields)).toBe(false);
   });
 
   it("offers a card what it does not show, and no property alone where it shows them all", () => {
-    const ids = (card: ViewNode) =>
+    const ids = (card: LayoutNode) =>
       addableFields({ layout: { type: "board" }, card: card as never }, fields).map(
         (each) => each.id
       );
@@ -113,7 +113,7 @@ describe("what the editor allows", () => {
 
   it("offers each of a plug-in's parts once, and none past the server's limit", () => {
     const parts = ["a", "b", "c", "d"].map((id) => ({ id }));
-    const placing = (...ids: string[]): ViewNode => ({
+    const placing = (...ids: string[]): LayoutNode => ({
       type: "card",
       children: ids.map((part) => ({ type: "plugin", props: { plugin: 3, part } })),
     });
@@ -177,14 +177,14 @@ describe("where a dragged part lands", () => {
 
 describe("a task page laid out", () => {
   it("is stored whole, without the shipped page's one-column order", () => {
-    const shipped = TASK_PAGE_KIND.root(null);
+    const shipped = TASK_LAYOUT.root(null);
     // Relations to the top of Main, then Checklist into the Description section.
     const moved = moveNode(moveNode(shipped, [2, 1], [1, 0]), [1, 2], [1, 1, 1]);
     const layout = storedLayout(moved);
 
     expect(JSON.stringify(layout)).not.toContain("order");
     expect(layout.main?.[0]).toEqual({ type: "relations" });
-    expect((layout.main?.[1] as ViewNode | undefined)?.children?.[1]).toEqual({
+    expect((layout.main?.[1] as LayoutNode | undefined)?.children?.[1]).toEqual({
       type: "field",
       props: { field: "checklist" },
     });
@@ -196,13 +196,13 @@ describe("a task page laid out", () => {
     // part added after the checklist.
     const stored = storedLayout(
       insertAt(
-        TASK_PAGE_KIND.root(null),
+        TASK_LAYOUT.root(null),
         [1],
         { type: "plugin", props: { plugin: 3, part: "ci" } },
         2
       )
     );
-    const tree = TASK_PAGE_KIND.tree(stored as StoredRegions, "More fields");
+    const tree = TASK_LAYOUT.tree(stored as StoredRegions, "More fields");
     const orders = (index: number) =>
       tree.children?.[index]?.children?.map((node) => [
         // A section by its first part.
@@ -229,8 +229,8 @@ describe("a task page laid out", () => {
   });
 
   it("names what it places nowhere, which More fields then draws", () => {
-    const page = TASK_PAGE_KIND.root({ side: [] });
-    const unplaced = TASK_PAGE_KIND.unplacedFields({
+    const page = TASK_LAYOUT.root({ side: [] });
+    const unplaced = TASK_LAYOUT.unplacedFields({
       header: page.children?.[0]?.children ?? [],
       main: page.children?.[1]?.children ?? [],
       side: [],

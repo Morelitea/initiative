@@ -17,13 +17,13 @@ import { numberFormat } from "@/lib/intl";
 import { cn } from "@/lib/utils";
 import { type LocalizedText, localized } from "@/lib/widgets/widgetMeta";
 
-import type { FieldDef, FieldRendererProps, ViewItem } from "./fields";
+import type { FieldDef, FieldRendererProps, LayoutItem } from "./fields";
 import { Section } from "./section";
 
 /** What a plug-in draws on an item from: the item, and the values it carries. */
-type PluginItem = Pick<ViewItem, "id" | "plugin_values">;
+type PluginItem = Pick<LayoutItem, "id" | "plugin_values">;
 
-import type { ViewNode } from "./tree";
+import type { LayoutNode } from "./tree";
 
 // What an install's pinned definition declares for items, as the SDK's
 // contract writes it (`fields`, `parts`, `actions`). Publishing checked it.
@@ -52,7 +52,7 @@ export type PluginPartDecl = {
   id: string;
   name: LocalizedText;
   on: string[];
-  tree: ViewNode;
+  tree: LayoutNode;
   description?: LocalizedText;
 };
 
@@ -308,7 +308,7 @@ export const PluginField = ({ value, field, variant }: FieldRendererProps) => {
 
 /** A plug-in field on an item's page: its name above its value, which the
  *  plug-in alone changes. */
-export const PluginFieldOnPage = ({ field, item }: { field: FieldDef; item: PluginItem }) => {
+export const PluginFieldOnDetail = ({ field, item }: { field: FieldDef; item: PluginItem }) => {
   if (!field.plugin) return null;
   const { install, field: declared } = field.plugin;
   const value = pluginValue(item.plugin_values, install, declared.key);
@@ -389,13 +389,13 @@ type Drawing = {
   pending: boolean;
 };
 
-const drawChildren = (node: ViewNode, drawing: Drawing): ReactNode =>
+const drawChildren = (node: LayoutNode, drawing: Drawing): ReactNode =>
   node.children?.map((child, index) => (
     // biome-ignore lint/suspicious/noArrayIndexKey: a part's tree is fixed by its manifest
     <Fragment key={index}>{drawPart(child, drawing)}</Fragment>
   ));
 
-const drawPart = (node: ViewNode, drawing: Drawing): ReactNode => {
+const drawPart = (node: LayoutNode, drawing: Drawing): ReactNode => {
   const props = node.props ?? {};
   const { plugin, task, language } = drawing;
   switch (node.type) {

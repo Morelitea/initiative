@@ -78,7 +78,7 @@ import {
   usePutProjectViews,
   viewSetWrite,
   viewWrites,
-} from "@/hooks/useProjectViews";
+} from "@/hooks/useToolLayouts";
 import {
   type UpdateTaskVariables,
   useArchiveDoneTasks,
@@ -107,7 +107,7 @@ import { rulePayload } from "@/lib/recurrence";
 import { getItem, setItem } from "@/lib/storage";
 import { taskReadToListRow } from "@/lib/taskUtils";
 import { browserTimezone } from "@/lib/timezones";
-import { cardOf } from "@/lib/views/draft";
+import { cardOf } from "@/lib/layouts/draft";
 
 /** A status change on screen whose request has not answered yet. */
 type PendingStatus = { vars: UpdateTaskVariables; status: TaskStatusRead };

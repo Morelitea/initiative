@@ -67,14 +67,14 @@ import {
 import { indexPaths } from "./draft";
 import { FieldFrame, useFieldDraft } from "./editing";
 import { DescriptionField, PropertiesField, TagsField, TitleField } from "./fieldEditors";
-import { type FieldKind, useProjectViewEnv } from "./fields";
-import type { StoredRegions } from "./itemPage";
-import { PluginFieldOnPage, PluginPartView, pluginFields, usePluginsOnItems } from "./plugins";
-import { TASK_PAGE_KIND, taskFields } from "./tasks";
-import { LAYOUT_PARTS, type Parts, renderNode, type ViewContext } from "./tree";
+import { type FieldKind, useProjectLayoutEnv } from "./fields";
+import type { StoredRegions } from "./detailLayout";
+import { PluginFieldOnDetail, PluginPartView, pluginFields, usePluginsOnItems } from "./plugins";
+import { TASK_LAYOUT, taskFields } from "./tasks";
+import { LAYOUT_PARTS, type Parts, renderNode, type LayoutContext } from "./tree";
 
 /** What the task's page shares with its parts, beside the task itself. */
-export interface TaskPageContext {
+export interface TaskLayoutContext {
   /** The server says the reader cannot change the task. */
   readOnly: boolean;
   /** Why, when it does. */
@@ -93,9 +93,9 @@ export interface TaskPageContext {
   preview?: boolean;
 }
 
-const PageContext = createContext<TaskPageContext | null>(null);
+const PageContext = createContext<TaskLayoutContext | null>(null);
 
-const useTaskPage = (): TaskPageContext => {
+const useTaskLayout = (): TaskLayoutContext => {
   const page = useContext(PageContext);
   if (!page) throw new Error("A task page part is drawn outside its page");
   return page;
@@ -108,7 +108,7 @@ const sameJson = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringif
 /** The task's title, which is the page's heading. */
 const TitleEditor = ({ task, label }: EditorProps) => {
   const { t } = useTranslation("tasks");
-  const { readOnly, askScope } = useTaskPage();
+  const { readOnly, askScope } = useTaskLayout();
   return (
     <TitleField
       id="task-title"
@@ -125,7 +125,7 @@ const TitleEditor = ({ task, label }: EditorProps) => {
  *  draft of where it is on. */
 const DescriptionEditor = ({ task, label }: EditorProps) => {
   const { t } = useTranslation("tasks");
-  const { readOnly, initiativeId, leaving, askScope, preview } = useTaskPage();
+  const { readOnly, initiativeId, leaving, askScope, preview } = useTaskLayout();
   const { isEnabled: aiEnabled } = useAIEnabled();
   const generate = useGenerateTaskDescription();
   return (
@@ -160,7 +160,7 @@ const DescriptionEditor = ({ task, label }: EditorProps) => {
 
 const StatusEditor = ({ task }: { task: TaskRead }) => {
   const { t } = useTranslation("tasks");
-  const { readOnly, statuses, askScope } = useTaskPage();
+  const { readOnly, statuses, askScope } = useTaskLayout();
   const label = t("taskForm.statusLabel");
   const save = useTaskFieldSave(task, label, askScope);
   // A task keeps the status it was given after the project drops it, and the
@@ -205,7 +205,7 @@ const StatusEditor = ({ task }: { task: TaskRead }) => {
 
 const PriorityEditor = ({ task, label }: EditorProps) => {
   const { t } = useTranslation("tasks");
-  const { readOnly, askScope } = useTaskPage();
+  const { readOnly, askScope } = useTaskLayout();
   const save = useTaskFieldSave(task, label, askScope);
   return (
     <FieldFrame label={label} htmlFor="task-priority" save={save}>
@@ -236,7 +236,7 @@ const sameIds = (a: number[], b: number[]) => sameJson([...a].sort(), [...b].sor
 
 const AssigneesEditor = ({ task, label }: EditorProps) => {
   const { t } = useTranslation("tasks");
-  const { readOnly, currentUserId, askScope } = useTaskPage();
+  const { readOnly, currentUserId, askScope } = useTaskLayout();
   const save = useTaskFieldSave(task, label, askScope);
   const saved = task.assignees.map((assignee) => assignee.id);
   // Who is added shows from the draft until the task comes back naming them.
@@ -272,7 +272,7 @@ const AssigneesEditor = ({ task, label }: EditorProps) => {
 
 const TagsEditor = ({ task, label }: EditorProps) => {
   const { t } = useTranslation("tasks");
-  const { readOnly, askScope } = useTaskPage();
+  const { readOnly, askScope } = useTaskLayout();
   return (
     <TagsField
       label={label}
@@ -302,7 +302,7 @@ type DatePair = Record<(typeof DATE_FIELDS)[number]["key"], string>;
 /** The start and due dates, as one control: checked and saved as a pair. */
 const DatesEditor = ({ task }: { task: TaskRead }) => {
   const { t } = useTranslation(["tasks", "dates", "common"]);
-  const { readOnly, askScope } = useTaskPage();
+  const { readOnly, askScope } = useTaskLayout();
   const save = useTaskFieldSave(task, t("taskForm.sections.schedule"), askScope);
   const saved: DatePair = {
     start: toLocalInputValue(task.start_date),
@@ -366,7 +366,7 @@ const DatesEditor = ({ task }: { task: TaskRead }) => {
 type Repeat = { rule: RecurrenceRule | "custom" | null; strategy: TaskRead["recurrence_strategy"] };
 
 const TaskRecurrenceEditor = ({ task, label }: EditorProps) => {
-  const { readOnly, askScope } = useTaskPage();
+  const { readOnly, askScope } = useTaskLayout();
   const save = useTaskFieldSave(task, label, askScope);
   const start = task.due_date ?? task.start_date;
   const saved: Repeat = {
@@ -414,7 +414,7 @@ const TaskRecurrenceEditor = ({ task, label }: EditorProps) => {
 
 /** The task's custom properties, each saved on its own, and adding one. */
 const PropertiesEditor = ({ task }: { task: TaskRead }) => {
-  const { readOnly, initiativeId } = useTaskPage();
+  const { readOnly, initiativeId } = useTaskLayout();
   return (
     <PropertiesField
       kind={TASK_SAVES}
@@ -428,7 +428,7 @@ const PropertiesEditor = ({ task }: { task: TaskRead }) => {
 };
 
 const Checklist = ({ task }: EditorProps) => {
-  const { readOnly } = useTaskPage();
+  const { readOnly } = useTaskLayout();
   return <TaskChecklist taskId={task.id} items={task.checklist ?? []} canEdit={!readOnly} />;
 };
 
@@ -486,7 +486,7 @@ const Byline = ({ task }: { task: TaskRead }) => {
 };
 
 const Notice = () => {
-  const { readOnlyMessage } = useTaskPage();
+  const { readOnlyMessage } = useTaskLayout();
   return readOnlyMessage ? (
     <p className="rounded-md border border-border bg-muted/50 px-3 py-2 text-muted-foreground text-sm">
       {readOnlyMessage}
@@ -494,12 +494,12 @@ const Notice = () => {
   ) : null;
 };
 
-const Actions = () => <>{useTaskPage().actions}</>;
+const Actions = () => <>{useTaskLayout().actions}</>;
 
 /** What the task is waiting on. A task is addressed inside its project, so
  *  that is the tool a link refreshes. */
 const Relations = ({ task }: { task: TaskRead }) => {
-  const { readOnly } = useTaskPage();
+  const { readOnly } = useTaskLayout();
   return (
     <ToolRelationsPanel
       tool={Tool.project}
@@ -513,12 +513,12 @@ const Relations = ({ task }: { task: TaskRead }) => {
 };
 
 const Case = ({ task }: { task: TaskRead }) => (
-  <CasePanel taskId={task.id} canEdit={!useTaskPage().readOnly} />
+  <CasePanel taskId={task.id} canEdit={!useTaskLayout().readOnly} />
 );
 
 const Comments = ({ task }: { task: TaskRead }) => {
   const { t } = useTranslation("tasks");
-  const { initiativeId } = useTaskPage();
+  const { initiativeId } = useTaskLayout();
   const params = { task_id: task.id };
   const query = useComments(params);
   const cache = useCommentsCache(params);
@@ -552,7 +552,7 @@ const TASK_PAGE_PARTS: Parts<TaskRead> = {
     const field = view.fields.get(String(node.props?.field));
     if (!field) return null;
     // A plug-in's value is the plug-in's to change.
-    if (field.source === "plugin") return <PluginFieldOnPage field={field} item={task} />;
+    if (field.source === "plugin") return <PluginFieldOnDetail field={field} item={task} />;
     const Editor = FIELD_EDITORS[field.kind];
     return Editor ? <Editor task={task} label={view.env.t(field.label)} /> : null;
   },
@@ -576,14 +576,14 @@ const TASK_PAGE_PARTS: Parts<TaskRead> = {
 };
 
 /** A task's page, drawn from its project's item layout, or as shipped. */
-export const TaskPageView = ({
+export const TaskLayoutView = ({
   task,
   page,
   layout,
   editing,
 }: {
   task: TaskRead;
-  page: TaskPageContext;
+  page: TaskLayoutContext;
   layout?: StoredRegions | null;
   /** The layout is being edited: each part is marked with its path, which
    *  the editor's page tree shares, More fields being past the side's end. */
@@ -596,15 +596,15 @@ export const TaskPageView = ({
     (taskId: number) => gp(taskRoute(page.initiativeId, task.project_id, taskId)),
     [gp, page.initiativeId, task.project_id]
   );
-  const env = useProjectViewEnv(taskHref);
-  const tree = useMemo(() => TASK_PAGE_KIND.tree(layout, t("edit.moreFields")), [layout, t]);
+  const env = useProjectLayoutEnv(taskHref);
+  const tree = useMemo(() => TASK_LAYOUT.tree(layout, t("edit.moreFields")), [layout, t]);
   const plugins = usePluginsOnItems(page.initiativeId);
   // The page's labels are the fields' own.
-  const view = useMemo<ViewContext>(
+  const view = useMemo<LayoutContext>(
     () => ({
       fields: taskFields([], pluginFields(plugins, i18n.language)),
       plugins,
-      variant: "page",
+      variant: "detail",
       env,
       editing: editing ? indexPaths(tree) : undefined,
     }),

@@ -23,7 +23,7 @@ import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/lib/mascotToast";
 import { currentServerKey } from "@/lib/offlineSession";
-import type { FieldSave, FieldSaveState } from "@/lib/views/editing";
+import type { FieldSave, FieldSaveState } from "@/lib/layouts/editing";
 
 /** A change to some of an item's fields: what is sent, and how the item reads
  *  once it is saved. A change to its properties names only those it sets or

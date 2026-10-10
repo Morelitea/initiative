@@ -11,8 +11,8 @@ import type { TaskListRead, TaskStatusRead } from "@/api/generated/initiativeAPI
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon-picker";
 import { cn } from "@/lib/utils";
-import { TASK_CARD } from "@/lib/views/tasks";
-import { type ViewContext, ViewTree } from "@/lib/views/tree";
+import { TASK_CARD } from "@/lib/layouts/tasks";
+import { type LayoutContext, LayoutTree } from "@/lib/layouts/tree";
 
 const VIRTUALIZE_THRESHOLD = 20;
 const CARD_ESTIMATE_HEIGHT = 140;
@@ -23,7 +23,7 @@ interface KanbanColumnProps {
   tasks: TaskListRead[];
   canWrite: boolean;
   /** What every card on the board shares, made once for the board. */
-  view: ViewContext;
+  view: LayoutContext;
   collapsed: boolean;
   onToggleCollapse: (statusId: number) => void;
   taskCount: number;
@@ -248,7 +248,7 @@ const CollapsedHeader = ({
 
 interface KanbanTaskCardVirtualProps {
   task: TaskListRead;
-  view: ViewContext;
+  view: LayoutContext;
   "data-index": number;
 }
 
@@ -295,7 +295,7 @@ const KanbanTaskCardSortable = memo(
         )}
         data-kanban-scroll-lock="true"
       >
-        <ViewTree node={view.card ?? TASK_CARD} item={task} view={view} />
+        <LayoutTree node={view.card ?? TASK_CARD} item={task} view={view} />
       </div>
     );
   },
@@ -321,7 +321,7 @@ const KanbanTaskCardPlain = memo(
         )}
         data-kanban-scroll-lock="true"
       >
-        <ViewTree node={view.card ?? TASK_CARD} item={task} view={view} />
+        <LayoutTree node={view.card ?? TASK_CARD} item={task} view={view} />
       </div>
     );
   },
@@ -333,7 +333,7 @@ const KanbanTaskCardPlain = memo(
 interface KanbanTaskCardProps {
   task: TaskListRead;
   canWrite: boolean;
-  view: ViewContext;
+  view: LayoutContext;
 }
 
 const KanbanTaskCard = ({ task, canWrite, view }: KanbanTaskCardProps) => {
@@ -361,7 +361,7 @@ const KanbanTaskCard = ({ task, canWrite, view }: KanbanTaskCardProps) => {
       )}
       data-kanban-scroll-lock="true"
     >
-      <ViewTree node={view.card ?? TASK_CARD} item={task} view={view} />
+      <LayoutTree node={view.card ?? TASK_CARD} item={task} view={view} />
     </div>
   );
 };

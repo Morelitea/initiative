@@ -5,27 +5,27 @@ import { buildPropertyDefinition, buildPropertySummary, buildTask } from "@/__te
 import i18n from "@/__tests__/helpers/i18n-test";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import type { PropertyDefinitionRead, TaskListRead } from "@/api/generated/initiativeAPI.schemas";
-import { TASK_PAGE_KIND, taskFields } from "@/lib/views/tasks";
+import { TASK_LAYOUT, taskFields } from "@/lib/layouts/tasks";
 
 /** The page as shipped. */
-const TASK_PAGE = TASK_PAGE_KIND.tree(undefined, "");
+const TASK_PAGE = TASK_LAYOUT.tree(undefined, "");
 
 import {
   LAYOUT_PARTS,
   type Parts,
   renderNode,
-  type ViewContext,
-  type ViewNode,
-  ViewTree,
-} from "@/lib/views/tree";
+  type LayoutContext,
+  type LayoutNode,
+  LayoutTree,
+} from "@/lib/layouts/tree";
 import type { TranslateFn } from "@/types/i18n";
 
-const field = (id: string): ViewNode => ({ type: "field", props: { field: id } });
+const field = (id: string): LayoutNode => ({ type: "field", props: { field: id } });
 
 const viewOf = (
   definitions: PropertyDefinitionRead[] = [],
-  variant: ViewContext["variant"] = "card"
-): ViewContext => ({
+  variant: LayoutContext["variant"] = "card"
+): LayoutContext => ({
   fields: taskFields(definitions),
   variant,
   env: {
@@ -35,8 +35,8 @@ const viewOf = (
   },
 });
 
-const draw = (node: ViewNode, task: TaskListRead, definitions: PropertyDefinitionRead[] = []) =>
-  renderWithProviders(<ViewTree node={node} item={task} view={viewOf(definitions)} />);
+const draw = (node: LayoutNode, task: TaskListRead, definitions: PropertyDefinitionRead[] = []) =>
+  renderWithProviders(<LayoutTree node={node} item={task} view={viewOf(definitions)} />);
 
 describe("taskFields", () => {
   it("adds one field per property, keyed by its definition id and labelled by name", () => {
@@ -58,9 +58,9 @@ describe("taskFields", () => {
   });
 });
 
-describe("ViewTree", () => {
+describe("LayoutTree", () => {
   it("draws nothing for a part or a field it does not know", () => {
-    const node: ViewNode = {
+    const node: LayoutNode = {
       type: "stack",
       children: [{ type: "nope" }, { type: "constructor" }, field("nope"), field("priority")],
     };
@@ -71,7 +71,7 @@ describe("ViewTree", () => {
   });
 
   it("skips a field with nothing in it", () => {
-    const node: ViewNode = {
+    const node: LayoutNode = {
       type: "stack",
       children: [field("priority"), field("description"), field("comments"), field("dueDate")],
     };
@@ -129,8 +129,8 @@ describe("renderNode", () => {
     // The page's regions are layout any kind of item shares; what fills them
     // is the item's own.
     const parts: Parts<string> = { ...LAYOUT_PARTS, name: (_node, item) => <p>{item}</p> };
-    const page: ViewNode = {
-      type: "page",
+    const page: LayoutNode = {
+      type: "layout",
       children: [
         { type: "header", children: [{ type: "name" }] },
         { type: "main", children: [{ type: "field", props: { field: "title" } }] },
@@ -139,7 +139,7 @@ describe("renderNode", () => {
     };
 
     const { container } = renderWithProviders(
-      <>{renderNode(page, "Ada", viewOf([], "page"), parts)}</>
+      <>{renderNode(page, "Ada", viewOf([], "detail"), parts)}</>
     );
 
     expect(container.textContent).toBe("AdaAda");
@@ -159,7 +159,7 @@ describe("renderNode", () => {
     };
 
     const { container } = renderWithProviders(
-      <>{renderNode(TASK_PAGE, null, viewOf([], "page"), parts)}</>
+      <>{renderNode(TASK_PAGE, null, viewOf([], "detail"), parts)}</>
     );
 
     // Each part of a column carries where it falls on the one column.
@@ -180,17 +180,17 @@ describe("renderNode", () => {
 });
 
 describe("a task page's tree", () => {
-  const regions = (tree: ViewNode) =>
+  const regions = (tree: LayoutNode) =>
     Object.fromEntries((tree.children ?? []).map((region) => [region.type, region.children]));
 
   it("draws what a layout stores, the rest as shipped, and gathers what it leaves out", () => {
-    const work: ViewNode = {
+    const work: LayoutNode = {
       type: "section",
       props: { title: "Work" },
       children: [field("description")],
     };
 
-    const page = regions(TASK_PAGE_KIND.tree({ main: [work], side: [] }, "More fields"));
+    const page = regions(TASK_LAYOUT.tree({ main: [work], side: [] }, "More fields"));
 
     expect(page.header).toEqual(regions(TASK_PAGE).header);
     // Drawn where the shipped page puts what it starts with on one column.
@@ -211,7 +211,7 @@ describe("a task page's tree", () => {
 
   it("adds no More fields where a layout places every field", () => {
     expect(
-      regions(TASK_PAGE_KIND.tree({ main: regions(TASK_PAGE).main }, "More fields")).side
+      regions(TASK_LAYOUT.tree({ main: regions(TASK_PAGE).main }, "More fields")).side
     ).toEqual(regions(TASK_PAGE).side);
   });
 });

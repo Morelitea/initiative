@@ -20,7 +20,7 @@ import type {
 } from "@/api/generated/initiativeAPI.schemas";
 import { usePersistedTableState } from "@/hooks/usePersistedTableState";
 import { useProjectTaskStatuses } from "@/hooks/useProjects";
-import { useProjectViews } from "@/hooks/useProjectViews";
+import { useProjectViews } from "@/hooks/useToolLayouts";
 import { useTags } from "@/hooks/useTags";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import {
@@ -31,7 +31,7 @@ import {
   taskSortFields,
 } from "@/lib/filters/taskFilters";
 import { resolveViewState, type StoredViews, type ViewSearch } from "@/lib/filters/views";
-import { fieldColumnId } from "@/lib/views/columns";
+import { fieldColumnId } from "@/lib/layouts/columns";
 
 /** A project's view, with its fixed filters as the task filter spec. */
 export type ProjectView = ToolViewRead & { filters: TaskFilterSpec };

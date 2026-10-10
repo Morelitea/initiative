@@ -1,7 +1,7 @@
-import { at, itemPageKind, type Region } from "./itemPage";
-import type { ViewNode } from "./tree";
+import { at, detailLayoutSpec, type Region } from "./detailLayout";
+import type { LayoutNode } from "./tree";
 
-const field = (id: string): ViewNode => ({ type: "field", props: { field: id } });
+const field = (id: string): LayoutNode => ({ type: "field", props: { field: id } });
 
 /**
  * An event's page as shipped: its title and what else can be done with it
@@ -10,7 +10,7 @@ const field = (id: string): ViewNode => ({ type: "field", props: { field: id } }
  * it reads as the event page always has: the description, when and where,
  * your answer, who is coming, tags, relations, then properties.
  */
-const EVENT_PAGE_REGIONS: Record<Region, ViewNode[]> = {
+const EVENT_PAGE_REGIONS: Record<Region, LayoutNode[]> = {
   header: [
     {
       type: "stack",
@@ -35,7 +35,7 @@ const EVENT_PAGE_REGIONS: Record<Region, ViewNode[]> = {
 };
 
 /** An event's page: its dates and properties edit fields as a field does. */
-export const EVENT_PAGE_KIND = itemPageKind({
+export const EVENT_LAYOUT = detailLayoutSpec({
   shipped: EVENT_PAGE_REGIONS,
   fieldParts: ["field", "dates", "properties"],
   moreOrder: 8,

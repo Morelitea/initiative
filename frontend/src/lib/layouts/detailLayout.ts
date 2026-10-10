@@ -4,39 +4,39 @@
  * column, the fields placed nowhere, and the layout a page is stored as.
  */
 
-import type { ItemLayoutDefinitionInput } from "@/api/generated/initiativeAPI.schemas";
+import type { DetailLayoutDefinitionInput } from "@/api/generated/initiativeAPI.schemas";
 
-import type { ViewNode } from "./tree";
+import type { LayoutNode } from "./tree";
 
 /** An item page's regions, in the order a page holds them. */
-export const PAGE_REGIONS = ["header", "main", "side"] as const;
+export const LAYOUT_REGIONS = ["header", "main", "side"] as const;
 
-export type Region = (typeof PAGE_REGIONS)[number];
+export type Region = (typeof LAYOUT_REGIONS)[number];
 
 /** An item layout's regions, as stored: one it leaves out is drawn as shipped. */
-export type StoredRegions = Partial<Record<Region, ViewNode[] | null>>;
+export type StoredRegions = Partial<Record<Region, LayoutNode[] | null>>;
 
 /** A part of a page's column, and where it falls once the page is one column. */
-export const at = (order: number, node: ViewNode): ViewNode => ({
+export const at = (order: number, node: LayoutNode): LayoutNode => ({
   ...node,
   props: { ...node.props, order },
 });
 
-const placedAs = (node: ViewNode) =>
+const placedAs = (node: LayoutNode) =>
   node.type === "field" ? `field:${String(node.props?.field)}` : node.type;
 
-const nodesIn = (nodes: ViewNode[]): ViewNode[] =>
+const nodesIn = (nodes: LayoutNode[]): LayoutNode[] =>
   nodes.flatMap((node) => [node, ...nodesIn(node.children ?? [])]);
 
 /** What a column's part is known by: its kind or field, or a group's first. */
-const anchorOf = (node: ViewNode): string | undefined =>
+const anchorOf = (node: LayoutNode): string | undefined =>
   node.type === "section" || node.type === "stack"
     ? (node.children ?? []).map(anchorOf).find((anchor) => anchor !== undefined)
     : placedAs(node);
 
 /** A part without the shipped page's one-column `order`, at any depth: a
  *  shipped part may have been moved into a section. */
-const withoutOrder = ({ props, children, ...node }: ViewNode): ViewNode => {
+const withoutOrder = ({ props, children, ...node }: LayoutNode): LayoutNode => {
   const { order: _order, ...rest } = props ?? {};
   return {
     ...node,
@@ -47,27 +47,27 @@ const withoutOrder = ({ props, children, ...node }: ViewNode): ViewNode => {
 
 /** The layout a page tree is stored as. Every region is stored, and without
  *  the shipped page's one-column `order`: a stored region keeps its own. */
-export const storedLayout = (root: ViewNode): ItemLayoutDefinitionInput => {
+export const storedLayout = (root: LayoutNode): DetailLayoutDefinitionInput => {
   const region = (index: number) => (root.children?.[index]?.children ?? []).map(withoutOrder);
   return {
     header: region(0),
     main: region(1),
     side: region(2),
-  } as ItemLayoutDefinitionInput;
+  } as DetailLayoutDefinitionInput;
 };
 
 /** One kind of item's page: as shipped, and as a stored layout draws it. */
-export interface ItemPageKind {
+export interface DetailLayoutSpec {
   /** The regions as shipped. */
-  shipped: Record<Region, ViewNode[]>;
+  shipped: Record<Region, LayoutNode[]>;
   /** Whether a part edits a field: placed nowhere, it is drawn under More
    *  fields rather than gone. */
-  editsAField: (node: ViewNode) => boolean;
+  editsAField: (node: LayoutNode) => boolean;
   /** What the shipped page edits and `regions` place nowhere, in its order. */
-  unplacedFields: (regions: Record<Region, ViewNode[]>) => ViewNode[];
+  unplacedFields: (regions: Record<Region, LayoutNode[]>) => LayoutNode[];
   /** The page as one tree to edit by path: the page, holding its header,
    *  main and side in that order. */
-  root: (stored: StoredRegions | null | undefined) => ViewNode;
+  root: (stored: StoredRegions | null | undefined) => LayoutNode;
   /**
    * The page from a stored layout: each region as stored, or as shipped where
    * the layout leaves it out. What the shipped page edits and the layout
@@ -76,7 +76,7 @@ export interface ItemPageKind {
    * carries no `order`: where it falls on one column is worked out here, so a
    * page laid out anew still reads as the shipped one does on a phone.
    */
-  tree: (stored: StoredRegions | null | undefined, moreFields: string) => ViewNode;
+  tree: (stored: StoredRegions | null | undefined, moreFields: string) => LayoutNode;
 }
 
 /**
@@ -84,17 +84,17 @@ export interface ItemPageKind {
  * part's one-column `order`; the part types that edit a field; and where More
  * fields falls on one column, after everything else.
  */
-export const itemPageKind = ({
+export const detailLayoutSpec = ({
   shipped,
   fieldParts,
   moreOrder,
 }: {
-  shipped: Record<Region, ViewNode[]>;
+  shipped: Record<Region, LayoutNode[]>;
   fieldParts: readonly string[];
   moreOrder: number;
-}): ItemPageKind => {
+}): DetailLayoutSpec => {
   const editing = new Set(fieldParts);
-  const editsAField = (node: ViewNode) => editing.has(node.type);
+  const editsAField = (node: LayoutNode) => editing.has(node.type);
   /** What the shipped page edits, in its order. */
   const shippedFields = nodesIn(Object.values(shipped).flat()).filter(editsAField);
   /** Where the shipped page puts each of its column parts on one column. */
@@ -109,7 +109,7 @@ export const itemPageKind = ({
    * column keeps its own order (a part never falls before one above it).
    * Parts that fall together keep the main column's ahead of the side's.
    */
-  const ordered = (parts: ViewNode[], column: "main" | "side"): ViewNode[] => {
+  const ordered = (parts: LayoutNode[], column: "main" | "side"): LayoutNode[] => {
     const known = parts.map((part) => shippedOrder.get(anchorOf(part)));
     let order =
       known.find((each) => each !== undefined) ?? Number(shipped[column][0]?.props?.order ?? 1);
@@ -119,13 +119,13 @@ export const itemPageKind = ({
     });
   };
 
-  const regionsOf = (stored: StoredRegions | null | undefined): Record<Region, ViewNode[]> => ({
+  const regionsOf = (stored: StoredRegions | null | undefined): Record<Region, LayoutNode[]> => ({
     header: stored?.header ?? shipped.header,
     main: stored?.main ?? shipped.main,
     side: stored?.side ?? shipped.side,
   });
 
-  const unplacedFields = (regions: Record<Region, ViewNode[]>) => {
+  const unplacedFields = (regions: Record<Region, LayoutNode[]>) => {
     const placed = new Set(nodesIn(Object.values(regions).flat()).map(placedAs));
     return shippedFields.filter((node) => !placed.has(placedAs(node)));
   };
@@ -137,8 +137,8 @@ export const itemPageKind = ({
     root: (stored) => {
       const regions = regionsOf(stored);
       return {
-        type: "page",
-        children: PAGE_REGIONS.map((region) => ({ type: region, children: regions[region] })),
+        type: "layout",
+        children: LAYOUT_REGIONS.map((region) => ({ type: region, children: regions[region] })),
       };
     },
     tree: (stored, moreFields) => {
@@ -146,7 +146,7 @@ export const itemPageKind = ({
       const unplaced = unplacedFields(regions);
       const side = ordered(regions.side, "side");
       return {
-        type: "page",
+        type: "layout",
         children: [
           { type: "header", children: regions.header },
           { type: "main", children: ordered(regions.main, "main") },

@@ -11,9 +11,9 @@ import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { ToolSettingsPermissionRequired } from "@/components/tools/settings/ToolSettingsGuard";
-import { TASK_PAGE, ViewEditor } from "@/components/views/ViewEditor";
+import { TASK_PAGE, LayoutEditor } from "@/components/layouts/LayoutEditor";
 import { useProject, useProjectTaskStatuses } from "@/hooks/useProjects";
-import { useProjectViews } from "@/hooks/useProjectViews";
+import { useProjectViews } from "@/hooks/useToolLayouts";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { toolSettingsRoute } from "@/lib/tools";
 
@@ -32,7 +32,7 @@ export const ProjectViewEditorPage = () => {
   if (!project || !statuses || !set || id === null) return null;
   if (!set.can_configure) return <ToolSettingsPermissionRequired />;
   return (
-    <ViewEditor
+    <LayoutEditor
       projectId={id}
       initiativeId={project.initiative_id}
       statuses={statuses}

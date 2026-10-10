@@ -8,34 +8,34 @@ import {
   type FieldDef,
   isEmptyValue,
   propertyFieldId,
-  type ViewEnv,
-  type ViewItem,
-  type ViewVariant,
+  type LayoutEnv,
+  type LayoutItem,
+  type LayoutVariant,
 } from "./fields";
 import { type PluginOnItems, PluginPartView } from "./plugins";
 import { Section } from "./section";
 
 /** A view as data: a registered part, its props, and what it holds. The same
  *  shape the plug-in SDK uses for parts. */
-export type ViewNode = {
+export type LayoutNode = {
   type: string;
   props?: Record<string, unknown>;
-  children?: ViewNode[];
+  children?: LayoutNode[];
 };
 
 /** What every item in one view shares. Made once per view, not per item, so
  *  the memoized items skip re-rendering until it changes. */
-export type ViewContext = {
+export type LayoutContext = {
   /** In order: built-ins, properties in definition order, then plug-ins'. */
   fields: ReadonlyMap<string, FieldDef>;
   /** The plug-ins whose parts a tree may place, by install. */
   plugins?: ReadonlyMap<number, PluginOnItems>;
   /** A board's card. */
-  card?: ViewNode;
+  card?: LayoutNode;
   /** While the view is edited: the path of each part of its tree. */
-  editing?: WeakMap<ViewNode, string>;
-  variant: ViewVariant;
-  env: ViewEnv;
+  editing?: WeakMap<LayoutNode, string>;
+  variant: LayoutVariant;
+  env: LayoutEnv;
 };
 
 /**
@@ -44,7 +44,7 @@ export type ViewContext = {
  * anything that needs one is a component a part returns, as the field
  * renderers are.
  */
-type Part<I> = (node: ViewNode, item: I, view: ViewContext, parts: Parts<I>) => ReactNode;
+type Part<I> = (node: LayoutNode, item: I, view: LayoutContext, parts: Parts<I>) => ReactNode;
 
 /** The parts a tree of one kind of item can hold, by node type. */
 export type Parts<I> = Readonly<Record<string, Part<I>>>;
@@ -53,9 +53,9 @@ export type Parts<I> = Readonly<Record<string, Part<I>>>;
  *  While the tree is edited, each part is marked with its path, in an element
  *  that takes no box of its own, so the editor finds what was clicked. */
 export const renderNode = <I,>(
-  node: ViewNode,
+  node: LayoutNode,
   item: I,
-  view: ViewContext,
+  view: LayoutContext,
   parts: Parts<I>
 ): ReactNode => {
   const drawn = Object.hasOwn(parts, node.type) ? parts[node.type](node, item, view, parts) : null;
@@ -70,9 +70,9 @@ export const renderNode = <I,>(
 };
 
 const renderChildren = <I,>(
-  node: ViewNode,
+  node: LayoutNode,
   item: I,
-  view: ViewContext,
+  view: LayoutContext,
   parts: Parts<I>
 ): ReactNode =>
   node.children?.map((child, index) => (
@@ -83,8 +83,8 @@ const renderChildren = <I,>(
 const renderField = (
   field: FieldDef,
   value: unknown,
-  item: ViewItem,
-  view: ViewContext,
+  item: LayoutItem,
+  view: LayoutContext,
   key?: number
 ): ReactNode => {
   if (isEmptyValue(value)) return null;
@@ -137,25 +137,25 @@ const stackClassName = ({ direction, gap = "xs", wrap, align, tone }: StackProps
 
 /** While a tree is edited, a group with nothing in it still takes room, to
  *  drop a part into or add one; readers never see it. */
-const emptyWhileEdited = (node: ViewNode, view: ViewContext): ReactNode =>
+const emptyWhileEdited = (node: LayoutNode, view: LayoutContext): ReactNode =>
   view.editing && !node.children?.length ? (
     <div className="flex min-h-10 w-full items-center justify-center rounded-md border border-dashed px-2 text-center text-muted-foreground text-xs">
       {view.env.t("viewEditor.emptyGroup")}
     </div>
   ) : null;
 
-// A region of an item's page: it draws its parts in a column, and places
-// itself on the page's grid.
+// A region of an item's layout: it draws its parts in a column, and places
+// itself on the layout's grid.
 const region =
   (className: string) =>
-  <I,>(node: ViewNode, item: I, view: ViewContext, parts: Parts<I>) => (
+  <I,>(node: LayoutNode, item: I, view: LayoutContext, parts: Parts<I>) => (
     <div className={cn("min-w-0", className)}>
       {renderChildren(node, item, view, parts)}
       {emptyWhileEdited(node, view)}
     </div>
   );
 
-// Where a part of a column falls once the page is a single column.
+// Where a part of a column falls once the layout is a single column.
 const ORDER: Record<number, string> = {
   1: "order-1 canvas-md:order-none",
   2: "order-2 canvas-md:order-none",
@@ -167,13 +167,13 @@ const ORDER: Record<number, string> = {
   8: "order-8 canvas-md:order-none",
 };
 
-// A column of an item's page. Until there is room for the columns side by
-// side, the page is one column and each column's parts join it, falling where
+// A column of an item's layout. Until there is room for the columns side by
+// side, the layout is one column and each column's parts join it, falling where
 // their `order` prop puts them, so the two columns can interleave. A part
 // that draws nothing takes no room.
 const column =
   (className: string) =>
-  <I,>(node: ViewNode, item: I, view: ViewContext, parts: Parts<I>) => (
+  <I,>(node: LayoutNode, item: I, view: LayoutContext, parts: Parts<I>) => (
     <div className={cn("canvas-md:flex contents canvas-md:min-w-0 canvas-md:flex-col", className)}>
       {node.children?.map((child, index) => (
         <div
@@ -190,14 +190,14 @@ const column =
 
 /** Arrangement, for a tree of any kind of item. */
 export const LAYOUT_PARTS = {
-  stack: <I,>(node: ViewNode, item: I, view: ViewContext, parts: Parts<I>) => (
+  stack: <I,>(node: LayoutNode, item: I, view: LayoutContext, parts: Parts<I>) => (
     <div className={stackClassName((node.props ?? {}) as StackProps)}>
       {renderChildren(node, item, view, parts)}
       {emptyWhileEdited(node, view)}
     </div>
   ),
-  /** An item's own page, which holds its header, main and side regions. */
-  page: <I,>(node: ViewNode, item: I, view: ViewContext, parts: Parts<I>) => (
+  /** An item's layout, which holds its header, main and side regions. */
+  layout: <I,>(node: LayoutNode, item: I, view: LayoutContext, parts: Parts<I>) => (
     <div className="grid canvas-md:grid-cols-[minmax(0,1fr)_20rem] gap-6">
       {renderChildren(node, item, view, parts)}
     </div>
@@ -206,7 +206,7 @@ export const LAYOUT_PARTS = {
   main: column("canvas-md:col-start-1 canvas-md:row-start-2 canvas-md:gap-6"),
   side: column("canvas-md:col-start-2 canvas-md:row-start-2 canvas-md:gap-4"),
   /** A bordered group of parts, titled in the initiative's own words. */
-  section: <I,>(node: ViewNode, item: I, view: ViewContext, parts: Parts<I>) => (
+  section: <I,>(node: LayoutNode, item: I, view: LayoutContext, parts: Parts<I>) => (
     <Section
       title={typeof node.props?.title === "string" ? node.props.title : undefined}
       collapsed={node.props?.collapsed === true}
@@ -217,7 +217,7 @@ export const LAYOUT_PARTS = {
   ),
 };
 
-const PARTS: Parts<ViewItem> = {
+const PARTS: Parts<LayoutItem> = {
   ...LAYOUT_PARTS,
   // The board draws the card's frame, which carries the drag and the measuring;
   // the card lays out what is inside it.
@@ -249,19 +249,19 @@ const PARTS: Parts<ViewItem> = {
 };
 
 /** Whether a tree draws a field. */
-export const namesField = (node: ViewNode, fieldId: string): boolean =>
+export const namesField = (node: LayoutNode, fieldId: string): boolean =>
   (node.type === "field" && node.props?.field === fieldId) ||
   (node.children ?? []).some((child) => namesField(child, fieldId));
 
 /** Draws one item of a collection through a tree. */
-export const ViewTree = memo(function ViewTree({
+export const LayoutTree = memo(function LayoutTree({
   node,
   item,
   view,
 }: {
-  node: ViewNode;
-  item: ViewItem;
-  view: ViewContext;
+  node: LayoutNode;
+  item: LayoutItem;
+  view: LayoutContext;
 }) {
   return renderNode(node, item, view, PARTS);
 });

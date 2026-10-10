@@ -15,7 +15,7 @@ import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
-  ItemLayoutDefinitionInput,
+  DetailLayoutDefinitionInput,
   TaskStatusRead,
   ToolViewSetRead,
   ToolViewWrite,
@@ -39,7 +39,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { taskPageOf, usePutProjectViews, viewSetWrite, viewWrites } from "@/hooks/useProjectViews";
+import { taskPageOf, usePutProjectViews, viewSetWrite, viewWrites } from "@/hooks/useToolLayouts";
 import { useProperties } from "@/hooks/useProperties";
 import { atLeast, useWidthClass } from "@/hooks/useWidthClass";
 import { toast } from "@/lib/mascotToast";
@@ -63,26 +63,26 @@ import {
   pathKey,
   type Selection,
   startHistory,
-  VIEW_SELECTED,
+  LAYOUT_SELECTED,
   withCard,
-} from "@/lib/views/draft";
-import { type StoredRegions, storedLayout } from "@/lib/views/itemPage";
-import { pluginFields, usePluginsOnItems } from "@/lib/views/plugins";
-import { TASK_PAGE_KIND, taskFields } from "@/lib/views/tasks";
-import type { ViewNode } from "@/lib/views/tree";
+} from "@/lib/layouts/draft";
+import { type StoredRegions, storedLayout } from "@/lib/layouts/detailLayout";
+import { pluginFields, usePluginsOnItems } from "@/lib/layouts/plugins";
+import { TASK_LAYOUT, taskFields } from "@/lib/layouts/tasks";
+import type { LayoutNode } from "@/lib/layouts/tree";
 import type { TranslateFn } from "@/types/i18n";
 
-import { type CanvasTools, PageCanvas, type PreviewWidth, ViewCanvas } from "./ViewCanvas";
+import { type CanvasTools, PageCanvas, type PreviewWidth, LayoutCanvas } from "./LayoutCanvas";
 import {
   type Adders,
   AddPicker,
-  PageOutline,
-  pageChoices,
+  DetailLayoutOutline,
+  detailChoices,
   usePartLabel,
-  ViewOutline,
-  viewChoices,
-} from "./ViewOutline";
-import { PageSettingsPanel, ViewSettingsPanel } from "./ViewSettingsPanel";
+  ListLayoutOutline,
+  listChoices,
+} from "./LayoutOutline";
+import { DetailLayoutSettings, ListLayoutSettings } from "./LayoutSettingsPanel";
 
 const noop = () => {};
 
@@ -95,7 +95,7 @@ const WIDTHS: { width: PreviewWidth; icon: typeof Laptop }[] = [
 /** What can be done to what is open in the editor. Each is one change to
  *  undo, and says what is selected after it. The part edits work on the open
  *  tree: a board's card, or the task page. */
-export type ViewEdits = {
+export type LayoutEdits = {
   select: (selection: Selection) => void;
   setDefinition: (definition: ViewDefinitionInput) => void;
   rename: (name: string) => void;
@@ -103,9 +103,9 @@ export type ViewEdits = {
   /** `to` is where the part is once moved. */
   movePart: (from: NodePath, to: NodePath) => void;
   removePart: (path: NodePath) => void;
-  changePart: (path: NodePath, node: ViewNode) => void;
+  changePart: (path: NodePath, node: LayoutNode) => void;
   /** At `at`, or where the selection says. */
-  addPart: (node: ViewNode, at?: Place) => void;
+  addPart: (node: LayoutNode, at?: Place) => void;
   moveColumn: (from: number, to: number) => void;
   removeColumn: (field: string) => void;
   /** At `index`, or last. */
@@ -124,7 +124,7 @@ type DraftView = ToolViewWrite & { key: string };
 
 /** What the editor changes: the views, and the task page's layout (null: the
  *  shipped page). One Save stores both. */
-type Draft = { views: DraftView[]; page: ItemLayoutDefinitionInput | null };
+type Draft = { views: DraftView[]; page: DetailLayoutDefinitionInput | null };
 
 const draftOf = (set: ToolViewSetRead): Draft => ({
   views: viewWrites(set).map((view) => ({ ...view, key: view.slug ?? "" })),
@@ -134,7 +134,7 @@ const draftOf = (set: ToolViewSetRead): Draft => ({
 /** Where a part is put when it is added: into the group (or region) that is
  *  selected, after the part that is, or at the end of `fallback`. */
 const placeFor = (
-  tree: ViewNode,
+  tree: LayoutNode,
   selection: Selection,
   fallback: NodePath
 ): { parent: NodePath; index: number } => {
@@ -150,7 +150,7 @@ const placeFor = (
 
 /** Whether a selection still names something in what is open, as an undo may
  *  take away what was selected. */
-const stillThere = (selection: Selection, tree: ViewNode | null, columns: string[]): boolean => {
+const stillThere = (selection: Selection, tree: LayoutNode | null, columns: string[]): boolean => {
   if (selection.kind === "part") return tree !== null && nodeAt(tree, selection.path) !== undefined;
   if (selection.kind === "column") return columns.includes(selection.field);
   return true;
@@ -176,7 +176,7 @@ const viewOpen = (views: DraftView[], wanted: string): DraftView | undefined =>
  * Nothing changes while a save is under way, and leaving with changes, or
  * during a save, asks first.
  */
-export const ViewEditor = ({
+export const LayoutEditor = ({
   projectId,
   initiativeId,
   statuses,
@@ -202,20 +202,20 @@ export const ViewEditor = ({
   // The open view is named by its key, which a refreshed set keeps whatever
   // order it comes in.
   const [active, setActive] = useState(initialSlug ?? "");
-  const [selected, setSelected] = useState<Selection>(VIEW_SELECTED);
+  const [selected, setSelected] = useState<Selection>(LAYOUT_SELECTED);
   const onPage = active === TASK_PAGE;
   const current = onPage ? undefined : viewOpen(views, active);
   // Another view opened in its place (the one asked for is gone, or an undo
   // took it away), and nothing of the last stays selected.
   if (current && current.key !== active) {
     setActive(current.key);
-    setSelected(VIEW_SELECTED);
+    setSelected(LAYOUT_SELECTED);
   }
-  const page = useMemo(() => TASK_PAGE_KIND.root(draft.page as StoredRegions | null), [draft.page]);
+  const page = useMemo(() => TASK_LAYOUT.root(draft.page as StoredRegions | null), [draft.page]);
   // The tree the part edits change.
   const tree = current ? cardOf(current.definition) : onPage ? page : null;
   const columns = current ? columnsOf(current.definition) : [];
-  const selection = stillThere(selected, tree, columns) ? selected : VIEW_SELECTED;
+  const selection = stillThere(selected, tree, columns) ? selected : LAYOUT_SELECTED;
   const [width, setWidth] = useState<PreviewWidth>("desktop");
   const dirty = !sameDraft(draft, base);
 
@@ -269,12 +269,12 @@ export const ViewEditor = ({
     changeView((view) => ({ ...view, definition }), then);
   /** The open tree, changed: a view's card, or the page, which is then the
    *  project's own. */
-  const changeTree = (next: ViewNode, then?: Selection) => {
+  const changeTree = (next: LayoutNode, then?: Selection) => {
     if (current) changeDefinition(withCard(current.definition, next), then);
     else if (onPage) changeDraft({ ...draft, page: storedLayout(next) }, then);
   };
 
-  const edits: ViewEdits = {
+  const edits: LayoutEdits = {
     select: setSelected,
     setDefinition: (definition) => changeDefinition(definition),
     rename: (name) => changeView((view) => ({ ...view, name })),
@@ -311,7 +311,7 @@ export const ViewEditor = ({
         path: [...parent, index],
       });
     },
-    resetPage: () => changeDraft({ ...draft, page: null }, VIEW_SELECTED),
+    resetPage: () => changeDraft({ ...draft, page: null }, LAYOUT_SELECTED),
     moveColumn: (from, to) => {
       if (!current) return;
       const next = [...columns];
@@ -323,7 +323,7 @@ export const ViewEditor = ({
       if (!current) return;
       changeDefinition(
         { ...current.definition, columns: columns.filter((each) => each !== field) },
-        VIEW_SELECTED
+        LAYOUT_SELECTED
       );
     },
     addColumn: (field, index) => {
@@ -339,8 +339,8 @@ export const ViewEditor = ({
   const { labelOf, partLabel, pickerPlugins } = usePartLabel(fields, plugins);
   const translate = t as TranslateFn;
   const choices = current
-    ? viewChoices(current.definition, fields, pickerPlugins, translate)
-    : pageChoices(page, fields, pickerPlugins, translate);
+    ? listChoices(current.definition, fields, pickerPlugins, translate)
+    : detailChoices(page, fields, pickerPlugins, translate);
   const addersAt = (place?: Place): Adders =>
     current?.definition.layout.type === "table"
       ? { onField: (field) => edits.addColumn(field.id, place?.index), onPart: noop, onNode: noop }
@@ -435,7 +435,7 @@ export const ViewEditor = ({
   // nothing selected, so its name and layout are what the settings show.
   const newKey = useRef(0);
   const openView = (view: DraftView, next: DraftView[]) => {
-    changeViews(next, VIEW_SELECTED);
+    changeViews(next, LAYOUT_SELECTED);
     setActive(view.key);
   };
   /** A copy's name, its source's shortened to leave room for the rest. */
@@ -544,7 +544,7 @@ export const ViewEditor = ({
           disabled={!wide}
           onValueChange={(value) => {
             setActive(value);
-            setSelected(VIEW_SELECTED);
+            setSelected(LAYOUT_SELECTED);
           }}
         >
           <SelectTrigger className="w-56" aria-label={t("viewEditor.view")}>
@@ -647,7 +647,7 @@ export const ViewEditor = ({
           disabled={!dirty || saving}
           onClick={() => {
             dispatch({ type: "reset", present: base });
-            setSelected(VIEW_SELECTED);
+            setSelected(LAYOUT_SELECTED);
           }}
         >
           {t("viewEditor.discard")}
@@ -662,7 +662,7 @@ export const ViewEditor = ({
       ) : onPage ? (
         <div className="grid min-h-0 flex-1 grid-cols-[16rem_minmax(0,1fr)_18rem]">
           <aside className="min-h-0 border-r">
-            <PageOutline
+            <DetailLayoutOutline
               page={page}
               fields={fields}
               plugins={plugins}
@@ -686,7 +686,7 @@ export const ViewEditor = ({
             />
           </main>
           <aside className="min-h-0 overflow-y-auto border-l">
-            <PageSettingsPanel
+            <DetailLayoutSettings
               page={page}
               stored={draft.page !== null}
               fields={fields}
@@ -699,7 +699,7 @@ export const ViewEditor = ({
       ) : current ? (
         <div className="grid min-h-0 flex-1 grid-cols-[16rem_minmax(0,1fr)_18rem]">
           <aside className="min-h-0 border-r">
-            <ViewOutline
+            <ListLayoutOutline
               view={{
                 ...current,
                 name: viewName({ slug: current.slug ?? "", name: current.name }, t),
@@ -714,7 +714,7 @@ export const ViewEditor = ({
             />
           </aside>
           <main className="min-h-0">
-            <ViewCanvas
+            <LayoutCanvas
               projectId={projectId}
               initiativeId={initiativeId}
               statuses={statuses}
@@ -726,7 +726,7 @@ export const ViewEditor = ({
             />
           </main>
           <aside className="min-h-0 overflow-y-auto border-l">
-            <ViewSettingsPanel
+            <ListLayoutSettings
               view={current}
               project={{ id: projectId, initiativeId, statuses }}
               fields={fields}

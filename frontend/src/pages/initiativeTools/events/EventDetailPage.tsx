@@ -36,7 +36,7 @@ import { useReadOnOpen } from "@/hooks/useNotifications";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { toast } from "@/lib/mascotToast";
 import { eventRoute, toolDetailRoute, toolListRoute } from "@/lib/tools";
-import { EventPageView } from "@/lib/views/eventPage";
+import { EventLayoutView } from "@/lib/layouts/eventLayout";
 
 /**
  * An event's page: every field of it, each saved on its own where the reader
@@ -234,7 +234,7 @@ export function EventDetailPage() {
   return (
     <div className="space-y-6">
       <ToolBreadcrumb tool={Tool.calendar} initiativeId={initiativeId} trail={[]} />
-      <EventPageView
+      <EventLayoutView
         event={event}
         page={{
           readOnly: !canWrite,

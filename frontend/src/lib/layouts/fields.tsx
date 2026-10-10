@@ -34,11 +34,11 @@ import type { TranslateFn } from "@/types/i18n";
 import { PluginField, type PluginFieldDecl } from "./plugins";
 
 /** What a view draws. Tasks for now; other kinds join as their tools move. */
-export type ViewItem = TaskListRead;
+export type LayoutItem = TaskListRead;
 
 /** Where a field is drawn. On an item's page it is its editor, which the
  *  item's page parts draw (`taskPage.tsx`). */
-export type ViewVariant = "card" | "cell" | "page";
+export type LayoutVariant = "card" | "cell" | "detail";
 
 export type FieldKind =
   | "title"
@@ -67,7 +67,7 @@ export type FieldDef = {
   label: string;
   /** What the field holds for an item. Nothing (null, "", []) draws nothing on
    *  a card; a cell says so. */
-  value: (item: ViewItem) => unknown;
+  value: (item: LayoutItem) => unknown;
   /** A title cannot be hidden: a card with no title is not a card. */
   hideable: boolean;
   /** A plug-in field's install and declaration. */
@@ -84,19 +84,19 @@ export type FieldDef = {
 /** What renderers share across a view. It changes with the language, the
  *  community and the item links, not with which fields are shown, so a renderer
  *  whose value is unchanged skips redrawing when the Fields menu changes. */
-export type ViewEnv = {
-  /** Reads `projects`, and the other {@link VIEW_NAMESPACES} by prefix. */
+export type LayoutEnv = {
+  /** Reads `projects`, and the other {@link LAYOUT_NAMESPACES} by prefix. */
   t: TranslateFn;
   /** A community-relative path, made absolute in the item's community. */
-  communityPath: (path: string, item: ViewItem) => string;
-  taskHref: (task: ViewItem) => string;
+  communityPath: (path: string, item: LayoutItem) => string;
+  taskHref: (task: LayoutItem) => string;
 };
 
-export const VIEW_NAMESPACES = ["projects", "tasks", "dates", "relations"] as const;
+export const LAYOUT_NAMESPACES = ["projects", "tasks", "dates", "relations"] as const;
 
 /** The env of a project's views: one community, and its tasks' pages. */
-export const useProjectViewEnv = (taskHref: (taskId: number) => string): ViewEnv => {
-  const { t } = useTranslation(VIEW_NAMESPACES);
+export const useProjectLayoutEnv = (taskHref: (taskId: number) => string): LayoutEnv => {
+  const { t } = useTranslation(LAYOUT_NAMESPACES);
   const communityPath = useCommunityPath();
   return useMemo(
     () => ({ t: t as TranslateFn, communityPath, taskHref: (task) => taskHref(task.id) }),
@@ -106,10 +106,10 @@ export const useProjectViewEnv = (taskHref: (taskId: number) => string): ViewEnv
 
 export type FieldRendererProps = {
   value: unknown;
-  item: ViewItem;
+  item: LayoutItem;
   field: FieldDef;
-  variant: ViewVariant;
-  env: ViewEnv;
+  variant: LayoutVariant;
+  env: LayoutEnv;
 };
 
 /** Whether a value has nothing to show. A count of none is null by then. */
@@ -124,9 +124,9 @@ const TitleCell = ({
   env,
 }: {
   title: string;
-  task: ViewItem;
+  task: LayoutItem;
   unread: boolean;
-  env: ViewEnv;
+  env: LayoutEnv;
 }) => {
   const recurrence = task.recurrence
     ? summarizeStored(

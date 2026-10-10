@@ -21,10 +21,10 @@ import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import type { ToolViewSetRead, ToolViewSetWrite } from "@/api/generated/initiativeAPI.schemas";
-import { useProjectViews } from "@/hooks/useProjectViews";
-import type { ViewNode } from "@/lib/views/tree";
+import { useProjectViews } from "@/hooks/useToolLayouts";
+import type { LayoutNode } from "@/lib/layouts/tree";
 
-import { TASK_PAGE, ViewEditor } from "./ViewEditor";
+import { TASK_PAGE, LayoutEditor } from "./LayoutEditor";
 
 const STATUSES = buildDefaultTaskStatuses(1);
 
@@ -37,7 +37,7 @@ const editor = (slug: string, onClose = vi.fn(), set = buildToolViewSet()) => {
   const Page = () => {
     const read = useProjectViews(1).data;
     return read ? (
-      <ViewEditor
+      <LayoutEditor
         projectId={1}
         initiativeId={1}
         statuses={STATUSES}
@@ -103,7 +103,7 @@ beforeEach(() => {
   );
 });
 
-describe("ViewEditor", () => {
+describe("LayoutEditor", () => {
   it("takes a field off the card at once, and stores it only on Save", async () => {
     const { user } = editor("board");
     expect(await within(await canvas()).findByText(/priority: medium/i)).toBeInTheDocument();
@@ -237,7 +237,7 @@ describe("ViewEditor", () => {
           <button type="button" onClick={() => setSet(refreshed)}>
             refresh
           </button>
-          <ViewEditor
+          <LayoutEditor
             projectId={1}
             initiativeId={1}
             statuses={STATUSES}
@@ -299,7 +299,7 @@ describe("ViewEditor", () => {
       await waitFor(() => expect(saves).toHaveLength(1));
       const card = saves[0].views.find((view) => view.slug === "board")?.definition.card;
       // The row holding Priority starts with the group, Priority after it.
-      expect((card?.children?.[1] as ViewNode | undefined)?.children?.slice(0, 2)).toEqual([
+      expect((card?.children?.[1] as LayoutNode | undefined)?.children?.slice(0, 2)).toEqual([
         { type: "stack", props: { align: "start" }, children: [] },
         { type: "field", props: { field: "priority" } },
       ]);
@@ -393,7 +393,7 @@ describe("ViewEditor", () => {
 
       await waitFor(() => expect(saves).toHaveLength(1));
       const card = saves[0].views.find((view) => view.slug === "board")?.definition.card;
-      expect((card?.children?.[1] as ViewNode | undefined)?.children?.[0]).toEqual({
+      expect((card?.children?.[1] as LayoutNode | undefined)?.children?.[0]).toEqual({
         type: "stack",
         props: { align: "start" },
         children: [{ type: "field", props: { field: "priority" } }],
@@ -424,7 +424,7 @@ describe("ViewEditor", () => {
 
       await waitFor(() => expect(saves).toHaveLength(1));
       const card = saves[0].views.find((view) => view.slug === "board")?.definition.card;
-      expect((card?.children?.[0] as ViewNode | undefined)?.children?.slice(0, 2)).toEqual([
+      expect((card?.children?.[0] as LayoutNode | undefined)?.children?.slice(0, 2)).toEqual([
         { type: "field", props: { field: "priority" } },
         { type: "field", props: { field: "title" } },
       ]);

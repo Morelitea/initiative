@@ -28,10 +28,10 @@ import { MentionedPeopleScope, ReportMentionedPeople } from "@/hooks/useMentione
 import { useProperties } from "@/hooks/useProperties";
 import { formatDateTime } from "@/lib/formatDate";
 import { cn } from "@/lib/utils";
-import { useProjectViewEnv } from "@/lib/views/fields";
-import { pluginFields, usePluginsOnItems } from "@/lib/views/plugins";
-import { TASK_CARD, taskFields } from "@/lib/views/tasks";
-import { namesField, type ViewContext, type ViewNode } from "@/lib/views/tree";
+import { useProjectLayoutEnv } from "@/lib/layouts/fields";
+import { pluginFields, usePluginsOnItems } from "@/lib/layouts/plugins";
+import { TASK_CARD, taskFields } from "@/lib/layouts/tasks";
+import { namesField, type LayoutContext, type LayoutNode } from "@/lib/layouts/tree";
 
 import { TaskAssigneeList } from "./TaskAssigneeList";
 
@@ -56,9 +56,9 @@ type ProjectTasksKanbanViewProps = {
    *  nor for plug-ins: a listing's preview has no initiative to ask. */
   propertyDefinitions?: PropertyDefinitionRead[];
   /** The view's card, where it has its own. */
-  card?: ViewNode;
+  card?: LayoutNode;
   /** While the view is edited: the path of each part of its card. */
-  editing?: WeakMap<ViewNode, string>;
+  editing?: WeakMap<LayoutNode, string>;
 };
 
 // One empty list while the definitions load, so the fields aren't rebuilt on
@@ -100,14 +100,14 @@ export const ProjectTasksKanbanView = ({
   // the memoized cards skip re-rendering on an unrelated parent pass. What the
   // renderers share is held apart, so a change of fields redraws the cards but
   // not the values on them.
-  const env = useProjectViewEnv(taskHref);
+  const env = useProjectLayoutEnv(taskHref);
   const { i18n } = useTranslation();
   const plugins = usePluginsOnItems(initiativeId, !givenDefinitions);
   const fields = useMemo(
     () => taskFields(propertyDefinitions, pluginFields(plugins, i18n.language)),
     [propertyDefinitions, plugins, i18n.language]
   );
-  const view = useMemo<ViewContext>(
+  const view = useMemo<LayoutContext>(
     () => ({
       fields,
       plugins,
@@ -214,7 +214,7 @@ const getDroppableType = (
   id: UniqueIdentifier
 ): string | undefined => containers.find((container) => container.id === id)?.data.current?.type;
 
-const TaskDragOverlay = ({ task, card }: { task: TaskListRead; card: ViewNode }) => {
+const TaskDragOverlay = ({ task, card }: { task: TaskListRead; card: LayoutNode }) => {
   const { t } = useTranslation("projects");
   // The thing being dragged is the card, so it shows what the card names.
   const shows = (fieldId: string) => namesField(card, fieldId);

@@ -35,9 +35,9 @@ import {
   pathOf,
   type Selection,
   sameSelection,
-} from "@/lib/views/draft";
-import { TaskPageView } from "@/lib/views/taskPage";
-import type { ViewNode } from "@/lib/views/tree";
+} from "@/lib/layouts/draft";
+import { TaskLayoutView } from "@/lib/layouts/taskLayout";
+import type { LayoutNode } from "@/lib/layouts/tree";
 
 /** How wide the canvas draws the view: the widths a person might read it at. */
 export type PreviewWidth = "desktop" | "tablet" | "phone";
@@ -484,7 +484,7 @@ const DropMark = ({ box, drop, tools }: { box: Box; drop: Drop; tools: CanvasToo
 };
 
 /** The view being edited, with the project's own tasks. */
-export const ViewCanvas = ({
+export const LayoutCanvas = ({
   projectId,
   initiativeId,
   statuses,
@@ -595,7 +595,7 @@ export const PageCanvas = ({
   initiativeId: number;
   statuses: TaskStatusRead[];
   /** The page as one tree: the page, holding its header, main and side. */
-  page: ViewNode;
+  page: LayoutNode;
   width: PreviewWidth;
   selection: Selection;
   onSelect: (selection: Selection) => void;
@@ -625,7 +625,7 @@ export const PageCanvas = ({
   return (
     <CanvasFrame width={width} selection={selection} onSelect={onSelect} tools={tools}>
       {task ? (
-        <TaskPageView
+        <TaskLayoutView
           task={task}
           layout={layout}
           editing

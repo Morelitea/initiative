@@ -68,14 +68,14 @@ import { getUserDisplayName } from "@/lib/userDisplay";
 import type { TranslateFn } from "@/types/i18n";
 
 import { FieldFrame, useFieldDraft } from "./editing";
-import { EVENT_PAGE_KIND } from "./events";
+import { EVENT_LAYOUT } from "./events";
 import { DescriptionField, PropertiesField, TagsField, TitleField } from "./fieldEditors";
-import { useProjectViewEnv } from "./fields";
-import type { StoredRegions } from "./itemPage";
-import { LAYOUT_PARTS, type Parts, renderNode, type ViewContext } from "./tree";
+import { useProjectLayoutEnv } from "./fields";
+import type { StoredRegions } from "./detailLayout";
+import { LAYOUT_PARTS, type Parts, renderNode, type LayoutContext } from "./tree";
 
 /** What an event's page shares with its parts, beside the event itself. */
-export interface EventPageContext {
+export interface EventLayoutContext {
   /** The server says the reader cannot change the event: they see it, and
    *  nothing to change it with. */
   readOnly: boolean;
@@ -99,9 +99,9 @@ export interface EventPageContext {
   actions: ReactNode;
 }
 
-const PageContext = createContext<EventPageContext | null>(null);
+const PageContext = createContext<EventLayoutContext | null>(null);
 
-const useEventPage = (): EventPageContext => {
+const useEventLayout = (): EventLayoutContext => {
   const page = useContext(PageContext);
   if (!page) throw new Error("An event page part is drawn outside its page");
   return page;
@@ -111,7 +111,7 @@ type EditorProps = { event: CalendarEventRead; label: string };
 
 /** A field's save, for the page it is on. */
 const useSave = (event: CalendarEventRead, label: string) =>
-  useEventFieldSave(event, label, useEventPage());
+  useEventFieldSave(event, label, useEventLayout());
 
 const sameJson = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
@@ -166,7 +166,7 @@ const formatRange = (start: string, end: string, allDay: boolean): string => {
 /** The event's title, which is the page's heading. */
 const TitleEditor = ({ event, label }: EditorProps) => {
   const { t } = useTranslation("calendars");
-  const { readOnly } = useEventPage();
+  const { readOnly } = useEventLayout();
   return (
     <TitleField
       id="event-title"
@@ -182,7 +182,7 @@ const TitleEditor = ({ event, label }: EditorProps) => {
 /** The description, as a task's is ({@link DescriptionField}). */
 const DescriptionEditor = ({ event, label }: EditorProps) => {
   const { t } = useTranslation("calendars");
-  const page = useEventPage();
+  const page = useEventLayout();
   return (
     <DescriptionField
       kind={eventSaves(page.occurrence)}
@@ -202,7 +202,7 @@ const DescriptionEditor = ({ event, label }: EditorProps) => {
 
 const LocationEditor = ({ event, label }: EditorProps) => {
   const { t } = useTranslation("calendars");
-  const { readOnly } = useEventPage();
+  const { readOnly } = useEventLayout();
   const save = useSave(event, label);
   const saved = event.location ?? "";
   const edit = (text: string) => {
@@ -256,7 +256,7 @@ const timingOf = (start: string, end: string, allDay: boolean): EventTiming => {
  *  about. */
 const DatesEditor = ({ event }: { event: CalendarEventRead }) => {
   const { t } = useTranslation(["calendars", "common"]);
-  const { readOnly, shownStart, shownEnd } = useEventPage();
+  const { readOnly, shownStart, shownEnd } = useEventLayout();
   const label = t("eventPage.when");
   const save = useSave(event, label);
   const repeating = isRepeating(event);
@@ -304,7 +304,7 @@ const DatesEditor = ({ event }: { event: CalendarEventRead }) => {
  */
 const RepeatEditor = ({ event, label }: EditorProps) => {
   const { t } = useTranslation(["calendars", "common"]);
-  const { readOnly, occurrence, occurrenceStart, onMoved, initiativeId } = useEventPage();
+  const { readOnly, occurrence, occurrenceStart, onMoved, initiativeId } = useEventLayout();
   const gp = useCommunityPath();
   const save = useSave(event, label);
   const saved: RecurrenceRule | "custom" | null = fromStored(
@@ -475,7 +475,7 @@ const sameIds = (a: number[], b: number[]) => sameJson([...a].sort(), [...b].sor
  *  picked; and whether anyone who can see it may answer. */
 const AttendeesEditor = ({ event }: { event: CalendarEventRead }) => {
   const { t } = useTranslation(["calendars", "common"]);
-  const { readOnly } = useEventPage();
+  const { readOnly } = useEventLayout();
   const label = `${t("attendees")} (${event.attendees.length})`;
   const save = useSave(event, t("attendees"));
   const openSave = useSave(event, t("rsvpOpen"));
@@ -550,7 +550,7 @@ const AttendeesEditor = ({ event }: { event: CalendarEventRead }) => {
  *  shown. */
 const MyAnswer = ({ event }: { event: CalendarEventRead }) => {
   const { t } = useTranslation("calendars");
-  const { occurrenceStart } = useEventPage();
+  const { occurrenceStart } = useEventLayout();
   const { user } = useAuth();
   const answer = useUpdateEventRSVP(event.id, {
     onSuccess: () => toast.success(t("rsvpUpdated")),
@@ -587,7 +587,7 @@ const MyAnswer = ({ event }: { event: CalendarEventRead }) => {
 
 const TagsEditor = ({ event, label }: EditorProps) => {
   const { t } = useTranslation("calendars");
-  const { readOnly } = useEventPage();
+  const { readOnly } = useEventLayout();
   const save = useSave(event, label);
   // A reader sees the tags it has, and none where it has none.
   if (readOnly && event.tags.length === 0) return null;
@@ -605,7 +605,7 @@ const TagsEditor = ({ event, label }: EditorProps) => {
 /** Its custom properties, defined per initiative: an event on a
  *  community-level calendar has none to offer. */
 const PropertiesEditor = ({ event }: { event: CalendarEventRead }) => {
-  const { readOnly, occurrence } = useEventPage();
+  const { readOnly, occurrence } = useEventLayout();
   if (event.initiative_id === null) return null;
   if (readOnly && event.properties.length === 0) return null;
   return (
@@ -648,14 +648,14 @@ const EventField = ({ id, event }: { id: string; event: CalendarEventRead }) => 
   return <Editor event={event} label={t(FIELD_LABELS[id as keyof typeof FIELD_LABELS])} />;
 };
 
-const Actions = () => <>{useEventPage().actions}</>;
+const Actions = () => <>{useEventLayout().actions}</>;
 
 const Relations = ({ event }: { event: CalendarEventRead }) => (
   <ToolRelationsPanel
     tool={Tool.calendar}
     entity={event}
     target={{ type: SearchEntityType.calendar_event, id: event.id }}
-    canEdit={!useEventPage().readOnly}
+    canEdit={!useEventLayout().readOnly}
     entityTitle={event.title}
   />
 );
@@ -675,20 +675,20 @@ const EVENT_PAGE_PARTS: Parts<CalendarEventRead> = {
 const NO_TASK = () => "";
 
 /** An event's page, drawn from its initiative's layout, or as shipped. */
-export const EventPageView = ({
+export const EventLayoutView = ({
   event,
   page,
   layout,
 }: {
   event: CalendarEventRead;
-  page: EventPageContext;
+  page: EventLayoutContext;
   layout?: StoredRegions | null;
 }) => {
   const { t } = useTranslation("calendars");
   const communityId = useActiveCommunityId();
-  const env = useProjectViewEnv(useCallback(NO_TASK, []));
-  const view = useMemo<ViewContext>(() => ({ fields: new Map(), variant: "page", env }), [env]);
-  const tree = useMemo(() => EVENT_PAGE_KIND.tree(layout, t("eventPage.moreFields")), [layout, t]);
+  const env = useProjectLayoutEnv(useCallback(NO_TASK, []));
+  const view = useMemo<LayoutContext>(() => ({ fields: new Map(), variant: "detail", env }), [env]);
+  const tree = useMemo(() => EVENT_LAYOUT.tree(layout, t("eventPage.moreFields")), [layout, t]);
   return (
     // Another event's page starts afresh, with none of this one's drafts.
     <PageContext.Provider key={`${communityId}:${event.id}`} value={page}>

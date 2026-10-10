@@ -13,7 +13,7 @@ import { useParams } from "@tanstack/react-router";
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { ProjectViewsManager } from "@/components/projects/ProjectViewsManager";
 import { ToolSettingsPermissionRequired } from "@/components/tools/settings/ToolSettingsGuard";
-import { useProjectViews } from "@/hooks/useProjectViews";
+import { useProjectViews } from "@/hooks/useToolLayouts";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { toolDetailRoute } from "@/lib/tools";
 

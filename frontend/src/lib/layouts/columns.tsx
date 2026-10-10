@@ -2,7 +2,7 @@ import { PropertyColumnHeader } from "@/components/properties/propertyColumns";
 import { SortHeader } from "@/components/SortIcon";
 import type { AppColumnDef } from "@/lib/table";
 
-import { FIELD_RENDERERS, type FieldDef, type ViewEnv, type ViewItem } from "./fields";
+import { FIELD_RENDERERS, type FieldDef, type LayoutEnv, type LayoutItem } from "./fields";
 
 // A table's column for a field, where its id is not the field's: what stored
 // visibility, grouping and sorting are keyed by.
@@ -11,7 +11,7 @@ const COLUMN_OF: Record<string, string> = { startDate: "start date", dueDate: "d
 /** The id of the column that draws a field. */
 export const fieldColumnId = (fieldId: string): string => COLUMN_OF[fieldId] ?? fieldId;
 
-export type FieldColumnOptions<T extends ViewItem> = Pick<
+export type FieldColumnOptions<T extends LayoutItem> = Pick<
   AppColumnDef<T>,
   "sortFn" | "sortUndefined" | "size" | "cell"
 > & {
@@ -25,9 +25,9 @@ export type FieldColumnOptions<T extends ViewItem> = Pick<
  * A field as a table column: the field's id, its label as the header, and its
  * renderer's cell. It sorts only when given a `sortFn`.
  */
-export const fieldColumn = <T extends ViewItem>(
+export const fieldColumn = <T extends LayoutItem>(
   field: FieldDef,
-  env: ViewEnv,
+  env: LayoutEnv,
   { id = fieldColumnId(field.id), sortBy = field.value, ...column }: FieldColumnOptions<T> = {}
 ): AppColumnDef<T> => {
   const Renderer = FIELD_RENDERERS[field.kind];

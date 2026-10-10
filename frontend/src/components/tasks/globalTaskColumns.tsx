@@ -21,8 +21,8 @@ import { dateSortingFn, firstTagName, prioritySortingFn, textSortingFn } from "@
 import type { AppColumnDef } from "@/lib/table";
 import { getTaskDateStatus, getTaskDateStatusLabel } from "@/lib/taskDateStatus";
 import { entityRefRoute, initiativeRoute, toolDetailRoute } from "@/lib/tools";
-import { type FieldColumnOptions, fieldColumn } from "@/lib/views/columns";
-import type { FieldDef, ViewEnv } from "@/lib/views/fields";
+import { type FieldColumnOptions, fieldColumn } from "@/lib/layouts/columns";
+import type { FieldDef, LayoutEnv } from "@/lib/layouts/fields";
 import type { TranslateFn } from "@/types/i18n";
 
 interface GlobalTaskColumnsOptions {
@@ -48,13 +48,13 @@ interface GlobalTaskColumnsOptions {
   togglePin?: (task: TaskListRead) => void;
   /** The page's fields, from `taskFields`. */
   fields: ReadonlyMap<string, FieldDef>;
-  env: ViewEnv;
+  env: LayoutEnv;
 }
 
 interface SharedTaskColumnsOptions<T extends TaskListRead> {
   /** The table's fields, from `taskFields`. */
   fields: ReadonlyMap<string, FieldDef>;
-  env: ViewEnv;
+  env: LayoutEnv;
   isPriorityDisabled: (task: T) => boolean;
 }
 

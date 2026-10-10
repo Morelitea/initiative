@@ -11,7 +11,7 @@ import {
   projectViewsPreferenceKey,
   sanitizeStoredViews,
 } from "@/hooks/useProjectTaskView";
-import { projectViewsQuery } from "@/hooks/useProjectViews";
+import { projectViewsQuery } from "@/hooks/useToolLayouts";
 import { tasksQuery } from "@/hooks/useTasks";
 import { VIEW_PREFERENCES_QUERY_KEY } from "@/hooks/useViewPreference";
 import {

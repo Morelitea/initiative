@@ -30,14 +30,14 @@ import {
   nodeAt,
   removable,
   type Selection,
-} from "@/lib/views/draft";
-import { type FieldDef, VIEW_NAMESPACES } from "@/lib/views/fields";
-import { PAGE_REGIONS } from "@/lib/views/itemPage";
-import { TASK_PAGE_KIND } from "@/lib/views/tasks";
-import type { ViewNode } from "@/lib/views/tree";
+} from "@/lib/layouts/draft";
+import { type FieldDef, LAYOUT_NAMESPACES } from "@/lib/layouts/fields";
+import { LAYOUT_REGIONS } from "@/lib/layouts/detailLayout";
+import { TASK_LAYOUT } from "@/lib/layouts/tasks";
+import type { LayoutNode } from "@/lib/layouts/tree";
 import type { TranslateFn } from "@/types/i18n";
 
-import type { ViewEdits } from "./ViewEditor";
+import type { LayoutEdits } from "./LayoutEditor";
 
 const NO_SORT = "none";
 
@@ -47,7 +47,7 @@ const NO_SORT = "none";
  * a group, and a way to take a part off the card or a column out of the
  * table, where it may go.
  */
-export const ViewSettingsPanel = ({
+export const ListLayoutSettings = ({
   view,
   project,
   fields,
@@ -56,10 +56,10 @@ export const ViewSettingsPanel = ({
   locked,
 }: {
   view: ToolViewWrite;
-  project: ViewProject;
+  project: LayoutProject;
   fields: ReadonlyMap<string, FieldDef>;
   selection: Selection;
-  edits: ViewEdits;
+  edits: LayoutEdits;
   /** A save is under way, and nothing changes until it answers. */
   locked: boolean;
 }) => (
@@ -83,7 +83,7 @@ export const ViewSettingsPanel = ({
 
 /** The settings of what is selected on a task's page: the page's own, or a
  *  part's. */
-export const PageSettingsPanel = ({
+export const DetailLayoutSettings = ({
   page,
   stored,
   fields,
@@ -92,12 +92,12 @@ export const PageSettingsPanel = ({
   locked,
 }: {
   /** The page as one tree: the page, holding its header, main and side. */
-  page: ViewNode;
+  page: LayoutNode;
   /** Whether the project lays out its own page, as against the shipped one. */
   stored: boolean;
   fields: ReadonlyMap<string, FieldDef>;
   selection: Selection;
-  edits: ViewEdits;
+  edits: LayoutEdits;
   locked: boolean;
 }) => {
   const { t } = useTranslation("projects");
@@ -128,7 +128,7 @@ const ColumnSettings = ({
 }: {
   field: string;
   fields: ReadonlyMap<string, FieldDef>;
-  edits: ViewEdits;
+  edits: LayoutEdits;
 }) => {
   const { t } = useTranslation("projects");
   const keeps = fields.get(field)?.hideable === false;
@@ -155,13 +155,13 @@ const PartSettings = ({
   edits,
   onPage,
 }: {
-  tree: ViewNode;
+  tree: LayoutNode;
   path: NodePath;
   fields: ReadonlyMap<string, FieldDef>;
-  edits: ViewEdits;
+  edits: LayoutEdits;
   onPage: boolean;
 }) => {
-  const { t } = useTranslation(VIEW_NAMESPACES);
+  const { t } = useTranslation(LAYOUT_NAMESPACES);
   const translate = t as TranslateFn;
   const node = nodeAt(tree, path);
   if (!node) return null;
@@ -172,7 +172,7 @@ const PartSettings = ({
       </Panel>
     );
   }
-  if ((PAGE_REGIONS as readonly string[]).includes(node.type)) {
+  if ((LAYOUT_REGIONS as readonly string[]).includes(node.type)) {
     return (
       <Panel heading={translate(`viewEditor.parts.${node.type}`)}>
         <p className="text-muted-foreground text-sm">
@@ -189,7 +189,7 @@ const PartSettings = ({
   ) : (
     <p className="text-muted-foreground text-xs">{translate("viewEditor.holdsTitle")}</p>
   );
-  const change = (next: ViewNode) => edits.changePart(path, next);
+  const change = (next: LayoutNode) => edits.changePart(path, next);
 
   if (node.type === "stack") {
     return (
@@ -212,7 +212,7 @@ const PartSettings = ({
         ? onPage
           ? "viewEditor.pageTitleHelp"
           : "viewEditor.titleHelp"
-        : onPage && TASK_PAGE_KIND.editsAField(node)
+        : onPage && TASK_LAYOUT.editsAField(node)
           ? "viewEditor.toMoreFieldsHelp"
           : onPage
             ? `viewEditor.partHelp.${node.type}`
@@ -236,7 +236,7 @@ const Panel = ({ heading, children }: { heading: string; children: ReactNode }) 
 
 /** The project whose view is open: whose people, statuses and properties its
  *  filters name. */
-export type ViewProject = { id: number; initiativeId: number; statuses: TaskStatusRead[] };
+export type LayoutProject = { id: number; initiativeId: number; statuses: TaskStatusRead[] };
 
 const ViewSettings = ({
   view,
@@ -245,11 +245,11 @@ const ViewSettings = ({
   edits,
 }: {
   view: ToolViewWrite;
-  project: ViewProject;
+  project: LayoutProject;
   fields: ReadonlyMap<string, FieldDef>;
-  edits: ViewEdits;
+  edits: LayoutEdits;
 }) => {
-  const { t } = useTranslation(VIEW_NAMESPACES);
+  const { t } = useTranslation(LAYOUT_NAMESPACES);
   const translate = t as TranslateFn;
   const { definition } = view;
   const [sort] = definition.sort ?? [];
@@ -373,8 +373,8 @@ const GroupSettings = ({
   onChange,
   children,
 }: {
-  node: ViewNode;
-  onChange: (next: ViewNode) => void;
+  node: LayoutNode;
+  onChange: (next: LayoutNode) => void;
   children: ReactNode;
 }) => {
   const { t } = useTranslation("projects");
@@ -440,8 +440,8 @@ const SectionSettings = ({
   onChange,
   children,
 }: {
-  node: ViewNode;
-  onChange: (next: ViewNode) => void;
+  node: LayoutNode;
+  onChange: (next: LayoutNode) => void;
   children: ReactNode;
 }) => {
   const { t } = useTranslation("projects");

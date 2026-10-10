@@ -290,21 +290,21 @@ LAYOUTS_PER_INSTANCE: tuple[Tool, ...] = (
 )
 LAYOUTS_SHARED: tuple[Tool, ...] = (Tool.calendar, Tool.post)
 LAYOUT_TOOLS: tuple[Tool, ...] = LAYOUTS_PER_INSTANCE + LAYOUTS_SHARED
-# A target has one layout of each kind its tool draws: how it lists its items
-# (``LIST_LAYOUTS``), and how it shows one of them (``ITEM_LAYOUTS``, by the
-# kind of item). A tool with none here yet stores none. The list a target
-# opens on is one more row (``LAYOUT_DEFAULT``).
+# A target has one layout of each kind its tool draws: how it lists what it
+# holds (``LIST_LAYOUTS``), and how it shows one of them on its own
+# (``DETAIL_LAYOUTS``: a project's task). A tool with none here yet stores
+# none. The list a target opens on is one more row (``LAYOUT_DEFAULT``).
 LIST_LAYOUTS: dict[Tool, tuple[str, ...]] = {
     Tool.project: ("table", "board", "calendar"),
     Tool.calendar: ("calendar",),
 }
-ITEM_LAYOUTS: dict[Tool, tuple[str, ...]] = {Tool.project: ("task",)}
+DETAIL_LAYOUTS: dict[Tool, tuple[str, ...]] = {Tool.project: ("task",)}
 LAYOUT_DEFAULT = "default"
 LAYOUT_KINDS: tuple[str, ...] = tuple(
     dict.fromkeys(
         [
             *(kind for kinds in LIST_LAYOUTS.values() for kind in kinds),
-            *(kind for kinds in ITEM_LAYOUTS.values() for kind in kinds),
+            *(kind for kinds in DETAIL_LAYOUTS.values() for kind in kinds),
             LAYOUT_DEFAULT,
         ]
     )

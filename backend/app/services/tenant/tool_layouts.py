@@ -1,9 +1,9 @@
-"""How an instance of a tool draws its items, and one of them: its layouts,
-as shipped and as each is changed.
+"""How an instance of a tool lists what it holds, and shows one of them: its
+layouts, as shipped and as each is changed.
 
 A target is one instance of a tool (a project) or, for a tool the initiative
 shares, the initiative itself (its calendar). It has one layout of each kind
-its tool draws: each way it lists its items, and how it shows one of them.
+its tool draws: each way it lists what it holds, and its detail.
 Each is drawn as shipped until it is changed, and stored when it is, on its
 own; so is the list the target opens on.
 """
@@ -21,7 +21,7 @@ from sqlmodel import col, delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import ToolLayoutMessages
-from app.core.tools import ITEM_LAYOUTS, LAYOUT_DEFAULT, LIST_LAYOUTS, Tool
+from app.core.tools import DETAIL_LAYOUTS, LAYOUT_DEFAULT, LIST_LAYOUTS, Tool
 from app.db.advisory_locks import LockNamespace, advisory_lock
 from app.db.session import require_guild_context
 from app.models.tenant.tool_layout import ToolLayout
@@ -31,10 +31,10 @@ from app.schemas.tenant.tool_layout import (
     MAX_NODES,
     MAX_PLUGIN_PARTS,
     CardPart,
-    ItemLayoutDefinition,
-    ItemLayoutRead,
-    ItemLayoutWrite,
-    ItemStackPart,
+    DetailLayoutDefinition,
+    DetailLayoutRead,
+    DetailLayoutWrite,
+    DetailStackPart,
     ListLayoutDefinition,
     ListLayoutRead,
     PluginPart,
@@ -94,7 +94,7 @@ async def rows_by_instance(
 
 
 def read_set(tool: Tool, rows: list[ToolLayout]) -> list[ToolLayoutRead]:
-    """Every layout the tool draws, its lists then its items, each as stored
+    """Every layout the tool draws, its lists then its details, each as stored
     or as shipped. The target opens on its default list, or on the first."""
     stored = {row.kind: row for row in rows}
     lists = LIST_LAYOUTS.get(tool, ())
@@ -121,12 +121,12 @@ def read_set(tool: Tool, rows: list[ToolLayout]) -> list[ToolLayoutRead]:
         for kind in lists
     ]
     layouts.extend(
-        ItemLayoutRead(
+        DetailLayoutRead(
             kind=kind,
-            definition=ItemLayoutDefinition.model_validate(definition(kind)),
+            definition=DetailLayoutDefinition.model_validate(definition(kind)),
             updated_at=when(kind),
         )
-        for kind in ITEM_LAYOUTS.get(tool, ())
+        for kind in DETAIL_LAYOUTS.get(tool, ())
     )
     return layouts
 
@@ -134,7 +134,7 @@ def read_set(tool: Tool, rows: list[ToolLayout]) -> list[ToolLayoutRead]:
 def _parts(part: Any, depth: int) -> Iterable[tuple[Any, int]]:
     """Every part in a tree, with its depth."""
     yield part, depth
-    if isinstance(part, (CardPart, StackPart, ItemStackPart, SectionPart)):
+    if isinstance(part, (CardPart, StackPart, DetailStackPart, SectionPart)):
         for child in part.children:
             yield from _parts(child, depth + 1)
 
@@ -166,9 +166,9 @@ def check(target: Target, write: ToolLayoutWrite) -> dict[str, Any]:
     What it leaves out is left out, so it is drawn as shipped."""
     definition = write.definition
     stored = definition.model_dump(mode="json", exclude_unset=True)
-    if isinstance(write, ItemLayoutWrite):
-        _require(write.kind, ITEM_LAYOUTS.get(target.tool, ()))
-        assert isinstance(definition, ItemLayoutDefinition)
+    if isinstance(write, DetailLayoutWrite):
+        _require(write.kind, DETAIL_LAYOUTS.get(target.tool, ()))
+        assert isinstance(definition, DetailLayoutDefinition)
         roots = [
             part
             for region in (definition.header, definition.main, definition.side)
@@ -236,7 +236,7 @@ async def save_default(session: AsyncSession, target: Target, kind: str) -> None
 async def reset(session: AsyncSession, target: Target, kind: str) -> None:
     """Draw one of the target's layouts as shipped again."""
     _require(
-        kind, LIST_LAYOUTS.get(target.tool, ()) + ITEM_LAYOUTS.get(target.tool, ())
+        kind, LIST_LAYOUTS.get(target.tool, ()) + DETAIL_LAYOUTS.get(target.tool, ())
     )
     for row in await _locked_rows(session, target):
         if row.kind == kind:

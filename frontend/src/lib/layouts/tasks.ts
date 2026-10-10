@@ -6,8 +6,8 @@ import { isEmptyPropertyValue } from "@/components/properties/propertyHelpers";
 import { iconForPropertyType } from "@/components/properties/propertyTypeIcons";
 
 import { type FieldDef, propertyFieldId } from "./fields";
-import { at, itemPageKind, type Region } from "./itemPage";
-import type { ViewNode } from "./tree";
+import { at, detailLayoutSpec, type Region } from "./detailLayout";
+import type { LayoutNode } from "./tree";
 
 const builtin = (
   field: Omit<FieldDef, "source" | "label" | "hideable"> & Partial<FieldDef>
@@ -98,13 +98,13 @@ export const taskFields = (
   return new Map(fields.map((field) => [field.id, field]));
 };
 
-const field = (id: string): ViewNode => ({ type: "field", props: { field: id } });
+const field = (id: string): LayoutNode => ({ type: "field", props: { field: id } });
 
 /** The table's columns as shipped, in order: the fields it draws as columns. */
 export const TASK_COLUMNS = ["title", "startDate", "dueDate", "priority", "tags", "comments"];
 
 /** The board's card as shipped. */
-export const TASK_CARD: ViewNode = {
+export const TASK_CARD: LayoutNode = {
   type: "card",
   children: [
     {
@@ -140,7 +140,7 @@ export const TASK_CARD: ViewNode = {
  * with it across the top; what the task is in the main column; and the fields
  * that place it beside them. On one column, the fields follow the description.
  */
-const TASK_PAGE_REGIONS: Record<Region, ViewNode[]> = {
+const TASK_PAGE_REGIONS: Record<Region, LayoutNode[]> = {
   header: [
     {
       type: "stack",
@@ -174,7 +174,7 @@ const TASK_PAGE_REGIONS: Record<Region, ViewNode[]> = {
 };
 
 /** A task's page: its status, dates and properties edit fields as a field does. */
-export const TASK_PAGE_KIND = itemPageKind({
+export const TASK_LAYOUT = detailLayoutSpec({
   shipped: TASK_PAGE_REGIONS,
   fieldParts: ["field", "status", "dates", "properties"],
   moreOrder: 7,

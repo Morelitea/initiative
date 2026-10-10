@@ -4097,6 +4097,202 @@ export interface DeletionEligibilityResponse {
   sole_superadmin_communities: string[];
 }
 
+export type TaskDetailFieldId = (typeof TaskDetailFieldId)[keyof typeof TaskDetailFieldId];
+
+export const TaskDetailFieldId = {
+  title: "title",
+  description: "description",
+  assignees: "assignees",
+  recurrence: "recurrence",
+  checklist: "checklist",
+  priority: "priority",
+  tags: "tags",
+} as const;
+
+export interface DetailFieldProps {
+  field: TaskDetailFieldId | string;
+}
+
+export interface DetailFieldPart {
+  type: "field";
+  props: DetailFieldProps;
+}
+
+export interface SectionProps {
+  title?: string | null;
+  collapsed?: boolean | null;
+}
+
+export type TaskDetailPartType = (typeof TaskDetailPartType)[keyof typeof TaskDetailPartType];
+
+export const TaskDetailPartType = {
+  status: "status",
+  dates: "dates",
+  byline: "byline",
+  notice: "notice",
+  actions: "actions",
+  relations: "relations",
+  case: "case",
+  comments: "comments",
+} as const;
+
+/**
+ * One of a task layout's own parts, which edit or show more than one field:
+ * its status, its start and due dates, who made it, its read-only notice, its
+ * menu, its relations, its case and its comments.
+ */
+export interface TaskDetailPart {
+  type: TaskDetailPartType;
+}
+
+/**
+ * A bordered group of a detail layout's parts.
+ */
+export interface SectionPartInput {
+  type: "section";
+  props?: SectionProps | null;
+  children?: (
+    | DetailStackPartInput
+    | SectionPartInput
+    | DetailFieldPart
+    | PropertiesPart
+    | PluginPart
+    | TaskDetailPart
+  )[];
+}
+
+export interface DetailStackPartInput {
+  type: "stack";
+  props?: StackProps | null;
+  children?: (
+    | DetailStackPartInput
+    | SectionPartInput
+    | DetailFieldPart
+    | PropertiesPart
+    | PluginPart
+    | TaskDetailPart
+  )[];
+}
+
+/**
+ * How one task (or event) is shown on its own, in three regions, each its
+ * parts in order. A region it leaves out is drawn as shipped, and a field
+ * placed in none of them is drawn in a "More fields" section.
+ */
+export interface DetailLayoutDefinitionInput {
+  header?:
+    | (
+        | DetailStackPartInput
+        | SectionPartInput
+        | DetailFieldPart
+        | PropertiesPart
+        | PluginPart
+        | TaskDetailPart
+      )[]
+    | null;
+  main?:
+    | (
+        | DetailStackPartInput
+        | SectionPartInput
+        | DetailFieldPart
+        | PropertiesPart
+        | PluginPart
+        | TaskDetailPart
+      )[]
+    | null;
+  side?:
+    | (
+        | DetailStackPartInput
+        | SectionPartInput
+        | DetailFieldPart
+        | PropertiesPart
+        | PluginPart
+        | TaskDetailPart
+      )[]
+    | null;
+}
+
+/**
+ * A bordered group of a detail layout's parts.
+ */
+export interface SectionPartOutput {
+  type: "section";
+  props?: SectionProps | null;
+  children?: (
+    | DetailStackPartOutput
+    | SectionPartOutput
+    | DetailFieldPart
+    | PropertiesPart
+    | PluginPart
+    | TaskDetailPart
+  )[];
+}
+
+export interface DetailStackPartOutput {
+  type: "stack";
+  props?: StackProps | null;
+  children?: (
+    | DetailStackPartOutput
+    | SectionPartOutput
+    | DetailFieldPart
+    | PropertiesPart
+    | PluginPart
+    | TaskDetailPart
+  )[];
+}
+
+/**
+ * How one task (or event) is shown on its own, in three regions, each its
+ * parts in order. A region it leaves out is drawn as shipped, and a field
+ * placed in none of them is drawn in a "More fields" section.
+ */
+export interface DetailLayoutDefinitionOutput {
+  header?:
+    | (
+        | DetailStackPartOutput
+        | SectionPartOutput
+        | DetailFieldPart
+        | PropertiesPart
+        | PluginPart
+        | TaskDetailPart
+      )[]
+    | null;
+  main?:
+    | (
+        | DetailStackPartOutput
+        | SectionPartOutput
+        | DetailFieldPart
+        | PropertiesPart
+        | PluginPart
+        | TaskDetailPart
+      )[]
+    | null;
+  side?:
+    | (
+        | DetailStackPartOutput
+        | SectionPartOutput
+        | DetailFieldPart
+        | PropertiesPart
+        | PluginPart
+        | TaskDetailPart
+      )[]
+    | null;
+}
+
+/**
+ * How a target shows one of its items: as shipped until it is changed.
+ */
+export interface DetailLayoutRead {
+  kind: "task";
+  definition: DetailLayoutDefinitionOutput;
+  updated_at: string | null;
+}
+
+export interface DetailLayoutWrite {
+  kind: "task";
+  definition: DetailLayoutDefinitionInput;
+}
+
 /**
  * What this reader may do about that account, right now.
  *
@@ -5823,135 +6019,11 @@ export interface ListLayoutRead {
   updated_at: string | null;
 }
 
-export interface SectionProps {
-  title?: string | null;
-  collapsed?: boolean | null;
-}
-
-export type TaskItemFieldId = (typeof TaskItemFieldId)[keyof typeof TaskItemFieldId];
-
-export const TaskItemFieldId = {
-  title: "title",
-  description: "description",
-  assignees: "assignees",
-  recurrence: "recurrence",
-  checklist: "checklist",
-  priority: "priority",
-  tags: "tags",
-} as const;
-
-export interface ItemFieldProps {
-  field: TaskItemFieldId | string;
-}
-
-export interface ItemFieldPart {
-  type: "field";
-  props: ItemFieldProps;
-}
-
-export type TaskItemPartType = (typeof TaskItemPartType)[keyof typeof TaskItemPartType];
-
-export const TaskItemPartType = {
-  status: "status",
-  dates: "dates",
-  byline: "byline",
-  notice: "notice",
-  actions: "actions",
-  relations: "relations",
-  case: "case",
-  comments: "comments",
-} as const;
-
-/**
- * One of a task layout's own parts, which edit or show more than one field:
- * its status, its start and due dates, who made it, its read-only notice, its
- * menu, its relations, its case and its comments.
- */
-export interface TaskItemPart {
-  type: TaskItemPartType;
-}
-
-/**
- * A bordered group of an item layout's parts.
- */
-export interface SectionPartOutput {
-  type: "section";
-  props?: SectionProps | null;
-  children?: (
-    | ItemStackPartOutput
-    | SectionPartOutput
-    | ItemFieldPart
-    | PropertiesPart
-    | PluginPart
-    | TaskItemPart
-  )[];
-}
-
-export interface ItemStackPartOutput {
-  type: "stack";
-  props?: StackProps | null;
-  children?: (
-    | ItemStackPartOutput
-    | SectionPartOutput
-    | ItemFieldPart
-    | PropertiesPart
-    | PluginPart
-    | TaskItemPart
-  )[];
-}
-
-/**
- * How one item is shown, in three regions, each its parts in order. A
- * region it leaves out is drawn as shipped, and a field placed in none of
- * them is drawn in a "More fields" section.
- */
-export interface ItemLayoutDefinitionOutput {
-  header?:
-    | (
-        | ItemStackPartOutput
-        | SectionPartOutput
-        | ItemFieldPart
-        | PropertiesPart
-        | PluginPart
-        | TaskItemPart
-      )[]
-    | null;
-  main?:
-    | (
-        | ItemStackPartOutput
-        | SectionPartOutput
-        | ItemFieldPart
-        | PropertiesPart
-        | PluginPart
-        | TaskItemPart
-      )[]
-    | null;
-  side?:
-    | (
-        | ItemStackPartOutput
-        | SectionPartOutput
-        | ItemFieldPart
-        | PropertiesPart
-        | PluginPart
-        | TaskItemPart
-      )[]
-    | null;
-}
-
-/**
- * How a target shows one of its items: as shipped until it is changed.
- */
-export interface ItemLayoutRead {
-  kind: "task";
-  definition: ItemLayoutDefinitionOutput;
-  updated_at: string | null;
-}
-
 /**
  * One instance's layouts, as its initiative's list of them shows them.
  */
 export interface InitiativeToolLayoutsRead {
-  layouts: (ListLayoutRead | ItemLayoutRead)[];
+  layouts: (ListLayoutRead | DetailLayoutRead)[];
   can_configure: boolean;
   tool: Tool;
   tool_id: number;
@@ -6095,78 +6167,6 @@ export const ItemKind = {
   gallery_image: "gallery_image",
   post: "post",
 } as const;
-
-/**
- * A bordered group of an item layout's parts.
- */
-export interface SectionPartInput {
-  type: "section";
-  props?: SectionProps | null;
-  children?: (
-    | ItemStackPartInput
-    | SectionPartInput
-    | ItemFieldPart
-    | PropertiesPart
-    | PluginPart
-    | TaskItemPart
-  )[];
-}
-
-export interface ItemStackPartInput {
-  type: "stack";
-  props?: StackProps | null;
-  children?: (
-    | ItemStackPartInput
-    | SectionPartInput
-    | ItemFieldPart
-    | PropertiesPart
-    | PluginPart
-    | TaskItemPart
-  )[];
-}
-
-/**
- * How one item is shown, in three regions, each its parts in order. A
- * region it leaves out is drawn as shipped, and a field placed in none of
- * them is drawn in a "More fields" section.
- */
-export interface ItemLayoutDefinitionInput {
-  header?:
-    | (
-        | ItemStackPartInput
-        | SectionPartInput
-        | ItemFieldPart
-        | PropertiesPart
-        | PluginPart
-        | TaskItemPart
-      )[]
-    | null;
-  main?:
-    | (
-        | ItemStackPartInput
-        | SectionPartInput
-        | ItemFieldPart
-        | PropertiesPart
-        | PluginPart
-        | TaskItemPart
-      )[]
-    | null;
-  side?:
-    | (
-        | ItemStackPartInput
-        | SectionPartInput
-        | ItemFieldPart
-        | PropertiesPart
-        | PluginPart
-        | TaskItemPart
-      )[]
-    | null;
-}
-
-export interface ItemLayoutWrite {
-  kind: "task";
-  definition: ItemLayoutDefinitionInput;
-}
 
 /**
  * Response for checking if a user can leave a guild.
@@ -10016,7 +10016,7 @@ export interface ToolLayoutDefaultWrite {
  * items, in the order the tool names them.
  */
 export interface ToolLayoutSetRead {
-  layouts: (ListLayoutRead | ItemLayoutRead)[];
+  layouts: (ListLayoutRead | DetailLayoutRead)[];
   can_configure: boolean;
 }
 

@@ -21,11 +21,11 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  DetailLayoutWrite,
   GetInitiativeLayoutsParams,
   GetLayoutsParams,
   HTTPValidationError,
   InitiativeToolLayoutsRead,
-  ItemLayoutWrite,
   ListLayoutWrite,
   PutDefaultLayoutParams,
   PutLayoutParams,
@@ -189,7 +189,9 @@ export function useGetLayouts<
  */
 export const putLayout = (
   communityId: number,
-  listLayoutWriteItemLayoutWrite: BodyType<ListLayoutWrite | ItemLayoutWrite> | ItemLayoutWrite,
+  listLayoutWriteDetailLayoutWrite:
+    | BodyType<ListLayoutWrite | DetailLayoutWrite>
+    | DetailLayoutWrite,
   params: PutLayoutParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
@@ -199,7 +201,7 @@ export const putLayout = (
       url: `/api/v1/c/${communityId}/layouts/`,
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      data: listLayoutWriteItemLayoutWrite,
+      data: listLayoutWriteDetailLayoutWrite,
       params,
       signal,
     },
@@ -246,11 +248,11 @@ export const getPutLayoutMutationOptions = <
 };
 
 export type PutLayoutMutationResult = NonNullable<Awaited<ReturnType<typeof putLayout>>>;
-export type PutLayoutMutationBody = BodyType<ListLayoutWrite | ItemLayoutWrite>;
+export type PutLayoutMutationBody = BodyType<ListLayoutWrite | DetailLayoutWrite>;
 export type PutLayoutMutationError = ErrorType<HTTPValidationError>;
 export type PutLayoutMutationVariables = {
   communityId: number;
-  data: BodyType<ListLayoutWrite | ItemLayoutWrite>;
+  data: BodyType<ListLayoutWrite | DetailLayoutWrite>;
   params: PutLayoutParams;
 };
 

@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
-import { usePutProjectViews, viewSetWrite, viewWrites } from "@/hooks/useProjectViews";
+import { usePutProjectViews, viewSetWrite, viewWrites } from "@/hooks/useToolLayouts";
 import { atLeast, useWidthClass } from "@/hooks/useWidthClass";
 import { specFromApi, taskFilterCount } from "@/lib/filters/taskFilters";
 import { cn } from "@/lib/utils";

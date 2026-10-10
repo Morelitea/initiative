@@ -18,7 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useInitiativeSettings } from "@/hooks/useInitiativeSettings";
-import { useInitiativeViews } from "@/hooks/useProjectViews";
+import { useInitiativeViews } from "@/hooks/useToolLayouts";
 import { atLeast, useWidthClass } from "@/hooks/useWidthClass";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { toolDetailRoute } from "@/lib/tools";

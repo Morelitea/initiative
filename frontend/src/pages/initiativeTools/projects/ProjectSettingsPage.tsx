@@ -11,7 +11,7 @@ import {
   useUpdateProject,
 } from "@/hooks/useProjects";
 import { useProjectTaskExportView } from "@/hooks/useProjectTaskView";
-import { useProjectViews } from "@/hooks/useProjectViews";
+import { useProjectViews } from "@/hooks/useToolLayouts";
 
 export const ProjectSettingsPage = () => {
   const { projectId } = useParams({ strict: false }) as { projectId?: string };
