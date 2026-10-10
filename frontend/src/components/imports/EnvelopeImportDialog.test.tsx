@@ -22,6 +22,7 @@ const initiative = buildInitiative({
   can: {
     manage: false,
     moderate: false,
+    roster: true,
     view: [],
     create: [Tool.queue, Tool.file, Tool.project, Tool.gallery],
   },

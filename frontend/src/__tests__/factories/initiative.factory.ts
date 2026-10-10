@@ -41,6 +41,7 @@ export function buildInitiativeMember(
     oidc_managed: false,
     joined_at: "2026-01-15T00:00:00.000Z",
     presence: "offline",
+    guest_until: null,
     ...overrides,
   };
 }
