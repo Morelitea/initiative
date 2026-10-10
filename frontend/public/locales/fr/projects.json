@@ -428,6 +428,14 @@
       "byline": "Qui a créé la tâche, et quand.",
       "notice": "Dit pourquoi à qui ne peut pas modifier la tâche.",
       "actions": "Ce qu'on peut faire d'autre avec la tâche : déplacer, dupliquer, archiver, supprimer, et les actions des plug-ins."
-    }
+    },
+    "addView": "Ajouter une vue",
+    "viewActions": "Plus pour cette vue",
+    "duplicateView": "Dupliquer",
+    "deleteView": "Supprimer",
+    "newView": "Nouvelle vue",
+    "copyOf": "Copie de {{name}}",
+    "filters": "Filtres",
+    "filtersHelp": "La vue n'affiche que les tâches qui y correspondent. Chacun peut la restreindre davantage avec ses propres filtres."
   }
 }

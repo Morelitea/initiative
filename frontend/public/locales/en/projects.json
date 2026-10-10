@@ -428,6 +428,14 @@
       "byline": "Who made the task, and when.",
       "notice": "Tells someone who can't change the task why.",
       "actions": "What else can be done with the task: move, duplicate, archive, delete, and plug-in actions."
-    }
+    },
+    "addView": "Add a view",
+    "viewActions": "More for this view",
+    "duplicateView": "Duplicate",
+    "deleteView": "Delete",
+    "newView": "New view",
+    "copyOf": "{{name}} copy",
+    "filters": "Filters",
+    "filtersHelp": "The view shows only tasks that match these. Readers can narrow it further with their own filters."
   }
 }
