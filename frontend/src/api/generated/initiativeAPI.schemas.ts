@@ -5830,6 +5830,27 @@ export interface SectionProps {
   collapsed?: boolean | null;
 }
 
+export type TaskPageFieldId = (typeof TaskPageFieldId)[keyof typeof TaskPageFieldId];
+
+export const TaskPageFieldId = {
+  title: "title",
+  description: "description",
+  assignees: "assignees",
+  recurrence: "recurrence",
+  checklist: "checklist",
+  priority: "priority",
+  tags: "tags",
+} as const;
+
+export interface PageFieldProps {
+  field: TaskPageFieldId | string;
+}
+
+export interface PageFieldPart {
+  type: "field";
+  props: PageFieldProps;
+}
+
 export type TaskPagePartType = (typeof TaskPagePartType)[keyof typeof TaskPagePartType];
 
 export const TaskPagePartType = {
@@ -5861,7 +5882,7 @@ export interface SectionPartInput {
   children?: (
     | PageStackPartInput
     | SectionPartInput
-    | FieldPart
+    | PageFieldPart
     | PropertiesPart
     | PluginPart
     | TaskPagePart
@@ -5874,7 +5895,7 @@ export interface PageStackPartInput {
   children?: (
     | PageStackPartInput
     | SectionPartInput
-    | FieldPart
+    | PageFieldPart
     | PropertiesPart
     | PluginPart
     | TaskPagePart
@@ -5891,7 +5912,7 @@ export interface ItemLayoutDefinitionInput {
     | (
         | PageStackPartInput
         | SectionPartInput
-        | FieldPart
+        | PageFieldPart
         | PropertiesPart
         | PluginPart
         | TaskPagePart
@@ -5901,7 +5922,7 @@ export interface ItemLayoutDefinitionInput {
     | (
         | PageStackPartInput
         | SectionPartInput
-        | FieldPart
+        | PageFieldPart
         | PropertiesPart
         | PluginPart
         | TaskPagePart
@@ -5911,7 +5932,7 @@ export interface ItemLayoutDefinitionInput {
     | (
         | PageStackPartInput
         | SectionPartInput
-        | FieldPart
+        | PageFieldPart
         | PropertiesPart
         | PluginPart
         | TaskPagePart
@@ -5928,7 +5949,7 @@ export interface SectionPartOutput {
   children?: (
     | PageStackPartOutput
     | SectionPartOutput
-    | FieldPart
+    | PageFieldPart
     | PropertiesPart
     | PluginPart
     | TaskPagePart
@@ -5941,7 +5962,7 @@ export interface PageStackPartOutput {
   children?: (
     | PageStackPartOutput
     | SectionPartOutput
-    | FieldPart
+    | PageFieldPart
     | PropertiesPart
     | PluginPart
     | TaskPagePart
@@ -5958,7 +5979,7 @@ export interface ItemLayoutDefinitionOutput {
     | (
         | PageStackPartOutput
         | SectionPartOutput
-        | FieldPart
+        | PageFieldPart
         | PropertiesPart
         | PluginPart
         | TaskPagePart
@@ -5968,7 +5989,7 @@ export interface ItemLayoutDefinitionOutput {
     | (
         | PageStackPartOutput
         | SectionPartOutput
-        | FieldPart
+        | PageFieldPart
         | PropertiesPart
         | PluginPart
         | TaskPagePart
@@ -5978,7 +5999,7 @@ export interface ItemLayoutDefinitionOutput {
     | (
         | PageStackPartOutput
         | SectionPartOutput
-        | FieldPart
+        | PageFieldPart
         | PropertiesPart
         | PluginPart
         | TaskPagePart
@@ -9467,6 +9488,17 @@ export interface TaskCaseRead {
   resource_id?: number | null;
 }
 
+export type TaskColumnFieldId = (typeof TaskColumnFieldId)[keyof typeof TaskColumnFieldId];
+
+export const TaskColumnFieldId = {
+  title: "title",
+  startDate: "startDate",
+  dueDate: "dueDate",
+  priority: "priority",
+  comments: "comments",
+  tags: "tags",
+} as const;
+
 export type TaskCreateRecurrenceStrategy =
   (typeof TaskCreateRecurrenceStrategy)[keyof typeof TaskCreateRecurrenceStrategy];
 
@@ -9607,6 +9639,16 @@ export interface TaskReorderRequest {
   project_id: number;
   items: TaskReorderItem[];
 }
+
+export type TaskSortFieldId = (typeof TaskSortFieldId)[keyof typeof TaskSortFieldId];
+
+export const TaskSortFieldId = {
+  title: "title",
+  startDate: "startDate",
+  dueDate: "dueDate",
+  priority: "priority",
+  tags: "tags",
+} as const;
 
 export interface TaskStatusCreate {
   /**
@@ -9793,7 +9835,7 @@ export const ViewSortDirection = {
 } as const;
 
 export interface ViewSort {
-  field: TaskFieldId | string;
+  field: TaskSortFieldId;
   direction?: ViewSortDirection;
 }
 
@@ -9814,7 +9856,7 @@ export interface ViewDefinitionOutput {
   layout: ViewLayout;
   filters?: TaskFilterSpec | null;
   card?: CardPartOutput | null;
-  columns?: (TaskFieldId | string)[] | null;
+  columns?: (TaskColumnFieldId | string)[] | null;
   sort?: ViewSort[] | null;
   opens?: ViewDefinitionOutputOpens;
 }
@@ -9852,7 +9894,7 @@ export interface ViewDefinitionInput {
   layout: ViewLayout;
   filters?: TaskFilterSpec | null;
   card?: CardPartInput | null;
-  columns?: (TaskFieldId | string)[] | null;
+  columns?: (TaskColumnFieldId | string)[] | null;
   sort?: ViewSort[] | null;
   opens?: ViewDefinitionInputOpens;
 }

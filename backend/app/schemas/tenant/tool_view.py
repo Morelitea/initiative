@@ -161,8 +161,53 @@ def _named_field(value: str) -> str:
     )
 
 
+def _plugin_field(value: str) -> str:
+    """``plugin:<install id>:<metadata key>``."""
+    if value.startswith(PLUGIN_FIELD_PREFIX):
+        return _named_field(value)
+    raise ValueError("a field here is a built-in field id or 'plugin:<id>:<key>'")
+
+
 NamedFieldId = Annotated[str, AfterValidator(_named_field)]
+PluginFieldId = Annotated[str, AfterValidator(_plugin_field)]
 ViewFieldId = Union[TaskFieldId, NamedFieldId]
+
+
+# The built-in fields each place draws, named for the generated client.
+_COLUMNS = {"title", "startDate", "dueDate", "priority", "tags", "comments"}
+_SORTS = {"title", "startDate", "dueDate", "priority", "tags"}
+_PAGE = {
+    "title",
+    "description",
+    "assignees",
+    "checklist",
+    "priority",
+    "recurrence",
+    "tags",
+}
+
+#: What a table draws as a column: the rest of a task (its people, its
+#: checklist) sits in the title's cell.
+TaskColumnFieldId = Enum(
+    "TaskColumnFieldId",
+    {f.name: f.value for f in TaskFieldId if f.value in _COLUMNS},
+    type=str,
+)
+#: What a table, and so the list, can be sorted by.
+TaskSortFieldId = Enum(
+    "TaskSortFieldId",
+    {f.name: f.value for f in TaskFieldId if f.value in _SORTS},
+    type=str,
+)
+#: What a task's page edits as a field. Its status, its dates and its
+#: properties are parts of their own, and its counts are a card's.
+TaskPageFieldId = Enum(
+    "TaskPageFieldId",
+    {f.name: f.value for f in TaskFieldId if f.value in _PAGE},
+    type=str,
+)
+ColumnFieldId = Union[TaskColumnFieldId, NamedFieldId]
+PageFieldId = Union[TaskPageFieldId, PluginFieldId]
 
 
 def _part_id(value: str) -> str:
@@ -235,6 +280,15 @@ CardPart.model_rebuild()
 StackPart.model_rebuild()
 
 
+class PageFieldProps(_Strict):
+    field: PageFieldId
+
+
+class PageFieldPart(_Strict):
+    type: Literal["field"]
+    props: PageFieldProps
+
+
 class SectionProps(_Strict):
     #: The initiative's own words, drawn as written.
     title: Optional[str] = Field(default=None, max_length=100)
@@ -275,7 +329,12 @@ class TaskPagePart(_Strict):
 
 PagePart = Annotated[
     Union[
-        PageStackPart, SectionPart, FieldPart, PropertiesPart, PluginPart, TaskPagePart
+        PageStackPart,
+        SectionPart,
+        PageFieldPart,
+        PropertiesPart,
+        PluginPart,
+        TaskPagePart,
     ],
     Field(discriminator="type"),
 ]
@@ -299,7 +358,7 @@ class ViewLayout(_Strict):
 
 
 class ViewSort(_Strict):
-    field: ViewFieldId
+    field: TaskSortFieldId
     direction: Literal["asc", "desc"] = "asc"
 
 
@@ -310,7 +369,7 @@ class ViewDefinition(_Strict):
     layout: ViewLayout
     filters: Optional[TaskFilterSpec] = None
     card: Optional[CardPart] = None
-    columns: Optional[List[ViewFieldId]] = None
+    columns: Optional[List[ColumnFieldId]] = None
     sort: Optional[List[ViewSort]] = None
     #: How an item opens: in a side panel or on its own page.
     opens: Optional[Literal["panel", "page"]] = None

@@ -26,6 +26,7 @@ import { buildToolViewSet } from "@/__tests__/factories/toolView.factory";
 import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
+import type { ToolItemLayoutRead } from "@/api/generated/initiativeAPI.schemas";
 import {
   type ProjectRead,
   type PropertySummary,
@@ -166,6 +167,25 @@ const renderTaskPage = ({
 };
 
 /** A field on the page, by its label. */
+/** A task page laid out by its project: a titled section of the description,
+ *  and nothing at the side. */
+const LAYOUT: ToolItemLayoutRead[] = [
+  {
+    id: 1,
+    item_kind: "task",
+    definition: {
+      main: [
+        {
+          type: "section",
+          props: { title: "Work" },
+          children: [{ type: "field", props: { field: "description" } }],
+        },
+      ],
+      side: [],
+    },
+  },
+];
+
 const fieldNamed = (name: RegExp) => screen.findByRole("group", { name });
 
 const choose = async (field: RegExp, option: RegExp) => {
@@ -464,31 +484,20 @@ describe("TaskEditPage", () => {
   });
 
   it("lays the page out as its project's layout says, gathering what it leaves out", async () => {
+    // The task was moved: its new project lays its page out, while the path
+    // still names the one it came from.
+    const MOVED_TO = PROJECT_ID + 1;
     server.use(
-      communityHttp.get("/views/", () =>
+      communityHttp.get("/views/", ({ request }) =>
         HttpResponse.json(
           buildToolViewSet({
-            item_layouts: [
-              {
-                id: 1,
-                item_kind: "task",
-                definition: {
-                  main: [
-                    {
-                      type: "section",
-                      props: { title: "Work" },
-                      children: [{ type: "field", props: { field: "description" } }],
-                    },
-                  ],
-                  side: [],
-                },
-              },
-            ],
+            item_layouts:
+              new URL(request.url).searchParams.get("tool_id") === String(MOVED_TO) ? LAYOUT : [],
           })
         )
       )
     );
-    renderTaskPage();
+    renderTaskPage({ taskProjectId: MOVED_TO });
 
     const more = await screen.findByRole("button", { name: "More fields" });
     expect(screen.getByRole("button", { name: "Work" })).toBeInTheDocument();

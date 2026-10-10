@@ -101,9 +101,10 @@ export const TaskEditPage = () => {
   }, [taskProjectId, projectId]);
 
   const taskStatusesQuery = useProjectTaskStatuses(projectId ?? null);
-  // The project's views carry how its tasks' pages are laid out. One that
-  // cannot be read draws the page as shipped.
-  const viewsQuery = useProjectViews(projectId ?? null);
+  // The task's project's views carry how its page is laid out, and a move
+  // takes the page to its new project's. A set that cannot be read draws the
+  // page as shipped.
+  const viewsQuery = useProjectViews(taskProjectId ?? null);
   const task = taskQuery.data;
   const showTask = (shown: TaskRead) =>
     queryClient.setQueryData<TaskRead>(getReadTaskQueryKey(communityId, parsedTaskId), shown);

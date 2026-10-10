@@ -545,7 +545,9 @@ export const ProjectTasksTableView = memo(
       prevProps.canEditTaskDetails === nextProps.canEditTaskDetails &&
       prevProps.taskActionsDisabled === nextProps.taskActionsDisabled &&
       prevProps.initiativeId === nextProps.initiativeId &&
-      prevProps.tableState[0] === nextProps.tableState[0]
+      prevProps.tableState[0] === nextProps.tableState[0] &&
+      prevProps.viewColumns === nextProps.viewColumns &&
+      prevProps.viewSlug === nextProps.viewSlug
       // Note: Intentionally ignoring callback prop changes as they're functionally the same
     );
   }

@@ -327,6 +327,41 @@ def _one(**extra: Any) -> dict[str, Any]:
         (_one(definition={"columns": ["property:Size"]}), 422, None),
         (_one(definition={"columns": ["plugin:3:CI"]}), 422, None),
         (_one(**_card({"type": "comments"})), 422, None),
+        (_one(definition={"columns": ["assignees"]}), 422, None),
+        (_one(definition={"sort": [{"field": "property:12"}]}), 422, None),
+        (_one(definition={"sort": [{"field": "comments"}]}), 422, None),
+        (
+            {
+                **_one(),
+                "item_layouts": [
+                    {
+                        "item_kind": "task",
+                        "definition": {
+                            "side": [{"type": "field", "props": {"field": "startDate"}}]
+                        },
+                    }
+                ],
+            },
+            422,
+            None,
+        ),
+        (
+            {
+                **_one(),
+                "item_layouts": [
+                    {
+                        "item_kind": "task",
+                        "definition": {
+                            "side": [
+                                {"type": "field", "props": {"field": "property:12"}}
+                            ]
+                        },
+                    }
+                ],
+            },
+            422,
+            None,
+        ),
         (
             {
                 **_one(),
@@ -371,6 +406,11 @@ def _one(**extra: Any) -> dict[str, Any]:
         "a property by name",
         "a plug-in field outside the key's characters",
         "a page's part on a card",
+        "a column the table cannot draw",
+        "a sort by a property",
+        "a sort the list cannot order by",
+        "a date alone on a page",
+        "a property alone on a page",
         "a card on a page",
         "a plug-in field by name",
         "a plug-in part with no part",
