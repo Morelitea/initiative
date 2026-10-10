@@ -39,6 +39,7 @@ from app.api.deps import (
 )
 from app.core.messages import ImportEngineMessages, MarketplaceMessages
 from app.db.query import build_paginated_response
+from app.db.session import routed_guild_id
 from app.models.platform.marketplace import MarketplaceListing
 from app.schemas.platform.marketplace import (
     ListingKind,
@@ -147,7 +148,9 @@ async def _detail(session, listing: MarketplaceListing) -> MarketplaceListingDet
         session, listing.latest_version_id
     )
     offered = await registration_lookup.plugin_is_offered(
-        latest.definition if latest else None, listing_uid=listing.uid
+        latest.definition if latest else None,
+        guild_id=routed_guild_id(session),
+        listing_uid=listing.uid,
     ) and await listing_is_offered(session, listing)
     if not offered:
         raise HTTPException(

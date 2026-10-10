@@ -673,7 +673,9 @@ async def drain_guild(
     # the scope it names and, for one a plug-in registered, the plug-in's reach.
     registrations = (await load_registrations()).values()
     plugin_ids = {r.listing_uid: r.public_id for r in registrations if r.listing_uid}
-    live_listings = [r.listing_uid for r in registrations if r.listing_uid and r.live]
+    live_listings = [
+        r.listing_uid for r in registrations if r.listing_uid and r.live_in(guild_id)
+    ]
     await set_rls_context(session, SystemGuild(guild_id))
     # Ids, not instances: each pass ends by expunging the identity map (ids
     # repeat across guild schemas), and an instance held across that is detached.

@@ -140,9 +140,10 @@ def _refusal(page: dict[str, Any], *, initiative_id: int | None) -> str:
 
 
 async def require_live_registration(
-    plugin: GuildPlugin,
+    plugin: GuildPlugin, guild_id: int
 ) -> registration_lookup.RegistrationSnapshot:
-    """The registration behind this install, or a refusal.
+    """The registration behind this install in community ``guild_id``, or a
+    refusal.
 
     Both halves of "not available" answer the same way: a plug-in service this
     deployment never wired up, and one whose registration the operator turned
@@ -151,7 +152,7 @@ async def require_live_registration(
     registration = await registration_lookup.registration_for_definition(
         plugin.definition, listing_uid=plugin.listing_uid
     )
-    if registration is None or not registration.live:
+    if registration is None or not registration.live_in(guild_id):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=GuildPluginMessages.SERVICE_NOT_REGISTERED,
@@ -224,7 +225,7 @@ async def mint_page_handoff(
             detail=_refusal(page, initiative_id=initiative_id),
         )
 
-    registration = await require_live_registration(plugin)
+    registration = await require_live_registration(plugin, context.guild_id)
 
     try:
         key, kid = resolve_plugin_platform_signing_material()

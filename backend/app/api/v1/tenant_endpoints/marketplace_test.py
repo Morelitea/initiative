@@ -21,6 +21,7 @@ from app.models.platform.guild import CommunityRole
 from app.models.platform.publisher import Publisher
 from app.services.marketplace import catalog as catalog_service
 from app.services.marketplace.registration_lookup import invalidate_registrations
+from app.services.platform.intake_setup import set_operations_guild
 from app.testing.fake_vendor import declarative_plugin
 from app.testing import (
     create_plugin_service_registration,
@@ -543,6 +544,33 @@ class TestAPluginNeedsItsServiceRegistered:
         )
         assert response.status_code == 200
         assert response.json()["installable"] is True
+
+    async def test_an_operations_only_plugin_is_offered_to_the_operations_community(
+        self, client, acting_user, session, service_plugin
+    ):
+        """Off the shelf, its page not found and its install refused in every
+        other community."""
+        await create_plugin_service_registration(
+            session, public_id="tests.shop", operations_only=True
+        )
+        operations = await acting_user(guild_role=CommunityRole.superadmin)
+        other = await acting_user(guild_role=CommunityRole.superadmin)
+        await set_operations_guild(session, operations.guild.id)
+
+        assert "tests.shop" in await _shelf(client, operations, kind="plugin")
+        assert "tests.shop" not in await _shelf(client, other, kind="plugin")
+        page = await client.get(
+            other.g("/marketplace/listings/tests.shop"), headers=other.headers
+        )
+        assert page.status_code == 404
+        assert page.json()["detail"] == MarketplaceMessages.LISTING_NOT_FOUND
+        install = await client.post(
+            other.g("/plugins/"),
+            json={"listing_uid": self.SERVICE_UID},
+            headers=other.headers,
+        )
+        assert install.status_code == 404
+        assert install.json()["detail"] == MarketplaceMessages.LISTING_NOT_FOUND
 
     async def test_a_declarative_plugin_is_offered_by_its_listings_registration(
         self, client, acting_user, session

@@ -11,7 +11,8 @@ splits the same way, whatever published its listing:
   directory, the build).
 * **Deployment facts** come from the operator, through ``PLUGIN_SERVICES_CONFIG``
   or the settings form: where the plug-in runs, the public keys its container signs
-  with, its vendor values, the switch, the mandatory flag and the origins.
+  with, its vendor values, the switch, the mandatory and operations-only flags
+  and the origins.
 
 A registration holds no secret beyond its vendor values. Every call the plug-in
 makes to Initiative is a JWT it signs with a key published here (``jwks``, or
@@ -32,6 +33,10 @@ Some columns exist only because of that split:
 * ``mandatory`` — the deployment asserts this plug-in is part of what it *is*, so
   every guild has it and guild admins cannot remove it. The operator's kill
   switch (``enabled``) still outranks it.
+* ``operations_only`` — the plug-in is for the deployment's operations community
+  (``app_settings.operations_guild_id``) alone: it is offered nowhere else, the
+  mandatory sweep installs it nowhere else, and an install anywhere else is not
+  live. With no operations community named, it is live nowhere.
 
 * ``vendor_values`` — what the operator supplies for the plug-in's vendor client,
   as the listing's manifest declares it under ``vendor``: one Fernet
@@ -45,7 +50,8 @@ Some columns exist only because of that split:
 **Live** is one rule, stated once in :func:`registration_live_sql`: the
 registration is enabled, its publisher is enabled, its required vendor values
 are set and, for a container, it has a location and a key set to verify
-against.
+against; and, asked for one community, the registration is not limited to the
+operations community or that community is it.
 The install standing, the registration snapshot and every channel that reads
 a single row ask it in that form.
 
@@ -137,10 +143,17 @@ class RegistrationSource:
 
 
 def registration_live_sql(
-    registration: str = "plugin_service_registrations", publisher: str = "publishers"
+    registration: str = "plugin_service_registrations",
+    publisher: str = "publishers",
+    community: Optional[str] = None,
 ) -> str:
     """Whether a registration is live, as a SQL boolean over one registration
     row and its publisher's row, named by ``registration`` and ``publisher``.
+
+    Given ``community``, a SQL expression naming one community's id, it is live
+    in that community: an ``operations_only`` registration is live only in the
+    community ``app_settings.operations_guild_id`` names. Without it, the
+    answer is the registration's own, wherever it is limited to.
 
     Enabled, its publisher enabled, and every required vendor value set; and
     for a container, a location and a key set to verify against (a pasted set
@@ -151,13 +164,21 @@ def registration_live_sql(
     listing names the plug-in, and the operator says where it runs and which keys
     it signs with. A declarative plug-in runs nowhere and signs nothing.
     """
+    reach = (
+        ""
+        if community is None
+        else (
+            f" AND (NOT {registration}.operations_only OR {community} = ("
+            "SELECT s.operations_guild_id FROM public.app_settings s WHERE s.id = 1))"
+        )
+    )
     return (
         f"({registration}.enabled AND {publisher}.enabled"
         f" AND {registration}.vendor_ready"
         f" AND ({registration}.kind = '{RegistrationKind.DECLARATIVE}'"
         f" OR ({registration}.base_url IS NOT NULL"
         f" AND ({registration}.jwks_uri IS NOT NULL"
-        f" OR {registration}.jwks -> 'keys' -> 0 IS NOT NULL))))"
+        f" OR {registration}.jwks -> 'keys' -> 0 IS NOT NULL))){reach})"
     )
 
 
@@ -230,6 +251,11 @@ class PluginServiceRegistration(SQLModel, table=True):
     )
     # Auto-installed into every guild and not removable by guild admins.
     mandatory: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default="false"),
+    )
+    # Offered to, installed in and live in the operations community alone.
+    operations_only: bool = Field(
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default="false"),
     )

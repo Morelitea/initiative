@@ -7459,6 +7459,7 @@ export interface PluginServiceRegistrationCreate {
   jwks?: PluginServiceRegistrationCreateJwks;
   jwks_uri?: string | null;
   mandatory?: boolean;
+  operations_only?: boolean;
   enabled?: boolean;
   vendor_values?: PluginServiceRegistrationCreateVendorValues;
 }
@@ -7499,6 +7500,7 @@ export interface PluginServiceRegistrationRead {
   jwks_uri: string | null;
   scope_ceiling: string[];
   mandatory: boolean;
+  operations_only: boolean;
   enabled: boolean;
   source: string;
   image_digest: string | null;
@@ -7537,6 +7539,7 @@ export interface PluginServiceRegistrationUpdate {
   jwks?: PluginServiceRegistrationUpdateJwks;
   jwks_uri?: string | null;
   mandatory?: boolean | null;
+  operations_only?: boolean | null;
   enabled?: boolean | null;
   vendor_values?: PluginServiceRegistrationUpdateVendorValues;
 }

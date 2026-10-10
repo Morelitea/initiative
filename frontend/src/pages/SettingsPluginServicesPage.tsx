@@ -92,6 +92,7 @@ export const SettingsPluginServicesPage = () => {
           data: {
             ...placement,
             mandatory: values.mandatory,
+            operations_only: values.operationsOnly,
             // Only the values that were typed; a secret left alone is kept.
             ...(Object.keys(values.vendorValues).length > 0
               ? { vendor_values: values.vendorValues }
@@ -119,6 +120,7 @@ export const SettingsPluginServicesPage = () => {
         jwks: values.jwks,
         jwks_uri: values.jwksUri || null,
         mandatory: values.mandatory,
+        operations_only: values.operationsOnly,
       },
       {
         onSuccess: () => {
@@ -220,6 +222,11 @@ export const SettingsPluginServicesPage = () => {
                         )}
                         {registration.mandatory && (
                           <Badge variant="secondary">{t("pluginServices.mandatoryBadge")}</Badge>
+                        )}
+                        {registration.operations_only && (
+                          <Badge variant="secondary">
+                            {t("pluginServices.operationsOnlyBadge")}
+                          </Badge>
                         )}
                       </div>
                       {declarative ? (
@@ -329,6 +336,9 @@ export const SettingsPluginServicesPage = () => {
                     {keysMissing && <p>{t("pluginServices.noKeysHelp")}</p>}
                     {!registration.vendor_ready && <p>{t("pluginServices.vendorMissingHelp")}</p>}
                     {registration.mandatory && <p>{t("pluginServices.mandatoryHelp")}</p>}
+                    {registration.operations_only && (
+                      <p>{t("pluginServices.operationsOnlyHelp")}</p>
+                    )}
                   </div>
                 </li>
               );

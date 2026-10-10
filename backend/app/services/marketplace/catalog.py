@@ -32,6 +32,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.version import get_version
 from app.db.query import apply_pagination
+from app.db.session import routed_guild_id
 from app.models.platform.marketplace import (
     MarketplaceListing,
     MarketplaceListingVersion,
@@ -216,8 +217,9 @@ def _min_plugin_api(manifest: dict[str, Any], public_id: str) -> Optional[str]:
 # --- reads ------------------------------------------------------------------
 
 
-async def _unoffered_plugin() -> Exists:
-    """Matches a plug-in listing this deployment does not run the service for.
+async def _unoffered_plugin(guild_id: Optional[int]) -> Exists:
+    """Matches a plug-in listing this deployment does not run the service for
+    in community ``guild_id``.
 
     Read from the registration snapshot rather than joined from the table:
     nothing on the request path holds a grant on it, so it is loaded on the
@@ -228,7 +230,7 @@ async def _unoffered_plugin() -> Exists:
     here and stay on the shelf.
     """
     latest = MarketplaceListingVersion
-    offered = sorted(await registration_lookup.enabled_service_ids())
+    offered = sorted(await registration_lookup.enabled_service_ids(guild_id))
     return (
         select(latest.id)
         .where(
@@ -269,7 +271,9 @@ async def list_listings(
     either, for the same reason: a catalog is published to every deployment,
     and a registration is how one says it runs that plug-in. The rule is read here
     rather than passed in, so browsing, reading a listing and installing one
-    cannot end up disagreeing about what this deployment carries.
+    cannot end up disagreeing about what this deployment carries. It is asked
+    for the community the session is routed to, so a plug-in limited to the
+    operations community is on that community's shelf alone.
 
     ``sources``, when given, keeps only listings that reached the deployment
     one of those ways — what a client showing a narrower catalogue asks for.
@@ -293,7 +297,7 @@ async def list_listings(
         )
     else:
         filters.append(MarketplaceListing.bundled_with_uid.is_(None))
-    unoffered_plugin = await _unoffered_plugin()
+    unoffered_plugin = await _unoffered_plugin(routed_guild_id(session))
     filters.append(~unoffered_plugin)
     if query:
         # Case-insensitive across the three fields someone would actually type.

@@ -2016,8 +2016,8 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
     # never per guild — and owner-managed.
     # Everything else is the system engine's. An installed plug-in's standing reads
     # the registration its token was issued to (its column grant is public_id,
-    # listing_uid, enabled, publisher_id, jwks, jwks_uri, base_url and
-    # vendor_ready alone).
+    # listing_uid, enabled, publisher_id, jwks, jwks_uri, base_url, vendor_ready,
+    # kind and operations_only alone).
     "plugin_service_registrations": SharedTable(
         rls=TableRls(
             policies=(
@@ -2040,10 +2040,12 @@ SHARED_TABLE_REGISTRY: dict[str, SharedTable] = {
             # Deployment wiring: read and written on the system engine alone.
             app_user=None,
             # No TABLE grant: a column-scoped SELECT on (public_id, listing_uid,
-            # enabled, publisher_id, jwks, jwks_uri, base_url), for the registration
-            # the install's token names (install_reads_its_registration; migrations
-            # 20260924_0379, 20260924_0387, 20260924_0388 and 20260924_0390). Asserted
-            # in install_standing_test beside the one on guilds.
+            # enabled, publisher_id, jwks, jwks_uri, base_url, vendor_ready, kind,
+            # operations_only), for the registration the install's token names
+            # (install_reads_its_registration; migrations 20260924_0379,
+            # 20260924_0387, 20260924_0388, 20260924_0390, 20260925_0393,
+            # 20261001_0437 and 20261009_0480). Asserted in install_standing_test
+            # beside the one on guilds.
             plugin_install_base=None,
         ),
     ),

@@ -24,6 +24,7 @@ const buildRegistration = (
   jwks_uri: null,
   scope_ceiling: [],
   mandatory: false,
+  operations_only: false,
   enabled: true,
   source: "operator",
   image_digest: null,
@@ -163,10 +164,11 @@ describe("SettingsPluginServicesPage", () => {
   });
 
   describe("reach", () => {
-    it("shows mandatory on the registration that carries it", () => {
+    it("shows mandatory and operations-only on the registrations that carry them", () => {
       registrations = [
         buildRegistration({ id: 1, public_id: "core.automation", mandatory: true }),
         buildRegistration({ id: 2, public_id: "acme.shopify" }),
+        buildRegistration({ id: 3, public_id: "acme.sales", operations_only: true }),
       ];
       renderAsOperator();
 
@@ -178,6 +180,7 @@ describe("SettingsPluginServicesPage", () => {
           "Installed into every community automatically. Community admins cannot remove it or turn it off."
         )
       ).toBeInTheDocument();
+      expect(screen.getByText("Operations community only")).toBeInTheDocument();
     });
 
     it("confers no powers beyond the scope ceiling", async () => {
@@ -187,8 +190,9 @@ describe("SettingsPluginServicesPage", () => {
       await user.click(screen.getByRole("button", { name: "Add plug-in service" }));
       await screen.findByLabelText("Plug-in identifier");
 
-      // One switch left in the operator's box: whether every community gets it.
-      expect(within(screen.getByRole("dialog")).getAllByRole("switch")).toHaveLength(1);
+      // Two switches in the operator's box: whether only the operations
+      // community gets it, and whether every community does.
+      expect(within(screen.getByRole("dialog")).getAllByRole("switch")).toHaveLength(2);
     });
   });
 
@@ -219,6 +223,7 @@ describe("SettingsPluginServicesPage", () => {
           jwks: null,
           jwks_uri: "https://shopify.example.com/.well-known/jwks.json",
           mandatory: false,
+          operations_only: false,
         },
         expect.anything()
       );
@@ -340,6 +345,7 @@ describe("SettingsPluginServicesPage", () => {
 
       expect(updateMutate.mock.calls[0][0].data).toEqual({
         mandatory: false,
+        operations_only: false,
         vendor_values: { client_id: "gh-app" },
       });
     });

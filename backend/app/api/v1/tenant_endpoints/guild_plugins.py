@@ -304,7 +304,7 @@ def _require_installable_kind(definition: dict) -> None:
         )
 
 
-async def _require_removable(plugin: GuildPlugin) -> None:
+async def _require_removable(plugin: GuildPlugin, guild_id: int) -> None:
     """Refuse to remove or turn off a plug-in the deployment provides.
 
     Mandatory constrains guild admins, not the operator: a plug-in marked so on
@@ -315,7 +315,7 @@ async def _require_removable(plugin: GuildPlugin) -> None:
     nothing migrated.
     """
     state = await registration_lookup.install_state(
-        plugin.definition, listing_uid=plugin.listing_uid
+        plugin.definition, guild_id=guild_id, listing_uid=plugin.listing_uid
     )
     if state.mandatory:
         raise HTTPException(
@@ -344,7 +344,9 @@ async def _read(
         plugin,
         viewer=viewer,
         install_state=await registration_lookup.install_state(
-            plugin.definition, listing_uid=plugin.listing_uid
+            plugin.definition,
+            guild_id=context.guild_id,
+            listing_uid=plugin.listing_uid,
         ),
         avatar_url=await _plugin_avatar(session, plugin),
         context=context,
@@ -374,7 +376,9 @@ async def _detail(
         avatar_url=await _plugin_avatar(session, plugin),
         member_rows=await _member_rows(session, plugin_id=plugin.id, user_id=user_id),
         install_state=await registration_lookup.install_state(
-            plugin.definition, listing_uid=plugin.listing_uid
+            plugin.definition,
+            guild_id=context.guild_id,
+            listing_uid=plugin.listing_uid,
         ),
         update_offer=offer,
         installed=await guild_plugins_service.installed_plugin_ids(session),
@@ -449,7 +453,9 @@ async def list_community_plugins(
                 plugin,
                 viewer=viewer,
                 install_state=await registration_lookup.install_state(
-                    plugin.definition, listing_uid=plugin.listing_uid
+                    plugin.definition,
+                    guild_id=guild_context.guild_id,
+                    listing_uid=plugin.listing_uid,
                 ),
                 avatar_url=avatars.get(plugin.listing_uid),
                 context=guild_context,
@@ -796,7 +802,7 @@ async def update_community_plugin(
         plugin.name = data["name"].strip()
     if "enabled" in data and data["enabled"] is not None:
         if not data["enabled"]:
-            await _require_removable(plugin)
+            await _require_removable(plugin, guild_context.guild_id)
         plugin.enabled = data["enabled"]
     if data.get("auto_update") is not None:
         plugin.auto_update = data["auto_update"]
@@ -845,7 +851,7 @@ async def uninstall_community_plugin(
     # plug-in either lands before this read and is trashed with everything else, or
     # finds no install and is refused.
     plugin = await _load(session, plugin_id, for_update=True)
-    await _require_removable(plugin)
+    await _require_removable(plugin, guild_context.guild_id)
 
     install_id, guild_id = plugin.id, routed_guild_id(session)
     await guild_plugins_service.uninstall_plugin(
@@ -1154,7 +1160,9 @@ async def connect_community_plugin(
         require_seat(guild_context)
         require_grant_writes(guild_context)
 
-    registration = await handoff_service.require_live_registration(plugin)
+    registration = await handoff_service.require_live_registration(
+        plugin, guild_context.guild_id
+    )
 
     if guild_wide:
         stored_config = (plugin.config or {}).get(connection_id) or {}

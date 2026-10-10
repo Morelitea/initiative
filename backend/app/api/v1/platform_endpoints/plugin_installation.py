@@ -145,7 +145,7 @@ async def _admit(
     registration = (await registration_lookup.load_registrations()).get(
         context.client_id
     )
-    if registration is None or not registration.live:
+    if registration is None or not registration.live_in(context.guild_id):
         raise _refuse()
 
     request.state.credential = CREDENTIAL_INSTALL

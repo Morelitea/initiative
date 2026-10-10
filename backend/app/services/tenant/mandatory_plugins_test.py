@@ -24,6 +24,7 @@ from app.models.platform.guild import CommunityRole
 from app.models.tenant.plugin_placement import PluginPlacement
 from app.models.tenant.guild_plugin import GuildPlugin
 from app.services.marketplace.registration_lookup import invalidate_registrations
+from app.services.platform.intake_setup import set_operations_guild
 from app.services.tenant.initiatives import get_moderator_role
 from app.services.tenant.mandatory_plugins import backfill_mandatory_plugins
 from app.testing import (
@@ -213,6 +214,30 @@ class TestBackfill:
             assert [plugin.listing_uid for plugin in plugins] == [PROVIDED_UID], (
                 f"guild {guild.id} did not get its own install"
             )
+
+    async def test_an_operations_only_plugin_goes_to_the_operations_community(
+        self, session: AsyncSession, mandatory_registration
+    ):
+        mandatory_registration.operations_only = True
+        session.add(mandatory_registration)
+        await session.commit()
+        guilds = []
+        for index in range(2):
+            creator = await create_user(session, email=f"ops{index}@example.com")
+            guild = await create_guild(session, creator=creator, name=f"Ops {index}")
+            await create_guild_membership(
+                session, user=creator, guild=guild, role=CommunityRole.admin
+            )
+            guilds.append(guild)
+        operations, other = guilds
+        await set_operations_guild(session, operations.id)
+
+        result = await backfill_mandatory_plugins()
+
+        assert (result.installed, result.failed) == (1, 0)
+        plugins = await _installed_plugins(session, operations.id)
+        assert [plugin.listing_uid for plugin in plugins] == [PROVIDED_UID]
+        assert await _installed_plugins(session, other.id) == []
 
     async def test_running_it_twice_installs_once(
         self, session: AsyncSession, mandatory_registration
