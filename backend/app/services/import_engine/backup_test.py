@@ -89,17 +89,16 @@ async def _restored_due_date(session, initiative: Initiative) -> datetime:
     return due
 
 
-async def test_an_anchored_backup_lands_its_dates_as_far_from_now(exported, session):
+async def test_an_anchored_backup_moves_its_dates_by_whole_weeks(exported, session):
     a, due, bundle = exported
-    exported_ago = timedelta(days=30)
 
     initiative = await _restore(
-        session, a, bundle, anchor=datetime.now(timezone.utc) - exported_ago
+        session, a, bundle, anchor=datetime.now(timezone.utc) - timedelta(days=30)
     )
 
-    # Due two days after the anchor, so two days from now.
+    # Moved by the four whole weeks nearest, so it keeps its weekday.
     assert (await _restored_due_date(session, initiative)).date() == (
-        due + exported_ago
+        due + timedelta(weeks=4)
     ).date()
 
 
