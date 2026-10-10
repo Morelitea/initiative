@@ -117,16 +117,25 @@ export const useRecordOpen = (
     select: (state) => state.resolvedLocation?.state.viewSource,
   });
   const entry = useRouterState({ select: (state) => state.resolvedLocation?.state.__TSR_key });
+  const path = useRouterState({ select: (state) => state.resolvedLocation?.pathname });
   const { mutate } = useRecordRecentView(kind, Number(communityId), source ?? arrivedFrom);
-  const recorded = useRef<{ id?: number; each?: number; entry?: string }>({});
+  const recorded = useRef<{ id?: number; each?: number; entry?: string; path?: string }>({});
   useEffect(() => {
-    if (!id || !settled) return;
+    // Closed: opening it again is another open.
+    if (!id) {
+      recorded.current = {};
+      return;
+    }
+    if (!settled) return;
     const last = recorded.current;
-    const searchedAgain = !source && arrivedFrom !== undefined && entry !== last.entry;
+    // A search back to the address of what is open. At another address the
+    // page is still loading what it names, and `id` is the one being left.
+    const searchedAgain =
+      !source && arrivedFrom !== undefined && entry !== last.entry && path === last.path;
     if (id === last.id && each === last.each && !searchedAgain) return;
-    recorded.current = { id, each, entry };
+    recorded.current = { id, each, entry, path };
     mutate(id);
-  }, [id, each, entry, arrivedFrom, settled, source, mutate]);
+  }, [id, each, entry, path, arrivedFrom, settled, source, mutate]);
 };
 
 /**

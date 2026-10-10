@@ -5,10 +5,10 @@
  * never touches the bar.
  */
 import { QueryClientProvider } from "@tanstack/react-query";
-import { useParams } from "@tanstack/react-router";
+import { useParams, useSearch } from "@tanstack/react-router";
 import { renderHook, waitFor } from "@testing-library/react";
 import { HttpResponse } from "msw";
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { buildRecentItem } from "@/__tests__/factories";
@@ -104,9 +104,16 @@ describe("useRecordRecentView", () => {
 
   it("records something inside a tool with where it was opened from, leaving the bar alone", async () => {
     const opened = recordOpens();
+    // As a page reads it: the task it shows stays the one before until the
+    // next one's answer arrives.
     const TaskPage = () => {
       const { taskId } = useParams({ strict: false }) as { taskId: string };
-      useRecordOpen("task", Number(taskId));
+      const [shown, setShown] = useState<number>();
+      useEffect(() => {
+        const answer = setTimeout(() => setShown(Number(taskId)), 30);
+        return () => clearTimeout(answer);
+      }, [taskId]);
+      useRecordOpen("task", shown);
       return null;
     };
     const key = getListRecentsQueryKey();
@@ -124,10 +131,12 @@ describe("useRecordRecentView", () => {
     await router.navigate({ href: "/c/3/tasks/7", state: FROM_SEARCH });
     await waitFor(() => expect(opened).toEqual(["task 7 direct", "task 7 search"]));
 
-    // Moving about on a page opens nothing.
+    // Searching for another records that one, not the one being left; moving
+    // about on a page opens nothing.
     await router.navigate({ href: "/c/3/tasks/8", state: FROM_SEARCH });
+    await waitFor(() => expect(opened).toHaveLength(3));
     await router.navigate({ href: "/c/3/tasks/8?tab=details" });
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await new Promise((resolve) => setTimeout(resolve, 80));
     expect(opened).toEqual(["task 7 direct", "task 7 search", "task 8 search"]);
     expect(queryClient.getQueryData(key)).toBe(bar);
     expect(queryClient.getQueryState(key)?.isInvalidated).toBe(false);
@@ -137,14 +146,18 @@ describe("useRecordRecentView", () => {
     const opened = recordOpens();
     const WikiPage = () => {
       const { pageId } = useParams({ strict: false }) as { pageId: string };
+      const { image } = useSearch({ strict: false }) as { image?: string };
       useRecordOpen("wiki", 4, { each: Number(pageId) });
-      useRecordOpen("gallery_image", 9, { source: ViewSource.direct });
+      useRecordOpen("gallery_image", image ? Number(image) : undefined, {
+        source: ViewSource.direct,
+      });
       return null;
     };
     const { router } = renderPage(WikiPage, {
       queryClient,
       initialRoute: "/c/$communityId/wikis/4/pages/$pageId",
       routeParams: { communityId: "3", pageId: "1" },
+      routerSearch: { image: "9" },
     });
     await waitFor(() => expect(opened.sort()).toEqual(["gallery_image 9 direct", "wiki 4 direct"]));
 
@@ -154,5 +167,12 @@ describe("useRecordRecentView", () => {
     await waitFor(() => expect(opened).toHaveLength(4));
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(opened.slice(2)).toEqual(["wiki 4 direct", "wiki 4 search"]);
+
+    // Closing the image and opening it again is another open.
+    await router.navigate({ href: "/c/3/wikis/4/pages/2?tab=info" });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    await router.navigate({ href: "/c/3/wikis/4/pages/2?image=9" });
+    await waitFor(() => expect(opened).toHaveLength(5));
+    expect(opened[4]).toBe("gallery_image 9 direct");
   });
 });
