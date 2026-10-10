@@ -16,7 +16,7 @@ rendered by the provisioning run.
 The downgrade puts the values back on the rows they came from.
 
 Revision ID: 20261010_0486
-Revises: 20261010_0484
+Revises: 20261010_0485
 Create Date: 2026-10-10
 """
 
@@ -27,7 +27,7 @@ from sqlalchemy.dialects import postgresql
 from app.db.guild_migrations import run_for_each_guild_schema
 
 revision = "20261010_0486"
-down_revision = "20261010_0484"
+down_revision = "20261010_0485"
 branch_labels = None
 depends_on = None
 
