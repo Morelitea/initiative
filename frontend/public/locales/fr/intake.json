@@ -209,7 +209,9 @@
     "heading": "Pièces jointes",
     "reveal": "Afficher {{name}}",
     "view": "Voir {{name}}",
-    "open": "Ouvrir {{name}}"
+    "open": "Ouvrir {{name}}",
+    "dropped_one": "{{names}} a été retiré : ce formulaire ne l'accepte pas.",
+    "dropped_other": "{{names}} ont été retirés : ce formulaire ne les accepte pas."
   },
   "security": {
     "action": "Signaler un problème de sécurité",

@@ -209,7 +209,9 @@
     "heading": "Angehängt",
     "reveal": "{{name}} anzeigen",
     "view": "{{name}} ansehen",
-    "open": "{{name}} öffnen"
+    "open": "{{name}} öffnen",
+    "dropped_one": "{{names}} wurde entfernt: Das wird hier nicht angenommen.",
+    "dropped_other": "{{names}} wurden entfernt: Sie werden hier nicht angenommen."
   },
   "security": {
     "action": "Sicherheitsproblem melden",

@@ -44,7 +44,7 @@ vi.mock("@/hooks/useTickets", async () => {
         feedback: {
           mode: "form",
           contact: null,
-          evidence: POLICY,
+          evidence: { ...POLICY, types: ["image/png"] },
           types: ["idea", "problem", "praise", "other"],
         },
       },
@@ -438,6 +438,23 @@ describe("FileTicketDialog", () => {
           }),
         })
       );
+    });
+
+    it("takes off what feedback does not take when no answer is wanted after all", async () => {
+      feedback();
+      const user = userEvent.setup();
+      await choose(user, "A problem");
+      await user.click(screen.getByLabelText("I need an answer"));
+      const notes = new File(["notes"], "notes.pdf", { type: "application/pdf" });
+      const shot = new File(["png"], "shot.png", { type: "image/png" });
+      await user.upload(screen.getByTestId("evidence-input"), [notes, shot]);
+      expect(screen.getByText("notes.pdf")).toBeInTheDocument();
+
+      await user.click(screen.getByLabelText("I need an answer"));
+
+      expect(screen.queryByText("notes.pdf")).toBeNull();
+      expect(screen.getByText("shot.png")).toBeInTheDocument();
+      expect(screen.getByRole("status")).toHaveTextContent("Took off notes.pdf");
     });
 
     it("does not offer an answer where support takes nothing", async () => {

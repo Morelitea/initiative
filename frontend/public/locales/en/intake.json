@@ -209,7 +209,9 @@
     "heading": "Attached",
     "reveal": "Show {{name}}",
     "view": "View {{name}}",
-    "open": "Open {{name}}"
+    "open": "Open {{name}}",
+    "dropped_one": "Took off {{names}}: this doesn't take it.",
+    "dropped_other": "Took off {{names}}: this doesn't take them."
   },
   "security": {
     "action": "Report a security problem",

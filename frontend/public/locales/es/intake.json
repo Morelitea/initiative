@@ -209,7 +209,9 @@
     "heading": "Adjuntos",
     "reveal": "Mostrar {{name}}",
     "view": "Ver {{name}}",
-    "open": "Abrir {{name}}"
+    "open": "Abrir {{name}}",
+    "dropped_one": "Se quitó {{names}}: aquí no se acepta.",
+    "dropped_other": "Se quitaron {{names}}: aquí no se aceptan."
   },
   "security": {
     "action": "Informar de un problema de seguridad",

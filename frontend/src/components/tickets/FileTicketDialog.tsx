@@ -22,7 +22,7 @@
  * report carries no files: it says where the material is, and it stays there.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
@@ -41,7 +41,7 @@ import {
   SecurityTopic as Topic,
 } from "@/api/generated/initiativeAPI.schemas";
 import { ContactDialog } from "@/components/tickets/ContactDialog";
-import { EvidencePicker } from "@/components/tickets/Evidence";
+import { EvidencePicker, fitToPolicy } from "@/components/tickets/Evidence";
 import { FeedbackContextPreview } from "@/components/tickets/FeedbackContextPreview";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -70,6 +70,7 @@ import {
   useTicketAvailability,
 } from "@/hooks/useTickets";
 import { getErrorMessage, getHttpStatus } from "@/lib/errorMessage";
+import { listFormat } from "@/lib/intl";
 import { toast } from "@/lib/mascotToast";
 
 /** Match the columns behind them, so a field stops where the server would. */
@@ -175,6 +176,8 @@ export const FileTicketDialog = ({
     ticket.stream === "feedback" ? (ticket.context ?? null) : null
   );
   const [files, setFiles] = useState<File[]>([]);
+  // What was taken back off because the form stopped taking it.
+  const [dropped, setDropped] = useState<string[]>([]);
   // Set, to what the server said, when the people who run the deployment had
   // nowhere to receive this. Kept apart from their address, which may still
   // be on its way: the dialog turns into the address whenever it arrives, and
@@ -206,6 +209,17 @@ export const FileTicketDialog = ({
   const sentAs = askingInstead ? "support" : ticket.stream;
   const contact = availability.data?.[sentAs]?.contact ?? null;
   const evidence = availability.data?.[sentAs]?.evidence ?? null;
+
+  // A feedback sent as a help request takes support's files; unticking that
+  // puts feedback's back, and whatever it does not take comes off, said so,
+  // rather than refusing the whole send.
+  useEffect(() => {
+    if (!evidence) return;
+    const { kept, dropped: off } = fitToPolicy(files, evidence);
+    if (off.length === 0) return;
+    setFiles(kept);
+    setDropped(off.map((file) => file.name));
+  }, [evidence, files]);
   const illegal = reason === Reason.illegal;
   // An illegal or "something else" report has to say what is wrong.
   const detailRequired = illegal || reason === Reason.other;
@@ -563,6 +577,15 @@ export const FileTicketDialog = ({
             onChange={setFiles}
             disabled={file.isPending}
           />
+        )}
+
+        {dropped.length > 0 && (
+          <p className="text-muted-foreground text-sm" role="status">
+            {t("evidence.dropped", {
+              count: dropped.length,
+              names: listFormat(undefined, { type: "conjunction" }).format(dropped),
+            })}
+          </p>
         )}
 
         {nowhere && !availability.isPending && (
