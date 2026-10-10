@@ -385,9 +385,11 @@ const TOOL_INDEX: Record<Tool, ToolIndexEntry | ToolIndexOwnPage> = {
   },
 
   [Tool.gallery]: {
-    useList: makeRows(TOOL_HOOKS[Tool.gallery].useList, (gallery) => (
-      <GalleryCard gallery={gallery} />
-    )),
+    useList: makeRows(
+      TOOL_HOOKS[Tool.gallery].useList,
+      (gallery) => <GalleryCard gallery={gallery} />,
+      WITH_PREVIEW
+    ),
     text: {
       create: "createGallery",
       createDescription: "createGalleryDescription",
