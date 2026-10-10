@@ -23,11 +23,12 @@ Each is asserted against the whole response body.
 else in this build moves ``config_state`` off ``unverified``.
 """
 
+import json
 from datetime import datetime, timezone
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import update
+from sqlalchemy import delete, update
 from sqlalchemy.exc import DBAPIError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -36,21 +37,28 @@ from app.core.plugin_access_token import seal_install_token
 from app.core.encryption import SALT_PLUGIN_CONFIG, encrypt_field
 from app.core.messages import PluginChannelMessages, PluginMessages
 from app.models.platform.plugin_service_registration import PluginServiceRegistration
+from app.models.platform.guild import CommunityRole
 from app.models.platform.publisher import Publisher
+from app.models.tenant.event_outbox import EventOutbox
+from app.models.tenant.initiative import InitiativeMember
 from app.models.tenant.plugin_event_outbox import PluginEventOutbox
 from app.models.tenant.guild_plugin import GuildPlugin
 from app.models.tenant.guild_plugin_user_connection import GuildPluginUserConnection
 from app.models.tenant.plugin_metadata import PluginMetadata
+from app.models.tenant.plugin_placement import PluginPlacement
 from app.services.marketplace.registration_lookup import invalidate_registrations
 from app.services.tenant import plugin_channels as channels_service
+from app.services.tenant import plugin_metadata as metadata_service
 from app.testing import (
     create_plugin_service_registration,
     create_guild,
     create_guild_plugin,
     create_project,
+    create_resource_grant,
     create_task,
     create_user,
     guild_url,
+    route_as,
     route_as_install,
     route_session_to_guild,
 )
@@ -976,3 +984,246 @@ class TestMetadata:
         )
         assert purged.status_code == 204, purged.text
         assert await _stored(session, installed.guild.id) == []
+
+
+#: A field on tasks, and one on queue items only.
+_FIELDS = {
+    "fields": [
+        {
+            "key": "github.issue",
+            "name": {"en": "Issue"},
+            "kind": "number",
+            "on": ["task"],
+        },
+        {"key": "lane", "name": {"en": "Lane"}, "kind": "text", "on": ["queue_item"]},
+    ]
+}
+
+
+async def _shown_board(
+    client: AsyncClient, session: AsyncSession, acting_user, role_session
+):
+    """An install declaring :data:`_FIELDS`, placed for its initiative's
+    ``member`` role, a task its members and the install read, a member there,
+    and the install's values on the task: a declared key and private ones."""
+    installed = await install_plugin(
+        session, acting_user, role_session, granted=["projects:read"], declares=_FIELDS
+    )
+    project = await create_project(session, installed.placed, installed.seat.user)
+    await create_resource_grant(session, project, all_initiative_members=True)
+    task = await create_task(session, project)
+    member = await acting_user(
+        guild_role=CommunityRole.member,
+        guild=installed.guild,
+        initiative=installed.placed,
+        initiative_role="member",
+    )
+    await route_session_to_guild(session, installed.guild.id)
+    role_id = (
+        await session.exec(
+            select(InitiativeMember.role_id).where(
+                InitiativeMember.initiative_id == installed.placed.id,
+                InitiativeMember.user_id == member.user.id,
+            )
+        )
+    ).one()
+    await session.exec(
+        update(PluginPlacement)
+        .where(PluginPlacement.install_id == installed.plugin.id)
+        .values(role_ids=[role_id])
+    )
+    await session.commit()
+    written = await client.put(
+        f"{BASE}/metadata",
+        headers=install_headers(installed, ["projects:read"]),
+        json={
+            "entity_type": "task",
+            "entity_id": task.id,
+            "values": {"github.issue": 123, "lane": "a", "sync.etag": "x"},
+        },
+    )
+    assert written.status_code == 200, written.text
+    return installed, member, task
+
+
+def _shown(rows: list[PluginMetadata]) -> dict[str, bool]:
+    return {row.key: row.shown for row in rows}
+
+
+class TestShownValues:
+    async def test_a_value_is_shown_where_its_key_is_a_field_on_the_kind(
+        self, client: AsyncClient, session: AsyncSession, acting_user, role_session
+    ):
+        """On every write, and again when the install moves to a version that
+        declares other fields; the install's own values never."""
+        installed, _member, task = await _shown_board(
+            client, session, acting_user, role_session
+        )
+        await client.put(
+            f"{BASE}/metadata",
+            headers=install_headers(installed, []),
+            json={"entity_type": "plugin", "values": {"github.issue": 1}},
+        )
+        stored = await _stored(session, installed.guild.id)
+        assert _shown([r for r in stored if r.entity_type == "task"]) == {
+            "github.issue": True,
+            "lane": False,
+            "sync.etag": False,
+        }
+        assert _shown([r for r in stored if r.entity_type == "plugin"]) == {
+            "github.issue": False
+        }
+
+        # The new version is read from the install, as it stands when no
+        # write is between reading the old one and committing.
+        await route_session_to_guild(session, installed.guild.id)
+        await session.exec(
+            update(GuildPlugin)
+            .where(GuildPlugin.id == installed.plugin.id)
+            .values(
+                definition={
+                    **installed.plugin.definition,
+                    "fields": [
+                        {**_FIELDS["fields"][0], "key": "sync.etag"},
+                        {**_FIELDS["fields"][1], "on": ["queue_item", "task"]},
+                    ],
+                }
+            )
+        )
+        await session.commit()
+        await metadata_service.reconcile_shown(installed.guild.id, installed.plugin.id)
+        stored = await _stored(session, installed.guild.id)
+        assert _shown([r for r in stored if r.entity_type == "task"]) == {
+            "github.issue": False,
+            "lane": True,
+            "sync.etag": True,
+        }
+        assert _shown([r for r in stored if r.entity_type == "plugin"]) == {
+            "github.issue": False
+        }
+
+    async def test_whoever_reads_the_task_reads_its_shown_values(
+        self, client: AsyncClient, session: AsyncSession, acting_user, role_session
+    ):
+        """Through the task's read and its list, and through the table's
+        policies: a member reads the shown row alone, and a member of another
+        initiative reads none."""
+        installed, member, task = await _shown_board(
+            client, session, acting_user, role_session
+        )
+        shown = [
+            {"plugin_id": installed.plugin.id, "key": "github.issue", "value": 123}
+        ]
+
+        read = await client.get(member.g(f"/tasks/{task.id}"), headers=member.headers)
+        assert read.status_code == 200, read.text
+        assert read.json()["plugin_values"] == shown
+        conditions = json.dumps(
+            [{"field": "project_id", "op": "eq", "value": task.project_id}]
+        )
+        listed = await client.get(
+            member.g(f"/tasks/?conditions={conditions}"), headers=member.headers
+        )
+        assert [row["plugin_values"] for row in listed.json()["items"]] == [shown]
+
+        outsider = await acting_user(
+            guild_role=CommunityRole.member,
+            guild=installed.guild,
+            initiative=installed.unplaced,
+            initiative_role="member",
+        )
+        for actor, keys in ((member, ["github.issue"]), (outsider, [])):
+            s = await role_session("app_user")
+            await route_as(s, user_id=actor.user.id, guild_id=installed.guild.id)
+            seen = await s.exec(select(PluginMetadata.key))
+            assert seen.all() == keys
+            await s.rollback()
+
+    async def test_values_reach_whom_the_plugins_actions_would(
+        self, client: AsyncClient, session: AsyncSession, acting_user, role_session
+    ):
+        """The install on, placed in the task's initiative with a role the
+        reader holds (or the reader its admin), and the reader old enough."""
+        installed, member, task = await _shown_board(
+            client, session, acting_user, role_session
+        )
+        manager = await acting_user(
+            guild_role=CommunityRole.member,
+            guild=installed.guild,
+            initiative=installed.placed,
+            initiative_role="project_manager",
+        )
+        shown = [
+            {"plugin_id": installed.plugin.id, "key": "github.issue", "value": 123}
+        ]
+
+        async def drawn(actor=member) -> list:
+            read = await client.get(actor.g(f"/tasks/{task.id}"), headers=actor.headers)
+            assert read.status_code == 200, read.text
+            return read.json()["plugin_values"]
+
+        async def change(**values) -> None:
+            await route_session_to_guild(session, installed.guild.id)
+            await session.exec(
+                update(GuildPlugin)
+                .where(GuildPlugin.id == installed.plugin.id)
+                .values(**values)
+            )
+            await session.commit()
+
+        assert await drawn() == shown
+        assert await drawn(installed.seat) == shown
+        assert await drawn(manager) == [], "a role the placement does not allow"
+
+        await change(
+            definition={**installed.plugin.definition, "minimum_age": {"default": 16}}
+        )
+        assert await drawn() == [], "a reader too young for the plug-in"
+        await change(definition=installed.plugin.definition)
+
+        await change(enabled=False)
+        assert await drawn() == [], "an install turned off"
+        await change(enabled=True)
+
+        await route_session_to_guild(session, installed.guild.id)
+        await session.exec(
+            delete(PluginPlacement).where(
+                PluginPlacement.install_id == installed.plugin.id
+            )
+        )
+        await session.commit()
+        assert await drawn() == [], "an install not placed there"
+
+    async def test_only_a_shown_value_is_heard_as_a_change_to_the_task(
+        self, client: AsyncClient, session: AsyncSession, acting_user, role_session
+    ):
+        installed, _member, task = await _shown_board(
+            client, session, acting_user, role_session
+        )
+
+        async def heard() -> list:
+            await route_session_to_guild(session, installed.guild.id)
+            session.expunge_all()
+            rows = await session.exec(
+                select(EventOutbox).where(EventOutbox.changed.any("plugin_values"))
+            )
+            return [
+                (e.resource_type, e.resource_id, e.action, e.actor_install_id)
+                for e in rows
+            ]
+
+        async def write(values: dict) -> None:
+            response = await client.put(
+                f"{BASE}/metadata",
+                headers=install_headers(installed, ["projects:read"]),
+                json={"entity_type": "task", "entity_id": task.id, "values": values},
+            )
+            assert response.status_code == 200, response.text
+
+        event = ("tasks", task.id, "updated", installed.plugin.id)
+        # Of the board's three keys, one is shown.
+        assert await heard() == [event]
+        await write({"sync.etag": "y", "lane": None})
+        assert await heard() == [event]
+        await write({"github.issue": 124})
+        assert await heard() == [event, event]

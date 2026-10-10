@@ -61,6 +61,7 @@ from app.services import permissions as permissions_service
 from app.services.cross_guild import gather_across_guilds, member_guild_ids
 from app.services.fields.spec import FieldContext, SortContext
 from app.services.permissions import with_tool
+from app.services.tenant import plugin_metadata
 from app.services.tenant import properties as properties_service
 from app.services.tenant import tags as tags_service
 from app.services.tenant import task_checklist as checklist_service
@@ -451,6 +452,7 @@ async def list_reads(
     await _annotate_tasks(session, tasks)
     await tags_service.annotate_tags(session, tasks)
     await properties_service.annotate_properties(session, tasks)
+    await plugin_metadata.annotate_plugin_values(session, tasks)
     return [
         _task_to_list_read(task, head, has_description, guild_id=guild_id)
         for task, head, has_description in rows
@@ -525,6 +527,7 @@ async def load_tasks(session: AsyncSession, task_ids: list[int]) -> list[Task]:
     )
     await tags_service.annotate_tags(session, tasks)
     await properties_service.annotate_properties(session, tasks)
+    await plugin_metadata.annotate_plugin_values(session, tasks)
     await _annotate_series_sizes(session, tasks)
     return tasks
 
@@ -781,6 +784,7 @@ async def _gather_global_task_reads(
         )
         await tags_service.annotate_tags(guild_session, tasks)
         await properties_service.annotate_properties(guild_session, tasks)
+        await plugin_metadata.annotate_plugin_values(guild_session, tasks)
         return [
             (
                 placement[(_guild_id, task.id)],

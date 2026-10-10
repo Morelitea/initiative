@@ -86,6 +86,10 @@ class LockNamespace(IntEnum):
     PLUGIN_METADATA = _tag(b"PMET")
     #: Replacing one target's views, keyed by guild, tool and target.
     TOOL_VIEWS = _tag(b"VIEW")
+    #: Which of one install's values are shown, keyed by guild and install:
+    #: shared by each write while it reads the pinned definition, exclusive
+    #: while the values are reconciled to a new one.
+    PLUGIN_FIELDS = _tag(b"PFLD")
 
     # -- keyed by an account ------------------------------------------------
     #: Creating communities under the daily limit.
@@ -137,15 +141,20 @@ async def advisory_lock(
     *,
     wait: bool = True,
     xact: bool = True,
+    shared: bool = False,
 ) -> bool:
     """Take the lock *namespace* names for *key* (a singleton when ``None``).
 
     Held to the end of the transaction by default; ``xact=False`` holds it for
     the connection until :func:`advisory_unlock` or the connection closes.
     ``wait=False`` returns at once, ``False`` when another holder has it.
+    ``shared=True`` takes it beside other shared holders, and waits only for
+    an exclusive one.
     """
-    name = "pg_{}advisory_{}lock".format(
-        "" if wait else "try_", "xact_" if xact else ""
+    name = "pg_{}advisory_{}lock{}".format(
+        "" if wait else "try_",
+        "xact_" if xact else "",
+        "_shared" if shared else "",
     )
     taken = await conn.scalar(_lock_call(name, namespace, key))
     return True if wait else bool(taken)

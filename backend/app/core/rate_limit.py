@@ -146,6 +146,9 @@ NEW_CONSENT_REQUESTS_PER_MEMBER = parse("5/hour")
 PLUGIN_HUB_CALLS_PER_INSTALL = parse("120/minute")
 #: Calls one install may make to one other plug-in in one window.
 PLUGIN_HUB_CALLS_PER_TARGET = parse("60/minute")
+#: A plug-in's actions one member may run in one community in one window,
+#: counted per install.
+PLUGIN_ACTIONS_PER_MEMBER = parse("30/minute")
 
 
 async def take_allowance(item: RateLimitItem, namespace: str, key: str) -> bool:

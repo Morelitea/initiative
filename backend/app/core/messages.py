@@ -330,6 +330,8 @@ class ToolViewMessages:
     DUPLICATE_ITEM_LAYOUT = "TOOL_VIEWS_DUPLICATE_ITEM_LAYOUT"
     # A view or item layout over its node, depth or size limit.
     TOO_LARGE = "TOOL_VIEWS_TOO_LARGE"
+    # More of one plug-in's parts on an item than it may place there.
+    TOO_MANY_PLUGIN_PARTS = "TOOL_VIEWS_TOO_MANY_PLUGIN_PARTS"
 
 
 class ProjectMessages:
@@ -1531,6 +1533,16 @@ class PluginDataMessages:
     #: This worker already has as many calls in flight to this plug-in as it will
     #: hold open, so one slow plug-in cannot consume the pool.
     BUSY = "PLUGIN_DATA_BUSY"
+    #: Too many calls in a short window: a member's actions, or one plug-in's
+    #: calls to others.
+    RATE_LIMITED = "PLUGIN_DATA_RATE_LIMITED"
+    #: The install's pinned version declares no such action on this kind of
+    #: item.
+    ACTION_NOT_FOUND = "PLUGIN_ACTION_NOT_FOUND"
+    #: The action is not offered on this item for this reader: the install is
+    #: not placed in its initiative with a role they hold, or the plug-in
+    #: cannot read the item.
+    ACTION_NOT_OFFERED = "PLUGIN_ACTION_NOT_OFFERED"
 
 
 class PluginChannelMessages:

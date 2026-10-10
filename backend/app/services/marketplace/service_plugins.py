@@ -2496,7 +2496,7 @@ def _action(
     raw: Any,
     *,
     service_public_id: str,
-    directions: dict[str, str],
+    endpoints: dict[str, dict[str, Any]],
     connection_ids: set[str],
 ) -> dict[str, Any]:
     action = require_mapping(raw, "action")
@@ -2508,12 +2508,15 @@ def _action(
         what=f"{what} endpoint",
     )
     # Initiative runs the endpoint for the reader, and only a write does
-    # something on their behalf.
-    direction = directions.get(endpoint)
-    if direction is None:
+    # something on their behalf. A run sends no params, so the endpoint can ask
+    # for none it needs.
+    declared = endpoints.get(endpoint)
+    if declared is None:
         fail(f"{what}: names {endpoint!r}, which this manifest does not declare")
-    if direction != "write":
-        fail(f"{what}: names {endpoint!r}, which is a {direction} endpoint")
+    if declared["direction"] != "write":
+        fail(f"{what}: names {endpoint!r}, which is a {declared['direction']} endpoint")
+    if any(param.get("required") is True for param in declared.get("params") or ()):
+        fail(f"{what}: names {endpoint!r}, which needs params an action cannot send")
     cleaned: dict[str, Any] = {
         "id": action_id,
         "name": _label(action.get("name"), what=what),
@@ -2984,12 +2987,12 @@ def normalize_service_plugin_definition(
             fail(f"service plug-in: two fields share the key {field['key']!r}")
         field_kinds[field["key"]] = field["on"]
 
-    directions = {endpoint["id"]: endpoint["direction"] for endpoint in endpoints}
+    by_id = {endpoint["id"]: endpoint for endpoint in endpoints}
     actions = [
         _action(
             entry,
             service_public_id=plugin_public_id,
-            directions=directions,
+            endpoints=by_id,
             connection_ids=connection_ids,
         )
         for entry in require_list(

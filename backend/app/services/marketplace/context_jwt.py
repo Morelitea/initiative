@@ -9,13 +9,16 @@ are what the shape buys:
 * **Guild-pinned and per-call.** ``community_ref`` is a claim, not a parameter, and
   the token is minted for the request it accompanies. A plug-in never holds a
   credential naming more than one guild, and never holds one for long.
-* **It carries no person.** There is no ``sub``, no email, no display name. Where
+* **It carries no person's details.** There is no ``sub``, no email, no display name. Where
   a source needs a member's own vendor credential the token carries
   ``connection_refs`` — the opaque handles from :mod:`app.services.tenant.
   plugin_connections` — so the plug-in selects the right credential while learning
   nothing about who the member is. The page handoff is the one channel that
   carries a real identity, because that is a person's session crossing into an
-  interactive surface; this one is the platform calling a service.
+  interactive surface; this one is the platform calling a service. A call
+  one of the plug-in's actions made names the reader who ran it (``viewer``,
+  by this install's reference for them) and the item (``subject``), because
+  running it on their behalf is what the call is.
 * **Its audience is one plug-in.** ``aud`` is ``initiative-plugin:<public_id>``, so a
   token minted for one plug-in is not accepted by another even if it is somehow
   handed over.
@@ -134,6 +137,8 @@ def mint_context_token(
     actor: Optional[str] = None,
     member: Optional[str] = None,
     initiative_id: Optional[int] = None,
+    viewer: Optional[str] = None,
+    subject: Optional[Mapping[str, Any]] = None,
     lifetime: timedelta = CONTEXT_TOKEN_LIFETIME,
 ) -> tuple[str, int]:
     """Sign one context token and return it with its lifetime in seconds.
@@ -152,6 +157,10 @@ def mint_context_token(
     (``actor``: ``installation`` or ``member``), the member by this install's
     own reference for them (``member``), and the initiative the caller's token
     is narrowed to (``initiative_id``), each only when it applies.
+
+    A call one of the plug-in's actions made names the reader who ran it, by
+    this install's reference for them (``viewer``), and the item it was run on
+    as ``{type, id}`` (``subject``).
     """
     if scope not in CONTEXT_SCOPES:
         raise ContextTokenError(f"unknown context scope {scope!r}")
@@ -186,6 +195,10 @@ def mint_context_token(
         payload["member"] = member
     if initiative_id is not None:
         payload["initiative_id"] = initiative_id
+    if viewer is not None:
+        payload["viewer"] = viewer
+    if subject is not None:
+        payload["subject"] = dict(subject)
 
     token = sign_rs256(
         payload,

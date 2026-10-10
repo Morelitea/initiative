@@ -1367,6 +1367,16 @@ export interface ChecklistProgress {
 }
 
 /**
+ * One value an installed plug-in shows on an item: a key its pinned
+ * version declares as a field there.
+ */
+export interface PluginValueSummary {
+  plugin_id: number;
+  key: string;
+  value: unknown;
+}
+
+/**
  * Lightweight schema for task list endpoints - excludes heavy nested data
  */
 export interface TaskListRead {
@@ -1403,6 +1413,7 @@ export interface TaskListRead {
   checklist_progress: ChecklistProgress | null;
   tags: TagSummary[];
   properties: PropertySummary[];
+  plugin_values: PluginValueSummary[];
 }
 
 export interface CalendarEntriesResponse {
@@ -1714,26 +1725,41 @@ export const PropertiesPartValue = {
 } as const;
 export type PropertiesPart = typeof PropertiesPartValue;
 
+export interface PluginPartProps {
+  /** @exclusiveMinimum 0 */
+  plugin: number;
+  part: string;
+}
+
+/**
+ * One of an installed plug-in's parts, drawn as its manifest builds it.
+ * A part the install no longer declares draws nothing.
+ */
+export interface PluginPart {
+  type: "plugin";
+  props: PluginPartProps;
+}
+
 export interface StackPartInput {
   type: "stack";
   props?: StackProps | null;
-  children?: (CardPartInput | StackPartInput | FieldPart | PropertiesPart)[];
+  children?: (CardPartInput | StackPartInput | FieldPart | PropertiesPart | PluginPart)[];
 }
 
 export interface CardPartInput {
   type: "card";
-  children?: (CardPartInput | StackPartInput | FieldPart | PropertiesPart)[];
+  children?: (CardPartInput | StackPartInput | FieldPart | PropertiesPart | PluginPart)[];
 }
 
 export interface StackPartOutput {
   type: "stack";
   props?: StackProps | null;
-  children?: (CardPartOutput | StackPartOutput | FieldPart | PropertiesPart)[];
+  children?: (CardPartOutput | StackPartOutput | FieldPart | PropertiesPart | PluginPart)[];
 }
 
 export interface CardPartOutput {
   type: "card";
-  children?: (CardPartOutput | StackPartOutput | FieldPart | PropertiesPart)[];
+  children?: (CardPartOutput | StackPartOutput | FieldPart | PropertiesPart | PluginPart)[];
 }
 
 /**
@@ -2874,6 +2900,10 @@ export interface CommunityPluginDetail {
   definition: CommunityPluginDetailDefinition;
   placements: PluginPlacementRead[];
   surface_access: PluginSurfaceAccessRead[];
+  item_initiatives: number[];
+  item_fields: string[];
+  item_parts: string[];
+  item_actions: string[];
   granted_scopes: string[];
   mandatory: boolean;
   available: boolean;
@@ -2948,6 +2978,10 @@ export interface CommunityPluginRead {
   definition: CommunityPluginReadDefinition;
   placements: PluginPlacementRead[];
   surface_access: PluginSurfaceAccessRead[];
+  item_initiatives: number[];
+  item_fields: string[];
+  item_parts: string[];
+  item_actions: string[];
   granted_scopes: string[];
   mandatory: boolean;
   available: boolean;
@@ -5778,13 +5812,27 @@ export interface InterfaceSettingsUpdate {
 }
 
 /**
+ * A kind of item a plug-in's fields and actions are offered on.
+ */
+export type ItemKind = (typeof ItemKind)[keyof typeof ItemKind];
+
+export const ItemKind = {
+  task: "task",
+  queue_item: "queue_item",
+  calendar_event: "calendar_event",
+  counter: "counter",
+  gallery_image: "gallery_image",
+  post: "post",
+} as const;
+
+/**
  * An item's page, in three regions. A field placed in none of them is
  * drawn in a "More fields" section.
  */
 export interface ItemLayoutDefinitionInput {
-  header?: CardPartInput | StackPartInput | FieldPart | PropertiesPart | null;
-  main?: CardPartInput | StackPartInput | FieldPart | PropertiesPart | null;
-  side?: CardPartInput | StackPartInput | FieldPart | PropertiesPart | null;
+  header?: CardPartInput | StackPartInput | FieldPart | PropertiesPart | PluginPart | null;
+  main?: CardPartInput | StackPartInput | FieldPart | PropertiesPart | PluginPart | null;
+  side?: CardPartInput | StackPartInput | FieldPart | PropertiesPart | PluginPart | null;
 }
 
 /**
@@ -5792,9 +5840,9 @@ export interface ItemLayoutDefinitionInput {
  * drawn in a "More fields" section.
  */
 export interface ItemLayoutDefinitionOutput {
-  header?: CardPartOutput | StackPartOutput | FieldPart | PropertiesPart | null;
-  main?: CardPartOutput | StackPartOutput | FieldPart | PropertiesPart | null;
-  side?: CardPartOutput | StackPartOutput | FieldPart | PropertiesPart | null;
+  header?: CardPartOutput | StackPartOutput | FieldPart | PropertiesPart | PluginPart | null;
+  main?: CardPartOutput | StackPartOutput | FieldPart | PropertiesPart | PluginPart | null;
+  side?: CardPartOutput | StackPartOutput | FieldPart | PropertiesPart | PluginPart | null;
 }
 
 /**
@@ -7205,6 +7253,23 @@ export interface PluginAccessTokenResponse {
   token_type?: string;
   expires_in: number;
   scope: string;
+}
+
+export type PluginActionResultValues = { [key: string]: unknown };
+
+/**
+ * The values the plug-in shows on the item after its action, by key.
+ */
+export interface PluginActionResult {
+  values: PluginActionResultValues;
+}
+
+/**
+ * The item to run an action on.
+ */
+export interface PluginActionRun {
+  entity_type: ItemKind;
+  entity_id: number;
 }
 
 /**
@@ -9381,6 +9446,7 @@ export interface TaskRead {
   checklist_progress: ChecklistProgress | null;
   tags: TagSummary[];
   properties: PropertySummary[];
+  plugin_values: PluginValueSummary[];
 }
 
 export interface TaskReorderItem {

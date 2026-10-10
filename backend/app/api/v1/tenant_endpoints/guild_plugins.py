@@ -703,9 +703,7 @@ async def upgrade_community_plugin(
     )
     await session.commit()
     await session.refresh(plugin)
-    await plugin_schedules_service.reconcile(
-        guild_context.guild_id, plugin.id, plugin.definition
-    )
+    await plugin_updates_service.reconcile_repinned(guild_context.guild_id, plugin)
     return await _detail(session, plugin, guild_context, current_user.id, viewer)
 
 

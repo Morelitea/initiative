@@ -18,7 +18,8 @@ import {
 import type { FieldDef } from "@/lib/views/fields";
 
 interface KanbanFieldsMenuProps {
-  fields: ReadonlyMap<string, FieldDef>;
+  /** The fields the card draws. */
+  fields: readonly FieldDef[];
   visibility: KanbanFieldVisibility;
   onChange: (
     updater: KanbanFieldVisibility | ((prev: KanbanFieldVisibility) => KanbanFieldVisibility)
@@ -32,7 +33,7 @@ interface KanbanFieldsMenuProps {
  */
 export const KanbanFieldsMenu = ({ fields, visibility, onChange }: KanbanFieldsMenuProps) => {
   const { t } = useTranslation("projects");
-  const options = [...fields.values()].filter((field) => field.hideable);
+  const options = fields.filter((field) => field.hideable);
   const hiddenCount = options.filter(
     (option) => !isKanbanFieldVisible(visibility, option.id)
   ).length;

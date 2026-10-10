@@ -32,8 +32,9 @@ import { useProperties } from "@/hooks/useProperties";
 import { formatDateTime } from "@/lib/formatDate";
 import { cn } from "@/lib/utils";
 import { useProjectViewEnv } from "@/lib/views/fields";
-import { taskFields } from "@/lib/views/tasks";
-import type { ViewContext } from "@/lib/views/tree";
+import { pluginFields, usePluginsOnItems } from "@/lib/views/plugins";
+import { TASK_CARD, taskFields } from "@/lib/views/tasks";
+import { drawnFields, type ViewContext, type ViewNode } from "@/lib/views/tree";
 
 import { TaskAssigneeList } from "./TaskAssigneeList";
 
@@ -54,9 +55,11 @@ type ProjectTasksKanbanViewProps = {
   onToggleCollapse: (statusId: number) => void;
   onArchiveDoneTasks?: (statusId: number) => void;
   isArchivingDoneTasks?: boolean;
-  /** The properties the cards can show. When given, the board asks for none:
-   *  a listing's preview has no initiative to ask. */
+  /** The properties the cards can show. When given, the board asks for none,
+   *  nor for plug-ins: a listing's preview has no initiative to ask. */
   propertyDefinitions?: PropertyDefinitionRead[];
+  /** The view's card, where it has its own. */
+  card?: ViewNode;
 };
 
 // One empty list while the definitions load, so the fields aren't rebuilt on
@@ -81,6 +84,7 @@ export const ProjectTasksKanbanView = ({
   onArchiveDoneTasks,
   isArchivingDoneTasks,
   propertyDefinitions: givenDefinitions,
+  card = TASK_CARD,
 }: ProjectTasksKanbanViewProps) => {
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   useHorizontalDragScroll(scrollContainerRef);
@@ -105,15 +109,23 @@ export const ProjectTasksKanbanView = ({
   // renderers share is held apart, so a change of fields redraws the cards but
   // not the values on them.
   const env = useProjectViewEnv(taskHref);
-  const fields = useMemo(() => taskFields(propertyDefinitions), [propertyDefinitions]);
+  const { i18n } = useTranslation();
+  const plugins = usePluginsOnItems(initiativeId, !givenDefinitions);
+  const fields = useMemo(
+    () => taskFields(propertyDefinitions, pluginFields(plugins, i18n.language)),
+    [propertyDefinitions, plugins, i18n.language]
+  );
+  const drawn = useMemo(() => drawnFields(card, fields), [card, fields]);
   const view = useMemo<ViewContext>(
     () => ({
       fields,
+      plugins,
+      card,
       variant: "card",
       isHidden: (fieldId) => !isKanbanFieldVisible(fieldVisibility, fieldId),
       env,
     }),
-    [fields, fieldVisibility, env]
+    [fields, plugins, card, fieldVisibility, env]
   );
 
   // The people the cards' excerpts mention, asked about once for the board.
@@ -147,7 +159,7 @@ export const ProjectTasksKanbanView = ({
       >
         <div className="mb-3 flex justify-end">
           <KanbanFieldsMenu
-            fields={view.fields}
+            fields={drawn}
             visibility={fieldVisibility}
             onChange={setFieldVisibility}
           />

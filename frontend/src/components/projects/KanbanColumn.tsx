@@ -295,7 +295,7 @@ const KanbanTaskCardSortable = memo(
         )}
         data-kanban-scroll-lock="true"
       >
-        <ViewTree node={TASK_CARD} item={task} view={view} />
+        <ViewTree node={view.card ?? TASK_CARD} item={task} view={view} />
       </div>
     );
   },
@@ -321,7 +321,7 @@ const KanbanTaskCardPlain = memo(
         )}
         data-kanban-scroll-lock="true"
       >
-        <ViewTree node={TASK_CARD} item={task} view={view} />
+        <ViewTree node={view.card ?? TASK_CARD} item={task} view={view} />
       </div>
     );
   },
@@ -361,7 +361,7 @@ const KanbanTaskCard = ({ task, canWrite, view }: KanbanTaskCardProps) => {
       )}
       data-kanban-scroll-lock="true"
     >
-      <ViewTree node={TASK_CARD} item={task} view={view} />
+      <ViewTree node={view.card ?? TASK_CARD} item={task} view={view} />
     </div>
   );
 };

@@ -1170,6 +1170,11 @@ def surface_renders_in(page: dict[str, Any], scope: str) -> bool:
     return scope in scopes if isinstance(scopes, list) else scope == "community"
 
 
+#: What a plug-in adds to an item — its values, its actions — taken as a
+#: surface rendered inside the item's initiative, so the same people reach it.
+ITEM_SURFACE: dict[str, Any] = {"scopes": ["initiative"]}
+
+
 def surface_access(
     page: dict[str, Any],
     *,
@@ -1224,6 +1229,89 @@ class SurfaceOpenability:
     surface_id: str
     openable_guild_wide: bool
     openable_initiatives: tuple[int, ...]
+
+
+@dataclass(frozen=True)
+class ItemOpenability:
+    """Where one viewer meets a plug-in on items, and what of it they meet."""
+
+    #: The initiatives whose items show the viewer the plug-in's values.
+    initiatives: tuple[int, ...]
+    #: The declared fields and parts whose connections hold what they need.
+    fields: tuple[str, ...]
+    parts: tuple[str, ...]
+    #: The declared actions the viewer may run on those items.
+    actions: tuple[str, ...]
+
+
+def _declared(definition: dict[str, Any], block: str, id_key: str) -> list[dict]:
+    entries = definition.get(block)
+    return [
+        entry
+        for entry in (entries if isinstance(entries, list) else [])
+        if isinstance(entry, dict) and isinstance(entry.get(id_key), str)
+    ]
+
+
+def item_openability(
+    plugin: Any,
+    *,
+    placements: Sequence[PluginPlacement],
+    is_guild_admin: bool,
+    member_role_ids: Collection[int],
+    age_allows: bool = True,
+    frozen: bool = False,
+) -> ItemOpenability:
+    """:data:`ITEM_SURFACE` measured against each placement, as
+    :func:`surface_openability` measures a page. A field, a part or an action
+    is offered while the community's connections it requires hold a value
+    (:func:`~app.services.tenant.plugin_config.installation_meets`), and an
+    action while those its write endpoint requires do too. An admin-only
+    endpoint's action is the community's admins' alone, and a frozen
+    community runs none."""
+    definition = plugin.definition if isinstance(plugin.definition, dict) else {}
+    initiatives = tuple(
+        row.initiative_id
+        for row in sorted(placements, key=lambda row: row.initiative_id)
+        if surface_access(
+            ITEM_SURFACE,
+            initiative_id=row.initiative_id,
+            placement_role_ids=list(row.role_ids or []),
+            is_guild_admin=is_guild_admin,
+            member_role_ids=member_role_ids,
+            age_allows=age_allows,
+        )
+        is SurfaceAccess.open
+    )
+    if not initiatives:
+        return ItemOpenability(initiatives=(), fields=(), parts=(), actions=())
+
+    def met(entry: dict) -> bool:
+        return plugin_config_service.installation_meets(plugin, entry.get("requires"))
+
+    endpoints = {
+        endpoint["id"]: endpoint
+        for endpoint in _declared(definition, "endpoints", "id")
+    }
+    return ItemOpenability(
+        initiatives=initiatives,
+        fields=tuple(
+            f["key"] for f in _declared(definition, "fields", "key") if met(f)
+        ),
+        parts=tuple(p["id"] for p in _declared(definition, "parts", "id") if met(p)),
+        actions=()
+        if frozen
+        else tuple(
+            action["id"]
+            for action in _declared(definition, "actions", "id")
+            if met(action)
+            and met(endpoints.get(action.get("endpoint")) or {})
+            and (
+                is_guild_admin
+                or not is_admin_only(endpoints.get(action.get("endpoint")))
+            )
+        ),
+    )
 
 
 def surface_openability(

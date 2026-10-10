@@ -107,6 +107,7 @@ import { rulePayload } from "@/lib/recurrence";
 import { getItem, setItem } from "@/lib/storage";
 import { taskReadToListRow } from "@/lib/taskUtils";
 import { browserTimezone } from "@/lib/timezones";
+import type { ViewNode } from "@/lib/views/tree";
 
 /** A status change on screen whose request has not answered yet. */
 type PendingStatus = { vars: UpdateTaskVariables; status: TaskStatusRead };
@@ -1110,6 +1111,7 @@ export const ProjectTasksSection = ({
                 : undefined
             }
             isArchivingDoneTasks={archiveDoneTasks.isPending}
+            card={view?.definition.card as ViewNode | undefined}
           />
         ) : null}
 

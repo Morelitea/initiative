@@ -61,7 +61,7 @@ interface SharedTaskColumnsOptions<T extends TaskListRead> {
 /**
  * The columns every task table renders alike, keyed so each table places them
  * in its own order. Each but the date window draws a field, as the board's
- * card does; the properties follow the tags.
+ * card does; the properties and the plug-ins' fields follow the tags.
  */
 export function sharedTaskColumns<T extends TaskListRead>({
   fields,
@@ -104,7 +104,7 @@ export function sharedTaskColumns<T extends TaskListRead>({
     }),
     comments: column("comments", { size: 90 }),
     properties: [...fields.values()]
-      .filter((field) => field.source === "property")
+      .filter((field) => field.source !== "builtin")
       .map((field) => fieldColumn<T>(field, env, { size: 160 })),
   };
 }

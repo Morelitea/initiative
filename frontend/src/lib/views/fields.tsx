@@ -31,6 +31,8 @@ import { truncateText } from "@/lib/text";
 import { cn } from "@/lib/utils";
 import type { TranslateFn } from "@/types/i18n";
 
+import { PluginField, type PluginFieldDecl } from "./plugins";
+
 /** What a view draws. Tasks for now; other kinds join as their tools move. */
 export type ViewItem = TaskListRead;
 
@@ -48,15 +50,16 @@ export type FieldKind =
   | "priority"
   | "count"
   | "tags"
-  | "property";
+  | "property"
+  | "plugin";
 
 /** Anything a view can show about an item. */
 export type FieldDef = {
   id: string;
   kind: FieldKind;
-  source: "builtin" | "property";
+  source: "builtin" | "property" | "plugin";
   /** Built-in: an i18n key, in `projects` unless it names its namespace.
-   *  Property: its own name, untranslated. */
+   *  Property or plug-in field: its own name, untranslated. */
   label: string;
   /** What the field holds for an item. Nothing (null, "", []) draws nothing on
    *  a card; a cell says so. */
@@ -65,6 +68,8 @@ export type FieldDef = {
   hideable: boolean;
   /** A property field's definition id. */
   propertyId?: number;
+  /** A plug-in field's declaration. */
+  plugin?: PluginFieldDecl;
   /** The sentence the value sits in, as an i18n key ("Due: {{date}}"). */
   phrase?: string;
   icon?: LucideIcon;
@@ -286,4 +291,5 @@ export const FIELD_RENDERERS: Record<FieldKind, ComponentType<FieldRendererProps
   count: memo(CountField),
   tags: memo(TagsField),
   property: memo(PropertyField),
+  plugin: memo(PluginField),
 };

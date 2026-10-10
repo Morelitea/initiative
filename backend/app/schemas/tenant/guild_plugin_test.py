@@ -249,3 +249,96 @@ def test_surface_access_is_computed_for_the_viewer():
             "openable_initiatives": [2, 5],
         },
     }
+
+
+def test_item_access_is_where_the_viewer_meets_the_plugin_on_items():
+    """The initiatives whose placements admit the viewer; the fields and parts
+    whose connections hold a value; and every action there but one whose write
+    endpoint is admin-only, which only an admin runs, one whose connections
+    hold nothing, and any while the community is frozen."""
+    definition = {
+        **DEFINITION,
+        "endpoints": [
+            {"id": "link", "direction": "write"},
+            {"id": "purge", "direction": "write", "admin_only": True},
+            {"id": "sync", "direction": "write", "requires": {"all_of": ["admin"]}},
+        ],
+        "fields": [
+            {"key": "ci.state", "on": ["task"]},
+            {"key": "ci.owner", "on": ["task"], "requires": {"any_of": ["admin"]}},
+        ],
+        "parts": [{"id": "builds", "on": ["task"], "requires": {"all_of": ["admin"]}}],
+        "actions": [
+            {"id": "new-link", "endpoint": "link", "on": ["task"]},
+            {"id": "purge", "endpoint": "purge", "on": ["task"]},
+            {"id": "sync", "endpoint": "sync", "on": ["task"]},
+            {
+                "id": "audit",
+                "endpoint": "link",
+                "on": ["task"],
+                "requires": {"all_of": ["admin"]},
+            },
+        ],
+        "minimum_age": {"default": 18},
+    }
+    rows = [
+        SimpleNamespace(initiative_id=2, role_ids=[40]),
+        SimpleNamespace(initiative_id=5, role_ids=[41]),
+    ]
+
+    def context(**standing):
+        return GuildContext(
+            guild=Guild(id=7, name="g"),
+            user_id=12,
+            guild_id=7,
+            standing_guild_id=7,
+            **standing,
+        )
+
+    def access(standing, viewer=ADULT, **plugin):
+        payload = serialize_guild_plugin(
+            _plugin(definition=definition, **plugin),
+            context=standing,
+            placements=rows,
+            viewer=viewer,
+        )
+        return (
+            payload.item_initiatives,
+            payload.item_fields,
+            payload.item_parts,
+            payload.item_actions,
+        )
+
+    every_field = ["ci.state", "ci.owner"]
+    assert access(context(member_role_ids=(40,))) == (
+        [2],
+        every_field,
+        ["builds"],
+        ["new-link", "sync", "audit"],
+    )
+    assert access(context(guild_admin=True)) == (
+        [2, 5],
+        every_field,
+        ["builds"],
+        ["new-link", "purge", "sync", "audit"],
+    )
+    # The connection holds nothing.
+    assert access(context(guild_admin=True), secret_fields={}) == (
+        [2, 5],
+        ["ci.state"],
+        [],
+        ["new-link", "purge"],
+    )
+    assert access(context(guild_admin=True, content_read_only=True)) == (
+        [2, 5],
+        every_field,
+        ["builds"],
+        [],
+    )
+    assert access(context(member_role_ids=(99,))) == ([], [], [], [])
+    assert access(context(guild_admin=True), AgeViewer(age=15, country="US")) == (
+        [],
+        [],
+        [],
+        [],
+    )

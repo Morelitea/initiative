@@ -19,11 +19,14 @@ const builtin = (
 
 /**
  * Everything a task view can show: the built-ins, then one field per property
- * the initiative defines. A property's id is its table column's id, so the
- * Fields menu and the table name it identically and two that share a name
- * stay apart.
+ * the initiative defines, then the plug-ins' (`pluginFields`). A property's id
+ * is its table column's id, so the Fields menu and the table name it
+ * identically and two that share a name stay apart.
  */
-export const taskFields = (definitions: PropertyDefinitionRead[]): Map<string, FieldDef> => {
+export const taskFields = (
+  definitions: PropertyDefinitionRead[],
+  plugins: FieldDef[] = []
+): Map<string, FieldDef> => {
   const fields: FieldDef[] = [
     builtin({
       id: "title",
@@ -90,6 +93,7 @@ export const taskFields = (definitions: PropertyDefinitionRead[]): Map<string, F
         },
       })
     ),
+    ...plugins,
   ];
   return new Map(fields.map((field) => [field.id, field]));
 };

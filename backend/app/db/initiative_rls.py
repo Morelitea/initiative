@@ -1075,21 +1075,23 @@ def property_values_path() -> InitiativePath:
 def plugin_metadata_path() -> InitiativePath:
     """An install's values are reached by the install that keeps them, and on
     an item by the community's admin too, in each case only while the item
-    itself can be read. The install's own values (``entity_type = 'plugin'``)
+    itself can be read. A shown value on an item is also read by whoever can
+    read the item. The install's own values (``entity_type = 'plugin'``)
     belong to no initiative and are reached by that install alone. The system
     engine reaches both.
 
-    Reading and writing ask the same: writing a value changes nothing on the
-    item. What an install also needs, the read scope of the item's tool, is
-    its ``plugin_scope_*`` policies (``app.db.guild_ddl``).
+    Otherwise reading and writing ask the same: writing a value changes
+    nothing on the item. What an install also needs, the read scope of the
+    item's tool, is its ``plugin_scope_*`` policies (``app.db.guild_ddl``).
     """
 
-    def build(t: str, _w: bool) -> str:
+    def build(t: str, w: bool) -> str:
         own = f"({t}.install_id = {_P.install_id} AND {_P.this_guild} AND {_P.auth_ok})"
+        reach = f"{own} OR {_P.admin}" if w else f"{own} OR {_P.admin} OR {t}.shown"
         return (
             f"({_P.system} OR (CASE WHEN {t}.entity_type = '{INSTALL_METADATA_KIND}'"
             f" THEN ({own} AND {t}.entity_id = {t}.install_id)"
-            f" ELSE (({own} OR {_P.admin}) AND {_entity_readable(t, ITEM_KINDS)}) END))"
+            f" ELSE (({reach}) AND {_entity_readable(t, ITEM_KINDS)}) END))"
         )
 
     return InitiativePath(
@@ -1805,14 +1807,16 @@ def relationships_report_on_both_ends() -> tuple[ReportsAs, ...]:
     return (one("source"), one("target"))
 
 
-def properties_report_on_their_target() -> ReportsAs:
-    """A property value is a facet OF what it is on — report it there.
+def values_report_on_their_target(kinds: Iterable[str], facet: str) -> ReportsAs:
+    """A value kept on a ``(entity_type, entity_id)`` pair — a property value,
+    a plug-in's value — is a facet OF what it is on: report it there.
 
     Whatever that thing itself reports as: a task's values as the task, a
     picture's as its gallery. The subscriber re-reads it, and its read carries
-    the current values.
+    the current values. A pair naming none of ``kinds`` resolves to nothing,
+    and the row is skipped.
     """
-    tables = {target: entity_tables()[target] for target in PROPERTY_TARGETS}
+    tables = {target: entity_tables()[target] for target in kinds}
     reports = {target: _reported_as(table) for target, table in tables.items()}
     type_arms = " ".join(
         f"WHEN '{target}' THEN '{resource}'"
@@ -1830,7 +1834,7 @@ def properties_report_on_their_target() -> ReportsAs:
     return ReportsAs(
         resource_types=frozenset(resource for resource, _ in reports.values()),
         id_expr=id_of,
-        facet="properties",
+        facet=facet,
         type_expr=lambda r: f"(CASE {r}.entity_type {type_arms} END)",
     )
 
@@ -1932,6 +1936,12 @@ class Emit:
     #: private part of it: an event still says the thing moved, which is what a
     #: reader needs to re-read it, and says nothing about who moved it.
     anonymous: bool = False
+    #: Only a row this row expression holds for is news: a change emits when
+    #: it holds for the row before or after it, and a row it never holds for
+    #: emits nothing. Rendered as the capture triggers' ``WHEN``, so the rest
+    #: of the table's writes never call the capture function. For a table
+    #: whose rows only some readers are shown.
+    when: RowLocator | None = None
 
 
 #: table -> how it deviates. Anything absent takes the derived default.
@@ -1958,7 +1968,6 @@ EVENT_SOURCES: dict[str, Emit | Silent] = {
     "intake_cases": Silent("the key -> task map; the task is what a subscriber hears"),
     "uploads": Silent("a stored file; the content showing it is what changed"),
     "evidence": Silent("an attached file; its case or report is what changed"),
-    "plugin_metadata": Silent("a plug-in's own values, which no reader is shown"),
     # -- Guild-level tables that emit ---------------------------------------
     # The structural initiative tables are deliberately exempt from
     # initiative-member RLS (a membership table gated by the membership check it
@@ -2065,7 +2074,16 @@ def event_source(table: str) -> Emit:
 # entry above exists.
 EVENT_SOURCES["relationships"] = Emit(reports_as=relationships_report_on_both_ends())
 # The same, for whatever a property value is on.
-EVENT_SOURCES["property_values"] = Emit(reports_as=properties_report_on_their_target())
+EVENT_SOURCES["property_values"] = Emit(
+    reports_as=values_report_on_their_target(PROPERTY_TARGETS, "properties")
+)
+# A plug-in's shown values on an item; its values on itself name no item, and
+# are skipped.
+EVENT_SOURCES["plugin_metadata"] = Emit(
+    reports_as=values_report_on_their_target(ITEM_KINDS, "plugin_values"),
+    # A private value is the plug-in's own and changes nothing a reader sees.
+    when=lambda r: f"{r}.shown",
+)
 
 
 def initiative_locator(table: str) -> RowLocator:

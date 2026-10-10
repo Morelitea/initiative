@@ -1249,6 +1249,19 @@ class TestFieldsPartsAndActions:
             (lambda b: b["actions"][0].update(on=["task", "task"]), "twice"),
             (lambda b: b["actions"][0].update(endpoint=READ_ID), "a read endpoint"),
             (
+                lambda b: b["endpoints"][0].update(
+                    params=[
+                        {
+                            "key": "x",
+                            "type": "string",
+                            "label": _label(),
+                            "required": True,
+                        }
+                    ]
+                ),
+                "needs params an action cannot send",
+            ),
+            (
                 lambda b: b["actions"][0].update(
                     endpoint="plugin.tests.widget-co.missing"
                 ),
@@ -1347,6 +1360,7 @@ class TestFieldsPartsAndActions:
             "offered-nowhere",
             "item-kind-twice",
             "action-runs-a-read",
+            "action-runs-a-write-needing-params",
             "action-runs-nothing-declared",
             "menu-not-a-boolean",
             "unknown-component",

@@ -565,11 +565,11 @@ async def load_child(
                 session, kind, parent_id, None, context, access=access, action=action
             )
         raise _missing(model)
-    authorize(kind, _parent(row), context=context, access=access, action=action)
+    authorize(kind, parent_of(row), context=context, access=access, action=action)
     return row
 
 
-def _parent(row: Any) -> Any:
+def parent_of(row: Any) -> Any:
     """The tool a row inside a tool sits in."""
     model = type(row)
     column = parent_column(model)
@@ -600,7 +600,7 @@ async def require_may_move(session: Any, row: Any, destination: Any) -> None:
     another of its tool: not out of an initiative that keeps its content in
     (:func:`require_stays_in`)."""
     await require_stays_in(
-        session, _parent(row).initiative_id, destination.initiative_id
+        session, parent_of(row).initiative_id, destination.initiative_id
     )
 
 
