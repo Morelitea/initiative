@@ -989,6 +989,8 @@ async def set_user_suspension(
 
     already = user.status == UserStatus.suspended
     if already == payload.suspended:
+        # Nothing changed, so there is nothing to tell a case.
+        act_case.task_id = None
         return await _row(user, current_user)
 
     act_case.what = "suspended" if payload.suspended else "lifted the suspension of"

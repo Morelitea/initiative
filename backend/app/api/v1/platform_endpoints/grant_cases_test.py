@@ -635,3 +635,67 @@ async def test_releasing_keeps_a_name_another_grant_rests_on(
     # The first one's grant then failed: its release leaves the name.
     await grant_cases.unclaim(task_id, guild_id=target.id)
     assert await grant_cases.claim(task_id, guild_id=other.id) == "other"
+
+
+async def test_a_summary_that_could_not_be_written_is_tried_again(
+    session: AsyncSession, desk, monkeypatch
+):
+    target = await create_guild(session)
+    task_id = await _case()
+    grant = await _live_grant(
+        session,
+        user=desk["agent"].user,
+        guild_id=target.id,
+        case=task_id,
+        ago=timedelta(minutes=30),
+    )
+    grant_id = grant.id
+    ended = grant.expires_at + grant_cases.ENDED_GRACE * 2
+
+    async def unwritable(*_args, **_kwargs) -> bool:
+        return False
+
+    with monkeypatch.context() as patched:
+        patched.setattr(grant_cases, "note", unwritable)
+        await set_rls_context(session, Unattributed())
+        assert await grant_cases.report_activity(session, now=ended) == 0
+
+    await set_rls_context(session, Unattributed())
+    session.expire_all()
+    pending = (
+        await session.exec(select(AccessGrant).where(AccessGrant.id == grant_id))
+    ).one()
+    assert pending.closed_out_at is None
+    await set_rls_context(session, Unattributed())
+    assert await grant_cases.report_activity(session, now=ended) == 1
+
+
+async def test_suspending_a_suspended_account_tells_its_case_nothing(
+    client: AsyncClient, session: AsyncSession, desk, acting_user
+):
+    from app.models.platform.user import UserStatus
+
+    moderator = await acting_user(
+        "moderator",
+        guild_role=CommunityRole.member,
+        guild=desk["staff"].guild,
+        initiative=desk["staff"].initiative,
+        initiative_role="member",
+    )
+    await create_resource_grant(
+        session,
+        desk["staff"].project,
+        level=ResourceAccessLevel.write,
+        user=moderator.user,
+    )
+    await set_rls_context(session, Unattributed())
+    member = await create_user(session, status=UserStatus.suspended)
+    task_id = await _case()
+    response = await client.post(
+        f"/api/v1/operator/users/{member.id}/suspension",
+        params={"case_task_id": task_id},
+        json={"suspended": True},
+        headers=moderator.headers,
+    )
+    assert response.status_code == 200, response.text
+    assert await _notes(session, desk, task_id) == []

@@ -562,10 +562,10 @@ async def report_activity(
     }
     for grant in ended:
         summary = await _activity(session, int(grant.id), None)
-        grant.closed_out_at = _accounted_to(grant, summary)
-        session.add(grant)
         if grant.status == AccessGrantStatus.denied.value:
             # Never used, and its case was told of the denial.
+            grant.closed_out_at = _accounted_to(grant, summary)
+            session.add(grant)
             continue
         how = (
             f"was revoked by {handle_of(users[grant.revoked_by_id])}"
@@ -576,18 +576,22 @@ async def report_activity(
             f"{_describe(grant, names.get(grant.guild_id), users.get(grant.user_id))} "
             f"{how}. What it did in all:"
         )
+        # Marked told only once it is: a note that could not be written is
+        # tried again on the next pass.
         if await note(
             grant.case_task_id,
             case_activity.ActivityKind.grant_digest,
             digest_text(summary, heading=heading),
         ):
+            grant.closed_out_at = _accounted_to(grant, summary)
+            session.add(grant)
             told += 1
     for grant in live:
         since = grant.activity_noted_at or grant.decided_at
         summary = await _activity(session, int(grant.id), since)
-        grant.activity_noted_at = moment
-        session.add(grant)
         if not summary.reads and not summary.write_count:
+            grant.activity_noted_at = moment
+            session.add(grant)
             continue
         heading = (
             f"{_describe(grant, names.get(grant.guild_id), users.get(grant.user_id))}"
@@ -598,11 +602,11 @@ async def report_activity(
             case_activity.ActivityKind.grant_digest,
             digest_text(summary, heading=heading),
         ):
+            grant.activity_noted_at = moment
+            session.add(grant)
             told += 1
     for grant in late:
         summary = await _activity(session, int(grant.id), grant.closed_out_at)
-        grant.closed_out_at = _accounted_to(grant, summary)
-        session.add(grant)
         heading = (
             f"After {_describe(grant, names.get(grant.guild_id), users.get(grant.user_id))}"
             " ended, requests it had let in finished:"
@@ -612,6 +616,8 @@ async def report_activity(
             case_activity.ActivityKind.grant_digest,
             digest_text(summary, heading=heading),
         ):
+            grant.closed_out_at = _accounted_to(grant, summary)
+            session.add(grant)
             told += 1
     await session.commit()
     return told
