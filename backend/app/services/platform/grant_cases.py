@@ -281,6 +281,34 @@ async def note(
         return False
 
 
+async def case_exists(task_id: int) -> bool:
+    """Whether case ``task_id`` is still there to be told: the operations
+    community is configured and the case has not been purged. Where it cannot
+    be read, it is taken to be there."""
+    guild_id = await configured_operations_guild_id()
+    if guild_id is None:
+        return False
+    try:
+        async with cohorts.system_session(guild_id) as session:
+            await set_rls_context(session, SystemGuild(guild_id))
+            found = (
+                await session.exec(select(Task.id).where(Task.id == task_id))
+            ).first()
+    except Exception:  # noqa: BLE001 — logged; asked again on the next pass
+        logger.exception("grant cases: could not read case %s", task_id)
+        return True
+    return found is not None
+
+
+async def _tell_digest(task_id: int, text: str) -> Optional[bool]:
+    """Note a digest on case ``task_id``: ``True`` once it is told, ``False``
+    where it could not be and is worth trying again, and ``None`` where the
+    case is gone and never will be."""
+    if await note(task_id, case_activity.ActivityKind.grant_digest, text):
+        return True
+    return False if await case_exists(task_id) else None
+
+
 async def claim(task_id: int, *, guild_id: int) -> str:
     """Settle that the case a grant is asked for is about the grant's
     community, naming it where the case names none: ``named`` (named now),
@@ -576,16 +604,15 @@ async def report_activity(
             f"{_describe(grant, names.get(grant.guild_id), users.get(grant.user_id))} "
             f"{how}. What it did in all:"
         )
-        # Marked told only once it is: a note that could not be written is
-        # tried again on the next pass.
-        if await note(
-            grant.case_task_id,
-            case_activity.ActivityKind.grant_digest,
-            digest_text(summary, heading=heading),
-        ):
+        # Marked told only once it is, or once there is no case left to tell:
+        # a note that could not be written is tried again on the next pass.
+        outcome = await _tell_digest(
+            int(grant.case_task_id), digest_text(summary, heading=heading)
+        )
+        if outcome is not False:
             grant.closed_out_at = _accounted_to(grant, summary)
             session.add(grant)
-            told += 1
+            told += outcome is True
     for grant in live:
         since = grant.activity_noted_at or grant.decided_at
         summary = await _activity(session, int(grant.id), since)
@@ -597,28 +624,26 @@ async def report_activity(
             f"{_describe(grant, names.get(grant.guild_id), users.get(grant.user_id))}"
             " since the last note:"
         )
-        if await note(
-            grant.case_task_id,
-            case_activity.ActivityKind.grant_digest,
-            digest_text(summary, heading=heading),
-        ):
+        outcome = await _tell_digest(
+            int(grant.case_task_id), digest_text(summary, heading=heading)
+        )
+        if outcome is not False:
             grant.activity_noted_at = moment
             session.add(grant)
-            told += 1
+            told += outcome is True
     for grant in late:
         summary = await _activity(session, int(grant.id), grant.closed_out_at)
         heading = (
             f"After {_describe(grant, names.get(grant.guild_id), users.get(grant.user_id))}"
             " ended, requests it had let in finished:"
         )
-        if await note(
-            grant.case_task_id,
-            case_activity.ActivityKind.grant_digest,
-            digest_text(summary, heading=heading),
-        ):
+        outcome = await _tell_digest(
+            int(grant.case_task_id), digest_text(summary, heading=heading)
+        )
+        if outcome is not False:
             grant.closed_out_at = _accounted_to(grant, summary)
             session.add(grant)
-            told += 1
+            told += outcome is True
     await session.commit()
     return told
 

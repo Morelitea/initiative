@@ -699,3 +699,31 @@ async def test_suspending_a_suspended_account_tells_its_case_nothing(
     )
     assert response.status_code == 200, response.text
     assert await _notes(session, desk, task_id) == []
+
+
+async def test_a_grant_whose_case_is_gone_is_closed_out_untold(
+    session: AsyncSession, desk
+):
+    target = await create_guild(session)
+    task_id = await _case()
+    assert await grant_cases.case_exists(task_id)
+    purged = task_id + 10_000
+    assert not await grant_cases.case_exists(purged)
+    grant = await _live_grant(
+        session,
+        user=desk["agent"].user,
+        guild_id=target.id,
+        case=purged,
+        ago=timedelta(minutes=30),
+    )
+    grant_id = grant.id
+    ended = grant.expires_at + grant_cases.ENDED_GRACE * 2
+    await set_rls_context(session, Unattributed())
+    assert await grant_cases.report_activity(session, now=ended) == 0
+
+    await set_rls_context(session, Unattributed())
+    session.expire_all()
+    closed = (
+        await session.exec(select(AccessGrant).where(AccessGrant.id == grant_id))
+    ).one()
+    assert closed.closed_out_at is not None

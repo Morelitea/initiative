@@ -24,7 +24,7 @@ from app.api.deps import (
     SystemSessionDep,
 )
 from app.api.v1.platform_endpoints.session_opening import prove_second_factor
-from app.core.capabilities import Capability, user_has_capability
+from app.core.capabilities import Capability
 from app.core.audit_events import AuditEventType
 from app.core.messages import AccessGrantMessages, AuthMessages
 from app.db.query import build_paginated_response
@@ -514,7 +514,10 @@ async def read_access_grant_limits(
 
 @router.get("/cases", response_model=GrantCaseList)
 async def list_grant_cases(
-    current_user: Annotated[User, Depends(get_current_active_user)],
+    current_user: Annotated[
+        User,
+        Depends(require_capability(Capability.ACCESS_REQUEST, Capability.DATA_BYPASS)),
+    ],
     search: Optional[str] = Query(
         default=None,
         max_length=200,
@@ -525,14 +528,6 @@ async def list_grant_cases(
     those assigned to them first — what the request and break-glass forms
     offer. Read as the reader, so it lists only cases they can open. At most
     fifty; ``search`` finds the rest."""
-    if not (
-        user_has_capability(current_user, Capability.ACCESS_REQUEST)
-        or user_has_capability(current_user, Capability.DATA_BYPASS)
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=AuthMessages.INSUFFICIENT_PRIVILEGES,
-        )
     return GrantCaseList(
         items=[
             GrantCaseRead(

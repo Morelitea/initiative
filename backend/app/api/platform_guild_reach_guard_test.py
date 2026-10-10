@@ -177,6 +177,9 @@ _ALLOWED: dict[tuple[str, str], str] = {
     (f"{_SERVICES}/grant_cases.py", "note"): (
         "grant cases: notes on an operations case what became of a grant for it"
     ),
+    (f"{_SERVICES}/grant_cases.py", "case_exists"): (
+        "grant cases: reads whether a case a grant serves is still there to be told"
+    ),
     (f"{_SERVICES}/grant_cases.py", "activate"): (
         "grant cases: puts a case to work when access for it is approved"
     ),
