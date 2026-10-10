@@ -913,6 +913,83 @@ async def test_delete_event_skips_declined_attendees(
     assert cancels == []
 
 
+async def test_answers_stay_with_their_occurrences(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """An hourly series moved an hour later takes every answer to its new
+    start, a neighbour's included; and an occurrence changed on its own lists
+    whoever answered it without being invited, with what they said."""
+    (
+        organizer,
+        attendee,
+        guild,
+        initiative,
+        calendar,
+    ) = await _setup_organizer_and_attendee(session, acting_user)
+    reader = await acting_user(
+        guild_role=CommunityRole.member,
+        guild=guild,
+        initiative=initiative,
+        initiative_role="member",
+    )
+    created = await client.post(
+        organizer.g("/calendar-events/"),
+        headers=organizer.headers,
+        json={
+            "calendar_id": calendar.id,
+            "title": "Office hours",
+            "start_at": "2026-10-05T10:00:00Z",
+            "end_at": "2026-10-05T10:30:00Z",
+            "recurrence": "FREQ=HOURLY;COUNT=4",
+            "rsvp_open": True,
+            "attendee_ids": [attendee.user.id],
+        },
+    )
+    assert created.status_code == 201, created.text
+    series = created.json()["id"]
+
+    def hour(h: int) -> str:
+        return f"2026-10-05T{h:02d}:00:00Z"
+
+    for who, at, status in (
+        (attendee, 10, "accepted"),
+        (attendee, 11, "declined"),
+        (reader, 12, "tentative"),
+    ):
+        answered = await client.patch(
+            who.g(f"/calendar-events/{series}/rsvp"),
+            headers=who.headers,
+            json={"rsvp_status": status, "occurrence": hour(at)},
+        )
+        assert answered.status_code == 200, answered.text
+
+    async def answers(event_id: int, at: int | None = None) -> dict[int, str]:
+        read = await client.get(
+            organizer.g(f"/calendar-events/{event_id}"),
+            headers=organizer.headers,
+            params={"occurrence": hour(at)} if at is not None else {},
+        )
+        assert read.status_code == 200, read.text
+        return {a["user_id"]: a["rsvp_status"] for a in read.json()["attendees"]}
+
+    moved = await client.patch(
+        organizer.g(f"/calendar-events/{series}"),
+        headers=organizer.headers,
+        json={"start_at": hour(11), "end_at": "2026-10-05T11:30:00Z"},
+    )
+    assert moved.status_code == 200, moved.text
+    assert (await answers(series, 11))[attendee.user.id] == "accepted"
+    assert (await answers(series, 12))[attendee.user.id] == "declined"
+
+    changed = await client.patch(
+        organizer.g(f"/calendar-events/{series}"),
+        headers=organizer.headers,
+        json={"scope": "this", "occurrence": hour(13), "title": "Office hours, moved"},
+    )
+    assert changed.status_code == 200, changed.text
+    assert (await answers(changed.json()["id"]))[reader.user.id] == "tentative"
+
+
 async def test_an_answer_is_its_members_to_give(
     client: AsyncClient, session: AsyncSession, acting_user, reading_as
 ):

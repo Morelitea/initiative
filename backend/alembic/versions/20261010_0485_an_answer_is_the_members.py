@@ -53,11 +53,17 @@ def _forced(bind, tables: tuple[str, ...]) -> list[str]:
     ]
 
 
+#: Read by the copy in both directions. Its policies admit a request's reader,
+#: and a migration has none, so its RLS is lifted too; its triggers are not
+#: held, since nothing writes it.
+EVENTS = "calendar_events"
+
+
 def _unforced(bind, write) -> None:
-    """Run ``write`` with the owner's RLS lifted and the user triggers held on
-    both tables, restored after."""
+    """Run ``write`` with the owner's RLS lifted on every table it reads or
+    writes and the user triggers held on those it writes, restored after."""
     tables = (ANSWERS, ATTENDEES)
-    forced = _forced(bind, tables)
+    forced = _forced(bind, (*tables, EVENTS))
     for table in forced:
         op.execute(f"ALTER TABLE {table} NO FORCE ROW LEVEL SECURITY")
     for table in tables:
@@ -108,8 +114,19 @@ def _apply_upgrade(bind) -> None:
 
 def downgrade() -> None:
     bind = op.get_bind()
+    # What the provisioning run rendered onto the answers goes first: the
+    # trigger holds the function below, and the older code moves answers by
+    # writing new ones, which the policy would refuse.
+    run_for_each_guild_schema(bind, _drop_rendered)
     run_for_each_guild_schema(bind, lambda: _apply_downgrade(bind))
     op.execute("DROP FUNCTION IF EXISTS public.fn_calendar_event_answer_owner_guard()")
+
+
+def _drop_rendered() -> None:
+    op.execute(
+        f"DROP TRIGGER IF EXISTS tr_calendar_event_answers_owner_guard ON {ANSWERS}"
+    )
+    op.execute(f"DROP POLICY IF EXISTS owner_insert ON {ANSWERS}")
 
 
 def _move_out(bind) -> None:

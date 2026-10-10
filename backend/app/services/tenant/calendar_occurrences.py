@@ -297,7 +297,9 @@ async def occurrence(
 ) -> CalendarEvent:
     """The override for the series' occurrence at ``at``, made from the series
     the first time it is asked for. The occurrence's answers stay keyed by the
-    series and ``at``, so they are its row's from the start."""
+    series and ``at``, so they are its row's from the start; whoever answered
+    it without being invited is on its list, as answering it would have put
+    them."""
     at = require_occurrence(series, at)
     existing = (
         await session.exec(
@@ -330,6 +332,8 @@ async def occurrence(
     session.add(override)
     await session.flush()
     await _copy_lists(session, series, override)
+    for user_id in await answers_at(session, int(series.id), at):  # type: ignore[arg-type]
+        await _join(session, override, user_id)
     return override
 
 
@@ -522,7 +526,12 @@ async def rehome(
         if not set(TIMES) & set(override.overridden_fields):
             override.start_at, override.end_at = start, start + length
         session.add(override)
-    # Answers given to an occurrence go where it went, or with it.
+    # Answers given to an occurrence go where it went, or with it. A start
+    # keeps its place among the others, so an answer can only land where
+    # another one is leaving in the same direction: those moving later go
+    # latest first, those moving earlier earliest first, and none is written
+    # onto a key that is still taken.
+    moves: list[tuple[CalendarEventAnswer, datetime]] = []
     for answer in (
         await session.exec(
             select(CalendarEventAnswer).where(
@@ -533,10 +542,22 @@ async def rehome(
     ).all():
         start = rehomed(answer.occurrence_start)  # type: ignore[arg-type]
         if occurs(start):
-            answer.occurrence_start = start
-            session.add(answer)
+            moves.append((answer, start))
         else:
             await session.delete(answer)
+    await session.flush()
+    later = sorted(
+        ((a, s) for a, s in moves if s > a.occurrence_start),  # type: ignore[operator]
+        key=lambda move: move[0].occurrence_start,  # type: ignore[arg-type,return-value]
+        reverse=True,
+    )
+    earlier = sorted(
+        ((a, s) for a, s in moves if s < a.occurrence_start),  # type: ignore[operator]
+        key=lambda move: move[0].occurrence_start,  # type: ignore[arg-type,return-value]
+    )
+    for answer, start in (*later, *earlier):
+        answer.occurrence_start = start
+        session.add(answer)
         await session.flush()
     return binned
 
