@@ -1,8 +1,8 @@
-"""Service layer for the polymorphic recent-items bar.
+"""Service layer for ``recent_views``: what each person opened, and when.
 
-Handles upserting, clearing, and reading entries in the ``recent_views``
-table that powers the layout header's tabs across projects, files,
-queues, and counter groups.
+Opening any tool, or anything inside one, records a row. The tools' rows are
+the layout header's tabs. Every row is kept for :data:`WINDOW`; past it, a tool
+is kept while it is among the person's newest tabs, and anything else goes.
 """
 
 from __future__ import annotations
@@ -12,11 +12,12 @@ from typing import TYPE_CHECKING, Iterable, Sequence
 
 from sqlalchemy import text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlmodel import delete, select
+from sqlmodel import col, delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.tenant.recent_view import RecentView
+from app.models.tenant.recent_view import RECENT_TAB_TYPES, RecentView, ViewSource
 from app.schemas.tenant.recent_view import RecentEntityType
+from app.services.tenant.change_log import RETENTION
 
 if TYPE_CHECKING:
     from app.services.tenant.expiry import Expiring
@@ -30,6 +31,10 @@ __all__ = ["RecentEntityType"]  # re-export for existing importers
 MIN_RECENT_VIEWS = 1
 MAX_RECENT_VIEWS = 100
 DEFAULT_RECENT_VIEWS = 20
+
+#: How long every open is kept, tab or not: the span the change log keeps, so
+#: what people opened and what they changed cover the same days.
+WINDOW = RETENTION
 
 
 def clamp_recent_limit(value: int | None) -> int:
@@ -46,12 +51,13 @@ async def record_view(
     session: AsyncSession,
     *,
     user_id: int,
-    entity_type: RecentEntityType,
+    entity_type: str,
     entity_id: int,
+    source: ViewSource = ViewSource.direct,
     persist: bool = True,
 ) -> RecentView:
-    """Upsert a recent-view row. What a person no longer keeps goes in the
-    hourly pass (:func:`expire`), not here.
+    """Upsert a recent-view row, with where this open came from. What a person
+    no longer keeps goes in the hourly pass (:func:`expire`), not here.
 
     ``persist=False`` returns a transient (unsaved) row instead of writing.
     A PAM grantee's browsing is transient by design, so it is not recorded.
@@ -61,6 +67,7 @@ async def record_view(
         entity_type=entity_type,
         entity_id=entity_id,
         last_viewed_at=datetime.now(timezone.utc),
+        source=source.value,
     )
     if not persist:
         return record
@@ -69,7 +76,7 @@ async def record_view(
         .values(record.model_dump())
         .on_conflict_do_update(
             index_elements=["user_id", "entity_type", "entity_id"],
-            set_={"last_viewed_at": record.last_viewed_at},
+            set_={"last_viewed_at": record.last_viewed_at, "source": record.source},
         )
     )
     await session.commit()
@@ -77,9 +84,9 @@ async def record_view(
 
 
 async def expire(session: AsyncSession, expiring: Expiring) -> None:
-    """Drop each person's views beyond their newest ``recent_tabs_limit``. A
-    view reopened while this runs is left: it no longer has the time it was
-    ranked by."""
+    """Drop each person's views past :data:`WINDOW`, except a tab among their
+    newest ``recent_tabs_limit``. A view reopened while this runs is left: it
+    no longer has the time it was ranked by."""
     users = list(expiring.tab_limits)
     await session.exec(
         text(
@@ -87,8 +94,11 @@ async def expire(session: AsyncSession, expiring: Expiring) -> None:
             DELETE FROM recent_views rv
             USING (
                 SELECT user_id, entity_type, entity_id, last_viewed_at,
+                       entity_type = ANY (CAST(:tabs AS text[])) AS is_tab,
                        row_number() OVER (
-                           PARTITION BY user_id ORDER BY last_viewed_at DESC
+                           PARTITION BY user_id,
+                                        entity_type = ANY (CAST(:tabs AS text[]))
+                           ORDER BY last_viewed_at DESC
                        ) AS n
                   FROM recent_views
             ) ranked
@@ -99,9 +109,13 @@ async def expire(session: AsyncSession, expiring: Expiring) -> None:
               AND rv.entity_type = ranked.entity_type
               AND rv.entity_id = ranked.entity_id
               AND rv.last_viewed_at = ranked.last_viewed_at
-              AND ranked.n > COALESCE(chosen.tab_limit, :default_limit)
+              AND rv.last_viewed_at < :cutoff
+              AND (NOT ranked.is_tab
+                   OR ranked.n > COALESCE(chosen.tab_limit, :default_limit))
             """
         ).bindparams(
+            tabs=list(RECENT_TAB_TYPES),
+            cutoff=expiring.now - WINDOW,
             users=users,
             limits=[expiring.tab_limits[user] for user in users],
             default_limit=DEFAULT_RECENT_VIEWS,
@@ -166,14 +180,17 @@ async def list_recent_views(
     user_id: int,
     limit: int = DEFAULT_RECENT_VIEWS,
 ) -> Sequence[RecentView]:
-    """Return the user's most recent N rows, ordered by ``last_viewed_at`` desc.
+    """Return the user's most recent N tabs, ordered by ``last_viewed_at`` desc.
 
     ``recent_views`` lives in its community's schema, so the routed session
     already scopes rows to that community.
     """
     stmt = (
         select(RecentView)
-        .where(RecentView.user_id == user_id)
+        .where(
+            RecentView.user_id == user_id,
+            col(RecentView.entity_type).in_(RECENT_TAB_TYPES),
+        )
         .order_by(RecentView.last_viewed_at.desc())
         .limit(limit)
     )

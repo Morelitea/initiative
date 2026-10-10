@@ -5,7 +5,7 @@ import type { SearchHit } from "@/api/generated/initiativeAPI.schemas";
 import { MentionText } from "@/components/user/MentionText";
 import { MentionedPeopleScope, ReportMentionedPeople } from "@/hooks/useMentionedPeople";
 import { useCommunityPath } from "@/lib/communityUrl";
-import { hitIcon, searchHitPath } from "@/lib/searchResults";
+import { FROM_SEARCH, hitIcon, searchHitPath } from "@/lib/searchResults";
 
 /**
  * The pieces of a snippet, with the matched words marked.
@@ -81,7 +81,11 @@ function SearchResultRow({ hit }: { hit: SearchHit }) {
     return <div className="flex gap-3 rounded-md px-3 py-2">{body}</div>;
   }
   return (
-    <Link to={getCommunityPath(path)} className="flex gap-3 rounded-md px-3 py-2 hover:bg-accent">
+    <Link
+      to={getCommunityPath(path)}
+      state={FROM_SEARCH}
+      className="flex gap-3 rounded-md px-3 py-2 hover:bg-accent"
+    >
       {body}
     </Link>
   );

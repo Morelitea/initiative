@@ -1,5 +1,5 @@
 import { useParams } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { DashboardViewMode, Tool } from "@/api/generated/initiativeAPI.schemas";
@@ -18,16 +18,13 @@ import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useDashboardEditor } from "@/hooks/useDashboardEditor";
 import { useDashboard, useUpdateDashboard, useWidgetCatalog } from "@/hooks/useDashboards";
 import { useReadOnOpen } from "@/hooks/useNotifications";
-import { useRecordRecentView } from "@/hooks/useRecents";
+import { useRecordOpen } from "@/hooks/useRecents";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { toolListRoute, toolSettingsRoute } from "@/lib/tools";
 
 export function DashboardDetailPage() {
   const { t } = useTranslation(["dashboards", "common"]);
-  const { communityId, dashboardId } = useParams({ strict: false }) as {
-    communityId: string;
-    dashboardId: string;
-  };
+  const { dashboardId } = useParams({ strict: false }) as { dashboardId: string };
   const parsedId = Number(dashboardId);
   const gp = useCommunityPath();
 
@@ -40,13 +37,9 @@ export function DashboardDetailPage() {
 
   // Track recently viewed dashboards for the layout header tabs bar — only
   // once the read succeeds (access checks passed).
-  const recordViewMutation = useRecordRecentView(Tool.dashboard, Number(communityId));
   const viewedDashboardId = dashboard?.id;
   useReadOnOpen(Tool.dashboard, viewedDashboardId);
-  useEffect(() => {
-    if (!viewedDashboardId) return;
-    recordViewMutation.mutate(viewedDashboardId);
-  }, [viewedDashboardId, recordViewMutation.mutate]);
+  useRecordOpen(Tool.dashboard, viewedDashboardId);
 
   const catalogQuery = useWidgetCatalog();
   // Arranging and binding are authoring — they write the dashboard's own row —

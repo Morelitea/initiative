@@ -2,8 +2,9 @@
 
 Covers ``GET /api/v1/recents`` — the mixed-type list the layout header
 consumes — and the guild-addressed pair that opens and closes a tab. Opening
-one is proved over the whole ``Tool`` enum, so a new tool is exercised here
-the moment it exists.
+one is proved over the whole ``Tool`` enum, and recording something inside a
+tool over every kind inside one, so a new kind is exercised here the moment it
+exists.
 """
 
 import asyncio
@@ -12,17 +13,17 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.exc import DBAPIError
-from sqlmodel import select
+from sqlmodel import col, select, update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.tools import Tool
+from app.core.tools import CHILD_KINDS, KINDS, Tool
 from app.models.platform.guild import CommunityRole
 from app.models.tenant.project import Project
 from app.models.tenant.recent_view import RecentView
 from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.services.guild_sweeps import Scope, each_guild
 from app.services.tenant import expiry
-from app.services.tenant.recent_views import DEFAULT_RECENT_VIEWS
+from app.services.tenant.recent_views import DEFAULT_RECENT_VIEWS, WINDOW
 from app.testing import (
     create_calendar,
     create_guild,
@@ -30,6 +31,8 @@ from app.testing import (
     create_project,
     create_queue,
     create_resource_grant,
+    create_task,
+    create_child_entity,
     create_tool_entity,
     enable_all_tools,
     route_as,
@@ -143,8 +146,9 @@ async def test_recent_tabs_limit_caps_list_and_prune(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """The user's ``recent_tabs_limit`` bounds what the tabs-bar endpoint
-    returns, and the hourly pass keeps that many for each person: the default
-    for whoever never set one, whether or not anyone else did."""
+    returns. The hourly pass keeps every open for ``WINDOW``; past it, each
+    person keeps that many tabs, the default for whoever never set one,
+    whether or not anyone else did, and nothing that is not a tab."""
     a = await acting_user(guild_role=CommunityRole.member, initiative=True)
     b = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
     c = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
@@ -153,7 +157,7 @@ async def test_recent_tabs_limit_caps_list_and_prune(
         await create_project(session, a.initiative, a.user)
         for _ in range(DEFAULT_RECENT_VIEWS + 1)
     ]
-    now = datetime.now(timezone.utc)
+    past = datetime.now(timezone.utc) - WINDOW - timedelta(hours=1)
     for person, count in ((b, len(opened)), (c, 4)):
         for i, project in enumerate(opened[:count]):
             session.add(
@@ -161,7 +165,7 @@ async def test_recent_tabs_limit_caps_list_and_prune(
                     user_id=person.user.id,
                     entity_type="project",
                     entity_id=project.id,
-                    last_viewed_at=now - timedelta(minutes=i),
+                    last_viewed_at=past - timedelta(minutes=i),
                 )
             )
     await session.commit()
@@ -202,15 +206,30 @@ async def test_recent_tabs_limit_caps_list_and_prune(
         assert rv.status_code == 200
         await asyncio.sleep(0.02)
 
-    # Only the two most-recently-opened show.
+    # Only the two most-recently-opened show; something inside a tool never
+    # does.
+    task = await create_task(session, projects[0])
+    rv = await client.post(a.g(f"/recents/task/{task.id}"), headers=a.headers)
+    assert rv.status_code == 200
     r = await client.get(RECENTS, headers=a.headers)
     assert r.status_code == 200
     items = r.json()
     assert [i["entity_id"] for i in items] == [projects[3].id, projects[2].id]
 
-    # Recording an open prunes nothing; the hourly pass keeps each person's
-    # own number, and the default for whoever never set one.
-    assert await kept(a) == sorted(p.id for p in projects)
+    # Inside the window, the pass keeps every open.
+    opens = sorted([*(p.id for p in projects), task.id])
+    await expire()
+    assert await kept(a) == opens
+
+    # Past it, each person keeps their own number of tabs, the default for
+    # whoever never set one, and nothing inside a tool.
+    await session.exec(
+        update(RecentView)
+        .where(col(RecentView.user_id) == a.user.id)
+        .values(
+            last_viewed_at=col(RecentView.last_viewed_at) - WINDOW - timedelta(hours=1)
+        )
+    )
     c.user.recent_tabs_limit = 3
     session.add(c.user)
     await session.commit()
@@ -314,3 +333,45 @@ async def test_opening_a_tab_puts_the_tool_in_the_tabs_bar(
     assert refused.status_code == 404, refused.text
     assert refused.json() == tool.not_found().body
     assert (await client.get(RECENTS, headers=outsider.headers)).json() == []
+
+
+@pytest.mark.parametrize("kind", CHILD_KINDS)
+async def test_opening_something_inside_a_tool_is_recorded_and_never_a_tab(
+    client: AsyncClient, session: AsyncSession, acting_user, kind: str
+):
+    """Something inside a tool is recorded with where the open came from, is
+    read as its own page reads it, and never becomes a tab. A guild member
+    outside the initiative is refused in its tool's own words."""
+    a = await acting_user(guild_role=CommunityRole.member, initiative=True)
+    await enable_all_tools(session, a.initiative)
+    parent = KINDS[kind].parent
+    assert parent is not None
+    tool = await create_tool_entity(session, parent, a.initiative, a.user)
+    entity = await create_child_entity(session, kind, tool, a.user)
+
+    response = await client.post(
+        a.g(f"/recents/{kind}/{entity.id}?source=search"), headers=a.headers
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert (body["entity_type"], body["entity_id"], body["source"]) == (
+        kind,
+        entity.id,
+        "search",
+    )
+    row = (
+        await session.exec(
+            select(RecentView).where(
+                RecentView.user_id == a.user.id, RecentView.entity_type == kind
+            )
+        )
+    ).one()
+    assert (row.entity_id, row.source) == (entity.id, "search")
+    assert (await client.get(RECENTS, headers=a.headers)).json() == []
+
+    outsider = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
+    refused = await client.post(
+        outsider.g(f"/recents/{kind}/{entity.id}"), headers=outsider.headers
+    )
+    assert refused.status_code == 404, refused.text
+    assert refused.json() == KINDS[kind].not_found().body

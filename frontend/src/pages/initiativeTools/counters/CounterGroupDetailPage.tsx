@@ -14,7 +14,7 @@ import {
 } from "@dnd-kit/sortable";
 import { useParams } from "@tanstack/react-router";
 import { ArrowDownUp, LayoutGrid, List, Plus, RotateCcw } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { CounterRead } from "@/api/generated/initiativeAPI.schemas";
@@ -55,7 +55,7 @@ import {
   useUpdateCounterGroup,
 } from "@/hooks/useCounters";
 import { useReadOnOpen } from "@/hooks/useNotifications";
-import { useRecordRecentView } from "@/hooks/useRecents";
+import { useRecordOpen } from "@/hooks/useRecents";
 import { useToolRealtime } from "@/hooks/useResourceRealtime";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { useCommunityPath } from "@/lib/communityUrl";
@@ -67,8 +67,7 @@ const layoutStorageKey = (groupId: number) => `counter-group-${groupId}-layout`;
 export function CounterGroupDetailPage() {
   const { t } = useTranslation(["counterGroups", "common"]);
   const gp = useCommunityPath();
-  const { communityId, counterGroupId: groupIdParam } = useParams({ strict: false }) as {
-    communityId: string;
+  const { counterGroupId: groupIdParam } = useParams({ strict: false }) as {
     counterGroupId?: string;
   };
   const groupId = groupIdParam ? Number(groupIdParam) : null;
@@ -121,13 +120,9 @@ export function CounterGroupDetailPage() {
   }, [group?.counters]);
 
   // Track recently viewed counter groups for the layout header tabs bar.
-  const recordViewMutation = useRecordRecentView(Tool.counter_group, Number(communityId));
   const viewedGroupId = group?.id;
   useReadOnOpen(Tool.counter_group, viewedGroupId);
-  useEffect(() => {
-    if (!viewedGroupId) return;
-    recordViewMutation.mutate(viewedGroupId);
-  }, [viewedGroupId, recordViewMutation.mutate]);
+  useRecordOpen(Tool.counter_group, viewedGroupId);
 
   const canWrite = Boolean(group?.can.edit);
 

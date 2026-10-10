@@ -86,7 +86,7 @@ import { useExportJob } from "@/hooks/useExportJob";
 import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiative } from "@/hooks/useInitiatives";
 import { useReadOnOpen } from "@/hooks/useNotifications";
-import { useRecordRecentView } from "@/hooks/useRecents";
+import { useRecordOpen } from "@/hooks/useRecents";
 import { useUpdateTask } from "@/hooks/useTasks";
 import { useUnreadTree } from "@/hooks/useUnreadTree";
 import { useViewPreference } from "@/hooks/useViewPreference";
@@ -880,7 +880,7 @@ export function CommunityCalendarsPage() {
  * the same calendar page with that calendar forced visible, recorded as a
  * recent open. */
 export function CalendarFocusPage() {
-  const { calendarId: calendarIdParam, communityId } = useParams({ strict: false });
+  const { calendarId: calendarIdParam } = useParams({ strict: false });
   const calendarId = Number(calendarIdParam);
   const calendarQuery = useCalendar(Number.isFinite(calendarId) ? calendarId : null);
   const calendar = calendarQuery.data;
@@ -890,13 +890,9 @@ export function CalendarFocusPage() {
 
   // Track recently viewed calendars for the layout header tabs bar — only
   // once the read succeeds (access checks passed).
-  const recordViewMutation = useRecordRecentView(Tool.calendar, Number(communityId));
   const viewedCalendarId = calendar?.id;
   useReadOnOpen(Tool.calendar, viewedCalendarId);
-  useEffect(() => {
-    if (!viewedCalendarId) return;
-    recordViewMutation.mutate(viewedCalendarId);
-  }, [viewedCalendarId, recordViewMutation.mutate]);
+  useRecordOpen(Tool.calendar, viewedCalendarId);
 
   // Which kind of calendar decides which surface renders, so nothing renders
   // until the read resolves: a community calendar (the plug-in) must never flash the
