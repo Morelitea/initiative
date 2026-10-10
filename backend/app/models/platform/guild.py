@@ -306,6 +306,13 @@ class Guild(SQLModel, table=True):
     status_changed_at: Optional[datetime] = Field(
         default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
     )
+    # Where a suspended guild was before it was suspended, so lifting the
+    # suspension puts it back there — ``deleted`` included, which a suspension
+    # pulls out of its purge countdown. NULL while it is not suspended, and for
+    # a suspension made before this was recorded.
+    status_before_suspension: Optional[str] = Field(
+        default=None, sa_column=Column(String(16), nullable=True)
+    )
     # Community directory opt-in. False means the guild is reachable only by
     # invite; True publishes its name, description, icon, categories, and roster
     # size to the signed-in directory and lets anyone join without one. Set by

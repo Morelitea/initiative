@@ -58,7 +58,7 @@ async def _request_access(client: AsyncClient, actor: Actor, guild, **body) -> o
     )
 
 
-async def test_support_requests_owner_approves_and_the_queue_masks_addresses(
+async def test_support_requests_owner_approves_and_the_queue_names_handles(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """The whole request->approve flow, and how the queue names the people in
@@ -84,7 +84,9 @@ async def test_support_requests_owner_approves_and_the_queue_masks_addresses(
     queue = await client.get(f"{GRANTS}queue?status=pending", headers=owner.headers)
     assert queue.status_code == 200
     row = next(g for g in queue.json()["items"] if g["id"] == grant_id)
-    assert row["user_email"] == "s***t@e***m"
+    assert row["user"]["id"] == support.user.id
+    assert row["user"]["username"] == support.user.username
+    assert "user_email" not in row
 
     approved = await client.post(
         f"{GRANTS}{grant_id}/approve", json={}, headers=owner.headers
@@ -93,8 +95,9 @@ async def test_support_requests_owner_approves_and_the_queue_masks_addresses(
     assert approved.json()["status"] == "approved"
     assert approved.json()["is_live"] is True
     assert approved.json()["expires_at"] is not None
-    assert approved.json()["approved_by_email"] == "o***r@e***m"
+    assert approved.json()["approved_by"]["username"] == owner.user.username
     assert "@example.com" not in approved.text
+    assert "e***m" not in approved.text
 
 
 async def test_my_requests_respects_limit_and_order(
@@ -439,7 +442,7 @@ async def test_the_queue_is_read_by_approvers_on_their_own_tier(
     if expected == 200:
         row = next(g for g in queue.json()["items"] if g["id"] == grant.id)
         assert row["community_name"] == host.guild.name
-        assert row["user_email"] is not None
+        assert row["user"] is not None
 
 
 async def test_a_grantee_reads_their_own_grant_and_not_somebody_elses(

@@ -6,6 +6,7 @@ from pydantic import AliasChoices, ConfigDict, Field
 
 from app.schemas.base import SanitizedBaseModel
 
+from app.core.intake import IntakeStream
 from app.models.platform.user import UserRole
 
 
@@ -68,3 +69,23 @@ class OperatorSuspensionUpdate(SanitizedBaseModel):
 
     suspended: bool
     reason: Optional[str] = Field(default=None, max_length=500)
+
+
+class OperatorAccountCaseRead(SanitizedBaseModel):
+    """An open case an account filed or is the subject of: where it lives, to
+    link to it, and nothing of what it says. Opening it is the case's
+    initiative's to allow."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    task_id: int
+    stream: IntakeStream
+    community_id: int
+    initiative_id: int
+    project_id: int
+    #: Whether the account filed it, rather than being what it is about.
+    filed: bool
+
+
+#: The parts of how an account appears to others that staff may clear.
+ProfileField = Literal["display_names", "custom_status", "decorations"]

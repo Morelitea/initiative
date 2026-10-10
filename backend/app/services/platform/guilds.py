@@ -1248,11 +1248,32 @@ async def set_guild_status(
     """
     guild = await get_guild(session, guild_id=guild_id)
     if guild.status != status.value:
+        # A suspension remembers where it began, so lifting it can go back;
+        # any other move leaves nothing to go back to.
+        guild.status_before_suspension = (
+            guild.status if status is CommunityStatus.suspended else None
+        )
         guild.status = status.value
         guild.status_changed_at = datetime.now(timezone.utc)
         session.add(guild)
         await session.flush()
     return guild
+
+
+def lifted_status(
+    guild: Guild, *, billing_status: CommunityStatus | None
+) -> CommunityStatus:
+    """Where lifting ``guild``'s suspension returns it: the status it was
+    suspended from. A deleted community goes back to ``deleted``. Where billing
+    sets plans, a live one goes to the status billing last wrote, which is the
+    only one the database lets anything but billing move it to.
+    """
+    before = guild.status_before_suspension
+    if before == CommunityStatus.deleted.value:
+        return CommunityStatus.deleted
+    if billing_service.billing_managed():
+        return billing_status or CommunityStatus.active
+    return CommunityStatus(before) if before else CommunityStatus.active
 
 
 async def get_guild_retention_days(session: AsyncSession) -> int | None:

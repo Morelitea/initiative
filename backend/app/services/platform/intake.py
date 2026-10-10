@@ -731,3 +731,102 @@ async def add_filer_reply(
             await session.commit()
             sealing.keep()
     return True
+
+
+@dataclass(frozen=True)
+class AccountCase:
+    """An open case an account filed or is the subject of, by where it lives:
+    enough to link to it, and nothing of what it says."""
+
+    task_id: int
+    stream: IntakeStream
+    project_id: int
+    initiative_id: int
+    guild_id: int
+    #: Whether the account filed it, rather than being what it is about.
+    filed: bool
+
+
+def _open_case_task():
+    """Tasks of open cases: out of the trash and short of a ``done`` status."""
+    return (
+        select(IntakeCase.task_id, IntakeCase.stream, IntakeCase.filer_user_id)
+        .join(Task, Task.id == IntakeCase.task_id)
+        .join(TaskStatus, TaskStatus.id == Task.task_status_id)
+        .where(Task.deleted_at.is_(None))
+        .where(TaskStatus.category != TaskStatusCategory.done)
+    )
+
+
+async def _cases_about(
+    session: AsyncSession, user_ids: Sequence[int]
+) -> dict[int, dict[int, tuple[str, bool]]]:
+    """For each of ``user_ids``, its open cases by task: the stream, and
+    whether it filed the case. Two reads, whatever the number of accounts."""
+    from app.models.tenant.property import PropertyValue
+
+    found: dict[int, dict[int, tuple[str, bool]]] = {}
+    filed = await session.exec(
+        _open_case_task().where(IntakeCase.filer_user_id.in_(list(user_ids)))
+    )
+    for task_id, stream, filer in filed.all():
+        found.setdefault(int(filer), {})[int(task_id)] = (stream, True)
+    subjects = await session.exec(
+        _open_case_task()
+        .add_columns(PropertyValue.value_number)
+        .join(
+            PropertyValue,
+            (PropertyValue.entity_type == "task")
+            & (PropertyValue.entity_id == IntakeCase.task_id),
+        )
+        .join(PropertyDefinition, PropertyDefinition.id == PropertyValue.property_id)
+        .where(PropertyDefinition.name == CaseField.subject_user.value)
+        .where(PropertyValue.value_number.in_(list(user_ids)))
+    )
+    for task_id, stream, _filer, subject in subjects.all():
+        cases = found.setdefault(int(subject), {})
+        cases.setdefault(int(task_id), (stream, False))
+    return found
+
+
+async def open_case_counts(user_ids: Sequence[int]) -> dict[int, int]:
+    """How many open cases each of ``user_ids`` filed or is the subject of,
+    in the operations community. Empty where there is none."""
+    guild_id = await configured_operations_guild_id()
+    if guild_id is None or not user_ids:
+        return {}
+    async with cohorts.system_session(guild_id) as session:
+        await set_rls_context(session, SystemGuild(guild_id))
+        found = await _cases_about(session, user_ids)
+    return {user_id: len(cases) for user_id, cases in found.items()}
+
+
+async def open_cases_for(user_id: int) -> list[AccountCase]:
+    """The open cases ``user_id`` filed or is the subject of, newest first."""
+    guild_id = await configured_operations_guild_id()
+    if guild_id is None:
+        return []
+    async with cohorts.system_session(guild_id) as session:
+        await set_rls_context(session, SystemGuild(guild_id))
+        cases = (await _cases_about(session, [user_id])).get(user_id, {})
+        if not cases:
+            return []
+        places = (
+            await session.exec(
+                select(Task.id, Task.project_id, Project.initiative_id)
+                .join(Project, Project.id == Task.project_id)
+                .where(Task.id.in_(list(cases)))
+                .order_by(Task.id.desc())
+            )
+        ).all()
+    return [
+        AccountCase(
+            task_id=int(task_id),
+            stream=IntakeStream(cases[int(task_id)][0]),
+            project_id=int(project_id),
+            initiative_id=int(initiative_id),
+            guild_id=guild_id,
+            filed=cases[int(task_id)][1],
+        )
+        for task_id, project_id, initiative_id in places
+    ]
