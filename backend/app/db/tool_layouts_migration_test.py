@@ -1,6 +1,6 @@
 """Migration 20261009_0478 turns a project's filter presets into its views,
 20261009_0479 drops the default view mode they no longer need, and
-20261010_0491 turns the views into layouts.
+20261010_0492 turns the views into layouts.
 Loaded by path and run on a guild the test builds, the way
 ``file_versions_by_pointer_migration_test`` runs its revision: down to the old
 shape, rows written as an older release wrote them, up, and down again."""
@@ -79,7 +79,7 @@ async def test_presets_become_views_and_come_back(session) -> None:
     }
     migration = _load("20261009_0478_tool_views")
     drop_mode = _load("20261009_0479_a_project_opens_on_its_default_view")
-    layouts = _load("20261010_0491_views_become_layouts")
+    layouts = _load("20261010_0492_views_become_layouts")
 
     def run(step):
         def apply(sync_session) -> None:
@@ -294,7 +294,7 @@ async def test_views_become_layouts_and_come_back(session) -> None:
     initiative = await create_initiative(session, guild, user)
     drawn = (await create_project(session, initiative, user, name="Drawn")).id
     filtered = (await create_project(session, initiative, user, name="Filtered")).id
-    layouts = _load("20261010_0491_views_become_layouts")
+    layouts = _load("20261010_0492_views_become_layouts")
 
     def run(step):
         def apply(sync_session) -> None:
