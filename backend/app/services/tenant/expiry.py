@@ -3,8 +3,10 @@
 Each record states its own rule beside its own code: how long the change log
 keeps events, which delivery records go with them, which recent views a person
 no longer keeps. :func:`prepare` runs every rule in order, in one visit per
-community and one transaction, from the hourly pass. A rule is one statement
-against an index, so a community with nothing due costs an index probe per rule.
+community and one transaction, from the hourly pass. Each rule is one
+statement. Most are a probe of an index when nothing is due; the recent-views
+rule ranks the community's views every time, which is one row per person per
+thing they opened.
 
 Rules run wherever the community's schema exists, whatever its status: how long
 something is kept does not wait for the community to be active again.

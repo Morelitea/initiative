@@ -7,6 +7,7 @@ the moment it exists.
 """
 
 import asyncio
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from httpx import AsyncClient
@@ -21,6 +22,7 @@ from app.models.tenant.recent_view import RecentView
 from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.services.guild_sweeps import Scope, each_guild
 from app.services.tenant import expiry
+from app.services.tenant.recent_views import DEFAULT_RECENT_VIEWS
 from app.testing import (
     create_calendar,
     create_guild,
@@ -141,8 +143,47 @@ async def test_recent_tabs_limit_caps_list_and_prune(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """The user's ``recent_tabs_limit`` bounds what the tabs-bar endpoint
-    returns, and the hourly pass keeps that many."""
+    returns, and the hourly pass keeps that many for each person: the default
+    for whoever never set one, whether or not anyone else did."""
     a = await acting_user(guild_role=CommunityRole.member, initiative=True)
+    b = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
+    c = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
+    # Rows name real things: a view is reached through what it names.
+    opened = [
+        await create_project(session, a.initiative, a.user)
+        for _ in range(DEFAULT_RECENT_VIEWS + 1)
+    ]
+    now = datetime.now(timezone.utc)
+    for person, count in ((b, len(opened)), (c, 4)):
+        for i, project in enumerate(opened[:count]):
+            session.add(
+                RecentView(
+                    user_id=person.user.id,
+                    entity_type="project",
+                    entity_id=project.id,
+                    last_viewed_at=now - timedelta(minutes=i),
+                )
+            )
+    await session.commit()
+    newest = sorted(p.id for p in opened)
+
+    async def kept(person) -> list[int]:
+        rows = await session.exec(
+            select(RecentView.entity_id).where(RecentView.user_id == person.user.id)
+        )
+        return sorted(rows.all())
+
+    async def expire() -> None:
+        await each_guild(
+            [(Scope.PROVISIONED, await expiry.prepare())],
+            name="test",
+            only=[a.guild.id],
+        )
+
+    # Everyone on the default: each keeps their newest twenty.
+    await expire()
+    assert await kept(b) == newest[:DEFAULT_RECENT_VIEWS]
+    assert await kept(c) == newest[:4]
 
     # Lower the user's recents cap to 2 via self-update.
     r = await client.patch(
@@ -167,18 +208,16 @@ async def test_recent_tabs_limit_caps_list_and_prune(
     items = r.json()
     assert [i["entity_id"] for i in items] == [projects[3].id, projects[2].id]
 
-    async def kept() -> list[int]:
-        rows = await session.exec(
-            select(RecentView.entity_id).where(RecentView.user_id == a.user.id)
-        )
-        return sorted(rows.all())
-
-    # Recording an open prunes nothing; the hourly pass keeps the two.
-    assert await kept() == sorted(p.id for p in projects)
-    await each_guild(
-        [(Scope.PROVISIONED, await expiry.prepare())], name="test", only=[a.guild.id]
-    )
-    assert await kept() == sorted([projects[3].id, projects[2].id])
+    # Recording an open prunes nothing; the hourly pass keeps each person's
+    # own number, and the default for whoever never set one.
+    assert await kept(a) == sorted(p.id for p in projects)
+    c.user.recent_tabs_limit = 3
+    session.add(c.user)
+    await session.commit()
+    await expire()
+    assert await kept(a) == sorted([projects[3].id, projects[2].id])
+    assert await kept(b) == newest[:DEFAULT_RECENT_VIEWS]
+    assert await kept(c) == newest[:3]
 
 
 async def test_recent_tabs_limit_rejects_out_of_range(

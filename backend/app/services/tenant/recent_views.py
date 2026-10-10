@@ -77,14 +77,16 @@ async def record_view(
 
 
 async def expire(session: AsyncSession, expiring: Expiring) -> None:
-    """Drop each person's views beyond their newest ``recent_tabs_limit``."""
+    """Drop each person's views beyond their newest ``recent_tabs_limit``. A
+    view reopened while this runs is left: it no longer has the time it was
+    ranked by."""
     users = list(expiring.tab_limits)
     await session.exec(
         text(
             """
             DELETE FROM recent_views rv
             USING (
-                SELECT user_id, entity_type, entity_id,
+                SELECT user_id, entity_type, entity_id, last_viewed_at,
                        row_number() OVER (
                            PARTITION BY user_id ORDER BY last_viewed_at DESC
                        ) AS n
@@ -96,6 +98,7 @@ async def expire(session: AsyncSession, expiring: Expiring) -> None:
             WHERE rv.user_id = ranked.user_id
               AND rv.entity_type = ranked.entity_type
               AND rv.entity_id = ranked.entity_id
+              AND rv.last_viewed_at = ranked.last_viewed_at
               AND ranked.n > COALESCE(chosen.tab_limit, :default_limit)
             """
         ).bindparams(
