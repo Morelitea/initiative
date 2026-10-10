@@ -59,6 +59,7 @@
     "aiGenerate": "Générer avec l'IA",
     "descriptionPlaceholder": "Ajoutez du contexte ou des critères d'acceptation. Markdown pris en charge.",
     "noDescriptionReadOnly": "Pas encore de description.",
+    "draftKeptReadOnly": "Votre brouillon non enregistré de cette description est conservé sur cet appareil jusqu'à ce que vous puissiez la modifier à nouveau.",
     "moveToProject": "Déplacer vers un projet",
     "duplicating": "Duplication…",
     "duplicateTask": "Dupliquer la tâche",

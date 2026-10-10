@@ -59,6 +59,7 @@
     "aiGenerate": "AI Generate",
     "descriptionPlaceholder": "Add extra context or acceptance criteria. Markdown supported.",
     "noDescriptionReadOnly": "No description yet.",
+    "draftKeptReadOnly": "Your unsaved draft of this description is kept on this device until you can edit it again.",
     "moveToProject": "Move to project",
     "duplicating": "Duplicating…",
     "duplicateTask": "Duplicate task",

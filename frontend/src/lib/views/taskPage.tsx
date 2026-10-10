@@ -213,8 +213,11 @@ const DescriptionEditor = ({ task, label }: EditorProps) => {
   });
 
   const current = task.description ?? "";
-  const conflict = draft !== null && getHttpStatus(save.error) === 409;
-  const dirty = draft !== null && draft.text !== (draft.base ?? "");
+  // A reader who can no longer edit keeps the draft on the device, but sees
+  // the saved description and nothing that would write.
+  const open = readOnly ? null : draft;
+  const conflict = open !== null && getHttpStatus(save.error) === 409;
+  const dirty = open !== null && open.text !== (open.base ?? "");
   const blocker = useBlocker({
     shouldBlockFn: () => dirty && !leaving.current,
     enableBeforeUnload: () => dirty && !leaving.current,
@@ -222,8 +225,8 @@ const DescriptionEditor = ({ task, label }: EditorProps) => {
   });
 
   const submit = (base: string | null) => {
-    if (!draft) return;
-    const description = draft.text || null;
+    if (!open) return;
+    const description = open.text || null;
     void save.save({ patch: { description, description_base: base }, shows: { description } });
   };
   const cancel = () => (dirty ? setDiscarding(true) : setDraft(null));
@@ -235,7 +238,7 @@ const DescriptionEditor = ({ task, label }: EditorProps) => {
       // The conflict below says what went wrong, and Retry would only repeat it.
       save={conflict ? { ...save, state: "idle" } : save}
       changed={
-        draft !== null && !conflict && save.state !== "saving" && current !== (draft.base ?? "")
+        open !== null && !conflict && save.state !== "saving" && current !== (open.base ?? "")
       }
       action={
         draft === null && !readOnly ? (
@@ -251,20 +254,27 @@ const DescriptionEditor = ({ task, label }: EditorProps) => {
         ) : null
       }
     >
-      {draft === null ? (
-        current ? (
-          <div className="rounded-md border border-border/70 border-dashed bg-muted/40 px-3 py-2">
-            <TaskDescription content={current} />
-          </div>
-        ) : (
-          <p className="text-muted-foreground text-sm italic">{t("edit.noDescriptionReadOnly")}</p>
-        )
+      {open === null ? (
+        <>
+          {current ? (
+            <div className="rounded-md border border-border/70 border-dashed bg-muted/40 px-3 py-2">
+              <TaskDescription content={current} />
+            </div>
+          ) : (
+            <p className="text-muted-foreground text-sm italic">
+              {t("edit.noDescriptionReadOnly")}
+            </p>
+          )}
+          {draft !== null ? (
+            <p className="text-muted-foreground text-xs">{t("edit.draftKeptReadOnly")}</p>
+          ) : null}
+        </>
       ) : (
         <div className="space-y-2">
           <MentionComposer
             id="task-description"
-            value={draft.text}
-            onChange={(text) => setDraft({ ...draft, text })}
+            value={open.text}
+            onChange={(text) => setDraft({ ...open, text })}
             initiativeId={initiativeId ?? 0}
             subject={referenceRef(SearchEntityType.task, task.id)}
             renderPreview={renderDescription}
@@ -274,7 +284,7 @@ const DescriptionEditor = ({ task, label }: EditorProps) => {
             onKeyDown={(event) => {
               if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
                 event.preventDefault();
-                submit(draft.base);
+                submit(open.base);
               } else if (event.key === "Escape") {
                 event.preventDefault();
                 cancel();
@@ -319,7 +329,7 @@ const DescriptionEditor = ({ task, label }: EditorProps) => {
                   variant="outline"
                   onClick={() => {
                     save.reset();
-                    setDraft({ ...draft, base: task.description });
+                    setDraft({ ...open, base: task.description });
                   }}
                 >
                   {t("common:fieldSave.keepEditing")}
@@ -332,7 +342,7 @@ const DescriptionEditor = ({ task, label }: EditorProps) => {
                 type="button"
                 size="sm"
                 disabled={save.state === "saving"}
-                onClick={() => submit(draft.base)}
+                onClick={() => submit(open.base)}
               >
                 {t("common:save")}
               </Button>

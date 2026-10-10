@@ -282,6 +282,29 @@ describe("TaskEditPage", () => {
     expect(screen.queryByRole("textbox", { name: /^description$/i })).not.toBeInTheDocument();
   });
 
+  it("keeps a draft but offers nothing that writes once the task is read-only", async () => {
+    const first = renderTaskPage({ description: "Old words", userId: 43 });
+    await openDescription();
+    await userEvent.type(await screen.findByRole("textbox", { name: /^description$/i }), " more");
+    first.unmount();
+
+    const reader = renderTaskPage({ description: "Old words", userId: 43, canEdit: false });
+    const description = await fieldNamed(/^description$/i);
+    expect(await within(description).findByText("Old words")).toBeInTheDocument();
+    expect(within(description).getByText(/draft .* is kept on this device/i)).toBeInTheDocument();
+    expect(within(description).queryByRole("textbox")).not.toBeInTheDocument();
+    expect(within(description).queryByRole("button")).not.toBeInTheDocument();
+    await userEvent.keyboard("{Control>}{Enter}{/Control}");
+    expect(reader.sent).toHaveLength(0);
+    reader.unmount();
+
+    // Editing again finds it where it was left.
+    renderTaskPage({ description: "Old words", userId: 43 });
+    expect(await screen.findByRole("textbox", { name: /^description$/i })).toHaveValue(
+      "Old words more"
+    );
+  });
+
   it("keeps what is typed while the description saves, as a draft over the saved text", async () => {
     let release = () => {};
     const held = new Promise<undefined>((resolve) => {
@@ -455,27 +478,57 @@ describe("TaskEditPage", () => {
     await waitFor(() => expect(within(priority).queryByRole("alert")).not.toBeInTheDocument());
   });
 
-  it("keeps a field's pending change when another field's save comes back first", async () => {
+  it("sends a task's saves one at a time, so the last change made is the one kept", async () => {
     let release = () => {};
     const held = new Promise<undefined>((resolve) => {
       release = () => resolve(undefined);
     });
-    const { sent } = renderTaskPage({
+    // The first answer would come back last, were the second not waiting for it.
+    const { sent, task } = renderTaskPage({ refuse: () => (sent.length === 1 ? held : undefined) });
+
+    await choose(/^priority$/i, /^high$/i);
+    await waitFor(() => expect(sent).toHaveLength(1));
+    await choose(/^priority$/i, /^low$/i);
+    const priority = within(await fieldNamed(/^priority$/i)).getByRole("combobox");
+    expect(priority).toHaveTextContent(/low/i);
+    expect(sent).toHaveLength(1);
+
+    release();
+
+    await waitFor(() => expect(sent).toHaveLength(2));
+    expect(sent.map((body) => body.priority)).toEqual(["high", "low"]);
+    await expectSaved(/^priority$/i);
+    expect(task.priority).toBe("low");
+    expect(priority).toHaveTextContent(/low/i);
+  });
+
+  it("keeps showing the changes not yet saved when the task is read again", async () => {
+    let release = () => {};
+    const held = new Promise<undefined>((resolve) => {
+      release = () => resolve(undefined);
+    });
+    const { sent, queryClient } = renderTaskPage({
       refuse: (body) => ("priority" in body ? held : undefined),
     });
 
     await choose(/^priority$/i, /^high$/i);
     await waitFor(() => expect(sent).toHaveLength(1));
-    // The title's answer still has the old priority, as that save has not landed.
+    // The title's save waits behind the priority's.
     const title = await screen.findByDisplayValue("Wire the doorbell");
     await userEvent.type(title, " now{Enter}");
-    await expectSaved(/^task$/i);
+    // A read meanwhile has neither change yet.
+    await queryClient.refetchQueries({ queryKey: getReadTaskQueryKey(COMMUNITY_ID, TASK_ID) });
 
-    expect(within(await fieldNamed(/^priority$/i)).getByRole("combobox")).toHaveTextContent(
-      /high/i
-    );
+    const priority = within(await fieldNamed(/^priority$/i)).getByRole("combobox");
+    expect(priority).toHaveTextContent(/high/i);
+    expect(title).toHaveValue("Wire the doorbell now");
+    expect(sent).toHaveLength(1);
+
     release();
-    await expectSaved(/^priority$/i);
+    await expectSaved(/^task$/i);
+    expect(sent[1]).toMatchObject({ title: "Wire the doorbell now" });
+    expect(priority).toHaveTextContent(/high/i);
+    expect(title).toHaveValue("Wire the doorbell now");
   });
 
   it("writes nothing into the next session when a save lands after it began", async () => {

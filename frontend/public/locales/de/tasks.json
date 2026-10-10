@@ -59,6 +59,7 @@
     "aiGenerate": "Mit KI generieren",
     "descriptionPlaceholder": "Füge zusätzlichen Kontext oder Abnahmekriterien hinzu. Markdown wird unterstützt.",
     "noDescriptionReadOnly": "Noch keine Beschreibung.",
+    "draftKeptReadOnly": "Ihr nicht gespeicherter Entwurf dieser Beschreibung bleibt auf diesem Gerät, bis Sie sie wieder bearbeiten können.",
     "moveToProject": "In Projekt verschieben",
     "duplicating": "Wird dupliziert…",
     "duplicateTask": "Aufgabe duplizieren",
