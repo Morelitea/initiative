@@ -118,13 +118,21 @@ async def _destroy(session: AsyncSession, guild: Guild, days: int) -> None:
     a failed cleanup that rolled back the row would leave the guild due for
     purge forever.
     """
-    guild_id = guild.id
-    # Held content keeps its community: the deletion waits, and the sweep
-    # tries again once the platform has released it (app.db.holds). Taken
-    # under the lock a hold is placed under, held until this commit, so a hold
-    # either landed before the check or finds the community gone.
+    await _refuse_while_held(session, guild.id)
+    await _remove(session, guild.id, days)
+
+
+async def _refuse_while_held(session: AsyncSession, guild_id: int) -> None:
+    """Held content keeps its community: the deletion waits, and the sweep
+    tries again once the platform has released it (app.db.holds). Taken
+    under the lock a hold is placed under, held until ``session`` commits, so
+    a hold either landed before the check or finds the community gone."""
     await advisory_lock(session, LockNamespace.CONTENT_HOLDS, guild_id)
     await refuse_while_held(guild_id)
+
+
+async def _remove(session: AsyncSession, guild_id: int, days: int) -> None:
+    """The row, recorded and committed, then the schema and blobs."""
     await session.exec(delete(Guild).where(Guild.id == guild_id))
     await audit_service.record(
         session,
@@ -152,10 +160,15 @@ async def _destroy(session: AsyncSession, guild: Guild, days: int) -> None:
 
 async def destroy_now(session: AsyncSession, guild: Guild) -> None:
     """Destroy one guild without a retention window: its plug-ins let go, as on
-    any deletion, then :func:`_destroy` as the purge does it. ``session`` is a
-    platform system session."""
+    any deletion, then the rest as the purge does it. ``session`` is a
+    platform system session.
+
+    Raises ``HoldsInForce``, having changed nothing, while the platform holds
+    anything there. The check's lock stays until ``session``'s transaction
+    ends, which it does once the community is gone."""
+    await _refuse_while_held(session, guild.id)
     await post_commit.settle(await _end_plugin_connections(guild.id))
-    await _destroy(session, guild, 0)
+    await _remove(session, guild.id, 0)
 
 
 async def purge_due_guilds(session: AsyncSession, *, now: datetime) -> int:

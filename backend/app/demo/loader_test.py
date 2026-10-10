@@ -1,5 +1,6 @@
 """The demo loader, with a bundle exported from a factory-made community."""
 
+import asyncio
 import io
 import json
 import zipfile
@@ -10,15 +11,19 @@ import pytest
 from sqlmodel import select
 
 from app.core.config import settings
+from app.core.moderation import HoldReason, HoldVia
 from app.core.security import verify_password
-from app.demo import shapes
+from app.demo import loader, shapes
 from app.demo.loader import DemoModeRequired, load
 from app.models.platform.guild import CommunityRole, Guild, GuildMembership
 from app.models.platform.user import User
+from app.models.tenant.content_hold import ContentHold
 from app.models.tenant.export_job import ExportJobStatus
+from app.models.tenant.initiative import Initiative, InitiativeJoinPolicy
 from app.models.tenant.task import Task
 from app.services.auth import addresses
 from app.services.export import worker as export_worker
+from app.services.import_engine import backup as backup_service
 from app.services.import_engine import engine as import_engine
 from app.services.import_engine import worker as import_worker
 from app.services.platform.app_settings import get_app_settings
@@ -198,6 +203,125 @@ async def test_rebuild_remakes_what_is_not_kept(demo, session):
     assert await session.get(Guild, bakery_id) is None
     (kept,) = await _created_by(session, ada)
     assert kept.id == review_id
+
+
+async def test_a_rebuild_leaves_a_held_community_alone(demo, session):
+    _a, _due, directory = demo
+    await _load(directory)
+    bea = (await _user(session, "bea")).id
+    (bakery,) = await _created_by(session, bea)
+    bakery_id = bakery.id
+    await route_session_to_guild(session, bakery_id)
+    session.add(
+        ContentHold(
+            target_type="task",
+            target_id=1,
+            placed_via=HoldVia.community.value,
+            reason=HoldReason.legal_request.value,
+        )
+    )
+    await session.commit()
+
+    await _load(directory, rebuild=True)
+
+    session.expire_all()
+    (kept,) = await _created_by(session, bea)
+    assert kept.id == bakery_id
+
+
+async def test_a_seed_that_left_entries_out_fails_and_is_made_again(
+    demo, session, monkeypatch
+):
+    _a, due, directory = demo
+
+    def refuse(*_args):
+        raise ValueError("refused")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(backup_service, "shift_dates", refuse)
+        with pytest.raises(RuntimeError, match="left out"):
+            await _load(directory)
+    bea = (await _user(session, "bea")).id
+    (partial,) = await _created_by(session, bea)
+    partial_id = partial.id
+
+    await _load(directory)
+
+    session.expire_all()
+    (bakery,) = await _created_by(session, bea)
+    assert bakery.id != partial_id
+    assert [d.date() for d in await _due_dates(session, bakery.id)] == [
+        (due + EXPORTED_AGO).date()
+    ]
+
+
+async def test_an_import_another_worker_claims_is_waited_for(
+    demo, session, monkeypatch
+):
+    _a, due, directory = demo
+    claim = import_worker.jobs.claim
+    elsewhere: dict[int, asyncio.Task | None] = {}
+
+    async def claimed_elsewhere(session, guild_id):
+        if guild_id not in elsewhere:
+            elsewhere[guild_id] = await claim(session, guild_id)
+        return None
+
+    monkeypatch.setattr(import_worker.jobs, "claim", claimed_elsewhere)
+    monkeypatch.setattr(loader, "IMPORT_POLL_SECONDS", 0.05)
+    await _load(directory)
+
+    assert len(elsewhere) == 2
+    (bakery,) = await _created_by(session, (await _user(session, "bea")).id)
+    assert [d.date() for d in await _due_dates(session, bakery.id)] == [
+        (due + EXPORTED_AGO).date()
+    ]
+
+
+async def test_changes_to_the_manifest_apply_on_reload(demo, session):
+    a, _due, directory = demo
+    operations = a.guild.id
+    await _load(directory)
+    (bakery,) = await _created_by(session, (await _user(session, "bea")).id)
+    bakery_id = bakery.id
+
+    async def join_policies() -> set[str]:
+        await route_session_to_guild(session, bakery_id)
+        return {i.join_policy for i in await session.exec(select(Initiative))}
+
+    assert await join_policies() == {InitiativeJoinPolicy.request}
+
+    path = directory / "manifest.json"
+    manifest = json.loads(path.read_text())
+    manifest["communities"][0]["directory"]["join_policy"] = "open"
+    manifest["shapes"] = []
+    path.write_text(json.dumps(manifest))
+    (directory / "accounts.json").write_text(
+        json.dumps(
+            {"reviewer#1000": {"address": "moved@example.com", "password": PASSWORD}}
+        )
+    )
+    await _load(directory)
+
+    session.expire_all()
+    assert await join_policies() == {InitiativeJoinPolicy.open}
+    reviewer = (await _user(session, "reviewer")).id
+    assert await addresses.holds_address(
+        session, user_id=reviewer, email="moved@example.com"
+    )
+    assert not await addresses.holds_address(
+        session, user_id=reviewer, email="review@example.com"
+    )
+    library = shapes.read_library(operations)
+    assert library is not None and library.shapes == []
+
+    manifest["communities"][0]["directory"] = None
+    path.write_text(json.dumps(manifest))
+    await _load(directory)
+
+    session.expire_all()
+    guild = await session.get(Guild, bakery_id)
+    assert guild is not None and not guild.is_community
 
 
 async def test_the_loader_refuses_outside_demo_mode(tmp_path):
