@@ -13,7 +13,13 @@ from pydantic import (
 
 from app.core import recurrence
 from app.core.identity_boundary import GuildId, PersonId
-from app.schemas.base import MentionStr, SanitizedBaseModel, TitleStr, reject_null
+from app.schemas.base import (
+    MentionStr,
+    RichMentionStr,
+    SanitizedBaseModel,
+    TitleStr,
+    reject_null,
+)
 from app.schemas.recurrence import EventRule, OccurrenceScope
 
 from app.models.tenant.calendar_event import RSVPStatus
@@ -70,7 +76,7 @@ class OccurrenceRequest(SanitizedBaseModel):
 
 class CalendarEventBase(SanitizedBaseModel):
     title: str = Field(..., min_length=1, max_length=255)
-    description: Optional[MentionStr] = None
+    description: Optional[RichMentionStr] = None
     location: Optional[MentionStr] = Field(default=None, max_length=500)
     start_at: datetime
     end_at: datetime
@@ -102,7 +108,11 @@ class CalendarEventCreate(CalendarEventBase, PropertiesOnCreate):
 
 class CalendarEventUpdate(PropertiesOnUpdate):
     title: Optional[TitleStr] = Field(default=None, min_length=1, max_length=255)
-    description: Optional[MentionStr] = None
+    description: Optional[RichMentionStr] = None
+    #: The description this ``description`` was written over, as the event
+    #: being changed holds it. Given and no longer the stored one, the update
+    #: is refused with ``CALENDAR_EVENT_DESCRIPTION_CHANGED``.
+    description_base: Optional[RichMentionStr] = None
     location: Optional[MentionStr] = Field(default=None, max_length=500)
     start_at: Optional[datetime] = None
     end_at: Optional[datetime] = None

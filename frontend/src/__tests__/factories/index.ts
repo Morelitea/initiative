@@ -1,3 +1,8 @@
+export {
+  buildCalendarEvent,
+  buildEventAttendee,
+  resetCounter as resetCalendarEventCounter,
+} from "./calendarEvent.factory";
 export { ownerCan, readerCan, writerCan } from "./can";
 export {
   buildComment,
@@ -101,6 +106,7 @@ export {
 } from "./user.factory";
 export { buildWiki, buildWikiPage } from "./wiki.factory";
 
+import { resetCounter as resetCalendarEventCounter } from "./calendarEvent.factory";
 import { resetCounter as resetCommentCounter } from "./comment.factory";
 import { resetCounter as resetCommunityCounter } from "./community.factory";
 import { resetCounter as resetDmCounter } from "./dm.factory";
@@ -145,4 +151,5 @@ export function resetFactories(): void {
   resetPostCounter();
   resetGalleryCounter();
   resetWikiCounter();
+  resetCalendarEventCounter();
 }

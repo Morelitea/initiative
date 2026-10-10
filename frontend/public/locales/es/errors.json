@@ -349,6 +349,7 @@
   "CALENDAR_WRITE_ACCESS_REQUIRED": "Necesitas acceso de escritura a este calendario",
   "CALENDAR_GRANT_CANNOT_MANAGE_MEMBERS": "El acceso temporal no puede gestionar el uso compartido del calendario",
   "CALENDAR_EVENT_NOT_FOUND": "Evento no encontrado",
+  "CALENDAR_EVENT_DESCRIPTION_CHANGED": "Alguien cambió esta descripción mientras la editabas.",
   "CALENDAR_EVENT_ENDS_BEFORE_START": "Un evento no puede terminar antes de empezar",
   "CALENDAR_EVENT_CANNOT_CROSS_SCOPE": "Los eventos no se pueden mover entre un calendario de comunidad y el calendario de una iniciativa",
   "CALENDAR_WINDOW_INVALID": "El intervalo de fechas debe terminar después de empezar y abarcar como máximo 400 días",

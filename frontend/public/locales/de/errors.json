@@ -349,6 +349,7 @@
   "CALENDAR_WRITE_ACCESS_REQUIRED": "Sie benötigen Schreibzugriff auf diesen Kalender",
   "CALENDAR_GRANT_CANNOT_MANAGE_MEMBERS": "Temporärer Zugriff kann die Kalenderfreigabe nicht verwalten",
   "CALENDAR_EVENT_NOT_FOUND": "Termin nicht gefunden",
+  "CALENDAR_EVENT_DESCRIPTION_CHANGED": "Jemand hat diese Beschreibung geändert, während du sie bearbeitet hast.",
   "CALENDAR_EVENT_ENDS_BEFORE_START": "Ein Termin kann nicht enden, bevor er beginnt",
   "CALENDAR_EVENT_CANNOT_CROSS_SCOPE": "Termine können nicht zwischen einem Community-Kalender und dem Kalender einer Initiative verschoben werden",
   "CALENDAR_WINDOW_INVALID": "Der Zeitraum muss nach seinem Beginn enden und darf höchstens 400 Tage umfassen",

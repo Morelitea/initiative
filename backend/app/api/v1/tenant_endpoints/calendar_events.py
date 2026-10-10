@@ -458,8 +458,21 @@ async def update_calendar_event(
     event = await resource_access.load_child(
         session, CalendarEvent, event_id, action=Action.contribute
     )
+    if "description_base" in event_in.model_fields_set:
+        # Locked until this write commits, so a write naming the same base
+        # reads this one's description. Checked against the event as its
+        # reader saw it, whichever occurrences the change is then for.
+        await session.refresh(event, ["description"], with_for_update=True)
+        # A description is written over whole, so one written over a version
+        # that has since moved on is refused: writing it would undo the move.
+        if (event.description or "") != (event_in.description_base or ""):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=CalendarEventMessages.DESCRIPTION_CHANGED,
+            )
     changes = event_in.model_dump(
-        exclude_unset=True, exclude={"scope", "occurrence", "tz"}
+        exclude_unset=True,
+        exclude={"scope", "occurrence", "tz", "description_base"},
     )
     scope, at = event_in.scope, event_in.occurrence
     alone = {"recurrence", "calendar_id", "rsvp_open"}

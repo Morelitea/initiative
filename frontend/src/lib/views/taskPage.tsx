@@ -1,6 +1,4 @@
-import { useBlocker } from "@tanstack/react-router";
 import { format } from "date-fns";
-import { Loader2, Sparkles, X } from "lucide-react";
 import {
   type ComponentType,
   createContext,
@@ -9,16 +7,11 @@ import {
   useCallback,
   useContext,
   useMemo,
-  useRef,
-  useState,
 } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
-  type PropertyDefinitionRead,
-  type PropertySummary,
   SearchEntityType,
-  type TagSummary,
   type TaskPriority,
   type TaskRead,
   type TaskStatusRead,
@@ -26,29 +19,15 @@ import {
 } from "@/api/generated/initiativeAPI.schemas";
 import { CommentSection } from "@/components/comments/CommentSection";
 import { ToolRelationsPanel } from "@/components/entities/ToolRelationsPanel";
-import { MentionComposer } from "@/components/markdown/MentionComposer";
 import { MemberMultiSelect } from "@/components/members/MemberSearchSelect";
-import { AddPropertyButton } from "@/components/properties/AddPropertyButton";
-import { propertyStubFromDefinition } from "@/components/properties/PropertyFields";
-import { PropertyInput } from "@/components/properties/PropertyInput";
-import {
-  isEmptyPropertyValue,
-  normalizePropertyValue,
-  userReferenceValue,
-} from "@/components/properties/propertyHelpers";
 import type { useScopePrompt } from "@/components/recurrence/OccurrenceScopeDialog";
 import { RecurrenceEditor } from "@/components/recurrence/RecurrenceEditor";
-import { TagPicker } from "@/components/tags";
 import { TaskChecklist } from "@/components/tasks/TaskChecklist";
-import { TaskDescription } from "@/components/tasks/TaskDescription";
 import { TaskPriorityOption } from "@/components/tasks/TaskPriorityOption";
 import { statusTriggerStyle, TaskStatusOption } from "@/components/tasks/TaskStatusOption";
 import { CasePanel } from "@/components/tickets/CasePanel";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -62,18 +41,20 @@ import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useAIEnabled } from "@/hooks/useAIEnabled";
 import { useComments, useCommentsCache, useCommentThreadState } from "@/hooks/useComments";
 import { useDateLocale } from "@/hooks/useDateLocale";
-import { usePastedImages } from "@/hooks/usePastedImages";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
-import { type TaskEdit, useGenerateTaskDescription, useTaskFieldSave } from "@/hooks/useTasks";
+import {
+  TASK_SAVES,
+  type TaskEdit,
+  useGenerateTaskDescription,
+  useTaskFieldSave,
+  useTaskSaveOptions,
+} from "@/hooks/useTasks";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { dateRangeBounds } from "@/lib/dateRange";
-import { getHttpStatus } from "@/lib/errorMessage";
 import { toast } from "@/lib/mascotToast";
-import { currentServerKey } from "@/lib/offlineSession";
 import { fromStored, type RecurrenceRule, rulePayload } from "@/lib/recurrence";
 import { referenceRef } from "@/lib/smartChips";
 import { PRIORITY_ORDER } from "@/lib/sorting";
-import { getItem, removeItem, setItem } from "@/lib/storage";
 import { dateTimePattern } from "@/lib/timeFormat";
 import { taskRoute } from "@/lib/tools";
 import {
@@ -85,6 +66,7 @@ import {
 
 import { indexPaths } from "./draft";
 import { FieldFrame, useFieldDraft } from "./editing";
+import { DescriptionField, PropertiesField, TagsField, TitleField } from "./fieldEditors";
 import { type FieldKind, useProjectViewEnv } from "./fields";
 import type { StoredRegions } from "./itemPage";
 import { PluginFieldOnPage, PluginPartView, pluginFields, usePluginsOnItems } from "./plugins";
@@ -127,255 +109,52 @@ const sameJson = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringif
 const TitleEditor = ({ task, label }: EditorProps) => {
   const { t } = useTranslation("tasks");
   const { readOnly, askScope } = useTaskPage();
-  const save = useTaskFieldSave(task, label, askScope);
-  // A title cannot be emptied: leaving it blank puts the saved one back.
-  const draft = useFieldDraft(task.title, async (title) =>
-    title.trim() ? save.save({ patch: { title }, shows: { title } }) : false
-  );
   return (
-    <FieldFrame
+    <TitleField
+      id="task-title"
       label={label}
-      htmlFor="task-title"
-      hideLabel
-      statusBelow
-      save={save}
-      changed={draft.changed}
-      keys={draft.keys}
-      className="flex-1"
-    >
-      <h1 className="sr-only">{task.title}</h1>
-      <Input
-        id="task-title"
-        value={draft.value}
-        onChange={(event) => draft.change(event.target.value)}
-        placeholder={t("taskForm.titlePlaceholder")}
-        disabled={readOnly}
-        className="h-auto font-semibold text-3xl tracking-tight shadow-none focus-visible:ring-0 sm:text-3xl"
-      />
-    </FieldFrame>
+      value={task.title}
+      save={useTaskFieldSave(task, label, askScope)}
+      readOnly={readOnly}
+      placeholder={t("taskForm.titlePlaceholder")}
+    />
   );
 };
 
-/** The preview of a description being edited reads the way the saved one will. */
-const renderDescription = (draft: string) => <TaskDescription content={draft} />;
-
-/** A description being written, and the one it was written over. */
-interface DescriptionDraft {
-  text: string;
-  base: string | null;
-}
-
-/** Each account on each server keeps its own drafts on a shared device. */
-const descriptionDraftKey = (userId: number | undefined, communityId: number, taskId: number) =>
-  `task-description-draft:${userId}@${currentServerKey()}:${communityId}:${taskId}`;
-
-const readDescriptionDraft = (key: string): DescriptionDraft | null => {
-  try {
-    const stored = JSON.parse(getItem(key) ?? "null") as DescriptionDraft | null;
-    return stored && typeof stored.text === "string" ? stored : null;
-  } catch {
-    return null;
-  }
-};
-
-/**
- * The description, in a composer that opens on its preview, saved only with
- * Save (or Ctrl/Cmd+Enter). What is typed is a draft, kept on the device until
- * it is saved or discarded. The save names the description it was written over, and one
- * written over a description that has since changed is refused, so the reader
- * sees the other version and chooses.
- */
+/** The description ({@link DescriptionField}), which AI can write a first
+ *  draft of where it is on. */
 const DescriptionEditor = ({ task, label }: EditorProps) => {
-  const { t } = useTranslation(["tasks", "common"]);
-  const { readOnly, initiativeId, currentUserId, leaving, askScope, preview } = useTaskPage();
-  const communityId = useActiveCommunityId();
-  const uploadImage = usePastedImages();
+  const { t } = useTranslation("tasks");
+  const { readOnly, initiativeId, leaving, askScope, preview } = useTaskPage();
   const { isEnabled: aiEnabled } = useAIEnabled();
-  // Saved by Save or by Retry. What was typed while it saved stays the draft,
-  // now written over the description just saved.
-  const save = useTaskFieldSave(task, label, askScope, ({ shows }) => {
-    const now = latest.current;
-    const saved = shows.description ?? null;
-    if (now) setDraft(now.text === (saved ?? "") ? null : { ...now, base: saved });
-  });
-  const key = descriptionDraftKey(currentUserId, communityId, task.id);
-  const [draft, setDraftState] = useState(() => readDescriptionDraft(key));
-  const [discarding, setDiscarding] = useState(false);
-  // Read by the description written for the reader, which lands later.
-  const latest = useRef(draft);
-
-  const setDraft = (next: DescriptionDraft | null) => {
-    latest.current = next;
-    setDraftState(next);
-    void (next ? setItem(key, JSON.stringify(next)) : removeItem(key));
-    // A refused save belongs to the draft, and goes with it.
-    if (!next) save.reset();
-  };
-
-  const generate = useGenerateTaskDescription({
-    onSuccess: (data) => {
-      setDraft({ text: data.description, base: latest.current?.base ?? task.description });
-      toast.success(t("edit.descriptionGenerated"));
-    },
-  });
-
-  const current = task.description ?? "";
-  // A reader who can no longer edit keeps the draft on the device, but sees
-  // the saved description and nothing that would write.
-  const open = readOnly || preview ? null : draft;
-  const conflict = open !== null && getHttpStatus(save.error) === 409;
-  const dirty = open !== null && open.text !== (open.base ?? "");
-  const blocker = useBlocker({
-    shouldBlockFn: () => dirty && !leaving.current,
-    enableBeforeUnload: () => dirty && !leaving.current,
-    withResolver: true,
-  });
-
-  const submit = (base: string | null) => {
-    if (!open) return;
-    const description = open.text || null;
-    void save.save({ patch: { description, description_base: base }, shows: { description } });
-  };
-  const cancel = () => (dirty ? setDiscarding(true) : setDraft(null));
-
+  const generate = useGenerateTaskDescription();
   return (
-    <FieldFrame
+    <DescriptionField
+      kind={TASK_SAVES}
+      id={task.id}
+      options={useTaskSaveOptions(task, askScope)}
       label={label}
-      htmlFor="task-description"
-      // The conflict below says what went wrong, and Retry would only repeat it.
-      save={conflict ? { ...save, state: "idle" } : save}
-      changed={
-        open !== null && !conflict && save.state !== "saving" && current !== (open.base ?? "")
-      }
-    >
-      {readOnly ? (
-        <>
-          {current ? (
-            <div className="rounded-md border border-border/70 border-dashed bg-muted/40 px-3 py-2">
-              <TaskDescription content={current} />
-            </div>
-          ) : (
-            <p className="text-muted-foreground text-sm italic">
-              {t("edit.noDescriptionReadOnly")}
-            </p>
-          )}
-          {draft !== null ? (
-            <p className="text-muted-foreground text-xs">{t("edit.draftKeptReadOnly")}</p>
-          ) : null}
-        </>
-      ) : (
-        <div className="space-y-2">
-          <MentionComposer
-            id="task-description"
-            value={open?.text ?? current}
-            onChange={(text) => setDraft({ text, base: open ? open.base : task.description })}
-            initiativeId={initiativeId ?? 0}
-            subject={referenceRef(SearchEntityType.task, task.id)}
-            renderPreview={renderDescription}
-            onUploadImage={uploadImage}
-            defaultMode="preview"
-            placeholder={t("edit.descriptionPlaceholder")}
-            onKeyDown={(event) => {
-              if (!open) return;
-              if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-                event.preventDefault();
-                submit(open.base);
-              } else if (event.key === "Escape") {
-                event.preventDefault();
-                cancel();
-              }
-            }}
-            actions={
-              aiEnabled ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 px-2 text-xs"
-                  onClick={() => generate.mutate(task.id)}
-                  disabled={generate.isPending}
-                >
-                  {generate.isPending ? (
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                  ) : (
-                    <Sparkles className="h-3 w-3" />
-                  )}
-                  {t("edit.aiGenerate")}
-                </Button>
-              ) : null
+      htmlId="task-description"
+      value={task.description}
+      readOnly={readOnly}
+      preview={preview}
+      initiativeId={initiativeId}
+      subject={referenceRef(SearchEntityType.task, task.id)}
+      leaving={leaving}
+      placeholder={t("edit.descriptionPlaceholder")}
+      suggest={
+        aiEnabled
+          ? {
+              label: t("edit.aiGenerate"),
+              run: async () => {
+                const { description } = await generate.mutateAsync(task.id);
+                toast.success(t("edit.descriptionGenerated"));
+                return description;
+              },
             }
-          />
-          {open === null ? null : conflict ? (
-            <div
-              role="alert"
-              className="space-y-2 rounded-md border border-warning/40 bg-warning/5 px-3 py-2"
-            >
-              <p className="text-sm">{t("common:fieldSave.changed")}</p>
-              <div className="rounded-md border bg-background px-3 py-2">
-                <TaskDescription content={current} />
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button type="button" size="sm" onClick={() => submit(task.description)}>
-                  {t("common:fieldSave.overwrite")}
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    save.reset();
-                    setDraft({ ...open, base: task.description });
-                  }}
-                >
-                  {t("common:fieldSave.keepEditing")}
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                size="sm"
-                disabled={save.state === "saving"}
-                onClick={() => submit(open.base)}
-              >
-                {t("common:save")}
-              </Button>
-              <Button type="button" size="sm" variant="outline" onClick={cancel}>
-                {t("common:cancel")}
-              </Button>
-            </div>
-          )}
-        </div>
-      )}
-      <ConfirmDialog
-        open={discarding}
-        onOpenChange={setDiscarding}
-        title={t("edit.unsavedTitle")}
-        confirmLabel={t("common:fieldSave.discard")}
-        cancelLabel={t("common:fieldSave.keepEditing")}
-        onConfirm={() => {
-          setDiscarding(false);
-          setDraft(null);
-        }}
-        destructive
-      />
-      <ConfirmDialog
-        open={blocker.status === "blocked"}
-        onOpenChange={(open) => {
-          if (!open) blocker.reset?.();
-        }}
-        title={t("edit.unsavedTitle")}
-        description={t("edit.unsavedBody")}
-        confirmLabel={t("edit.unsavedLeave")}
-        cancelLabel={t("edit.unsavedStay")}
-        onConfirm={() => {
-          setDraft(null);
-          blocker.proceed?.();
-        }}
-        destructive
-      />
-    </FieldFrame>
+          : undefined
+      }
+    />
   );
 };
 
@@ -494,22 +273,14 @@ const AssigneesEditor = ({ task, label }: EditorProps) => {
 const TagsEditor = ({ task, label }: EditorProps) => {
   const { t } = useTranslation("tasks");
   const { readOnly, askScope } = useTaskPage();
-  const save = useTaskFieldSave(task, label, askScope);
-  const edit = (tags: TagSummary[]): TaskEdit => ({
-    patch: { tag_ids: tags.map((tag) => tag.id) },
-    shows: { tags },
-  });
   return (
-    <FieldFrame label={label} save={save}>
-      <TagPicker
-        selectedTags={task.tags}
-        onChange={(tags) =>
-          void save.save(edit(tags), tags.length === 0 ? edit(task.tags) : undefined)
-        }
-        disabled={readOnly}
-        placeholder={t("taskForm.tagsPlaceholder")}
-      />
-    </FieldFrame>
+    <TagsField
+      label={label}
+      tags={task.tags}
+      save={useTaskFieldSave(task, label, askScope)}
+      readOnly={readOnly}
+      placeholder={t("taskForm.tagsPlaceholder")}
+    />
   );
 };
 
@@ -641,108 +412,18 @@ const TaskRecurrenceEditor = ({ task, label }: EditorProps) => {
   );
 };
 
-/** How a value reads on the task until the server says: a person's own
- *  summary while they are still the one named. */
-const showing = (property: PropertySummary, value: unknown): PropertySummary => ({
-  ...property,
-  value: value === normalizePropertyValue(property) ? property.value : value,
-});
-
-/** One custom property, saved on its own as its kind says. Only it is sent,
- *  so a change to another property meanwhile still stands. */
-const PropertyEditor = ({ task, property }: { task: TaskRead; property: PropertySummary }) => {
-  const { t } = useTranslation("properties");
-  const { readOnly, initiativeId, askScope } = useTaskPage();
-  const save = useTaskFieldSave(task, property.name, askScope);
-  const saved = normalizePropertyValue(property);
-  const edit = (value: unknown): TaskEdit => ({
-    properties: { values: [{ property_id: property.property_id, value }] },
-    shows: {
-      properties: task.properties.map((p) =>
-        p.property_id === property.property_id ? showing(p, value) : p
-      ),
-    },
-  });
-  const draft = useFieldDraft(
-    saved,
-    (value) =>
-      save.save(
-        edit(value),
-        isEmptyPropertyValue(value) && !isEmptyPropertyValue(saved) ? edit(saved) : undefined
-      ),
-    sameJson
-  );
-  // The property stays until it is gone, so a failed removal says so here.
-  const remove = () => {
-    draft.restore();
-    void save.save(
-      { properties: { values: [], removed: [property.property_id] }, shows: {} },
-      { ...edit(saved), shows: { properties: task.properties } }
-    );
-  };
-  return (
-    <FieldFrame
-      label={property.name}
-      save={save}
-      changed={draft.changed}
-      keys={draft.keys}
-      action={
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          className="text-muted-foreground"
-          onClick={remove}
-          disabled={readOnly}
-          aria-label={t("remove")}
-        >
-          <X className="h-4 w-4" />
-        </Button>
-      }
-    >
-      <PropertyInput
-        definition={property}
-        value={draft.value}
-        onChange={draft.edit}
-        disabled={readOnly}
-        initiativeId={initiativeId}
-        canOpen={{ tool: Tool.project, id: task.project_id }}
-        selectedUser={userReferenceValue(property)}
-      />
-    </FieldFrame>
-  );
-};
-
 /** The task's custom properties, each saved on its own, and adding one. */
 const PropertiesEditor = ({ task }: { task: TaskRead }) => {
-  const { t } = useTranslation("properties");
-  const { readOnly, initiativeId, askScope } = useTaskPage();
-  const label = t("title");
-  const save = useTaskFieldSave(task, label, askScope);
-  const add = (definition: PropertyDefinitionRead) => {
-    if (task.properties.some((p) => p.property_id === definition.id)) return;
-    void save.save({
-      properties: { values: [{ property_id: definition.id, value: null }] },
-      shows: { properties: [...task.properties, propertyStubFromDefinition(definition)] },
-    });
-  };
-  const sorted = [...task.properties].sort((a, b) => a.name.localeCompare(b.name));
+  const { readOnly, initiativeId } = useTaskPage();
   return (
-    <FieldFrame label={label} save={save}>
-      {sorted.length === 0 ? (
-        <p className="text-muted-foreground text-sm">{t("noProperties")}</p>
-      ) : (
-        sorted.map((property) => (
-          <PropertyEditor key={property.property_id} task={task} property={property} />
-        ))
-      )}
-      <AddPropertyButton
-        initiativeId={initiativeId ?? 0}
-        currentPropertyIds={task.properties.map((p) => p.property_id)}
-        onAdd={add}
-        disabled={readOnly || !initiativeId}
-      />
-    </FieldFrame>
+    <PropertiesField
+      kind={TASK_SAVES}
+      id={task.id}
+      properties={task.properties}
+      readOnly={readOnly}
+      initiativeId={initiativeId}
+      canOpen={{ tool: Tool.project, id: task.project_id }}
+    />
   );
 };
 

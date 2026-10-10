@@ -141,5 +141,13 @@
     "manage": "You can remove this link under Settings › Security.",
     "keyName": "Calendar: {{name}}",
     "error": "Couldn't make a subscription link."
+  },
+  "eventPage": {
+    "titlePlaceholder": "Event title",
+    "description": "Description",
+    "noDescription": "No description.",
+    "when": "When",
+    "tagsPlaceholder": "Add tags",
+    "moreFields": "More fields"
   }
 }

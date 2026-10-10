@@ -33,6 +33,13 @@ export type ItemEdit<I, P> = { shows: Partial<I> } & (
   | { properties: { values: PropertyValueInput[]; removed?: number[] } }
 );
 
+/** One field's save, as {@link useItemFieldSave} answers it. */
+export type ItemFieldSave<I, P> = FieldSave & {
+  save: (edit: ItemEdit<I, P>, undo?: ItemEdit<I, P>) => Promise<boolean>;
+  error: unknown;
+  reset: () => void;
+};
+
 /** How one kind of item is saved field by field. */
 export interface FieldSaveKind<I, P> {
   /** Names the kind in its saves' keys. */
@@ -142,7 +149,7 @@ export const useItemFieldSave = <I, P>(
   id: number,
   label: string,
   options: FieldSaveOptions<I, P> = {}
-) => {
+): ItemFieldSave<I, P> => {
   const { t } = useTranslation("common");
   const communityId = useActiveCommunityId();
   const queryClient = useQueryClient();
@@ -213,7 +220,8 @@ export const useItemFieldSave = <I, P>(
       void queryClient.invalidateQueries({
         predicate: ({ queryKey }) => lists(queryKey) && !itself(queryKey),
       });
-      if (undo) {
+      // A change that became another item's is undone there, not here.
+      if (undo && !moved) {
         toast.success(options.undoMessage?.(edit) ?? t("fieldSave.cleared", { field: label }), {
           action: {
             label: t("fieldSave.undo"),

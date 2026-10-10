@@ -39,15 +39,22 @@ export interface EventTiming {
  */
 export function useEventTiming(timing: EventTiming): { start_at: string; end_at: string } | null {
   const { allDay, startDate, startTime, endDate, endTime } = timing;
-  return useMemo(() => {
-    if (!datesAreValid(allDay, startDate, startTime, endDate, endTime)) return null;
-    const lastDate = endDate || startDate;
-    // An all-day event is its dates, the same for every viewer: stored as UTC.
-    const [start, end] = allDay
-      ? [`${startDate}T00:00:00Z`, `${lastDate}T23:59:59Z`]
-      : [`${startDate}T${startTime}:00`, `${lastDate}T${endTime}:00`];
-    return { start_at: new Date(start).toISOString(), end_at: new Date(end).toISOString() };
-  }, [allDay, startDate, startTime, endDate, endTime]);
+  return useMemo(
+    () => eventRange({ allDay, startDate, startTime, endDate, endTime }),
+    [allDay, startDate, startTime, endDate, endTime]
+  );
+}
+
+/** {@link useEventTiming}'s range, worked out where a hook cannot be used. */
+export function eventRange(timing: EventTiming): { start_at: string; end_at: string } | null {
+  const { allDay, startDate, startTime, endDate, endTime } = timing;
+  if (!datesAreValid(allDay, startDate, startTime, endDate, endTime)) return null;
+  const lastDate = endDate || startDate;
+  // An all-day event is its dates, the same for every viewer: stored as UTC.
+  const [start, end] = allDay
+    ? [`${startDate}T00:00:00Z`, `${lastDate}T23:59:59Z`]
+    : [`${startDate}T${startTime}:00`, `${lastDate}T${endTime}:00`];
+  return { start_at: new Date(start).toISOString(), end_at: new Date(end).toISOString() };
 }
 
 const TimeSelect = ({

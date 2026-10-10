@@ -141,5 +141,13 @@
     "manage": "Puedes quitar este enlace en Ajustes › Seguridad.",
     "keyName": "Calendario: {{name}}",
     "error": "No se pudo crear el enlace de suscripción."
+  },
+  "eventPage": {
+    "titlePlaceholder": "Título del evento",
+    "description": "Descripción",
+    "noDescription": "Sin descripción.",
+    "when": "Cuándo",
+    "tagsPlaceholder": "Añadir etiquetas",
+    "moreFields": "Más campos"
   }
 }

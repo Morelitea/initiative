@@ -349,6 +349,7 @@
   "CALENDAR_WRITE_ACCESS_REQUIRED": "Vous avez besoin d'un accès en écriture à ce calendrier",
   "CALENDAR_GRANT_CANNOT_MANAGE_MEMBERS": "L'accès temporaire ne peut pas gérer le partage du calendrier",
   "CALENDAR_EVENT_NOT_FOUND": "Événement introuvable",
+  "CALENDAR_EVENT_DESCRIPTION_CHANGED": "Quelqu'un a modifié cette description pendant que vous la modifiiez.",
   "CALENDAR_EVENT_ENDS_BEFORE_START": "Un événement ne peut pas se terminer avant de commencer",
   "CALENDAR_EVENT_CANNOT_CROSS_SCOPE": "Les événements ne peuvent pas être déplacés entre un calendrier de communauté et le calendrier d'une initiative",
   "CALENDAR_WINDOW_INVALID": "La période doit se terminer après son début et couvrir au plus 400 jours",

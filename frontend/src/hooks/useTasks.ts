@@ -48,6 +48,7 @@ import { useCommunityMutation } from "@/hooks/useApiMutation";
 import { useAuth } from "@/hooks/useAuth";
 import {
   type FieldSaveKind,
+  type FieldSaveOptions,
   type ItemEdit,
   useItemFieldSave,
   useShownWithPending,
@@ -234,7 +235,7 @@ const SERIES_FIELDS: (keyof TaskUpdate)[] = [
 ];
 
 /** How a task is saved field by field. */
-const TASK_SAVES: FieldSaveKind<TaskRead, TaskUpdate> = {
+export const TASK_SAVES: FieldSaveKind<TaskRead, TaskUpdate> = {
   name: "task",
   readKey: (communityId, id) => getReadTaskQueryKey(communityId, id),
   patch: (communityId, id, patch) => updateTask(communityId, id, withZone(patch)),
@@ -243,26 +244,25 @@ const TASK_SAVES: FieldSaveKind<TaskRead, TaskUpdate> = {
   itself: (id) => q.task(id),
 };
 
+/** Asks which tasks of a series a change is for; null when it is closed. */
+type AskTaskScope = (
+  action: "edit",
+  question: { tool: "tasks"; count: number }
+) => Promise<TaskUpdateScope | null>;
+
 /**
- * The one way a task's page saves a field ({@link useItemFieldSave}). A change
- * to a repeating task's series fields asks which tasks it is for first, and
- * its Undo is for the same ones. A status move offers Undo, and one into done
- * gives the completion feedback as it shows.
+ * What a task's page adds to a field's save: a change to a repeating task's
+ * series fields asks which tasks it is for first, and its Undo is for the same
+ * ones. A status move offers Undo, and one into done gives the completion
+ * feedback as it shows.
  */
-export const useTaskFieldSave = (
+export const useTaskSaveOptions = (
   task: TaskRead,
-  label: string,
-  /** Asks which tasks of a series a change is for; null when it is closed. */
-  askScope: (
-    action: "edit",
-    question: { tool: "tasks"; count: number }
-  ) => Promise<TaskUpdateScope | null>,
-  /** Runs when an edit is saved, by Save or by Retry. */
-  onSaved?: (edit: TaskEdit) => void
-) => {
+  askScope: AskTaskScope
+): FieldSaveOptions<TaskRead, TaskUpdate> => {
   const { t } = useTranslation("common");
   const { user } = useAuth();
-  return useItemFieldSave(TASK_SAVES, task.id, label, {
+  return {
     prepare: async (edit) => {
       if (!task.recurrence || !("patch" in edit)) return edit;
       if (!SERIES_FIELDS.some((name) => name in edit.patch)) return edit;
@@ -285,9 +285,22 @@ export const useTaskFieldSave = (
         fireTaskCompletionFeedback(user, { isAssigned });
       }
     },
+  };
+};
+
+/** The one way a task's page saves a field ({@link useItemFieldSave}), with
+ *  what its page adds ({@link useTaskSaveOptions}). */
+export const useTaskFieldSave = (
+  task: TaskRead,
+  label: string,
+  askScope: AskTaskScope,
+  /** Runs when an edit is saved, by Save or by Retry. */
+  onSaved?: (edit: TaskEdit) => void
+) =>
+  useItemFieldSave(TASK_SAVES, task.id, label, {
+    ...useTaskSaveOptions(task, askScope),
     onSaved,
   });
-};
 
 /**
  * Tick or untick a task from somewhere that is not its project — a file's

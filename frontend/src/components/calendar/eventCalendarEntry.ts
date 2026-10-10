@@ -1,4 +1,7 @@
-import type { CalendarEventSummary } from "@/api/generated/initiativeAPI.schemas";
+import type {
+  CalendarEventSummary,
+  CalendarEventUpdateScope,
+} from "@/api/generated/initiativeAPI.schemas";
 
 import type { CalendarEntry } from "./CalendarView";
 
@@ -14,14 +17,32 @@ export const allDayRange = (startAt: string, endAt: string) => {
   return { start_at: `${day(startAt)}T00:00:00Z`, end_at: `${day(endAt)}T23:59:59Z` };
 };
 
+/** Whether a change to an event asks which of its dates it is for: it repeats,
+ *  or it is one date of a series made its own. */
+export const isRepeating = (event: Pick<CalendarEventSummary, "recurrence" | "series_id">) =>
+  Boolean(event.recurrence) || event.series_id != null;
+
+/** What a change to `event` at the date starting `occurrenceStart` names: an
+ *  event that is one date's own names only the scope, and a series the date
+ *  too. */
+export const occurrenceTarget = (
+  event: Pick<CalendarEventSummary, "series_id">,
+  scope: NonNullable<CalendarEventUpdateScope>,
+  occurrenceStart: string
+): { scope: NonNullable<CalendarEventUpdateScope>; occurrence?: string } =>
+  event.series_id != null ? { scope } : { scope, occurrence: occurrenceStart };
+
 /** What an event's calendar entry carries for opening and rescheduling it. */
 export type EventEntryMeta = {
   type: "event";
   eventId: number;
   calendarId: number;
   communityId: number;
-  /** The occurrence's start in its series, for one of a repeating event. */
+  /** The date's start in its series, for every event that repeats
+   *  ({@link isRepeating}): a change to it asks which dates it is for. */
   occurrence?: string;
+  /** The series an event that is one date's own belongs to. */
+  seriesId: number | null;
 };
 
 /** A calendar's color when none is set — the server's own default. */
@@ -62,6 +83,8 @@ export const buildEventCalendarEntry = (
     eventId: event.id,
     calendarId: event.calendar_id,
     communityId: event.community_id,
-    occurrence: event.original_start ?? undefined,
+    // A series drawn once (its rule unread) still repeats, from its start.
+    occurrence: isRepeating(event) ? (event.original_start ?? event.start_at) : undefined,
+    seriesId: event.series_id,
   } satisfies EventEntryMeta,
 });

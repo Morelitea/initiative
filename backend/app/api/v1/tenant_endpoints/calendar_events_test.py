@@ -807,6 +807,31 @@ async def test_update_event_time_notifies_attendees_as_rescheduled(
     assert updates[0].data["time_changed"] is True
 
 
+async def test_a_description_written_over_one_since_changed_is_refused(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    a, _, _, _, event = await _setup_event(session, acting_user)
+    url = a.g(f"/calendar-events/{event.id}")
+    theirs = await client.patch(url, headers=a.headers, json={"description": "Theirs"})
+    assert theirs.status_code == 200
+
+    stale = await client.patch(
+        url,
+        headers=a.headers,
+        json={"description": "Mine", "description_base": None},
+    )
+    current = await client.patch(
+        url,
+        headers=a.headers,
+        json={"description": "Mine", "description_base": "Theirs"},
+    )
+
+    assert stale.status_code == 409
+    assert stale.json()["detail"] == CalendarEventMessages.DESCRIPTION_CHANGED
+    assert current.status_code == 200
+    assert current.json()["description"] == "Mine"
+
+
 async def test_delete_event_notifies_attendees(
     client: AsyncClient, session: AsyncSession, acting_user
 ):

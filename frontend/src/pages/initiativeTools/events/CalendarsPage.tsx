@@ -27,6 +27,7 @@ import {
   type CalendarViewMode,
   calendarVisibleRange,
   type EventEntryMeta,
+  occurrenceTarget,
   rescheduledDates,
   type TaskEntryMeta,
   useCalendarVisibility,
@@ -561,13 +562,16 @@ export const CalendarsView = ({
       if (meta?.type === "event") {
         // An occurrence of a repeating event moves alone, from here on, or
         // with every other one, as the person picks.
-        const scope = meta.occurrence ? await scopePrompt.ask("edit") : undefined;
+        const { occurrence } = meta;
+        const scope = occurrence ? await scopePrompt.ask("edit") : undefined;
         if (scope === null) return;
         rescheduleEvent.mutate({
           eventId: meta.eventId,
           data: {
             ...(entry.allDay ? allDayRange(startAt, endAt) : { start_at: startAt, end_at: endAt }),
-            ...(scope ? { scope, occurrence: meta.occurrence } : {}),
+            ...(scope && occurrence
+              ? occurrenceTarget({ series_id: meta.seriesId }, scope, occurrence)
+              : {}),
           },
         });
         return;

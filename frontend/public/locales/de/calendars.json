@@ -141,5 +141,13 @@
     "manage": "Du kannst diesen Link unter Einstellungen › Sicherheit entfernen.",
     "keyName": "Kalender: {{name}}",
     "error": "Der Abo-Link konnte nicht erstellt werden."
+  },
+  "eventPage": {
+    "titlePlaceholder": "Titel des Termins",
+    "description": "Beschreibung",
+    "noDescription": "Keine Beschreibung.",
+    "when": "Wann",
+    "tagsPlaceholder": "Tags hinzufügen",
+    "moreFields": "Weitere Felder"
   }
 }
