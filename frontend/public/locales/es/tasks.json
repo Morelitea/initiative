@@ -86,7 +86,8 @@
     "unsavedStay": "Quedarme",
     "skipOccurrence": "Omitir esta repetición",
     "taskSkipped": "Se pasó a la siguiente repetición",
-    "skipError": "No se pudo omitir esta repetición"
+    "skipError": "No se pudo omitir esta repetición",
+    "moreFields": "Más campos"
   },
   "scope": {
     "title": {

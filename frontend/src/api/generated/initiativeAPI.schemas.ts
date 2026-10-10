@@ -5829,24 +5829,186 @@ export const ItemKind = {
   post: "post",
 } as const;
 
+export interface SectionProps {
+  title?: string | null;
+  collapsed?: boolean | null;
+}
+
+export type TaskPageFieldId = (typeof TaskPageFieldId)[keyof typeof TaskPageFieldId];
+
+export const TaskPageFieldId = {
+  title: "title",
+  description: "description",
+  assignees: "assignees",
+  recurrence: "recurrence",
+  checklist: "checklist",
+  priority: "priority",
+  tags: "tags",
+} as const;
+
+export interface PageFieldProps {
+  field: TaskPageFieldId | string;
+}
+
+export interface PageFieldPart {
+  type: "field";
+  props: PageFieldProps;
+}
+
+export type TaskPagePartType = (typeof TaskPagePartType)[keyof typeof TaskPagePartType];
+
+export const TaskPagePartType = {
+  status: "status",
+  dates: "dates",
+  byline: "byline",
+  notice: "notice",
+  actions: "actions",
+  relations: "relations",
+  case: "case",
+  comments: "comments",
+} as const;
+
 /**
- * An item's page, in three regions. A field placed in none of them is
- * drawn in a "More fields" section.
+ * One of a task page's own parts, which edit or show more than one field:
+ * its status, its start and due dates, who made it, its read-only notice, its
+ * menu, its relations, its case and its comments.
  */
-export interface ItemLayoutDefinitionInput {
-  header?: CardPartInput | StackPartInput | FieldPart | PropertiesPart | PluginPart | null;
-  main?: CardPartInput | StackPartInput | FieldPart | PropertiesPart | PluginPart | null;
-  side?: CardPartInput | StackPartInput | FieldPart | PropertiesPart | PluginPart | null;
+export interface TaskPagePart {
+  type: TaskPagePartType;
 }
 
 /**
- * An item's page, in three regions. A field placed in none of them is
+ * A bordered group of an item page's parts.
+ */
+export interface SectionPartInput {
+  type: "section";
+  props?: SectionProps | null;
+  children?: (
+    | PageStackPartInput
+    | SectionPartInput
+    | PageFieldPart
+    | PropertiesPart
+    | PluginPart
+    | TaskPagePart
+  )[];
+}
+
+export interface PageStackPartInput {
+  type: "stack";
+  props?: StackProps | null;
+  children?: (
+    | PageStackPartInput
+    | SectionPartInput
+    | PageFieldPart
+    | PropertiesPart
+    | PluginPart
+    | TaskPagePart
+  )[];
+}
+
+/**
+ * An item's page, in three regions, each its parts in order. A region it
+ * leaves out is drawn as shipped, and a field placed in none of them is
+ * drawn in a "More fields" section.
+ */
+export interface ItemLayoutDefinitionInput {
+  header?:
+    | (
+        | PageStackPartInput
+        | SectionPartInput
+        | PageFieldPart
+        | PropertiesPart
+        | PluginPart
+        | TaskPagePart
+      )[]
+    | null;
+  main?:
+    | (
+        | PageStackPartInput
+        | SectionPartInput
+        | PageFieldPart
+        | PropertiesPart
+        | PluginPart
+        | TaskPagePart
+      )[]
+    | null;
+  side?:
+    | (
+        | PageStackPartInput
+        | SectionPartInput
+        | PageFieldPart
+        | PropertiesPart
+        | PluginPart
+        | TaskPagePart
+      )[]
+    | null;
+}
+
+/**
+ * A bordered group of an item page's parts.
+ */
+export interface SectionPartOutput {
+  type: "section";
+  props?: SectionProps | null;
+  children?: (
+    | PageStackPartOutput
+    | SectionPartOutput
+    | PageFieldPart
+    | PropertiesPart
+    | PluginPart
+    | TaskPagePart
+  )[];
+}
+
+export interface PageStackPartOutput {
+  type: "stack";
+  props?: StackProps | null;
+  children?: (
+    | PageStackPartOutput
+    | SectionPartOutput
+    | PageFieldPart
+    | PropertiesPart
+    | PluginPart
+    | TaskPagePart
+  )[];
+}
+
+/**
+ * An item's page, in three regions, each its parts in order. A region it
+ * leaves out is drawn as shipped, and a field placed in none of them is
  * drawn in a "More fields" section.
  */
 export interface ItemLayoutDefinitionOutput {
-  header?: CardPartOutput | StackPartOutput | FieldPart | PropertiesPart | PluginPart | null;
-  main?: CardPartOutput | StackPartOutput | FieldPart | PropertiesPart | PluginPart | null;
-  side?: CardPartOutput | StackPartOutput | FieldPart | PropertiesPart | PluginPart | null;
+  header?:
+    | (
+        | PageStackPartOutput
+        | SectionPartOutput
+        | PageFieldPart
+        | PropertiesPart
+        | PluginPart
+        | TaskPagePart
+      )[]
+    | null;
+  main?:
+    | (
+        | PageStackPartOutput
+        | SectionPartOutput
+        | PageFieldPart
+        | PropertiesPart
+        | PluginPart
+        | TaskPagePart
+      )[]
+    | null;
+  side?:
+    | (
+        | PageStackPartOutput
+        | SectionPartOutput
+        | PageFieldPart
+        | PropertiesPart
+        | PluginPart
+        | TaskPagePart
+      )[]
+    | null;
 }
 
 /**
@@ -9332,6 +9494,17 @@ export interface TaskCaseRead {
   resource_id?: number | null;
 }
 
+export type TaskColumnFieldId = (typeof TaskColumnFieldId)[keyof typeof TaskColumnFieldId];
+
+export const TaskColumnFieldId = {
+  title: "title",
+  startDate: "startDate",
+  dueDate: "dueDate",
+  priority: "priority",
+  comments: "comments",
+  tags: "tags",
+} as const;
+
 export type TaskCreateRecurrenceStrategy =
   (typeof TaskCreateRecurrenceStrategy)[keyof typeof TaskCreateRecurrenceStrategy];
 
@@ -9472,6 +9645,16 @@ export interface TaskReorderRequest {
   project_id: number;
   items: TaskReorderItem[];
 }
+
+export type TaskSortFieldId = (typeof TaskSortFieldId)[keyof typeof TaskSortFieldId];
+
+export const TaskSortFieldId = {
+  title: "title",
+  startDate: "startDate",
+  dueDate: "dueDate",
+  priority: "priority",
+  tags: "tags",
+} as const;
 
 export interface TaskStatusCreate {
   /**
@@ -9658,7 +9841,7 @@ export const ViewSortDirection = {
 } as const;
 
 export interface ViewSort {
-  field: TaskFieldId | string;
+  field: TaskSortFieldId;
   direction?: ViewSortDirection;
 }
 
@@ -9679,7 +9862,7 @@ export interface ViewDefinitionOutput {
   layout: ViewLayout;
   filters?: TaskFilterSpec | null;
   card?: CardPartOutput | null;
-  columns?: (TaskFieldId | string)[] | null;
+  columns?: (TaskColumnFieldId | string)[] | null;
   sort?: ViewSort[] | null;
   opens?: ViewDefinitionOutputOpens;
 }
@@ -9717,7 +9900,7 @@ export interface ViewDefinitionInput {
   layout: ViewLayout;
   filters?: TaskFilterSpec | null;
   card?: CardPartInput | null;
-  columns?: (TaskFieldId | string)[] | null;
+  columns?: (TaskColumnFieldId | string)[] | null;
   sort?: ViewSort[] | null;
   opens?: ViewDefinitionInputOpens;
 }

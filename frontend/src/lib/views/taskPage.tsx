@@ -85,8 +85,16 @@ import {
 
 import { FieldFrame, useFieldDraft } from "./editing";
 import { type FieldKind, useProjectViewEnv } from "./fields";
-import { TASK_PAGE, taskFields } from "./tasks";
-import { LAYOUT_PARTS, type Parts, renderNode, type ViewContext } from "./tree";
+import { PluginFieldOnPage, PluginPartView, pluginFields, usePluginsOnItems } from "./plugins";
+import { taskFields, taskPageTree } from "./tasks";
+import {
+  fieldNamed,
+  LAYOUT_PARTS,
+  type Parts,
+  renderNode,
+  type ViewContext,
+  type ViewNode,
+} from "./tree";
 
 /** What the task's page shares with its parts, beside the task itself. */
 export interface TaskPageContext {
@@ -862,10 +870,12 @@ const Comments = ({ task }: { task: TaskRead }) => {
 const TASK_PAGE_PARTS: Parts<TaskRead> = {
   ...LAYOUT_PARTS,
   field: (node, task, view) => {
-    const field = view.fields.get(String(node.props?.field));
-    const Editor = field ? FIELD_EDITORS[field.kind] : undefined;
-    if (!field || !Editor || (field.hideable && view.isHidden(field.id))) return null;
-    return <Editor task={task} label={view.env.t(field.label)} />;
+    const field = fieldNamed(view.fields, node);
+    if (!field || (field.hideable && view.isHidden(field.id))) return null;
+    // A plug-in's value is the plug-in's to change.
+    if (field.source === "plugin") return <PluginFieldOnPage field={field} item={task} />;
+    const Editor = FIELD_EDITORS[field.kind];
+    return Editor ? <Editor task={task} label={view.env.t(field.label)} /> : null;
   },
   status: (_node, task) => <StatusEditor task={task} />,
   dates: (_node, task) => <DatesEditor task={task} />,
@@ -876,13 +886,27 @@ const TASK_PAGE_PARTS: Parts<TaskRead> = {
   relations: (_node, task) => <Relations task={task} />,
   case: (_node, task) => <Case task={task} />,
   comments: (_node, task) => <Comments task={task} />,
+  plugin: (node, task, view) => (
+    <PluginPartView
+      plugins={view.plugins}
+      pluginId={Number(node.props?.plugin)}
+      partId={String(node.props?.part)}
+      task={task}
+    />
+  ),
 };
 
-// The page's labels are the fields' own; no field is hidden on it yet.
-const PAGE_FIELDS = taskFields([]);
-
-/** A task's page, drawn from its item layout. */
-export const TaskPageView = ({ task, page }: { task: TaskRead; page: TaskPageContext }) => {
+/** A task's page, drawn from its project's item layout, or as shipped. */
+export const TaskPageView = ({
+  task,
+  page,
+  layout,
+}: {
+  task: TaskRead;
+  page: TaskPageContext;
+  layout?: Partial<Record<"header" | "main" | "side", ViewNode[] | null>>;
+}) => {
+  const { t, i18n } = useTranslation("tasks");
   const communityId = useActiveCommunityId();
   const gp = useCommunityPath();
   const taskHref = useCallback(
@@ -890,14 +914,23 @@ export const TaskPageView = ({ task, page }: { task: TaskRead; page: TaskPageCon
     [gp, page.initiativeId, task.project_id]
   );
   const env = useProjectViewEnv(taskHref);
+  const plugins = usePluginsOnItems(page.initiativeId);
+  // The page's labels are the fields' own; no field is hidden on it yet.
   const view = useMemo<ViewContext>(
-    () => ({ fields: PAGE_FIELDS, variant: "page", isHidden: () => false, env }),
-    [env]
+    () => ({
+      fields: taskFields([], pluginFields(plugins, i18n.language)),
+      plugins,
+      variant: "page",
+      isHidden: () => false,
+      env,
+    }),
+    [plugins, i18n.language, env]
   );
+  const tree = useMemo(() => taskPageTree(layout, t("edit.moreFields")), [layout, t]);
   return (
     // Another task's page starts afresh, with none of this one's drafts.
     <PageContext.Provider key={`${communityId}:${task.id}`} value={page}>
-      {renderNode(TASK_PAGE, task, view, TASK_PAGE_PARTS)}
+      {renderNode(tree, task, view, TASK_PAGE_PARTS)}
     </PageContext.Provider>
   );
 };

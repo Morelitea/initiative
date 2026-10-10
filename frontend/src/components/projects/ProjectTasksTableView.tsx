@@ -37,9 +37,11 @@ import type { useProjectTaskTableState } from "@/hooks/useProjectTaskView";
 import { useProperties } from "@/hooks/useProperties";
 import type { AppColumnDef } from "@/lib/table";
 import { cn } from "@/lib/utils";
+import { fieldColumnId } from "@/lib/views/columns";
 import { useProjectViewEnv } from "@/lib/views/fields";
 import { pluginFields, usePluginsOnItems } from "@/lib/views/plugins";
 import { taskFields } from "@/lib/views/tasks";
+import { fieldNamed } from "@/lib/views/tree";
 
 type ProjectTasksListViewProps = {
   projectId: number;
@@ -66,6 +68,10 @@ type ProjectTasksListViewProps = {
    *  held by the section so its export follows the same sort. It seeds the
    *  table once, at mount, so the section keys this component by it. */
   tableState: ReturnType<typeof useProjectTaskTableState>;
+  /** The fields the view shows as columns, in order, where it names them. */
+  viewColumns?: string[] | null;
+  /** The view on screen, whose own columns are remembered apart. */
+  viewSlug?: string;
 };
 
 type SortableRowContextValue = {
@@ -186,6 +192,8 @@ const ProjectTasksTableViewComponent = ({
   onTaskSelectionChange,
   onExitSelection,
   tableState: [tableState, { setGrouping, setSorting }],
+  viewColumns,
+  viewSlug = "",
 }: ProjectTasksListViewProps) => {
   const { t, i18n } = useTranslation(["projects", "comments", "tasks"]);
   const statusDisabled = !canEditTaskDetails || taskActionsDisabled;
@@ -200,13 +208,32 @@ const ProjectTasksTableViewComponent = ({
     () => taskFields(propertyDefinitions, pluginFields(plugins, i18n.language)),
     [propertyDefinitions, plugins, i18n.language]
   );
-  const propertyHiddenIds = useMemo(
-    () => [...fields.values()].filter((field) => field.source !== "builtin").map(({ id }) => id),
-    [fields]
+  // A view that names its columns shows those, in its order, and starts the
+  // rest hidden. One that does not shows the built-ins.
+  const shown = useMemo(
+    () =>
+      viewColumns?.flatMap((id) => {
+        const field = fieldNamed(fields, { type: "field", props: { field: id } });
+        return field ? [fieldColumnId(field.id)] : [];
+      }) ?? null,
+    [viewColumns, fields]
+  );
+  const hiddenIds = useMemo(
+    () =>
+      [...fields.values()]
+        .filter((field) =>
+          shown
+            ? field.hideable && !shown.includes(fieldColumnId(field.id))
+            : field.source !== "builtin"
+        )
+        .map(({ id }) => fieldColumnId(id)),
+    [fields, shown]
   );
   const [columnVisibility, setColumnVisibility] = usePersistedColumnVisibility(
-    `initiative-project-${projectId}-task-columns`,
-    propertyHiddenIds
+    shown
+      ? `initiative-project-${projectId}-${viewSlug}-task-columns`
+      : `initiative-project-${projectId}-task-columns`,
+    hiddenIds
   );
   // "date group" column must always start hidden in this view (non-property
   // toggle). Merge it once with the persisted map. The tag group column drives
@@ -381,6 +408,18 @@ const ProjectTasksTableViewComponent = ({
     t,
     untaggedLabel,
   ]);
+  // The view's columns take the places its columns held, in its order.
+  const orderedColumns = useMemo(() => {
+    if (!shown) return columns;
+    const rank = new Map(shown.map((id, index) => [id, index]));
+    const listed = columns
+      .filter((column) => column.id !== undefined && rank.has(column.id))
+      .sort((a, b) => (rank.get(a.id as string) ?? 0) - (rank.get(b.id as string) ?? 0));
+    let next = 0;
+    return columns.map((column) =>
+      column.id !== undefined && rank.has(column.id) ? listed[next++] : column
+    );
+  }, [columns, shown]);
   const groupingOptions = useMemo(
     () => [
       { id: "date group", label: t("tasks:columns.dateWindow") },
@@ -436,7 +475,7 @@ const ProjectTasksTableViewComponent = ({
         strategy={verticalListSortingStrategy}
       >
         <DataTable
-          columns={columns}
+          columns={orderedColumns}
           data={rows}
           enableVirtualization
           virtualContainerHeight="h-[calc(100vh-20rem)]"
@@ -506,7 +545,9 @@ export const ProjectTasksTableView = memo(
       prevProps.canEditTaskDetails === nextProps.canEditTaskDetails &&
       prevProps.taskActionsDisabled === nextProps.taskActionsDisabled &&
       prevProps.initiativeId === nextProps.initiativeId &&
-      prevProps.tableState[0] === nextProps.tableState[0]
+      prevProps.tableState[0] === nextProps.tableState[0] &&
+      prevProps.viewColumns === nextProps.viewColumns &&
+      prevProps.viewSlug === nextProps.viewSlug
       // Note: Intentionally ignoring callback prop changes as they're functionally the same
     );
   }

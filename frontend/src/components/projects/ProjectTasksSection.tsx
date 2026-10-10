@@ -348,7 +348,7 @@ export const ProjectTasksSection = ({
 
   // An export lists the tasks in the order the reader sees them: the table's
   // own sort while it is showing, and the project's order in every other view.
-  const tableState = useProjectTaskTableState(projectId, view?.slug ?? "");
+  const tableState = useProjectTaskTableState(projectId, view);
   const tableSorting = tableState[0].sorting;
   const exportSorting = useMemo(() => {
     const sorting = taskViewSorting(layout, tableSorting);
@@ -1165,6 +1165,8 @@ export const ProjectTasksSection = ({
               onTaskSelectionChange={setSelectedTasks}
               onExitSelection={() => setSelectedTasks([])}
               tableState={tableState}
+              viewColumns={view?.definition.columns}
+              viewSlug={view?.slug}
             />
             {canEditTaskDetails && (
               <div className="flex justify-end">

@@ -3,7 +3,8 @@
 A view and an item layout are trees of registered parts: a ``card`` holds what
 an item shows, a ``stack`` lays its children out, a ``field`` draws one field,
 ``properties`` draws every property the item carries and ``plugin`` draws one
-of an installed plug-in's parts. The parts, their props, the layouts and the
+of an installed plug-in's parts. An item's page adds ``section`` and the page's
+own parts (its status, dates, comments and the rest). The parts, their props, the layouts and the
 built-in field ids are ``Literal``s or enums, so the generated client carries
 the same vocabulary the renderer keys by. A property's field is named
 ``property:<definition id>``, so renaming it keeps every view that shows it; a
@@ -160,8 +161,53 @@ def _named_field(value: str) -> str:
     )
 
 
+def _plugin_field(value: str) -> str:
+    """``plugin:<install id>:<metadata key>``."""
+    if value.startswith(PLUGIN_FIELD_PREFIX):
+        return _named_field(value)
+    raise ValueError("a field here is a built-in field id or 'plugin:<id>:<key>'")
+
+
 NamedFieldId = Annotated[str, AfterValidator(_named_field)]
+PluginFieldId = Annotated[str, AfterValidator(_plugin_field)]
 ViewFieldId = Union[TaskFieldId, NamedFieldId]
+
+
+# The built-in fields each place draws, named for the generated client.
+_COLUMNS = {"title", "startDate", "dueDate", "priority", "tags", "comments"}
+_SORTS = {"title", "startDate", "dueDate", "priority", "tags"}
+_PAGE = {
+    "title",
+    "description",
+    "assignees",
+    "checklist",
+    "priority",
+    "recurrence",
+    "tags",
+}
+
+#: What a table draws as a column: the rest of a task (its people, its
+#: checklist) sits in the title's cell.
+TaskColumnFieldId = Enum(
+    "TaskColumnFieldId",
+    {f.name: f.value for f in TaskFieldId if f.value in _COLUMNS},
+    type=str,
+)
+#: What a table, and so the list, can be sorted by.
+TaskSortFieldId = Enum(
+    "TaskSortFieldId",
+    {f.name: f.value for f in TaskFieldId if f.value in _SORTS},
+    type=str,
+)
+#: What a task's page edits as a field. Its status, its dates and its
+#: properties are parts of their own, and its counts are a card's.
+TaskPageFieldId = Enum(
+    "TaskPageFieldId",
+    {f.name: f.value for f in TaskFieldId if f.value in _PAGE},
+    type=str,
+)
+ColumnFieldId = Union[TaskColumnFieldId, NamedFieldId]
+PageFieldId = Union[TaskPageFieldId, PluginFieldId]
 
 
 def _part_id(value: str) -> str:
@@ -234,6 +280,69 @@ CardPart.model_rebuild()
 StackPart.model_rebuild()
 
 
+class PageFieldProps(_Strict):
+    field: PageFieldId
+
+
+class PageFieldPart(_Strict):
+    type: Literal["field"]
+    props: PageFieldProps
+
+
+class SectionProps(_Strict):
+    #: The initiative's own words, drawn as written.
+    title: Optional[str] = Field(default=None, max_length=100)
+    #: Drawn folded until the reader opens it.
+    collapsed: Optional[bool] = None
+
+
+class SectionPart(_Strict):
+    """A bordered group of an item page's parts."""
+
+    type: Literal["section"]
+    props: Optional[SectionProps] = None
+    children: List[PagePart] = Field(default_factory=list)
+
+
+class PageStackPart(_Strict):
+    type: Literal["stack"]
+    props: Optional[StackProps] = None
+    children: List[PagePart] = Field(default_factory=list)
+
+
+class TaskPagePart(_Strict):
+    """One of a task page's own parts, which edit or show more than one field:
+    its status, its start and due dates, who made it, its read-only notice, its
+    menu, its relations, its case and its comments."""
+
+    type: Literal[
+        "status",
+        "dates",
+        "byline",
+        "notice",
+        "actions",
+        "relations",
+        "case",
+        "comments",
+    ]
+
+
+PagePart = Annotated[
+    Union[
+        PageStackPart,
+        SectionPart,
+        PageFieldPart,
+        PropertiesPart,
+        PluginPart,
+        TaskPagePart,
+    ],
+    Field(discriminator="type"),
+]
+
+SectionPart.model_rebuild()
+PageStackPart.model_rebuild()
+
+
 # -- Definitions --------------------------------------------------------------
 
 #: Every layout a view can take; which of them a tool draws is
@@ -249,7 +358,7 @@ class ViewLayout(_Strict):
 
 
 class ViewSort(_Strict):
-    field: ViewFieldId
+    field: TaskSortFieldId
     direction: Literal["asc", "desc"] = "asc"
 
 
@@ -260,19 +369,20 @@ class ViewDefinition(_Strict):
     layout: ViewLayout
     filters: Optional[TaskFilterSpec] = None
     card: Optional[CardPart] = None
-    columns: Optional[List[ViewFieldId]] = None
+    columns: Optional[List[ColumnFieldId]] = None
     sort: Optional[List[ViewSort]] = None
     #: How an item opens: in a side panel or on its own page.
     opens: Optional[Literal["panel", "page"]] = None
 
 
 class ItemLayoutDefinition(_Strict):
-    """An item's page, in three regions. A field placed in none of them is
+    """An item's page, in three regions, each its parts in order. A region it
+    leaves out is drawn as shipped, and a field placed in none of them is
     drawn in a "More fields" section."""
 
-    header: Optional[ViewPart] = None
-    main: Optional[ViewPart] = None
-    side: Optional[ViewPart] = None
+    header: Optional[List[PagePart]] = None
+    main: Optional[List[PagePart]] = None
+    side: Optional[List[PagePart]] = None
 
 
 # -- Requests -----------------------------------------------------------------

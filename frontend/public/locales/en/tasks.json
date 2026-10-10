@@ -86,7 +86,8 @@
     "unsavedStay": "Stay",
     "skipOccurrence": "Skip this occurrence",
     "taskSkipped": "Moved on to the next occurrence",
-    "skipError": "Couldn't skip this occurrence"
+    "skipError": "Couldn't skip this occurrence",
+    "moreFields": "More fields"
   },
   "scope": {
     "title": {

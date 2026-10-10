@@ -30,7 +30,9 @@ from app.schemas.tenant.tool_view import (
     MAX_SLUG_LENGTH,
     MAX_VIEWS,
     CardPart,
+    PageStackPart,
     PluginPart,
+    SectionPart,
     StackPart,
     ToolItemLayoutRead,
     ToolViewRead,
@@ -136,7 +138,7 @@ def read_set(
 def _parts(part: Any, depth: int) -> Iterable[tuple[Any, int]]:
     """Every part in a tree, with its depth."""
     yield part, depth
-    if isinstance(part, (CardPart, StackPart)):
+    if isinstance(part, (CardPart, StackPart, PageStackPart, SectionPart)):
         for child in part.children:
             yield from _parts(child, depth + 1)
 
@@ -216,7 +218,11 @@ def check_set(target: Target, payload: ToolViewSetWrite) -> list[ToolView]:
         stored = _stored(regions)
         _within_limits(
             stored,
-            [r for r in (regions.header, regions.main, regions.side) if r is not None],
+            [
+                part
+                for region in (regions.header, regions.main, regions.side)
+                for part in region or ()
+            ],
             0,
         )
         rows.append(_row(target, ITEM_LAYOUT_KIND, stored, item_kind=layout.item_kind))

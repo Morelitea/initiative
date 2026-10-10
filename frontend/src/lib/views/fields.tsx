@@ -68,8 +68,8 @@ export type FieldDef = {
   hideable: boolean;
   /** A property field's definition id. */
   propertyId?: number;
-  /** A plug-in field's declaration. */
-  plugin?: PluginFieldDecl;
+  /** A plug-in field's install and declaration. */
+  plugin?: { install: number; field: PluginFieldDecl };
   /** The sentence the value sits in, as an i18n key ("Due: {{date}}"). */
   phrase?: string;
   icon?: LucideIcon;

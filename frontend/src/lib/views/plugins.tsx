@@ -1,4 +1,4 @@
-import { Check, ChevronDown, ExternalLink, Minus } from "lucide-react";
+import { Check, ExternalLink, Minus } from "lucide-react";
 import { Fragment, type ReactNode, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -8,7 +8,6 @@ import type {
 } from "@/api/generated/initiativeAPI.schemas";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Progress } from "@/components/ui/progress";
@@ -19,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { type LocalizedText, localized } from "@/lib/widgets/widgetMeta";
 
 import type { FieldDef, FieldRendererProps, ViewItem } from "./fields";
+import { Section } from "./section";
 
 /** What a plug-in draws on an item from: the item, and the values it carries. */
 type PluginItem = Pick<ViewItem, "id" | "plugin_values">;
@@ -160,7 +160,7 @@ export const pluginFields = (
         source: "plugin",
         label: localized(field.name, language) ?? field.key,
         hideable: true,
-        plugin: field,
+        plugin: { install: id, field },
         value: (task) => {
           const value = pluginValue(task.plugin_values, id, field.key);
           return shows(field.kind, value) ? value : null;
@@ -282,17 +282,34 @@ const PluginValue = ({ field, value }: { field: PluginFieldDecl; value: unknown 
   }
 };
 
-/** A plug-in field as a view draws it: its value in a cell, its name beside
- *  its value on a card. */
+/** A plug-in field as a view draws it: its value in a cell, and its name
+ *  beside its value on a card. */
 export const PluginField = ({ value, field, variant }: FieldRendererProps) => {
   if (!field.plugin) return null;
-  const drawn = <PluginValue field={field.plugin} value={value} />;
+  const drawn = <PluginValue field={field.plugin.field} value={value} />;
   if (variant === "cell") return drawn;
   return (
     <span className="inline-flex min-w-0 items-center gap-1 text-xs">
       <span className="text-muted-foreground">{field.label}</span>
       {drawn}
     </span>
+  );
+};
+
+/** A plug-in field on an item's page: its name above its value, which the
+ *  plug-in alone changes. */
+export const PluginFieldOnPage = ({ field, item }: { field: FieldDef; item: PluginItem }) => {
+  if (!field.plugin) return null;
+  const { install, field: declared } = field.plugin;
+  const value = pluginValue(item.plugin_values, install, declared.key);
+  if (!shows(declared.kind, value)) return null;
+  return (
+    <div className="space-y-1">
+      <p className="text-muted-foreground text-xs">{field.label}</p>
+      <div className="text-sm">
+        <PluginValue field={declared} value={value} />
+      </div>
+    </div>
   );
 };
 
@@ -362,28 +379,6 @@ type Drawing = {
   pending: boolean;
 };
 
-const PartSection = ({ node, drawing }: { node: ViewNode; drawing: Drawing }) => {
-  const props = node.props ?? {};
-  const [open, setOpen] = useState(props.collapsed !== true);
-  const title = localized(props.title as LocalizedText | undefined, drawing.language);
-  const children = drawChildren(node, drawing);
-  return (
-    <section className="space-y-2 rounded-lg border bg-card p-4 text-card-foreground shadow-sm">
-      {title ? (
-        <Collapsible open={open} onOpenChange={setOpen} className="space-y-2">
-          <CollapsibleTrigger className="flex w-full items-center justify-between gap-2 font-medium text-sm">
-            {title}
-            <ChevronDown className={cn("h-4 w-4 transition-transform", open && "rotate-180")} />
-          </CollapsibleTrigger>
-          <CollapsibleContent className="space-y-2">{children}</CollapsibleContent>
-        </Collapsible>
-      ) : (
-        children
-      )}
-    </section>
-  );
-};
-
 const drawChildren = (node: ViewNode, drawing: Drawing): ReactNode =>
   node.children?.map((child, index) => (
     // biome-ignore lint/suspicious/noArrayIndexKey: a part's tree is fixed by its manifest
@@ -395,7 +390,15 @@ const drawPart = (node: ViewNode, drawing: Drawing): ReactNode => {
   const { plugin, task, language } = drawing;
   switch (node.type) {
     case "section":
-      return <PartSection node={node} drawing={drawing} />;
+      return (
+        <Section
+          title={localized(props.title as LocalizedText | undefined, language)}
+          collapsed={props.collapsed === true}
+          spacing="space-y-2"
+        >
+          {drawChildren(node, drawing)}
+        </Section>
+      );
     case "stack":
       return (
         <div

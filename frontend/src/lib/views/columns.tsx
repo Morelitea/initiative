@@ -4,12 +4,18 @@ import type { AppColumnDef } from "@/lib/table";
 
 import { FIELD_RENDERERS, type FieldDef, type ViewEnv, type ViewItem } from "./fields";
 
+// A table's column for a field, where its id is not the field's: what stored
+// visibility, grouping and sorting are keyed by.
+const COLUMN_OF: Record<string, string> = { startDate: "start date", dueDate: "due date" };
+
+/** The id of the column that draws a field. */
+export const fieldColumnId = (fieldId: string): string => COLUMN_OF[fieldId] ?? fieldId;
+
 export type FieldColumnOptions<T extends ViewItem> = Pick<
   AppColumnDef<T>,
   "sortFn" | "sortUndefined" | "size" | "cell"
 > & {
-  /** The id a table gave the column before the field had one: stored
-   *  visibility, grouping and sorting are keyed by it. */
+  /** The column's id, where not {@link fieldColumnId}'s. */
   id?: string;
   /** What the column sorts by, where that is not the field's value. */
   sortBy?: (item: T) => unknown;
@@ -22,7 +28,7 @@ export type FieldColumnOptions<T extends ViewItem> = Pick<
 export const fieldColumn = <T extends ViewItem>(
   field: FieldDef,
   env: ViewEnv,
-  { id = field.id, sortBy = field.value, ...column }: FieldColumnOptions<T> = {}
+  { id = fieldColumnId(field.id), sortBy = field.value, ...column }: FieldColumnOptions<T> = {}
 ): AppColumnDef<T> => {
   const Renderer = FIELD_RENDERERS[field.kind];
   const label = field.source === "builtin" ? env.t(field.label) : field.label;
