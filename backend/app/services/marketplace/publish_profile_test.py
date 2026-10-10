@@ -237,6 +237,14 @@ class TestDates:
                     "start_at": "2000-01-04T15:00:00+00:00",
                     "end_at": "2000-01-04T16:00:00+00:00",
                 },
+                # A malformed reference is left for validation to refuse.
+                {
+                    "title": "Odd",
+                    "start_at": "2000-01-04T15:00:00+00:00",
+                    "end_at": "2000-01-04T16:00:00+00:00",
+                    "series_ref": ["event:1"],
+                    "original_start": "2000-01-04T15:00:00+00:00",
+                },
             ],
         }
         # Published, it goes back to the anchor whole.
@@ -246,12 +254,13 @@ class TestDates:
         assert anchored["events"][0]["start_at"].startswith("2000-01-03T09:00")
         assert anchored["events"][1]["original_start"].startswith("2000-01-10T09:00")
 
-        series, edit, once = shift_dates(Tool.calendar, calendar, 5)["events"]
+        series, edit, once, odd = shift_dates(Tool.calendar, calendar, 5)["events"]
         assert series["start_at"].startswith("2000-01-10T09:00")
         assert series["end_at"].startswith("2000-01-10T09:15")
         assert edit["original_start"].startswith("2000-01-17T09:00")
         assert edit["start_at"].startswith("2000-01-17T10:00")
         assert once["start_at"].startswith("2000-01-09T15:00")
+        assert odd["original_start"].startswith("2000-01-09T15:00")
 
     def test_an_item_with_no_dates_is_unchanged(self):
         counters = {"type": "initiative-counter-group", "name": "HP", "counters": []}

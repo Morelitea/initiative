@@ -219,6 +219,19 @@ def test_a_repeat_moves_with_its_start():
             29,
             datetime(2026, 2, 28, 9),
         ),
+        # A day some months lack, and a place counted from the month's end.
+        (
+            "FREQ=MONTHLY;BYMONTHDAY=31",
+            datetime(2026, 1, 31, 9),
+            40,
+            datetime(2026, 3, 31, 9),
+        ),
+        (
+            "FREQ=MONTHLY;BYDAY=MO",
+            datetime(2026, 10, 26, 9),
+            35,
+            datetime(2026, 11, 30, 9),
+        ),
     ],
 )
 def test_a_moved_series_keeps_its_days_and_its_exceptions(rule, start, days, new_start):
@@ -254,6 +267,23 @@ def test_a_skipped_start_moves_however_far_off_it_is():
 
     assert series.start == datetime(2026, 2, 15, 9, tzinfo=UTC)
     assert series.text == "RRULE:FREQ=MONTHLY\nEXDATE:20860315T090000Z"
+
+
+def test_a_repeat_that_skips_years_starts_on_one_of_its_own_days():
+    """The fifth Monday of February comes round in 2016 and 2044: moved ten
+    years, it starts on one of them, and so does the edit of its start."""
+    start = datetime(2016, 2, 29, 9, tzinfo=UTC)
+
+    series = recurrence.moved(
+        "RRULE:FREQ=YEARLY;BYMONTH=2;BYDAY=5MO",
+        start,
+        0,
+        timedelta(days=3653),
+        occurrences=[start],
+    )
+
+    assert series.start in (start, datetime(2044, 2, 29, 9, tzinfo=UTC))
+    assert series.occurrences == {start: series.start}
 
 
 def test_imports_read_either_shape():

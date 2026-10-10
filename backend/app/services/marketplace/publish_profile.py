@@ -443,7 +443,7 @@ def _move_series(
     for other in items:
         if (
             isinstance(other, dict)
-            and (ref := other.get("series_ref"))
+            and isinstance(ref := other.get("series_ref"), str)
             and (was := _instant(other.get("original_start"))) is not None
         ):
             own_rows.setdefault(ref, []).append((other, was))
@@ -452,7 +452,8 @@ def _move_series(
         start = _instant(item.get(key)) if key else None
         if start is None:
             continue
-        rows = own_rows.get(item.get("external_ref") or "", [])
+        ref = item.get("external_ref")
+        rows = own_rows.get(ref, []) if isinstance(ref, str) else []
         series = recurrence.moved(
             item["recurrence"],
             start,
