@@ -19,7 +19,6 @@ not exist.
 from __future__ import annotations
 
 import logging
-from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Optional, Sequence
@@ -49,6 +48,10 @@ logger = logging.getLogger(__name__)
 
 #: How often a live grant's case hears what it has been doing.
 DIGEST_INTERVAL = timedelta(minutes=60)
+#: How long after a grant ends its case waits for the full account of it: a
+#: request the grant let in may still be finishing, and is recorded when it
+#: does.
+ENDED_GRACE = timedelta(minutes=10)
 #: How many changes a digest lists before it says how many more there were.
 WRITES_LISTED = 20
 #: How many open cases the picker offers.
@@ -151,9 +154,12 @@ async def _as_reader(user: User):
     return session, guild_id
 
 
-async def readable_open_cases(user: User) -> list[OpenCase]:
+async def readable_open_cases(
+    user: User, *, search: Optional[str] = None
+) -> list[OpenCase]:
     """The open cases ``user`` can read that a grant may serve, the ones
-    assigned to them first, then the newest."""
+    assigned to them first, then the newest. ``search`` narrows them to a
+    title holding it, or the case with that number."""
     session, _guild_id = await _as_reader(user)
     if session is None:
         return []
@@ -165,13 +171,22 @@ async def readable_open_cases(user: User) -> list[OpenCase]:
             .correlate(IntakeCase)
             .exists()
         )
+        query = (
+            _open_cases()
+            .add_columns(mine.label("mine"))
+            .where(TaskStatus.category != TaskStatusCategory.done)
+        )
+        if search and (term := search.strip()):
+            number = term.removeprefix("#")
+            matches = Task.title.ilike(f"%{term}%")
+            if number.isascii() and number.isdigit() and int(number) < 2**31:
+                matches = or_(matches, IntakeCase.task_id == int(number))
+            query = query.where(matches)
         rows = (
             await session.exec(
-                _open_cases()
-                .add_columns(mine.label("mine"))
-                .where(TaskStatus.category != TaskStatusCategory.done)
-                .order_by(mine.desc(), IntakeCase.task_id.desc())
-                .limit(PICKER_LIMIT)
+                query.order_by(mine.desc(), IntakeCase.task_id.desc()).limit(
+                    PICKER_LIMIT
+                )
             )
         ).all()
     finally:
@@ -264,14 +279,14 @@ async def note(
         return False
 
 
-async def link(task_id: int, *, guild_id: int, name_community: bool) -> None:
-    """Settle the case a grant was asked for: name the community it reaches,
-    where the case named none."""
-    if not name_community:
-        return
-    from app.services.platform.intake import name_subject_guild
+async def claim(task_id: int, *, guild_id: int) -> bool:
+    """Settle that the case a grant is asked for is about the grant's
+    community, naming it where the case names none. False where the case is
+    about another — settled under a lock, so two requests at once for one
+    unnamed case cannot each name it."""
+    from app.services.platform.intake import claim_subject_guild
 
-    await name_subject_guild(task_id, guild_id)
+    return await claim_subject_guild(task_id, guild_id)
 
 
 async def activate(task_id: Optional[int]) -> None:
@@ -360,39 +375,76 @@ def decided_text(
     return line
 
 
+@dataclass(frozen=True)
+class ActivitySummary:
+    """What a grant did over a stretch, counted in the database: reads by the
+    kind of thing they named, how many changes, and the first changes."""
+
+    reads: dict[str, int]
+    write_count: int
+    writes: list[AccessGrantActivity]
+
+
 async def _activity(
     session: AsyncSession, grant_id: int, since: Optional[datetime]
-) -> list[AccessGrantActivity]:
-    query = select(AccessGrantActivity).where(AccessGrantActivity.grant_id == grant_id)
+) -> ActivitySummary:
+    """Count a grant's requests since ``since`` (all of them where ``None``)
+    and fetch only the changes a note lists."""
+    window = [AccessGrantActivity.grant_id == grant_id]
     if since is not None:
-        query = query.where(AccessGrantActivity.occurred_at > since)
-    return list(
-        (await session.exec(query.order_by(AccessGrantActivity.occurred_at))).all()
+        window.append(AccessGrantActivity.occurred_at > since)
+    read_counts = (
+        await session.exec(
+            select(AccessGrantActivity.target_type, func.count())
+            .where(*window)
+            .where(AccessGrantActivity.is_write.is_(False))
+            .group_by(AccessGrantActivity.target_type)
+        )
+    ).all()
+    write_count = (
+        await session.exec(
+            select(func.count())
+            .select_from(AccessGrantActivity)
+            .where(*window)
+            .where(AccessGrantActivity.is_write.is_(True))
+        )
+    ).one()
+    writes = (
+        await session.exec(
+            select(AccessGrantActivity)
+            .where(*window)
+            .where(AccessGrantActivity.is_write.is_(True))
+            .order_by(AccessGrantActivity.occurred_at, AccessGrantActivity.id)
+            .limit(WRITES_LISTED)
+        )
+    ).all()
+    return ActivitySummary(
+        reads={kind or "other": int(n) for kind, n in read_counts},
+        write_count=int(write_count),
+        writes=list(writes),
     )
 
 
-def digest_text(rows: Sequence[AccessGrantActivity], *, heading: str) -> str:
+def digest_text(summary: ActivitySummary, *, heading: str) -> str:
     """What a grant did, as its case reads it: reads counted by the kind of
     thing they named, changes listed (the first :data:`WRITES_LISTED`)."""
-    reads = Counter(r.target_type or "other" for r in rows if not r.is_write)
-    writes = [r for r in rows if r.is_write]
     lines = [heading]
-    if not rows:
+    if not summary.reads and not summary.write_count:
         lines.append("Nothing was opened or changed.")
         return "\n".join(lines)
-    if reads:
-        counted = ", ".join(f"{kind} ×{n}" for kind, n in sorted(reads.items()))
-        lines.append(f"Read {sum(reads.values())} times: {counted}.")
-    if writes:
-        lines.append(f"Changed {len(writes)} times:")
-        for row in writes[:WRITES_LISTED]:
+    if summary.reads:
+        counted = ", ".join(f"{kind} ×{n}" for kind, n in sorted(summary.reads.items()))
+        lines.append(f"Read {sum(summary.reads.values())} times: {counted}.")
+    if summary.write_count:
+        lines.append(f"Changed {summary.write_count} times:")
+        for row in summary.writes:
             named = f" ({row.target_type} {row.target_id})" if row.target_type else ""
             lines.append(
                 f"- {row.occurred_at.strftime('%H:%M')} {row.method} {row.route}"
                 f"{named} → {row.status}"
             )
-        if len(writes) > WRITES_LISTED:
-            lines.append(f"- …and {len(writes) - WRITES_LISTED} more.")
+        if summary.write_count > len(summary.writes):
+            lines.append(f"- …and {summary.write_count - len(summary.writes)} more.")
     return "\n".join(lines)
 
 
@@ -418,14 +470,11 @@ async def report_activity(
             .where(AccessGrant.closed_out_at.is_(None))
             .where(
                 or_(
-                    AccessGrant.status.in_(
-                        [
-                            AccessGrantStatus.expired.value,
-                            AccessGrantStatus.revoked.value,
-                            AccessGrantStatus.denied.value,
-                        ]
-                    ),
-                    AccessGrant.expires_at <= moment,
+                    AccessGrant.status == AccessGrantStatus.denied.value,
+                    # Ended long enough ago that a request it let in has
+                    # finished, and been recorded.
+                    func.coalesce(AccessGrant.revoked_at, AccessGrant.expires_at)
+                    <= moment - ENDED_GRACE,
                 )
             )
             .with_for_update(skip_locked=True)
@@ -468,7 +517,7 @@ async def report_activity(
         ).all()
     }
     for grant in ended:
-        rows = await _activity(session, int(grant.id), None)
+        summary = await _activity(session, int(grant.id), None)
         grant.closed_out_at = moment
         session.add(grant)
         if grant.status == AccessGrantStatus.denied.value:
@@ -486,15 +535,15 @@ async def report_activity(
         if await note(
             grant.case_task_id,
             case_activity.ActivityKind.grant_digest,
-            digest_text(rows, heading=heading),
+            digest_text(summary, heading=heading),
         ):
             told += 1
     for grant in live:
         since = grant.activity_noted_at or grant.decided_at
-        rows = await _activity(session, int(grant.id), since)
+        summary = await _activity(session, int(grant.id), since)
         grant.activity_noted_at = moment
         session.add(grant)
-        if not rows:
+        if not summary.reads and not summary.write_count:
             continue
         heading = (
             f"{_describe(grant, names.get(grant.guild_id), users.get(grant.user_id))}"
@@ -503,7 +552,7 @@ async def report_activity(
         if await note(
             grant.case_task_id,
             case_activity.ActivityKind.grant_digest,
-            digest_text(rows, heading=heading),
+            digest_text(summary, heading=heading),
         ):
             told += 1
     await session.commit()

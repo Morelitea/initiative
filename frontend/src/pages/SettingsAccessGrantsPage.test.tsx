@@ -71,6 +71,8 @@ const noPages = <TPage,>(): UseInfiniteQueryResult<InfiniteData<TPage, number>, 
 
 /** The open cases a grant may name, and whether a request must. */
 let grantCases: GrantCaseList = { items: [], required: false };
+/** What the server finds past the first page, by what was typed. */
+let searchedCases: Record<string, GrantCaseList> = {};
 
 /** The approver's pending queue, as a test sets it. */
 let pendingQueue: UseInfiniteQueryResult<InfiniteData<unknown, number>, Error> = noPages();
@@ -106,7 +108,12 @@ vi.mock(import("@/hooks/useAccessGrants"), async (importOriginal) => ({
   useAccessGrantQueue: ((status?: string) =>
     status === "pending" ? pendingQueue : noPages()) as never,
   useAccessGrantLimits: () => answered({ max_duration_minutes: requestCeiling }),
-  useGrantCases: () => answered(grantCases),
+  useGrantCases: (options?: { search?: string }) =>
+    answered(
+      options?.search
+        ? (searchedCases[options.search] ?? { items: [], required: false })
+        : grantCases
+    ),
   useCreateAccessRequest: () => idle(createRequest),
   useCancelAccessRequest: () => idle(),
   useBreakGlass: () => idle(breakGlass),
@@ -427,6 +434,19 @@ describe("SettingsAccessGrantsPage", () => {
       await user.click((await screen.findAllByRole("combobox", { name: "Case" }))[picker]);
       await user.click(await screen.findByRole("option", { name }));
     };
+
+    it("finds a case past the first page on the server", async () => {
+      const older = { ...lostPhone, task_id: 9, title: "An old case", mine: false };
+      grantCases = { items: [spamWave], required: false };
+      searchedCases = { "old case": { items: [older], required: false } };
+      const user = userEvent.setup();
+      render();
+
+      await user.click(await screen.findByRole("combobox", { name: "Case" }));
+      await user.type(screen.getByPlaceholderText(/search/i), "old case");
+      expect(await screen.findByRole("option", { name: /#9 · An old case/ })).toBeInTheDocument();
+      searchedCases = {};
+    });
 
     it("names each case by number and title, its stream, and whether it is yours", async () => {
       grantCases = { items: [spamWave, lostPhone], required: false };

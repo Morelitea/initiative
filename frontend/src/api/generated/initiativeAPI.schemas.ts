@@ -11284,6 +11284,13 @@ export type ListAccessGrantQueueParams = {
   page_size?: number;
 };
 
+export type ListGrantCasesParams = {
+  /**
+   * A title holding this, or the case with this number.
+   */
+  search?: string | null;
+};
+
 export type GetFcmConfigParams = {
   /**
    * The phone asking. Its relay id is served only to a phone whose pushes go through the relay.

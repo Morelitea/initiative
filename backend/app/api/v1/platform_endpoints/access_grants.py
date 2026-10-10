@@ -79,23 +79,28 @@ async def _one(grant, *, system_session: AsyncSession | None = None) -> AccessGr
 
 async def _check_case(
     actor: User, case_task_id: Optional[int], guild_id: int, *, required: bool
-) -> bool:
+) -> None:
     """Hold the case a grant is asked for to what it may be: one the asker
-    reads, open, of a kind a grant serves, about this community or none yet.
-    Returns whether the link should name the community on it."""
+    reads, open, of a kind a grant serves, and about this community — which
+    a case naming none is settled as, before any grant is made for it."""
     if case_task_id is None:
         if required and await grant_cases.cases_required():
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=AccessGrantMessages.CASE_REQUIRED,
             )
-        return False
+        return
     try:
-        return await grant_cases.check_case(
+        await grant_cases.check_case(
             actor, case_task_id=case_task_id, guild_id=guild_id
         )
     except grant_cases.GrantCaseError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.code) from exc
+    if not await grant_cases.claim(case_task_id, guild_id=guild_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AccessGrantMessages.CASE_OTHER_COMMUNITY,
+        )
 
 
 async def _tell_requested(
@@ -104,15 +109,11 @@ async def _tell_requested(
     *,
     requester: User,
     guild_name: Optional[str],
-    name_community: bool,
 ) -> None:
     """Tell the case a request names that access was asked for it."""
     case = grants[0].case_task_id
     if case is None:
         return
-    await grant_cases.link(
-        case, guild_id=grants[0].guild_id, name_community=name_community
-    )
     await grant_cases.note(
         case,
         case_activity.ActivityKind.grant_requested,
@@ -159,7 +160,7 @@ async def create_access_request(
     names the case it is for (``case_task_id``): one the requester can read,
     still open, and about this community or none yet. The case is told.
     """
-    name_community = await _check_case(
+    await _check_case(
         current_user, payload.case_task_id, payload.community_id, required=True
     )
     asked = await service.request_grants(
@@ -189,7 +190,6 @@ async def create_access_request(
         asked,
         requester=current_user,
         guild_name=read.community_name,
-        name_community=name_community,
     )
     return read
 
@@ -361,7 +361,7 @@ async def break_glass_access(
     await check_second_factor(
         session, actor=current_user, answer=payload, during="break_glass"
     )
-    name_community = await _check_case(
+    await _check_case(
         current_user, payload.case_task_id, payload.community_id, required=False
     )
     replaced = await service.reconcile_break_glass_pair(
@@ -418,7 +418,6 @@ async def break_glass_access(
         [grant, settings_grant],
         requester=current_user,
         guild_name=read.community_name,
-        name_community=name_community,
     )
     await _tell_decided(
         session, grant, decided_by=current_user, guild_name=read.community_name
@@ -496,10 +495,16 @@ async def read_access_grant_limits(
 @router.get("/cases", response_model=GrantCaseList)
 async def list_grant_cases(
     current_user: Annotated[User, Depends(get_current_active_user)],
+    search: Optional[str] = Query(
+        default=None,
+        max_length=200,
+        description="A title holding this, or the case with this number.",
+    ),
 ) -> GrantCaseList:
     """The open operations cases the reader can read that a grant may serve,
     those assigned to them first — what the request and break-glass forms
-    offer. Read as the reader, so it lists only cases they can open."""
+    offer. Read as the reader, so it lists only cases they can open. At most
+    fifty; ``search`` finds the rest."""
     if not (
         user_has_capability(current_user, Capability.ACCESS_REQUEST)
         or user_has_capability(current_user, Capability.DATA_BYPASS)
@@ -517,7 +522,9 @@ async def list_grant_cases(
                 subject_community_id=case.subject_guild_id,
                 mine=case.mine,
             )
-            for case in await grant_cases.readable_open_cases(current_user)
+            for case in await grant_cases.readable_open_cases(
+                current_user, search=search
+            )
         ],
         required=await grant_cases.cases_required(),
     )

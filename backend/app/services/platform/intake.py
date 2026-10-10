@@ -52,7 +52,7 @@ from app.models.platform.user import User
 from app.models.tenant.comment import Comment, CommentAudience
 from app.models.tenant.intake import DEDUPE_KEY_LENGTH, IntakeBinding, IntakeCase
 from app.models.tenant.project import Project
-from app.models.tenant.property import PropertyDefinition, PropertyType
+from app.models.tenant.property import PropertyDefinition, PropertyType, PropertyValue
 from app.models.tenant.task import Task, TaskStatus, TaskStatusCategory
 from app.schemas.tenant.property import PropertyValueInput
 from app.services.platform import case_activity
@@ -833,12 +833,14 @@ async def open_cases_for(user_id: int) -> list[AccountCase]:
     ]
 
 
-async def name_subject_guild(task_id: int, guild_id: int) -> None:
-    """Record that case ``task_id`` is about community ``guild_id``, where it
-    named none: what an access grant asked for it settles."""
+async def claim_subject_guild(task_id: int, guild_id: int) -> bool:
+    """Settle that case ``task_id`` is about community ``guild_id``: name it
+    where the case names no community, and answer whether the case is now
+    about that one. Under a lock on the case, so two settlements at once
+    cannot each find it unnamed and both name it."""
     operations = await configured_operations_guild_id()
     if operations is None:
-        return
+        return False
     async with cohorts.system_session(operations) as session:
         await set_rls_context(session, SystemGuild(operations))
         found = (
@@ -847,17 +849,29 @@ async def name_subject_guild(task_id: int, guild_id: int) -> None:
                 .join(Project, Project.id == Task.project_id)
                 .join(IntakeCase, IntakeCase.task_id == Task.id)
                 .where(Task.id == task_id)
+                .with_for_update(of=IntakeCase)
             )
         ).first()
         if found is None:
-            return
+            return False
         task, initiative_id, stream = found
         definitions = await _ensure_field_definitions(
             session, initiative_id=initiative_id, stream=IntakeStream(stream)
         )
         field = definitions.get(CaseField.subject_guild)
         if field is None:
-            return
+            return False
+        named = (
+            await session.exec(
+                select(PropertyValue.value_number)
+                .where(PropertyValue.property_id == field.id)
+                .where(PropertyValue.entity_type == "task")
+                .where(PropertyValue.entity_id == task_id)
+            )
+        ).first()
+        if named is not None:
+            await session.rollback()
+            return int(named) == guild_id
         # This one value alone: everything else the team set on the case
         # stays as it is.
         await properties_service.write_values(
@@ -868,3 +882,4 @@ async def name_subject_guild(task_id: int, guild_id: int) -> None:
             removed=[],
         )
         await session.commit()
+        return True

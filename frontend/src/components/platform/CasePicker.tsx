@@ -1,10 +1,11 @@
 /**
  * Chooses the operations case an access grant is for.
  *
- * The list is the open cases the reader can open, at most a few dozen, so it
- * arrives whole and is searched here. Each reads as its number and title, with
- * the stream it came in on beside it and a mark on the ones assigned to the
- * reader, which the server lists first.
+ * The list is the first few dozen open cases the reader can open, theirs
+ * first. Typing searches those here at once, and the server for the rest — a
+ * title holding it, or the case with that number. Each reads as its number
+ * and title, with the stream it came in on beside it and a mark on the ones
+ * assigned to the reader.
  */
 
 import { useState } from "react";
@@ -12,6 +13,8 @@ import { useTranslation } from "react-i18next";
 
 import type { GrantCaseRead } from "@/api/generated/initiativeAPI.schemas";
 import { AsyncCombobox } from "@/components/ui/async-combobox";
+import { useGrantCases } from "@/hooks/useAccessGrants";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 
 /** The value the "no case" row is chosen by, where a case is optional. */
 const NO_CASE = "none";
@@ -44,9 +47,20 @@ export const CasePicker = ({
   const { t } = useTranslation(["settings", "intake"]);
   const [search, setSearch] = useState("");
   const needle = search.trim().toLowerCase();
-  const shown = needle
+  // What is past the first page is the server's to find.
+  const asked = useDebouncedValue(search.trim(), 250);
+  const searched = useGrantCases({ enabled: asked.length > 0, search: asked });
+  const local = needle
     ? cases.filter((item) => caseLabel(item).toLowerCase().includes(needle))
     : cases;
+  const found = needle ? (searched.data?.items ?? []) : [];
+  const shown = [
+    ...local,
+    ...found.filter((item) => !local.some((held) => held.task_id === item.task_id)),
+  ];
+  // The label of the case chosen, kept so it reads right once the search that
+  // found it is gone.
+  const [chosenLabel, setChosenLabel] = useState<string | null>(null);
   const chosen = value == null ? undefined : cases.find((item) => item.task_id === value);
 
   return (
@@ -54,7 +68,9 @@ export const CasePicker = ({
       className={className}
       aria-label={ariaLabel}
       value={value == null ? null : String(value)}
-      selectedLabel={value == null ? null : chosen ? caseLabel(chosen) : `#${value}`}
+      selectedLabel={
+        value == null ? null : chosen ? caseLabel(chosen) : (chosenLabel ?? `#${value}`)
+      }
       items={[
         ...(optional && !needle ? [{ value: NO_CASE, label: t("accessGrants.caseNone") }] : []),
         ...shown.map((item) => ({
@@ -66,14 +82,18 @@ export const CasePicker = ({
         })),
       ]}
       onSearchChange={setSearch}
-      // Searched here, so there is nothing to wait for.
+      // Searched here at once; the server is asked once typing pauses.
       debounceMs={0}
-      loading={loading}
+      loading={loading || (needle.length > 0 && searched.isFetching)}
       placeholder={t("accessGrants.casePlaceholder")}
       searchPlaceholder={t("accessGrants.caseSearch")}
       emptyMessage={t("accessGrants.caseEmpty")}
       disabled={disabled}
-      onValueChange={(next) => onChange(next === NO_CASE ? null : Number(next))}
+      onValueChange={(next) => {
+        const picked = shown.find((item) => String(item.task_id) === next);
+        setChosenLabel(picked ? caseLabel(picked) : null);
+        onChange(next === NO_CASE ? null : Number(next));
+      }}
     />
   );
 };

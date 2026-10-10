@@ -105,12 +105,14 @@ export const useAccessGrantLimits = (options?: { enabled?: boolean }) =>
  * and whether a request must name one. Read as the reader, so it lists only
  * cases they can open.
  */
-export const useGrantCases = (options?: { enabled?: boolean }) =>
-  useQuery<GrantCaseList>({
-    queryKey: getListGrantCasesQueryKey(),
-    queryFn: () => listGrantCases(),
+export const useGrantCases = (options?: { enabled?: boolean; search?: string }) => {
+  const params = options?.search ? { search: options.search } : undefined;
+  return useQuery<GrantCaseList>({
+    queryKey: getListGrantCasesQueryKey(params),
+    queryFn: () => listGrantCases(params),
     enabled: options?.enabled,
   });
+};
 
 export const useCreateAccessRequest = (
   options?: MutationOpts<AccessGrantRead, AccessGrantCreate>

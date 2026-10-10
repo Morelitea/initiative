@@ -380,7 +380,7 @@ async def test_a_live_grant_reports_hourly_and_an_ended_one_in_full(
 
 def test_a_digest_lists_only_so_many_changes():
     now = datetime.now(timezone.utc)
-    rows = [
+    shown = [
         AccessGrantActivity(
             grant_id=1,
             occurred_at=now,
@@ -389,10 +389,74 @@ def test_a_digest_lists_only_so_many_changes():
             status=201,
             is_write=True,
         )
-        for _ in range(grant_cases.WRITES_LISTED + 5)
+        for _ in range(grant_cases.WRITES_LISTED)
     ]
-    text = grant_cases.digest_text(rows, heading="Heading")
+    summary = grant_cases.ActivitySummary(
+        reads={"task": 3}, write_count=grant_cases.WRITES_LISTED + 5, writes=shown
+    )
+    text = grant_cases.digest_text(summary, heading="Heading")
+    assert "Read 3 times: task ×3." in text
     assert "…and 5 more." in text
+
+
+async def test_an_ended_grant_waits_for_requests_still_finishing(
+    session: AsyncSession, desk
+):
+    """A request the grant let in may finish just after it ends, and is
+    recorded then; the full account waits for it."""
+    target = await create_guild(session)
+    task_id = await _case()
+    grant = await _live_grant(
+        session,
+        user=desk["agent"].user,
+        guild_id=target.id,
+        case=task_id,
+        ago=timedelta(minutes=30),
+    )
+    ended_at = grant.expires_at
+    await set_rls_context(session, Unattributed())
+    assert (
+        await grant_cases.report_activity(
+            session, now=ended_at + grant_cases.ENDED_GRACE / 2
+        )
+        == 0
+    )
+    await set_rls_context(session, Unattributed())
+    assert (
+        await grant_cases.report_activity(
+            session, now=ended_at + grant_cases.ENDED_GRACE * 2
+        )
+        == 1
+    )
+
+
+async def test_two_requests_for_one_unnamed_case_settle_one_community(
+    session: AsyncSession, desk
+):
+    first = await create_guild(session)
+    second = await create_guild(session)
+    task_id = await _case()
+    assert await grant_cases.claim(task_id, guild_id=first.id) is True
+    assert await grant_cases.claim(task_id, guild_id=second.id) is False
+    assert await grant_cases.claim(task_id, guild_id=first.id) is True
+
+
+async def test_the_picker_finds_a_case_by_title_or_number(
+    client: AsyncClient, session: AsyncSession, desk
+):
+    task_id = await _case()
+    for term in ("open a project", f"#{task_id}", str(task_id)):
+        response = await client.get(
+            f"{GRANTS}cases", params={"search": term}, headers=desk["agent"].headers
+        )
+        assert response.status_code == 200, response.text
+        assert [c["task_id"] for c in response.json()["items"]] == [task_id]
+    response = await client.get(
+        f"{GRANTS}cases",
+        params={"search": "nothing like it"},
+        headers=desk["agent"].headers,
+    )
+    assert response.json()["items"] == []
 
 
 async def test_a_suspension_under_a_grant_is_told_to_its_case(

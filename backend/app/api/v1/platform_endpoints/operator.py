@@ -1298,6 +1298,11 @@ async def delete_user(
         )
 
     user = await _account_within_rank(session, user_id, current_user, lock=True)
+    act_case.what = {
+        "deactivate": "deactivated",
+        "soft_delete": "anonymized",
+        "hard_delete": "permanently deleted",
+    }[payload.action]
 
     await users_service.ensure_config_manager_remains(session, user_id, for_update=True)
 

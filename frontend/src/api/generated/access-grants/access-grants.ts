@@ -32,6 +32,7 @@ import type {
   HTTPValidationError,
   ListAccessGrantQueueParams,
   ListAccessGrantsParams,
+  ListGrantCasesParams,
   PasskeyAuthenticationOptions,
 } from "../initiativeAPI.schemas";
 
@@ -846,36 +847,41 @@ export function useReadAccessGrantLimits<
 /**
  * The open operations cases the reader can read that a grant may serve,
  * those assigned to them first — what the request and break-glass forms
- * offer. Read as the reader, so it lists only cases they can open.
+ * offer. Read as the reader, so it lists only cases they can open. At most
+ * fifty; ``search`` finds the rest.
  * @summary List Grant Cases
  */
 export const listGrantCases = (
+  params?: ListGrantCasesParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<GrantCaseList>(
-    { url: `/api/v1/access-grants/cases`, method: "GET", signal },
+    { url: `/api/v1/access-grants/cases`, method: "GET", params, signal },
     options
   );
 };
 
-export const getListGrantCasesQueryKey = () => {
-  return [`/api/v1/access-grants/cases`] as const;
+export const getListGrantCasesQueryKey = (params?: ListGrantCasesParams) => {
+  return [`/api/v1/access-grants/cases`, ...(params ? [params] : [])] as const;
 };
 
 export const getListGrantCasesQueryOptions = <
   TData = Awaited<ReturnType<typeof listGrantCases>>,
   TError = ErrorType<HTTPValidationError>,
->(options?: {
-  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listGrantCases>>, TError, TData>>;
-  request?: SecondParameter<typeof apiMutator>;
-}) => {
+>(
+  params?: ListGrantCasesParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listGrantCases>>, TError, TData>>;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getListGrantCasesQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getListGrantCasesQueryKey(params);
 
   const queryFn: QueryFunction<Awaited<ReturnType<typeof listGrantCases>>> = ({ signal }) =>
-    listGrantCases(requestOptions, signal);
+    listGrantCases(params, requestOptions, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof listGrantCases>>,
@@ -891,6 +897,7 @@ export function useListGrantCases<
   TData = Awaited<ReturnType<typeof listGrantCases>>,
   TError = ErrorType<HTTPValidationError>,
 >(
+  params: undefined | ListGrantCasesParams,
   options: {
     query: Partial<UseQueryOptions<Awaited<ReturnType<typeof listGrantCases>>, TError, TData>> &
       Pick<
@@ -909,6 +916,7 @@ export function useListGrantCases<
   TData = Awaited<ReturnType<typeof listGrantCases>>,
   TError = ErrorType<HTTPValidationError>,
 >(
+  params?: ListGrantCasesParams,
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listGrantCases>>, TError, TData>> &
       Pick<
@@ -927,6 +935,7 @@ export function useListGrantCases<
   TData = Awaited<ReturnType<typeof listGrantCases>>,
   TError = ErrorType<HTTPValidationError>,
 >(
+  params?: ListGrantCasesParams,
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listGrantCases>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
@@ -941,13 +950,14 @@ export function useListGrantCases<
   TData = Awaited<ReturnType<typeof listGrantCases>>,
   TError = ErrorType<HTTPValidationError>,
 >(
+  params?: ListGrantCasesParams,
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listGrantCases>>, TError, TData>>;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListGrantCasesQueryOptions(options);
+  const queryOptions = getListGrantCasesQueryOptions(params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
