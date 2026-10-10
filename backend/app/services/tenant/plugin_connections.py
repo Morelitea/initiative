@@ -29,7 +29,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.tenant.guild_plugin import GuildPlugin
-from app.db.cohorts import as_system, exec_as_system
+from app.db.cohorts import as_system
 from app.models.tenant.guild_plugin_user_connection import GuildPluginUserConnection
 from app.models.tenant.plugin_connection_secret import PluginConnectionSecret
 from app.core.clock import utcnow
@@ -284,44 +284,47 @@ async def block_member_connection(
     again. The values go exactly as they do on any other revocation — a block
     that left the credential in place would be a worse outcome than a plain
     revoke, not a stronger one.
-    """
-    row = await get_connection(
-        session, plugin_id=plugin.id, connection_id=connection_id, user_id=user_id
-    )
-    if row is None:
-        row = GuildPluginUserConnection(
-            plugin_id=plugin.id,
-            connection_id=connection_id,
-            user_id=user_id,
-            connection_ref=mint_connection_ref(),
-            status="blocked",
-        )
-    else:
-        await queue_revocations_for_rows(
-            session,
-            [row],
-            reason="blocked",
-            installs={plugin.id: (plugin.listing_uid, plugin.definition)},
-        )
-        # The values are the member's own to reach, so the platform clears
-        # them, before this transaction writes the row they hang off.
-        await exec_as_system(
-            session,
-            sa_delete(PluginConnectionSecret).where(
-                PluginConnectionSecret.connection_row_id == row.id
-            ),
-        )
-        row.status = "blocked"
 
-    row.config = {}
-    row.secret_fields = {}
-    row.account_label = None
-    row.blocked_at = utcnow()
-    row.blocked_by_id = blocked_by_id
-    row.updated_at = utcnow()
-    session.add(row)
-    await session.flush()
-    return row
+    The values are the member's own to reach, so the platform does the whole
+    block, in one transaction that holds the row from before it reads them: a
+    flow finishing at the same moment either lands first and has its values
+    revoked with the rest, or finds the row blocked. The revocation goes once
+    that transaction commits.
+    """
+    async with as_system(session) as system:
+        row = (
+            await system.exec(
+                select(GuildPluginUserConnection)
+                .where(
+                    GuildPluginUserConnection.plugin_id == plugin.id,
+                    GuildPluginUserConnection.connection_id == connection_id,
+                    GuildPluginUserConnection.user_id == user_id,
+                )
+                .with_for_update()
+            )
+        ).first()
+        if row is None:
+            row = GuildPluginUserConnection(
+                plugin_id=plugin.id,
+                connection_id=connection_id,
+                user_id=user_id,
+                connection_ref=mint_connection_ref(),
+            )
+        else:
+            await queue_revocations_for_rows(
+                system,
+                [row],
+                reason="blocked",
+                installs={plugin.id: (plugin.listing_uid, plugin.definition)},
+            )
+        row.status = "blocked"
+        row.config = {}
+        row.account_label = None
+        row.blocked_at = utcnow()
+        row.blocked_by_id = blocked_by_id
+        row.updated_at = utcnow()
+        await store_connection_secrets(system, row, {})
+        return row
 
 
 async def unblock_member_connection(
