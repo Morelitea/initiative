@@ -50,6 +50,17 @@ describe("query-keys community scoping", () => {
     expect(meAggregate()).toBe(true);
   });
 
+  it("refreshes an initiative's list of views with its projects, and not with files", async () => {
+    const key = ["/api/v1/c/5/views/initiative", { initiative_id: 2 }];
+    const listed = seed(key);
+
+    setInvalidationCommunity(5);
+    await invalidate(q.allFiles());
+    expect(listed()).toBe(false);
+    await invalidate(q.allProjects());
+    expect(listed()).toBe(true);
+  });
+
   it.each(TOOLS)("a %s list reaches its cross-community /me twin", async (tool) => {
     const communityList = seed([`/api/v1/c/5/${toolRouteSegment(tool)}/`]);
     const meList = seed([`/api/v1/me/${toolRouteSegment(tool)}`]);

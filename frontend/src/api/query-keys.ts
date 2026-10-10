@@ -531,7 +531,10 @@ const toolLists = (which: Tool): Spec => {
   const lists = compose(resourceAndMe(toolRouteSegment(which)), {
     communityPrefix: [`/api/v1/tools/${which}/counts`],
   });
-  return which === Tool.calendar ? compose(lists, allCalendarEvents()) : lists;
+  if (which === Tool.calendar) return compose(lists, allCalendarEvents());
+  // An initiative's list of views names its projects, by name.
+  if (which === Tool.project) return compose(lists, initiativeViews());
+  return lists;
 };
 
 /** Every list of one tool and the counts beside them — what adding or

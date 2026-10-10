@@ -59,6 +59,9 @@ export const useInitiativeViews = (initiativeId: number) => {
   return useQuery({
     queryKey: getGetInitiativeViewsQueryKey(communityId, params),
     queryFn: () => getInitiativeViews(communityId, params),
+    // Another initiative's projects, while this one's load, would be listed
+    // under this one's addresses.
+    placeholderData: undefined,
   });
 };
 
