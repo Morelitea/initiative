@@ -5,6 +5,7 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse } from "msw";
+import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -18,7 +19,7 @@ import { buildSavedViewSet } from "@/__tests__/factories/toolView.factory";
 import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
-import type { ToolViewSetWrite } from "@/api/generated/initiativeAPI.schemas";
+import type { ToolViewSetRead, ToolViewSetWrite } from "@/api/generated/initiativeAPI.schemas";
 
 import { ViewEditor } from "./ViewEditor";
 
@@ -189,6 +190,54 @@ describe("ViewEditor", () => {
     expect(saves[0].views.find((view) => view.slug === "table")?.definition.columns?.at(-1)).toBe(
       "plugin:3:ci.state"
     );
+  });
+
+  it("opens the default view when another save takes away the open one", async () => {
+    const shipped = buildToolViewSet();
+    const refreshed = buildSavedViewSet({
+      views: shipped.views.filter((view) => !["unassigned", "mine"].includes(view.slug)),
+      item_layouts: [],
+    });
+    const Refreshing = () => {
+      const [set, setSet] = useState<ToolViewSetRead>(shipped);
+      return (
+        <>
+          <button type="button" onClick={() => setSet(refreshed)}>
+            refresh
+          </button>
+          <ViewEditor
+            projectId={1}
+            initiativeId={1}
+            statuses={STATUSES}
+            set={set}
+            initialSlug="mine"
+            onClose={vi.fn()}
+          />
+        </>
+      );
+    };
+    renderPage(Refreshing);
+    const user = userEvent.setup();
+    expect(await screen.findByRole("combobox", { name: /^view being edited$/i })).toHaveTextContent(
+      "Mine"
+    );
+
+    await user.click(screen.getByRole("button", { name: "refresh" }));
+    expect(screen.getByRole("combobox", { name: /^view being edited$/i })).toHaveTextContent(
+      "Table"
+    );
+    const name = screen.getByLabelText(/^name$/i);
+    await user.clear(name);
+    await user.type(name, "Everything{Enter}");
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    await waitFor(() => expect(saves).toHaveLength(1));
+    expect(saves[0].views.map((view) => [view.slug, view.name, view.is_default])).toEqual([
+      ["table", "Everything", true],
+      ["board", "Board", false],
+      ["calendar", "Calendar", false],
+      ["incomplete", "Incomplete", false],
+    ]);
   });
 
   it("asks before leaving with changes, and leaves at once without", async () => {

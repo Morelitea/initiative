@@ -94,6 +94,15 @@ const stillThere = (selection: Selection, definition: ViewDefinitionInput): bool
 const sameViews = (a: ToolViewWrite[], b: ToolViewWrite[]) =>
   JSON.stringify(a) === JSON.stringify(b);
 
+/** The view to open: the one asked for while the set has it, else the set's
+ *  default, else its first. */
+const openingSlug = (views: ToolViewWrite[], wanted?: string): string =>
+  (
+    views.find((view) => wanted !== undefined && view.slug === wanted) ??
+    views.find((view) => view.is_default) ??
+    views[0]
+  )?.slug ?? "";
+
 /**
  * A project's views, edited where they are seen. It takes the whole screen:
  * the views and what can be done to them across the top, the outline of the
@@ -128,13 +137,10 @@ export const ViewEditor = ({
   const [base, setBase] = useState(() => viewWrites(set));
   const [history, dispatch] = useReducer(historyReducer, base, startHistory);
   const views = history.present;
-  const [active, setActive] = useState(() =>
-    Math.max(
-      0,
-      base.findIndex((view) => (initialSlug ? view.slug === initialSlug : view.is_default))
-    )
-  );
-  const current = views[Math.min(active, views.length - 1)];
+  // The open view is named by its slug, which a refreshed set keeps whatever
+  // order it comes in.
+  const [active, setActive] = useState(() => openingSlug(base, initialSlug));
+  const current = views.find((view) => view.slug === active);
   const [selected, setSelected] = useState<Selection>(VIEW_SELECTED);
   const selection = current && stillThere(selected, current.definition) ? selected : VIEW_SELECTED;
   const [width, setWidth] = useState<PreviewWidth>("desktop");
@@ -146,14 +152,22 @@ export const ViewEditor = ({
   // Someone else's save, read while nothing is changed here, is what the
   // editor starts from. One read mid-edit is set aside: this editor's save
   // replaces the whole set.
+  // A set taken in, from either, may have lost the open view; then the
+  // default one opens.
+  const adopt = (stored: ToolViewSetRead) => {
+    const fresh = viewWrites(stored);
+    setSeen(stored);
+    setBase(fresh);
+    dispatch({ type: "reset", views: fresh });
+    if (!fresh.some((view) => view.slug === active)) {
+      setActive(openingSlug(fresh));
+      setSelected(VIEW_SELECTED);
+    }
+  };
   const [seen, setSeen] = useState(set);
   if (seen !== set && !saving) {
-    setSeen(set);
-    if (!dirty) {
-      const fresh = viewWrites(set);
-      setBase(fresh);
-      dispatch({ type: "reset", views: fresh });
-    }
+    if (dirty) setSeen(set);
+    else adopt(set);
   }
 
   const { data: definitions = [] } = useProperties({ initiativeId });
@@ -170,7 +184,7 @@ export const ViewEditor = ({
   };
   const changeView = (next: (view: ToolViewWrite) => ToolViewWrite, then?: Selection) =>
     changeViews(
-      views.map((view, index) => (index === active ? next(view) : view)),
+      views.map((view) => (view.slug === active ? next(view) : view)),
       then
     );
   const changeDefinition = (definition: ViewDefinitionInput, then?: Selection) =>
@@ -183,7 +197,7 @@ export const ViewEditor = ({
     setDefinition: (definition) => changeDefinition(definition),
     rename: (name) => changeView((view) => ({ ...view, name })),
     makeDefault: () =>
-      changeViews(views.map((view, index) => ({ ...view, is_default: index === active }))),
+      changeViews(views.map((view) => ({ ...view, is_default: view.slug === active }))),
     movePart: (parent, from, to) => {
       if (!card || !current) return;
       changeDefinition(
@@ -248,10 +262,7 @@ export const ViewEditor = ({
   const save = () =>
     put.mutate(viewSetWrite(set, views), {
       onSuccess: (stored) => {
-        const fresh = viewWrites(stored);
-        setBase(fresh);
-        setSeen(stored);
-        dispatch({ type: "reset", views: fresh });
+        adopt(stored);
         toast.success(t("viewEditor.saved"));
       },
     });
@@ -303,10 +314,10 @@ export const ViewEditor = ({
           <X className="h-4 w-4" />
         </Button>
         <Select
-          value={String(active)}
+          value={active}
           disabled={!wide}
           onValueChange={(value) => {
-            setActive(Number(value));
+            setActive(value);
             setSelected(VIEW_SELECTED);
           }}
         >
@@ -314,8 +325,8 @@ export const ViewEditor = ({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {views.map((view, index) => (
-              <SelectItem key={view.slug ?? index} value={String(index)}>
+            {views.map((view) => (
+              <SelectItem key={view.slug} value={view.slug ?? ""}>
                 {viewName({ slug: view.slug ?? "", name: view.name }, t)}
               </SelectItem>
             ))}
