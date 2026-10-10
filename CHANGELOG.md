@@ -60,6 +60,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Your recently opened items, favorite projects and project order are yours alone.** Nobody else in the community can read or change them, admins included.
 - **Only you can answer a poll or mark a notice read as yourself.** Admins can't change your answer either. Others still see the counts and who answered, as before.
+- **Only a comment's author can change or delete it, and only you can add or take off your reactions.** Comments, posts and reactions always carry the person who wrote them as their author. Moderators still take comments down and clear reactions, and an import still keeps the authors it maps.
+- **Join requests are seen only by whoever asked and the people who answer them.** Other members of the community no longer see who asked to join an initiative.
 - **A gallery without a cover shows its newest pictures again.**
 - **The project task table keeps its rows current.** A task's checklist progress, a swapped assignee and its blocker count now update in the table as they change, as they already did on the board.
 - **The task tables' Columns menu names its columns** ("Start date", "Comments") instead of showing their internal names.

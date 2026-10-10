@@ -36,7 +36,8 @@ from typing import Any, Awaitable, Callable
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.db.session import routed_guild_id
+from app.db import gucs
+from app.db.session import raise_flag, routed_guild_id
 from app.core.references import format_ref, parse_ref
 from app.core.relationships import RelationshipType
 from app.core.search import SearchEntityType
@@ -667,6 +668,7 @@ async def _apply_entry(
         )
         validated = importer.validate(_current_shape(raw))
         async with session.begin_nested():
+            await raise_flag(session, gucs.IMPORTING)
             detail = await importer.apply(
                 session,
                 envelope=validated,
@@ -674,6 +676,7 @@ async def _apply_entry(
                 importer=user,
                 context=context,
             )
+            await raise_flag(session, gucs.IMPORTING, False)
     except ImportEngineError as exc:
         logger.warning(
             "backup entry failed path=%s tool=%s code=%s",

@@ -194,24 +194,25 @@ async def test_a_tombstone_is_not_edited_reacted_to_or_deleted(client, session, 
 async def test_the_database_keeps_a_tombstone_and_the_log_as_they_are(
     client, scene, reading_as
 ):
-    """The guards hold for the community's own moderators, on the request
-    login: the row policies would let them write both tables."""
+    """The guards hold on the request login: for the comment's own author,
+    whom the author guard lets write it, and for the community's own
+    moderators, whom the row policies would let write the log."""
     removed = await _act(
         client, scene["mod"], "remove", "comment", scene["comment"].id, reason="spam"
     )
     assert removed.status_code == 201, removed.text
     params = {"id": scene["comment"].id, "action": removed.json()["id"]}
 
-    for statement in (
-        "UPDATE comments SET content = 'edited' WHERE id = :id",
-        "UPDATE moderation_actions SET note = 'edited' WHERE id = :action",
-        "DELETE FROM moderation_actions WHERE id = :action",
+    for who, statement in (
+        ("member", "UPDATE comments SET content = 'edited' WHERE id = :id"),
+        ("mod", "UPDATE moderation_actions SET note = 'edited' WHERE id = :action"),
+        ("mod", "DELETE FROM moderation_actions WHERE id = :action"),
     ):
-        as_mod = await reading_as(scene["mod"].user.id, scene["guild"].id)
+        asking = await reading_as(scene[who].user.id, scene["guild"].id)
         with pytest.raises(Exception) as refused:
-            await as_mod.exec(text(statement), params=params)
+            await asking.exec(text(statement), params=params)
         assert "ObjectNotInPrerequisiteState" in str(refused.value), statement
-        await as_mod.rollback()
+        await asking.rollback()
 
 
 async def test_restoring_puts_the_words_back_once(client, session, scene):

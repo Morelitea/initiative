@@ -4,6 +4,8 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 from sqlalchemy import delete as sa_delete
+from sqlalchemy import text
+from sqlalchemy.exc import DBAPIError
 
 from app.core.messages import CommentMessages
 from app.core.tools import Tool
@@ -335,6 +337,59 @@ async def test_guild_calendar_comments_reach_every_member(client, session, actin
     )
     assert listed.status_code == 200
     assert [c["content"] for c in listed.json()["comments"]] == ["Game night?"]
+
+
+async def test_a_comment_is_its_authors_to_change(
+    client, session, acting_user, reading_as
+):
+    """In the database, neither another member who can edit the task nor the
+    community's admin rewrites someone's comment, trashes it on its own or
+    writes one in their name; trashing the task takes it along."""
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
+    task = await create_task(session, a.project)
+    comment = await create_comment(session, a.user, task=task)
+    other = await acting_user(
+        guild_role=CommunityRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    await create_resource_grant(
+        session, a.project, user=other.user, level=ResourceAccessLevel.write
+    )
+    admin = await acting_user(guild_role=CommunityRole.admin, guild=a.guild)
+    params = {"id": comment.id, "task": task.id, "author": a.user.id}
+    rewrite = text("UPDATE comments SET content = 'Not what I said' WHERE id = :id")
+    trash = text(
+        "UPDATE comments SET deleted_at = now(),"
+        " deleted_by = NULLIF(current_setting('app.current_user_id'), '')::int"
+        " WHERE id = :id"
+    )
+    forge = text(
+        "INSERT INTO comments (task_id, content, created_by, created_at, updated_at)"
+        " VALUES (:task, 'Said for you', :author, now(), now()) RETURNING created_by"
+    )
+
+    for outsider in (other, admin):
+        asking = await reading_as(outsider.user.id, a.guild.id)
+        with pytest.raises(DBAPIError, match="only its author changes a comment"):
+            await asking.exec(rewrite, params=params)
+        await asking.rollback()
+        await asking.exec(trash, params=params)
+        with pytest.raises(DBAPIError, match="goes to the trash with what it is on"):
+            await asking.commit()
+        await asking.rollback()
+        written = await asking.exec(forge, params=params)
+        assert written.scalar_one() == outsider.user.id
+        await asking.rollback()
+    asking = await reading_as(a.user.id, a.guild.id)
+    assert (await asking.exec(rewrite, params=params)).rowcount == 1
+    await asking.rollback()
+
+    deleted = await client.delete(a.g(f"/tasks/{task.id}"), headers=other.headers)
+    assert deleted.status_code in (200, 204), deleted.text
 
 
 async def test_a_thread_pages_by_conversation(client, session, acting_user):

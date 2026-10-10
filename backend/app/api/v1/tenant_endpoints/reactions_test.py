@@ -7,6 +7,7 @@ one. What stops a reaction is a switch: a thread turned off, or a notice not
 taking them.
 """
 
+import pytest
 from sqlalchemy import delete as sa_delete
 
 from app.core.messages import ReactionMessages
@@ -17,6 +18,7 @@ from app.schemas.tenant.reaction import SUGGESTED_EMOJI
 from app.services.tenant.reactions import MAX_REACTIONS_PER_USER
 from app.testing import (
     create_comment,
+    create_reaction,
     create_post,
     create_project,
     create_resource_grant,
@@ -949,13 +951,60 @@ class TestReactionNotifications:
         assert queued == []
 
 
+async def test_a_reaction_is_its_reactors_to_change(session, acting_user, reading_as):
+    """Another member and the community's admin see someone's reaction but
+    neither take it off nor add one in their name in the database: what they
+    add is theirs."""
+    from app.models.tenant.reaction import Reaction
+    from sqlalchemy.exc import DBAPIError
+    from sqlmodel import select
+
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
+    task = await create_task(session, a.project)
+    comment = await create_comment(session, a.user, task=task)
+    await create_reaction(session, a.user, comment=comment)
+    other = await acting_user(
+        guild_role=CommunityRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    await create_resource_grant(
+        session, a.project, user=other.user, level=ResourceAccessLevel.write
+    )
+    admin = await acting_user(guild_role=CommunityRole.admin, guild=a.guild)
+
+    for outsider in (other, admin):
+        asking = await reading_as(outsider.user.id, a.guild.id)
+        assert (await asking.exec(select(Reaction.created_by))).all() == [a.user.id]
+        gone = await asking.exec(sa_delete(Reaction))
+        assert gone.rowcount == 0
+        mine = Reaction(
+            target_type="comment",
+            target_id=comment.id,
+            emoji=PARTY,
+            created_by=a.user.id,
+        )
+        asking.add(mine)
+        await asking.flush()
+        await asking.refresh(mine)
+        assert mine.created_by == outsider.user.id
+        mine.created_by = a.user.id
+        asking.add(mine)
+        with pytest.raises(DBAPIError, match="an author does not change"):
+            await asking.flush()
+
+
 class TestReactionLifecycle:
     async def test_purging_a_post_takes_what_names_it(
         self, client, session, acting_user
     ):
         """Reactions on the post and on its comments, and recent views of it,
         go with the post: they name it by id, and nothing could remove them
-        once it is gone."""
+        once it is gone. They are a member's own, which the admin purging
+        never reaches, and the purge takes them all the same."""
         from app.models.tenant.reaction import Reaction
         from app.models.tenant.recent_view import RecentView
         from sqlmodel import select
@@ -964,15 +1013,21 @@ class TestReactionLifecycle:
         await _posts_enabled(session, a.initiative)
         post = await create_post(session, a.initiative, a.user)
         comment = await create_comment(session, a.user, post=post)
+        b = await acting_user(
+            guild_role=CommunityRole.member,
+            guild=a.guild,
+            initiative=a.initiative,
+            initiative_role="member",
+        )
         for path in (
             f"/reactions/post/{post.id}",
             f"/reactions/comment/{comment.id}",
         ):
             resp = await client.put(
-                a.g(path), headers=a.headers, json={"emoji": THUMBS}
+                a.g(path), headers=b.headers, json={"emoji": THUMBS}
             )
             assert resp.status_code == 200, resp.text
-        viewed = await client.post(a.g(f"/recents/post/{post.id}"), headers=a.headers)
+        viewed = await client.post(a.g(f"/recents/post/{post.id}"), headers=b.headers)
         assert viewed.status_code == 200, viewed.text
 
         trashed = await client.delete(a.g(f"/posts/{post.id}"), headers=a.headers)

@@ -40,6 +40,7 @@ from app.db.plugin_rls import (
 )
 from app.db.initiative_rls import (
     ANSWERED,
+    COMMENT_PARENTS,
     INITIATIVE_PATHS,
     NAMED_PEOPLE,
     NamedPerson,
@@ -67,6 +68,7 @@ from app.db.authorization import (
 )
 from app.db.frozen import (
     FROZEN_TABLES,
+    LIFECYCLE_COLUMNS,
     freeze_leg,
     frozen_write_triggers,
     frozen_guard_trigger,
@@ -448,6 +450,131 @@ def _private_row_block(table: str, owner_col: str) -> str:
     pred = _PRIVATE_ROW_PREDICATE.format(col=owner_col)
     read = None if table in PRIVATE_ROW_SHARED_READ else pred
     return "\n".join(_policies(table, "private_row", read, pred, restrictive=True))
+
+
+_AUTHORED_SECTION = """\
+-- ===========================================================================
+-- What one person says, written by that person.
+--
+-- initiative_join_requests: read by the requester and by whoever answers the
+--   initiative's queue (its managers, the community's admin, the system
+--   engine); filed by the requester, answered by those who read the queue.
+-- tr_<t>_stamp_author (AUTHORED_TABLES): the person writing a comment, a post
+--   or a reaction is its author. An import keeps the author it maps, and the
+--   system engine writes what it is given. Only the system engine changes an
+--   author afterwards.
+-- tr_comments_author_guard: only its author changes a comment. Someone else
+--   moves it in or out of the trash only with what it is on: trashing it, the
+--   thing it is on goes to the trash at the same moment, which
+--   tr_comments_trash_follows checks at commit, after the cascade has stamped
+--   it; restoring it, they are the one who trashed it, or the community's
+--   admin. The system engine moderates, and the admin's purge leaves
+--   tombstones.
+-- ==========================================================================="""
+
+#: Where what someone writes carries them as its author.
+AUTHORED_TABLES: tuple[str, ...] = ("comments", "posts", "reactions")
+
+#: The requester of a join request, or the system engine.
+_REQUESTER = f"(user_id = {gucs.USER_ID.once} OR {IN_POLICY.system})"
+
+_STAMP_AUTHOR_FN = f"""
+CREATE OR REPLACE FUNCTION public.fn_stamp_author() RETURNS trigger
+    LANGUAGE plpgsql AS $stamp_author$
+BEGIN
+    IF {IN_POLICY.system} THEN
+        RETURN NEW;
+    END IF;
+    IF TG_OP = 'UPDATE' THEN
+        IF NEW.created_by IS DISTINCT FROM OLD.created_by THEN
+            RAISE EXCEPTION 'an author does not change' USING ERRCODE = '42501';
+        END IF;
+    ELSIF ({gucs.IMPORTING}) IS NOT TRUE AND {gucs.USER_ID.once} IS NOT NULL THEN
+        NEW.created_by := {gucs.USER_ID.once};
+    END IF;
+    RETURN NEW;
+END;
+$stamp_author$;
+"""
+
+_COMMENT_AUTHOR_GUARD_FN = f"""
+CREATE OR REPLACE FUNCTION public.fn_comment_author_guard() RETURNS trigger
+    LANGUAGE plpgsql AS $comment_author$
+DECLARE
+    lifecycle text[] := ARRAY[{", ".join(f"'{c}'" for c in LIFECYCLE_COLUMNS)}];
+BEGIN
+    IF {IN_POLICY.system} OR ({IN_POLICY.admin} AND {gucs.PURGING})
+       OR OLD.created_by = {gucs.USER_ID.once} THEN
+        RETURN NEW;
+    END IF;
+    IF (to_jsonb(NEW) - lifecycle) IS NOT DISTINCT FROM (to_jsonb(OLD) - lifecycle) AND (
+        (OLD.deleted_at IS NULL AND NEW.deleted_by = {gucs.USER_ID.once})
+        OR (NEW.deleted_at IS NULL
+            AND ({IN_POLICY.admin} OR OLD.deleted_by = {gucs.USER_ID.once}))
+    ) THEN
+        RETURN NEW;
+    END IF;
+    RAISE EXCEPTION 'only its author changes a comment' USING ERRCODE = '42501';
+END;
+$comment_author$;
+"""
+
+
+def _trashed_with(table: str, column: str) -> str:
+    return (
+        f"EXISTS (SELECT 1 FROM {table} c WHERE c.id = NEW.{column}"  # noqa: S608
+        " AND c.deleted_at = NEW.deleted_at)"
+    )
+
+
+_COMMENT_TRASH_FOLLOWS_FN = f"""
+CREATE OR REPLACE FUNCTION public.fn_comment_trash_follows() RETURNS trigger
+    LANGUAGE plpgsql AS $trash_follows$
+BEGIN
+    IF {IN_POLICY.system} OR OLD.created_by = {gucs.USER_ID.once}
+       OR {_trashed_with("comments", "parent_comment_id")}
+       OR {" OR ".join(_trashed_with(p.table, p.column) for p in COMMENT_PARENTS.values())} THEN
+        RETURN NULL;
+    END IF;
+    RAISE EXCEPTION 'a comment goes to the trash with what it is on'
+        USING ERRCODE = '42501';
+END;
+$trash_follows$;
+"""
+
+
+def _authored_block() -> str:
+    queue = managed_write("initiative_id")
+    return "\n".join(
+        [
+            "ALTER TABLE initiative_join_requests ENABLE ROW LEVEL SECURITY;",
+            "ALTER TABLE initiative_join_requests FORCE ROW LEVEL SECURITY;",
+            *_policies(
+                "initiative_join_requests",
+                "join_request",
+                f"({_REQUESTER} OR {queue})",
+                queue,
+                insert=f"({_REQUESTER} AND status = 'pending')",
+            ),
+            _STAMP_AUTHOR_FN,
+            *(
+                f"CREATE OR REPLACE TRIGGER tr_{t}_stamp_author"
+                f" BEFORE INSERT OR UPDATE OF created_by ON {t} FOR EACH ROW"
+                " EXECUTE FUNCTION public.fn_stamp_author();"
+                for t in AUTHORED_TABLES
+            ),
+            _COMMENT_AUTHOR_GUARD_FN,
+            "CREATE OR REPLACE TRIGGER tr_comments_author_guard"
+            " BEFORE UPDATE ON comments FOR EACH ROW"
+            " EXECUTE FUNCTION public.fn_comment_author_guard();",
+            _COMMENT_TRASH_FOLLOWS_FN,
+            "DROP TRIGGER IF EXISTS tr_comments_trash_follows ON comments;",
+            "CREATE CONSTRAINT TRIGGER tr_comments_trash_follows"
+            " AFTER UPDATE ON comments DEFERRABLE INITIALLY DEFERRED FOR EACH ROW"
+            " WHEN (OLD.deleted_at IS NULL AND NEW.deleted_at IS NOT NULL)"
+            " EXECUTE FUNCTION public.fn_comment_trash_follows();",
+        ]
+    )
 
 
 _SEAT_SECTION = """\
@@ -1201,6 +1328,7 @@ def render_guild_rls_ddl() -> str:
         out += "\n\n" + _OWN_ROW_SECTION + "\n\n" + "\n\n".join(own_rows)
     private = [_private_row_block(t, c) for t, c in sorted(PRIVATE_ROW_TABLES.items())]
     out += "\n\n" + _PRIVATE_ROW_SECTION + "\n\n" + "\n\n".join(private)
+    out += "\n\n" + _AUTHORED_SECTION + "\n" + _authored_block()
     seats = [_seat_block(t) for t in sorted(SEAT_TABLES)]
     out += "\n\n" + _SEAT_SECTION + "\n\n" + "\n\n".join(seats)
     out += "\n" + PLUGIN_SECRET_FIELDS_FN + "\n" + PLUGIN_SECRET_FIELDS_TRIGGER
@@ -1358,7 +1486,7 @@ def _schema_relative_trigger(triggerdef: str) -> str:
     return triggerdef + ";"
 
 
-_TRIGGER_NAME_RE = re.compile(r"CREATE (?:OR REPLACE )?TRIGGER (\w+)")
+_TRIGGER_NAME_RE = re.compile(r"CREATE (?:OR REPLACE )?(?:CONSTRAINT )?TRIGGER (\w+)")
 _CONSTRAINT_NAME_RE = re.compile(r"ADD CONSTRAINT (\w+)")
 
 

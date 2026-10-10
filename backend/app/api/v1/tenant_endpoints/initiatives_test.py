@@ -1557,6 +1557,47 @@ async def test_knocking_answers_each_policy_and_caller(
     assert response.json()["detail"] == detail
 
 
+async def test_a_join_request_is_read_by_its_requester_and_the_queue(
+    client: AsyncClient, session: AsyncSession, acting_user, reading_as
+):
+    """In the database, a request is read by whoever filed it and by the
+    initiative's managers; another member of the community neither reads,
+    answers nor files one in the requester's name."""
+    from sqlalchemy import update
+    from sqlalchemy.exc import DBAPIError
+
+    manager = await acting_user(guild_role=CommunityRole.member)
+    initiative = await _requestable(session, manager, name="Knockable")
+    member, bystander = [
+        await acting_user(guild_role=CommunityRole.member, guild=manager.guild)
+        for _ in range(2)
+    ]
+    knocked = await client.post(
+        member.g(f"/initiatives/{initiative.id}/join-requests"),
+        headers=member.headers,
+        json={},
+    )
+    assert knocked.status_code == 201, knocked.text
+
+    for reader in (member, manager):
+        asking = await reading_as(reader.user.id, manager.guild.id)
+        filed = (await asking.exec(select(InitiativeJoinRequest.user_id))).all()
+        assert filed == [member.user.id]
+    asking = await reading_as(bystander.user.id, manager.guild.id)
+    assert (await asking.exec(select(InitiativeJoinRequest))).all() == []
+    answered = await asking.exec(
+        update(InitiativeJoinRequest).values(status="approved")
+    )
+    assert answered.rowcount == 0
+    asking.add(
+        InitiativeJoinRequest(
+            initiative_id=initiative.id, user_id=member.user.id, status="pending"
+        )
+    )
+    with pytest.raises(DBAPIError, match="row-level security"):
+        await asking.flush()
+
+
 async def test_denied_requester_may_ask_again(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
