@@ -79,15 +79,22 @@ async def test_bootstrap_status_with_users(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):
     """Registration reads as open only where somebody may register without an
-    invite, which turning community creation off closes too."""
+    invite, which turning community creation off closes too. The demo
+    deployment says so."""
     await create_user(session)
 
     response = await client.get("/api/v1/auth/bootstrap")
-    assert response.json() == {"has_users": True, "public_registration_enabled": True}
+    assert response.json() == {
+        "has_users": True,
+        "public_registration_enabled": True,
+        "demo": False,
+    }
 
     monkeypatch.setattr(settings, "DISABLE_GUILD_CREATION", True)
+    monkeypatch.setattr(settings, "DEMO_MODE", True)
     response = await client.get("/api/v1/auth/bootstrap")
     assert response.json()["public_registration_enabled"] is False
+    assert response.json()["demo"] is True
 
 
 async def test_register_first_user(client: AsyncClient, session: AsyncSession):

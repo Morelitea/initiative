@@ -15,7 +15,16 @@ export const authHandlers = [
     return HttpResponse.json({
       has_users: true,
       public_registration_enabled: true,
+      demo: false,
     });
+  }),
+
+  http.post("/api/v1/demo/redeem", () => {
+    return HttpResponse.json({ access_token: "demo-token", community_id: 7, import_job_id: 1 });
+  }),
+
+  http.get("/api/v1/demo/copy", () => {
+    return HttpResponse.json({ community_id: 7, ready: true, expires_at: null });
   }),
 
   http.get("/api/v1/auth/providers", () => {

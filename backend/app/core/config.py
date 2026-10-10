@@ -904,6 +904,8 @@ class Settings(BaseSettings):
         ),
     )
     DISABLE_GUILD_CREATION: bool = False
+    # Runs this deployment as the product demo.
+    DEMO_MODE: bool = False
     # Communities one account may create in a day; 0 means no limit. Accounts
     # holding ``communities.manage`` are not held to it.
     GUILD_CREATION_DAILY_LIMIT: int = Field(default=5, ge=0)

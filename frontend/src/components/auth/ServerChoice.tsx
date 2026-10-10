@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
+import { useIsDemoServer } from "@/hooks/useDemoCopy";
 import { normalizeServerUrl, useServer } from "@/hooks/useServer";
 import { getSelfHostedAddress, setSelfHostedAddress } from "@/lib/serverStorage";
 import { clearStart } from "@/lib/startFlow";
@@ -33,12 +34,10 @@ import AppEnvironment from "@/plugins/appEnvironment";
  */
 export const ServerChip = () => {
   const { t } = useTranslation("auth");
+  const kind = useIsDemoServer() ? t("server.demo") : t("server.selfHosted");
   return (
-    <Badge
-      className="hover:bg-primary"
-      aria-label={`${t("server.label")}: ${t("server.selfHosted")}`}
-    >
-      {t("server.selfHosted")}
+    <Badge className="hover:bg-primary" aria-label={`${t("server.label")}: ${kind}`}>
+      {kind}
     </Badge>
   );
 };
@@ -96,6 +95,7 @@ export const ServerSubtitle = () => {
   const { t } = useTranslation("auth");
   const { isNativePlatform, getServerOrigin } = useServer();
   const host = hostOf(getServerOrigin());
+  const demo = useIsDemoServer();
   const [editing, setEditing] = useState(false);
 
   if (!isNativePlatform) return <ServerChip />;
@@ -107,13 +107,13 @@ export const ServerSubtitle = () => {
           <Trans
             t={t}
             i18nKey="login.signInTo"
-            values={{ server: host ?? t("server.selfHosted") }}
+            values={{ server: demo ? t("server.demo") : (host ?? t("server.selfHosted")) }}
             components={{
               server: <ServerMenu onChooseOwn={() => setEditing(true)} />,
             }}
           />
         </p>
-        {host ? <ServerChip /> : null}
+        {host || demo ? <ServerChip /> : null}
       </div>
       {editing ? <ServerAddressForm onConnected={() => setEditing(false)} /> : null}
     </div>

@@ -39,7 +39,6 @@ from app.core.messages import ImportEngineMessages
 from app.core.version import get_version
 from app.models.platform.user import User
 from app.models.tenant.import_job import ImportJob, ImportJobStatus
-from app.models.tenant.initiative import Initiative
 from app.schemas.tenant.atlassian import (
     AtlassianConnectRequest,
     AtlassianConnectResponse,
@@ -65,9 +64,7 @@ from app.services.import_engine.contract import (
     InlineImport,
 )
 from app.services.import_engine.engine import (
-    count_active_jobs_locked,
     spooled_upload,
-    stage_payload_file,
 )
 from app.services.import_engine import limits as import_limits
 
@@ -542,62 +539,16 @@ async def upload_backup(
     async with spooled_upload(
         file.file, max_bytes=import_limits.IMPORT_MAX_BACKUP_UPLOAD_BYTES
     ) as payload:
-        existing_names = {
-            row for row in (await session.exec(select(Initiative.name))).all()
-        }
-        # The guild's own roster, so the plan can suggest who each name in
-        # the archive is. Read on the request's routed session, so it is
-        # the roster this user can actually see.
-        roster = await _guild_member_ids_by_handle(session, guild_id)
-        plan = await asyncio.to_thread(
-            backup_service.plan_backup,
-            payload,
-            existing_initiative_names=existing_names,
-            member_ids_by_handle=roster,
+        job = await backup_service.stage_backup_job(
+            session,
+            guild_id=guild_id,
+            user=current_user,
+            payload=payload,
+            status=ImportJobStatus.staged,
         )
-        await count_active_jobs_locked(session, user=current_user)
-        payload_ref = await asyncio.to_thread(
-            stage_payload_file, guild_id, payload, suffix="zip"
-        )
-
-    job = ImportJob(
-        created_by=current_user.id,
-        source="backup",
-        params={},
-        payload_ref=payload_ref,
-        plan=plan.model_dump(mode="json"),
-        status=ImportJobStatus.staged,
-        expires_at=datetime.now(timezone.utc)
-        + timedelta(hours=import_limits.IMPORT_STAGED_TTL_HOURS),
-    )
-    session.add(job)
     await session.commit()
     await session.refresh(job)
     return serialize_import_job(job, guild_id=guild_context.guild_id)
-
-
-async def _guild_member_ids_by_handle(session, guild_id: int) -> dict[str, int]:
-    """Every member of this guild, keyed by normalised handle.
-
-    One query rather than a lookup per person: an archive can quote dozens of
-    names, and the answer for all of them is the same roster.
-    """
-    from app.core.user_display import handle_of
-    from app.models.platform.guild import GuildMembership
-    from app.models.platform.user_profile_view import MemberProfile
-    from app.services.import_engine.common import handle_key
-
-    # ``MemberProfile``, not ``users``: this runs on the guild-routed session,
-    # and the view is how guild content refers to a person. The table itself
-    # is the account holder's own business.
-    rows = (
-        await session.exec(
-            select(MemberProfile)
-            .join(GuildMembership, GuildMembership.user_id == MemberProfile.id)
-            .where(GuildMembership.guild_id == guild_id)
-        )
-    ).all()
-    return {handle_key(handle_of(row)): row.id for row in rows}
 
 
 @router.post("/jobs/{job_id}/confirm", response_model=ImportJobRead)

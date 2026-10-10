@@ -747,12 +747,19 @@ class UserRead(UserBase):
     # holds one and the deployment signs people in with passwords. Otherwise a
     # recent sign-in answers. Populated with the fields above.
     password_required: bool = False
+    #: When the demo copy this account was made for is deleted, with the
+    #: account; ``None`` for every other account. Populated with the fields
+    #: above.
+    demo_expires_at: Optional[datetime] = None
+    #: The demo copy this account was made for; ``None`` for every other
+    #: account. Populated with the fields above.
+    demo_community_id: Optional[int] = None
     initiative_roles: List["UserInitiativeRole"] = Field(default_factory=list)
 
     @computed_field(return_type=bool)  # type: ignore[misc]
     @property
     def can_create_communities(self) -> bool:
-        if self.status == UserStatus.suspended:
+        if self.status == UserStatus.suspended or self.demo_expires_at is not None:
             return False
         if not settings.DISABLE_GUILD_CREATION:
             return True

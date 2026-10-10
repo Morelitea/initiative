@@ -109,7 +109,9 @@ interface AuthContextValue {
   login: (payload: LoginPayload) => Promise<void>;
   completeSecondFactor: (payload: SecondFactorPayload) => Promise<void>;
   applyPasskeySignIn: (result: PasskeySignInResult) => Promise<void>;
-  applyEmailOtpSignIn: (token: Token) => Promise<void>;
+  /** Adopt a session a sign-in route answered with directly: a code sent to
+   *  an address, or a demo link. */
+  applySignIn: (token: Token) => Promise<void>;
   stepUpWithFactor: (payload: StepUpPayload) => Promise<void>;
   stepUpWithPasskey: () => Promise<void>;
   stepUpWithEmailCode: (payload: EmailCodeStepUpPayload) => Promise<void>;
@@ -164,6 +166,14 @@ const beginSession = () => {
   startSessionActivity();
 };
 
+/** Drop every answer held for the account that was here: the requests still in
+ *  the air, the query cache, and the copy of it kept on the device. */
+const forgetAccountData = () => {
+  void queryClient.cancelQueries();
+  queryClient.clear();
+  void purgeOfflineCache();
+};
+
 /** Delete the long-lived device token an older version of the app kept, unread. */
 const forgetLegacyDeviceToken = () => {
   removeItem(CREDENTIAL_KEYS.token);
@@ -207,17 +217,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
    *  and the session is no longer running on a snapshot. */
   const rememberIdentity = useCallback((nextUser: UserRead | null) => {
     setSessionUnverified(false);
+    // What the cache holds belongs to whoever was last confirmed here (or, at
+    // boot, to whoever the restored copy was saved for). A sign-in over a live
+    // session, or a sign-out that did not complete, names somebody else, and
+    // none of it carries over.
+    if (nextUser && restoredIdentityMismatch(nextUser.id)) forgetAccountData();
     if (!isOfflineCacheEnabled()) return;
     if (!nextUser) {
       setOfflineWritesAllowed(false);
       clearOfflineSession();
       return;
-    }
-    // The cache restored at boot belonged to whoever was last signed in here.
-    // If the server names somebody else, it does not carry over.
-    if (restoredIdentityMismatch(nextUser.id)) {
-      queryClient.clear();
-      void purgeOfflineCache();
     }
     saveOfflineSession(nextUser, currentServerKey());
     setOfflineWritesAllowed(true);
@@ -484,8 +493,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     [adoptSession, t]
   );
 
-  /** Adopt the session a code sent to an address produced. */
-  const applyEmailOtpSignIn = useCallback(
+  /** Adopt the session a code sent to an address, or a demo link, produced. */
+  const applySignIn = useCallback(
     async (token: Token) => {
       await adoptSession(token, { begin: true });
     },
@@ -561,11 +570,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     forgetLegacyDeviceToken();
     clearRefreshToken();
     forgetSessionActivity();
-    queryClient.clear();
+    forgetAccountData();
     // replaceIdentity already dropped the session snapshot; the cache that went
     // with it goes at the same time.
     clearOfflineSession();
-    void purgeOfflineCache();
   }, [replaceIdentity]);
 
   /** The session this device was holding is over, and nothing here asked for
@@ -673,7 +681,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     login,
     completeSecondFactor,
     applyPasskeySignIn,
-    applyEmailOtpSignIn,
+    applySignIn,
     stepUpWithFactor,
     stepUpWithPasskey,
     stepUpWithEmailCode,

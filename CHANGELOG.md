@@ -40,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Layouts fit foldable phones and tablets.** On an unfolded foldable or a tablet held upright, forms go two fields to a row and cards fill as many columns as fit, rather than waiting for a laptop-sized screen. On a large screen, cards stop at the columns they had before and grow wider instead. The sidebar now stays open beside the page from the width of a tablet held sideways, where before it waited for 1024 pixels.
 - **Plug-ins are built with SDK 6.0.** Initiative serves plug-in API 6.0. A plug-in's own screens are declared as `pages` rather than `embeds`, and a plug-in can declare fields, parts and actions for tasks and other items. A project no longer has a `default_view_mode`: its views decide which one it opens on. Installing or updating a plug-in here needs a release built with SDK 6.0. Plug-ins already installed keep working.
 - **Dates and numbers format faster** on every screen that shows them. Building a formatter was most of what a large board spent redrawing.
+- **Backups keep each initiative's join policy.** An initiative restored from a backup takes requests or lets members join as it did where it was exported. Backups made before this restore as private, as they did.
 - **Large boards draw faster.** A 300-card board appears about a fifth sooner, and switching a field on or off in its Fields menu redraws it about five times faster.
 - **Escalate is now Send to the platform** on a report card, and a settled report says "Sent to the platform".
 - **Only moderators take down other people's comments.** Delete is for your own comments; project managers no longer delete anyone else's. Community admins and roles with Full access remove them instead, with a reason. Community admins see a notice about it after upgrading.
@@ -51,6 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Signing in as someone else in the same browser starts clean.** The previous account's notifications and other cached data no longer show for a moment under the new account.
 - **The project task table keeps its rows current.** A task's checklist progress, a swapped assignee and its blocker count now update in the table as they change, as they already did on the board.
 - **The task tables' Columns menu names its columns** ("Start date", "Comments") instead of showing their internal names.
 - **A "New device signed in" prompt about a device that is gone can be cleared.** When the device it named had signed out or been removed, Verify and Not mine both failed with "That device is not set up for encrypted messages" and the prompt stayed. It now goes away on its own, and either button closes it.

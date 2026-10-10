@@ -33,6 +33,7 @@
   "COMMUNITY_CREATION_DISABLED": "Das Erstellen von Communitys ist deaktiviert",
   "FREE_COMMUNITY_ALREADY_HELD": "Du hast bereits eine kostenlose Community. Eine weitere braucht einen Tarif — wähle einen aus, dann richten wir sie ein.",
   "COMMUNITY_CREATION_LIMIT_REACHED": "Du hast innerhalb von 24 Stunden so viele Communitys erstellt, wie möglich ist. Versuche es später noch einmal.",
+  "COMMUNITY_CREATION_DEMO_ACCOUNT": "Demo-Konten können keine Communitys erstellen",
   "COMMUNITY_OWNER_REQUIRES_CAPABILITY": "Nur Plattform-Personal kann eine Community für jemand anderen erstellen",
   "COMMUNITY_OWNER_NOT_FOUND": "Dieses Konto existiert nicht oder kann keine Community erhalten",
   "COMMUNITY_NOT_FOUND": "Community nicht gefunden",
@@ -827,5 +828,14 @@
   "SECURITY_NOWHERE_TO_SEND": "Sicherheitsmeldungen sind auf diesem Server noch nicht eingerichtet. Nutze stattdessen die Adresse unten.",
   "FEEDBACK_NOWHERE_TO_SEND": "Feedback ist auf diesem Server noch nicht eingerichtet. Nutze stattdessen die Adresse unten.",
   "APPEAL_NOT_SUSPENDED": "Dein Konto ist nicht gesperrt, es gibt also nichts, wogegen du Einspruch erheben könntest.",
-  "APPEAL_NOWHERE_TO_SEND": "Einsprüche sind auf diesem Server noch nicht eingerichtet. Nutze stattdessen die Adresse unten."
+  "APPEAL_NOWHERE_TO_SEND": "Einsprüche sind auf diesem Server noch nicht eingerichtet. Nutze stattdessen die Adresse unten.",
+  "DEMO_LINK_NOT_FOUND": "Dieser Demo-Link funktioniert nicht mehr. Bitte die Person, die ihn geschickt hat, um einen neuen.",
+  "DEMO_BUSY": "Alle Demo-Bereiche sind belegt. Versuche es in einer Minute noch einmal.",
+  "DEMO_COPY_NOT_FOUND": "Diese Demo-Kopie gibt es nicht mehr.",
+  "DEMO_PITCH_NOT_FOUND": "Diese Community ist kein Demo-Pitch.",
+  "DEMO_PITCH_ADMIN_REQUIRED": "Nur die Admins dieses Pitches können ihn veröffentlichen.",
+  "DEMO_PITCH_SOURCE_INVALID": "Die Exportdatei des Pitches lässt sich nicht importieren, oder eine genannte Bearbeitungsperson hat kein Konto.",
+  "DEMO_PITCH_HELD": "Dieser Pitch enthält Inhalte, die geprüft werden, und kann noch nicht gelöscht werden.",
+  "DEMO_PERSONA_TAKEN": "Dieser Handle gehört zu einem echten Konto.",
+  "DEMO_LINK_EXPIRY_INVALID": "Ein Demo-Link kann nicht in der Vergangenheit enden."
 }

@@ -67,6 +67,7 @@ from app.models.platform.guild import (
     CommunityStatus,
     LIVE_STATUS_VALUES,
 )
+from app.models.platform.demo import DemoAccount
 from app.models.platform.guild_administration import GuildAdministration
 from app.models.platform.guild_image import (
     BANNER_VARIANTS,
@@ -607,6 +608,11 @@ async def create_community(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=GuildMessages.COMMUNITY_CREATION_DISABLED,
+        )
+    if settings.DEMO_MODE and await session.get(DemoAccount, current_user.id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=GuildMessages.COMMUNITY_CREATION_DEMO_ACCOUNT,
         )
     name = guild_in.name
 

@@ -356,6 +356,10 @@ async def _execute(session: AsyncSession, job: ImportJob, *, guild_id: int) -> d
             session.add(job)
             await session.commit()
 
+        # Set only by the demo's imports: the moment the bundle's dates are
+        # read from, so they land the same distance from now, and ``join``,
+        # who joins the initiatives it creates.
+        anchor = (job.params or {}).get("anchor")
         async with import_engine.open_payload(guild_id, job.payload_ref) as bundle:
             if bundle is None:
                 raise ImportEngineError(ImportEngineMessages.IMPORT_INVALID_PARAMS)
@@ -380,6 +384,8 @@ async def _execute(session: AsyncSession, job: ImportJob, *, guild_id: int) -> d
                     # A fetched bundle is one this app wrote, and is held to
                     # the fetch's bounds rather than an upload's.
                     fetched=job.source == atlassian_job.SOURCE,
+                    anchor=datetime.fromisoformat(anchor) if anchor else None,
+                    join=(job.params or {}).get("join"),
                 )
         return backup_result.model_dump(mode="json")
 

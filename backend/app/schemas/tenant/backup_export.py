@@ -17,6 +17,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
+from app.models.tenant.initiative import InitiativeJoinPolicy
 from app.schemas.base import SanitizedBaseModel
 
 BACKUP_SCHEMA_VERSION = 1
@@ -110,6 +111,9 @@ class ManifestInitiative(SanitizedBaseModel):
     color: Optional[str] = None
     # tool -> "included" | "excluded" | "disabled" (per-initiative flag off)
     tools: dict[str, str]
+    # How members come to join it. Absent from an archive written before it
+    # was carried, which restores as a new initiative's default.
+    join_policy: Optional[InitiativeJoinPolicy] = None
     # Apply into an initiative that already exists, rather than creating one.
     # An exporter never writes this — a backup describes where it came from,
     # not where it is going. A foreign source (an Atlassian fetch) writes it,
