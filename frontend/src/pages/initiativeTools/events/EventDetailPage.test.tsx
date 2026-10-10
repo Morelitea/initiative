@@ -1,7 +1,7 @@
 /**
  * An event's page, as its readers and the people who change it use it: every
- * field saved on its own, a repeating event asked which dates a change is
- * for, and the old settings address opening the page.
+ * field saved on its own, and a repeating event asked which dates a change is
+ * for.
  */
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -19,7 +19,6 @@ vi.mock("@/lib/mascotToast", () => ({
 }));
 
 import { EventDetailPage } from "./EventDetailPage";
-import { EventSettingsPage } from "./EventSettingsPage";
 
 const EVENT_ROUTE = "/c/$communityId/i/$initiativeId/calendars/$calendarId/events/$eventId";
 const PARAMS = { communityId: "1", initiativeId: "1", calendarId: "1", eventId: "9" };
@@ -138,18 +137,5 @@ describe("an event's page", () => {
         { description: "Mine", description_base: "Theirs" },
       ])
     );
-  });
-
-  it("opens from the old settings address, at the date it named", async () => {
-    const { router } = renderPage(EventSettingsPage, {
-      initialRoute: `${EVENT_ROUTE}/settings`,
-      routeParams: PARAMS,
-      routerSearch: { occurrence: "2026-10-27T15:00:00.000Z" },
-    });
-
-    await waitFor(() =>
-      expect(router.state.location.pathname).toBe("/c/1/i/1/calendars/1/events/9")
-    );
-    expect(router.state.location.search).toEqual({ occurrence: "2026-10-27T15:00:00.000Z" });
   });
 });

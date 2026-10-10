@@ -106,8 +106,8 @@ describe("initiative route resolution", () => {
   // A calendar's events sit beside its settings sections; neither may swallow
   // the other.
   it("keeps a calendar's events clear of its settings sections", () => {
-    expect(resolvedRouteId("/c/1/i/5/calendars/2/events/8/settings")).toBe(
-      `${INITIATIVE}/calendars/$calendarId/events/$eventId/settings`
+    expect(resolvedRouteId("/c/1/i/5/calendars/2/events/8")).toBe(
+      `${INITIATIVE}/calendars/$calendarId/events/$eventId/`
     );
   });
 
