@@ -1,11 +1,12 @@
-"""An initiative's views of a tool — the set a target shows, saved whole.
+"""How an instance of a tool draws its items: its layouts, one per kind,
+each read as shipped until it is changed, and changed on its own.
 
 A target is one instance of a tool (``tool`` and ``tool_id``: a project), or,
-for a tool whose page the initiative shares, the initiative (``tool`` and
+for a tool the initiative shares, the initiative (``tool`` and
 ``initiative_id``: its calendar). Reading follows reading the instance, or
-being in the initiative. Changing the set follows the ``configure`` action on
+being in the initiative. Changing a layout follows the ``configure`` action on
 the instance — its owner, the initiative's managers, the community's admins —
-with write access to it, or, for a shared page, managing the initiative.
+with write access to it, or, for a shared tool, managing the initiative.
 """
 
 from dataclasses import dataclass
@@ -23,31 +24,35 @@ from app.api.deps import (
     RLSSessionDep,
     get_current_active_user,
 )
-from app.core.messages import InitiativeMessages, ToolViewMessages
-from app.core.tools import VIEWS_PER_INSTANCE, VIEWS_SHARED, Tool
+from app.core.messages import InitiativeMessages, ToolLayoutMessages
+from app.core.tools import LAYOUTS_PER_INSTANCE, LAYOUTS_SHARED, Tool
 from app.models.platform.user import User
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.project import Project
-from app.schemas.tenant.tool_view import (
-    InitiativeToolViewsRead,
-    ToolViewSetRead,
-    ToolViewSetWrite,
-    ToolViewSummary,
+from app.schemas.tenant.tool_layout import (
+    InitiativeToolLayoutsRead,
+    ToolLayoutDefaultWrite,
+    ToolLayoutSetRead,
+    ToolLayoutWrite,
 )
 from app.services import permissions as permissions_service
 from app.services.permissions import Action
-from app.services.tenant import tool_views as tool_views_service
-from app.services.tenant.tool_views import Target
+from app.services.tenant import tool_layouts as tool_layouts_service
+from app.services.tenant.tool_layouts import Target
 
-router = APIRouter(prefix="/views")
+router = APIRouter(prefix="/layouts")
 
 CurrentUser = Annotated[User, Depends(get_current_active_user)]
+
+#: The target a request names.
+ToolQuery = Annotated[Tool, Query()]
+InstanceQuery = Annotated[Optional[int], Query()]
 
 
 @dataclass(frozen=True)
 class _Resolved:
-    """A target, whether the reader may change its set, and the instance it
-    names (None for a shared page)."""
+    """A target, whether the reader may change its layouts, and the instance
+    it names (None for a shared tool)."""
 
     target: Target
     can_configure: bool
@@ -64,9 +69,9 @@ async def _resolve(
 ) -> _Resolved:
     invalid = HTTPException(
         status_code=status.HTTP_400_BAD_REQUEST,
-        detail=ToolViewMessages.TARGET_INVALID,
+        detail=ToolLayoutMessages.TARGET_INVALID,
     )
-    if tool in VIEWS_PER_INSTANCE:
+    if tool in LAYOUTS_PER_INSTANCE:
         if tool_id is None or initiative_id is not None:
             raise invalid
         row = await resource_access.load_authorized(
@@ -78,7 +83,7 @@ async def _resolve(
             Target(tool, tool_id, row.initiative_id), _configures(row), row
         )
 
-    if tool not in VIEWS_SHARED or tool_id is not None or initiative_id is None:
+    if tool not in LAYOUTS_SHARED or tool_id is not None or initiative_id is None:
         raise invalid
     await _require_initiative(session, context, initiative_id)
     can_configure = not context.content_read_only and (
@@ -88,7 +93,7 @@ async def _resolve(
 
 
 def _configures(row: Any) -> bool:
-    """Whether the reader may change an instance's set: configure it, with
+    """Whether the reader may change an instance's layouts: configure it, with
     write access to it, as the database answered when it loaded the row."""
     return permissions_service.allows(
         row, Action.configure
@@ -128,44 +133,55 @@ def _require_configure(resolved: _Resolved, context: GuildContext) -> None:
         )
 
 
-async def _read(session: AsyncSession, resolved: _Resolved) -> ToolViewSetRead:
-    rows = await tool_views_service.list_rows(session, resolved.target)
-    views, layouts = tool_views_service.read_set(resolved.target.tool, rows)
-    return ToolViewSetRead(
-        views=views,
-        item_layouts=layouts,
-        stored=bool(rows),
+async def _read(session: AsyncSession, resolved: _Resolved) -> ToolLayoutSetRead:
+    rows = await tool_layouts_service.list_rows(session, resolved.target)
+    return ToolLayoutSetRead(
+        layouts=tool_layouts_service.read_set(resolved.target.tool, rows),
         can_configure=resolved.can_configure,
     )
 
 
-@router.get("/", response_model=ToolViewSetRead)
-async def get_views(
+async def _configured(
+    session: AsyncSession,
+    context: GuildContext,
+    user: User,
+    tool: Tool,
+    tool_id: Optional[int],
+    initiative_id: Optional[int],
+) -> _Resolved:
+    """The target, once the reader is known to be allowed to change it."""
+    resolved = await _resolve(session, context, user, tool, tool_id, initiative_id)
+    _require_configure(resolved, context)
+    return resolved
+
+
+@router.get("/", response_model=ToolLayoutSetRead)
+async def get_layouts(
     session: RLSSessionDep,
     current_user: CurrentUser,
     guild_context: GuildContextDep,
-    tool: Tool = Query(),
-    tool_id: Optional[int] = Query(default=None),
-    initiative_id: Optional[int] = Query(default=None),
-) -> ToolViewSetRead:
-    """The target's views and item layouts: its own, or the shipped views
-    when it has stored none (``stored`` false)."""
+    tool: ToolQuery,
+    tool_id: InstanceQuery = None,
+    initiative_id: InstanceQuery = None,
+) -> ToolLayoutSetRead:
+    """The target's layouts, each as it changed it or as shipped
+    (``updated_at`` null)."""
     resolved = await _resolve(
         session, guild_context, current_user, tool, tool_id, initiative_id
     )
     return await _read(session, resolved)
 
 
-@router.get("/initiative", response_model=List[InitiativeToolViewsRead])
-async def get_initiative_views(
+@router.get("/initiative", response_model=List[InitiativeToolLayoutsRead])
+async def get_initiative_layouts(
     session: RLSSessionDep,
     current_user: CurrentUser,
     guild_context: GuildContextDep,
     initiative_id: int = Query(),
-) -> List[InitiativeToolViewsRead]:
-    """The views of every project in the initiative the reader can open, by
-    name, each its own set or the shipped one, for the initiative's settings.
-    A set is changed on its own target."""
+) -> List[InitiativeToolLayoutsRead]:
+    """The layouts of every project in the initiative the reader can open, by
+    name, for the initiative's settings. A layout is changed on its own
+    target."""
     await _require_initiative(session, guild_context, initiative_id)
     # Which projects the reader can open is the projects' own policy's answer.
     projects = (
@@ -180,69 +196,75 @@ async def get_initiative_views(
             .order_by(col(Project.name), col(Project.id))
         )
     ).all()
-    stored = await tool_views_service.rows_by_instance(
+    stored = await tool_layouts_service.rows_by_instance(
         session, initiative_id, Tool.project, [project.id for project in projects]
     )
-    listed: List[InitiativeToolViewsRead] = []
-    for project in projects:
-        rows = stored.get(project.id, [])
-        views, layouts = tool_views_service.read_set(Tool.project, rows)
-        listed.append(
-            InitiativeToolViewsRead(
-                tool=Tool.project,
-                tool_id=project.id,
-                name=project.name,
-                views=[
-                    ToolViewSummary(
-                        name=view.name,
-                        slug=view.slug,
-                        layout=view.definition.layout.type,
-                        is_default=view.is_default,
-                    )
-                    for view in views
-                ],
-                stored=bool(rows),
-                has_item_layout=bool(layouts),
-                can_configure=_configures(project),
-            )
+    return [
+        InitiativeToolLayoutsRead(
+            tool=Tool.project,
+            tool_id=project.id,
+            name=project.name,
+            layouts=tool_layouts_service.read_set(
+                Tool.project, stored.get(project.id, [])
+            ),
+            can_configure=_configures(project),
         )
-    return listed
+        for project in projects
+    ]
 
 
-@router.put("/", response_model=ToolViewSetRead)
-async def put_views(
-    payload: ToolViewSetWrite,
+@router.put("/", response_model=ToolLayoutSetRead)
+async def put_layout(
+    payload: ToolLayoutWrite,
     session: RLSSessionDep,
     current_user: CurrentUser,
     guild_context: GuildContextDep,
-    tool: Tool = Query(),
-    tool_id: Optional[int] = Query(default=None),
-    initiative_id: Optional[int] = Query(default=None),
-) -> ToolViewSetRead:
-    """Replace the target's whole set with ``payload``, in its order."""
-    resolved = await _resolve(
+    tool: ToolQuery,
+    tool_id: InstanceQuery = None,
+    initiative_id: InstanceQuery = None,
+) -> ToolLayoutSetRead:
+    """Change one of the target's layouts, leaving the others as they are."""
+    resolved = await _configured(
         session, guild_context, current_user, tool, tool_id, initiative_id
     )
-    _require_configure(resolved, guild_context)
-    rows = tool_views_service.check_set(resolved.target, payload)
-    await tool_views_service.replace_set(session, resolved.target, rows)
+    await tool_layouts_service.save(session, resolved.target, payload)
     await session.commit()
     return await _read(session, resolved)
 
 
-@router.delete("/", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_views(
+@router.put("/default", response_model=ToolLayoutSetRead)
+async def put_default_layout(
+    payload: ToolLayoutDefaultWrite,
     session: RLSSessionDep,
     current_user: CurrentUser,
     guild_context: GuildContextDep,
-    tool: Tool = Query(),
-    tool_id: Optional[int] = Query(default=None),
-    initiative_id: Optional[int] = Query(default=None),
-) -> None:
-    """Return the target to the shipped views."""
-    resolved = await _resolve(
+    tool: ToolQuery,
+    tool_id: InstanceQuery = None,
+    initiative_id: InstanceQuery = None,
+) -> ToolLayoutSetRead:
+    """Open the target on one of its lists."""
+    resolved = await _configured(
         session, guild_context, current_user, tool, tool_id, initiative_id
     )
-    _require_configure(resolved, guild_context)
-    await tool_views_service.clear(session, resolved.target)
+    await tool_layouts_service.save_default(session, resolved.target, payload.kind)
     await session.commit()
+    return await _read(session, resolved)
+
+
+@router.delete("/{kind}", response_model=ToolLayoutSetRead)
+async def reset_layout(
+    kind: str,
+    session: RLSSessionDep,
+    current_user: CurrentUser,
+    guild_context: GuildContextDep,
+    tool: ToolQuery,
+    tool_id: InstanceQuery = None,
+    initiative_id: InstanceQuery = None,
+) -> ToolLayoutSetRead:
+    """Draw one of the target's layouts as shipped again."""
+    resolved = await _configured(
+        session, guild_context, current_user, tool, tool_id, initiative_id
+    )
+    await tool_layouts_service.reset(session, resolved.target, kind)
+    await session.commit()
+    return await _read(session, resolved)

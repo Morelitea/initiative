@@ -1,0 +1,381 @@
+"""Schemas for how an instance of a tool draws its items: its layouts.
+
+A target has one layout of each kind its tool draws: how it lists its items (a
+project's table, board and calendar), and how it shows one of them (its task).
+A layout says how things are drawn; what a person narrows a list to and how
+they sort it are theirs, not the layout's.
+
+A layout is a tree of registered parts: a ``card`` holds what an item shows, a
+``stack`` lays its children out, a ``field`` draws one field, ``properties``
+draws every property the item carries and ``plugin`` draws one of an installed
+plug-in's parts. An item's layout adds ``section`` and the item's own parts
+(its status, dates, comments and the rest). The parts, their props, the kinds
+and the built-in field ids are ``Literal``s or enums, so the generated client
+carries the same vocabulary the renderer keys by. A property's field is named
+``property:<definition id>``, so renaming it keeps every layout that shows it;
+a plug-in's is ``plugin:<install id>:<metadata key>``.
+"""
+
+from __future__ import annotations
+
+from datetime import datetime
+from enum import Enum
+from typing import Annotated, List, Literal, Optional, Union
+
+from pydantic import AfterValidator, ConfigDict, Field
+
+from app.core.tools import Tool
+from app.schemas.base import SanitizedBaseModel
+from app.services.marketplace.manifest_values import (
+    IDENTIFIER_CHARS,
+    MAX_IDENTIFIER_LENGTH,
+    is_metadata_key,
+)
+
+#: What one layout may hold. Every part of a tree counts as a
+#: node, as does every column.
+MAX_NODES = 300
+MAX_DEPTH = 6
+MAX_DEFINITION_BYTES = 64 * 1024
+#: One plug-in's parts on one item: on a card, or across an item's layout.
+MAX_PLUGIN_PARTS = 3
+
+
+class _Strict(SanitizedBaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+# -- Fields -------------------------------------------------------------------
+
+
+class TaskFieldId(str, Enum):
+    """A task's built-in fields, by the ids the renderer keys them by. An enum
+    rather than a ``Literal`` so the generated client names the set."""
+
+    title = "title"
+    description = "description"
+    assignees = "assignees"
+    startDate = "startDate"
+    dueDate = "dueDate"
+    recurrence = "recurrence"
+    checklist = "checklist"
+    priority = "priority"
+    comments = "comments"
+    blockers = "blockers"
+    tags = "tags"
+
+
+PROPERTY_FIELD_PREFIX = "property:"
+PLUGIN_FIELD_PREFIX = "plugin:"
+#: The characters a row id is written in.
+_DIGITS = frozenset("0123456789")
+#: A row id is a Postgres ``integer``: at most ten digits.
+_MAX_ID_DIGITS = 10
+
+
+def _is_row_id(value: str) -> bool:
+    return (
+        0 < len(value) <= _MAX_ID_DIGITS
+        and set(value) <= _DIGITS
+        and not value.startswith("0")
+    )
+
+
+def _named_field(value: str) -> str:
+    """``property:<definition id>`` or ``plugin:<install id>:<metadata key>``.
+    By id rather than by name, so renaming a property keeps every layout that
+    shows it."""
+    if value.startswith(PROPERTY_FIELD_PREFIX):
+        if _is_row_id(value.removeprefix(PROPERTY_FIELD_PREFIX)):
+            return value
+    elif value.startswith(PLUGIN_FIELD_PREFIX):
+        install, _, key = value.removeprefix(PLUGIN_FIELD_PREFIX).partition(":")
+        if _is_row_id(install) and is_metadata_key(key):
+            return value
+    raise ValueError(
+        "a field is a built-in field id, 'property:<id>' or 'plugin:<id>:<key>'"
+    )
+
+
+def _plugin_field(value: str) -> str:
+    """``plugin:<install id>:<metadata key>``."""
+    if value.startswith(PLUGIN_FIELD_PREFIX):
+        return _named_field(value)
+    raise ValueError("a field here is a built-in field id or 'plugin:<id>:<key>'")
+
+
+NamedFieldId = Annotated[str, AfterValidator(_named_field)]
+PluginFieldId = Annotated[str, AfterValidator(_plugin_field)]
+CardFieldId = Union[TaskFieldId, NamedFieldId]
+
+
+# The built-in fields each place draws, named for the generated client.
+_COLUMNS = {"title", "startDate", "dueDate", "priority", "tags", "comments"}
+_PAGE = {
+    "title",
+    "description",
+    "assignees",
+    "checklist",
+    "priority",
+    "recurrence",
+    "tags",
+}
+
+#: What a table draws as a column: the rest of a task (its people, its
+#: checklist) sits in the title's cell.
+TaskColumnFieldId = Enum(
+    "TaskColumnFieldId",
+    {f.name: f.value for f in TaskFieldId if f.value in _COLUMNS},
+    type=str,
+)
+#: What a task's layout edits as a field. Its status, its dates and its
+#: properties are parts of their own, and its counts are a card's.
+TaskItemFieldId = Enum(
+    "TaskItemFieldId",
+    {f.name: f.value for f in TaskFieldId if f.value in _PAGE},
+    type=str,
+)
+ColumnFieldId = Union[TaskColumnFieldId, NamedFieldId]
+ItemFieldId = Union[TaskItemFieldId, PluginFieldId]
+
+
+def _part_id(value: str) -> str:
+    """One of a plug-in's parts, by the id its manifest gives it."""
+    if not 0 < len(value) <= MAX_IDENTIFIER_LENGTH or not set(value) <= set(
+        IDENTIFIER_CHARS
+    ):
+        raise ValueError("a part is named by its manifest id")
+    return value
+
+
+# -- Parts --------------------------------------------------------------------
+
+
+class StackProps(_Strict):
+    direction: Optional[Literal["column", "row"]] = None
+    gap: Optional[Literal["xs", "sm"]] = None
+    wrap: Optional[bool] = None
+    #: Items keep their own width rather than filling the column.
+    align: Optional[Literal["start"]] = None
+    tone: Optional[Literal["muted"]] = None
+
+
+class FieldProps(_Strict):
+    field: CardFieldId
+
+
+class CardPart(_Strict):
+    type: Literal["card"]
+    children: List[CardChild] = Field(default_factory=list)
+
+
+class StackPart(_Strict):
+    type: Literal["stack"]
+    props: Optional[StackProps] = None
+    children: List[CardChild] = Field(default_factory=list)
+
+
+class FieldPart(_Strict):
+    type: Literal["field"]
+    props: FieldProps
+
+
+class PropertiesPart(_Strict):
+    """Every property the item carries, in its own order."""
+
+    type: Literal["properties"]
+
+
+class PluginPartProps(_Strict):
+    #: The install, as the community's plug-in routes name it.
+    plugin: int = Field(gt=0)
+    part: Annotated[str, AfterValidator(_part_id)]
+
+
+class PluginPart(_Strict):
+    """One of an installed plug-in's parts, drawn as its manifest builds it.
+    A part the install no longer declares draws nothing."""
+
+    type: Literal["plugin"]
+    props: PluginPartProps
+
+
+CardChild = Annotated[
+    Union[CardPart, StackPart, FieldPart, PropertiesPart, PluginPart],
+    Field(discriminator="type"),
+]
+
+CardPart.model_rebuild()
+StackPart.model_rebuild()
+
+
+class ItemFieldProps(_Strict):
+    field: ItemFieldId
+
+
+class ItemFieldPart(_Strict):
+    type: Literal["field"]
+    props: ItemFieldProps
+
+
+class SectionProps(_Strict):
+    #: The initiative's own words, drawn as written.
+    title: Optional[str] = Field(default=None, max_length=100)
+    #: Drawn folded until the reader opens it.
+    collapsed: Optional[bool] = None
+
+
+class SectionPart(_Strict):
+    """A bordered group of an item layout's parts."""
+
+    type: Literal["section"]
+    props: Optional[SectionProps] = None
+    children: List[ItemPart] = Field(default_factory=list)
+
+
+class ItemStackPart(_Strict):
+    type: Literal["stack"]
+    props: Optional[StackProps] = None
+    children: List[ItemPart] = Field(default_factory=list)
+
+
+class TaskItemPart(_Strict):
+    """One of a task layout's own parts, which edit or show more than one field:
+    its status, its start and due dates, who made it, its read-only notice, its
+    menu, its relations, its case and its comments."""
+
+    type: Literal[
+        "status",
+        "dates",
+        "byline",
+        "notice",
+        "actions",
+        "relations",
+        "case",
+        "comments",
+    ]
+
+
+ItemPart = Annotated[
+    Union[
+        ItemStackPart,
+        SectionPart,
+        ItemFieldPart,
+        PropertiesPart,
+        PluginPart,
+        TaskItemPart,
+    ],
+    Field(discriminator="type"),
+]
+
+SectionPart.model_rebuild()
+ItemStackPart.model_rebuild()
+
+
+# -- Definitions --------------------------------------------------------------
+
+#: Every way a layout can list a tool's items; which of them a tool draws is
+#: ``app.core.tools.LIST_LAYOUTS``.
+ListLayoutKind = Literal["table", "board", "calendar"]
+#: Every kind of item a layout can show one of; which a tool holds is
+#: ``app.core.tools.ITEM_LAYOUTS``.
+ItemLayoutKind = Literal["task"]
+
+
+class ListLayoutDefinition(_Strict):
+    """How a list draws its items. What it leaves out is drawn as shipped: a
+    board with no ``card`` draws the shipped card, a table with no ``columns``
+    the shipped columns."""
+
+    card: Optional[CardPart] = None
+    columns: Optional[List[ColumnFieldId]] = None
+    #: How an item opens: in a side panel, or full size on its own.
+    opens: Optional[Literal["panel", "full"]] = None
+
+
+class ItemLayoutDefinition(_Strict):
+    """How one item is shown, in three regions, each its parts in order. A
+    region it leaves out is drawn as shipped, and a field placed in none of
+    them is drawn in a "More fields" section."""
+
+    header: Optional[List[ItemPart]] = None
+    main: Optional[List[ItemPart]] = None
+    side: Optional[List[ItemPart]] = None
+
+
+# -- Requests -----------------------------------------------------------------
+
+
+class ListLayoutWrite(_Strict):
+    kind: ListLayoutKind
+    definition: ListLayoutDefinition
+
+
+class ItemLayoutWrite(_Strict):
+    kind: ItemLayoutKind
+    definition: ItemLayoutDefinition
+
+
+#: One layout as it is changed.
+ToolLayoutWrite = Annotated[
+    Union[ListLayoutWrite, ItemLayoutWrite], Field(discriminator="kind")
+]
+
+
+class ToolLayoutDefaultWrite(_Strict):
+    """The list a target opens on."""
+
+    kind: ListLayoutKind
+
+
+# -- Responses ----------------------------------------------------------------
+
+
+class ListLayoutRead(SanitizedBaseModel):
+    """One way a target lists its items: as shipped until it is changed."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    kind: ListLayoutKind
+    #: Whether the target opens on it.
+    is_default: bool
+    definition: ListLayoutDefinition
+    #: When it was last changed; None as shipped.
+    updated_at: Optional[datetime] = None
+
+
+class ItemLayoutRead(SanitizedBaseModel):
+    """How a target shows one of its items: as shipped until it is changed."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    kind: ItemLayoutKind
+    definition: ItemLayoutDefinition
+    #: When it was last changed; None as shipped.
+    updated_at: Optional[datetime] = None
+
+
+#: One of a target's layouts.
+ToolLayoutRead = Annotated[
+    Union[ListLayoutRead, ItemLayoutRead], Field(discriminator="kind")
+]
+
+
+class ToolLayoutSetRead(SanitizedBaseModel):
+    """A target's layouts, one of each kind its tool draws: its lists, then its
+    items, in the order the tool names them."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    layouts: List[ToolLayoutRead]
+    #: Whether this reader may change them, computed server-side.
+    can_configure: bool
+
+
+class InitiativeToolLayoutsRead(ToolLayoutSetRead):
+    """One instance's layouts, as its initiative's list of them shows them."""
+
+    tool: Tool
+    tool_id: int
+    #: The instance's own name.
+    name: str

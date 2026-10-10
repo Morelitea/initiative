@@ -277,19 +277,38 @@ ITEM_KINDS: tuple[str, ...] = tuple(k for k in CHILD_KINDS if k != "wiki_page") 
 INSTALL_METADATA_KIND = "plugin"
 METADATA_TARGETS: tuple[str, ...] = ITEM_KINDS + (INSTALL_METADATA_KIND,)
 
-# Views (``tool_views``): the tools whose items an initiative lays out. Each of
-# these has its own views per instance (a project's, a queue's); the calendar
-# and the posts feed are one page per initiative, so their views belong to the
-# initiative and name no instance. The table's CHECKs, its policies, its events
-# and its purge derive from these.
-VIEWS_PER_INSTANCE: tuple[Tool, ...] = (
+# Layouts (``tool_layouts``): how an instance of a tool draws its items, and
+# one of them. Each of these tools has its own layouts per instance (a
+# project's, a queue's); the calendar and the posts feed are one page per
+# initiative, so their layouts belong to the initiative and name no instance.
+# The table's CHECKs, its policies, its events and its purge derive from these.
+LAYOUTS_PER_INSTANCE: tuple[Tool, ...] = (
     Tool.project,
     Tool.queue,
     Tool.counter_group,
     Tool.gallery,
 )
-VIEWS_SHARED: tuple[Tool, ...] = (Tool.calendar, Tool.post)
-VIEW_TOOLS: tuple[Tool, ...] = VIEWS_PER_INSTANCE + VIEWS_SHARED
+LAYOUTS_SHARED: tuple[Tool, ...] = (Tool.calendar, Tool.post)
+LAYOUT_TOOLS: tuple[Tool, ...] = LAYOUTS_PER_INSTANCE + LAYOUTS_SHARED
+# A target has one layout of each kind its tool draws: how it lists its items
+# (``LIST_LAYOUTS``), and how it shows one of them (``ITEM_LAYOUTS``, by the
+# kind of item). A tool with none here yet stores none. The list a target
+# opens on is one more row (``LAYOUT_DEFAULT``).
+LIST_LAYOUTS: dict[Tool, tuple[str, ...]] = {
+    Tool.project: ("table", "board", "calendar"),
+    Tool.calendar: ("calendar",),
+}
+ITEM_LAYOUTS: dict[Tool, tuple[str, ...]] = {Tool.project: ("task",)}
+LAYOUT_DEFAULT = "default"
+LAYOUT_KINDS: tuple[str, ...] = tuple(
+    dict.fromkeys(
+        [
+            *(kind for kinds in LIST_LAYOUTS.values() for kind in kinds),
+            *(kind for kinds in ITEM_LAYOUTS.values() for kind in kinds),
+            LAYOUT_DEFAULT,
+        ]
+    )
+)
 
 
 def tool_export_source(tool: Tool) -> str:

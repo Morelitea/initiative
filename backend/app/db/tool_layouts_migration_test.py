@@ -1,5 +1,6 @@
-"""Migration 20261009_0478 turns a project's filter presets into its views, and
-20261009_0479 drops the default view mode they no longer need.
+"""Migration 20261009_0478 turns a project's filter presets into its views,
+20261009_0479 drops the default view mode they no longer need, and
+20261010_0490 turns the views into layouts.
 Loaded by path and run on a guild the test builds, the way
 ``file_versions_by_pointer_migration_test`` runs its revision: down to the old
 shape, rows written as an older release wrote them, up, and down again."""
@@ -78,6 +79,7 @@ async def test_presets_become_views_and_come_back(session) -> None:
     }
     migration = _load("20261009_0478_tool_views")
     drop_mode = _load("20261009_0479_a_project_opens_on_its_default_view")
+    layouts = _load("20261010_0490_views_become_layouts")
 
     def run(step):
         def apply(sync_session) -> None:
@@ -117,6 +119,7 @@ async def test_presets_become_views_and_come_back(session) -> None:
             p=projects[project],
         )
 
+    await session.run_sync(run(layouts._apply_downgrade))
     await session.run_sync(run(drop_mode._apply_downgrade))
     await session.run_sync(run(migration._apply_downgrade))
     await sql(f"DELETE FROM {schema}.project_filter_presets")
@@ -277,3 +280,99 @@ async def test_presets_become_views_and_come_back(session) -> None:
 
     await session.run_sync(run(migration._apply_upgrade))
     await session.run_sync(run(drop_mode._apply_upgrade))
+    await session.run_sync(run(layouts._apply_upgrade))
+
+
+async def test_views_become_layouts_and_come_back(session) -> None:
+    """A project keeps what each of its list views drew and its task layout,
+    and opens where it did; the views that only filtered are gone. The
+    downgrade gives each project holding a layout the shipped views again,
+    drawn as its layouts say."""
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+    schema = f"guild_{guild.id}"
+    initiative = await create_initiative(session, guild, user)
+    drawn = (await create_project(session, initiative, user, name="Drawn")).id
+    filtered = (await create_project(session, initiative, user, name="Filtered")).id
+    layouts = _load("20261010_0490_views_become_layouts")
+
+    def run(step):
+        def apply(sync_session) -> None:
+            bind = sync_session.connection()
+            bind.execute(
+                text("SELECT set_config('search_path', :sp, true)"),
+                {"sp": f"{schema}, public"},
+            )
+            with Operations.context(MigrationContext.configure(bind)):
+                step()
+
+        return apply
+
+    async def sql(statement: str, **params):
+        return await (await session.connection()).execute(text(statement), params)
+
+    async def view(project: int, position: int, slug: str, **values) -> None:
+        await sql(
+            f"INSERT INTO {schema}.tool_views (initiative_id, tool, tool_id, kind,"
+            " item_kind, name, slug, position, is_default, definition, created_at,"
+            " updated_at) VALUES (:i, 'project', :p, :kind, :item_kind, :name,"
+            " :slug, :position, :is_default, CAST(:d AS jsonb), now(), now())",
+            i=initiative.id,
+            p=project,
+            kind=values.get("kind", "view"),
+            item_kind=values.get("item_kind"),
+            name=values.get("name", slug and slug.title()),
+            slug=slug,
+            position=position,
+            is_default=values.get("is_default", False),
+            d=json.dumps(values["definition"]),
+        )
+
+    card = {
+        "type": "card",
+        "children": [{"type": "field", "props": {"field": "title"}}],
+    }
+    task = {"main": [{"type": "comments"}]}
+    await session.run_sync(run(layouts._apply_downgrade))
+    await view(drawn, 0, "table", definition={**_TABLE, "opens": "page"})
+    await view(drawn, 1, "board", definition={**_BOARD, "card": card}, is_default=True)
+    await view(drawn, 2, "calendar", definition=_CALENDAR)
+    await view(drawn, 3, "mine", definition=_MINE)
+    await view(drawn, 4, None, kind="item_layout", item_kind="task", definition=task)
+    # A project whose views only filtered, opening on one of them.
+    await view(filtered, 0, "table", definition=_TABLE)
+    await view(filtered, 1, "mine", definition=_MINE, is_default=True)
+
+    await session.run_sync(run(layouts._apply_upgrade))
+    rows = (
+        await sql(
+            f"SELECT tool_id, kind, definition FROM {schema}.tool_layouts"
+            " ORDER BY tool_id, kind"
+        )
+    ).all()
+    assert [tuple(row) for row in rows] == [
+        (drawn, "board", {"card": card}),
+        (drawn, "default", {"kind": "board"}),
+        (drawn, "table", {"opens": "full"}),
+        (drawn, "task", task),
+    ]
+
+    await session.run_sync(run(layouts._apply_downgrade))
+    back = (
+        await sql(
+            f"SELECT slug, is_default, definition, item_kind FROM {schema}.tool_views"
+            " WHERE tool_id = :p ORDER BY kind DESC, position",
+            p=drawn,
+        )
+    ).all()
+    assert [tuple(row) for row in back] == [
+        ("table", False, {**_TABLE, "opens": "page"}, None),
+        ("board", True, {**_BOARD, "card": card}, None),
+        ("calendar", False, _CALENDAR, None),
+        ("incomplete", False, _INCOMPLETE, None),
+        ("unassigned", False, _UNASSIGNED, None),
+        ("mine", False, _MINE, None),
+        (None, False, task, "task"),
+    ]
+
+    await session.run_sync(run(layouts._apply_upgrade))

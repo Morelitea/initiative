@@ -42,7 +42,7 @@ from app.core.tools import (
     INSTALL_METADATA_KIND,
     ITEM_KINDS,
     PROPERTY_TARGETS,
-    VIEWS_PER_INSTANCE,
+    LAYOUTS_PER_INSTANCE,
     Tool,
 )
 from app.db.authorization import (
@@ -1114,7 +1114,7 @@ def managed_write(initiative_expr: str) -> str:
     )
 
 
-def tool_views_path() -> InitiativePath:
+def tool_layouts_path() -> InitiativePath:
     """A view is read by the members of its initiative. A view of one instance
     of a tool is written by whoever may write that instance, in the view's own
     initiative: :data:`ENTITY_ACCESS_FN` asks the instance's own entry, sharing
@@ -1476,7 +1476,7 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     # entity_id).
     "plugin_metadata": plugin_metadata_path(),
     # An initiative's views of one tool instance, or of a shared page.
-    "tool_views": tool_views_path(),
+    "tool_layouts": tool_layouts_path(),
     "comments": comments_path(),
     # Polymorphic over what it is on; gated by that thing's own path.
     "reactions": reactions_path(),
@@ -1840,15 +1840,15 @@ def values_report_on_their_target(kinds: Iterable[str], facet: str) -> ReportsAs
     )
 
 
-def views_report_on_their_target() -> ReportsAs:
+def layouts_report_on_their_target() -> ReportsAs:
     """A view is a facet of the instance it is for, or of its initiative when
     it is for a shared page. Whoever shows the set re-reads it."""
-    arms = " ".join(f"WHEN '{t.value}' THEN '{t.plural}'" for t in VIEWS_PER_INSTANCE)
+    arms = " ".join(f"WHEN '{t.value}' THEN '{t.plural}'" for t in LAYOUTS_PER_INSTANCE)
     return ReportsAs(
-        resource_types=frozenset(t.plural for t in VIEWS_PER_INSTANCE)
+        resource_types=frozenset(t.plural for t in LAYOUTS_PER_INSTANCE)
         | {"initiatives"},
         id_expr=lambda r: f"COALESCE({r}.tool_id, {r}.initiative_id)",
-        facet="views",
+        facet="layouts",
         type_expr=lambda r: (
             f"(CASE WHEN {r}.tool_id IS NULL THEN 'initiatives'"
             f" ELSE (CASE {r}.tool {arms} END) END)"
@@ -2027,7 +2027,7 @@ EVENT_SOURCES: dict[str, Emit | Silent] = {
     ),
     # A view is read in its instance's set, or its initiative's for a shared
     # page, so a change reports as that.
-    "tool_views": Emit(reports_as=views_report_on_their_target()),
+    "tool_layouts": Emit(reports_as=layouts_report_on_their_target()),
     "file_versions": Emit(reports_as=reports_as("files", "file_id", "versions")),
     # A picture is read through its gallery rather than at an address of its
     # own, so every change to one reports as the gallery it is in — its tags
