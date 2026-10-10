@@ -9,16 +9,16 @@
   reads it. A column grant beside the ones revisions 0379, 0387, 0388, 0393
   and 0437 gave it.
 
-Revision ID: 20261009_0480
-Revises: 20261009_0479
+Revision ID: 20261010_0481
+Revises: 20261009_0480
 Create Date: 2026-10-09
 """
 
 import sqlalchemy as sa
 from alembic import op
 
-revision = "20261009_0480"
-down_revision = "20261009_0479"
+revision = "20261010_0481"
+down_revision = "20261009_0480"
 branch_labels = None
 depends_on = None
 
