@@ -49,7 +49,12 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 from app.core.capabilities import Capability, roles_with_capability
 from app.core.config import settings
 from app.db import gucs
-from app.db.authorization import GUILD_ADMIN, SETTINGS_ADMIN, SYSTEM_SESSION
+from app.db.authorization import (
+    GUILD_ADMIN,
+    SETTINGS_ADMIN,
+    SYSTEM_SESSION,
+    live_membership,
+)
 from app.models.platform.user import UserRole
 
 logger = logging.getLogger(__name__)
@@ -137,11 +142,13 @@ def routed_and_own(guild_col: str, user_col: str) -> str:
 
 
 def member_of_guild(col: str = "guild_id") -> str:
-    """The reader is a member of the row's community, by the membership table."""
+    """The reader is a member of the row's community, by the membership table:
+    a member, or a guest whose time has not run out."""
     return (
         "EXISTS (SELECT 1 FROM guild_memberships"
         f" WHERE guild_memberships.guild_id = {{table}}.{col}"
-        f" AND guild_memberships.user_id = {gucs.USER_ID})"
+        f" AND guild_memberships.user_id = {gucs.USER_ID}"
+        f" AND {live_membership('guild_memberships')})"
     )
 
 

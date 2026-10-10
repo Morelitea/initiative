@@ -1019,6 +1019,7 @@ def visible_to_other_people(status_column=None):
 
 def guild_members(statement: _S, *, guild_id: int) -> _S:
     """``statement`` narrowed to the people listed as members of one community.
+    Guests are not listed: a community's guests are their own list.
 
     ``MemberProfile`` joined to each person's membership row there, so a caller
     may select its columns beside the profile, and the people
@@ -1027,7 +1028,11 @@ def guild_members(statement: _S, *, guild_id: int) -> _S:
     """
     return statement.join(
         GuildMembership, GuildMembership.user_id == MemberProfile.id
-    ).where(GuildMembership.guild_id == guild_id, visible_to_other_people())
+    ).where(
+        GuildMembership.guild_id == guild_id,
+        GuildMembership.guest_until.is_(None),
+        visible_to_other_people(),
+    )
 
 
 async def _reach(user_ids: List[int]) -> tuple[dict[int, str], set[int]]:

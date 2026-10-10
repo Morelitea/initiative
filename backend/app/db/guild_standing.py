@@ -54,7 +54,7 @@ from app.core.plugin_scopes import (
 )
 from app.core.tools import Tool
 from app.db import gucs
-from app.db.authorization import LIVE_GRANT, sql_values
+from app.db.authorization import LIVE_GRANT, live_membership, sql_values
 from app.models.platform.access_grant import AccessGrantPurpose, AccessLevel
 from app.models.platform.plugin_service_registration import (
     RegistrationKind,
@@ -156,6 +156,7 @@ my_membership AS MATERIALIZED (
   SELECT m.role
   FROM public.guild_memberships m
   WHERE m.guild_id = {gucs.GUILD_ID} AND m.user_id = {gucs.USER_ID}
+    AND {live_membership("m")}
 ),
 my_grants AS MATERIALIZED (
   SELECT g.purpose, g.access_level::text AS access_level

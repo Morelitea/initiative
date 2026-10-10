@@ -1457,6 +1457,13 @@ async def update_community_membership(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=GuildMessages.USER_NOT_FOUND_IN_COMMUNITY,
         )
+    # A guest's rung is set where guests are made; becoming a member is its
+    # own step, which also ends the guest's time.
+    if target_membership.guest_until is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=GuildMessages.COMMUNITY_ROLE_NOT_ASSIGNABLE,
+        )
 
     # And taking the seat away is the same authority as giving it. Asked of the
     # *locked* row, so the role this decides on is the role as it stands now.

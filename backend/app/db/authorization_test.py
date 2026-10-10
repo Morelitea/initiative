@@ -40,6 +40,7 @@ PUBLIC_SIGNATURES = {
     "guild_connection_admits": "(int,int[],jsonb,int)",
     "guild_connection_satisfied": "(int,int)",
     "guild_superadmin": "(int,int)",
+    "guest_membership_live": "(timestamptz,guild_role)",
 }
 
 

@@ -5,7 +5,7 @@ that call into one of these. They come in two kinds. The four in
 :data:`GUILD_AUTHORIZATION_FUNCTIONS` read only guild tables and are rendered
 into each guild schema beside the policies that call them (``guild_ddl``), so
 a community's access rules live inside its own boundary and a change rolls
-out schema by schema with the provisioning stamp. The seven in
+out schema by schema with the provisioning stamp. The eight in
 :data:`AUTHORIZATION_FUNCTIONS` read shared tables and live in ``public``,
 applied once at boot. Both kinds name the tables they read unqualified, so the
 routed ``search_path`` binds ``initiative_members`` to the caller's own schema
@@ -90,6 +90,7 @@ __all__ = [
     "GUILD_FUNCTION_SIGNATURES",
     "RETIRED_GUILD_FUNCTION_SIGNATURES",
     "GUILD_SUPERADMIN",
+    "GUEST_MEMBERSHIP_LIVE",
     "DropReport",
     "plugin_narrowed",
     "plugin_refused",
@@ -98,6 +99,7 @@ __all__ = [
     "authorization_functions_digest",
     "drop_public_copies",
     "ensure_authorization_functions",
+    "live_membership",
     "ensure_public_copies_dropped",
     "render_guild_authorization_functions",
     "in_body",
@@ -414,6 +416,39 @@ GUILD_SEAT = f"({STANDING_IS_THIS_GUILD} AND {gucs.GUILD_SEAT})"
 #: ``access_grants`` alias ``g``; the standing statement and
 #: ``guild_superadmin()`` both read grants through it.
 LIVE_GRANT = f"g.status = '{AccessGrantStatus.approved.value}' AND g.expires_at > now()"
+
+
+#: Whether a guest's membership admits them now: before its end, while the
+#: platform allows guests, and above the ``guest`` rung only on the demo
+#: deployment. ``app_settings`` is one row (``GLOBAL_SETTINGS_ID``).
+GUEST_MEMBERSHIP_LIVE = f"""\
+CREATE OR REPLACE FUNCTION public.guest_membership_live(p_until timestamp with time zone, p_role guild_role)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ STABLE
+AS $function$
+BEGIN
+    RETURN p_until > now() AND EXISTS (
+        SELECT 1
+        FROM public.app_settings s
+        WHERE s.id = 1
+          AND s.guests_enabled
+          AND (p_role = '{CommunityRole.guest.value}' OR s.demo_mode)
+    );
+END
+$function$
+
+"""
+
+
+def live_membership(alias: str) -> str:
+    """The ``guild_memberships`` row ``alias`` admits its holder now: always
+    for a member, and for a guest while :data:`GUEST_MEMBERSHIP_LIVE` says so.
+    Every read that decides access from a membership row asks this."""
+    return (
+        f"({alias}.guest_until IS NULL"
+        f" OR public.guest_membership_live({alias}.guest_until, {alias}.role))"
+    )
 
 
 def sql_values(values: Iterable[str]) -> str:
@@ -1233,6 +1268,7 @@ AS $function$
         WHERE m.guild_id = p_guild_id
           AND m.user_id = p_user_id
           AND m.role = '{CommunityRole.superadmin.value}'
+          AND {live_membership("m")}
     )
     -- A live superadmin settings grant satisfies the same predicate.
     OR EXISTS (
@@ -1264,6 +1300,7 @@ AUTHORIZATION_FUNCTIONS: tuple[tuple[str, str], ...] = (
     ("session_amr", SESSION_AMR),
     ("platform_factor_satisfied", PLATFORM_FACTOR_SATISFIED),
     ("guild_auth_satisfied", GUILD_AUTH_SATISFIED),
+    ("guest_membership_live", GUEST_MEMBERSHIP_LIVE),
     ("guild_superadmin", GUILD_SUPERADMIN),
 )
 
@@ -1369,7 +1406,7 @@ def authorization_functions_digest() -> str:
 async def apply_authorization_functions(conn: "AsyncConnection") -> None:
     """Create or replace every function in :data:`AUTHORIZATION_FUNCTIONS`.
 
-    Idempotent, and cheap enough to run unconditionally on boot: seven
+    Idempotent, and cheap enough to run unconditionally on boot: eight
     ``CREATE OR REPLACE`` statements against ``public``. ``CREATE OR REPLACE``
     keeps each function's OID, so the policies that reference it are untouched
     and no guild schema needs re-rendering.
@@ -1387,7 +1424,7 @@ async def ensure_authorization_functions() -> None:
 
     Called after the migrations and before the guild back-fill, so a schema
     rendered in the same boot finds every ``public`` function its own copies
-    call. Six ``CREATE OR REPLACE`` statements on a healthy database — the
+    call. Eight ``CREATE OR REPLACE`` statements on a healthy database — the
     same unconditional-and-cheap shape as the grant heals either side of it.
     """
     from app.db import session as db_session

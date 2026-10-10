@@ -744,7 +744,10 @@ async def count_members_by_guild(
     rows = (
         await session.exec(
             select(GuildMembership.guild_id, func.count())
-            .where(GuildMembership.guild_id.in_(list(guild_ids)))
+            .where(
+                GuildMembership.guild_id.in_(list(guild_ids)),
+                GuildMembership.guest_until.is_(None),
+            )
             .group_by(GuildMembership.guild_id)
         )
     ).all()
@@ -752,7 +755,8 @@ async def count_members_by_guild(
 
 
 async def count_members(session: AsyncSession, *, guild_id: int) -> int:
-    """Total number of members in a guild.
+    """Total number of members in a guild. A guest takes no seat, so guests
+    are not counted.
 
     The caller must already hold a session that can see the guild's
     ``guild_memberships`` rows — a system-engine session, or one whose RLS
@@ -763,7 +767,10 @@ async def count_members(session: AsyncSession, *, guild_id: int) -> int:
         await session.exec(
             select(func.count())
             .select_from(GuildMembership)
-            .where(GuildMembership.guild_id == guild_id)
+            .where(
+                GuildMembership.guild_id == guild_id,
+                GuildMembership.guest_until.is_(None),
+            )
         )
     ).one()
 
@@ -2315,7 +2322,10 @@ async def list_community_guilds(
     member_count = (
         select(func.count())
         .select_from(GuildMembership)
-        .where(GuildMembership.guild_id == Guild.id)
+        .where(
+            GuildMembership.guild_id == Guild.id,
+            GuildMembership.guest_until.is_(None),
+        )
         .correlate(Guild)
         .scalar_subquery()
     )

@@ -234,6 +234,10 @@ def start_background_tasks() -> list[asyncio.Task]:
         GRANT_EXPIRY_POLL_SECONDS,
         process_grant_expiry,
     )
+    from app.services.platform.guests import (
+        GUEST_EXPIRY_POLL_SECONDS,
+        end_expired_guests,
+    )
     from app.services.auth.held_changes import (
         HOLD_SWEEP_POLL_SECONDS,
         process_due_holds,
@@ -343,6 +347,11 @@ def start_background_tasks() -> list[asyncio.Task]:
         asyncio.create_task(
             Loop("grant-expiry", interval=GRANT_EXPIRY_POLL_SECONDS).run(
                 process_grant_expiry
+            )
+        ),
+        asyncio.create_task(
+            Loop("guest-expiry", interval=GUEST_EXPIRY_POLL_SECONDS).run(
+                end_expired_guests
             )
         ),
         asyncio.create_task(

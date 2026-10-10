@@ -2636,6 +2636,7 @@ export const CommunityRole = {
   admin: "admin",
   member: "member",
   superadmin: "superadmin",
+  guest: "guest",
   support: "support",
 } as const;
 

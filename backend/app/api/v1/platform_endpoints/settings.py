@@ -969,7 +969,10 @@ async def _member_tallies(
             (
                 await system_session.exec(
                     select(GuildMembership.guild_id, func.count())
-                    .where(GuildMembership.guild_id.in_(guild_ids))
+                    .where(
+                        GuildMembership.guild_id.in_(guild_ids),
+                        GuildMembership.guest_until.is_(None),
+                    )
                     .group_by(GuildMembership.guild_id)
                 )
             ).all()

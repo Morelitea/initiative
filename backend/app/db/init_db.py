@@ -489,6 +489,7 @@ async def _prepare_database() -> None:
                 version_session,
                 version=__version__,
                 transitions=[transition.name for transition in TRANSITIONS],
+                demo_mode=settings.DEMO_MODE,
             )
         if previous and previous != __version__:
             logger.info("upgraded from %s to %s", previous, __version__)
