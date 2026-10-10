@@ -285,9 +285,11 @@ def _as_query(
     Every entry point below establishes the same thing, so it is said once: the
     reader is whoever the request admitted, the role is the query role, and the
     scope is the surface's if it named one. Only a member or a content grantee
-    reads here.
+    reads here, and a guest is neither.
     """
-    if not isinstance(context, QUERYABLE):
+    if not isinstance(context, QUERYABLE) or (
+        isinstance(context, Member) and context.standing.routes_as_guest
+    ):
         raise QueryError(QueryMessages.MISSING_RELATION)
     return replace(
         context,

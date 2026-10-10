@@ -243,7 +243,8 @@ class Member:
     ``read_only`` is the community's content hold: the SELECT-only role, with
     the membership legs evaluated normally. ``seat`` is the seat's own
     configuration routes asking for the seat's role. ``query`` is the reader's
-    own SQL on the query surface, narrowed to ``scope_initiative_id``.
+    own SQL on the query surface, narrowed to ``scope_initiative_id``. A guest's
+    membership routes into the community's guest role, and asks for neither.
     """
 
     guild_id: int
@@ -264,11 +265,17 @@ class Member:
                 "routing a member takes the GuildContext the seam builds; call "
                 "app.api.deps.establish_guild_access"
             )
+        if self.standing.routes_as_guest and (self.seat or self.query):
+            raise ContextShapeError("a guest holds no seat and no query surface")
 
     def route(self) -> Route:
         from app.db.schema_provisioning import GuildRoleKind
 
-        if self.seat:
+        if self.standing.routes_as_guest:
+            kind = (
+                GuildRoleKind.guest_read_only if self.read_only else GuildRoleKind.guest
+            )
+        elif self.seat:
             kind = GuildRoleKind.seat
         elif self.query:
             kind = GuildRoleKind.query

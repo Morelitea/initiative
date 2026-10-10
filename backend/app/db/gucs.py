@@ -237,6 +237,11 @@ CONTENT_HOLD = Guc("app.content_hold", Kind.BOOL, standing=True)
 #: A live content grant at ``moderate`` covers the request: it may read what
 #: the platform holds (``app.db.holds``). Never set by membership.
 PAM_MODERATE = Guc("app.pam_moderate", Kind.BOOL, standing=True)
+#: The membership row's rung is ``guest``: the request is a guest's.
+GUEST = Guc("app.guest", Kind.BOOL, standing=True)
+#: A guest's initiatives of the items shared with them one at a time. Empty
+#: for everyone else.
+GUEST_ITEM_INITIATIVES = Guc("app.guest_item_initiatives", Kind.IDS, standing=True)
 
 # --- Somebody who filed a case ------------------------------------------------
 #: The tasks of the cases the routed account filed, read by the filer seam

@@ -846,9 +846,6 @@ async def _load_guild_context(
             ),
         )
     membership, guild, asked, age_gate_on = gate
-    # The guest rung has no community role of its own to assume yet.
-    if membership.role == CommunityRole.guest:
-        raise GuildAccessError()
     # Membership access respects the guild's lifecycle status: the statuses
     # that serve members are named, and every other one is refused, on every
     # surface. A suspended community is in time out — its administrators are
