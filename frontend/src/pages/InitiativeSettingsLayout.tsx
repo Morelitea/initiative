@@ -65,6 +65,7 @@ export const InitiativeSettingsLayout = () => {
         label: t("properties:manager.title"),
         path: gp(`${settingsRoute}/properties`),
       },
+      { value: "views", label: t("settings.viewsTab"), path: gp(`${settingsRoute}/views`) },
       // Aggregate export is managers+ (the community-wide variant lives in community
       // settings, admin-gated). The route refuses it too — this only keeps the
       // bar honest about where the reader can go.

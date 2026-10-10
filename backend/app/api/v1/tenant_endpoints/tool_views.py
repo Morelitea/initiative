@@ -9,10 +9,11 @@ with write access to it, or, for a shared page, managing the initiative.
 """
 
 from dataclasses import dataclass
-from typing import Annotated, Any, Optional
+from typing import Annotated, Any, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlmodel import select
+from sqlalchemy.orm import undefer
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api import resource_access
@@ -26,7 +27,13 @@ from app.core.messages import InitiativeMessages, ToolViewMessages
 from app.core.tools import VIEWS_PER_INSTANCE, VIEWS_SHARED, Tool
 from app.models.platform.user import User
 from app.models.tenant.initiative import Initiative
-from app.schemas.tenant.tool_view import ToolViewSetRead, ToolViewSetWrite
+from app.models.tenant.project import Project
+from app.schemas.tenant.tool_view import (
+    InitiativeToolViewsRead,
+    ToolViewSetRead,
+    ToolViewSetWrite,
+    ToolViewSummary,
+)
 from app.services import permissions as permissions_service
 from app.services.permissions import Action
 from app.services.tenant import tool_views as tool_views_service
@@ -67,13 +74,31 @@ async def _resolve(
         )
         if row.initiative_id is None:
             raise invalid
-        can_configure = permissions_service.allows(
-            row, Action.configure
-        ) and permissions_service.allows(row, Action.contribute)
-        return _Resolved(Target(tool, tool_id, row.initiative_id), can_configure, row)
+        return _Resolved(
+            Target(tool, tool_id, row.initiative_id), _configures(row), row
+        )
 
     if tool not in VIEWS_SHARED or tool_id is not None or initiative_id is None:
         raise invalid
+    await _require_initiative(session, context, initiative_id)
+    can_configure = not context.content_read_only and (
+        context.is_admin or initiative_id in context.manager_initiatives
+    )
+    return _Resolved(Target(tool, None, initiative_id), can_configure, None)
+
+
+def _configures(row: Any) -> bool:
+    """Whether the reader may change an instance's set: configure it, with
+    write access to it, as the database answered when it loaded the row."""
+    return permissions_service.allows(
+        row, Action.configure
+    ) and permissions_service.allows(row, Action.contribute)
+
+
+async def _require_initiative(
+    session: AsyncSession, context: GuildContext, initiative_id: int
+) -> None:
+    """A 404 unless the initiative exists and the reader is in it."""
     found = await session.exec(
         select(Initiative.id).where(Initiative.id == initiative_id)
     )
@@ -86,10 +111,6 @@ async def _resolve(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=InitiativeMessages.NOT_FOUND,
         )
-    can_configure = not context.content_read_only and (
-        context.is_admin or initiative_id in context.manager_initiatives
-    )
-    return _Resolved(Target(tool, None, initiative_id), can_configure, None)
 
 
 def _require_configure(resolved: _Resolved, context: GuildContext) -> None:
@@ -133,6 +154,59 @@ async def get_views(
         session, guild_context, current_user, tool, tool_id, initiative_id
     )
     return await _read(session, resolved)
+
+
+@router.get("/initiative", response_model=List[InitiativeToolViewsRead])
+async def get_initiative_views(
+    session: RLSSessionDep,
+    current_user: CurrentUser,
+    guild_context: GuildContextDep,
+    initiative_id: int = Query(),
+) -> List[InitiativeToolViewsRead]:
+    """The views of every project in the initiative the reader can open, by
+    name, each its own set or the shipped one, for the initiative's settings.
+    A set is changed on its own target."""
+    await _require_initiative(session, guild_context, initiative_id)
+    # Which projects the reader can open is the projects' own policy's answer.
+    projects = (
+        await session.exec(
+            select(Project)
+            .where(
+                Project.initiative_id == initiative_id,
+                col(Project.archived_at).is_(None),
+                col(Project.deleted_at).is_(None),
+            )
+            .options(undefer(Project.actions))
+            .order_by(col(Project.name), col(Project.id))
+        )
+    ).all()
+    stored = await tool_views_service.rows_by_instance(
+        session, initiative_id, Tool.project, [project.id for project in projects]
+    )
+    listed: List[InitiativeToolViewsRead] = []
+    for project in projects:
+        rows = stored.get(project.id, [])
+        views, layouts = tool_views_service.read_set(Tool.project, rows)
+        listed.append(
+            InitiativeToolViewsRead(
+                tool=Tool.project,
+                tool_id=project.id,
+                name=project.name,
+                views=[
+                    ToolViewSummary(
+                        name=view.name,
+                        slug=view.slug,
+                        layout=view.definition.layout.type,
+                        is_default=view.is_default,
+                    )
+                    for view in views
+                ],
+                stored=bool(rows),
+                has_item_layout=bool(layouts),
+                can_configure=_configures(project),
+            )
+        )
+    return listed
 
 
 @router.put("/", response_model=ToolViewSetRead)

@@ -272,7 +272,18 @@
       "turnedOffHeading": "Für diese Initiative ausgeschaltet",
       "turnedOffNote": "Diese gewähren nichts, bis das Werkzeug unter Details wieder eingeschaltet wird. Ihr Inhalt geht in der Zwischenzeit nicht verloren."
     },
-    "managerDescription": "Manager leiten diese Initiative — ihre Mitglieder, Rollen und Einstellungen — und können in jedem Werkzeug sehen und erstellen. Welche einzelnen Elemente sie öffnen können, hängt weiterhin davon ab, wie das jeweilige Element freigegeben ist."
+    "managerDescription": "Manager leiten diese Initiative — ihre Mitglieder, Rollen und Einstellungen — und können in jedem Werkzeug sehen und erstellen. Welche einzelnen Elemente sie öffnen können, hängt weiterhin davon ab, wie das jeweilige Element freigegeben ist.",
+    "viewsTab": "Ansichten",
+    "views": {
+      "heading": "Ansichten",
+      "description": "Die Ansichten jedes Projekts und ob es seine eigene Aufgabenseite hat. Die Ansichten eines Projekts werden in seinem Editor geändert.",
+      "noProjects": "Diese Initiative hat noch keine Projekte.",
+      "loadError": "Die Ansichten konnten nicht geladen werden.",
+      "default": "Wird zuerst geöffnet",
+      "shippedViews": "Die ausgelieferten Ansichten",
+      "ownTaskPage": "Eigene Aufgabenseite",
+      "shippedTaskPage": "Die ausgelieferte Aufgabenseite"
+    }
   },
   "advancedTools": "Werkzeuge",
   "advancedToolsDescription": "Wähle, woraus diese Initiative besteht. Projekte und Dateien sind von Anfang an aktiv; den Rest fügst du selbst hinzu.",

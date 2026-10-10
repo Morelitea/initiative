@@ -25,6 +25,7 @@ from typing import Annotated, Any, List, Literal, Optional, Union
 
 from pydantic import AfterValidator, ConfigDict, Field, field_validator
 
+from app.core.tools import Tool
 from app.models.tenant.task import TaskStatusCategory
 from app.schemas.base import SanitizedBaseModel
 from app.schemas.query import FilterOp
@@ -432,6 +433,35 @@ class ToolItemLayoutRead(SanitizedBaseModel):
     id: int
     item_kind: ItemLayoutKind
     definition: ItemLayoutDefinition
+
+
+class ToolViewSummary(SanitizedBaseModel):
+    """A view as a list of views names it."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    name: str
+    slug: str
+    layout: ViewLayoutType
+    is_default: bool
+
+
+class InitiativeToolViewsRead(SanitizedBaseModel):
+    """One instance's views, as its initiative's list of them shows them."""
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    tool: Tool
+    tool_id: int
+    #: The instance's own name.
+    name: str
+    views: List[ToolViewSummary]
+    #: Whether the set is the instance's own. False: the shipped views.
+    stored: bool
+    #: Whether it lays out its items' pages itself.
+    has_item_layout: bool
+    #: Whether this reader may change the set, computed server-side.
+    can_configure: bool
 
 
 class ToolViewSetRead(SanitizedBaseModel):

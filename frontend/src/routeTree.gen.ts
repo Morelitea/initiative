@@ -119,6 +119,7 @@ import { Route as ServerRequiredAuthenticatedCCommunityIdIInitiativeIdSettingsEx
 import { Route as ServerRequiredAuthenticatedCCommunityIdIInitiativeIdSettingsMembersRouteImport } from './routes/_serverRequired/_authenticated/c/$communityId/i/$initiativeId/settings/members'
 import { Route as ServerRequiredAuthenticatedCCommunityIdIInitiativeIdSettingsPropertiesRouteImport } from './routes/_serverRequired/_authenticated/c/$communityId/i/$initiativeId/settings/properties'
 import { Route as ServerRequiredAuthenticatedCCommunityIdIInitiativeIdSettingsRolesRouteImport } from './routes/_serverRequired/_authenticated/c/$communityId/i/$initiativeId/settings/roles'
+import { Route as ServerRequiredAuthenticatedCCommunityIdIInitiativeIdSettingsViewsRouteImport } from './routes/_serverRequired/_authenticated/c/$communityId/i/$initiativeId/settings/views'
 import { Route as ServerRequiredAuthenticatedCCommunityIdIInitiativeIdWikisIndexRouteImport } from './routes/_serverRequired/_authenticated/c/$communityId/i/$initiativeId/wikis/index'
 import { Route as ServerRequiredAuthenticatedCCommunityIdCalendarsCalendarIdEventsEventIdIndexRouteImport } from './routes/_serverRequired/_authenticated/c/$communityId/calendars/$calendarId/events/$eventId/index'
 import { Route as ServerRequiredAuthenticatedCCommunityIdCalendarsCalendarIdEventsEventIdSettingsRouteImport } from './routes/_serverRequired/_authenticated/c/$communityId/calendars/$calendarId/events/$eventId/settings'
@@ -901,6 +902,15 @@ const ServerRequiredAuthenticatedCCommunityIdIInitiativeIdSettingsRolesRoute =
         ServerRequiredAuthenticatedCCommunityIdIInitiativeIdSettingsRoute,
     } as any,
   )
+const ServerRequiredAuthenticatedCCommunityIdIInitiativeIdSettingsViewsRoute =
+  ServerRequiredAuthenticatedCCommunityIdIInitiativeIdSettingsViewsRouteImport.update(
+    {
+      id: '/views',
+      path: '/views',
+      getParentRoute: () =>
+        ServerRequiredAuthenticatedCCommunityIdIInitiativeIdSettingsRoute,
+    } as any,
+  )
 const ServerRequiredAuthenticatedCCommunityIdIInitiativeIdWikisIndexRoute =
   ServerRequiredAuthenticatedCCommunityIdIInitiativeIdWikisIndexRouteImport.update(
     {
@@ -1530,6 +1540,7 @@ export interface FileRoutesByFullPath {
   '/c/$communityId/i/$initiativeId/settings/members': typeof ServerRequiredAuthenticatedCCommunityIdIInitiativeIdSettingsMembersRoute
   '/c/$communityId/i/$initiativeId/settings/properties': typeof ServerRequiredAuthenticatedCCommunityIdIInitiativeIdSettingsPropertiesRoute
   '/c/$communityId/i/$initiativeId/settings/roles': typeof ServerRequiredAuthenticatedCCommunityIdIInitiativeIdSettingsRolesRoute
+  '/c/$communityId/i/$initiativeId/settings/views': typeof ServerRequiredAuthenticatedCCommunityIdIInitiativeIdSettingsViewsRoute
   '/c/$communityId/calendars/$calendarId/settings/': typeof ServerRequiredAuthenticatedCCommunityIdCalendarsCalendarIdSettingsIndexRoute
   '/c/$communityId/i/$initiativeId/calendars/': typeof ServerRequiredAuthenticatedCCommunityIdIInitiativeIdCalendarsIndexRoute
   '/c/$communityId/i/$initiativeId/counter-groups/': typeof ServerRequiredAuthenticatedCCommunityIdIInitiativeIdCounterGroupsIndexRoute
@@ -1691,6 +1702,7 @@ export interface FileRoutesByTo {
   '/c/$communityId/i/$initiativeId/settings/members': typeof ServerRequiredAuthenticatedCCommunityIdIInitiativeIdSettingsMembersRoute
   '/c/$communityId/i/$initiativeId/settings/properties': typeof ServerRequiredAuthenticatedCCommunityIdIInitiativeIdSettingsPropertiesRoute
   '/c/$communityId/i/$initiativeId/settings/roles': typeof ServerRequiredAuthenticatedCCommunityIdIInitiativeIdSettingsRolesRoute
+  '/c/$communityId/i/$initiativeId/settings/views': typeof ServerRequiredAuthenticatedCCommunityIdIInitiativeIdSettingsViewsRoute
   '/c/$communityId/calendars/$calendarId/settings': typeof ServerRequiredAuthenticatedCCommunityIdCalendarsCalendarIdSettingsIndexRoute
   '/c/$communityId/i/$initiativeId/calendars': typeof ServerRequiredAuthenticatedCCommunityIdIInitiativeIdCalendarsIndexRoute
   '/c/$communityId/i/$initiativeId/counter-groups': typeof ServerRequiredAuthenticatedCCommunityIdIInitiativeIdCounterGroupsIndexRoute
@@ -1854,6 +1866,7 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/c/$communityId/i/$initiativeId/settings/members': typeof ServerRequiredAuthenticatedCCommunityIdIInitiativeIdSettingsMembersRoute
   '/_serverRequired/_authenticated/c/$communityId/i/$initiativeId/settings/properties': typeof ServerRequiredAuthenticatedCCommunityIdIInitiativeIdSettingsPropertiesRoute
   '/_serverRequired/_authenticated/c/$communityId/i/$initiativeId/settings/roles': typeof ServerRequiredAuthenticatedCCommunityIdIInitiativeIdSettingsRolesRoute
+  '/_serverRequired/_authenticated/c/$communityId/i/$initiativeId/settings/views': typeof ServerRequiredAuthenticatedCCommunityIdIInitiativeIdSettingsViewsRoute
   '/_serverRequired/_authenticated/c/$communityId/calendars/$calendarId/settings/': typeof ServerRequiredAuthenticatedCCommunityIdCalendarsCalendarIdSettingsIndexRoute
   '/_serverRequired/_authenticated/c/$communityId/i/$initiativeId/calendars/': typeof ServerRequiredAuthenticatedCCommunityIdIInitiativeIdCalendarsIndexRoute
   '/_serverRequired/_authenticated/c/$communityId/i/$initiativeId/counter-groups/': typeof ServerRequiredAuthenticatedCCommunityIdIInitiativeIdCounterGroupsIndexRoute
@@ -2025,6 +2038,7 @@ export interface FileRouteTypes {
     | '/c/$communityId/i/$initiativeId/settings/members'
     | '/c/$communityId/i/$initiativeId/settings/properties'
     | '/c/$communityId/i/$initiativeId/settings/roles'
+    | '/c/$communityId/i/$initiativeId/settings/views'
     | '/c/$communityId/calendars/$calendarId/settings/'
     | '/c/$communityId/i/$initiativeId/calendars/'
     | '/c/$communityId/i/$initiativeId/counter-groups/'
@@ -2186,6 +2200,7 @@ export interface FileRouteTypes {
     | '/c/$communityId/i/$initiativeId/settings/members'
     | '/c/$communityId/i/$initiativeId/settings/properties'
     | '/c/$communityId/i/$initiativeId/settings/roles'
+    | '/c/$communityId/i/$initiativeId/settings/views'
     | '/c/$communityId/calendars/$calendarId/settings'
     | '/c/$communityId/i/$initiativeId/calendars'
     | '/c/$communityId/i/$initiativeId/counter-groups'
@@ -2348,6 +2363,7 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/c/$communityId/i/$initiativeId/settings/members'
     | '/_serverRequired/_authenticated/c/$communityId/i/$initiativeId/settings/properties'
     | '/_serverRequired/_authenticated/c/$communityId/i/$initiativeId/settings/roles'
+    | '/_serverRequired/_authenticated/c/$communityId/i/$initiativeId/settings/views'
     | '/_serverRequired/_authenticated/c/$communityId/calendars/$calendarId/settings/'
     | '/_serverRequired/_authenticated/c/$communityId/i/$initiativeId/calendars/'
     | '/_serverRequired/_authenticated/c/$communityId/i/$initiativeId/counter-groups/'
@@ -3196,6 +3212,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ServerRequiredAuthenticatedCCommunityIdIInitiativeIdSettingsRolesRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedCCommunityIdIInitiativeIdSettingsRoute
     }
+    '/_serverRequired/_authenticated/c/$communityId/i/$initiativeId/settings/views': {
+      id: '/_serverRequired/_authenticated/c/$communityId/i/$initiativeId/settings/views'
+      path: '/views'
+      fullPath: '/c/$communityId/i/$initiativeId/settings/views'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedCCommunityIdIInitiativeIdSettingsViewsRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedCCommunityIdIInitiativeIdSettingsRoute
+    }
     '/_serverRequired/_authenticated/c/$communityId/i/$initiativeId/wikis/': {
       id: '/_serverRequired/_authenticated/c/$communityId/i/$initiativeId/wikis/'
       path: '/wikis'
@@ -3699,6 +3722,7 @@ interface ServerRequiredAuthenticatedCCommunityIdIInitiativeIdSettingsRouteChild
   ServerRequiredAuthenticatedCCommunityIdIInitiativeIdSettingsMembersRoute: typeof ServerRequiredAuthenticatedCCommunityIdIInitiativeIdSettingsMembersRoute
   ServerRequiredAuthenticatedCCommunityIdIInitiativeIdSettingsPropertiesRoute: typeof ServerRequiredAuthenticatedCCommunityIdIInitiativeIdSettingsPropertiesRoute
   ServerRequiredAuthenticatedCCommunityIdIInitiativeIdSettingsRolesRoute: typeof ServerRequiredAuthenticatedCCommunityIdIInitiativeIdSettingsRolesRoute
+  ServerRequiredAuthenticatedCCommunityIdIInitiativeIdSettingsViewsRoute: typeof ServerRequiredAuthenticatedCCommunityIdIInitiativeIdSettingsViewsRoute
   ServerRequiredAuthenticatedCCommunityIdIInitiativeIdSettingsIndexRoute: typeof ServerRequiredAuthenticatedCCommunityIdIInitiativeIdSettingsIndexRoute
 }
 
@@ -3714,6 +3738,8 @@ const ServerRequiredAuthenticatedCCommunityIdIInitiativeIdSettingsRouteChildren:
       ServerRequiredAuthenticatedCCommunityIdIInitiativeIdSettingsPropertiesRoute,
     ServerRequiredAuthenticatedCCommunityIdIInitiativeIdSettingsRolesRoute:
       ServerRequiredAuthenticatedCCommunityIdIInitiativeIdSettingsRolesRoute,
+    ServerRequiredAuthenticatedCCommunityIdIInitiativeIdSettingsViewsRoute:
+      ServerRequiredAuthenticatedCCommunityIdIInitiativeIdSettingsViewsRoute,
     ServerRequiredAuthenticatedCCommunityIdIInitiativeIdSettingsIndexRoute:
       ServerRequiredAuthenticatedCCommunityIdIInitiativeIdSettingsIndexRoute,
   }

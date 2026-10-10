@@ -496,8 +496,12 @@ const wikiPage = (pageId: number): Spec => ({ communityExact: [`/api/v1/wiki-pag
 
 // ── Views (community) ────────────────────────────────────────────────────────
 
-/** Every set of views. One path serves them all, its target in the params. */
-const views = (): Spec => ({ communityExact: ["/api/v1/views/"] });
+/** An initiative's list of its tools' views, for its settings. */
+const initiativeViews = (): Spec => ({ communityExact: ["/api/v1/views/initiative"] });
+
+/** Every set of views (one path serves them all, its target in the params),
+ *  and the initiatives' lists of them. */
+const views = (): Spec => compose({ communityExact: ["/api/v1/views/"] }, initiativeViews());
 
 // ── Version (personal) ───────────────────────────────────────────────────────
 
@@ -689,6 +693,7 @@ export const q = {
   toolSubtree,
   userStats,
   version,
+  initiativeViews,
   views,
   wiki,
   wikiPage,
