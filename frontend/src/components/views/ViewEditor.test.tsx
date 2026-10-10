@@ -21,19 +21,19 @@ import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import type { ToolViewSetRead, ToolViewSetWrite } from "@/api/generated/initiativeAPI.schemas";
 
-import { ViewEditor } from "./ViewEditor";
+import { TASK_PAGE, ViewEditor } from "./ViewEditor";
 
 const STATUSES = buildDefaultTaskStatuses(1);
 
 let saves: ToolViewSetWrite[] = [];
 
-const editor = (slug: string, onClose = vi.fn()) => {
+const editor = (slug: string, onClose = vi.fn(), set = buildToolViewSet()) => {
   renderPage(() => (
     <ViewEditor
       projectId={1}
       initiativeId={1}
       statuses={STATUSES}
-      set={buildToolViewSet()}
+      set={set}
       initialSlug={slug}
       onClose={onClose}
     />
@@ -47,6 +47,17 @@ const canvas = () => screen.findByRole("region", { name: /preview/i });
 beforeEach(() => {
   saves = [];
   server.use(
+    communityHttp.get("/tasks/:taskId", () =>
+      HttpResponse.json({
+        ...buildTask({
+          id: 7,
+          project_id: 1,
+          title: "Draw the map",
+          task_status_id: STATUSES[0].id,
+        }),
+        description: "Every road, to scale.",
+      })
+    ),
     communityHttp.get("/tasks/", () =>
       HttpResponse.json(
         buildTaskListResponse([
@@ -251,5 +262,61 @@ describe("ViewEditor", () => {
     await user.click(screen.getByRole("button", { name: /^leave$/i }));
 
     expect(onClose).toHaveBeenCalled();
+  });
+
+  describe("the task page", () => {
+    it("moves a field taken off it to More fields, and stores the page whole", async () => {
+      const { user } = editor(TASK_PAGE);
+      expect(await within(await canvas()).findByDisplayValue("Draw the map")).toBeInTheDocument();
+
+      await user.click(
+        within(await outline()).getByRole("button", { name: /move tags to more fields/i })
+      );
+
+      expect(within(await outline()).getByText("More fields")).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: /^save$/i }));
+      await waitFor(() => expect(saves).toHaveLength(1));
+      const [layout] = saves[0].item_layouts ?? [];
+      expect(layout?.item_kind).toBe("task");
+      expect(JSON.stringify(layout?.definition.side)).not.toContain('"tags"');
+      expect(JSON.stringify(layout?.definition)).not.toContain('"order"');
+    });
+
+    it("adds a section where it was asked for, titled as typed", async () => {
+      const { user } = editor(TASK_PAGE);
+
+      await user.click(
+        await within(await outline()).findByRole("button", { name: "Side", pressed: false })
+      );
+      await user.click(within(await outline()).getByRole("button", { name: /^add$/i }));
+      await user.click(await screen.findByRole("button", { name: "Section" }));
+      await user.type(screen.getByLabelText(/^title$/i), "Planning{Enter}");
+      await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+      await waitFor(() => expect(saves).toHaveLength(1));
+      expect(saves[0].item_layouts?.[0]?.definition.side?.at(-1)).toEqual({
+        type: "section",
+        props: { title: "Planning" },
+        children: [],
+      });
+    });
+
+    it("goes back to the shipped page", async () => {
+      const { user } = editor(
+        TASK_PAGE,
+        vi.fn(),
+        buildToolViewSet({
+          item_layouts: [
+            { id: 1, item_kind: "task", definition: { main: [{ type: "comments" }] } },
+          ],
+        })
+      );
+
+      await user.click(await screen.findByRole("button", { name: /use the shipped page/i }));
+      await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+      await waitFor(() => expect(saves).toHaveLength(1));
+      expect(saves[0].item_layouts).toEqual([]);
+    });
   });
 });

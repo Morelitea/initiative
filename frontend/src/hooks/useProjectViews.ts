@@ -13,6 +13,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import {
   type GetViewsParams,
+  type ItemLayoutDefinitionInput,
   Tool,
   type ToolViewSetRead,
   type ToolViewSetWrite,
@@ -79,11 +80,21 @@ export const usePutProjectViews = (
     options
   );
 
-/** `set` to save with its views replaced by `views`, in order, keeping its
- *  item layouts. */
-export const viewSetWrite = (set: ToolViewSetRead, views: ToolViewWrite[]): ToolViewSetWrite => ({
+/** The project's task page layout, or null where it draws the shipped page. */
+export const taskPageOf = (set: ToolViewSetRead | undefined): ItemLayoutDefinitionInput | null =>
+  (set?.item_layouts.find((layout) => layout.item_kind === "task")?.definition as
+    | ItemLayoutDefinitionInput
+    | undefined) ?? null;
+
+/** `set` to save with its views replaced by `views`, in order, and its task
+ *  page by `taskPage` where given (null: the shipped page). */
+export const viewSetWrite = (
+  set: ToolViewSetRead,
+  views: ToolViewWrite[],
+  taskPage: ItemLayoutDefinitionInput | null = taskPageOf(set)
+): ToolViewSetWrite => ({
   views,
-  item_layouts: set.item_layouts.map(({ item_kind, definition }) => ({ item_kind, definition })),
+  item_layouts: taskPage ? [{ item_kind: "task", definition: taskPage }] : [],
 });
 
 /** `set`'s views as a save takes them, to change and pass to {@link viewSetWrite}. */
