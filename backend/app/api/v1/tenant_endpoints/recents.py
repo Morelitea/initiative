@@ -212,7 +212,6 @@ async def record_recent(
         entity_type=entity_type,
         entity_id=row.id,
         persist=not guild_context.is_pam,
-        limit=current_user.recent_tabs_limit,
     )
     return RecentViewWrite(
         entity_type=entity_type,

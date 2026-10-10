@@ -279,7 +279,7 @@ class User(SQLModel, table=True):
     )
     # How many recently-opened items the header tabs bar keeps and shows for
     # this user, across all entity types and guilds. Drives both the display
-    # count and the per-guild prune cap (see app.services.recent_views).
+    # count and how many each guild keeps (app.services.tenant.recent_views).
     # Clamped to [1, 100] on write; default 20 preserves the historic behavior.
     recent_tabs_limit: int = Field(
         default=20,

@@ -14,10 +14,14 @@ import pytest
 
 from app.db.session import set_rls_context
 from app.models.tenant.plugin_event_outbox import PluginEventOutbox
+from sqlmodel import select, update
+
 from app.models.tenant.event_outbox import EventOutbox
+from app.models.tenant.webhook_delivery import WebhookDelivery
 from app.models.tenant.webhook_subscription import WebhookSubscription
 from app.services import outbox_ledger
-from app.services.tenant import outbox_poller
+from app.services.guild_sweeps import Scope, each_guild
+from app.services.tenant import change_log, expiry, outbox_poller
 from app.db.request_context import SystemGuild
 
 
@@ -190,7 +194,8 @@ async def test_ledger_delivers_each_transaction_once(
     session, role_session, acting_user, monkeypatch
 ):
     """A drain marks each pending transaction delivered, and a second pass over
-    the same log sends nothing further."""
+    the same log sends nothing further. Past the change log's retention, the
+    changes and their ledger rows go together."""
     from app.models.platform.guild import CommunityRole
     from app.services.tenant import outbox_poller as poller
     from app.testing import create_task
@@ -233,6 +238,16 @@ async def test_ledger_delivers_each_transaction_once(
         "a settled transaction was delivered twice — the ledger row should make "
         "it ineligible on every later pass"
     )
+
+    assert (await session.exec(select(WebhookDelivery))).all()
+    aged = datetime.now(timezone.utc) - change_log.RETENTION - timedelta(hours=1)
+    await session.exec(update(EventOutbox).values(occurred_at=aged))
+    await session.commit()
+    await each_guild(
+        [(Scope.PROVISIONED, await expiry.prepare())], name="test", only=[guild_id]
+    )
+    assert (await session.exec(select(EventOutbox))).all() == []
+    assert (await session.exec(select(WebhookDelivery))).all() == []
 
 
 async def test_a_refused_batch_is_retried_not_lost(

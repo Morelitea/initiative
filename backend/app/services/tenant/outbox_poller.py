@@ -1,7 +1,7 @@
 """Drain ``event_outbox`` and ``plugin_event_outbox`` to each subscription's target.
 
 The change log and the events installed plug-ins emit share one delivery: the same
-ledger, backoff, dead-letter and retention, and one envelope per transaction,
+ledger, backoff and dead-letter, and one envelope per transaction,
 where a plug-in event is one entry in ``changes`` carrying its payload. A plug-in
 event reaches a subscription by the rules in :func:`_matches_plugin_event`.
 
@@ -68,10 +68,10 @@ import logging
 import uuid
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
-from typing import Any
+from datetime import datetime, timezone
+from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import Table, and_, delete, func, or_, text
+from sqlalchemy import Table, and_, func, or_, text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -81,7 +81,6 @@ from app.db.session import (
     set_rls_context,
 )
 from app.models.tenant.plugin_event_outbox import PluginEventOutbox
-from app.models.tenant.plugin_hook_delivery import PluginHookDelivery
 from app.models.tenant.plugin_placement import PluginPlacement
 from app.models.tenant.event_outbox import EventOutbox
 from app.models.tenant.guild_plugin import GuildPlugin
@@ -94,14 +93,13 @@ from app.services.tenant import room_sink, webhook_refs
 from app.services.tenant.webhook_dispatcher import deliver
 from app.db.request_context import SystemGuild, SystemMaintenance
 
+if TYPE_CHECKING:
+    from app.services.tenant.expiry import Expiring
+
 logger = logging.getLogger(__name__)
 
 #: How long the drain lets further changes gather before it visits.
 DRAIN_SETTLE_SECONDS = 1.0
-
-#: How long delivered change events are kept. A subscriber further behind than
-#: this has stopped consuming and resumes from the current head.
-OUTBOX_RETENTION_DAYS = 7
 
 #: Transactions a subscription may take in one pass. A throughput bound only —
 #: anything not taken remains exactly as visible next pass.
@@ -719,33 +717,14 @@ async def drain_guild(
             await set_rls_context(session, SystemGuild(guild_id))
 
 
-async def expire_history(session: AsyncSession, guild_id: int) -> None:
-    """Drop the community's outbox history past the window: change events and
-    plug-in events, the ledger rows naming their transactions, and the vendor
-    webhook delivery ids past their expiry.
-
-    Age-based on purpose: a subscription weeks behind is broken, and holding
-    the log open for it would grow the table without bound on every instance
-    that never configures a target at all. Ledger rows go with the events they
-    describe, so the pair stays the same size.
-    """
-    now = datetime.now(timezone.utc)
-    cutoff = now - timedelta(days=OUTBOX_RETENTION_DAYS)
-    txn_ids: set[int] = set()
-    for log in (EventOutbox, PluginEventOutbox):
-        removed = await session.exec(
-            delete(log).where(log.occurred_at < cutoff).returning(log.txn_id)
-        )
-        txn_ids.update(txn_id for (txn_id,) in removed.all())
-    if txn_ids:
-        await session.exec(
-            text(
-                "DELETE FROM webhook_deliveries WHERE txn_id = ANY(:txn_ids)"
-            ).bindparams(txn_ids=sorted(txn_ids))
-        )
-        logger.info(
-            "outbox retention: guild=%s transactions=%s", guild_id, len(txn_ids)
-        )
+async def expire_deliveries(session: AsyncSession, expiring: Expiring) -> None:
+    """Drop the ledger rows naming transactions the change log let go: they go
+    with the events they describe, so the pair stays the same size."""
+    if not expiring.expired_txns:
+        return
     await session.exec(
-        delete(PluginHookDelivery).where(PluginHookDelivery.expires_at < now)
+        text("DELETE FROM webhook_deliveries WHERE txn_id = ANY(:txn_ids)").bindparams(
+            txn_ids=sorted(expiring.expired_txns)
+        )
     )
+    logger.info("outbox retention: transactions=%s", len(expiring.expired_txns))
