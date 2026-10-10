@@ -495,8 +495,15 @@ async def search_users(
             page=page,
             page_size=page_size,
         )
+    # Scoped to content, or naming people already chosen, the picker lists the
+    # community's guests too; across the whole community it is the roster.
+    scoped = (
+        initiative_id is not None
+        or bool(user_id)
+        or (tool is not None and resource_id is not None)
+    )
     base = users_service.guild_members(
-        select(MemberProfile), guild_id=guild_context.guild_id
+        select(MemberProfile), guild_id=guild_context.guild_id, guests=scoped
     )
     if initiative_id is not None:
         base = base.where(_in_initiative(initiative_id))

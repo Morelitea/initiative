@@ -14,7 +14,12 @@ from app.services.platform import app_settings as app_settings_service
 from app.services.platform import guests
 from app.services.platform import guilds as guilds_service
 from app.services.platform import users as users_service
-from app.testing import create_guild_membership, create_user, get_auth_headers
+from app.testing import (
+    create_guild_membership,
+    create_initiative_member,
+    create_user,
+    get_auth_headers,
+)
 
 HOUR = timedelta(hours=1)
 
@@ -103,12 +108,53 @@ async def test_guests_take_no_seat_and_are_not_on_the_roster(acting_user, sessio
     assert listed == [a.user.id]
 
 
-async def test_an_ended_guest_is_swept_away(acting_user, session):
+async def test_a_picker_scoped_to_content_names_a_guest_and_the_roster_does_not(
+    client, acting_user, session
+):
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True)
+    await _platform(session)
+    guest = await _guest(session, a.guild, role=CommunityRole.guest)
+    await create_initiative_member(session, a.initiative, guest)
+    guest_id = guest.id
+
+    async def found(**params) -> set[int]:
+        response = await client.get(
+            a.g("/users/search"), params=params, headers=a.headers
+        )
+        assert response.status_code == 200, response.text
+        return {row["id"] for row in response.json()["items"]}
+
+    assert guest_id in await found(initiative_id=a.initiative.id)
+    assert guest_id in await found(user_id=guest_id)
+    assert guest_id not in await found()
+
+
+async def test_an_ended_guest_is_swept_away(acting_user, session, monkeypatch):
     a = await acting_user(guild_role=CommunityRole.admin)
     await _platform(session)
     ended = await _guest(session, a.guild, role=CommunityRole.guest, ends_in=-HOUR)
     staying = await _guest(session, a.guild, role=CommunityRole.guest)
+    rejoined = await _guest(session, a.guild, role=CommunityRole.guest, ends_in=-HOUR)
     guild_id, ended_id, staying_id = a.guild.id, ended.id, staying.id
+    rejoined_id = rejoined.id
+    # Found ended, then back as a member before the sweep reaches the guild.
+    each_guild = guests.each_guild
+
+    async def rejoin_first(visits, **kwargs):
+        membership = (
+            await session.exec(
+                select(GuildMembership).where(
+                    GuildMembership.guild_id == guild_id,
+                    GuildMembership.user_id == rejoined_id,
+                )
+            )
+        ).one()
+        membership.role, membership.guest_until = CommunityRole.member, None
+        session.add(membership)
+        await session.commit()
+        await each_guild(visits, **kwargs)
+
+    monkeypatch.setattr(guests, "each_guild", rejoin_first)
 
     await guests.end_expired_guests()
 
@@ -122,7 +168,8 @@ async def test_an_ended_guest_is_swept_away(acting_user, session):
             )
         ).all()
     )
-    assert staying_id in remaining and ended_id not in remaining
+    assert ended_id not in remaining
+    assert {staying_id, rejoined_id} <= remaining
 
 
 async def test_a_guest_rung_is_not_changed_as_a_member_role(

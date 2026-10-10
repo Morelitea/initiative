@@ -6,12 +6,14 @@
   ``demo_mode`` (written from ``DEMO_MODE`` at boot).
 - ``public.guest_membership_live()``: whether a guest row admits its holder
   now. ``guild_superadmin()`` reads a membership row through it.
+- The install floor, which reads a member token's own membership row by column,
+  may read ``guest_until`` and ``role`` too, to ask whether that row is live.
 
 New columns on existing tables with defaults that need no backfill, so RLS
 stays as it is.
 
-Revision ID: 20261010_0486
-Revises: 20261010_0485
+Revision ID: 20261010_0488
+Revises: 20261010_0487
 Create Date: 2026-10-10
 """
 
@@ -20,8 +22,8 @@ from __future__ import annotations
 import sqlalchemy as sa
 from alembic import op
 
-revision = "20261010_0486"
-down_revision = "20261010_0485"
+revision = "20261010_0488"
+down_revision = "20261010_0487"
 branch_labels = None
 depends_on = None
 
@@ -123,13 +125,26 @@ def upgrade() -> None:
     )
     op.execute(GUEST_MEMBERSHIP_LIVE)
     op.execute(GUILD_SUPERADMIN_AFTER)
+    op.execute(
+        "GRANT SELECT (guest_until, role) ON public.guild_memberships"
+        " TO plugin_install_base"
+    )
 
 
 def downgrade() -> None:
-    op.execute(GUILD_SUPERADMIN_BEFORE)
     op.execute(
-        "DROP FUNCTION IF EXISTS public.guest_membership_live(timestamptz, public.guild_role)"
+        "REVOKE SELECT (guest_until, role) ON public.guild_memberships"
+        " FROM plugin_install_base"
     )
+    op.execute(GUILD_SUPERADMIN_BEFORE)
+    # The shared-table policies that ask it (``member_of_guild``) go with it.
+    # Clearing the stamp makes the version being returned to render them again
+    # on its boot (``public_rls.apply_public_rls_if_changed``).
+    op.execute(
+        "DROP FUNCTION IF EXISTS"
+        " public.guest_membership_live(timestamptz, public.guild_role) CASCADE"
+    )
+    op.execute("COMMENT ON SCHEMA public IS NULL")
     op.drop_column("app_settings", "demo_mode")
     op.drop_constraint("ck_app_settings_max_guest_days", "app_settings", type_="check")
     op.drop_column("app_settings", "max_guest_days")

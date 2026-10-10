@@ -12,7 +12,7 @@ the plug-in called; everything above it runs for real.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 import httpx
@@ -26,7 +26,7 @@ from app.core.plugin_access_token import seal_install_token
 from app.core.audit_events import AuditEventType
 from app.core.config import settings
 from app.core.messages import PluginDataMessages, PluginHubMessages
-from app.models.platform.guild import CommunityRole
+from app.models.platform.guild import CommunityRole, GuildMembership
 from app.models.tenant.plugin_member_consent import PluginMemberConsent
 from app.models.tenant.plugin_placement import PluginPlacement
 from app.models.tenant.guild_plugin import GuildPlugin
@@ -625,23 +625,43 @@ async def test_every_call_is_written_to_the_audit_stream_without_its_params(
     assert "secret-repo-name" not in str(answered)
 
 
+@pytest.mark.parametrize("ended", ["consent", "guest_time"])
 async def test_a_member_token_for_a_member_who_left_is_refused(
-    client: AsyncClient, session: AsyncSession, acting_user, role_session, upstream
+    client: AsyncClient,
+    session: AsyncSession,
+    acting_user,
+    role_session,
+    upstream,
+    ended,
 ):
-    """The install seam still stands the token up first: a withdrawn consent
-    leaves the member token nothing to act with."""
+    """The install seam still stands the token up first: a withdrawn consent,
+    or a guest's time running out, leaves the member token nothing to act
+    with."""
     installed, _target = await _hub(session, acting_user, role_session)
     member = await _member(session, acting_user, installed)
-    await route_session_to_guild(session, installed.guild.id)
-    consent = (
-        await session.exec(
-            select(PluginMemberConsent).where(
-                PluginMemberConsent.user_id == member.user.id
+    now = datetime.now(timezone.utc)
+    if ended == "consent":
+        await route_session_to_guild(session, installed.guild.id)
+        consent = (
+            await session.exec(
+                select(PluginMemberConsent).where(
+                    PluginMemberConsent.user_id == member.user.id
+                )
             )
-        )
-    ).one()
-    consent.revoked_at = datetime.now(timezone.utc)
-    session.add(consent)
+        ).one()
+        consent.revoked_at = now
+        session.add(consent)
+    else:
+        membership = (
+            await session.exec(
+                select(GuildMembership).where(
+                    GuildMembership.guild_id == installed.guild.id,
+                    GuildMembership.user_id == member.user.id,
+                )
+            )
+        ).one()
+        membership.guest_until = now - timedelta(minutes=1)
+        session.add(membership)
     await session.commit()
 
     response = await client.post(

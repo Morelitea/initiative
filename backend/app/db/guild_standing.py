@@ -488,6 +488,7 @@ install AS (
         SELECT 1
         FROM public.guild_memberships m
         WHERE m.guild_id = {gucs.GUILD_ID} AND m.user_id = {gucs.USER_ID}
+          AND {live_membership("m")}
       )
       AND EXISTS (
         SELECT 1

@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 from functools import partial
 
+from sqlalchemy import func
 from sqlmodel import col, select
 
 from app.db import post_commit
@@ -29,8 +30,6 @@ GUEST_EXPIRY_POLL_SECONDS = 300
 
 async def end_expired_guests() -> None:
     """Remove each guest membership whose ``guest_until`` has passed."""
-    from sqlalchemy import func
-
     from app.db.session import SystemSessionLocal
 
     async with SystemSessionLocal() as session:
@@ -50,16 +49,19 @@ async def end_expired_guests() -> None:
 
     async def end(session, guild_id: int) -> None:
         for user_id in by_guild[guild_id]:
-            await guilds_service.remove_user_from_guild(
+            # Removed only while the row is still an ended guest's: the person
+            # may have been removed and come back since the list was read.
+            if await guilds_service.remove_user_from_guild(
                 session,
                 guild_id=guild_id,
                 user_id=user_id,
                 actor_user_id=None,
                 via="expired",
-            )
-            post_commit.after_commit(
-                session, partial(content_sockets.revoke_user, guild_id, user_id)
-            )
+                only_if=col(GuildMembership.guest_until) <= func.now(),
+            ):
+                post_commit.after_commit(
+                    session, partial(content_sockets.revoke_user, guild_id, user_id)
+                )
         await session.commit()
 
     await each_guild(
