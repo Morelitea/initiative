@@ -74,8 +74,9 @@ import {
   useProjectTaskView,
 } from "@/hooks/useProjectTaskView";
 import {
+  projectTarget,
   useProjectViews,
-  usePutProjectViews,
+  usePutToolViews,
   viewSetWrite,
   viewWrites,
 } from "@/hooks/useProjectViews";
@@ -262,7 +263,7 @@ export const ProjectTasksSection = ({
   const activeViewName = view ? viewName(view, t) : "";
 
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
-  const putViews = usePutProjectViews(projectId);
+  const putViews = usePutToolViews(projectTarget(projectId));
 
   /** Save the layout and filters on screen as a new view, and switch to it:
    *  the view this person tweaked goes back to its own filters. */

@@ -276,13 +276,16 @@
     "viewsTab": "Views",
     "views": {
       "heading": "Views",
-      "description": "Each project's views, and whether it lays out its own task page. A project's views are changed in its editor.",
+      "description": "Each project's views, and whether it lays out its own task page, then the calendar's event page. A project's views are changed in its editor.",
       "noProjects": "This initiative has no projects yet.",
       "loadError": "Couldn't load the views.",
       "default": "Opens first",
       "shippedViews": "The shipped views",
       "ownTaskPage": "Its own task page",
-      "shippedTaskPage": "The shipped task page"
+      "shippedTaskPage": "The shipped task page",
+      "calendar": "Calendar",
+      "ownEventPage": "Its own event page",
+      "shippedEventPage": "The shipped event page"
     }
   },
   "advancedTools": "Tools",

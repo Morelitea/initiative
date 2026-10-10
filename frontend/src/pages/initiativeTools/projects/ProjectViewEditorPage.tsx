@@ -8,12 +8,14 @@
  */
 
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
+import { useMemo } from "react";
 
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { ToolSettingsPermissionRequired } from "@/components/tools/settings/ToolSettingsGuard";
-import { TASK_PAGE, ViewEditor } from "@/components/views/ViewEditor";
+import { taskPage } from "@/components/views/pages";
+import { pageKey, ViewEditor } from "@/components/views/ViewEditor";
 import { useProject, useProjectTaskStatuses } from "@/hooks/useProjects";
-import { useProjectViews } from "@/hooks/useProjectViews";
+import { projectTarget, useProjectViews } from "@/hooks/useProjectViews";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { toolSettingsRoute } from "@/lib/tools";
 
@@ -28,16 +30,25 @@ export const ProjectViewEditorPage = () => {
   const project = useProject(id).data;
   const statuses = useProjectTaskStatuses(id).data;
   const set = useProjectViews(id).data;
+  const editing = useMemo(
+    () =>
+      project && statuses
+        ? { id: project.id, initiativeId: project.initiative_id, statuses }
+        : null,
+    [project, statuses]
+  );
+  const pages = useMemo(() => (editing ? [taskPage(editing)] : []), [editing]);
 
-  if (!project || !statuses || !set || id === null) return null;
+  if (!project || !editing || !set || id === null) return null;
   if (!set.can_configure) return <ToolSettingsPermissionRequired />;
   return (
     <ViewEditor
-      projectId={id}
+      target={projectTarget(id)}
       initiativeId={project.initiative_id}
-      statuses={statuses}
+      project={editing}
+      pages={pages}
       set={set}
-      initialSlug={page === "task" ? TASK_PAGE : view}
+      initialSlug={page === "task" ? pageKey("task") : view}
       onClose={() =>
         void navigate({
           to: gp(`${toolSettingsRoute(Tool.project, project.initiative_id, id)}/views`),

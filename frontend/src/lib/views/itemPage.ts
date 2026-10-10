@@ -4,7 +4,10 @@
  * column, the fields placed nowhere, and the layout a page is stored as.
  */
 
-import type { ItemLayoutDefinitionInput } from "@/api/generated/initiativeAPI.schemas";
+import type {
+  ItemLayoutDefinitionInput,
+  ToolItemLayoutWrite,
+} from "@/api/generated/initiativeAPI.schemas";
 
 import type { ViewNode } from "./tree";
 
@@ -56,10 +59,20 @@ export const storedLayout = (root: ViewNode): ItemLayoutDefinitionInput => {
   } as ItemLayoutDefinitionInput;
 };
 
+/** The parts any page lays out with, as against an item's own. */
+const LAYOUT_PARTS = new Set(["section", "stack", "field", "properties", "plugin"]);
+
 /** One kind of item's page: as shipped, and as a stored layout draws it. */
 export interface ItemPageKind {
+  /** What its layout is stored as. */
+  itemKind: ToolItemLayoutWrite["item_kind"];
   /** The regions as shipped. */
   shipped: Record<Region, ViewNode[]>;
+  /** The page's own parts, each placed at most once: what the shipped page
+   *  draws beside its fields and the parts that lay them out. */
+  ownParts: string[];
+  /** The built-in fields it edits: those the shipped page places. */
+  pageFields: ReadonlySet<string>;
   /** Whether a part edits a field: placed nowhere, it is drawn under More
    *  fields rather than gone. */
   editsAField: (node: ViewNode) => boolean;
@@ -85,18 +98,21 @@ export interface ItemPageKind {
  * fields falls on one column, after everything else.
  */
 export const itemPageKind = ({
+  itemKind,
   shipped,
   fieldParts,
   moreOrder,
 }: {
+  itemKind: ToolItemLayoutWrite["item_kind"];
   shipped: Record<Region, ViewNode[]>;
   fieldParts: readonly string[];
   moreOrder: number;
 }): ItemPageKind => {
   const editing = new Set(fieldParts);
   const editsAField = (node: ViewNode) => editing.has(node.type);
+  const shippedNodes = nodesIn(Object.values(shipped).flat());
   /** What the shipped page edits, in its order. */
-  const shippedFields = nodesIn(Object.values(shipped).flat()).filter(editsAField);
+  const shippedFields = shippedNodes.filter(editsAField);
   /** Where the shipped page puts each of its column parts on one column. */
   const shippedOrder = new Map(
     [...shipped.main, ...shipped.side].map((node) => [anchorOf(node), Number(node.props?.order)])
@@ -131,7 +147,14 @@ export const itemPageKind = ({
   };
 
   return {
+    itemKind,
     shipped,
+    ownParts: [
+      ...new Set(shippedNodes.map((node) => node.type).filter((type) => !LAYOUT_PARTS.has(type))),
+    ],
+    pageFields: new Set(
+      shippedNodes.filter((node) => node.type === "field").map((node) => String(node.props?.field))
+    ),
     editsAField,
     unplacedFields,
     root: (stored) => {

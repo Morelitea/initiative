@@ -33,10 +33,10 @@ import {
 } from "@/lib/views/draft";
 import { type FieldDef, VIEW_NAMESPACES } from "@/lib/views/fields";
 import { PAGE_REGIONS } from "@/lib/views/itemPage";
-import { TASK_PAGE_KIND } from "@/lib/views/tasks";
 import type { ViewNode } from "@/lib/views/tree";
 import type { TranslateFn } from "@/types/i18n";
 
+import type { EditablePage } from "./pages";
 import type { ViewEdits } from "./ViewEditor";
 
 const NO_SORT = "none";
@@ -75,16 +75,16 @@ export const ViewSettingsPanel = ({
         path={selection.path}
         fields={fields}
         edits={edits}
-        onPage={false}
       />
     )}
   </fieldset>
 );
 
-/** The settings of what is selected on a task's page: the page's own, or a
+/** The settings of what is selected on an item's page: the page's own, or a
  *  part's. */
 export const PageSettingsPanel = ({
   page,
+  of,
   stored,
   fields,
   selection,
@@ -93,7 +93,8 @@ export const PageSettingsPanel = ({
 }: {
   /** The page as one tree: the page, holding its header, main and side. */
   page: ViewNode;
-  /** Whether the project lays out its own page, as against the shipped one. */
+  of: EditablePage;
+  /** Whether the target lays out its own page, as against the shipped one. */
   stored: boolean;
   fields: ReadonlyMap<string, FieldDef>;
   selection: Selection;
@@ -101,19 +102,20 @@ export const PageSettingsPanel = ({
   locked: boolean;
 }) => {
   const { t } = useTranslation("projects");
+  const translate = t as TranslateFn;
   return (
     <fieldset disabled={locked} className="min-w-0">
       {selection.kind === "part" ? (
-        <PartSettings tree={page} path={selection.path} fields={fields} edits={edits} onPage />
+        <PartSettings tree={page} path={selection.path} fields={fields} edits={edits} on={of} />
       ) : (
-        <Panel heading={t("viewEditor.taskPage")}>
-          <p className="text-muted-foreground text-sm">{t("viewEditor.pageHelp")}</p>
+        <Panel heading={translate(of.words.name)}>
+          <p className="text-muted-foreground text-sm">{translate(of.words.help)}</p>
           {stored ? (
             <Button type="button" variant="outline" size="sm" onClick={edits.resetPage}>
               {t("viewEditor.useShippedPage")}
             </Button>
           ) : (
-            <p className="text-muted-foreground text-xs">{t("viewEditor.shippedPage")}</p>
+            <p className="text-muted-foreground text-xs">{translate(of.words.shipped)}</p>
           )}
         </Panel>
       )}
@@ -153,13 +155,14 @@ const PartSettings = ({
   path,
   fields,
   edits,
-  onPage,
+  on,
 }: {
   tree: ViewNode;
   path: NodePath;
   fields: ReadonlyMap<string, FieldDef>;
   edits: ViewEdits;
-  onPage: boolean;
+  /** The page the part is on; none on a card. */
+  on?: EditablePage;
 }) => {
   const { t } = useTranslation(VIEW_NAMESPACES);
   const translate = t as TranslateFn;
@@ -209,13 +212,13 @@ const PartSettings = ({
     node.type === "plugin"
       ? "viewEditor.pluginPartHelp"
       : !canRemove
-        ? onPage
-          ? "viewEditor.pageTitleHelp"
+        ? on
+          ? `${on.words.own}.pageTitleHelp`
           : "viewEditor.titleHelp"
-        : onPage && TASK_PAGE_KIND.editsAField(node)
-          ? "viewEditor.toMoreFieldsHelp"
-          : onPage
-            ? `viewEditor.partHelp.${node.type}`
+        : on?.kind.editsAField(node)
+          ? `${on.words.own}.toMoreFieldsHelp`
+          : on
+            ? `${on.words.own}.partHelp.${node.type}`
             : node.type === "properties"
               ? "viewEditor.propertiesHelp"
               : "viewEditor.fieldHelp";

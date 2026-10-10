@@ -440,6 +440,26 @@
     "newView": "Nouvelle vue",
     "copyOf": "Copie de {{name}}",
     "filters": "Filtres",
-    "filtersHelp": "La vue n'affiche que les tâches qui y correspondent. Chacun peut la restreindre davantage avec ses propres filtres."
+    "filtersHelp": "La vue n'affiche que les tâches qui y correspondent. Chacun peut la restreindre davantage avec ses propres filtres.",
+    "eventPage": {
+      "name": "Page d'événement",
+      "help": "La disposition de la page de chaque événement de cette initiative, dans chacun de ses calendriers. Un champ placé nulle part reste affiché, sous Autres champs.",
+      "shipped": "Voici la page telle que livrée. La modifier en fait celle de l'initiative.",
+      "parts": {
+        "dates": "Quand",
+        "rsvp": "Votre réponse",
+        "actions": "Menu",
+        "relations": "Relations"
+      },
+      "partHelp": {
+        "rsvp": "Si vous venez, pour un événement qui le demande.",
+        "actions": "Ce qu'on peut faire d'autre avec l'événement : signaler, dupliquer, détacher et supprimer.",
+        "relations": "Ce à quoi l'événement est lié."
+      },
+      "pageTitleHelp": "Chaque page d'événement affiche son titre.",
+      "toMoreFieldsHelp": "Chaque page d'événement permet de modifier ce champ. Retiré d'ici, il passe dans Autres champs."
+    },
+    "noEvents": "Cette initiative n'a aucun événement cette année. Ajoutez-en un pour voir sa page ici.",
+    "openEventPage": "Modifier la page d'événement"
   }
 }

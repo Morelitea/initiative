@@ -89,6 +89,7 @@ export {
 } from "./task.factory";
 export {
   buildSavedViewSet,
+  buildShippedCalendarViews,
   buildShippedProjectViews,
   buildToolView,
   buildToolViewSet,

@@ -19,11 +19,7 @@ import { EyeOff, FileText, GripVertical, LayoutList, Plus } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import {
-  TaskPageFieldId,
-  type ToolViewWrite,
-  type ViewDefinitionInput,
-} from "@/api/generated/initiativeAPI.schemas";
+import type { ToolViewWrite, ViewDefinitionInput } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
@@ -47,11 +43,11 @@ import {
 import { type FieldDef, VIEW_NAMESPACES } from "@/lib/views/fields";
 import { PAGE_REGIONS } from "@/lib/views/itemPage";
 import type { PluginOnItems } from "@/lib/views/plugins";
-import { TASK_PAGE_KIND } from "@/lib/views/tasks";
 import type { ViewNode } from "@/lib/views/tree";
 import { localized } from "@/lib/widgets/widgetMeta";
 import type { TranslateFn } from "@/types/i18n";
 
+import type { EditablePage } from "./pages";
 import type { ViewEdits } from "./ViewEditor";
 
 /** A plug-in as the picker offers it: its name, and its parts by theirs. */
@@ -114,32 +110,34 @@ export const viewChoices = (
   };
 };
 
-/** What a task's page can add: its fields not placed, its own parts once
+/** What an item's page can add: its fields not placed, its own parts once
  *  each, plug-in parts, sections and groups. */
 export const pageChoices = (
   page: ViewNode,
+  { kind, words }: EditablePage,
   fields: ReadonlyMap<string, FieldDef>,
   plugins: PickerPlugin[],
   translate: TranslateFn
 ): AddChoices => {
   const named = namedFields(page);
-  const pageFields = new Set<string>(Object.values(TaskPageFieldId));
   return {
     fields: [...fields.values()].filter(
       (field) =>
         !named.has(field.id) &&
-        ((field.source === "builtin" && pageFields.has(field.id)) || field.source === "plugin")
+        ((field.source === "builtin" && kind.pageFields.has(field.id)) || field.source === "plugin")
     ),
     plugins: plugins.map((plugin) => ({
       ...plugin,
       parts: addablePluginParts(page, plugin.id, plugin.parts),
     })),
     parts: [
-      ...PAGE_PARTS.filter((type) => !holdsPart(page, type)).map((type) => ({
-        group: "builtin" as const,
-        label: translate(`viewEditor.parts.${type}`),
-        node: { type },
-      })),
+      ...kind.ownParts
+        .filter((type) => !holdsPart(page, type))
+        .map((type) => ({
+          group: "builtin" as const,
+          label: translate(`${words.own}.parts.${type}`),
+          node: { type },
+        })),
       ...(holdsPart(page, "properties")
         ? []
         : [
@@ -163,18 +161,6 @@ export const pageChoices = (
   };
 };
 
-/** The parts of a task's page that are its own, which it places at most once. */
-const PAGE_PARTS = [
-  "status",
-  "dates",
-  "comments",
-  "relations",
-  "case",
-  "byline",
-  "notice",
-  "actions",
-] as const;
-
 /** Rows that stay where they are: an item page's regions. */
 const FIXED = new Set<string>(PAGE_REGIONS);
 
@@ -196,7 +182,9 @@ const usePickerPlugins = (plugins: ReadonlyMap<number, PluginOnItems>): PickerPl
 /** What a part is called in the outline and the settings. */
 export const usePartLabel = (
   fields: ReadonlyMap<string, FieldDef>,
-  plugins: ReadonlyMap<number, PluginOnItems>
+  plugins: ReadonlyMap<number, PluginOnItems>,
+  /** Where the names of the open page's own parts are. */
+  partWords = "viewEditor"
 ) => {
   const { t } = useTranslation(VIEW_NAMESPACES);
   const translate = t as TranslateFn;
@@ -230,8 +218,12 @@ export const usePartLabel = (
         const field = fields.get(String(node.props?.field));
         return field ? labelOf(field) : translate("viewEditor.missingField");
       }
-      default:
+      case "header":
+      case "main":
+      case "side":
         return translate(`viewEditor.parts.${node.type}`);
+      default:
+        return translate(`${partWords}.parts.${node.type}`);
     }
   };
   return { labelOf, partLabel, pickerPlugins };
@@ -368,14 +360,15 @@ export const ViewOutline = ({
 };
 
 /**
- * A task's page as a list beside the canvas: the page, its header, main and
- * side with their parts, then the fields placed nowhere, which every task
+ * An item's page as a list beside the canvas: the page, its header, main and
+ * side with their parts, then the fields placed nowhere, which every item
  * still shows under More fields. A row is dragged to move it, into another
  * region or section as well; taking off a part that changes a field sends the
  * field to More fields.
  */
 export const PageOutline = ({
   page,
+  of,
   fields,
   plugins,
   choices,
@@ -386,6 +379,8 @@ export const PageOutline = ({
 }: {
   /** The page as one tree: the page, holding its header, main and side. */
   page: ViewNode;
+  /** What kind of item's page it is. */
+  of: EditablePage;
   fields: ReadonlyMap<string, FieldDef>;
   plugins: ReadonlyMap<number, PluginOnItems>;
   choices: AddChoices;
@@ -396,9 +391,9 @@ export const PageOutline = ({
 }) => {
   const { t } = useTranslation(VIEW_NAMESPACES);
   const translate = t as TranslateFn;
-  const { labelOf, partLabel } = usePartLabel(fields, plugins);
+  const { labelOf, partLabel } = usePartLabel(fields, plugins, of.words.own);
   const regions = page.children ?? [];
-  const unplaced = TASK_PAGE_KIND.unplacedFields({
+  const unplaced = of.kind.unplacedFields({
     header: regions[0]?.children ?? [],
     main: regions[1]?.children ?? [],
     side: regions[2]?.children ?? [],
@@ -409,7 +404,7 @@ export const PageOutline = ({
         <OutlineRow
           id="view"
           depth={0}
-          label={translate("viewEditor.taskPage")}
+          label={translate(of.words.name)}
           icon={<FileText className="h-4 w-4" aria-hidden="true" />}
           selected={sameSelection(selection, { kind: "view" })}
           onSelect={() => edits.select({ kind: "view" })}
@@ -423,7 +418,7 @@ export const PageOutline = ({
             FIXED.has(node.type) || !removable(node, fields)
               ? null
               : translate(
-                  TASK_PAGE_KIND.editsAField(node) ? "viewEditor.toMoreFields" : "viewEditor.hide",
+                  of.kind.editsAField(node) ? "viewEditor.toMoreFields" : "viewEditor.hide",
                   {
                     name: partLabel(node),
                   }
@@ -436,7 +431,7 @@ export const PageOutline = ({
         {unplaced.length > 0 ? (
           <div className="pt-2">
             <p className="px-2 font-medium text-muted-foreground text-xs">
-              {translate("tasks:edit.moreFields")}
+              {translate(of.moreFields)}
             </p>
             <ul className="text-muted-foreground text-sm">
               {unplaced.map((node) => (

@@ -440,6 +440,26 @@
     "newView": "Vista nueva",
     "copyOf": "Copia de {{name}}",
     "filters": "Filtros",
-    "filtersHelp": "La vista solo muestra las tareas que coinciden con estos. Cada persona puede acotarla más con sus propios filtros."
+    "filtersHelp": "La vista solo muestra las tareas que coinciden con estos. Cada persona puede acotarla más con sus propios filtros.",
+    "eventPage": {
+      "name": "Página del evento",
+      "help": "Cómo se organiza la página de cada evento de esta iniciativa, en cada uno de sus calendarios. Un campo que no está en ningún sitio se sigue mostrando, en Más campos.",
+      "shipped": "Esta es la página tal como viene. Cambiarla la convierte en la propia de la iniciativa.",
+      "parts": {
+        "dates": "Cuándo",
+        "rsvp": "Tu respuesta",
+        "actions": "Menú",
+        "relations": "Relaciones"
+      },
+      "partHelp": {
+        "rsvp": "Si vas a ir, en un evento que lo pregunta.",
+        "actions": "Qué más se puede hacer con el evento: denunciar, duplicar, separar y eliminar.",
+        "relations": "Con qué está vinculado el evento."
+      },
+      "pageTitleHelp": "La página de cada evento muestra su título.",
+      "toMoreFieldsHelp": "La página de cada evento permite cambiar este campo. Si se quita de aquí, pasa a Más campos."
+    },
+    "noEvents": "Esta iniciativa no tiene eventos este año. Añade uno para ver su página aquí.",
+    "openEventPage": "Editar página del evento"
   }
 }

@@ -29,11 +29,15 @@ from app.schemas.tenant.tool_view import (
     MAX_PLUGIN_PARTS,
     MAX_SLUG_LENGTH,
     MAX_VIEWS,
+    PLUGIN_FIELD_PREFIX,
     CardPart,
+    EventPageFieldId,
+    PageFieldPart,
     PageStackPart,
     PluginPart,
     SectionPart,
     StackPart,
+    TaskPageFieldId,
     ToolItemLayoutRead,
     ToolViewRead,
     ToolViewSetWrite,
@@ -43,10 +47,42 @@ from app.services.tenant.names import slugify, unique_slug
 
 #: The layouts each tool draws. A tool that takes views and has none here yet
 #: stores none.
-LAYOUTS: dict[Tool, tuple[str, ...]] = {Tool.project: ("table", "board", "calendar")}
+LAYOUTS: dict[Tool, tuple[str, ...]] = {
+    Tool.project: ("table", "board", "calendar"),
+    Tool.calendar: ("calendar",),
+}
 
 #: The kinds of item each tool's item layouts lay out.
-ITEM_KINDS: dict[Tool, tuple[str, ...]] = {Tool.project: ("task",)}
+ITEM_KINDS: dict[Tool, tuple[str, ...]] = {
+    Tool.project: ("task",),
+    Tool.calendar: ("calendar_event",),
+}
+
+#: The parts any item's page lays out with.
+_LAYOUT_PARTS = frozenset({"stack", "section", "field", "properties"})
+
+#: The parts each kind of item's page draws. Plug-ins are drawn on tasks so far.
+PAGE_PARTS: dict[str, frozenset[str]] = {
+    "task": _LAYOUT_PARTS
+    | {
+        "plugin",
+        "status",
+        "dates",
+        "byline",
+        "notice",
+        "actions",
+        "relations",
+        "case",
+        "comments",
+    },
+    "calendar_event": _LAYOUT_PARTS | {"dates", "rsvp", "actions", "relations"},
+}
+
+#: The built-in fields each kind of item's page edits.
+PAGE_FIELDS: dict[str, frozenset[str]] = {
+    "task": frozenset(field.value for field in TaskPageFieldId),
+    "calendar_event": frozenset(field.value for field in EventPageFieldId),
+}
 
 #: The project filters the shipped filter views hold.
 _INCOMPLETE = {"status_categories": ["backlog", "todo", "in_progress"]}
@@ -65,6 +101,8 @@ SHIPPED: dict[Tool, tuple[tuple[str, str, str, Optional[dict[str, Any]]], ...]] 
         ("unassigned", "Unassigned", "table", _UNASSIGNED),
         ("mine", "Mine", "table", _MINE),
     ),
+    # The calendar page as it has always been drawn.
+    Tool.calendar: (("calendar", "Calendar", "calendar", None),),
 }
 
 
@@ -183,6 +221,19 @@ def _within_limits(stored: dict[str, Any], roots: list[Any], loose: int) -> None
         raise _bad_request(ToolViewMessages.TOO_MANY_PLUGIN_PARTS)
 
 
+def _drawn_on(part: Any, item_kind: str) -> bool:
+    """Whether a kind of item's page draws the part: one of its own parts, or
+    one of its fields. A plug-in's field is drawn where its parts are."""
+    if part.type not in PAGE_PARTS[item_kind]:
+        return False
+    if not isinstance(part, PageFieldPart):
+        return True
+    field = getattr(part.props.field, "value", part.props.field)
+    if field.startswith(PLUGIN_FIELD_PREFIX):
+        return "plugin" in PAGE_PARTS[item_kind]
+    return field in PAGE_FIELDS[item_kind]
+
+
 def _stored(model: Any) -> dict[str, Any]:
     """A definition as stored: what was given, so what it leaves out is drawn
     as shipped."""
@@ -239,15 +290,18 @@ def check_set(target: Target, payload: ToolViewSetWrite) -> list[ToolView]:
             raise _bad_request(ToolViewMessages.LAYOUT_NOT_ALLOWED)
         regions = layout.definition
         stored = _stored(regions)
-        _within_limits(
-            stored,
-            [
-                part
-                for region in (regions.header, regions.main, regions.side)
-                for part in region or ()
-            ],
-            0,
-        )
+        roots = [
+            part
+            for region in (regions.header, regions.main, regions.side)
+            for part in region or ()
+        ]
+        _within_limits(stored, roots, 0)
+        if not all(
+            _drawn_on(part, layout.item_kind)
+            for root in roots
+            for part, _ in _parts(root, 1)
+        ):
+            raise _bad_request(ToolViewMessages.LAYOUT_NOT_ALLOWED)
         rows.append(_row(target, ITEM_LAYOUT_KIND, stored, item_kind=layout.item_kind))
     return rows
 

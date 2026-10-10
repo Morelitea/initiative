@@ -46,6 +46,20 @@ export function buildShippedProjectViews(): ToolViewRead[] {
   }));
 }
 
+/** The calendar page's shipped view: the calendar as it has always been drawn. */
+export function buildShippedCalendarViews(): ToolViewRead[] {
+  return [
+    {
+      id: null,
+      name: "Calendar",
+      slug: "calendar",
+      position: 0,
+      is_default: true,
+      definition: { layout: { type: "calendar" } },
+    },
+  ];
+}
+
 export function buildToolViewSet(overrides: Partial<ToolViewSetRead> = {}): ToolViewSetRead {
   return {
     views: buildShippedProjectViews(),

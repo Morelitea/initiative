@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
-import { usePutProjectViews, viewSetWrite, viewWrites } from "@/hooks/useProjectViews";
+import { projectTarget, usePutToolViews, viewSetWrite, viewWrites } from "@/hooks/useProjectViews";
 import { atLeast, useWidthClass } from "@/hooks/useWidthClass";
 import { specFromApi, taskFilterCount } from "@/lib/filters/taskFilters";
 import { cn } from "@/lib/utils";
@@ -33,7 +33,7 @@ type ProjectViewsManagerProps = {
 export const ProjectViewsManager = ({ projectId, editHref, set }: ProjectViewsManagerProps) => {
   const { t } = useTranslation(["projects", "common"]);
   const wide = atLeast(useWidthClass(), "md");
-  const put = usePutProjectViews(projectId);
+  const put = usePutToolViews(projectTarget(projectId));
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
 
   const writes = viewWrites(set);

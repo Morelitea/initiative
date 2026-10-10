@@ -276,13 +276,16 @@
     "viewsTab": "Vistas",
     "views": {
       "heading": "Vistas",
-      "description": "Las vistas de cada proyecto, y si tiene su propia página de tarea. Las vistas de un proyecto se cambian en su editor.",
+      "description": "Las vistas de cada proyecto, y si organiza su propia página de tarea, y después la página del evento del calendario. Las vistas de un proyecto se cambian en su editor.",
       "noProjects": "Esta iniciativa aún no tiene proyectos.",
       "loadError": "No se pudieron cargar las vistas.",
       "default": "Se abre primero",
       "shippedViews": "Las vistas originales",
       "ownTaskPage": "Su propia página de tarea",
-      "shippedTaskPage": "La página de tarea original"
+      "shippedTaskPage": "La página de tarea original",
+      "calendar": "Calendario",
+      "ownEventPage": "Su propia página del evento",
+      "shippedEventPage": "La página del evento tal como viene"
     }
   },
   "advancedTools": "Herramientas",

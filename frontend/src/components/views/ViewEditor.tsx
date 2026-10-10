@@ -15,8 +15,9 @@ import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
+  GetViewsParams,
   ItemLayoutDefinitionInput,
-  TaskStatusRead,
+  ToolItemLayoutWrite,
   ToolViewSetRead,
   ToolViewWrite,
   ViewDefinitionInput,
@@ -39,7 +40,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { taskPageOf, usePutProjectViews, viewSetWrite, viewWrites } from "@/hooks/useProjectViews";
+import { itemLayoutOf, usePutToolViews, viewSetWrite, viewWrites } from "@/hooks/useProjectViews";
 import { useProperties } from "@/hooks/useProperties";
 import { atLeast, useWidthClass } from "@/hooks/useWidthClass";
 import { toast } from "@/lib/mascotToast";
@@ -67,12 +68,13 @@ import {
   withCard,
 } from "@/lib/views/draft";
 import { type StoredRegions, storedLayout } from "@/lib/views/itemPage";
-import { pluginFields, usePluginsOnItems } from "@/lib/views/plugins";
-import { TASK_PAGE_KIND, taskFields } from "@/lib/views/tasks";
+import { type PluginOnItems, pluginFields, usePluginsOnItems } from "@/lib/views/plugins";
+import { taskFields } from "@/lib/views/tasks";
 import type { ViewNode } from "@/lib/views/tree";
 import type { TranslateFn } from "@/types/i18n";
 
-import { type CanvasTools, PageCanvas, type PreviewWidth, ViewCanvas } from "./ViewCanvas";
+import type { EditablePage } from "./pages";
+import { CanvasFrame, type CanvasTools, type PreviewWidth, ViewCanvas } from "./ViewCanvas";
 import {
   type Adders,
   AddPicker,
@@ -82,7 +84,7 @@ import {
   ViewOutline,
   viewChoices,
 } from "./ViewOutline";
-import { PageSettingsPanel, ViewSettingsPanel } from "./ViewSettingsPanel";
+import { PageSettingsPanel, type ViewProject, ViewSettingsPanel } from "./ViewSettingsPanel";
 
 const noop = () => {};
 
@@ -94,7 +96,7 @@ const WIDTHS: { width: PreviewWidth; icon: typeof Laptop }[] = [
 
 /** What can be done to what is open in the editor. Each is one change to
  *  undo, and says what is selected after it. The part edits work on the open
- *  tree: a board's card, or the task page. */
+ *  tree: a board's card, or an item's page. */
 export type ViewEdits = {
   select: (selection: Selection) => void;
   setDefinition: (definition: ViewDefinitionInput) => void;
@@ -110,26 +112,41 @@ export type ViewEdits = {
   removeColumn: (field: string) => void;
   /** At `index`, or last. */
   addColumn: (field: string, index?: number) => void;
-  /** The task page goes back to the shipped one. */
+  /** The page open goes back to the shipped one. */
   resetPage: () => void;
 };
 
-/** The task page, in the editor's list beside the views. A slug has no colon,
- *  so no view is named this. */
-export const TASK_PAGE = "page:task";
+/** A kind of item's page, in the editor's list beside the views. A slug has
+ *  no colon, so no view is named this. */
+export const pageKey = (itemKind: ItemKind) => `page:${itemKind}`;
+
+type ItemKind = ToolItemLayoutWrite["item_kind"];
 
 /** A view in the editor, named by a key of the editor's own: its slug once
  *  saved, and `new:<n>` until then, as the server names a new view. */
 type DraftView = ToolViewWrite & { key: string };
 
-/** What the editor changes: the views, and the task page's layout (null: the
- *  shipped page). One Save stores both. */
-type Draft = { views: DraftView[]; page: ItemLayoutDefinitionInput | null };
+/** What the editor changes: the views, and each item page's layout (null:
+ *  the shipped page). One Save stores them all. */
+type Draft = {
+  views: DraftView[];
+  pages: Partial<Record<ItemKind, ItemLayoutDefinitionInput | null>>;
+};
 
-const draftOf = (set: ToolViewSetRead): Draft => ({
+const draftOf = (set: ToolViewSetRead, pages: EditablePage[]): Draft => ({
   views: viewWrites(set).map((view) => ({ ...view, key: view.slug ?? "" })),
-  page: taskPageOf(set),
+  pages: Object.fromEntries(
+    pages.map(({ kind }) => [kind.itemKind, itemLayoutOf(set, kind.itemKind)])
+  ),
 });
+
+/** The item pages a draft lays out, as a save stores them. */
+const layoutsOf = (draft: Draft): ToolItemLayoutWrite[] =>
+  Object.entries(draft.pages).flatMap(([itemKind, definition]) =>
+    definition ? [{ item_kind: itemKind as ItemKind, definition }] : []
+  );
+
+const NO_PLUGINS: ReadonlyMap<number, PluginOnItems> = new Map();
 
 /** Where a part is put when it is added: into the group (or region) that is
  *  selected, after the part that is, or at the end of `fallback`. */
@@ -164,9 +181,10 @@ const viewOpen = (views: DraftView[], wanted: string): DraftView | undefined =>
   views.find((view) => view.key === wanted) ?? views.find((view) => view.is_default) ?? views[0];
 
 /**
- * A project's views and its task page, edited where they are seen. It takes
+ * A target's views and item pages, edited where they are seen: a project's
+ * views and its task page, or the initiative calendar's event page. It takes
  * the whole screen: what can be opened and done across the top, the outline
- * of what is open on the left, it drawn with the project's tasks in the
+ * of what is open on the left, it drawn with the target's items in the
  * middle, and the settings of what is selected on the right.
  *
  * Every change is a draft until Save, which stores the whole set; readers see
@@ -177,25 +195,29 @@ const viewOpen = (views: DraftView[], wanted: string): DraftView | undefined =>
  * during a save, asks first.
  */
 export const ViewEditor = ({
-  projectId,
+  target,
   initiativeId,
-  statuses,
+  project,
+  pages,
   set,
   initialSlug,
   onClose,
 }: {
-  projectId: number;
+  target: GetViewsParams;
   initiativeId: number;
-  statuses: TaskStatusRead[];
-  /** The project's views, read by someone who may configure them. */
+  /** The project whose views these are. A target with no project keeps its
+   *  views as they are and lays out its item pages alone. */
+  project?: ViewProject;
+  pages: EditablePage[];
+  /** The target's set, read by someone who may configure it. */
   set: ToolViewSetRead;
-  /** A view's slug, or {@link TASK_PAGE}. */
+  /** A view's slug, or a page's {@link pageKey}. */
   initialSlug?: string;
   onClose: () => void;
 }) => {
   const { t, i18n } = useTranslation(["projects", "common"]);
   const wide = atLeast(useWidthClass(), "md");
-  const [base, setBase] = useState(() => draftOf(set));
+  const [base, setBase] = useState(() => draftOf(set, pages));
   const [history, dispatch] = useReducer(historyReducer<Draft>, base, startHistory<Draft>);
   const draft = history.present;
   const { views } = draft;
@@ -203,30 +225,40 @@ export const ViewEditor = ({
   // order it comes in.
   const [active, setActive] = useState(initialSlug ?? "");
   const [selected, setSelected] = useState<Selection>(VIEW_SELECTED);
-  const onPage = active === TASK_PAGE;
-  const current = onPage ? undefined : viewOpen(views, active);
+  const openPage = pages.find(({ kind }) => pageKey(kind.itemKind) === active);
+  const onPage = openPage !== undefined;
+  // The views offered, which only a project's are so far.
+  const offered = project ? views : [];
+  const current = onPage ? undefined : viewOpen(offered, active);
   // Another view opened in its place (the one asked for is gone, or an undo
-  // took it away), and nothing of the last stays selected.
+  // took it away), and nothing of the last stays selected. With no views
+  // offered, the first page.
   if (current && current.key !== active) {
     setActive(current.key);
     setSelected(VIEW_SELECTED);
+  } else if (!current && !onPage && pages[0]) {
+    setActive(pageKey(pages[0].kind.itemKind));
   }
-  const page = useMemo(() => TASK_PAGE_KIND.root(draft.page as StoredRegions | null), [draft.page]);
+  const stored = openPage ? (draft.pages[openPage.kind.itemKind] ?? null) : null;
+  const page = useMemo(
+    () => (openPage ? openPage.kind.root(stored as StoredRegions | null) : null),
+    [openPage, stored]
+  );
   // The tree the part edits change.
-  const tree = current ? cardOf(current.definition) : onPage ? page : null;
+  const tree = current ? cardOf(current.definition) : page;
   const columns = current ? columnsOf(current.definition) : [];
   const selection = stillThere(selected, tree, columns) ? selected : VIEW_SELECTED;
   const [width, setWidth] = useState<PreviewWidth>("desktop");
   const dirty = !sameDraft(draft, base);
 
-  const put = usePutProjectViews(projectId);
+  const put = usePutToolViews(target);
   const saving = put.isPending;
 
   // Someone else's save, read while nothing is changed here, is what the
   // editor starts from. One read mid-edit is set aside: this editor's save
   // replaces the whole set.
   const adopt = (stored: ToolViewSetRead) => {
-    const fresh = draftOf(stored);
+    const fresh = draftOf(stored, pages);
     setSeen(stored);
     setBase(fresh);
     dispatch({ type: "reset", present: fresh });
@@ -240,17 +272,20 @@ export const ViewEditor = ({
   if (seen !== set && !saving) {
     setSeen(set);
     if (awaiting) {
-      if (sameDraft(draftOf(set), awaiting)) setAwaiting(null);
+      if (sameDraft(draftOf(set, pages), awaiting)) setAwaiting(null);
     } else if (!dirty) {
       adopt(set);
     }
   }
 
   const { data: definitions = [] } = useProperties({ initiativeId });
-  const plugins = usePluginsOnItems(initiativeId);
+  const installed = usePluginsOnItems(initiativeId);
+  // The plug-ins that draw on what is open: a view's tasks, or a page that
+  // takes them.
+  const plugins = openPage && !openPage.plugins ? NO_PLUGINS : installed;
   const fields = useMemo(
-    () => taskFields(definitions, pluginFields(plugins, i18n.language)),
-    [definitions, plugins, i18n.language]
+    () => (openPage?.fields ?? taskFields)(definitions, pluginFields(plugins, i18n.language)),
+    [openPage, definitions, plugins, i18n.language]
   );
 
   const changeDraft = (next: Draft, then?: Selection) => {
@@ -268,10 +303,15 @@ export const ViewEditor = ({
   const changeDefinition = (definition: ViewDefinitionInput, then?: Selection) =>
     changeView((view) => ({ ...view, definition }), then);
   /** The open tree, changed: a view's card, or the page, which is then the
-   *  project's own. */
+   *  target's own. */
+  const changePage = (layout: ItemLayoutDefinitionInput | null, then?: Selection) => {
+    if (openPage) {
+      changeDraft({ ...draft, pages: { ...draft.pages, [openPage.kind.itemKind]: layout } }, then);
+    }
+  };
   const changeTree = (next: ViewNode, then?: Selection) => {
     if (current) changeDefinition(withCard(current.definition, next), then);
-    else if (onPage) changeDraft({ ...draft, page: storedLayout(next) }, then);
+    else changePage(storedLayout(next), then);
   };
 
   const edits: ViewEdits = {
@@ -311,7 +351,7 @@ export const ViewEditor = ({
         path: [...parent, index],
       });
     },
-    resetPage: () => changeDraft({ ...draft, page: null }, VIEW_SELECTED),
+    resetPage: () => changePage(null, VIEW_SELECTED),
     moveColumn: (from, to) => {
       if (!current) return;
       const next = [...columns];
@@ -336,11 +376,13 @@ export const ViewEditor = ({
 
   // What Add offers, in the outline and at a point on the canvas, and what a
   // pick does there.
-  const { labelOf, partLabel, pickerPlugins } = usePartLabel(fields, plugins);
+  const { labelOf, partLabel, pickerPlugins } = usePartLabel(fields, plugins, openPage?.words.own);
   const translate = t as TranslateFn;
   const choices = current
     ? viewChoices(current.definition, fields, pickerPlugins, translate)
-    : pageChoices(page, fields, pickerPlugins, translate);
+    : page && openPage
+      ? pageChoices(page, openPage, fields, pickerPlugins, translate)
+      : { fields: [], plugins: [], parts: [] };
   const addersAt = (place?: Place): Adders =>
     current?.definition.layout.type === "table"
       ? { onField: (field) => edits.addColumn(field.id, place?.index), onPart: noop, onNode: noop }
@@ -476,14 +518,14 @@ export const ViewEditor = ({
       viewSetWrite(
         set,
         views.map(({ key: _key, ...view }) => view),
-        draft.page
+        layoutsOf(draft)
       ),
       {
         onSuccess: (stored) => {
           adopt(stored);
-          const answer = draftOf(stored);
+          const answer = draftOf(stored, pages);
           // Waited for only while the read has yet to say it.
-          if (!sameDraft(draftOf(latest.current), answer)) setAwaiting(answer);
+          if (!sameDraft(draftOf(latest.current, pages), answer)) setAwaiting(answer);
           // The server keeps the order, which names a view it named meanwhile.
           const named = stored.views[keys.indexOf(opened.current)]?.slug;
           if (named) setActive(named);
@@ -551,56 +593,64 @@ export const ViewEditor = ({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {views.map((view) => (
+            {offered.map((view) => (
               <SelectItem key={view.key} value={view.key}>
                 {viewName({ slug: view.slug ?? "", name: view.name }, t)}
               </SelectItem>
             ))}
-            <SelectSeparator />
-            <SelectItem value={TASK_PAGE}>{t("viewEditor.taskPage")}</SelectItem>
+            {offered.length > 0 ? <SelectSeparator /> : null}
+            {pages.map(({ kind, words }) => (
+              <SelectItem key={kind.itemKind} value={pageKey(kind.itemKind)}>
+                {translate(words.name)}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          aria-label={t("viewEditor.addView")}
-          disabled={!wide || saving || views.length >= MAX_VIEWS}
-          onClick={() => addView()}
-        >
-          <Plus className="h-4 w-4" />
-        </Button>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
+        {project ? (
+          <>
             <Button
               type="button"
               variant="ghost"
               size="icon"
-              aria-label={t("viewEditor.viewActions")}
-              disabled={!wide || saving || !current}
+              aria-label={t("viewEditor.addView")}
+              disabled={!wide || saving || views.length >= MAX_VIEWS}
+              onClick={() => addView()}
             >
-              <MoreHorizontal className="h-4 w-4" />
+              <Plus className="h-4 w-4" />
             </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            <DropdownMenuItem
-              disabled={views.length >= MAX_VIEWS}
-              onSelect={() => addView(current)}
-            >
-              <Copy className="h-4 w-4" />
-              {t("viewEditor.duplicateView")}
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              className="text-destructive focus:text-destructive"
-              // A project always has a view to open on.
-              disabled={views.length <= 1}
-              onSelect={deleteView}
-            >
-              <Trash2 className="h-4 w-4" />
-              {t("viewEditor.deleteView")}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label={t("viewEditor.viewActions")}
+                  disabled={!wide || saving || !current}
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuItem
+                  disabled={views.length >= MAX_VIEWS}
+                  onSelect={() => addView(current)}
+                >
+                  <Copy className="h-4 w-4" />
+                  {t("viewEditor.duplicateView")}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive"
+                  // A project always has a view to open on.
+                  disabled={views.length <= 1}
+                  onSelect={deleteView}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  {t("viewEditor.deleteView")}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </>
+        ) : null}
         <div className="flex-1" />
         <ToggleGroup
           type="single"
@@ -659,11 +709,12 @@ export const ViewEditor = ({
       {/* A screen too narrow to edit on keeps the draft, and says so. */}
       {!wide ? (
         <p className="p-6 text-muted-foreground text-sm">{t("viewEditor.compact")}</p>
-      ) : onPage ? (
+      ) : openPage && page ? (
         <div className="grid min-h-0 flex-1 grid-cols-[16rem_minmax(0,1fr)_18rem]">
           <aside className="min-h-0 border-r">
             <PageOutline
               page={page}
+              of={openPage}
               fields={fields}
               plugins={plugins}
               choices={choices}
@@ -674,21 +725,15 @@ export const ViewEditor = ({
             />
           </aside>
           <main className="min-h-0">
-            <PageCanvas
-              projectId={projectId}
-              initiativeId={initiativeId}
-              statuses={statuses}
-              page={page}
-              width={width}
-              selection={selection}
-              onSelect={setSelected}
-              tools={tools}
-            />
+            <CanvasFrame width={width} selection={selection} onSelect={setSelected} tools={tools}>
+              {openPage.preview(page)}
+            </CanvasFrame>
           </main>
           <aside className="min-h-0 overflow-y-auto border-l">
             <PageSettingsPanel
               page={page}
-              stored={draft.page !== null}
+              of={openPage}
+              stored={stored !== null}
               fields={fields}
               selection={selection}
               edits={edits}
@@ -696,7 +741,7 @@ export const ViewEditor = ({
             />
           </aside>
         </div>
-      ) : current ? (
+      ) : current && project ? (
         <div className="grid min-h-0 flex-1 grid-cols-[16rem_minmax(0,1fr)_18rem]">
           <aside className="min-h-0 border-r">
             <ViewOutline
@@ -715,9 +760,9 @@ export const ViewEditor = ({
           </aside>
           <main className="min-h-0">
             <ViewCanvas
-              projectId={projectId}
+              projectId={project.id}
               initiativeId={initiativeId}
-              statuses={statuses}
+              statuses={project.statuses}
               view={current}
               width={width}
               selection={selection}
@@ -728,7 +773,7 @@ export const ViewEditor = ({
           <aside className="min-h-0 overflow-y-auto border-l">
             <ViewSettingsPanel
               view={current}
-              project={{ id: projectId, initiativeId, statuses }}
+              project={project}
               fields={fields}
               selection={selection}
               edits={edits}

@@ -175,6 +175,7 @@ const TASK_PAGE_REGIONS: Record<Region, ViewNode[]> = {
 
 /** A task's page: its status, dates and properties edit fields as a field does. */
 export const TASK_PAGE_KIND = itemPageKind({
+  itemKind: "task",
   shipped: TASK_PAGE_REGIONS,
   fieldParts: ["field", "status", "dates", "properties"],
   moreOrder: 7,

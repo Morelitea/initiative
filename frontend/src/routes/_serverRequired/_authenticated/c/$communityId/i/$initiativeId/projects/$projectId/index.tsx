@@ -11,7 +11,7 @@ import {
   projectViewsPreferenceKey,
   sanitizeStoredViews,
 } from "@/hooks/useProjectTaskView";
-import { projectViewsQuery } from "@/hooks/useProjectViews";
+import { projectTarget, toolViewsQuery } from "@/hooks/useProjectViews";
 import { tasksQuery } from "@/hooks/useTasks";
 import { VIEW_PREFERENCES_QUERY_KEY } from "@/hooks/useViewPreference";
 import {
@@ -53,7 +53,7 @@ export const Route = createFileRoute(
             staleTime: 30_000,
           }),
           queryClient.ensureQueryData({
-            ...projectViewsQuery(communityId, projectId),
+            ...toolViewsQuery(communityId, projectTarget(projectId)),
             staleTime: 60_000,
           }),
           queryClient.ensureQueryData({

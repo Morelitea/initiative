@@ -130,6 +130,18 @@ class TaskFieldId(str, Enum):
     tags = "tags"
 
 
+class EventPageFieldId(str, Enum):
+    """What an event's page edits as a field. Its dates, its properties and
+    your answer are parts of their own."""
+
+    title = "title"
+    description = "description"
+    location = "location"
+    recurrence = "recurrence"
+    attendees = "attendees"
+    tags = "tags"
+
+
 PROPERTY_FIELD_PREFIX = "property:"
 PLUGIN_FIELD_PREFIX = "plugin:"
 #: The characters a row id is written in.
@@ -208,7 +220,7 @@ TaskPageFieldId = Enum(
     type=str,
 )
 ColumnFieldId = Union[TaskColumnFieldId, NamedFieldId]
-PageFieldId = Union[TaskPageFieldId, PluginFieldId]
+PageFieldId = Union[TaskPageFieldId, EventPageFieldId, PluginFieldId]
 
 
 def _part_id(value: str) -> str:
@@ -311,21 +323,28 @@ class PageStackPart(_Strict):
     children: List[PagePart] = Field(default_factory=list)
 
 
-class TaskPagePart(_Strict):
-    """One of a task page's own parts, which edit or show more than one field:
-    its status, its start and due dates, who made it, its read-only notice, its
-    menu, its relations, its case and its comments."""
+#: The parts an item's page draws as its own, which edit or show more than one
+#: field: a task's status, who made it, its read-only notice, its case and its
+#: comments; an event's answer; and either's dates, menu and relations. Which
+#: of them a kind of item's page draws is
+#: ``app.services.tenant.tool_views.PAGE_PARTS``.
+ItemPagePartType = Literal[
+    "status",
+    "dates",
+    "byline",
+    "notice",
+    "actions",
+    "relations",
+    "case",
+    "comments",
+    "rsvp",
+]
 
-    type: Literal[
-        "status",
-        "dates",
-        "byline",
-        "notice",
-        "actions",
-        "relations",
-        "case",
-        "comments",
-    ]
+
+class ItemPagePart(_Strict):
+    """One of an item page's own parts."""
+
+    type: ItemPagePartType
 
 
 PagePart = Annotated[
@@ -335,7 +354,7 @@ PagePart = Annotated[
         PageFieldPart,
         PropertiesPart,
         PluginPart,
-        TaskPagePart,
+        ItemPagePart,
     ],
     Field(discriminator="type"),
 ]
@@ -351,7 +370,7 @@ PageStackPart.model_rebuild()
 ViewLayoutType = Literal["table", "board", "calendar"]
 #: Every kind of item an item layout can lay out; which a tool holds is
 #: ``app.services.tenant.tool_views.ITEM_KINDS``.
-ItemLayoutKind = Literal["task"]
+ItemLayoutKind = Literal["task", "calendar_event"]
 
 
 class ViewLayout(_Strict):

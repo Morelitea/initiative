@@ -1,6 +1,7 @@
 /**
  * `/settings/views` — every project's views in this initiative, and whether
- * each lays out its own task page, with a way into each project's editor.
+ * each lays out its own task page, then the calendar's event page, with a way
+ * into each one's editor.
  */
 
 import { Link } from "@tanstack/react-router";
@@ -18,18 +19,30 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useInitiativeSettings } from "@/hooks/useInitiativeSettings";
-import { useInitiativeViews } from "@/hooks/useProjectViews";
+import { calendarTarget, useInitiativeViews, useToolViews } from "@/hooks/useProjectViews";
 import { atLeast, useWidthClass } from "@/hooks/useWidthClass";
 import { useCommunityPath } from "@/lib/communityUrl";
-import { toolDetailRoute } from "@/lib/tools";
+import { isToolEnabled, toolDetailRoute, toolListRoute } from "@/lib/tools";
 
 export const InitiativeSettingsViewsPage = () => {
-  const { initiativeId, canManageMembers } = useInitiativeSettings();
+  const { initiativeId, initiative, canManageMembers } = useInitiativeSettings();
   if (!canManageMembers) return <InitiativeSettingsPermissionRequired />;
-  return <InitiativeViews initiativeId={initiativeId} />;
+  return (
+    <InitiativeViews
+      initiativeId={initiativeId}
+      calendar={initiative !== null && isToolEnabled(Tool.calendar, initiative)}
+    />
+  );
 };
 
-const InitiativeViews = ({ initiativeId }: { initiativeId: number }) => {
+const InitiativeViews = ({
+  initiativeId,
+  calendar,
+}: {
+  initiativeId: number;
+  /** Whether the initiative has its calendar on. */
+  calendar: boolean;
+}) => {
   const { t } = useTranslation("initiatives");
   const { data, isError } = useInitiativeViews(initiativeId);
   return (
@@ -48,6 +61,7 @@ const InitiativeViews = ({ initiativeId }: { initiativeId: number }) => {
             <ProjectViews key={entry.tool_id} initiativeId={initiativeId} entry={entry} />
           ))
         )}
+        {calendar ? <CalendarViews initiativeId={initiativeId} /> : null}
       </CardContent>
     </Card>
   );
@@ -110,6 +124,52 @@ const ProjectViews = ({
           t(
             entry.has_item_layout ? "settings.views.ownTaskPage" : "settings.views.shippedTaskPage"
           ),
+        ]
+          .filter(Boolean)
+          .join(" · ")}
+      </p>
+    </section>
+  );
+};
+
+/** The calendar's views and its event page, which every calendar in the
+ *  initiative shares, opening the editor where the reader may change the page
+ *  and has the room. */
+const CalendarViews = ({ initiativeId }: { initiativeId: number }) => {
+  const { t } = useTranslation(["initiatives", "projects"]);
+  const gp = useCommunityPath();
+  const wide = atLeast(useWidthClass(), "md");
+  const set = useToolViews(calendarTarget(initiativeId)).data;
+  if (!set) return null;
+  const calendars = gp(toolListRoute(Tool.calendar, initiativeId));
+  const editor = `${calendars}/views`;
+  const own = set.item_layouts.some((layout) => layout.item_kind === "calendar_event");
+  return (
+    <section aria-label={t("settings.views.calendar")} className="space-y-2 rounded-md border p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Link to={calendars} className="font-medium hover:underline">
+          {t("settings.views.calendar")}
+        </Link>
+        {set.can_configure && wide ? (
+          <Button asChild variant="outline" size="sm">
+            <Link to={editor}>
+              <FileText className="h-4 w-4" />
+              {t("projects:viewEditor.openEventPage")}
+            </Link>
+          </Button>
+        ) : null}
+      </div>
+      <ul className="flex flex-wrap gap-2">
+        {set.views.map(({ name, slug, is_default, definition }) => (
+          <li key={slug}>
+            <ViewBadge view={{ name, slug, is_default, layout: definition.layout.type }} />
+          </li>
+        ))}
+      </ul>
+      <p className="text-muted-foreground text-xs">
+        {[
+          set.stored ? null : t("settings.views.shippedViews"),
+          t(own ? "settings.views.ownEventPage" : "settings.views.shippedEventPage"),
         ]
           .filter(Boolean)
           .join(" · ")}

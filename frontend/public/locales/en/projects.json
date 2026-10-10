@@ -440,6 +440,26 @@
     "newView": "New view",
     "copyOf": "{{name}} copy",
     "filters": "Filters",
-    "filtersHelp": "The view shows only tasks that match these. Readers can narrow it further with their own filters."
+    "filtersHelp": "The view shows only tasks that match these. Readers can narrow it further with their own filters.",
+    "eventPage": {
+      "name": "Event page",
+      "help": "How every event's page in this initiative is laid out, on each of its calendars. A field placed nowhere is still shown, under More fields.",
+      "shipped": "This is the page as shipped. Changing it makes it the initiative's own.",
+      "parts": {
+        "dates": "When",
+        "rsvp": "Your answer",
+        "actions": "Menu",
+        "relations": "Relations"
+      },
+      "partHelp": {
+        "rsvp": "Whether you're coming, for an event that asks.",
+        "actions": "What else can be done with the event: report, duplicate, detach and delete.",
+        "relations": "What the event is linked to."
+      },
+      "pageTitleHelp": "Every event's page shows its title.",
+      "toMoreFieldsHelp": "Every event's page lets this be changed. Removed from here, it moves to More fields."
+    },
+    "noEvents": "This initiative has no events this year. Add one to see its page here.",
+    "openEventPage": "Edit event page"
   }
 }

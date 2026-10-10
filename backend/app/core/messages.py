@@ -360,7 +360,8 @@ class ToolViewMessages:
     # The tool takes no views, or the target names an instance where the tool
     # has one page per initiative (or the other way round).
     TARGET_INVALID = "TOOL_VIEWS_TARGET_INVALID"
-    # A layout or an item kind this tool does not draw.
+    # A layout or an item kind this tool does not draw, or a part or field an
+    # item's page does not.
     LAYOUT_NOT_ALLOWED = "TOOL_VIEWS_LAYOUT_NOT_ALLOWED"
     # A set holds exactly one default view.
     ONE_DEFAULT = "TOOL_VIEWS_ONE_DEFAULT"

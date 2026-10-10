@@ -440,6 +440,26 @@
     "newView": "Neue Ansicht",
     "copyOf": "{{name}} (Kopie)",
     "filters": "Filter",
-    "filtersHelp": "Die Ansicht zeigt nur Aufgaben, die hierzu passen. Jede Person kann sie mit eigenen Filtern weiter eingrenzen."
+    "filtersHelp": "Die Ansicht zeigt nur Aufgaben, die hierzu passen. Jede Person kann sie mit eigenen Filtern weiter eingrenzen.",
+    "eventPage": {
+      "name": "Terminseite",
+      "help": "Wie die Seite jedes Termins in dieser Initiative aufgebaut ist, in jedem ihrer Kalender. Ein Feld, das nirgends platziert ist, wird weiterhin unter Weitere Felder angezeigt.",
+      "shipped": "Das ist die Seite wie ausgeliefert. Eine Änderung macht sie zur eigenen Seite der Initiative.",
+      "parts": {
+        "dates": "Wann",
+        "rsvp": "Deine Antwort",
+        "actions": "Menü",
+        "relations": "Verknüpfungen"
+      },
+      "partHelp": {
+        "rsvp": "Ob du kommst, bei einem Termin, der danach fragt.",
+        "actions": "Was sonst mit dem Termin möglich ist: melden, duplizieren, lösen und löschen.",
+        "relations": "Womit der Termin verknüpft ist."
+      },
+      "pageTitleHelp": "Jede Terminseite zeigt ihren Titel.",
+      "toMoreFieldsHelp": "Jede Terminseite lässt dieses Feld ändern. Von hier entfernt, wandert es nach Weitere Felder."
+    },
+    "noEvents": "Diese Initiative hat dieses Jahr keine Termine. Füge einen hinzu, um seine Seite hier zu sehen.",
+    "openEventPage": "Terminseite bearbeiten"
   }
 }

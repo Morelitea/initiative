@@ -40,7 +40,7 @@ import { useCommunities } from "@/hooks/useCommunities";
 import { useInitiative } from "@/hooks/useInitiatives";
 import { useReadOnOpen } from "@/hooks/useNotifications";
 import { useProject, useProjectTaskStatuses, useWritableProjects } from "@/hooks/useProjects";
-import { taskPageOf, useProjectViews } from "@/hooks/useProjectViews";
+import { itemLayoutOf, useProjectViews } from "@/hooks/useProjectViews";
 import {
   useDeleteTask,
   useDuplicateTask,
@@ -392,7 +392,7 @@ export const TaskEditPage = () => {
       />
       <TaskPageView
         task={task}
-        layout={taskPageOf(viewsQuery.data) as StoredRegions | null}
+        layout={itemLayoutOf(viewsQuery.data, "task") as StoredRegions | null}
         page={{
           readOnly: isReadOnly,
           readOnlyMessage,

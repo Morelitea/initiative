@@ -389,6 +389,10 @@ def _deep(depth: int) -> dict[str, Any]:
     return node
 
 
+def _field(field: str) -> dict[str, Any]:
+    return {"type": "field", "props": {"field": field}}
+
+
 def _plugin_part(plugin: int) -> dict[str, Any]:
     return {"type": "plugin", "props": {"plugin": plugin, "part": "builds"}}
 
@@ -580,7 +584,7 @@ async def test_a_shared_page_is_configured_by_the_initiatives_managers(
             actor.g("/views/"), params=params, headers=actor.headers
         )
         assert response.status_code == 200, response.text
-        assert response.json()["views"] == []
+        assert [view["slug"] for view in response.json()["views"]] == ["calendar"]
         return response.json()["can_configure"]
 
     assert (await can_configure(manager), await can_configure(member)) == (True, False)
@@ -588,11 +592,23 @@ async def test_a_shared_page_is_configured_by_the_initiatives_managers(
         member.g("/views/"), params=params, json=_TWO, headers=member.headers
     )
     assert refused.json()["detail"] == "INITIATIVE_MANAGER_REQUIRED"
-    # The calendar draws none of a project's layouts.
+    # The calendar draws its own layout alone.
     wrong = await client.put(
         manager.g("/views/"), params=params, json=_TWO, headers=manager.headers
     )
     assert wrong.json()["detail"] == "TOOL_VIEWS_LAYOUT_NOT_ALLOWED"
+    # Its event page is saved with its view.
+    saved = await client.put(
+        manager.g("/views/"), params=params, json=_EVENT_PAGE, headers=manager.headers
+    )
+    assert saved.status_code == 200, saved.text
+    assert [view["slug"] for view in saved.json()["views"]] == ["calendar"]
+    (layout,) = saved.json()["item_layouts"]
+    assert layout["item_kind"] == "calendar_event"
+    assert [part["type"] for part in layout["definition"]["side"]] == [
+        "rsvp",
+        "section",
+    ]
 
     def row() -> ToolView:
         return ToolView(
@@ -611,6 +627,73 @@ async def test_a_shared_page_is_configured_by_the_initiatives_managers(
     outsider.add(row())
     with pytest.raises(DBAPIError):
         await outsider.commit()
+
+
+def _page(item_kind: str, *side: dict[str, Any]) -> dict[str, Any]:
+    return {
+        **_set(_view("Calendar", "calendar", slug="calendar", is_default=True)),
+        "item_layouts": [{"item_kind": item_kind, "definition": {"side": list(side)}}],
+    }
+
+
+_EVENT_PAGE = _page(
+    "calendar_event",
+    {"type": "rsvp"},
+    {
+        "type": "section",
+        "children": [
+            {"type": "dates"},
+            {"type": "field", "props": {"field": "location"}},
+        ],
+    },
+)
+
+
+@pytest.mark.parametrize(
+    ("target", "payload"),
+    [
+        ("calendar", _page("calendar_event", {"type": "status"})),
+        (
+            "calendar",
+            _page(
+                "calendar_event",
+                {"type": "section", "children": [_field("checklist")]},
+            ),
+        ),
+        ("calendar", _page("calendar_event", _plugin_part(3))),
+        ("calendar", _page("calendar_event", _field("plugin:3:ci.state"))),
+        ("calendar", _page("task")),
+        ("project", {**_page("task", {"type": "rsvp"}), **_one()}),
+        ("project", {**_page("task", _field("location")), **_one()}),
+        ("project", {**_page("calendar_event"), **_one()}),
+    ],
+    ids=[
+        "a task's part on an event's page",
+        "a task's field on an event's page",
+        "a plug-in's part on an event's page",
+        "a plug-in's field on an event's page",
+        "a task's page on the calendar",
+        "an event's part on a task's page",
+        "an event's field on a task's page",
+        "an event's page on a project",
+    ],
+)
+async def test_an_items_page_draws_only_what_its_kind_has(
+    client: AsyncClient, acting_user, target: str, payload: dict[str, Any]
+):
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
+    params = (
+        _project(a)
+        if target == "project"
+        else {"tool": "calendar", "initiative_id": a.initiative.id}
+    )
+
+    response = await client.put(
+        a.g("/views/"), params=params, json=payload, headers=a.headers
+    )
+
+    assert response.status_code == 400, response.text
+    assert response.json()["detail"] == "TOOL_VIEWS_LAYOUT_NOT_ALLOWED"
 
 
 @pytest.mark.parametrize(

@@ -4681,6 +4681,21 @@ export interface EnvelopeImportResult {
 }
 
 /**
+ * What an event's page edits as a field. Its dates, its properties and
+ * your answer are parts of their own.
+ */
+export type EventPageFieldId = (typeof EventPageFieldId)[keyof typeof EventPageFieldId];
+
+export const EventPageFieldId = {
+  title: "title",
+  description: "description",
+  location: "location",
+  recurrence: "recurrence",
+  attendees: "attendees",
+  tags: "tags",
+} as const;
+
+/**
  * What may be attached: how many files, how large, of which types.
  */
 export interface EvidencePolicyRead {
@@ -5962,7 +5977,7 @@ export const TaskPageFieldId = {
 } as const;
 
 export interface PageFieldProps {
-  field: TaskPageFieldId | string;
+  field: TaskPageFieldId | EventPageFieldId | string;
 }
 
 export interface PageFieldPart {
@@ -5970,9 +5985,9 @@ export interface PageFieldPart {
   props: PageFieldProps;
 }
 
-export type TaskPagePartType = (typeof TaskPagePartType)[keyof typeof TaskPagePartType];
+export type ItemPagePartType = (typeof ItemPagePartType)[keyof typeof ItemPagePartType];
 
-export const TaskPagePartType = {
+export const ItemPagePartType = {
   status: "status",
   dates: "dates",
   byline: "byline",
@@ -5981,15 +5996,14 @@ export const TaskPagePartType = {
   relations: "relations",
   case: "case",
   comments: "comments",
+  rsvp: "rsvp",
 } as const;
 
 /**
- * One of a task page's own parts, which edit or show more than one field:
- * its status, its start and due dates, who made it, its read-only notice, its
- * menu, its relations, its case and its comments.
+ * One of an item page's own parts.
  */
-export interface TaskPagePart {
-  type: TaskPagePartType;
+export interface ItemPagePart {
+  type: ItemPagePartType;
 }
 
 /**
@@ -6004,7 +6018,7 @@ export interface SectionPartInput {
     | PageFieldPart
     | PropertiesPart
     | PluginPart
-    | TaskPagePart
+    | ItemPagePart
   )[];
 }
 
@@ -6017,7 +6031,7 @@ export interface PageStackPartInput {
     | PageFieldPart
     | PropertiesPart
     | PluginPart
-    | TaskPagePart
+    | ItemPagePart
   )[];
 }
 
@@ -6034,7 +6048,7 @@ export interface ItemLayoutDefinitionInput {
         | PageFieldPart
         | PropertiesPart
         | PluginPart
-        | TaskPagePart
+        | ItemPagePart
       )[]
     | null;
   main?:
@@ -6044,7 +6058,7 @@ export interface ItemLayoutDefinitionInput {
         | PageFieldPart
         | PropertiesPart
         | PluginPart
-        | TaskPagePart
+        | ItemPagePart
       )[]
     | null;
   side?:
@@ -6054,7 +6068,7 @@ export interface ItemLayoutDefinitionInput {
         | PageFieldPart
         | PropertiesPart
         | PluginPart
-        | TaskPagePart
+        | ItemPagePart
       )[]
     | null;
 }
@@ -6071,7 +6085,7 @@ export interface SectionPartOutput {
     | PageFieldPart
     | PropertiesPart
     | PluginPart
-    | TaskPagePart
+    | ItemPagePart
   )[];
 }
 
@@ -6084,7 +6098,7 @@ export interface PageStackPartOutput {
     | PageFieldPart
     | PropertiesPart
     | PluginPart
-    | TaskPagePart
+    | ItemPagePart
   )[];
 }
 
@@ -6101,7 +6115,7 @@ export interface ItemLayoutDefinitionOutput {
         | PageFieldPart
         | PropertiesPart
         | PluginPart
-        | TaskPagePart
+        | ItemPagePart
       )[]
     | null;
   main?:
@@ -6111,7 +6125,7 @@ export interface ItemLayoutDefinitionOutput {
         | PageFieldPart
         | PropertiesPart
         | PluginPart
-        | TaskPagePart
+        | ItemPagePart
       )[]
     | null;
   side?:
@@ -6121,7 +6135,7 @@ export interface ItemLayoutDefinitionOutput {
         | PageFieldPart
         | PropertiesPart
         | PluginPart
-        | TaskPagePart
+        | ItemPagePart
       )[]
     | null;
 }
@@ -9973,14 +9987,30 @@ export interface ToolDuplicateRequest {
   target_initiative_id?: number | null;
 }
 
+export type ToolItemLayoutReadItemKind =
+  (typeof ToolItemLayoutReadItemKind)[keyof typeof ToolItemLayoutReadItemKind];
+
+export const ToolItemLayoutReadItemKind = {
+  task: "task",
+  calendar_event: "calendar_event",
+} as const;
+
 export interface ToolItemLayoutRead {
   id: number;
-  item_kind: "task";
+  item_kind: ToolItemLayoutReadItemKind;
   definition: ItemLayoutDefinitionOutput;
 }
 
+export type ToolItemLayoutWriteItemKind =
+  (typeof ToolItemLayoutWriteItemKind)[keyof typeof ToolItemLayoutWriteItemKind];
+
+export const ToolItemLayoutWriteItemKind = {
+  task: "task",
+  calendar_event: "calendar_event",
+} as const;
+
 export interface ToolItemLayoutWrite {
-  item_kind: "task";
+  item_kind: ToolItemLayoutWriteItemKind;
   definition: ItemLayoutDefinitionInput;
 }
 

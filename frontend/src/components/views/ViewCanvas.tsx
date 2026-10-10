@@ -1,4 +1,4 @@
-import { GripVertical, MoreHorizontal, Plus } from "lucide-react";
+import { GripVertical, Plus } from "lucide-react";
 import {
   type ComponentProps,
   type KeyboardEvent,
@@ -20,11 +20,8 @@ import type {
 } from "@/api/generated/initiativeAPI.schemas";
 import { ProjectTasksKanbanView } from "@/components/projects/ProjectTasksKanbanView";
 import { ProjectTasksTableView } from "@/components/projects/ProjectTasksTableView";
-import { useScopePrompt } from "@/components/recurrence/OccurrenceScopeDialog";
-import { Button } from "@/components/ui/button";
-import { useAuth } from "@/hooks/useAuth";
 import { type useProjectTaskTableState, viewTableSorting } from "@/hooks/useProjectTaskView";
-import { useTask, useTasks } from "@/hooks/useTasks";
+import { useTasks } from "@/hooks/useTasks";
 import { buildTaskListParams, specFromApi } from "@/lib/filters/taskFilters";
 import { cn } from "@/lib/utils";
 import {
@@ -36,8 +33,6 @@ import {
   type Selection,
   sameSelection,
 } from "@/lib/views/draft";
-import { TaskPageView } from "@/lib/views/taskPage";
-import type { ViewNode } from "@/lib/views/tree";
 
 /** How wide the canvas draws the view: the widths a person might read it at. */
 export type PreviewWidth = "desktop" | "tablet" | "phone";
@@ -156,7 +151,7 @@ const sameBoxes = (a: Boxes, b: Boxes) => JSON.stringify(a) === JSON.stringify(b
  * at, and a handle to drag the selected one elsewhere. It measures what is
  * drawn rather than wrapping it, so the view lays out as its readers see it.
  */
-const CanvasFrame = ({
+export const CanvasFrame = ({
   width,
   selection,
   onSelect,
@@ -575,80 +570,6 @@ export const ViewCanvas = ({
       ) : null}
       {layout === "calendar" ? (
         <p className="text-muted-foreground text-sm">{t("viewEditor.calendarNote")}</p>
-      ) : null}
-    </CanvasFrame>
-  );
-};
-
-/** The task page being laid out, drawn with one of the project's tasks. */
-export const PageCanvas = ({
-  projectId,
-  initiativeId,
-  statuses,
-  page,
-  width,
-  selection,
-  onSelect,
-  tools,
-}: {
-  projectId: number;
-  initiativeId: number;
-  statuses: TaskStatusRead[];
-  /** The page as one tree: the page, holding its header, main and side. */
-  page: ViewNode;
-  width: PreviewWidth;
-  selection: Selection;
-  onSelect: (selection: Selection) => void;
-  tools: CanvasTools;
-}) => {
-  const { t } = useTranslation("projects");
-  const { user } = useAuth();
-  const scopePrompt = useScopePrompt();
-  const leaving = useRef(true);
-  // One task to draw the page with: the project's first.
-  const params = useMemo(
-    () => ({ ...buildTaskListParams(specFromApi(null), { projectId }), page_size: 1 }),
-    [projectId]
-  );
-  const listed = useTasks(params);
-  const first = listed.data?.items[0]?.id ?? null;
-  const task = useTask(first).data;
-  const layout = useMemo(
-    () => ({
-      header: page.children?.[0]?.children ?? [],
-      main: page.children?.[1]?.children ?? [],
-      side: page.children?.[2]?.children ?? [],
-    }),
-    [page]
-  );
-
-  return (
-    <CanvasFrame width={width} selection={selection} onSelect={onSelect} tools={tools}>
-      {task ? (
-        <TaskPageView
-          task={task}
-          layout={layout}
-          editing
-          page={{
-            readOnly: false,
-            // Drawn here so it can be placed; a reader sees it only when they
-            // cannot change the task.
-            readOnlyMessage: t("viewEditor.noticePreview"),
-            statuses,
-            initiativeId,
-            currentUserId: user?.id,
-            askScope: scopePrompt.ask,
-            actions: (
-              <Button type="button" variant="outline" size="icon" tabIndex={-1} aria-hidden>
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            ),
-            leaving,
-            preview: true,
-          }}
-        />
-      ) : listed.isSuccess && first === null ? (
-        <p className="text-muted-foreground text-sm">{t("viewEditor.noTasks")}</p>
       ) : null}
     </CanvasFrame>
   );

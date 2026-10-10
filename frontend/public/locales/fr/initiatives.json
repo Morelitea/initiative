@@ -276,13 +276,16 @@
     "viewsTab": "Vues",
     "views": {
       "heading": "Vues",
-      "description": "Les vues de chaque projet, et s'il a sa propre page de tâche. Les vues d'un projet se modifient dans son éditeur.",
+      "description": "Les vues de chaque projet, et s'il dispose sa propre page de tâche, puis la page d'événement du calendrier. Les vues d'un projet se modifient dans son éditeur.",
       "noProjects": "Cette initiative n'a pas encore de projet.",
       "loadError": "Impossible de charger les vues.",
       "default": "S'ouvre en premier",
       "shippedViews": "Les vues d'origine",
       "ownTaskPage": "Sa propre page de tâche",
-      "shippedTaskPage": "La page de tâche d'origine"
+      "shippedTaskPage": "La page de tâche d'origine",
+      "calendar": "Calendrier",
+      "ownEventPage": "Sa propre page d'événement",
+      "shippedEventPage": "La page d'événement livrée"
     }
   },
   "advancedTools": "Outils",

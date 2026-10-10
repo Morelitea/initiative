@@ -14,6 +14,8 @@ import {
   buildInitiative,
   buildInitiativeJoinRequest,
   buildInitiativeRole,
+  buildShippedCalendarViews,
+  buildToolViewSet,
   buildUserSummary,
   initiativeCan,
 } from "@/__tests__/factories";
@@ -278,9 +280,18 @@ describe("initiative settings sections", () => {
     ).toBeInTheDocument();
   });
 
-  it("lists each project's views at /settings/views, editable where allowed", async () => {
-    stubInitiative();
+  it("lists each project's views at /settings/views, then the calendar's event page", async () => {
+    stubInitiative({ calendars_enabled: true });
     server.use(
+      communityHttp.get("/views/", () =>
+        HttpResponse.json(
+          buildToolViewSet({
+            views: buildShippedCalendarViews(),
+            item_layouts: [{ id: 1, item_kind: "calendar_event", definition: { main: [] } }],
+            stored: true,
+          })
+        )
+      ),
       communityHttp.get("/views/initiative", () =>
         HttpResponse.json([
           {
@@ -321,6 +332,13 @@ describe("initiative settings sections", () => {
     const digs = screen.getByRole("region", { name: "Archive digs" });
     expect(within(digs).getByText("The shipped views · The shipped task page")).toBeInTheDocument();
     expect(within(digs).queryByRole("link", { name: /edit views/i })).not.toBeInTheDocument();
+    const calendar = await screen.findByRole("region", { name: "Calendar" });
+    expect(within(calendar).getByText("Calendar", { selector: "li *" })).toBeInTheDocument();
+    expect(within(calendar).getByText("Its own event page")).toBeInTheDocument();
+    expect(within(calendar).getByRole("link", { name: /edit event page/i })).toHaveAttribute(
+      "href",
+      `/c/1/i/${INITIATIVE_ID}/calendars/views`
+    );
   });
 
   it.each([

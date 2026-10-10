@@ -276,13 +276,16 @@
     "viewsTab": "Ansichten",
     "views": {
       "heading": "Ansichten",
-      "description": "Die Ansichten jedes Projekts und ob es seine eigene Aufgabenseite hat. Die Ansichten eines Projekts werden in seinem Editor geändert.",
+      "description": "Die Ansichten jedes Projekts und ob es eine eigene Aufgabenseite hat, danach die Terminseite des Kalenders. Die Ansichten eines Projekts werden in seinem Editor geändert.",
       "noProjects": "Diese Initiative hat noch keine Projekte.",
       "loadError": "Die Ansichten konnten nicht geladen werden.",
       "default": "Wird zuerst geöffnet",
       "shippedViews": "Die ausgelieferten Ansichten",
       "ownTaskPage": "Eigene Aufgabenseite",
-      "shippedTaskPage": "Die ausgelieferte Aufgabenseite"
+      "shippedTaskPage": "Die ausgelieferte Aufgabenseite",
+      "calendar": "Kalender",
+      "ownEventPage": "Eigene Terminseite",
+      "shippedEventPage": "Die ausgelieferte Terminseite"
     }
   },
   "advancedTools": "Werkzeuge",

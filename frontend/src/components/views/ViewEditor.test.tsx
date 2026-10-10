@@ -9,6 +9,7 @@ import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  buildCalendarEvent,
   buildDefaultTaskStatuses,
   buildPropertyDefinition,
   buildTask,
@@ -16,31 +17,44 @@ import {
   buildToolView,
   buildToolViewSet,
 } from "@/__tests__/factories";
-import { buildSavedViewSet } from "@/__tests__/factories/toolView.factory";
+import {
+  buildSavedViewSet,
+  buildShippedCalendarViews,
+} from "@/__tests__/factories/toolView.factory";
 import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import type { ToolViewSetRead, ToolViewSetWrite } from "@/api/generated/initiativeAPI.schemas";
-import { useProjectViews } from "@/hooks/useProjectViews";
+import { calendarTarget, projectTarget, useToolViews } from "@/hooks/useProjectViews";
 import type { ViewNode } from "@/lib/views/tree";
 
-import { TASK_PAGE, ViewEditor } from "./ViewEditor";
+import { eventPage, taskPage } from "./pages";
+import { pageKey, ViewEditor } from "./ViewEditor";
 
 const STATUSES = buildDefaultTaskStatuses(1);
+const PROJECT = { id: 1, initiativeId: 1, statuses: STATUSES };
+const TASK_PAGE = pageKey("task");
+const PROJECT_TARGET = projectTarget(1);
+const PROJECT_PAGES = [taskPage(PROJECT)];
+const CALENDAR_TARGET = calendarTarget(1);
+const CALENDAR_PAGES = [eventPage(1)];
 
 let saves: ToolViewSetWrite[] = [];
 
 /** The editor as its page holds it: on the project's views as read, which a
- *  save writes its answer over. */
-const editor = (slug: string, onClose = vi.fn(), set = buildToolViewSet()) => {
+ *  save writes its answer over. With `calendar`, on the initiative calendar's
+ *  event page instead. */
+const editor = (slug: string, onClose = vi.fn(), set = buildToolViewSet(), calendar = false) => {
   server.use(communityHttp.get("/views/", () => HttpResponse.json(set)));
   const Page = () => {
-    const read = useProjectViews(1).data;
+    const target = calendar ? CALENDAR_TARGET : PROJECT_TARGET;
+    const read = useToolViews(target).data;
     return read ? (
       <ViewEditor
-        projectId={1}
+        target={target}
         initiativeId={1}
-        statuses={STATUSES}
+        project={calendar ? undefined : PROJECT}
+        pages={calendar ? CALENDAR_PAGES : PROJECT_PAGES}
         set={read}
         initialSlug={slug}
         onClose={onClose}
@@ -238,9 +252,10 @@ describe("ViewEditor", () => {
             refresh
           </button>
           <ViewEditor
-            projectId={1}
+            target={PROJECT_TARGET}
             initiativeId={1}
-            statuses={STATUSES}
+            project={PROJECT}
+            pages={PROJECT_PAGES}
             set={set}
             initialSlug="mine"
             onClose={vi.fn()}
@@ -588,6 +603,40 @@ describe("ViewEditor", () => {
 
       await waitFor(() => expect(saves).toHaveLength(1));
       expect(saves[0].item_layouts).toEqual([]);
+    });
+  });
+
+  describe("the event page", () => {
+    it("lays out the calendar's event page, keeping the calendar's view as it is", async () => {
+      const event = buildCalendarEvent({ id: 9, title: "Standup", location: "Room 2" });
+      server.use(
+        communityHttp.get("/calendar-entries/", () =>
+          HttpResponse.json({ events: [event], tasks: [], task_occurrences: [] })
+        ),
+        communityHttp.get("/calendar-events/:eventId", () => HttpResponse.json(event))
+      );
+      const { user } = editor(
+        "",
+        vi.fn(),
+        buildToolViewSet({ views: buildShippedCalendarViews() }),
+        true
+      );
+      expect(await within(await canvas()).findByDisplayValue("Room 2")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /add view/i })).not.toBeInTheDocument();
+
+      await user.click(
+        within(await outline()).getByRole("button", { name: /move location to more fields/i })
+      );
+      await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+      await waitFor(() => expect(saves).toHaveLength(1));
+      // Its view is kept as it is, for the calendar's own editing to come.
+      expect(saves[0].views.map((view) => [view.slug, view.is_default])).toEqual([
+        ["calendar", true],
+      ]);
+      const [layout] = saves[0].item_layouts ?? [];
+      expect(layout?.item_kind).toBe("calendar_event");
+      expect(JSON.stringify(layout?.definition)).not.toContain('"location"');
     });
   });
 });
