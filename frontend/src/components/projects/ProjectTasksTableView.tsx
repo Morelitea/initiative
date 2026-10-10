@@ -23,7 +23,6 @@ import {
   tagRowId,
   uniqueTasksFromRows,
 } from "@/components/projects/taskTagGrouping";
-import { propertyColumnIds } from "@/components/properties/propertyColumns";
 import { SortHeader } from "@/components/SortIcon";
 import { TagBadge } from "@/components/tags/TagBadge";
 import { sharedTaskColumns } from "@/components/tasks/globalTaskColumns";
@@ -39,6 +38,7 @@ import { useProperties } from "@/hooks/useProperties";
 import type { AppColumnDef } from "@/lib/table";
 import { cn } from "@/lib/utils";
 import { useProjectViewEnv } from "@/lib/views/fields";
+import { pluginFields, usePluginsOnItems } from "@/lib/views/plugins";
 import { taskFields } from "@/lib/views/tasks";
 
 type ProjectTasksListViewProps = {
@@ -187,17 +187,22 @@ const ProjectTasksTableViewComponent = ({
   onExitSelection,
   tableState: [tableState, { setGrouping, setSorting }],
 }: ProjectTasksListViewProps) => {
-  const { t } = useTranslation(["projects", "comments", "tasks"]);
+  const { t, i18n } = useTranslation(["projects", "comments", "tasks"]);
   const statusDisabled = !canEditTaskDetails || taskActionsDisabled;
   const env = useProjectViewEnv(taskHref);
 
-  // Property columns are hidden by default, and persist their visibility.
-  // Scoped to the project's initiative so the column list stays focused.
+  // Property and plug-in columns are hidden by default, and persist their
+  // visibility. Scoped to the project's initiative so the column list stays
+  // focused.
   const { data: propertyDefinitions = [] } = useProperties({ initiativeId });
-  const fields = useMemo(() => taskFields(propertyDefinitions), [propertyDefinitions]);
+  const plugins = usePluginsOnItems(initiativeId);
+  const fields = useMemo(
+    () => taskFields(propertyDefinitions, pluginFields(plugins, i18n.language)),
+    [propertyDefinitions, plugins, i18n.language]
+  );
   const propertyHiddenIds = useMemo(
-    () => propertyColumnIds(propertyDefinitions),
-    [propertyDefinitions]
+    () => [...fields.values()].filter((field) => field.source !== "builtin").map(({ id }) => id),
+    [fields]
   );
   const [columnVisibility, setColumnVisibility] = usePersistedColumnVisibility(
     `initiative-project-${projectId}-task-columns`,

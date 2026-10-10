@@ -504,6 +504,7 @@
   "TOOL_VIEWS_DUPLICATE_SLUG": "Deux vues ont le même nom de lien.",
   "TOOL_VIEWS_DUPLICATE_ITEM_LAYOUT": "Il y a deux mises en page pour le même type d’élément.",
   "TOOL_VIEWS_TOO_LARGE": "Cette vue comporte trop d’éléments. Retirez-en quelques-uns et réessayez.",
+  "TOOL_VIEWS_TOO_MANY_PLUGIN_PARTS": "Une carte ou une page peut contenir jusqu’à 3 éléments du même plug-in.",
   "COMMUNITY_NOT_A_COMMUNITY": "Cette communauté n’est pas inscrite à l’annuaire des communautés.",
   "COMMUNITY_COMMUNITY_REQUIRES_CATEGORY": "Une communauté inscrite doit avoir au moins une catégorie.",
   "COMMUNITY_COMMUNITY_CONTENT_NOT_DECLARED": "Confirmez que cette communauté ne contient aucun contenu pour adultes avant de l’inscrire.",

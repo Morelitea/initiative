@@ -249,3 +249,50 @@ def test_surface_access_is_computed_for_the_viewer():
             "openable_initiatives": [2, 5],
         },
     }
+
+
+def test_item_access_is_where_the_viewer_meets_the_plugin_on_items():
+    """The initiatives whose placements admit the viewer, and every declared
+    action there but one whose write endpoint is admin-only, which only an
+    admin runs."""
+    definition = {
+        **DEFINITION,
+        "endpoints": [
+            {"id": "link", "direction": "write"},
+            {"id": "purge", "direction": "write", "admin_only": True},
+        ],
+        "actions": [
+            {"id": "new-link", "endpoint": "link", "on": ["task"]},
+            {"id": "purge", "endpoint": "purge", "on": ["task"]},
+        ],
+    }
+    rows = [
+        SimpleNamespace(initiative_id=2, role_ids=[40]),
+        SimpleNamespace(initiative_id=5, role_ids=[41]),
+    ]
+
+    def context(**standing):
+        return GuildContext(
+            guild=Guild(id=7, name="g"),
+            user_id=12,
+            guild_id=7,
+            standing_guild_id=7,
+            **standing,
+        )
+
+    def access(standing, viewer=ADULT):
+        payload = serialize_guild_plugin(
+            _plugin(definition={**definition, "minimum_age": {"default": 18}}),
+            context=standing,
+            placements=rows,
+            viewer=viewer,
+        )
+        return payload.item_initiatives, payload.item_actions
+
+    assert access(context(member_role_ids=(40,))) == ([2], ["new-link"])
+    assert access(context(guild_admin=True)) == ([2, 5], ["new-link", "purge"])
+    assert access(context(member_role_ids=(99,))) == ([], [])
+    assert access(context(guild_admin=True), AgeViewer(age=15, country="US")) == (
+        [],
+        [],
+    )

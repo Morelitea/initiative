@@ -11,6 +11,7 @@ import {
   type ViewItem,
   type ViewVariant,
 } from "./fields";
+import { type PluginOnItems, PluginPartView } from "./plugins";
 
 /** A view as data: a registered part, its props, and what it holds. The same
  *  shape the plug-in SDK uses for parts. */
@@ -23,8 +24,12 @@ export type ViewNode = {
 /** What every item in one view shares. Made once per view, not per item, so
  *  the memoized items skip re-rendering until it changes. */
 export type ViewContext = {
-  /** In order: built-ins, then properties in definition order. */
+  /** In order: built-ins, properties in definition order, then plug-ins'. */
   fields: ReadonlyMap<string, FieldDef>;
+  /** The plug-ins whose parts a tree may place, by install. */
+  plugins?: ReadonlyMap<number, PluginOnItems>;
+  /** A board's card. */
+  card?: ViewNode;
   variant: ViewVariant;
   isHidden: (fieldId: string) => boolean;
   env: ViewEnv;
@@ -111,6 +116,20 @@ const propertyField = (
   return index.get(propertyId);
 };
 
+const PROPERTY_BY_ID = /^property:([1-9][0-9]*)$/;
+
+/** The field a node names. A stored view names a property by its definition
+ *  id, which the server checks; the fields are keyed as the table's columns
+ *  are, by name. */
+const fieldNamed = (
+  fields: ReadonlyMap<string, FieldDef>,
+  node: ViewNode
+): FieldDef | undefined => {
+  const id = String(node.props?.field);
+  const byId = PROPERTY_BY_ID.exec(id);
+  return fields.get(id) ?? (byId ? propertyField(fields, Number(byId[1])) : undefined);
+};
+
 type StackProps = {
   direction?: "column" | "row";
   gap?: "xs" | "sm";
@@ -178,7 +197,7 @@ const PARTS: Parts<ViewItem> = {
   // the card lays out what is inside it.
   card: (node, item, view, parts) => renderChildren(node, item, view, parts),
   field: (node, item, view) => {
-    const field = view.fields.get(String(node.props?.field));
+    const field = fieldNamed(view.fields, node);
     return field ? renderField(field, field.value(item), item, view) : null;
   },
   // Every property the item carries, in its own order: a shipped tree cannot
@@ -193,6 +212,33 @@ const PARTS: Parts<ViewItem> = {
         summary.property_id
       )
     ),
+  plugin: (node, item, view) => (
+    <PluginPartView
+      plugins={view.plugins}
+      pluginId={Number(node.props?.plugin)}
+      partId={String(node.props?.part)}
+      task={item}
+    />
+  ),
+};
+
+/** The fields a tree draws: those it names, and every property where it
+ *  draws them all. What the Fields menu offers to hide. */
+export const drawnFields = (node: ViewNode, fields: ReadonlyMap<string, FieldDef>): FieldDef[] => {
+  const named = new Set<string>();
+  let properties = false;
+  const walk = (part: ViewNode) => {
+    if (part.type === "field") {
+      const field = fieldNamed(fields, part);
+      if (field) named.add(field.id);
+    }
+    if (part.type === "properties") properties = true;
+    part.children?.forEach(walk);
+  };
+  walk(node);
+  return [...fields.values()].filter(
+    (field) => named.has(field.id) || (properties && field.source === "property")
+  );
 };
 
 /** Draws one item of a collection through a tree. */

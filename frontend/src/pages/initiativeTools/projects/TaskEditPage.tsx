@@ -52,6 +52,7 @@ import { getHttpStatus } from "@/lib/errorMessage";
 import { toast } from "@/lib/mascotToast";
 import { queryClient } from "@/lib/queryClient";
 import { taskRoute, toolDetailRoute, toolListRoute } from "@/lib/tools";
+import { usePluginMenuActions } from "@/lib/views/plugins";
 import { TaskPageView } from "@/lib/views/taskPage";
 
 type MoveTaskVariables = {
@@ -117,6 +118,9 @@ export const TaskEditPage = () => {
 
   const scopePrompt = useScopePrompt();
   const repeating = Boolean(task?.recurrence);
+  // A plug-in's actions are the plug-in's to allow, so a reader who cannot
+  // edit the task may still run them.
+  const pluginActions = usePluginMenuActions(parsedTaskId, projectQuery.data?.initiative_id);
 
   const skipTask = useSkipTask({
     onSuccess: (skipped) => {
@@ -278,75 +282,91 @@ export const TaskEditPage = () => {
 
   // Everything a task supports beyond its fields lives behind the overflow
   // menu, so the header stays readable at any width.
-  const actions = isReadOnly ? null : (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        {/* Duplicate and archive dismiss the menu that holds their own pending
+  const actions =
+    isReadOnly && pluginActions.items.length === 0 ? null : (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          {/* Duplicate and archive dismiss the menu that holds their own pending
             label, and neither opens a dialog to carry one, so the trigger
             reports their progress instead. */}
-        <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          aria-label={t("common:toolbar.moreActions")}
-          aria-busy={menuActionPending}
-        >
-          {menuActionPending ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <MoreHorizontal className="h-4 w-4" />
-          )}
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuItem disabled={moveTask.isPending} onSelect={() => setIsMoveDialogOpen(true)}>
-          <FolderInput className="h-4 w-4" />
-          {t("edit.moveToProject")}
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          disabled={duplicateTask.isPending}
-          onSelect={() => duplicateTask.mutate(parsedTaskId)}
-        >
-          <Copy className="h-4 w-4" />
-          {duplicateTask.isPending ? t("edit.duplicating") : t("edit.duplicateTask")}
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          disabled={toggleArchive.isPending}
-          onSelect={() => toggleArchive.mutate({ entityType: "task", entityId: parsedTaskId })}
-        >
-          {task.archived_at !== null ? (
-            <>
-              <ArchiveRestore className="h-4 w-4" />
-              {toggleArchive.isPending ? t("edit.unarchiving") : t("edit.unarchive")}
-            </>
-          ) : (
-            <>
-              <Archive className="h-4 w-4" />
-              {toggleArchive.isPending ? t("edit.archiving") : t("edit.archive")}
-            </>
-          )}
-        </DropdownMenuItem>
-        {repeating ? (
-          <DropdownMenuItem
-            disabled={skipTask.isPending}
-            onSelect={() => skipTask.mutate(parsedTaskId)}
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            aria-label={t("common:toolbar.moreActions")}
+            aria-busy={menuActionPending}
           >
-            <SkipForward className="h-4 w-4" />
-            {t("edit.skipOccurrence")}
-          </DropdownMenuItem>
-        ) : null}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          className="text-destructive focus:text-destructive"
-          disabled={deleteTask.isPending}
-          onSelect={() => void handleDelete()}
-        >
-          <Trash2 className="h-4 w-4" />
-          {deleteTask.isPending ? t("edit.deleting") : t("edit.deleteTask")}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
+            {menuActionPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <MoreHorizontal className="h-4 w-4" />
+            )}
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          {isReadOnly ? null : (
+            <>
+              <DropdownMenuItem
+                disabled={moveTask.isPending}
+                onSelect={() => setIsMoveDialogOpen(true)}
+              >
+                <FolderInput className="h-4 w-4" />
+                {t("edit.moveToProject")}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                disabled={duplicateTask.isPending}
+                onSelect={() => duplicateTask.mutate(parsedTaskId)}
+              >
+                <Copy className="h-4 w-4" />
+                {duplicateTask.isPending ? t("edit.duplicating") : t("edit.duplicateTask")}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                disabled={toggleArchive.isPending}
+                onSelect={() =>
+                  toggleArchive.mutate({ entityType: "task", entityId: parsedTaskId })
+                }
+              >
+                {task.archived_at !== null ? (
+                  <>
+                    <ArchiveRestore className="h-4 w-4" />
+                    {toggleArchive.isPending ? t("edit.unarchiving") : t("edit.unarchive")}
+                  </>
+                ) : (
+                  <>
+                    <Archive className="h-4 w-4" />
+                    {toggleArchive.isPending ? t("edit.archiving") : t("edit.archive")}
+                  </>
+                )}
+              </DropdownMenuItem>
+              {repeating ? (
+                <DropdownMenuItem
+                  disabled={skipTask.isPending}
+                  onSelect={() => skipTask.mutate(parsedTaskId)}
+                >
+                  <SkipForward className="h-4 w-4" />
+                  {t("edit.skipOccurrence")}
+                </DropdownMenuItem>
+              ) : null}
+            </>
+          )}
+          {!isReadOnly && pluginActions.items.length > 0 ? <DropdownMenuSeparator /> : null}
+          {pluginActions.items}
+          {isReadOnly ? null : (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive"
+                disabled={deleteTask.isPending}
+                onSelect={() => void handleDelete()}
+              >
+                <Trash2 className="h-4 w-4" />
+                {deleteTask.isPending ? t("edit.deleting") : t("edit.deleteTask")}
+              </DropdownMenuItem>
+            </>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
 
   return (
     <div className="space-y-6">
@@ -373,6 +393,7 @@ export const TaskEditPage = () => {
         }}
       />
 
+      {pluginActions.dialog}
       <MoveTaskDialog
         open={isMoveDialogOpen}
         onOpenChange={setIsMoveDialogOpen}

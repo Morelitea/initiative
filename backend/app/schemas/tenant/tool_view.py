@@ -1,12 +1,13 @@
 """Schemas for an initiative's views of a tool, and its item layouts.
 
 A view and an item layout are trees of registered parts: a ``card`` holds what
-an item shows, a ``stack`` lays its children out, a ``field`` draws one field
-and ``properties`` draws every property the item carries. The parts, their
-props, the layouts and the built-in field ids are ``Literal``s or enums, so the
-generated client carries the same vocabulary the renderer keys by. A
-property's field is named ``property:<definition id>``, so renaming it keeps
-every view that shows it.
+an item shows, a ``stack`` lays its children out, a ``field`` draws one field,
+``properties`` draws every property the item carries and ``plugin`` draws one
+of an installed plug-in's parts. The parts, their props, the layouts and the
+built-in field ids are ``Literal``s or enums, so the generated client carries
+the same vocabulary the renderer keys by. A property's field is named
+``property:<definition id>``, so renaming it keeps every view that shows it; a
+plug-in's is ``plugin:<install id>:<metadata key>``.
 
 ``TaskFilterSpec`` is the normalized filter shape a view stores. It mirrors
 what the task filter panel can render rather than the ``conditions`` DSL the
@@ -26,6 +27,11 @@ from pydantic import AfterValidator, ConfigDict, Field, field_validator
 from app.models.tenant.task import TaskStatusCategory
 from app.schemas.base import SanitizedBaseModel
 from app.schemas.query import FilterOp
+from app.services.marketplace.manifest_values import (
+    IDENTIFIER_CHARS,
+    MAX_IDENTIFIER_LENGTH,
+    is_metadata_key,
+)
 from app.services.tenant.properties import MAX_PROPERTY_FILTERS
 
 # An assignee list holds user ids as strings alongside two tokens that only
@@ -53,6 +59,8 @@ MAX_VIEWS = 40
 MAX_NODES = 300
 MAX_DEPTH = 6
 MAX_DEFINITION_BYTES = 64 * 1024
+#: One plug-in's parts on one item: on a card, or across an item's page.
+MAX_PLUGIN_PARTS = 3
 
 
 class _Strict(SanitizedBaseModel):
@@ -121,28 +129,48 @@ class TaskFieldId(str, Enum):
 
 
 PROPERTY_FIELD_PREFIX = "property:"
-#: The characters a property's definition id is written in.
+PLUGIN_FIELD_PREFIX = "plugin:"
+#: The characters a row id is written in.
 _DIGITS = frozenset("0123456789")
-#: A definition id is a Postgres ``integer``: at most ten digits.
+#: A row id is a Postgres ``integer``: at most ten digits.
 _MAX_ID_DIGITS = 10
 
 
-def _property_field(value: str) -> str:
-    """``property:<definition id>``. By id rather than by name, so renaming a
-    property keeps every view that shows it."""
-    rest = value.removeprefix(PROPERTY_FIELD_PREFIX)
-    if (
-        rest == value
-        or not 0 < len(rest) <= _MAX_ID_DIGITS
-        or not set(rest) <= _DIGITS
-        or rest.startswith("0")
+def _is_row_id(value: str) -> bool:
+    return (
+        0 < len(value) <= _MAX_ID_DIGITS
+        and set(value) <= _DIGITS
+        and not value.startswith("0")
+    )
+
+
+def _named_field(value: str) -> str:
+    """``property:<definition id>`` or ``plugin:<install id>:<metadata key>``.
+    By id rather than by name, so renaming a property keeps every view that
+    shows it."""
+    if value.startswith(PROPERTY_FIELD_PREFIX):
+        if _is_row_id(value.removeprefix(PROPERTY_FIELD_PREFIX)):
+            return value
+    elif value.startswith(PLUGIN_FIELD_PREFIX):
+        install, _, key = value.removeprefix(PLUGIN_FIELD_PREFIX).partition(":")
+        if _is_row_id(install) and is_metadata_key(key):
+            return value
+    raise ValueError(
+        "a field is a built-in field id, 'property:<id>' or 'plugin:<id>:<key>'"
+    )
+
+
+NamedFieldId = Annotated[str, AfterValidator(_named_field)]
+ViewFieldId = Union[TaskFieldId, NamedFieldId]
+
+
+def _part_id(value: str) -> str:
+    """One of a plug-in's parts, by the id its manifest gives it."""
+    if not 0 < len(value) <= MAX_IDENTIFIER_LENGTH or not set(value) <= set(
+        IDENTIFIER_CHARS
     ):
-        raise ValueError("a field is a built-in field id or 'property:<id>'")
+        raise ValueError("a part is named by its manifest id")
     return value
-
-
-PropertyFieldId = Annotated[str, AfterValidator(_property_field)]
-ViewFieldId = Union[TaskFieldId, PropertyFieldId]
 
 
 # -- Parts --------------------------------------------------------------------
@@ -183,8 +211,22 @@ class PropertiesPart(_Strict):
     type: Literal["properties"]
 
 
+class PluginPartProps(_Strict):
+    #: The install, as the community's plug-in routes name it.
+    plugin: int = Field(gt=0)
+    part: Annotated[str, AfterValidator(_part_id)]
+
+
+class PluginPart(_Strict):
+    """One of an installed plug-in's parts, drawn as its manifest builds it.
+    A part the install no longer declares draws nothing."""
+
+    type: Literal["plugin"]
+    props: PluginPartProps
+
+
 ViewPart = Annotated[
-    Union[CardPart, StackPart, FieldPart, PropertiesPart],
+    Union[CardPart, StackPart, FieldPart, PropertiesPart, PluginPart],
     Field(discriminator="type"),
 ]
 

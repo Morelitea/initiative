@@ -14,6 +14,7 @@ import type {
   CommunityPluginListResponse,
   CommunityPluginRead,
   CommunityPluginUpdate,
+  PluginActionResult,
   PluginPlacementRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
@@ -22,6 +23,7 @@ import {
   listCommunityPlugins,
   putCommunityPluginPlacement,
   putCommunityPluginScopes,
+  runPluginAction,
   uninstallCommunityPlugin,
   updateCommunityPlugin,
 } from "@/api/generated/plugins/plugins";
@@ -116,3 +118,13 @@ export const useSetPluginScopes = (
     options
   );
 };
+
+/** Run one of a plug-in's actions on a task. The plug-in does the work; the
+ *  task is read again for the values it shows afterwards. */
+export const useRunPluginTaskAction = () =>
+  useCommunityMutation<PluginActionResult, { pluginId: number; actionId: string; taskId: number }>({
+    mutationFn: (communityId, { pluginId, actionId, taskId }) =>
+      runPluginAction(communityId, pluginId, actionId, { entity_type: "task", entity_id: taskId }),
+    invalidate: (_data, { taskId }) => invalidate(q.allTasks(), q.task(taskId)),
+    errorKey: "plugins:error",
+  });

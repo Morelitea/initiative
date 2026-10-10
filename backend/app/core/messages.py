@@ -330,6 +330,8 @@ class ToolViewMessages:
     DUPLICATE_ITEM_LAYOUT = "TOOL_VIEWS_DUPLICATE_ITEM_LAYOUT"
     # A view or item layout over its node, depth or size limit.
     TOO_LARGE = "TOOL_VIEWS_TOO_LARGE"
+    # More of one plug-in's parts on an item than it may place there.
+    TOO_MANY_PLUGIN_PARTS = "TOOL_VIEWS_TOO_MANY_PLUGIN_PARTS"
 
 
 class ProjectMessages:

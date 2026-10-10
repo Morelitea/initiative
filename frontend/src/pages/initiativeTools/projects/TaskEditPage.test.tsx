@@ -459,6 +459,42 @@ describe("TaskEditPage", () => {
     expect(screen.queryByRole("button", { name: /more actions/i })).not.toBeInTheDocument();
   });
 
+  it("offers a reader the actions a plug-in puts in the task's menu, and only those", async () => {
+    // Whether the reader may is the plug-in's to say, not the task's.
+    const ran = vi.fn();
+    const action = { id: "link", name: { en: "Link an issue" }, on: ["task"], menu: true };
+    server.use(
+      communityHttp.get("/plugins/", () =>
+        HttpResponse.json({
+          items: [
+            {
+              id: 3,
+              enabled: true,
+              definition: { actions: [action, { ...action, id: "hidden", menu: false }] },
+              item_initiatives: [INITIATIVE_ID],
+              item_actions: ["link", "hidden"],
+            },
+          ],
+        })
+      ),
+      communityHttp.post("/plugins/3/actions/link", async ({ request }) => {
+        ran(await request.json());
+        return HttpResponse.json({ values: {} });
+      })
+    );
+    renderTaskPage({ canEdit: false });
+
+    await userEvent.click(await screen.findByRole("button", { name: /more actions/i }));
+    expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual([
+      "Link an issue",
+    ]);
+    await userEvent.click(screen.getByRole("menuitem", { name: "Link an issue" }));
+
+    await waitFor(() =>
+      expect(ran).toHaveBeenCalledWith({ entity_type: "task", entity_id: TASK_ID })
+    );
+  });
+
   it("keeps a failed save's error on its field until Retry sends it again", async () => {
     let failing = true;
     const { sent } = renderTaskPage({

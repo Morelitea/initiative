@@ -504,6 +504,7 @@
   "TOOL_VIEWS_DUPLICATE_SLUG": "Zwei Ansichten haben denselben Linknamen.",
   "TOOL_VIEWS_DUPLICATE_ITEM_LAYOUT": "Für dieselbe Art von Eintrag gibt es zwei Seitenlayouts.",
   "TOOL_VIEWS_TOO_LARGE": "Diese Ansicht hat zu viele Teile. Entferne einige und versuche es erneut.",
+  "TOOL_VIEWS_TOO_MANY_PLUGIN_PARTS": "Eine Karte oder eine Seite kann bis zu 3 Teile desselben Plug-ins enthalten.",
   "COMMUNITY_NOT_A_COMMUNITY": "Diese Community ist nicht im Community-Verzeichnis eingetragen.",
   "COMMUNITY_COMMUNITY_REQUIRES_CATEGORY": "Eine eingetragene Community braucht mindestens eine Kategorie.",
   "COMMUNITY_COMMUNITY_CONTENT_NOT_DECLARED": "Bestätige, dass diese Community keine Inhalte für Erwachsene enthält, bevor du sie einträgst.",

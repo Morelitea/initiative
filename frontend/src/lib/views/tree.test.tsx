@@ -113,6 +113,21 @@ describe("ViewTree", () => {
 
     expect(container.textContent).toBe("Effort:largeStatus:openPhase:beta");
   });
+
+  it("draws a property a stored view names by its definition id", () => {
+    const task = buildTask({
+      properties: [buildPropertySummary({ property_id: 4, name: "Effort", value: "large" })],
+    });
+
+    const { container } = draw(
+      field("property:4"),
+      task,
+      [],
+      [buildPropertyDefinition({ id: 4, name: "Effort" })]
+    );
+
+    expect(container.textContent).toBe("Effort:large");
+  });
 });
 
 describe("renderNode", () => {

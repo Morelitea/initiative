@@ -18,7 +18,12 @@ from app.db.advisory_locks import LockNamespace, advisory_lock
 from app.models.platform.guild import CommunityRole
 from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.models.tenant.tool_view import ToolView
-from app.schemas.tenant.tool_view import MAX_DEPTH, MAX_NODES, MAX_VIEWS
+from app.schemas.tenant.tool_view import (
+    MAX_DEPTH,
+    MAX_NODES,
+    MAX_PLUGIN_PARTS,
+    MAX_VIEWS,
+)
 from app.services.tenant import tool_views as tool_views_service
 from app.testing import create_resource_grant, route_session_to_guild
 
@@ -54,11 +59,16 @@ _TWO = _set(
                             {"type": "field", "props": {"field": "title"}},
                             {"type": "field", "props": {"field": "property:12"}},
                             {"type": "properties"},
+                            {"type": "field", "props": {"field": "plugin:3:ci.state"}},
+                            {
+                                "type": "plugin",
+                                "props": {"plugin": 3, "part": "builds"},
+                            },
                         ],
                     }
                 ],
             },
-            "columns": ["title", "dueDate", "property:12"],
+            "columns": ["title", "dueDate", "property:12", "plugin:3:ci.state"],
             "sort": [{"field": "dueDate", "direction": "desc"}],
             "opens": "page",
         },
@@ -275,6 +285,10 @@ def _deep(depth: int) -> dict[str, Any]:
     return node
 
 
+def _plugin_part(plugin: int) -> dict[str, Any]:
+    return {"type": "plugin", "props": {"plugin": plugin, "part": "builds"}}
+
+
 def _one(**extra: Any) -> dict[str, Any]:
     return _set(_view("A", is_default=True, **extra))
 
@@ -285,6 +299,14 @@ def _one(**extra: Any) -> dict[str, Any]:
         (_one(**_card({"type": "widget"})), 422, None),
         (_one(**_card({"type": "field", "props": {"field": "colour"}})), 422, None),
         (_one(definition={"columns": ["property:Size"]}), 422, None),
+        (_one(definition={"columns": ["plugin:3:CI"]}), 422, None),
+        (_one(definition={"columns": ["plugin:x:ci"]}), 422, None),
+        (_one(**_card({"type": "plugin", "props": {"plugin": 3}})), 422, None),
+        (
+            _one(**_card(*[_plugin_part(3)] * (MAX_PLUGIN_PARTS + 1))),
+            400,
+            "TOOL_VIEWS_TOO_MANY_PLUGIN_PARTS",
+        ),
         (_one(definition={"colour": 1}), 422, None),
         (_one(definition={"filters": {"assignees": ["everyone"]}}), 422, None),
         (_set(_view("A"), _view("B")), 400, "TOOL_VIEWS_ONE_DEFAULT"),
@@ -310,6 +332,10 @@ def _one(**extra: Any) -> dict[str, Any]:
         "unknown part",
         "unknown field",
         "a property by name",
+        "a plug-in field outside the key's characters",
+        "a plug-in field by name",
+        "a plug-in part with no part",
+        "too many of one plug-in's parts",
         "unknown key",
         "unknown filter value",
         "no default",
@@ -340,8 +366,14 @@ async def test_a_view_at_the_limits_is_kept(client: AsyncClient, acting_user):
     a = await acting_user(
         guild_role=CommunityRole.member, initiative=True, project=True
     )
-    # The card, a branch to the deepest part, and the rest beside it.
-    card = _card(_deep(MAX_DEPTH - 1), *[_FIELD] * (MAX_NODES - MAX_DEPTH))
+    # The card, a branch to the deepest part, and the rest beside it, among
+    # them as many of each of two plug-ins' parts as one plug-in may place.
+    parts = [_plugin_part(plugin) for plugin in (3, 4) for _ in range(MAX_PLUGIN_PARTS)]
+    card = _card(
+        _deep(MAX_DEPTH - 1),
+        *parts,
+        *[_FIELD] * (MAX_NODES - MAX_DEPTH - len(parts)),
+    )
 
     response = await client.put(
         a.g("/views/"), params=_project(a), json=_one(**card), headers=a.headers

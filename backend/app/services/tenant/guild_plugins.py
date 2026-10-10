@@ -1231,6 +1231,65 @@ class SurfaceOpenability:
     openable_initiatives: tuple[int, ...]
 
 
+@dataclass(frozen=True)
+class ItemOpenability:
+    """Where one viewer meets a plug-in on items, and what they may run."""
+
+    #: The initiatives whose items show the viewer the plug-in's values.
+    initiatives: tuple[int, ...]
+    #: The declared actions the viewer may run on those items.
+    actions: tuple[str, ...]
+
+
+def item_openability(
+    definition: Any,
+    *,
+    placements: Sequence[PluginPlacement],
+    is_guild_admin: bool,
+    member_role_ids: Collection[int],
+    age_allows: bool = True,
+) -> ItemOpenability:
+    """:data:`ITEM_SURFACE` measured against each placement, as
+    :func:`surface_openability` measures a page. An action whose write
+    endpoint is admin-only is the community's admins' alone."""
+    definition = definition if isinstance(definition, dict) else {}
+    initiatives = tuple(
+        row.initiative_id
+        for row in sorted(placements, key=lambda row: row.initiative_id)
+        if surface_access(
+            ITEM_SURFACE,
+            initiative_id=row.initiative_id,
+            placement_role_ids=list(row.role_ids or []),
+            is_guild_admin=is_guild_admin,
+            member_role_ids=member_role_ids,
+            age_allows=age_allows,
+        )
+        is SurfaceAccess.open
+    )
+    if not initiatives:
+        return ItemOpenability(initiatives=(), actions=())
+    declared = definition.get("endpoints")
+    endpoints = {
+        endpoint.get("id"): endpoint
+        for endpoint in (declared if isinstance(declared, list) else [])
+        if isinstance(endpoint, dict)
+    }
+    actions = definition.get("actions")
+    return ItemOpenability(
+        initiatives=initiatives,
+        actions=tuple(
+            action["id"]
+            for action in (actions if isinstance(actions, list) else [])
+            if isinstance(action, dict)
+            and isinstance(action.get("id"), str)
+            and (
+                is_guild_admin
+                or not is_admin_only(endpoints.get(action.get("endpoint")))
+            )
+        ),
+    )
+
+
 def surface_openability(
     definition: Any,
     *,

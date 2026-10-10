@@ -1716,26 +1716,41 @@ export const PropertiesPartValue = {
 } as const;
 export type PropertiesPart = typeof PropertiesPartValue;
 
+export interface PluginPartProps {
+  /** @exclusiveMinimum 0 */
+  plugin: number;
+  part: string;
+}
+
+/**
+ * One of an installed plug-in's parts, drawn as its manifest builds it.
+ * A part the install no longer declares draws nothing.
+ */
+export interface PluginPart {
+  type: "plugin";
+  props: PluginPartProps;
+}
+
 export interface StackPartInput {
   type: "stack";
   props?: StackProps | null;
-  children?: (CardPartInput | StackPartInput | FieldPart | PropertiesPart)[];
+  children?: (CardPartInput | StackPartInput | FieldPart | PropertiesPart | PluginPart)[];
 }
 
 export interface CardPartInput {
   type: "card";
-  children?: (CardPartInput | StackPartInput | FieldPart | PropertiesPart)[];
+  children?: (CardPartInput | StackPartInput | FieldPart | PropertiesPart | PluginPart)[];
 }
 
 export interface StackPartOutput {
   type: "stack";
   props?: StackProps | null;
-  children?: (CardPartOutput | StackPartOutput | FieldPart | PropertiesPart)[];
+  children?: (CardPartOutput | StackPartOutput | FieldPart | PropertiesPart | PluginPart)[];
 }
 
 export interface CardPartOutput {
   type: "card";
-  children?: (CardPartOutput | StackPartOutput | FieldPart | PropertiesPart)[];
+  children?: (CardPartOutput | StackPartOutput | FieldPart | PropertiesPart | PluginPart)[];
 }
 
 /**
@@ -2876,6 +2891,8 @@ export interface CommunityPluginDetail {
   definition: CommunityPluginDetailDefinition;
   placements: PluginPlacementRead[];
   surface_access: PluginSurfaceAccessRead[];
+  item_initiatives: number[];
+  item_actions: string[];
   granted_scopes: string[];
   mandatory: boolean;
   available: boolean;
@@ -2950,6 +2967,8 @@ export interface CommunityPluginRead {
   definition: CommunityPluginReadDefinition;
   placements: PluginPlacementRead[];
   surface_access: PluginSurfaceAccessRead[];
+  item_initiatives: number[];
+  item_actions: string[];
   granted_scopes: string[];
   mandatory: boolean;
   available: boolean;
@@ -5798,9 +5817,9 @@ export const ItemKind = {
  * drawn in a "More fields" section.
  */
 export interface ItemLayoutDefinitionInput {
-  header?: CardPartInput | StackPartInput | FieldPart | PropertiesPart | null;
-  main?: CardPartInput | StackPartInput | FieldPart | PropertiesPart | null;
-  side?: CardPartInput | StackPartInput | FieldPart | PropertiesPart | null;
+  header?: CardPartInput | StackPartInput | FieldPart | PropertiesPart | PluginPart | null;
+  main?: CardPartInput | StackPartInput | FieldPart | PropertiesPart | PluginPart | null;
+  side?: CardPartInput | StackPartInput | FieldPart | PropertiesPart | PluginPart | null;
 }
 
 /**
@@ -5808,9 +5827,9 @@ export interface ItemLayoutDefinitionInput {
  * drawn in a "More fields" section.
  */
 export interface ItemLayoutDefinitionOutput {
-  header?: CardPartOutput | StackPartOutput | FieldPart | PropertiesPart | null;
-  main?: CardPartOutput | StackPartOutput | FieldPart | PropertiesPart | null;
-  side?: CardPartOutput | StackPartOutput | FieldPart | PropertiesPart | null;
+  header?: CardPartOutput | StackPartOutput | FieldPart | PropertiesPart | PluginPart | null;
+  main?: CardPartOutput | StackPartOutput | FieldPart | PropertiesPart | PluginPart | null;
+  side?: CardPartOutput | StackPartOutput | FieldPart | PropertiesPart | PluginPart | null;
 }
 
 /**

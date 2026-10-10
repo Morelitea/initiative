@@ -9,6 +9,7 @@ stored it is the whole set, replaced together on every save.
 from __future__ import annotations
 
 import json
+from collections import Counter
 from dataclasses import dataclass
 from typing import Any, Iterable, Optional
 
@@ -25,9 +26,11 @@ from app.schemas.tenant.tool_view import (
     MAX_DEFINITION_BYTES,
     MAX_DEPTH,
     MAX_NODES,
+    MAX_PLUGIN_PARTS,
     MAX_SLUG_LENGTH,
     MAX_VIEWS,
     CardPart,
+    PluginPart,
     StackPart,
     ToolItemLayoutRead,
     ToolViewRead,
@@ -130,24 +133,29 @@ def read_set(
     return views, layouts
 
 
-def _parts(part: Any, depth: int) -> Iterable[int]:
-    """The depth of every part in a tree."""
-    yield depth
+def _parts(part: Any, depth: int) -> Iterable[tuple[Any, int]]:
+    """Every part in a tree, with its depth."""
+    yield part, depth
     if isinstance(part, (CardPart, StackPart)):
         for child in part.children:
             yield from _parts(child, depth + 1)
 
 
 def _within_limits(stored: dict[str, Any], roots: list[Any], loose: int) -> None:
-    """Refuse a definition past the node, depth or size limit. ``loose`` is
-    the nodes outside any tree (columns, sorts)."""
-    depths = [depth for root in roots for depth in _parts(root, 1)]
+    """Refuse a definition past the node, depth, size or plug-in part limit.
+    ``loose`` is the nodes outside any tree (columns, sorts)."""
+    parts = [found for root in roots for found in _parts(root, 1)]
     if (
-        len(depths) + loose > MAX_NODES
-        or max(depths, default=0) > MAX_DEPTH
+        len(parts) + loose > MAX_NODES
+        or max((depth for _, depth in parts), default=0) > MAX_DEPTH
         or len(json.dumps(stored).encode()) > MAX_DEFINITION_BYTES
     ):
         raise _bad_request(ToolViewMessages.TOO_LARGE)
+    installs = Counter(
+        part.props.plugin for part, _ in parts if isinstance(part, PluginPart)
+    )
+    if any(count > MAX_PLUGIN_PARTS for count in installs.values()):
+        raise _bad_request(ToolViewMessages.TOO_MANY_PLUGIN_PARTS)
 
 
 def _stored(model: Any) -> dict[str, Any]:

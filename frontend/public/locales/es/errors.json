@@ -504,6 +504,7 @@
   "TOOL_VIEWS_DUPLICATE_SLUG": "Dos vistas tienen el mismo nombre de enlace.",
   "TOOL_VIEWS_DUPLICATE_ITEM_LAYOUT": "Hay dos diseños de página para el mismo tipo de elemento.",
   "TOOL_VIEWS_TOO_LARGE": "Esa vista tiene demasiadas partes. Quita algunas e inténtalo de nuevo.",
+  "TOOL_VIEWS_TOO_MANY_PLUGIN_PARTS": "Una tarjeta o una página puede tener hasta 3 partes del mismo plug-in.",
   "COMMUNITY_NOT_A_COMMUNITY": "Esa comunidad no está publicado en el directorio de comunidades.",
   "COMMUNITY_COMMUNITY_REQUIRES_CATEGORY": "Una comunidad publicada necesita al menos una categoría.",
   "COMMUNITY_COMMUNITY_CONTENT_NOT_DECLARED": "Confirma que esta comunidad no contiene contenido para adultos antes de publicarla.",
