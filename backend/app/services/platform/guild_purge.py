@@ -51,6 +51,18 @@ logger = logging.getLogger(__name__)
 GUILD_PURGE_POLL_SECONDS = 3600
 
 
+async def _end_plugin_connections(guild_id: int) -> AsyncSession:
+    """Delete the community's plug-in connections, in its own schema, and
+    commit. Returns the session, whose settling tells the plug-ins."""
+    from app.services.tenant import plugin_connections as plugin_connections_service
+
+    async with cohorts.system_session(guild_id) as guild_session:
+        await set_rls_context(guild_session, SystemGuild(guild_id))
+        await plugin_connections_service.delete_guild_connections(guild_session)
+        await guild_session.commit()
+    return guild_session
+
+
 async def _delete_expired_hold(session: AsyncSession, guild: Guild, _days: int) -> None:
     """Delete one community whose hold has run out. Mirrors the danger-zone
     delete: its plug-ins let go, the status moves to ``deleted``, the seat is
@@ -66,14 +78,10 @@ async def _delete_expired_hold(session: AsyncSession, guild: Guild, _days: int) 
     from app.services import email as email_service
     from app.services.platform import billing_ping
     from app.services.platform import guilds as guilds_service
-    from app.services.tenant import plugin_connections as plugin_connections_service
 
     guild_id = guild.id
-    async with cohorts.system_session(guild_id) as guild_session:
-        await set_rls_context(guild_session, SystemGuild(guild_id))
-        await plugin_connections_service.delete_guild_connections(guild_session)
-        # The plug-ins are told once this commits, whatever happens below.
-        await guild_session.commit()
+    # The plug-ins are told once this commits, whatever happens below.
+    guild_session = await _end_plugin_connections(guild_id)
 
     notice = await guilds_service.soft_delete_guild(
         session, guild, via="hold_expired", keep_roster=True
@@ -140,6 +148,14 @@ async def _destroy(session: AsyncSession, guild: Guild, days: int) -> None:
             "(row already deleted; reclaimed on the next pass)",
             guild_id,
         )
+
+
+async def destroy_now(session: AsyncSession, guild: Guild) -> None:
+    """Destroy one guild without a retention window: its plug-ins let go, as on
+    any deletion, then :func:`_destroy` as the purge does it. ``session`` is a
+    platform system session."""
+    await post_commit.settle(await _end_plugin_connections(guild.id))
+    await _destroy(session, guild, 0)
 
 
 async def purge_due_guilds(session: AsyncSession, *, now: datetime) -> int:

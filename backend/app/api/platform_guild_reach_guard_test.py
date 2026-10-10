@@ -90,6 +90,10 @@ _WRAPPERS: dict[tuple[str, str], str] = {
     (f"{_SERVICES}/users.py", "_erase_in_guild"): (
         "erases an account's rows in one community, on that community's cohort session"
     ),
+    (f"{_SERVICES}/guild_purge.py", "_end_plugin_connections"): (
+        "deletes a community's plug-in connections in its own schema, for "
+        "whichever deletion its caller is making"
+    ),
     (f"{_SERVICES}/guilds.py", "seed_guild_content"): (
         "provisions and seeds a new community's schema"
     ),
@@ -144,6 +148,10 @@ _ALLOWED: dict[tuple[str, str], str] = {
     (f"{_SERVICES}/guild_purge.py", "_delete_expired_hold"): (
         "the scheduled sweep that deletes a community whose hold ran out, "
         "letting go of its plug-in connections in its own schema"
+    ),
+    (f"{_SERVICES}/guild_purge.py", "destroy_now"): (
+        "destroys a community without a retention window, letting go of its "
+        "plug-in connections in its own schema"
     ),
     # --- Aggregates ----------------------------------------------------------
     # --- Account closure and erasure -----------------------------------------

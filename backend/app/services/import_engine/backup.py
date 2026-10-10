@@ -30,6 +30,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import zipfile
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Awaitable, Callable
 
@@ -75,6 +76,7 @@ from app.services.import_engine.context import (
 )
 from app.services.import_engine.links import resolve_page_links
 from app.services.import_engine.references import SOURCE_REF, resolve_references
+from app.services.marketplace.publish_profile import shift_dates
 from app.services.import_engine.zip_bounds import (
     json_cap,
     open_zip,
@@ -349,6 +351,7 @@ async def apply_backup(
     exclude_properties: Any = None,
     heartbeat: Callable[[], Awaitable[None]] | None = None,
     fetched: bool = False,
+    anchor: datetime | None = None,
 ) -> BackupImportResult:
     """Restore a backup zip into new initiatives, as ``user``, on the
     worker's creator-routed session. Flushes and COMMITS per chunk (the
@@ -356,7 +359,9 @@ async def apply_backup(
 
     ``heartbeat`` is called after each asset and each entry, so the job can
     show it is still being applied. ``fetched`` is as for
-    :func:`zip_bounds.open_zip`."""
+    :func:`zip_bounds.open_zip`. ``anchor``, when given, moves every date the
+    envelopes carry by the whole days from it to now, so a bundle reads as if
+    it had been exported today."""
     from app.api.deps import establish_guild_access
     from app.services.import_engine.importers import IMPORTERS
     from app.models.platform.guild import CommunityRole
@@ -367,6 +372,11 @@ async def apply_backup(
         manifest = await asyncio.to_thread(read_manifest, archive, fetched=fetched)
         max_json_bytes = json_cap(fetched=fetched)
         result = BackupImportResult()
+        shift_days = (
+            round((datetime.now(timezone.utc) - anchor) / timedelta(days=1))
+            if anchor is not None
+            else 0
+        )
 
         # Re-verify the seat, held outright, at apply time — enqueue-time
         # authority can be gone by now, and standing up a new initiative in the
@@ -487,6 +497,7 @@ async def apply_backup(
                     result=result,
                     context=context,
                     max_json_bytes=max_json_bytes,
+                    shift_days=shift_days,
                 )
                 result.entries.append(outcome)
                 bucket = result.per_tool.setdefault(
@@ -621,9 +632,11 @@ async def _apply_entry(
     result: BackupImportResult,
     max_json_bytes: int,
     context: ImportContext | None = None,
+    shift_days: int = 0,
 ) -> EntryResult:
     """Apply one manifest entry in its own savepoint and report how it went.
-    Its envelope is read up to ``max_json_bytes``."""
+    Its envelope is read up to ``max_json_bytes``, and its dates moved by
+    ``shift_days``."""
     base = {
         "path": entry.path,
         "tool": entry.tool,
@@ -665,7 +678,10 @@ async def _apply_entry(
         raw = await asyncio.to_thread(
             read_json_member, archive, entry.path, max_bytes=max_json_bytes
         )
-        validated = importer.validate(_current_shape(raw))
+        envelope = _current_shape(raw)
+        if shift_days and isinstance(envelope, dict) and entry.tool in _TOOL_ORDER:
+            envelope = shift_dates(Tool(entry.tool), envelope, shift_days)
+        validated = importer.validate(envelope)
         async with session.begin_nested():
             detail = await importer.apply(
                 session,
