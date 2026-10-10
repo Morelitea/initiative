@@ -340,22 +340,35 @@ export const useTaskFieldSave = (
     return pending.includes(save) ? pending : null;
   };
 
+  const cancelTaskReads = ({
+    communityId,
+    taskId,
+  }: Pick<TaskFieldSave, "communityId" | "taskId">) =>
+    queryClient.cancelQueries({ queryKey: getReadTaskQueryKey(communityId, taskId), exact: true });
+
   const { mutateAsync } = useMutation({
     mutationKey: taskFieldSaveKey(communityId, task.id),
     // One at a time per task, in the order made: a later save waits its turn.
     scope: { id: `task-field:${communityId}:${task.id}` },
-    mutationFn: async ({ edit, ...save }: TaskFieldSave): Promise<Partial<TaskRead>> =>
-      "patch" in edit
+    mutationFn: async ({ edit, ...save }: TaskFieldSave): Promise<Partial<TaskRead>> => {
+      // A read already in flight may have been answered before this write,
+      // and would land over it. Runs when this save's turn comes, not when
+      // it was queued.
+      await cancelTaskReads(save);
+      return "patch" in edit
         ? updateTask(save.communityId, save.taskId, withZone(edit.patch))
         : {
             properties: await setProperties(save.communityId, PropertyTarget.task, save.taskId, {
               ...edit.properties,
               merge: true,
             }),
-          },
-    onSuccess: (written, save) => {
+          };
+    },
+    onSuccess: async (written, save) => {
       if (!inSession(save)) return;
       const { taskId, edit, undo } = save;
+      // So does a read started while this save was being sent.
+      await cancelTaskReads(save);
       // Every earlier save has landed, so this answer is what the server holds.
       queryClient.setQueryData<TaskRead>(
         getReadTaskQueryKey(save.communityId, taskId),

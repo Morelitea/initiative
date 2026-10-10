@@ -29,6 +29,7 @@ import {
   type ProjectRead,
   type PropertySummary,
   PropertyType,
+  type TaskRead,
   type TaskStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import { getReadTaskQueryKey } from "@/api/generated/tasks/tasks";
@@ -529,6 +530,46 @@ describe("TaskEditPage", () => {
     expect(sent[1]).toMatchObject({ title: "Wire the doorbell now" });
     expect(priority).toHaveTextContent(/high/i);
     expect(title).toHaveValue("Wire the doorbell now");
+  });
+
+  it("lets no read begun before a save land over it", async () => {
+    const hold = () => {
+      let release = () => {};
+      const held = new Promise<undefined>((resolve) => {
+        release = () => resolve(undefined);
+      });
+      return { held, release };
+    };
+    const titleSave = hold();
+    const prioritySave = hold();
+    const { sent, queryClient } = renderTaskPage({
+      refuse: (body) => ("priority" in body ? prioritySave.held : titleSave.held),
+    });
+    const title = await screen.findByDisplayValue("Wire the doorbell");
+    // A read that takes the task as it is now and answers late.
+    const read = hold();
+    const key = getReadTaskQueryKey(COMMUNITY_ID, TASK_ID);
+    const stale = { ...(queryClient.getQueryData(key) as object) };
+    server.use(
+      communityHttp.get("/tasks/:taskId", async () => {
+        await read.held;
+        return HttpResponse.json(stale);
+      })
+    );
+    void queryClient.refetchQueries({ queryKey: key });
+
+    // The title saves while the priority waits its turn behind it.
+    await userEvent.type(title, " now{Enter}");
+    await waitFor(() => expect(sent).toHaveLength(1));
+    await choose(/^priority$/i, /^high$/i);
+    titleSave.release();
+    await waitFor(() => expect(sent).toHaveLength(2));
+    // The old read answers while the priority is still being saved.
+    read.release();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(queryClient.getQueryData<TaskRead>(key)?.title).toBe("Wire the doorbell now");
+    prioritySave.release();
   });
 
   it("writes nothing into the next session when a save lands after it began", async () => {
