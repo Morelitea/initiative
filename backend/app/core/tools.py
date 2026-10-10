@@ -171,6 +171,10 @@ KIND_BY_TABLE: dict[str, Kind] = {kind.table: kind for kind in KINDS.values()}
 #: The kinds that live inside a tool.
 CHILD_KINDS: tuple[str, ...] = tuple(k.value for k in KINDS.values() if k.parent)
 
+#: Every tool, then everything that lives inside one: every kind but the
+#: community's vocabulary (tags).
+CONTENT_KINDS: tuple[str, ...] = tuple(t.value for t in Tool) + CHILD_KINDS
+
 
 # EVERY tool is toggleable: each carries a ``{plural}_enabled`` master switch on
 # the initiative. Projects and files used to be exempt — always on, with no
@@ -242,8 +246,8 @@ TAG_TARGETS: tuple[str, ...] = tuple(t.value for t in Tool) + TAGGABLE_EXTRAS
 # that isn't a tool (tags). Same shape as TAG_TARGETS above, for the same
 # reason: the trash EntityType and its registry derive from this, so a new Tool
 # reaches the trash can with no per-surface edit.
-TRASHABLE_EXTRAS: tuple[str, ...] = CHILD_KINDS + ("comment", "initiative", "tag")
-TRASH_TARGETS: tuple[str, ...] = tuple(t.value for t in Tool) + TRASHABLE_EXTRAS
+TRASHABLE_EXTRAS: tuple[str, ...] = ("comment", "initiative", "tag")
+TRASH_TARGETS: tuple[str, ...] = CONTENT_KINDS + TRASHABLE_EXTRAS
 
 #: Archivable things that are not tools. Archiving says "this is finished with",
 #: which is true of anything an initiative offers — so every Tool is archivable,
@@ -257,8 +261,7 @@ ARCHIVE_TARGETS: tuple[str, ...] = tuple(t.value for t in Tool) + ARCHIVABLE_EXT
 # seam (app.services.tenant.properties.PROPERTY_LINKS), the value table's
 # CHECK, its policies and the ``PropertyTarget`` schema enum all derive from
 # PROPERTY_TARGETS, so a new Tool carries properties with no per-surface edit.
-PROPERTY_EXTRAS: tuple[str, ...] = CHILD_KINDS
-PROPERTY_TARGETS: tuple[str, ...] = tuple(t.value for t in Tool) + PROPERTY_EXTRAS
+PROPERTY_TARGETS: tuple[str, ...] = CONTENT_KINDS
 
 # Items: the rows a tool lists one by one — every kind that lives inside a tool
 # but the wiki page, which is a document — and the post, which is the feed's
