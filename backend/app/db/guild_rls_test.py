@@ -21,6 +21,7 @@ from app.db.initiative_rls import (
     COMMENT_PARENTS,
     RECENT_ENTITY_TABLES,
     entity_tables,
+    initiative_of,
     render_entity_access_fn,
 )
 from app.db.schema_provisioning import (
@@ -635,6 +636,13 @@ def test_every_comment_parent_is_a_kind_the_entity_function_answers_for():
     for parent in COMMENT_PARENTS.values():
         assert parent.kind in tables, parent.column
         assert tables[parent.kind] == parent.table, parent.column
+
+
+def test_initiative_of_reads_its_own_column_or_walks_to_it():
+    assert initiative_of("projects", "x") == "x.initiative_id"
+    assert initiative_of("tasks", "x") == (
+        "(SELECT h1.initiative_id FROM projects h1 WHERE h1.id = x.project_id)"
+    )
 
 
 def test_every_reaction_target_and_recentable_kind_is_an_arm():

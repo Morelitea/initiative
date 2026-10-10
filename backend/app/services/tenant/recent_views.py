@@ -10,6 +10,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Iterable, Sequence
 
+from sqlalchemy import tuple_
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel import delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -75,29 +76,26 @@ async def record_view(
         )
     )
     await session.exec(stmt)
-    await session.commit()
-
-    fetch = select(RecentView).where(
-        RecentView.user_id == user_id,
-        RecentView.entity_type == entity_type,
-        RecentView.entity_id == entity_id,
-    )
-    record = (await session.exec(fetch)).one()
-
-    # Prune anything beyond the cap (oldest by last_viewed_at).
-    prune_stmt = (
-        select(RecentView)
+    # Everything beyond the cap, oldest by last_viewed_at, in one statement.
+    kept = (
+        select(RecentView.entity_type, RecentView.entity_id)
         .where(RecentView.user_id == user_id)
         .order_by(RecentView.last_viewed_at.desc())
-        .offset(cap)
+        .limit(cap)
     )
-    stale = (await session.exec(prune_stmt)).all()
-    if stale:
-        for row in stale:
-            await session.delete(row)
-        await session.commit()
-
-    return record
+    await session.exec(
+        delete(RecentView).where(  # type: ignore[arg-type]
+            RecentView.user_id == user_id,
+            tuple_(RecentView.entity_type, RecentView.entity_id).not_in(kept),
+        )
+    )
+    await session.commit()
+    return RecentView(
+        user_id=user_id,
+        entity_type=entity_type,
+        entity_id=entity_id,
+        last_viewed_at=now,
+    )
 
 
 async def clear_view(
@@ -139,6 +137,18 @@ async def purge_for_entities(
     )
 
 
+async def purge_for_user(session: AsyncSession, user_id: int) -> None:
+    """Drop a person's recent views in this community, for their leaving it.
+    Whoever removes them cannot reach rows that are the person's alone, so the
+    platform drops them."""
+    from app.db.cohorts import exec_as_system
+
+    await exec_as_system(
+        session,
+        delete(RecentView).where(RecentView.user_id == user_id),  # type: ignore[arg-type]
+    )
+
+
 async def list_recent_views(
     session: AsyncSession,
     *,
@@ -147,10 +157,8 @@ async def list_recent_views(
 ) -> Sequence[RecentView]:
     """Return the user's most recent N rows, ordered by ``last_viewed_at`` desc.
 
-    ``recent_views`` lives in the active guild's schema, so the search_path
-    already scopes rows to that guild — no guild_id filter is needed (and the
-    column isn't populated in-schema, since its denormalization trigger is a
-    public-table artifact).
+    ``recent_views`` lives in its community's schema, so the routed session
+    already scopes rows to that community.
     """
     stmt = (
         select(RecentView)

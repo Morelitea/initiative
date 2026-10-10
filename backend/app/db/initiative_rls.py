@@ -1520,10 +1520,11 @@ NAMED_PEOPLE: tuple[NamedPerson, ...] = (
 def initiative_of(table: str, row: str, *, qualify: str = "") -> str:
     """The initiative a row of ``table`` belongs to, as a sub-select, walked
     through the hops its policies declare. ``qualify`` goes before each table
-    name (a schema). A table that names its subject as a ``(kind, id)`` pair
-    has no hops to walk, and answers through its own ``initiative_expr``."""
+    name (a schema). A table that names its subject as a ``(kind, id)`` pair,
+    or holds its own ``initiative_id``, has no hops to walk, and answers
+    through its own ``initiative_expr``."""
     path = INITIATIVE_PATHS[table]
-    if path.dac is None:
+    if path.dac is None or not path.dac.via:
         return path.initiative_expr(row)
     hops = path.dac.via
     joins = f"{qualify}{hops[0][1]} h1"

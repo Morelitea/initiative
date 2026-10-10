@@ -367,9 +367,11 @@ async def remove_user_from_guild_initiatives(
     items. ``member_departs`` with no initiative does the same for content
     that belongs to the community itself. What they owned is left **unowned**
     rather than handed to anyone; guild admins can claim it whenever they
-    choose (``app.services.tenant.ownership``).
+    choose (``app.services.tenant.ownership``). Their recent views in the
+    community go too.
     """
     from app.db.schema_provisioning import guild_schema_name
+    from app.services.tenant import recent_views
 
     await session.exec(
         select(func.public.member_departs(guild_schema_name(guild_id), user_id, None))
@@ -380,6 +382,7 @@ async def remove_user_from_guild_initiatives(
             InitiativeMember.initiative_id.in_(select(Initiative.id)),
         )
     )
+    await recent_views.purge_for_user(session, user_id)
 
 
 async def list_initiative_roles(
