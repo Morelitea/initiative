@@ -34,6 +34,7 @@ from datetime import datetime, timedelta, timezone
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.config import settings
 from app.core.messages import ExportMessages
 from app.core.user_display import name_here
 from app.db import cohorts
@@ -335,7 +336,9 @@ async def expire_artifacts(session: AsyncSession, guild_id: int) -> None:
     expired.
 
     Visited in every community whose schema exists, whatever its status: a
-    read-only or suspended community's artifacts expire like anyone's."""
+    read-only or suspended community's artifacts expire like anyone's. On a
+    demo deployment a pitch's newest backup is kept: it is what its links
+    copy."""
     from app.services.storage import get_guild_storage
 
     now = datetime.now(timezone.utc)
@@ -348,6 +351,11 @@ async def expire_artifacts(session: AsyncSession, guild_id: int) -> None:
             )
         )
     )
+    if jobs and settings.DEMO_MODE:
+        from app.demo import pitches
+
+        published = await pitches.published_export_id(session, guild_id)
+        jobs = [job for job in jobs if job.id != published]
     storage = get_guild_storage(guild_id) if jobs else None
     for job in jobs:
         if job.artifact_ref and storage is not None:

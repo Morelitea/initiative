@@ -15,6 +15,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core import config as config_module
 from app.core.audit_events import AuditEventType
 from app.core.messages import GuildMessages
+from app.core.moderation import HoldReason, HoldVia
+from app.db.holds import HoldsInForce
 from app.models.platform.app_setting import (
     DEFAULT_GUILD_RETENTION_DAYS,
     DEFAULT_HOLD_DELETION_DAYS,
@@ -28,14 +30,18 @@ from app.models.platform.guild import (
     CommunityStatus,
 )
 from app.models.platform.identity_ref import IdentityEntity, IdentityPurpose
+from app.models.tenant.content_hold import ContentHold
+from app.models.tenant.guild_plugin_user_connection import GuildPluginUserConnection
 from app.services import email as email_service
 from app.services.platform import billing_ping, guild_purge
 from app.services.platform import guilds as guilds_service
 from app.services.platform.identity_refs import billing_ref, existing_ref
-from app.testing import emitted
+from app.testing import emitted, route_session_to_guild
 from app.testing.factories import (
     create_guild,
     create_guild_membership,
+    create_guild_plugin,
+    create_plugin_user_connection,
     create_user,
     get_auth_headers,
 )
@@ -586,6 +592,41 @@ async def test_the_purge_leaves_live_communities_alone(session: AsyncSession):
         assert (
             await session.exec(select(Guild).where(Guild.id == guild_id))
         ).one_or_none() is not None
+
+
+async def test_destroying_now_leaves_a_held_community_and_its_connections(
+    session: AsyncSession,
+):
+    admin, guild = await _seated_guild(session)
+    guild_id = guild.id
+    plugin = await create_guild_plugin(
+        session,
+        guild,
+        admin,
+        definition={
+            "plugin_kind": "service",
+            "service": {"public_id": "tests.purge", "protocol": 1},
+            "connections": [{"id": "github", "scope": "member"}],
+        },
+    )
+    await create_plugin_user_connection(session, plugin, admin)
+    session.add(
+        ContentHold(
+            target_type="task",
+            target_id=1,
+            placed_via=HoldVia.community.value,
+            reason=HoldReason.legal_request.value,
+        )
+    )
+    await session.commit()
+
+    with pytest.raises(HoldsInForce):
+        await guild_purge.destroy_now(session, guild)
+    await session.rollback()
+
+    await route_session_to_guild(session, guild_id)
+    assert (await session.exec(select(GuildPluginUserConnection))).all()
+    assert await session.get(Guild, guild_id) is not None
 
 
 async def test_deleting_a_community_writes_to_the_seat_that_could_restore_it(session):
