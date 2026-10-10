@@ -323,6 +323,7 @@
   },
   "viewEditor": {
     "open": "Ansichten bearbeiten",
+    "openTaskPage": "Aufgabenseite bearbeiten",
     "title": "Ansichten bearbeiten",
     "close": "Editor schließen",
     "view": "Bearbeitete Ansicht",
@@ -336,9 +337,9 @@
     "redo": "Wiederholen",
     "discard": "Verwerfen",
     "saving": "Wird gespeichert…",
-    "saved": "Ansichten gespeichert",
+    "saved": "Gespeichert",
     "unsavedTitle": "Ohne Speichern verlassen?",
-    "unsavedBody": "Deine Änderungen an diesen Ansichten sind nicht gespeichert. Beim Verlassen gehen sie verloren.",
+    "unsavedBody": "Deine Änderungen wurden nicht gespeichert. Wenn du gehst, werden sie verworfen.",
     "leave": "Verlassen",
     "stay": "Weiter bearbeiten",
     "compact": "Ansichten werden auf einem breiteren Bildschirm bearbeitet. Öffne diese Seite auf einem Tablet oder Computer.",
@@ -385,7 +386,48 @@
     "ownWidth": "Eigene Breite jedes Teils behalten",
     "muted": "Gedämpfter Text",
     "titleHelp": "Jede Aufgabe zeigt ihren Titel, der sie öffnet.",
-    "holdsTitle": "Diese Gruppe enthält den Titel, den jede Aufgabe zeigt, also bleibt sie.",
-    "savingBody": "Deine Ansichten werden noch gespeichert. Wenn du jetzt gehst und das Speichern fehlschlägt, gehen deine Änderungen verloren."
+    "holdsTitle": "Es enthält den Titel, den jede Aufgabe zeigt, und bleibt daher.",
+    "savingBody": "Deine Änderungen werden noch gespeichert. Wenn du jetzt gehst, können sie verloren gehen, falls das Speichern fehlschlägt.",
+    "taskPage": "Aufgabenseite",
+    "noticePreview": "Wird jemandem angezeigt, der die Aufgabe nicht ändern kann, und sagt warum.",
+    "noTasks": "Dieses Projekt hat noch keine Aufgaben. Füge eine hinzu, um ihre Seite hier zu sehen.",
+    "empty": "Leer",
+    "dropHere": "Hier ablegen",
+    "pageHelp": "Wie jede Aufgabenseite in diesem Projekt aufgebaut ist. Ein Feld, das nirgends platziert ist, wird trotzdem angezeigt, unter Weitere Felder.",
+    "useShippedPage": "Ausgelieferte Seite verwenden",
+    "shippedPage": "Das ist die Seite, wie sie ausgeliefert wird. Eine Änderung macht sie zur eigenen Seite des Projekts.",
+    "section": "Abschnitt",
+    "sectionWith": "Abschnitt mit {{name}}",
+    "sectionTitle": "Titel",
+    "startFolded": "Eingeklappt beginnen",
+    "toMoreFields": "{{name}} nach Weitere Felder verschieben",
+    "toMoreFieldsHelp": "Jede Aufgabenseite lässt dieses Feld ändern. Von hier entfernt, wandert es nach Weitere Felder.",
+    "pageTitleHelp": "Jede Aufgabenseite zeigt ihren Titel.",
+    "parts": {
+      "header": "Kopf",
+      "main": "Hauptbereich",
+      "side": "Seitenleiste",
+      "status": "Status",
+      "dates": "Start- und Fälligkeitsdatum",
+      "byline": "Erstellt von",
+      "notice": "Hinweis auf Nur-Lesen",
+      "actions": "Menü",
+      "relations": "Beziehungen",
+      "case": "Fall",
+      "comments": "Kommentare"
+    },
+    "regionHelp": {
+      "header": "Oben auf der Seite, über beiden Spalten.",
+      "main": "Die breite Spalte.",
+      "side": "Die schmale Spalte neben dem Hauptbereich. Auf einem Telefon ist die Seite einspaltig; die Telefonvorschau zeigt ihre Reihenfolge."
+    },
+    "partHelp": {
+      "comments": "Die Kommentare der Aufgabe und das Schreiben eines neuen.",
+      "relations": "Womit die Aufgabe verknüpft ist und worauf sie wartet.",
+      "case": "Der Supportfall der Aufgabe, wenn sie einen hat.",
+      "byline": "Wer die Aufgabe erstellt hat und wann.",
+      "notice": "Sagt jemandem, der die Aufgabe nicht ändern kann, warum.",
+      "actions": "Was sonst mit der Aufgabe möglich ist: verschieben, duplizieren, archivieren, löschen und Plug-in-Aktionen."
+    }
   }
 }

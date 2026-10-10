@@ -9,15 +9,22 @@
  * Each control saves on its own, the way the cells did, because each is a
  * separate endpoint with its own capability behind it.
  *
- * Every section asks for the capability its own endpoint requires, so each
- * viewer is offered the controls their capabilities carry and no others.
+ * Every control is drawn from the row's `allowed_actions`, which the server
+ * works out for this viewer and this account — their capabilities, their rung,
+ * and the account's state — so each viewer is offered what they may do here
+ * and nothing else.
  */
 
-import { ImageOff, KeyRound } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { Eraser, ImageOff, KeyRound, LogOut } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { OperatorUserRead, UserRole } from "@/api/generated/initiativeAPI.schemas";
+import {
+  type OperatorUserRead,
+  UserAction,
+  type UserRole,
+} from "@/api/generated/initiativeAPI.schemas";
 import { Section, SettingRow } from "@/components/platform/SettingRow";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -35,10 +42,14 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { ProfileAvatar } from "@/components/user/ProfileAvatar";
 import {
+  type OperatorProfileField,
+  useOperatorAccountCases,
+  useOperatorClearProfileField,
   useOperatorRemoveAvatar,
   useOperatorRevokeApiKeys,
   useOperatorSetSuspension,
   useOperatorSetUsername,
+  useOperatorSignOutEverywhere,
   useOperatorUpdatePlatformRole,
 } from "@/hooks/useOperatorUsers";
 import { useServerForm } from "@/hooks/useServerForm";
@@ -64,64 +75,104 @@ const platformRoleLabel = (role: UserRole, t: TranslateFn): string =>
 const platformRoleDescription = (role: UserRole, t: TranslateFn): string =>
   t(`platformUsers.roleDescriptions.${role}`);
 
-/**
- * What this viewer may do to this account. Each flag pairs the viewer's
- * capability with the state the endpoint requires of the target, so a control
- * that would be refused is never drawn.
- */
-export type UserSheetAbilities = {
-  /** ``content.moderate`` — rename, and take a picture down. */
-  canModerateContent: boolean;
-  /** ``users.manage`` — suspend and lift, and revoke API keys. */
-  canManageUsers: boolean;
-  /** ``roles.assign`` — move somebody up or down the ladder. */
-  canManageRoles: boolean;
-};
+/** The actions this sheet offers. The rest of `allowed_actions` live in the
+ *  row's menu. */
+const SHEET_ACTIONS: readonly UserAction[] = [
+  UserAction.rename,
+  UserAction.remove_avatar,
+  UserAction.clear_display_names,
+  UserAction.clear_custom_status,
+  UserAction.clear_decorations,
+  UserAction.suspend,
+  UserAction.unsuspend,
+  UserAction.revoke_api_keys,
+  UserAction.sign_out_everywhere,
+  UserAction.change_role,
+];
+
+/** True when the sheet would offer something for this account: one of its
+ *  actions, or the account's open cases. */
+export const sheetOffersSomething = (target: OperatorUserRead): boolean =>
+  target.open_case_count > 0 ||
+  target.allowed_actions.some((action) => SHEET_ACTIONS.includes(action));
+
+/** The three parts of a profile a moderator clears, each with the action that
+ *  allows it and where its words live. */
+const PROFILE_FIELDS: {
+  field: OperatorProfileField;
+  action: UserAction;
+  key: "displayNames" | "customStatus" | "decorations";
+}[] = [
+  { field: "display_names", action: UserAction.clear_display_names, key: "displayNames" },
+  { field: "custom_status", action: UserAction.clear_custom_status, key: "customStatus" },
+  { field: "decorations", action: UserAction.clear_decorations, key: "decorations" },
+];
 
 /**
- * Whether the viewer's rung reaches this account. Every operator action on an
- * account is refused above the actor's own rung, so nothing is offered there.
+ * The open cases an account filed or is the subject of, read only once the
+ * sheet is open. Each links to its task; the list carries no title, since
+ * what a case says is for whoever may open it.
  */
-export const withinRank = (actorRole: UserRole, target: OperatorUserRead): boolean =>
-  platformRoleRank(actorRole) >= platformRoleRank(target.role);
+const AccountCases = ({ user, open }: { user: OperatorUserRead; open: boolean }) => {
+  const { t } = useTranslation(["settings", "intake"]);
+  const cases = useOperatorAccountCases(user.id, {
+    enabled: open && user.open_case_count > 0,
+  });
 
-/** True when at least one control would be drawn, i.e. the sheet is worth opening. */
-export const canManageUser = (
-  abilities: UserSheetAbilities,
-  target: OperatorUserRead,
-  actorId: number | undefined,
-  actorRole: UserRole
-): boolean => {
-  const isSelf = target.id === actorId;
-  const anonymized = target.status === "anonymized";
-  if (anonymized || !withinRank(actorRole, target)) return false;
-  if (abilities.canModerateContent && !isSelf) return true;
-  if (abilities.canModerateContent && target.avatar_url) return true;
-  if (
-    abilities.canManageUsers &&
-    !isSelf &&
-    (target.status === "active" || target.status === "suspended")
-  ) {
-    return true;
-  }
-  if (abilities.canManageRoles && !isSelf && target.status === "active") return true;
-  if (abilities.canManageUsers && !isSelf && target.api_key_count > 0) return true;
-  return false;
+  return (
+    <Section title={t("platformUsers.sheet.cases.title")}>
+      <div className="space-y-3 py-3">
+        <p className="text-sm">
+          {t("platformUsers.sheet.cases.count", { count: user.open_case_count })}
+        </p>
+        {cases.isLoading ? (
+          <p className="text-muted-foreground text-sm">{t("platformUsers.sheet.cases.loading")}</p>
+        ) : cases.isError ? (
+          <p className="text-destructive text-sm">{t("platformUsers.sheet.cases.loadError")}</p>
+        ) : (
+          <ul className="divide-y rounded-md border">
+            {(cases.data ?? []).map((item) => (
+              <li key={item.task_id}>
+                <Link
+                  to="/c/$communityId/i/$initiativeId/projects/$projectId/tasks/$taskId"
+                  params={{
+                    communityId: String(item.community_id),
+                    initiativeId: String(item.initiative_id),
+                    projectId: String(item.project_id),
+                    taskId: String(item.task_id),
+                  }}
+                  className="flex items-center justify-between gap-3 px-3 py-2 text-sm hover:bg-muted focus-visible:bg-muted"
+                >
+                  <span className="min-w-0 truncate">
+                    {t(`intake:streams.${item.stream}.title`)} ·{" "}
+                    {item.filed
+                      ? t("platformUsers.sheet.cases.filed")
+                      : t("platformUsers.sheet.cases.about")}
+                  </span>
+                  <span className="shrink-0 font-mono text-muted-foreground text-xs">
+                    #{item.task_id}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="text-muted-foreground text-xs">{t("platformUsers.sheet.cases.help")}</p>
+      </div>
+    </Section>
+  );
 };
 
 export const UserOperatorSettingsSheet = ({
   user,
   open,
   onOpenChange,
-  abilities,
-  actorId,
   actorRole,
 }: {
   user: OperatorUserRead | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  abilities: UserSheetAbilities;
-  actorId: number | undefined;
+  /** The viewer's own rung: no role above it is offered. */
   actorRole: UserRole;
 }) => {
   const { t } = useTranslation(["settings", "common"]);
@@ -137,6 +188,8 @@ export const UserOperatorSettingsSheet = ({
   const [roleConfirm, setRoleConfirm] = useState<UserRole | null>(null);
   const [avatarConfirm, setAvatarConfirm] = useState(false);
   const [apiKeysConfirm, setApiKeysConfirm] = useState(false);
+  const [signOutConfirm, setSignOutConfirm] = useState(false);
+  const [clearing, setClearing] = useState<OperatorProfileField | null>(null);
 
   const setUsername = useOperatorSetUsername({
     onSuccess: () => toast.success(t("platformUsers.usernameChanged")),
@@ -188,21 +241,44 @@ export const UserOperatorSettingsSheet = ({
     },
   });
 
+  const signOut = useOperatorSignOutEverywhere({
+    onSuccess: () => {
+      toast.success(t("platformUsers.sheet.signOutDone"));
+      setSignOutConfirm(false);
+    },
+    onError: (err) => {
+      toast.error(getErrorMessage(err, "settings:platformUsers.actionError"));
+      setSignOutConfirm(false);
+    },
+  });
+
+  const clearField = useOperatorClearProfileField({
+    onSuccess: (_data, variables) => {
+      const entry = PROFILE_FIELDS.find((item) => item.field === variables.field);
+      if (entry) toast.success(t(`platformUsers.sheet.clear.${entry.key}.done`));
+      setClearing(null);
+    },
+    onError: (err) => {
+      toast.error(getErrorMessage(err, "settings:platformUsers.actionError"));
+      setClearing(null);
+    },
+  });
+
   if (!user) return null;
 
-  const isSelf = user.id === actorId;
-  const reachable = withinRank(actorRole, user);
   const isSuspended = user.status === "suspended";
+  const allows = (action: UserAction): boolean => user.allowed_actions.includes(action);
 
-  // Each section carries the capability its endpoint requires, and the state
-  // the endpoint requires of the target — including that the account sits at
-  // or below the viewer's own rung, which every one of them checks.
-  const showIdentity = abilities.canModerateContent && !isSelf && reachable;
-  const showAvatar = abilities.canModerateContent && Boolean(user.avatar_url) && reachable;
-  const showSuspension =
-    abilities.canManageUsers && !isSelf && reachable && (user.status === "active" || isSuspended);
-  const showApiKeys = abilities.canManageUsers && !isSelf && reachable && user.api_key_count > 0;
-  const showRole = abilities.canManageRoles && !isSelf && user.status === "active" && reachable;
+  // Each control is one of the row's `allowed_actions`: the server has already
+  // asked the viewer's capability, their rung and the account's state.
+  const showIdentity = allows(UserAction.rename);
+  const showAvatar = allows(UserAction.remove_avatar);
+  const clearable = PROFILE_FIELDS.filter((item) => allows(item.action));
+  const showSuspension = allows(UserAction.suspend) || allows(UserAction.unsuspend);
+  const showApiKeys = allows(UserAction.revoke_api_keys);
+  const showSignOut = allows(UserAction.sign_out_everywhere);
+  const showRole = allows(UserAction.change_role);
+  const clearingEntry = PROFILE_FIELDS.find((item) => item.field === clearing) ?? null;
 
   const commitUsername = () => {
     const sent = form.values;
@@ -228,7 +304,7 @@ export const UserOperatorSettingsSheet = ({
           </SheetHeader>
 
           <div className="space-y-6 py-6">
-            {(showIdentity || showAvatar) && (
+            {(showIdentity || showAvatar || clearable.length > 0) && (
               <Section title={t("platformUsers.sheet.identity")}>
                 {showIdentity && (
                   <SettingRow
@@ -276,10 +352,32 @@ export const UserOperatorSettingsSheet = ({
                     }
                   />
                 )}
+                {/* Like the picture: taken down for what breaches the terms
+                    of use, and theirs to set again. */}
+                {clearable.map((item) => (
+                  <SettingRow
+                    key={item.field}
+                    label={t(`platformUsers.sheet.clear.${item.key}.label`)}
+                    help={t(`platformUsers.sheet.clear.${item.key}.help`)}
+                    control={
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setClearing(item.field)}
+                        disabled={clearField.isPending}
+                        aria-label={t(`platformUsers.sheet.clear.${item.key}.action`)}
+                      >
+                        <Eraser className="h-4 w-4" />
+                        {t("platformUsers.sheet.clear.button")}
+                      </Button>
+                    }
+                  />
+                ))}
               </Section>
             )}
 
-            {(showSuspension || showApiKeys) && (
+            {(showSuspension || showApiKeys || showSignOut) && (
               <Section title={t("platformUsers.sheet.access")}>
                 {showSuspension && (
                   <SettingRow
@@ -314,6 +412,24 @@ export const UserOperatorSettingsSheet = ({
                       >
                         <KeyRound className="h-4 w-4" />
                         {t("platformUsers.sheet.apiKeysRevoke")}
+                      </Button>
+                    }
+                  />
+                )}
+                {showSignOut && (
+                  <SettingRow
+                    label={t("platformUsers.sheet.signOutLabel")}
+                    help={t("platformUsers.sheet.signOutHelp")}
+                    control={
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSignOutConfirm(true)}
+                        disabled={signOut.isPending}
+                      >
+                        <LogOut className="h-4 w-4" />
+                        {t("platformUsers.sheet.signOut")}
                       </Button>
                     }
                   />
@@ -362,6 +478,8 @@ export const UserOperatorSettingsSheet = ({
                 />
               </Section>
             )}
+
+            {user.open_case_count > 0 && <AccountCases user={user} open={open} />}
           </div>
         </SheetContent>
       </Sheet>
@@ -444,6 +562,42 @@ export const UserOperatorSettingsSheet = ({
         destructive
         isLoading={revokeApiKeys.isPending}
         onConfirm={() => revokeApiKeys.mutate(user.id)}
+      />
+
+      <ConfirmDialog
+        open={signOutConfirm}
+        onOpenChange={setSignOutConfirm}
+        title={t("platformUsers.sheet.signOutConfirmTitle")}
+        description={t("platformUsers.sheet.signOutConfirmBody", {
+          handle: getUserHandle(user),
+        })}
+        confirmLabel={t("platformUsers.sheet.signOut")}
+        cancelLabel={t("common:cancel")}
+        loadingLabel={t("common:submitting")}
+        destructive
+        isLoading={signOut.isPending}
+        onConfirm={() => signOut.mutate(user.id)}
+      />
+
+      <ConfirmDialog
+        open={clearingEntry !== null}
+        onOpenChange={(next) => !next && setClearing(null)}
+        title={
+          clearingEntry ? t(`platformUsers.sheet.clear.${clearingEntry.key}.confirmTitle`) : ""
+        }
+        description={
+          clearingEntry
+            ? t(`platformUsers.sheet.clear.${clearingEntry.key}.confirmBody`, {
+                handle: getUserHandle(user),
+              })
+            : ""
+        }
+        confirmLabel={t("platformUsers.sheet.clear.button")}
+        cancelLabel={t("common:cancel")}
+        loadingLabel={t("common:submitting")}
+        destructive
+        isLoading={clearField.isPending}
+        onConfirm={() => clearing && clearField.mutate({ userId: user.id, field: clearing })}
       />
     </>
   );

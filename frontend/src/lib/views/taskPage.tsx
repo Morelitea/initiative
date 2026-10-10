@@ -86,7 +86,7 @@ import {
 import { FieldFrame, useFieldDraft } from "./editing";
 import { type FieldKind, useProjectViewEnv } from "./fields";
 import { PluginFieldOnPage, PluginPartView, pluginFields, usePluginsOnItems } from "./plugins";
-import { taskFields, taskPageTree } from "./tasks";
+import { type StoredRegions, taskFields, taskPageTree } from "./tasks";
 import { LAYOUT_PARTS, type Parts, renderNode, type ViewContext, type ViewNode } from "./tree";
 
 /** What the task's page shares with its parts, beside the task itself. */
@@ -104,6 +104,9 @@ export interface TaskPageContext {
   actions: ReactNode;
   /** Set when the page is left on purpose, so an open draft does not hold it. */
   leaving: RefObject<boolean>;
+  /** Drawn in the layout editor, where nothing is changed: a description
+   *  draft kept on the device stays there. */
+  preview?: boolean;
 }
 
 const PageContext = createContext<TaskPageContext | null>(null);
@@ -182,7 +185,7 @@ const readDescriptionDraft = (key: string): DescriptionDraft | null => {
  */
 const DescriptionEditor = ({ task, label }: EditorProps) => {
   const { t } = useTranslation(["tasks", "common"]);
-  const { readOnly, initiativeId, currentUserId, leaving, askScope } = useTaskPage();
+  const { readOnly, initiativeId, currentUserId, leaving, askScope, preview } = useTaskPage();
   const communityId = useActiveCommunityId();
   const uploadImage = usePastedImages();
   const { isEnabled: aiEnabled } = useAIEnabled();
@@ -217,7 +220,7 @@ const DescriptionEditor = ({ task, label }: EditorProps) => {
   const current = task.description ?? "";
   // A reader who can no longer edit keeps the draft on the device, but sees
   // the saved description and nothing that would write.
-  const open = readOnly ? null : draft;
+  const open = readOnly || preview ? null : draft;
   const conflict = open !== null && getHttpStatus(save.error) === 409;
   const dirty = open !== null && open.text !== (open.base ?? "");
   const blocker = useBlocker({
@@ -894,10 +897,13 @@ export const TaskPageView = ({
   task,
   page,
   layout,
+  editing,
 }: {
   task: TaskRead;
   page: TaskPageContext;
-  layout?: Partial<Record<"header" | "main" | "side", ViewNode[] | null>>;
+  layout?: StoredRegions | null;
+  /** While the layout is edited: the path of each of its parts. */
+  editing?: WeakMap<ViewNode, string>;
 }) => {
   const { t, i18n } = useTranslation("tasks");
   const communityId = useActiveCommunityId();
@@ -915,8 +921,9 @@ export const TaskPageView = ({
       plugins,
       variant: "page",
       env,
+      editing,
     }),
-    [plugins, i18n.language, env]
+    [plugins, i18n.language, env, editing]
   );
   const tree = useMemo(() => taskPageTree(layout, t("edit.moreFields")), [layout, t]);
   return (

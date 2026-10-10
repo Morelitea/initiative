@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+from enum import Enum
 from typing import Any, List, Literal, Optional
 
 from pydantic import (
@@ -394,6 +395,29 @@ class CommunityUpdate(SanitizedBaseModel):
     # the database enforce that even if a field regressed into this schema.
 
 
+class CommunityAction(str, Enum):
+    """What the reader may do to one community on the staff list. Worked out
+    by the server per row, so a control the reader would be refused is never
+    drawn."""
+
+    #: The Manage sheet: caps, entitlements, sign-in, restoring a deletion.
+    manage = "manage"
+    #: The status control.
+    set_status = "set_status"
+    #: Suspend it, under a live ``moderate`` grant on it.
+    suspend = "suspend"
+    #: Lift its suspension, under the same.
+    lift = "lift"
+    #: The billing service's support console.
+    billing_support = "billing_support"
+    #: The billing service's operator console.
+    billing_operator = "billing_operator"
+    #: Ask for access to it.
+    request_access = "request_access"
+    #: Grant oneself access to it.
+    break_glass = "break_glass"
+
+
 class PlatformCommunityStorageRead(SanitizedBaseModel):
     """Operator view of a guild's storage cap (platform settings → Guilds tab).
 
@@ -444,6 +468,17 @@ class PlatformCommunityStorageRead(SanitizedBaseModel):
     # Off by default: the deployment that receives them is the one that decides
     # it is staffing them.
     support_enabled: bool = False
+    # Where lifting its suspension returns it, while it is suspended. ``deleted``
+    # where it was suspended out of deletion.
+    lifts_to: Optional[CommunityStatus] = None
+    # What the reader may do to it, worked out for them.
+    allowed_actions: List[CommunityAction] = Field(default_factory=list)
+
+
+class CommunitySuspensionUpdate(SanitizedBaseModel):
+    """Suspend a community, or lift its suspension."""
+
+    suspended: bool
 
 
 class PlatformCommunityStorageListResponse(PageMeta):

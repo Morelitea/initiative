@@ -1,3 +1,4 @@
+import { useSearch } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -6,6 +7,8 @@ import type {
   AccessGrantStatus,
   BreakGlassCreate,
 } from "@/api/generated/initiativeAPI.schemas";
+import { CommunityPicker, type PickedCommunity } from "@/components/platform/CommunityPicker";
+import { UserHandle } from "@/components/UserHandle";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,6 +37,7 @@ import {
 } from "@/hooks/useAccessGrants";
 import { useAuth } from "@/hooks/useAuth";
 import { useCommunities } from "@/hooks/useCommunities";
+import type { AccessGrantsForm, AccessGrantsSearch } from "@/lib/accessGrantsSearch";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { minutesLeft } from "@/lib/formatDate";
 import { toast } from "@/lib/mascotToast";
@@ -56,6 +60,11 @@ const STATUS_VARIANT: Record<
 // Always surface the community id alongside the name so approvers can
 // disambiguate similarly-named communities (and fall back cleanly when the name
 // isn't populated).
+/** Who holds a grant: their handle, or their account number where the
+ *  account is gone. Never their address. */
+const GrantHolder = ({ grant }: { grant: AccessGrantRead }) =>
+  grant.user ? <UserHandle user={grant.user} /> : <>{getUserDisplayName({ id: grant.user_id })}</>;
+
 const communityLabel = (grant: { community_name?: string | null; community_id: number }): string =>
   grant.community_name
     ? `${grant.community_name} (#${grant.community_id})`
@@ -82,6 +91,16 @@ const durationsUpTo = (presets: number[], max: number | undefined): number[] => 
   if (max === undefined) return [];
   const offered = presets.filter((minutes) => minutes <= max);
   return offered.includes(max) ? offered : [...offered, max];
+};
+
+/**
+ * The community a form starts with, when the page was opened for that form
+ * from a row on the Communities tab.
+ */
+const usePreselectedCommunity = (form: AccessGrantsForm): PickedCommunity | null => {
+  const search = useSearch({ strict: false }) as AccessGrantsSearch;
+  if (!search.community || search.form !== form) return null;
+  return { id: search.community, name: search.name ?? null };
 };
 
 export const SettingsAccessGrantsPage = () => {
@@ -157,7 +176,8 @@ const BreakGlassSection = () => {
   // the sign-in page uses for it.
   const { t } = useTranslation(["settings", "common", "auth"]);
   const { refreshCommunities } = useCommunities();
-  const [communityId, setCommunityId] = useState("");
+  const preselected = usePreselectedCommunity("break_glass");
+  const [community, setCommunity] = useState<PickedCommunity | null>(preselected);
   // Null until chosen: the offered windows arrive with the requirements below.
   const [chosenDuration, setDuration] = useState<string | null>(null);
   const [reason, setReason] = useState("");
@@ -190,7 +210,7 @@ const BreakGlassSection = () => {
   const breakGlass = useBreakGlass({
     onSuccess: () => {
       toast.success(t("accessGrants.breakGlass.activated"));
-      setCommunityId("");
+      setCommunity(null);
       setReason("");
       setCode("");
       setFactorRefused(false);
@@ -213,12 +233,11 @@ const BreakGlassSection = () => {
 
   /** The request itself, with whatever answered the factor attached. */
   const issue = (answer: Partial<BreakGlassCreate>) => {
-    const gid = Number.parseInt(communityId, 10);
-    if (!gid || !reason.trim() || !duration) return;
+    if (!community || !reason.trim() || !duration) return;
     // No level to choose: breaking glass issues write access to the content
     // and a settings grant at superadmin. Somebody who wants less asks below.
     breakGlass.mutate({
-      community_id: gid,
+      community_id: community.id,
       reason: reason.trim(),
       requested_duration_minutes: Number.parseInt(duration, 10),
       ...answer,
@@ -235,7 +254,7 @@ const BreakGlassSection = () => {
    *  produces goes out with the request, so the key answers this grant rather
    *  than the session the button was pressed on. */
   const presentAKey = async () => {
-    if (!communityId.trim() || !reason.trim()) return;
+    if (!community || !reason.trim()) return;
     setPresenting(true);
     try {
       issue({ passkey: await assertForBreakGlass() });
@@ -256,14 +275,11 @@ const BreakGlassSection = () => {
       <CardContent>
         <form className="grid grid-cols-pair gap-4" onSubmit={submit}>
           <div className="space-y-1">
-            <Label htmlFor="bg-community">{t("accessGrants.communityIdLabel")}</Label>
-            <Input
-              id="bg-community"
-              type="number"
-              value={communityId}
-              onChange={(e) => setCommunityId(e.target.value)}
-              placeholder={t("accessGrants.communityIdPlaceholder")}
-              required
+            <Label>{t("accessGrants.communityLabel")}</Label>
+            <CommunityPicker
+              aria-label={t("accessGrants.communityLabel")}
+              value={community}
+              onChange={setCommunity}
             />
           </div>
           <div className="space-y-1">
@@ -316,7 +332,7 @@ const BreakGlassSection = () => {
             <Button
               type="submit"
               variant="destructive"
-              disabled={breakGlass.isPending || presenting}
+              disabled={!community || breakGlass.isPending || presenting}
             >
               {breakGlass.isPending ? t("common:submitting") : t("accessGrants.breakGlass.submit")}
             </Button>
@@ -325,7 +341,7 @@ const BreakGlassSection = () => {
                 type="button"
                 variant="outline"
                 onClick={() => void presentAKey()}
-                disabled={breakGlass.isPending || presenting}
+                disabled={!community || breakGlass.isPending || presenting}
               >
                 {presenting
                   ? t("accessGrants.breakGlass.passkeyPresenting")
@@ -356,7 +372,8 @@ const RequestSection = () => {
     limits.data?.max_duration_minutes
   );
   const defaultDuration = String(durationOptions.includes(240) ? 240 : (durationOptions[0] ?? ""));
-  const [communityId, setCommunityId] = useState("");
+  const preselected = usePreselectedCommunity("request");
+  const [community, setCommunity] = useState<PickedCommunity | null>(preselected);
   // Two axes, asked for independently. "none" is how you say you do not want
   // one — clearing up after an incident wants both; having a look wants only
   // the first.
@@ -370,7 +387,7 @@ const RequestSection = () => {
   const createRequest = useCreateAccessRequest({
     onSuccess: () => {
       toast.success(t("accessGrants.requestSubmitted"));
-      setCommunityId("");
+      setCommunity(null);
       setReason("");
       setDuration(null);
     },
@@ -385,10 +402,9 @@ const RequestSection = () => {
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    const gid = Number.parseInt(communityId, 10);
-    if (!gid || !reason.trim() || !asksForSomething || !duration) return;
+    if (!community || !reason.trim() || !asksForSomething || !duration) return;
     createRequest.mutate({
-      community_id: gid,
+      community_id: community.id,
       ...(level === "none" ? {} : { access_level: level as "read" | "read_write" | "moderate" }),
       ...(settingsLevel === "none"
         ? {}
@@ -407,14 +423,11 @@ const RequestSection = () => {
       <CardContent className="space-y-4">
         <form className="grid grid-cols-pair gap-4" onSubmit={submit}>
           <div className="space-y-1">
-            <Label htmlFor="ag-community">{t("accessGrants.communityIdLabel")}</Label>
-            <Input
-              id="ag-community"
-              type="number"
-              value={communityId}
-              onChange={(e) => setCommunityId(e.target.value)}
-              placeholder={t("accessGrants.communityIdPlaceholder")}
-              required
+            <Label>{t("accessGrants.communityLabel")}</Label>
+            <CommunityPicker
+              aria-label={t("accessGrants.communityLabel")}
+              value={community}
+              onChange={setCommunity}
             />
           </div>
           <div className="space-y-1">
@@ -474,7 +487,10 @@ const RequestSection = () => {
             />
           </div>
           <div className="col-span-full">
-            <Button type="submit" disabled={createRequest.isPending || !asksForSomething}>
+            <Button
+              type="submit"
+              disabled={!community || createRequest.isPending || !asksForSomething}
+            >
               {createRequest.isPending ? t("common:submitting") : t("accessGrants.submitRequest")}
             </Button>
             {!asksForSomething && (
@@ -573,9 +589,8 @@ const ApprovalQueue = () => {
                 <li key={grant.id} className="flex items-center justify-between gap-3 p-3">
                   <div className="min-w-0">
                     <p className="truncate text-sm">
-                      {grant.user_email ?? getUserDisplayName({ id: grant.user_id })} →{" "}
-                      {communityLabel(grant)} · {grantScope(grant)} ·{" "}
-                      {t("accessGrants.minutes", { minutes: grant.requested_duration_minutes })}
+                      <GrantHolder grant={grant} /> → {communityLabel(grant)} · {grantScope(grant)}{" "}
+                      · {t("accessGrants.minutes", { minutes: grant.requested_duration_minutes })}
                     </p>
                     <p className="truncate text-muted-foreground text-xs">{grant.reason}</p>
                   </div>
@@ -621,8 +636,8 @@ const ApprovalQueue = () => {
                   <li key={grant.id} className="flex items-center justify-between gap-3 p-3">
                     <div className="min-w-0">
                       <p className="truncate text-sm">
-                        {grant.user_email ?? getUserDisplayName({ id: grant.user_id })} →{" "}
-                        {communityLabel(grant)} · {grantScope(grant)}
+                        <GrantHolder grant={grant} /> → {communityLabel(grant)} ·{" "}
+                        {grantScope(grant)}
                       </p>
                       {left !== null && (
                         <p className="text-muted-foreground text-xs">

@@ -1,14 +1,10 @@
 /**
- * The view editor's changes, kept apart from what is saved: a tree edited by
- * path, and the set of views with every change since it was opened, to undo
- * and redo.
+ * The view editor's changes, kept apart from what is saved: a tree (a card or
+ * an item's page) edited by path, and the draft with every change since it was
+ * opened, to undo and redo.
  */
 
-import type {
-  CardPartInput,
-  ToolViewWrite,
-  ViewDefinitionInput,
-} from "@/api/generated/initiativeAPI.schemas";
+import type { CardPartInput, ViewDefinitionInput } from "@/api/generated/initiativeAPI.schemas";
 
 import type { FieldDef } from "./fields";
 import { TASK_CARD, TASK_COLUMNS } from "./tasks";
@@ -70,14 +66,18 @@ export const insertAt = (
     return { ...holder, children };
   });
 
-/** `root` with a child of the node at `parent` moved from `from` to `to`. */
-export const moveWithin = (root: ViewNode, parent: NodePath, from: number, to: number): ViewNode =>
-  changeAt(root, parent, (holder) => {
-    const children = [...(holder.children ?? [])];
-    const [moved] = children.splice(from, 1);
-    if (moved) children.splice(to, 0, moved);
-    return { ...holder, children };
-  });
+/** `root` with the node at `from` moved to `to`, a path in the tree as it is
+ *  after the move. */
+export const moveNode = (root: ViewNode, from: NodePath, to: NodePath): ViewNode => {
+  const node = nodeAt(root, from);
+  if (!node || from.length === 0 || to.length === 0) return root;
+  return insertAt(
+    changeAt(root, from, () => null),
+    to.slice(0, -1),
+    node,
+    to.at(-1)
+  );
+};
 
 const nodesIn = (node: ViewNode): ViewNode[] => [node, ...(node.children ?? []).flatMap(nodesIn)];
 
@@ -101,10 +101,8 @@ export const addableFields = (
   const all = [...fields.values()];
   if (definition.layout.type === "board") {
     const card = cardOf(definition);
-    const named = new Set(
-      nodesIn(card).flatMap((node) => (node.type === "field" ? [String(node.props?.field)] : []))
-    );
-    const showsProperties = nodesIn(card).some((node) => node.type === "properties");
+    const named = namedFields(card);
+    const showsProperties = holdsPart(card, "properties");
     return all.filter(
       (field) => !named.has(field.id) && !(showsProperties && field.source === "property")
     );
@@ -119,12 +117,8 @@ export const addableFields = (
   return [];
 };
 
-/** Whether a card shows every property, as a part of its own. */
-export const showsAllProperties = (card: ViewNode): boolean =>
-  nodesIn(card).some((node) => node.type === "properties");
-
-/** What the editor has selected: the view itself, a part of its card by
- *  path, or one of its table's columns by field. */
+/** What the editor has selected: the view (or page) itself, a part of its
+ *  tree by path, or one of its table's columns by field. */
 export type Selection =
   | { kind: "view" }
   | { kind: "part"; path: NodePath }
@@ -140,23 +134,6 @@ export const sameSelection = (a: Selection, b: Selection): boolean =>
 const startsWith = (path: NodePath, prefix: NodePath) =>
   prefix.length <= path.length && prefix.every((index, depth) => path[depth] === index);
 
-/** Where the part at `path` is once a child of `parent` moved from `from` to
- *  `to`: the moved part goes with it, and its siblings between close up. */
-export const pathAfterMove = (
-  path: NodePath,
-  parent: NodePath,
-  from: number,
-  to: number
-): NodePath => {
-  if (path.length <= parent.length || !startsWith(path, parent)) return path;
-  const index = path[parent.length];
-  let next = index;
-  if (index === from) next = to;
-  else if (from < index && index <= to) next = index - 1;
-  else if (to <= index && index < from) next = index + 1;
-  return [...parent, next, ...path.slice(parent.length + 1)];
-};
-
 /** Where the part at `path` is once the part at `removed` is taken out, or
  *  null when it went with it. */
 export const pathAfterRemove = (path: NodePath, removed: NodePath): NodePath | null => {
@@ -166,6 +143,73 @@ export const pathAfterRemove = (path: NodePath, removed: NodePath): NodePath | n
   if (path[depth] < removed[depth]) return path;
   return [...path.slice(0, depth), path[depth] - 1, ...path.slice(depth + 1)];
 };
+
+/** Where the part at `path` is once a part is put in at `inserted`. */
+const pathAfterInsert = (path: NodePath, inserted: NodePath): NodePath => {
+  const depth = inserted.length - 1;
+  if (path.length <= depth || !startsWith(path, inserted.slice(0, depth))) return path;
+  if (path[depth] < inserted[depth]) return path;
+  return [...path.slice(0, depth), path[depth] + 1, ...path.slice(depth + 1)];
+};
+
+/** Where the part at `path` is once the part at `from` moves to `to`: the
+ *  moved part, and what it holds, go with it; the rest close up and make
+ *  room. */
+export const pathAfterMove = (path: NodePath, from: NodePath, to: NodePath): NodePath =>
+  startsWith(path, from)
+    ? [...to, ...path.slice(from.length)]
+    : pathAfterInsert(pathAfterRemove(path, from) ?? path, to);
+
+/** Where the part at `from` goes when it is dropped on the part at `over`:
+ *  into its place, as a list reorders, or null where that would put it inside
+ *  itself. */
+export const dropOn = (from: NodePath, over: NodePath): NodePath | null => {
+  if (startsWith(over, from)) return null;
+  const siblings = over.length === from.length && startsWith(over, from.slice(0, -1));
+  // Among its own siblings it takes the place it was dropped on; elsewhere it
+  // goes in before what it was dropped on.
+  return siblings ? over : (pathAfterRemove(over, from) as NodePath);
+};
+
+/** Where the part at `from` goes when it is dropped at the end of the group
+ *  at `holder`, or null where that would put it inside itself. */
+export const dropInto = (root: ViewNode, from: NodePath, holder: NodePath): NodePath | null => {
+  if (startsWith(holder, from)) return null;
+  const length = nodeAt(root, holder)?.children?.length ?? 0;
+  const leaves = from.length === holder.length + 1 && startsWith(from, holder);
+  return [...(pathAfterRemove(holder, from) as NodePath), leaves ? length - 1 : length];
+};
+
+/** The parts that hold others, where a part can be added or dropped. */
+export const HOLDERS = new Set(["card", "stack", "section", "header", "main", "side"]);
+
+/** How many parts of one install a tree may place, as the server allows. */
+export const MAX_PLUGIN_PARTS = 3;
+
+/** The parts of an install a tree can still place: each once, and none past
+ *  {@link MAX_PLUGIN_PARTS}. */
+export const addablePluginParts = <P extends { id: string }>(
+  tree: ViewNode,
+  install: number,
+  parts: P[]
+): P[] => {
+  const placed = nodesIn(tree).flatMap((node) =>
+    node.type === "plugin" && Number(node.props?.plugin) === install
+      ? [String(node.props?.part)]
+      : []
+  );
+  return placed.length >= MAX_PLUGIN_PARTS ? [] : parts.filter((part) => !placed.includes(part.id));
+};
+
+/** Whether a tree holds a part of the type. */
+export const holdsPart = (tree: ViewNode, type: string): boolean =>
+  nodesIn(tree).some((node) => node.type === type);
+
+/** The fields a tree names. */
+export const namedFields = (tree: ViewNode): Set<string> =>
+  new Set(
+    nodesIn(tree).flatMap((node) => (node.type === "field" ? [String(node.props?.field)] : []))
+  );
 
 /** Every node of a tree by its path key, for the canvas to find the part a
  *  click landed on. Keyed by the node itself, so a tree drawn twice (a card
@@ -180,29 +224,29 @@ export const indexPaths = (root: ViewNode): WeakMap<ViewNode, string> => {
   return paths;
 };
 
-/** A set of views being edited, with what was done to it. */
-export type History = {
-  past: ToolViewWrite[][];
-  present: ToolViewWrite[];
-  future: ToolViewWrite[][];
+/** A draft being edited, with what was done to it. */
+export type History<T> = {
+  past: T[];
+  present: T;
+  future: T[];
 };
 
-export type HistoryAction =
-  | { type: "change"; views: ToolViewWrite[] }
+export type HistoryAction<T> =
+  | { type: "change"; present: T }
   | { type: "undo" }
   | { type: "redo" }
-  | { type: "reset"; views: ToolViewWrite[] };
+  | { type: "reset"; present: T };
 
-export const startHistory = (views: ToolViewWrite[]): History => ({
+export const startHistory = <T>(present: T): History<T> => ({
   past: [],
-  present: views,
+  present,
   future: [],
 });
 
-export const historyReducer = (history: History, action: HistoryAction): History => {
+export const historyReducer = <T>(history: History<T>, action: HistoryAction<T>): History<T> => {
   switch (action.type) {
     case "change":
-      return { past: [...history.past, history.present], present: action.views, future: [] };
+      return { past: [...history.past, history.present], present: action.present, future: [] };
     case "undo": {
       const previous = history.past.at(-1);
       if (!previous) return history;
@@ -218,6 +262,6 @@ export const historyReducer = (history: History, action: HistoryAction): History
       return { past: [...history.past, history.present], present: next, future };
     }
     case "reset":
-      return startHistory(action.views);
+      return startHistory(action.present);
   }
 };

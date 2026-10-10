@@ -323,6 +323,7 @@
   },
   "viewEditor": {
     "open": "Edit views",
+    "openTaskPage": "Edit task page",
     "title": "Edit views",
     "close": "Close the editor",
     "view": "View being edited",
@@ -336,9 +337,9 @@
     "redo": "Redo",
     "discard": "Discard",
     "saving": "Saving…",
-    "saved": "Views saved",
+    "saved": "Saved",
     "unsavedTitle": "Leave without saving?",
-    "unsavedBody": "Your changes to these views haven't been saved. Leaving discards them.",
+    "unsavedBody": "Your changes haven't been saved. Leaving discards them.",
     "leave": "Leave",
     "stay": "Keep editing",
     "compact": "Views are edited on a wider screen. Open this page on a tablet or a computer.",
@@ -385,7 +386,48 @@
     "ownWidth": "Keep each part's own width",
     "muted": "Muted text",
     "titleHelp": "Every task shows its title, which opens it.",
-    "holdsTitle": "This group holds the title, which every task shows, so it stays.",
-    "savingBody": "Your views are still being saved. Leaving now may lose your changes if the save fails."
+    "holdsTitle": "It holds the title, which every task shows, so it stays.",
+    "savingBody": "Your changes are still being saved. Leaving now may lose them if the save fails.",
+    "taskPage": "Task page",
+    "noticePreview": "Shown to someone who can't change the task, saying why.",
+    "noTasks": "This project has no tasks yet. Add one to see its page here.",
+    "empty": "Empty",
+    "dropHere": "Drop here",
+    "pageHelp": "How every task's page in this project is laid out. A field placed nowhere is still shown, under More fields.",
+    "useShippedPage": "Use the shipped page",
+    "shippedPage": "This is the page as shipped. Changing it makes it the project's own.",
+    "section": "Section",
+    "sectionWith": "Section with {{name}}",
+    "sectionTitle": "Title",
+    "startFolded": "Start folded",
+    "toMoreFields": "Move {{name}} to More fields",
+    "toMoreFieldsHelp": "Every task's page lets this be changed. Removed from here, it moves to More fields.",
+    "pageTitleHelp": "Every task's page shows its title.",
+    "parts": {
+      "header": "Header",
+      "main": "Main",
+      "side": "Side",
+      "status": "Status",
+      "dates": "Start and due dates",
+      "byline": "Created by",
+      "notice": "Read-only note",
+      "actions": "Menu",
+      "relations": "Relations",
+      "case": "Case",
+      "comments": "Comments"
+    },
+    "regionHelp": {
+      "header": "Across the top of the page, above both columns.",
+      "main": "The wide column.",
+      "side": "The narrow column beside Main. On a phone the page is one column; the phone preview shows its order."
+    },
+    "partHelp": {
+      "comments": "The task's comments, and writing a new one.",
+      "relations": "What the task is linked to, and what it's waiting on.",
+      "case": "The task's support case, when it has one.",
+      "byline": "Who made the task, and when.",
+      "notice": "Tells someone who can't change the task why.",
+      "actions": "What else can be done with the task: move, duplicate, archive, delete, and plug-in actions."
+    }
   }
 }

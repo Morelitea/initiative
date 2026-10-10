@@ -827,5 +827,9 @@
   "SECURITY_NOWHERE_TO_SEND": "Security reports aren't set up on this server yet. Use the address below instead.",
   "FEEDBACK_NOWHERE_TO_SEND": "Feedback isn't set up on this server yet. Use the address below instead.",
   "APPEAL_NOT_SUSPENDED": "Your account isn't suspended, so there is nothing to appeal.",
-  "APPEAL_NOWHERE_TO_SEND": "Appeals aren't set up on this server yet. Use the address below instead."
+  "APPEAL_NOWHERE_TO_SEND": "Appeals aren't set up on this server yet. Use the address below instead.",
+  "COMMUNITY_SUSPENSION_NEEDS_GRANT": "Suspending a community, or lifting its suspension, needs a live moderation grant on it. Request one under Access.",
+  "COMMUNITY_NOT_SUSPENDABLE": "This community can't be suspended from the status it is in now.",
+  "COMMUNITY_NOT_SUSPENDED": "This community isn't suspended, so there is no suspension to lift.",
+  "OPERATOR_CANNOT_ACT_ON_SELF": "You can't do this to your own account from here. Change it in your own settings."
 }

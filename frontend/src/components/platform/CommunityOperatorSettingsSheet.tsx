@@ -23,7 +23,7 @@ import type {
   CommunityAuthOption,
   PlatformCommunityStorageRead,
 } from "@/api/generated/initiativeAPI.schemas";
-import { CommunityStatus } from "@/api/generated/initiativeAPI.schemas";
+import { CommunityAction, CommunityStatus } from "@/api/generated/initiativeAPI.schemas";
 import { BillingConsoleButton, opensBillingHere } from "@/components/platform/BillingConsoleButton";
 import { CommunityRestoreWizard } from "@/components/platform/CommunityRestoreWizard";
 import { Section, SettingRow } from "@/components/platform/SettingRow";
@@ -195,7 +195,11 @@ export const CommunityOperatorSettingsSheet = ({
           {planIsBillings && !deleted ? (
             <div className="space-y-3 rounded-md border bg-muted/40 p-4">
               <p className="text-sm">{t("communities.sheet.setInBilling")}</p>
-              {billing?.operator_handoff && opensBillingHere() ? (
+              {/* The operator console changes a plan, which the row says this
+                  reader may do; the support console is in the table. */}
+              {billing?.operator_handoff &&
+              opensBillingHere() &&
+              community.allowed_actions.includes(CommunityAction.billing_operator) ? (
                 <BillingConsoleButton community={community} console="operator" size="sm">
                   {t("communities.sheet.changeInBilling")}
                 </BillingConsoleButton>

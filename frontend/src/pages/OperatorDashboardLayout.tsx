@@ -39,7 +39,7 @@ export const OperatorDashboardLayout = () => {
         value: "communities",
         label: t("operatorDashboard.tabs.communities"),
         path: "/settings/operator/communities",
-        capabilities: [Capability.communitiesManage],
+        capabilities: [Capability.communitiesRead],
       },
       {
         value: "placement",

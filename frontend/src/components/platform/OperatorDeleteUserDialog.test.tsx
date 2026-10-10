@@ -20,6 +20,8 @@ const targetUser: OperatorUserRead = {
   sign_in_locked_until: null,
   second_factor_enrolled: false,
   api_key_count: 0,
+  allowed_actions: ["delete"],
+  open_case_count: 0,
 };
 
 const eligibilityWithCommunityBlocker: OperatorDeletionEligibilityResponse = {

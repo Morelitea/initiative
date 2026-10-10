@@ -1,19 +1,22 @@
 import logging
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 import httpx
-from fastapi import APIRouter, HTTPException, Query, Request, status
-from sqlalchemy import func
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from sqlalchemy import func, or_
 from sqlmodel import select
 
 from app.api.deps import (
     CommunityIdPath,
+    get_current_active_user,
     UserSessionDep,
     SystemSessionDep,
 )
 from app.api.v1.platform_endpoints.access_grants import check_second_factor
 from app.api.v1.platform_endpoints.operator import (
     BillingInsightsDep,
+    CommunitiesReadDep,
+    CommunitiesSuspendDep,
     ConfigManageDep,
     GuildsManageDep,
 )
@@ -61,16 +64,26 @@ from app.schemas.platform.settings import (
 )
 from app.models.platform.guild import CommunityStatus, operator_status_choices
 from app.schemas.platform.guild import (
+    CommunityAction,
+    CommunitySuspensionUpdate,
     PlatformCommunityRestore,
     PlatformCommunityStorageListResponse,
     PlatformCommunityStorageRead,
     PlatformCommunityStorageUpdate,
 )
-from app.models.platform.access_grant import AccessGrantPurpose, AccessLevel
+from app.core.capabilities import Capability, user_has_capability
+from app.core.clock import utcnow
+from app.models.platform.access_grant import (
+    AccessGrant,
+    AccessGrantPurpose,
+    AccessLevel,
+)
+from app.models.platform.user import User
 from app.schemas.platform.access_grant import BreakGlassCreate, SecondFactorAnswer
 from app.schemas.platform.billing import BillingPortalHandoffResponse
 from app.schemas.platform.push import FCMConfigResponse
 from app.core.messages import (
+    AuthMessages,
     BillingMessages,
     GuildMessages,
     SettingsMessages,
@@ -824,6 +837,62 @@ async def get_fcm_config(
 # --- Guild storage limits (Operator dashboard → Guilds tab) ---
 
 
+#: The statuses a community may be suspended from.
+_SUSPENDABLE = frozenset(
+    {
+        CommunityStatus.active,
+        CommunityStatus.read_only,
+        CommunityStatus.on_hold,
+        CommunityStatus.deleted,
+    }
+)
+
+
+def _community_actions(
+    actor: User, status_: CommunityStatus, *, moderating: bool
+) -> list[CommunityAction]:
+    """What ``actor`` may do to a community at ``status_``, in the order the
+    row draws them. ``moderating`` says they hold a live ``moderate`` grant on
+    it, which suspending and lifting need beside the capability."""
+    actions: list[CommunityAction] = []
+    manages = user_has_capability(actor, Capability.COMMUNITIES_MANAGE)
+    if manages:
+        actions.append(CommunityAction.manage)
+        if status_ is not CommunityStatus.deleted:
+            actions.append(CommunityAction.set_status)
+    if moderating and user_has_capability(actor, Capability.COMMUNITIES_SUSPEND):
+        if status_ is CommunityStatus.suspended:
+            actions.append(CommunityAction.lift)
+        elif status_ in _SUSPENDABLE:
+            actions.append(CommunityAction.suspend)
+    if user_has_capability(actor, Capability.BILLING_SUPPORT):
+        actions.append(CommunityAction.billing_support)
+    if manages:
+        actions.append(CommunityAction.billing_operator)
+    if user_has_capability(actor, Capability.ACCESS_REQUEST):
+        actions.append(CommunityAction.request_access)
+    if user_has_capability(actor, Capability.DATA_BYPASS):
+        actions.append(CommunityAction.break_glass)
+    return actions
+
+
+async def _moderating(session: Any, *, user_id: int, guild_ids: list[int]) -> set[int]:
+    """Which of ``guild_ids`` ``user_id`` holds a live ``moderate`` grant on.
+    One read for the page."""
+    if not guild_ids:
+        return set()
+    rows = await session.exec(
+        select(AccessGrant.guild_id).where(
+            AccessGrant.user_id == user_id,
+            AccessGrant.guild_id.in_(guild_ids),
+            AccessGrant.purpose == AccessGrantPurpose.content.value,
+            AccessGrant.access_level == AccessLevel.moderate.value,
+            AccessGrant.live(utcnow()),
+        )
+    )
+    return {int(guild_id) for guild_id in rows.all()}
+
+
 def _guild_storage_read(
     guild: Guild,
     administration: GuildAdministration | None,
@@ -831,14 +900,19 @@ def _guild_storage_read(
     member_count: int,
     has_seat: bool,
     deployment: AppSetting,
+    actor: User,
+    moderating: bool = False,
 ) -> PlatformCommunityStorageRead:
-    """One row of the Guilds tab.
+    """One row of the Guilds tab, as ``actor`` may act on it.
 
     ``administration`` is None only for a guild missing its companion row,
-    which is listed with blank caps rather than dropped.
+    which is listed with blank caps rather than dropped. The status choices
+    are offered only to whoever sets them.
     """
     current = CommunityStatus(guild.status)
     recorded = administration.billing_status if administration else None
+    actions = _community_actions(actor, current, moderating=moderating)
+    billing_status = CommunityStatus(recorded) if recorded else None
     return PlatformCommunityStorageRead(
         id=guild.id,
         name=guild.name,
@@ -852,13 +926,23 @@ def _guild_storage_read(
         max_users=administration.max_users if administration else None,
         status=current,
         status_changed_at=guild.status_changed_at,
-        status_choices=list(
-            operator_status_choices(
-                current,
-                billing_status=CommunityStatus(recorded) if recorded else None,
-                billing_managed=billing_service.billing_managed(),
+        status_choices=(
+            list(
+                operator_status_choices(
+                    current,
+                    billing_status=billing_status,
+                    billing_managed=billing_service.billing_managed(),
+                )
             )
+            if CommunityAction.set_status in actions
+            else []
         ),
+        lifts_to=(
+            guilds_service.lifted_status(guild, billing_status=billing_status)
+            if current is CommunityStatus.suspended
+            else None
+        ),
+        allowed_actions=actions,
         auth_options=sorted(administration.auth_options) if administration else [],
         banner_image_enabled=(
             administration.banner_image_enabled if administration else True
@@ -911,7 +995,7 @@ _GUILD_SORT_FIELDS = {"id": Guild.id, "name": Guild.name}
 @router.get("/communities", response_model=PlatformCommunityStorageListResponse)
 async def list_platform_community_storage(
     session: UserSessionDep,
-    _operator: GuildsManageDep,
+    reader: CommunitiesReadDep,
     search: str | None = Query(default=None, description="Matches the name."),
     sort_by: Literal["id", "name"] = "name",
     sort_dir: Literal["asc", "desc"] = "asc",
@@ -921,10 +1005,10 @@ async def list_platform_community_storage(
     """One page of the deployment's guilds with their storage caps, for the
     Operator dashboard Guilds tab.
 
-    Operator/owner (``communities.manage``). Reads only shared ``public`` tables. The
-    guilds and their administration rows are read on the caller's platform
-    tier, under the ``communities.manage`` policies on both; the caps join in a
-    single pass. Member counts and seats are totals read on the system engine
+    Support and above (``communities.read``). Reads only shared ``public``
+    tables. The guilds and their administration rows are read on the caller's
+    platform tier, under the ``communities.read`` policies on both; the caps
+    join in a single pass. Each row says what the reader may do to it. Member counts and seats are totals read on the system engine
     (``_member_tallies``), one grouped query each for the page.
     """
     # Outer join on purpose: this is the operator's view of *every* guild, and a
@@ -936,7 +1020,15 @@ async def list_platform_community_storage(
         GuildAdministration, GuildAdministration.guild_id == Guild.id
     )
     if search and (term := search.strip()):
-        base = base.where(Guild.name.ilike(f"%{term}%"))
+        # A number, with or without its ``#``, also finds the community by id,
+        # so one of many sharing a name can still be picked.
+        number = term.removeprefix("#")
+        matches = Guild.name.ilike(f"%{term}%")
+        # ASCII digits only, and no more than an id can hold: anything else
+        # is a name to look for.
+        if number.isascii() and number.isdigit() and int(number) < 2**31:
+            matches = or_(matches, Guild.id == int(number))
+        base = base.where(matches)
     order = _GUILD_SORT_FIELDS[sort_by]
     rows, total_count, actual_page = await paginated_query(
         session,
@@ -949,6 +1041,10 @@ async def list_platform_community_storage(
     )
     deployment = await app_settings_service.get_app_settings(session)
     counts, seated = await _member_tallies([g.id for g, _ in rows])
+    # The reader's own grants, under the requester's own-row policy.
+    moderating = await _moderating(
+        session, user_id=reader.id, guild_ids=[g.id for g, _ in rows]
+    )
     items = [
         _guild_storage_read(
             g,
@@ -956,6 +1052,8 @@ async def list_platform_community_storage(
             member_count=counts.get(g.id, 0),
             has_seat=g.id in seated,
             deployment=deployment,
+            actor=reader,
+            moderating=g.id in moderating,
         )
         for g, administration in rows
     ]
@@ -1102,6 +1200,101 @@ async def update_platform_community_storage(
         member_count=await guilds_service.count_members(session, guild_id=guild_id),
         has_seat=await guilds_service.guild_has_seat(session, guild_id=guild.id),
         deployment=await app_settings_service.get_app_settings(session),
+        actor=operator,
+        moderating=guild.id
+        in await _moderating(session, user_id=operator.id, guild_ids=[guild.id]),
+    )
+
+
+@router.post(
+    "/communities/{community_id}/suspension",
+    response_model=PlatformCommunityStorageRead,
+)
+async def set_platform_community_suspension(
+    guild_id: CommunityIdPath,
+    payload: CommunitySuspensionUpdate,
+    session: SystemSessionDep,
+    moderator: CommunitiesSuspendDep,
+) -> PlatformCommunityStorageRead:
+    """Suspend a community, or lift its suspension (``communities.suspend``).
+
+    Only under a live ``moderate`` grant on that community, held by whoever
+    asks: a moderator suspends a community they are looking at. A suspension
+    starts from active, read-only, on hold or deleted — taking a deleted one
+    out of its purge countdown — and lifting it returns the community where it
+    was. One suspended out of deletion goes back to deleted with its countdown
+    started again, so its owners have the whole window to notice.
+    """
+    if guild_id not in await _moderating(
+        session, user_id=moderator.id, guild_ids=[guild_id]
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=GuildMessages.COMMUNITY_SUSPENSION_NEEDS_GRANT,
+        )
+    # Locked for the rest of the transaction, so a deletion or a purge pass
+    # deciding on the same community waits for this and reads what it wrote.
+    guild = (
+        await session.exec(
+            select(Guild)
+            .where(Guild.id == guild_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+    ).one_or_none()
+    if guild is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=GuildMessages.COMMUNITY_NOT_FOUND,
+        )
+    current = CommunityStatus(guild.status)
+    administration = await guilds_service.get_administration(session, guild_id=guild_id)
+    if payload.suspended:
+        if current not in _SUSPENDABLE:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=GuildMessages.COMMUNITY_NOT_SUSPENDABLE,
+            )
+        target = CommunityStatus.suspended
+    else:
+        if current is not CommunityStatus.suspended:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=GuildMessages.COMMUNITY_NOT_SUSPENDED,
+            )
+        recorded = administration.billing_status
+        target = guilds_service.lifted_status(
+            guild, billing_status=CommunityStatus(recorded) if recorded else None
+        )
+    grant = await access_grants_service.get_live_grant(
+        session, user_id=moderator.id, guild_id=guild_id
+    )
+    guild = await guilds_service.set_guild_status(
+        session, guild_id=guild_id, status=target
+    )
+    await audit_service.record(
+        session,
+        event_type=AuditEventType.GUILD_STATUS_CHANGED,
+        actor_user_id=moderator.id,
+        guild_id=guild_id,
+        target_type="guild",
+        target_id=guild_id,
+        detail={
+            "from": current.value,
+            "to": target.value,
+            "grant_id": grant.id if grant is not None else None,
+        },
+    )
+    await session.commit()
+    billing_ping.notify_lifecycle_changed(guild_id)
+    return _guild_storage_read(
+        guild,
+        administration,
+        member_count=await guilds_service.count_members(session, guild_id=guild_id),
+        has_seat=await guilds_service.guild_has_seat(session, guild_id=guild_id),
+        deployment=await app_settings_service.get_app_settings(session),
+        actor=moderator,
+        moderating=True,
     )
 
 
@@ -1215,6 +1408,9 @@ async def restore_platform_community(
         member_count=await guilds_service.count_members(session, guild_id=guild_id),
         has_seat=await guilds_service.guild_has_seat(session, guild_id=guild_id),
         deployment=await app_settings_service.get_app_settings(session),
+        actor=operator,
+        moderating=guild_id
+        in await _moderating(session, user_id=operator.id, guild_ids=[guild_id]),
     )
 
 
@@ -1225,13 +1421,15 @@ async def restore_platform_community(
 async def create_platform_community_billing_service_handoff(
     guild_id: CommunityIdPath,
     session: SystemSessionDep,
-    operator: GuildsManageDep,
+    operator: Annotated[User, Depends(get_current_active_user)],
     console: Literal["support", "operator"] = "support",
     answer: SecondFactorAnswer | None = None,
 ) -> BillingPortalHandoffResponse:
     """Mint the operator handoff into the billing portal for one guild.
 
-    Backs the Guilds tab's billing buttons. Operator/owner (``communities.manage``).
+    Backs the Guilds tab's billing buttons. The support console is
+    ``billing.support`` (support and above); the operator console, which
+    changes a plan, is ``communities.manage``.
     The token names the ``access_grants`` row that authorises the visit: a
     live billing grant is reused, otherwise one is self-issued — after the
     account's second factor, as breaking glass takes it — so the visit is
@@ -1239,6 +1437,16 @@ async def create_platform_community_billing_service_handoff(
     nothing in the guild; what it may do there is the billing service's to
     decide.
     """
+    needed = (
+        Capability.BILLING_SUPPORT
+        if console == "support"
+        else Capability.COMMUNITIES_MANAGE
+    )
+    if not user_has_capability(operator, needed):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=AuthMessages.INSUFFICIENT_PRIVILEGES,
+        )
     if not app_config.BILLING_URL:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

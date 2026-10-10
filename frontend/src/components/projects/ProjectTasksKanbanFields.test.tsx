@@ -83,6 +83,29 @@ describe("a board's card", () => {
     expect(await screen.findByText("large")).toBeInTheDocument();
   });
 
+  it("shows the shipped card for a stored view that lays out none", async () => {
+    server.use(
+      communityHttp.get("/views/", () =>
+        HttpResponse.json(
+          buildToolViewSet({
+            stored: true,
+            views: [
+              buildToolView({
+                slug: "board",
+                is_default: true,
+                // As the server sends a view stored without a card.
+                definition: { layout: { type: "board" }, card: null, columns: null },
+              }),
+            ],
+          })
+        )
+      )
+    );
+    board();
+
+    expect(await screen.findByText(/priority: medium/i)).toBeInTheDocument();
+  });
+
   it("shows only what the view's card names", async () => {
     seedTask({ description_excerpt: "Start from the coast…", has_description: true });
     server.use(

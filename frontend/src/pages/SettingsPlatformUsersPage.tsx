@@ -14,14 +14,14 @@ import { useTranslation } from "react-i18next";
 import {
   ListAllUsersSortBy,
   type OperatorUserRead,
+  UserAction,
   type UserRole,
 } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
 import { OperatorDeleteUserDialog } from "@/components/platform/OperatorDeleteUserDialog";
 import {
-  canManageUser,
+  sheetOffersSomething,
   UserOperatorSettingsSheet,
-  withinRank,
 } from "@/components/platform/UserOperatorSettingsSheet";
 import { SortHeader } from "@/components/SortIcon";
 import { SkeletonRegion, TableSkeleton } from "@/components/skeletons/PageSkeletons";
@@ -33,7 +33,6 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DataTable } from "@/components/ui/data-table";
 import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
-import { useAppConfig } from "@/hooks/useAppConfig";
 import { useAuth } from "@/hooks/useAuth";
 import {
   useExportPlatformUsersCsv,
@@ -73,27 +72,12 @@ export const SettingsPlatformUsersPage = () => {
   const [deleteUserTarget, setDeleteUserTarget] = useState<OperatorUserRead | null>(null);
   const [managingId, setManagingId] = useState<number | null>(null);
 
-  // Viewing the roster needs ``users.read`` (support+). Everything that writes
-  // to an account asks for its own capability, at the point it is offered.
+  // Viewing the roster needs ``users.read`` (support+). What the viewer may do
+  // to each account comes with its row, in `allowed_actions`: the server asks
+  // their capabilities, their rung, the account's state and how this
+  // deployment signs in, so nothing here asks again.
   const canView = hasCapability(user, Capability.usersRead);
-  const canDeleteUsers = hasCapability(user, Capability.usersDelete);
-  // The support tier holds this one and nothing else that writes to an
-  // account: getting somebody back in after a typo is support work.
-  const canUnblockAge = hasCapability(user, Capability.usersAgeUnblock);
-  const canReactivate = hasCapability(user, Capability.usersManage);
-  // Clearing an authenticator only matters where signing in asks for its code.
-  const { authenticatorAskedAtSignIn, passwordLoginEnabled } = useAppConfig();
-
-  // What the sheet may offer, by capability. Each maps to the capability its
-  // endpoint actually requires: rename and picture removal are
-  // ``content.moderate``, suspension is ``users.manage``, the ladder is
-  // ``roles.assign``.
-  const abilities = {
-    canModerateContent: hasCapability(user, Capability.contentModerate),
-    canManageUsers: hasCapability(user, Capability.usersManage),
-    canManageRoles: hasCapability(user, Capability.rolesAssign),
-  };
-  // Every action on an account is refused above the viewer's own rung.
+  // The role select offers nothing above the viewer's own rung.
   const actorRole = (user?.role ?? "member") as UserRole;
 
   // Searched, sorted and paged on the server: the roster is every account on
@@ -254,7 +238,14 @@ export const SettingsPlatformUsersPage = () => {
         if (platformUser.status === "deleted") {
           return (
             <div className="space-y-0.5">
-              <Badge variant="destructive">{t("platformUsers.deleted")}</Badge>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <Badge variant="destructive">{t("platformUsers.deleted")}</Badge>
+                {platformUser.open_case_count > 0 && (
+                  <Badge variant="outline">
+                    {t("platformUsers.openCases", { count: platformUser.open_case_count })}
+                  </Badge>
+                )}
+              </div>
               {platformUser.purge_at ? (
                 <p className="text-muted-foreground text-xs">
                   {t("platformUsers.erasedOn", {
@@ -281,7 +272,14 @@ export const SettingsPlatformUsersPage = () => {
             : "text-muted-foreground text-sm";
         return (
           <div className="space-y-0.5">
-            <span className={className}>{t(labelKey)}</span>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className={className}>{t(labelKey)}</span>
+              {platformUser.open_case_count > 0 && (
+                <Badge variant="outline">
+                  {t("platformUsers.openCases", { count: platformUser.open_case_count })}
+                </Badge>
+              )}
+            </div>
             {platformUser.sign_in_locked_until && (
               <div>
                 <Badge variant="outline">{t("platformUsers.signInLocked")}</Badge>
@@ -302,9 +300,9 @@ export const SettingsPlatformUsersPage = () => {
       enableSorting: false,
       cell: ({ row }) => {
         const platformUser = row.original;
-        // Nothing to open if this viewer holds none of the capabilities the
-        // sheet's controls require against this account.
-        if (!canManageUser(abilities, platformUser, user?.id, actorRole)) return null;
+        // Nothing to open where the sheet would offer this viewer nothing for
+        // this account.
+        if (!sheetOffersSomething(platformUser)) return null;
         return (
           <Button
             variant="outline"
@@ -326,16 +324,12 @@ export const SettingsPlatformUsersPage = () => {
       cell: ({ row }) => {
         const platformUser = row.original;
         const isResetting = resettingUserId === platformUser.id;
-        const isSelf = platformUser.id === user?.id;
-        // Every action below but the export is refused above the viewer's
-        // own rung, so none of them is offered there.
-        const reachable = withinRank(actorRole, platformUser);
-        // Reset password is a no-op on non-active accounts (the backend
-        // rejects it with OPERATOR_CANNOT_RESET_INACTIVE), so hide it here too.
+        const allows = (action: UserAction): boolean =>
+          platformUser.allowed_actions.includes(action);
 
         return (
           <RowActionsMenu subject={getUserHandle(platformUser)}>
-            {reachable && canReactivate && platformUser.status === "deactivated" && (
+            {allows(UserAction.reactivate) && (
               <DropdownMenuItem onSelect={() => reactivateUser.mutate(platformUser.id)}>
                 <UserCheck className="h-4 w-4" />
                 {t("platformUsers.reactivate")}
@@ -344,7 +338,7 @@ export const SettingsPlatformUsersPage = () => {
             {/* Distinct from reactivating: nothing was dropped, so this puts
                 the account back exactly where it was. Its holder can do the
                 same thing by simply signing in. */}
-            {reachable && canReactivate && platformUser.status === "deleted" && (
+            {allows(UserAction.restore) && (
               <DropdownMenuItem
                 onSelect={() => restoreUser.mutate(platformUser.id)}
                 disabled={restoreUser.isPending}
@@ -353,33 +347,25 @@ export const SettingsPlatformUsersPage = () => {
                 {t("platformUsers.restore")}
               </DropdownMenuItem>
             )}
-            {/* The link it mails ends in a password, which this deployment
-                may not take. */}
-            {reachable &&
-              canReactivate &&
-              platformUser.status === "active" &&
-              passwordLoginEnabled && (
-                <DropdownMenuItem
-                  onSelect={() => handleResetPassword(platformUser.id, platformUser.username)}
-                  disabled={isResetting || resetPassword.isPending}
-                >
-                  <Mail className="h-4 w-4" />
-                  {isResetting ? t("common:submitting") : t("platformUsers.resetPassword")}
-                </DropdownMenuItem>
-              )}
-            {reachable &&
-              canReactivate &&
-              platformUser.status === "active" &&
-              !platformUser.email_verified && (
-                <DropdownMenuItem
-                  onSelect={() => resendVerification.mutate(platformUser.id)}
-                  disabled={resendVerification.isPending}
-                >
-                  <MailCheck className="h-4 w-4" />
-                  {t("platformUsers.resendVerification")}
-                </DropdownMenuItem>
-              )}
-            {reachable && abilities.canManageUsers && platformUser.sign_in_locked_until && (
+            {allows(UserAction.reset_password) && (
+              <DropdownMenuItem
+                onSelect={() => handleResetPassword(platformUser.id, platformUser.username)}
+                disabled={isResetting || resetPassword.isPending}
+              >
+                <Mail className="h-4 w-4" />
+                {isResetting ? t("common:submitting") : t("platformUsers.resetPassword")}
+              </DropdownMenuItem>
+            )}
+            {allows(UserAction.resend_verification) && (
+              <DropdownMenuItem
+                onSelect={() => resendVerification.mutate(platformUser.id)}
+                disabled={resendVerification.isPending}
+              >
+                <MailCheck className="h-4 w-4" />
+                {t("platformUsers.resendVerification")}
+              </DropdownMenuItem>
+            )}
+            {allows(UserAction.lift_sign_in_lock) && (
               <DropdownMenuItem
                 onSelect={() => liftSignInLock.mutate(platformUser.id)}
                 disabled={liftSignInLock.isPending}
@@ -388,33 +374,28 @@ export const SettingsPlatformUsersPage = () => {
                 {t("platformUsers.liftSignInLock")}
               </DropdownMenuItem>
             )}
-            {reachable &&
-              abilities.canManageUsers &&
-              authenticatorAskedAtSignIn &&
-              platformUser.second_factor_enrolled && (
-                <DropdownMenuItem onSelect={() => setClearSecondFactorTarget(platformUser)}>
-                  <ShieldOff className="h-4 w-4" />
-                  {t("platformUsers.clearSecondFactor")}
-                </DropdownMenuItem>
-              )}
+            {allows(UserAction.clear_second_factor) && (
+              <DropdownMenuItem onSelect={() => setClearSecondFactorTarget(platformUser)}>
+                <ShieldOff className="h-4 w-4" />
+                {t("platformUsers.clearSecondFactor")}
+              </DropdownMenuItem>
+            )}
             {/* Under age, or a date on file that may be a typo: either way it
                 is put right by answering again. */}
-            {reachable &&
-              canUnblockAge &&
-              (platformUser.age_below_minimum_at || platformUser.birthdate_on_file) && (
-                <DropdownMenuItem
-                  onSelect={() => clearAgeBlock.mutate(platformUser.id)}
-                  disabled={clearAgeBlock.isPending}
-                >
-                  <CalendarClock className="h-4 w-4" />
-                  {t("platformUsers.clearAgeBlock")}
-                </DropdownMenuItem>
-              )}
+            {allows(UserAction.clear_age_block) && (
+              <DropdownMenuItem
+                onSelect={() => clearAgeBlock.mutate(platformUser.id)}
+                disabled={clearAgeBlock.isPending}
+              >
+                <CalendarClock className="h-4 w-4" />
+                {t("platformUsers.clearAgeBlock")}
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem onSelect={() => exportUserCsv(platformUser)}>
               <Download className="h-4 w-4" />
               {t("platformUsers.exportUser")}
             </DropdownMenuItem>
-            {reachable && canDeleteUsers && !isSelf && (
+            {allows(UserAction.delete) && (
               <>
                 {/* Deleting an account is the one thing here that cannot be
                     undone, so it sits below a rule rather than in the run. */}
@@ -468,8 +449,6 @@ export const SettingsPlatformUsersPage = () => {
           onOpenChange={(next) => {
             if (!next) setManagingId(null);
           }}
-          abilities={abilities}
-          actorId={user?.id}
           actorRole={actorRole}
         />
       </Card>

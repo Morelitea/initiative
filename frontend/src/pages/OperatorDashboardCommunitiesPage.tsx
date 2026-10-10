@@ -1,7 +1,10 @@
+import { Link } from "@tanstack/react-router";
+import { KeyRound, ShieldAlert } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
+  CommunityAction,
   CommunityStatus,
   ListPlatformCommunityStorageSortBy,
   type PlatformCommunityStorageRead,
@@ -14,6 +17,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DataTable } from "@/components/ui/data-table";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import {
   Select,
   SelectContent,
@@ -24,7 +29,11 @@ import {
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useAuth } from "@/hooks/useAuth";
 import { useServerTableState } from "@/hooks/useServerTableState";
-import { usePlatformCommunities, useUpdateCommunityStorage } from "@/hooks/useSettings";
+import {
+  usePlatformCommunities,
+  useSetCommunitySuspension,
+  useUpdateCommunityStorage,
+} from "@/hooks/useSettings";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { toast } from "@/lib/mascotToast";
 import { Capability, hasCapability } from "@/lib/permissions";
@@ -36,6 +45,7 @@ import type { AppColumnDef } from "@/lib/table";
 // does the way into the billing operator console.
 const CommunityBillingCell = ({ community }: { community: PlatformCommunityStorageRead }) => {
   const { t } = useTranslation("settings");
+  if (!community.allowed_actions.includes(CommunityAction.billing_support)) return null;
   return (
     <BillingConsoleButton
       community={community}
@@ -65,6 +75,9 @@ const CommunityBillingCell = ({ community }: { community: PlatformCommunityStora
  * is not a status you set: it is reached by deleting the community and left by
  * restoring it, both of which do more than move this field, so the only way
  * back is the wizard under Manage.
+ *
+ * A reader the row does not let set the status (`set_status`) sees it as a
+ * tag too.
  */
 const CommunityStatusCell = ({ community }: { community: PlatformCommunityStorageRead }) => {
   const { t } = useTranslation(["settings", "common"]);
@@ -98,8 +111,11 @@ const CommunityStatusCell = ({ community }: { community: PlatformCommunityStorag
     apply(next);
   };
 
-  if (community.status === CommunityStatus.deleted) {
-    return <Badge variant="destructive">{t("communities.status.deleted")}</Badge>;
+  if (
+    community.status === CommunityStatus.deleted ||
+    !community.allowed_actions.includes(CommunityAction.set_status)
+  ) {
+    return <CommunityStatusBadge status={community.status} />;
   }
 
   return (
@@ -146,6 +162,134 @@ const CommunityStatusCell = ({ community }: { community: PlatformCommunityStorag
   );
 };
 
+/** A community's status as a tag, for whoever cannot change it here. */
+const CommunityStatusBadge = ({ status }: { status: CommunityStatus }) => {
+  const { t } = useTranslation("settings");
+  const variant =
+    status === CommunityStatus.deleted || status === CommunityStatus.suspended
+      ? "destructive"
+      : status === CommunityStatus.active
+        ? "secondary"
+        : "outline";
+  return <Badge variant={variant}>{t(`communities.status.${status}`)}</Badge>;
+};
+
+/**
+ * Suspending a community, or lifting its suspension, for a reader the row says
+ * may (`suspend` / `lift`): a moderator under a live moderate grant on it.
+ * Both are confirmed, and each says where the community ends up — a deleted
+ * one stops counting down to its destruction while it is suspended, and starts
+ * again from the beginning when the suspension is lifted.
+ */
+const CommunitySuspensionButton = ({ community }: { community: PlatformCommunityStorageRead }) => {
+  const { t } = useTranslation(["settings", "common"]);
+  const [confirming, setConfirming] = useState(false);
+  const lifting = community.allowed_actions.includes(CommunityAction.lift);
+  const suspending = community.allowed_actions.includes(CommunityAction.suspend);
+
+  const update = useSetCommunitySuspension({
+    onSuccess: (row) => {
+      toast.success(
+        lifting
+          ? t("communities.suspension.lifted", { name: row.name })
+          : t("communities.suspension.suspended", { name: row.name })
+      );
+    },
+    onError: (err) => {
+      toast.error(getErrorMessage(err, "settings:communities.statusSaveError"));
+    },
+    onSettled: () => setConfirming(false),
+  });
+
+  if (!lifting && !suspending) return null;
+
+  const description = lifting
+    ? community.lifts_to === CommunityStatus.deleted
+      ? t("communities.suspension.liftToDeleted")
+      : t("communities.suspension.liftDescription", {
+          status: t(`communities.status.${community.lifts_to ?? CommunityStatus.active}`),
+        })
+    : community.status === CommunityStatus.deleted
+      ? t("communities.suspension.suspendDeleted")
+      : t("communities.suspendConfirm.description");
+
+  return (
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() => setConfirming(true)}
+        disabled={update.isPending}
+        aria-label={
+          lifting
+            ? t("communities.suspension.liftLabel", { name: community.name })
+            : t("communities.suspension.suspendLabel", { name: community.name })
+        }
+      >
+        {lifting ? t("communities.suspension.lift") : t("communities.suspension.suspend")}
+      </Button>
+      <ConfirmDialog
+        open={confirming}
+        onOpenChange={(open) => !open && setConfirming(false)}
+        title={
+          lifting
+            ? t("communities.suspension.liftTitle", { name: community.name })
+            : t("communities.suspendConfirm.title", { name: community.name })
+        }
+        description={description}
+        confirmLabel={
+          lifting ? t("communities.suspension.lift") : t("communities.suspendConfirm.confirm")
+        }
+        cancelLabel={t("common:cancel")}
+        loadingLabel={t("common:submitting")}
+        destructive={!lifting}
+        isLoading={update.isPending}
+        onConfirm={() =>
+          update.mutate({ communityId: community.id, data: { suspended: !lifting } })
+        }
+      />
+    </>
+  );
+};
+
+/**
+ * The ways into a community a reader may ask for, from its row: a request
+ * for access, or breaking glass. Each opens that form on the Access tab with
+ * the community already chosen.
+ */
+const CommunityAccessMenu = ({ community }: { community: PlatformCommunityStorageRead }) => {
+  const { t } = useTranslation("settings");
+  const canRequest = community.allowed_actions.includes(CommunityAction.request_access);
+  const canBreakGlass = community.allowed_actions.includes(CommunityAction.break_glass);
+  return (
+    <RowActionsMenu subject={community.name}>
+      {canRequest && (
+        <DropdownMenuItem asChild>
+          <Link
+            to="/settings/operator/access"
+            search={{ community: community.id, name: community.name, form: "request" }}
+          >
+            <KeyRound className="h-4 w-4" />
+            {t("communities.access.request")}
+          </Link>
+        </DropdownMenuItem>
+      )}
+      {canBreakGlass && (
+        <DropdownMenuItem asChild>
+          <Link
+            to="/settings/operator/access"
+            search={{ community: community.id, name: community.name, form: "break_glass" }}
+          >
+            <ShieldAlert className="h-4 w-4" />
+            {t("communities.access.breakGlass")}
+          </Link>
+        </DropdownMenuItem>
+      )}
+    </RowActionsMenu>
+  );
+};
+
 /**
  * Per-community sign-in entitlement toggle. Flipping it on lets the community configure
  * its own login providers and onboard new accounts through them; withdrawing it
@@ -155,13 +299,15 @@ const CommunityStatusCell = ({ community }: { community: PlatformCommunityStorag
 export const OperatorDashboardCommunitiesPage = () => {
   const { t } = useTranslation("settings");
   const { user } = useAuth();
-  const canManageCommunities = hasCapability(user, Capability.communitiesManage);
+  // Reading the list is support work; what each reader may do to a row comes
+  // with the row, in `allowed_actions`.
+  const canReadCommunities = hasCapability(user, Capability.communitiesRead);
 
   // Searched, sorted and paged on the server, so the table holds one page of
   // the deployment's communities rather than all of them.
   const table = useServerTableState(Object.values(ListPlatformCommunityStorageSortBy));
   const communitiesQuery = usePlatformCommunities(table.params, {
-    enabled: canManageCommunities,
+    enabled: canReadCommunities,
   });
   const rows = communitiesQuery.data?.items ?? [];
   const totalCount = communitiesQuery.data?.total_count ?? 0;
@@ -212,22 +358,28 @@ export const OperatorDashboardCommunitiesPage = () => {
       id: "manage",
       header: "",
       enableSorting: false,
-      cell: ({ row }) => (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setManagingId(row.original.id)}
-          aria-label={t("communities.sheet.openLabel", { name: row.original.name })}
-        >
-          {t("communities.sheet.open")}
-        </Button>
-      ),
+      cell: ({ row }) =>
+        row.original.allowed_actions.includes(CommunityAction.manage) ? (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setManagingId(row.original.id)}
+            aria-label={t("communities.sheet.openLabel", { name: row.original.name })}
+          >
+            {t("communities.sheet.open")}
+          </Button>
+        ) : null,
     },
     {
       id: "status",
       header: t("communities.columns.status"),
       enableSorting: false,
-      cell: ({ row }) => <CommunityStatusCell community={row.original} />,
+      cell: ({ row }) => (
+        <div className="flex flex-wrap items-center gap-2">
+          <CommunityStatusCell community={row.original} />
+          <CommunitySuspensionButton community={row.original} />
+        </div>
+      ),
     },
     // Only when this deployment links a billing portal AND the operator route
     // into it is wired — otherwise the button could only ever fail.
@@ -241,9 +393,15 @@ export const OperatorDashboardCommunitiesPage = () => {
           } satisfies AppColumnDef<PlatformCommunityStorageRead>,
         ]
       : []),
+    {
+      id: "access",
+      header: "",
+      enableSorting: false,
+      cell: ({ row }) => <CommunityAccessMenu community={row.original} />,
+    },
   ];
 
-  if (!canManageCommunities) {
+  if (!canReadCommunities) {
     return <p className="text-muted-foreground text-sm">{t("communities.platformOnly")}</p>;
   }
 

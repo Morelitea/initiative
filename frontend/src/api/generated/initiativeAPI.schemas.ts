@@ -180,6 +180,36 @@ export const AccessGrantStatus = {
   expired: "expired",
 } as const;
 
+export type UserStatus = (typeof UserStatus)[keyof typeof UserStatus];
+
+export const UserStatus = {
+  active: "active",
+  suspended: "suspended",
+  deactivated: "deactivated",
+  anonymized: "anonymized",
+  deleted: "deleted",
+} as const;
+
+/**
+ * A person, minus their name.
+ *
+ * The handle (``username`` + ``discriminator``) is always here and is what
+ * renders when there is no name to show. ``status`` comes along so the
+ * frontend can mark an account that is no longer in use without replacing the
+ * identifier that keeps an old thread legible.
+ *
+ * Every shape below is this plus something, and the name is never part of the
+ * "this": a shape that draws a person in a guild declares ``display_name``
+ * itself.
+ */
+export interface UserIdentity {
+  id: number;
+  username: string;
+  discriminator: number;
+  avatar_url: string | null;
+  status: UserStatus;
+}
+
 /**
  * Lifecycle status of a guild.
  *
@@ -246,10 +276,10 @@ export interface AccessGrantRead {
   decided_at: string | null;
   expires_at: string | null;
   revoked_at: string | null;
-  user_email: string | null;
+  user: UserIdentity | null;
   community_name: string | null;
   community_status: CommunityStatus | null;
-  approved_by_email: string | null;
+  approved_by: UserIdentity | null;
   /** Whether this grant currently confers access (approved, unexpired). */
   readonly is_live: boolean;
 }
@@ -1336,16 +1366,6 @@ export interface TaskStatusRead {
   project_id: number;
 }
 
-export type UserStatus = (typeof UserStatus)[keyof typeof UserStatus];
-
-export const UserStatus = {
-  active: "active",
-  suspended: "suspended",
-  deactivated: "deactivated",
-  anonymized: "anonymized",
-  deleted: "deleted",
-} as const;
-
 /**
  * Minimal assignee data for task lists.
  *
@@ -1625,7 +1645,10 @@ export const Capability = {
   usersage_unblock: "users.age_unblock",
   usersmanage: "users.manage",
   usersdelete: "users.delete",
+  communitiesread: "communities.read",
   communitiesmanage: "communities.manage",
+  communitiessuspend: "communities.suspend",
+  billingsupport: "billing.support",
   billinginsights: "billing.insights",
   announcementsmanage: "announcements.manage",
   rolesassign: "roles.assign",
@@ -2100,6 +2123,24 @@ export interface CommentListResponse {
 export interface CommentUpdate {
   content: string;
 }
+
+/**
+ * What the reader may do to one community on the staff list. Worked out
+ * by the server per row, so a control the reader would be refused is never
+ * drawn.
+ */
+export type CommunityAction = (typeof CommunityAction)[keyof typeof CommunityAction];
+
+export const CommunityAction = {
+  manage: "manage",
+  set_status: "set_status",
+  suspend: "suspend",
+  lift: "lift",
+  billing_support: "billing_support",
+  billing_operator: "billing_operator",
+  request_access: "request_access",
+  break_glass: "break_glass",
+} as const;
 
 export type CommunityAuthOption = (typeof CommunityAuthOption)[keyof typeof CommunityAuthOption];
 
@@ -3271,6 +3312,13 @@ export interface CommunitySettingsUpdate {
 export interface CommunityStorageUsageRead {
   community_id: number;
   usage_bytes: number;
+}
+
+/**
+ * Suspend a community, or lift its suspension.
+ */
+export interface CommunitySuspensionUpdate {
+  suspended: boolean;
 }
 
 /**
@@ -6781,6 +6829,20 @@ export interface OperationsCommunityUpdate {
 }
 
 /**
+ * An open case an account filed or is the subject of: where it lives, to
+ * link to it, and nothing of what it says. Opening it is the case's
+ * initiative's to allow.
+ */
+export interface OperatorAccountCaseRead {
+  task_id: number;
+  stream: IntakeStream;
+  community_id: number;
+  initiative_id: number;
+  project_id: number;
+  filed: boolean;
+}
+
+/**
  * A manifest the scan would not publish, named so it can be fixed.
  */
 export interface OperatorCatalogProblem {
@@ -6848,6 +6910,35 @@ export interface UserInitiativeRole {
 }
 
 /**
+ * What the reader may do to one account on the staff roster. Worked out
+ * by the server per row, from the reader's capabilities, their rung, and
+ * the account's state, so a control the reader would be refused is never
+ * drawn.
+ */
+export type UserAction = (typeof UserAction)[keyof typeof UserAction];
+
+export const UserAction = {
+  rename: "rename",
+  remove_avatar: "remove_avatar",
+  clear_display_names: "clear_display_names",
+  clear_custom_status: "clear_custom_status",
+  clear_decorations: "clear_decorations",
+  suspend: "suspend",
+  unsuspend: "unsuspend",
+  change_role: "change_role",
+  revoke_api_keys: "revoke_api_keys",
+  clear_second_factor: "clear_second_factor",
+  sign_out_everywhere: "sign_out_everywhere",
+  reset_password: "reset_password",
+  resend_verification: "resend_verification",
+  lift_sign_in_lock: "lift_sign_in_lock",
+  clear_age_block: "clear_age_block",
+  reactivate: "reactivate",
+  restore: "restore",
+  delete: "delete",
+} as const;
+
+/**
  * A staff view of somebody else's account: the address masked.
  *
  * Everything staff do to an account — reset its password, rename
@@ -6902,6 +6993,8 @@ export interface OperatorUserRead {
   sign_in_locked_until: string | null;
   second_factor_enrolled: boolean;
   api_key_count: number;
+  allowed_actions: UserAction[];
+  open_case_count: number;
   readonly can_create_communities: boolean;
   /**
    * Platform capabilities granted by this user's standing role — none
@@ -7348,6 +7441,8 @@ export interface PlatformCommunityStorageRead {
   auth_options: CommunityAuthOption[];
   banner_image_enabled: boolean;
   support_enabled: boolean;
+  lifts_to: CommunityStatus | null;
+  allowed_actions: CommunityAction[];
 }
 
 /**

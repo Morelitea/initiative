@@ -7,8 +7,9 @@
  * name somebody filled in is theirs, and an operator needs none of it to do
  * any of this.
  *
- * The levers themselves live in the sheet behind Manage, and each one is drawn
- * only for a viewer whose capability would carry it.
+ * The levers themselves live in the sheet behind Manage and the row's menu, and
+ * each one is drawn only where the row's `allowed_actions` names it — the
+ * server works that out per viewer, so nothing here asks for a role.
  */
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -16,7 +17,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildPage, buildUser } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
-import type { OperatorUserRead, UserRead, UserRole } from "@/api/generated/initiativeAPI.schemas";
+import type {
+  OperatorAccountCaseRead,
+  OperatorUserRead,
+  UserAction,
+  UserRead,
+} from "@/api/generated/initiativeAPI.schemas";
 import { dateTimeFormat } from "@/lib/intl";
 
 // The roster the mocked hook serves. Each test sets it, so no test depends on
@@ -26,15 +32,14 @@ const state = vi.hoisted(() => ({
   search: undefined as string | null | undefined,
   clearSecondFactor: vi.fn(),
   revokeApiKeys: vi.fn(),
-  authenticatorAskedAtSignIn: true,
-  passwordLoginEnabled: true,
+  signOutEverywhere: vi.fn(),
+  clearProfileField: vi.fn(),
+  cases: [] as OperatorAccountCaseRead[],
+  casesEnabled: undefined as boolean | undefined,
 }));
 
 vi.mock("@/hooks/useAppConfig", () => ({
-  useAppConfig: () => ({
-    authenticatorAskedAtSignIn: state.authenticatorAskedAtSignIn,
-    passwordLoginEnabled: state.passwordLoginEnabled,
-  }),
+  useAppConfig: () => ({}),
 }));
 
 vi.mock("@/hooks/useOperatorUsers", () => ({
@@ -54,16 +59,36 @@ vi.mock("@/hooks/useOperatorUsers", () => ({
   useOperatorUpdatePlatformRole: () => ({ mutate: vi.fn(), isPending: false }),
   useOperatorRemoveAvatar: () => ({ mutate: vi.fn(), isPending: false }),
   useOperatorRevokeApiKeys: () => ({ mutate: state.revokeApiKeys, isPending: false }),
+  useOperatorSignOutEverywhere: () => ({ mutate: state.signOutEverywhere, isPending: false }),
+  useOperatorClearProfileField: () => ({ mutate: state.clearProfileField, isPending: false }),
+  useOperatorAccountCases: (_userId: number, options?: { enabled?: boolean }) => {
+    state.casesEnabled = options?.enabled;
+    return { data: state.cases, isLoading: false, isError: false };
+  },
   useExportPlatformUsersCsv: () => ({ mutate: vi.fn() }),
 }));
 
 import { SettingsPlatformUsersPage } from "./SettingsPlatformUsersPage";
 
-// As the server serves it: addresses already reduced.
-const masked = () =>
+// As the server serves it: addresses already reduced, and what the viewer may
+// do to each account worked out — here, nothing to the owner's own row and
+// `actions` to the member's.
+const masked = (actions: UserAction[] = []) =>
   [
-    { ...buildUser({ role: "owner" }), email: "o***r@e***m", username: "owner" },
-    { ...buildUser({ role: "member" }), email: "u***1@e***m", username: "member-one" },
+    {
+      ...buildUser({ role: "owner" }),
+      email: "o***r@e***m",
+      username: "owner",
+      allowed_actions: [],
+      open_case_count: 0,
+    },
+    {
+      ...buildUser({ role: "member" }),
+      email: "u***1@e***m",
+      username: "member-one",
+      allowed_actions: actions,
+      open_case_count: 0,
+    },
   ] as unknown as OperatorUserRead[];
 
 const renderRoster = (
@@ -90,7 +115,6 @@ describe("SettingsPlatformUsersPage", () => {
   beforeEach(() => {
     state.roster = [];
     state.clearSecondFactor.mockClear();
-    state.passwordLoginEnabled = true;
   });
 
   it("identifies an account by its handle, and shows no address or name", async () => {
@@ -147,7 +171,7 @@ describe("SettingsPlatformUsersPage", () => {
   });
 
   it("puts the row's actions behind one menu instead of a run of buttons", async () => {
-    renderRoster(masked());
+    renderRoster(masked(["delete", "suspend"]));
 
     const triggers = await screen.findAllByRole("button", { name: /actions for/i });
     expect(triggers).toHaveLength(2);
@@ -164,47 +188,49 @@ describe("SettingsPlatformUsersPage", () => {
   });
 
   it.each([true, false])(
-    "offers a password reset only where passwords sign in (%s)",
-    async (passwords) => {
-      state.passwordLoginEnabled = passwords;
-      renderRoster(masked(), buildUser({ role: "moderator" }));
+    "offers a password reset only where the row allows it (%s)",
+    async (allowed) => {
+      renderRoster(masked(allowed ? ["reset_password"] : []), buildUser({ role: "moderator" }));
 
       const triggers = await screen.findAllByRole("button", { name: /actions for/i });
       await userEvent.click(triggers[1]);
       const item = within(await screen.findByRole("menu")).queryByText("Reset password");
-      expect(Boolean(item)).toBe(passwords);
+      expect(Boolean(item)).toBe(allowed);
     }
   );
 
-  it.each<[string, UserRole, boolean, boolean, boolean]>([
-    ["offers to clear an authenticator to a moderator", "moderator", true, true, true],
-    ["offers nothing to clear on an account without one", "moderator", false, true, false],
-    ["offers support no way to clear one", "support", true, true, false],
-    // A passkey or single sign-on never asks for the code, so where nothing
-    // else is permitted there is nothing to get past.
-    ["offers nothing where signing in never asks for the code", "moderator", true, false, false],
-  ])("%s", async (_label, role, enrolled, asked, offered) => {
-    state.authenticatorAskedAtSignIn = asked;
-    const rows = masked();
-    rows[1].second_factor_enrolled = enrolled;
-    renderRoster(rows, buildUser({ role }));
+  it.each([true, false])(
+    "offers to clear an authenticator only where allowed (%s)",
+    async (allowed) => {
+      const rows = masked(allowed ? ["clear_second_factor"] : []);
+      renderRoster(rows, buildUser({ role: "moderator" }));
 
-    const triggers = await screen.findAllByRole("button", { name: /actions for/i });
-    await userEvent.click(triggers[1]);
-    const item = within(await screen.findByRole("menu")).queryByText(
-      "Clear two-factor authentication"
-    );
-    if (!offered) {
-      expect(item).not.toBeInTheDocument();
-      return;
+      const triggers = await screen.findAllByRole("button", { name: /actions for/i });
+      await userEvent.click(triggers[1]);
+      const item = within(await screen.findByRole("menu")).queryByText(
+        "Clear two-factor authentication"
+      );
+      if (!allowed) {
+        expect(item).not.toBeInTheDocument();
+        return;
+      }
+
+      // It signs them out everywhere, so it asks first.
+      await userEvent.click(item as HTMLElement);
+      const dialog = await screen.findByRole("alertdialog");
+      expect(state.clearSecondFactor).not.toHaveBeenCalled();
+      await userEvent.click(within(dialog).getByRole("button", { name: "Clear it" }));
+      expect(state.clearSecondFactor).toHaveBeenCalledWith(rows[1].id);
     }
+  );
 
-    // It signs them out everywhere, so it asks first.
-    await userEvent.click(item as HTMLElement);
-    const dialog = await screen.findByRole("alertdialog");
-    expect(state.clearSecondFactor).not.toHaveBeenCalled();
-    await userEvent.click(within(dialog).getByRole("button", { name: "Clear it" }));
-    expect(state.clearSecondFactor).toHaveBeenCalledWith(rows[1].id);
+  it("marks an account with open cases on its row", async () => {
+    const rows = masked();
+    rows[1].open_case_count = 2;
+    renderRoster(rows);
+
+    expect(await screen.findByText("2 open cases")).toBeInTheDocument();
+    expect(screen.getAllByText(/open case/)).toHaveLength(1);
   });
 });
 
@@ -213,36 +239,29 @@ describe("SettingsPlatformUsersPage manage sheet", () => {
     state.roster = [];
   });
 
-  // ``content.moderate`` and ``users.manage`` are moderator-tier, but
-  // ``roles.assign`` starts at operator — so each lever is drawn only for a
-  // viewer whose capability would carry it, and only where the account has
-  // something for it to act on.
-  it.each<[string, UserRole, boolean, string[], string[]]>([
+  it.each<[string, UserAction[], string[], string[]]>([
     [
-      "an owner every lever, because an owner holds every capability",
-      "owner",
-      true,
+      "every lever the row allows",
+      ["rename", "remove_avatar", "suspend", "change_role"],
       ["Username", "Profile picture", "Suspended", "Role"],
       [],
     ],
     [
-      "a moderator everything but the ladder, which they cannot assign",
-      "moderator",
-      true,
+      "nothing the row does not name",
+      ["rename", "suspend"],
       ["Username", "Suspended"],
-      ["Role"],
+      ["Role", "Profile picture"],
     ],
     [
-      "nothing to take the picture down with where there is no picture",
-      "owner",
-      false,
+      "a lifted suspension's switch where it can be lifted",
+      ["unsuspend"],
+      ["Suspended"],
       ["Username"],
-      ["Profile picture"],
     ],
-  ])("offers %s", async (_label, role, hasAvatar, shown, hidden) => {
-    const rows = masked();
-    if (hasAvatar) rows[1].avatar_url = "/api/v1/users/2/avatar/abc";
-    renderRoster(rows, buildUser({ role }));
+  ])("offers %s", async (_label, actions, shown, hidden) => {
+    const rows = masked(actions);
+    rows[1].avatar_url = "/api/v1/users/2/avatar/abc";
+    renderRoster(rows);
 
     const sheet = await openSheet();
 
@@ -250,14 +269,14 @@ describe("SettingsPlatformUsersPage manage sheet", () => {
     for (const name of hidden) expect(lever(sheet, name)).not.toBeInTheDocument();
   });
 
-  it.each<[string, UserRole, number, boolean]>([
-    ["a moderator revokes the keys that still work", "moderator", 2, true],
-    ["nothing to revoke on an account without working keys", "moderator", 0, false],
-  ])("%s", async (_label, role, count, offered) => {
+  it.each<[string, UserAction[], boolean]>([
+    ["revokes the keys that still work where allowed", ["revoke_api_keys"], true],
+    ["offers nothing to revoke where the row does not allow it", ["rename"], false],
+  ])("%s", async (_label, actions, offered) => {
     state.revokeApiKeys.mockClear();
-    const rows = masked();
-    rows[1].api_key_count = count;
-    renderRoster(rows, buildUser({ role }));
+    const rows = masked(actions);
+    rows[1].api_key_count = 2;
+    renderRoster(rows, buildUser({ role: "moderator" }));
 
     const sheet = await openSheet();
     const revoke = within(sheet).queryByRole("button", { name: "Revoke" });
@@ -274,27 +293,90 @@ describe("SettingsPlatformUsersPage manage sheet", () => {
     expect(state.revokeApiKeys).toHaveBeenCalledWith(rows[1].id);
   });
 
-  it("offers nothing on an account above the viewer's own rung", async () => {
-    renderRoster(masked(), buildUser({ role: "moderator" }));
+  it("signs an account out everywhere once asked twice", async () => {
+    state.signOutEverywhere.mockClear();
+    const rows = masked(["sign_out_everywhere"]);
+    renderRoster(rows, buildUser({ role: "moderator" }));
 
-    // Every action on an account is refused above the actor's rung, so the
-    // owner's row offers a moderator nothing to open, while the member's does.
-    await screen.findByText("owner");
-    expect(
-      screen.queryByRole("button", { name: /manage account @?owner/i })
-    ).not.toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: /manage account @?member-one/i })
-    ).toBeInTheDocument();
+    const sheet = await openSheet();
+    await userEvent.click(within(sheet).getByRole("button", { name: "Sign out everywhere" }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(state.signOutEverywhere).not.toHaveBeenCalled();
+
+    await userEvent.click(within(dialog).getByRole("button", { name: "Sign out everywhere" }));
+    expect(state.signOutEverywhere).toHaveBeenCalledWith(rows[1].id);
   });
 
-  it("offers support no way in at all, holding none of the three", async () => {
-    renderRoster(masked(), buildUser({ role: "support" }));
+  it.each<[UserAction, string, string]>([
+    ["clear_display_names", "Clear their names in communities", "display_names"],
+    ["clear_custom_status", "Clear status line", "custom_status"],
+    ["clear_decorations", "Clear decorations", "decorations"],
+  ])("clears what the row allows (%s), once confirmed", async (action, label, field) => {
+    state.clearProfileField.mockClear();
+    const rows = masked([action]);
+    renderRoster(rows, buildUser({ role: "moderator" }));
 
-    // Support can read the roster — that is ``users.read`` — and nothing here
-    // writes to an account, so there is nothing to open.
+    const sheet = await openSheet();
+    // Only the one the row names is offered.
+    expect(within(sheet).getAllByRole("button", { name: /^Clear/ })).toHaveLength(1);
+    await userEvent.click(within(sheet).getByRole("button", { name: label }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(state.clearProfileField).not.toHaveBeenCalled();
+
+    await userEvent.click(within(dialog).getByRole("button", { name: "Clear" }));
+    expect(state.clearProfileField).toHaveBeenCalledWith({ userId: rows[1].id, field });
+  });
+
+  it("offers nothing to open on a row that allows nothing the sheet holds", async () => {
+    // The roster's menu actions are not the sheet's: a row that only allows a
+    // password reset has nothing behind Manage.
+    renderRoster(masked(["reset_password"]), buildUser({ role: "moderator" }));
+
     await screen.findByText("owner");
     expect(screen.queryByRole("button", { name: /manage account/i })).not.toBeInTheDocument();
+  });
+
+  it("lists an account's open cases, read once the sheet is open", async () => {
+    state.cases = [
+      {
+        task_id: 55,
+        stream: "moderation",
+        community_id: 3,
+        initiative_id: 4,
+        project_id: 5,
+        filed: false,
+      },
+      {
+        task_id: 56,
+        stream: "support",
+        community_id: 3,
+        initiative_id: 4,
+        project_id: 6,
+        filed: true,
+      },
+    ];
+    const rows = masked();
+    rows[1].open_case_count = 2;
+    // Support can open the sheet for its cases alone.
+    renderRoster(rows, buildUser({ role: "support" }));
+
+    const sheet = await openSheet();
+
+    expect(state.casesEnabled).toBe(true);
+    expect(
+      within(sheet).getByText("2 open cases they filed or that are about them.")
+    ).toBeInTheDocument();
+    const about = within(sheet).getByRole("link", { name: /Moderation · About them/ });
+    expect(about).toHaveAttribute("href", "/c/3/i/4/projects/5/tasks/55");
+    expect(about).toHaveTextContent("#55");
+    expect(within(sheet).getByRole("link", { name: /Support · Filed by them/ })).toHaveAttribute(
+      "href",
+      "/c/3/i/4/projects/6/tasks/56"
+    );
+    expect(
+      within(sheet).getByText("Opening a case needs access to the project it is kept in.")
+    ).toBeInTheDocument();
+    state.cases = [];
   });
 });
 

@@ -6,6 +6,7 @@ import type {
   DeletionEligibilityResponse,
   ExportPlatformUsersCsvParams,
   ListAllUsersParams,
+  OperatorAccountCaseRead,
   OperatorDeletionEligibilityResponse,
   OperatorUserDeleteRequest,
   OperatorUserListResponse,
@@ -16,12 +17,15 @@ import type {
 import {
   checkUserDeletionEligibility,
   clearAgeBlock,
+  clearProfileField,
   clearSecondFactor,
   deleteUser,
   exportPlatformUsersCsv,
   getCheckUserDeletionEligibilityQueryKey,
+  getListAccountCasesQueryKey,
   getListAllUsersQueryKey,
   liftSignInLock,
+  listAccountCases,
   listAllUsers,
   reactivateUser,
   removeUserAvatar,
@@ -30,6 +34,7 @@ import {
   revokeUserApiKeys,
   setUserSuspension,
   setUserUsername,
+  signUserOutEverywhere,
   triggerPasswordReset,
   updatePlatformRole,
 } from "@/api/generated/operator/operator";
@@ -55,6 +60,22 @@ export const usePlatformUsers = (
     queryKey: getListAllUsersQueryKey(params),
     queryFn: () => listAllUsers(params),
     placeholderData: keepPreviousData,
+    ...options,
+  });
+};
+
+/**
+ * The open operations cases an account filed or is the subject of
+ * (``users.read``): where each lives, and nothing of what it says. Pass
+ * `{ enabled }` so it is only read once somebody looks.
+ */
+export const useOperatorAccountCases = (
+  userId: number,
+  options?: QueryOpts<OperatorAccountCaseRead[]>
+) => {
+  return useQuery<OperatorAccountCaseRead[]>({
+    queryKey: getListAccountCasesQueryKey(userId),
+    queryFn: () => listAccountCases(userId),
     ...options,
   });
 };
@@ -247,6 +268,35 @@ export const useOperatorRemoveAvatar = (options?: MutationOpts<void, number>) =>
   useApiMutation<void, number>(
     {
       mutationFn: (userId) => removeUserAvatar(userId),
+      invalidate: () => invalidate(q.operatorUsers()),
+    },
+    options
+  );
+
+/** End every session an account has, on every device (``users.manage``). Its
+ *  holder signs in again; whoever else had it does not. */
+export const useOperatorSignOutEverywhere = (options?: MutationOpts<OperatorUserRead, number>) =>
+  useApiMutation<OperatorUserRead, number>(
+    {
+      mutationFn: (userId) => signUserOutEverywhere(userId),
+      invalidate: () => invalidate(q.operatorUsers()),
+    },
+    options
+  );
+
+/** The parts of how an account appears to others that a moderator can clear. */
+export type OperatorProfileField = "display_names" | "custom_status" | "decorations";
+
+type ClearProfileFieldVars = { userId: number; field: OperatorProfileField };
+
+/** Clear one part of how an account appears to others (``content.moderate``),
+ *  like a picture takedown: its holder may set it again. */
+export const useOperatorClearProfileField = (
+  options?: MutationOpts<OperatorUserRead, ClearProfileFieldVars>
+) =>
+  useApiMutation<OperatorUserRead, ClearProfileFieldVars>(
+    {
+      mutationFn: ({ userId, field }) => clearProfileField(userId, field),
       invalidate: () => invalidate(q.operatorUsers()),
     },
     options

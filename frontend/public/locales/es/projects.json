@@ -323,6 +323,7 @@
   },
   "viewEditor": {
     "open": "Editar vistas",
+    "openTaskPage": "Editar la página de tarea",
     "title": "Editar vistas",
     "close": "Cerrar el editor",
     "view": "Vista en edición",
@@ -336,9 +337,9 @@
     "redo": "Rehacer",
     "discard": "Descartar",
     "saving": "Guardando…",
-    "saved": "Vistas guardadas",
+    "saved": "Guardado",
     "unsavedTitle": "¿Salir sin guardar?",
-    "unsavedBody": "Tus cambios en estas vistas no se han guardado. Si sales, se descartan.",
+    "unsavedBody": "Tus cambios no se han guardado. Si sales, se descartan.",
     "leave": "Salir",
     "stay": "Seguir editando",
     "compact": "Las vistas se editan en una pantalla más ancha. Abre esta página en una tableta o un ordenador.",
@@ -385,7 +386,48 @@
     "ownWidth": "Mantener el ancho de cada parte",
     "muted": "Texto atenuado",
     "titleHelp": "Cada tarea muestra su título, que la abre.",
-    "holdsTitle": "Este grupo contiene el título, que muestra cada tarea, así que se queda.",
-    "savingBody": "Tus vistas aún se están guardando. Si sales ahora y el guardado falla, puedes perder los cambios."
+    "holdsTitle": "Contiene el título, que cada tarea muestra, así que se queda.",
+    "savingBody": "Tus cambios aún se están guardando. Si sales ahora, puedes perderlos si el guardado falla.",
+    "taskPage": "Página de tarea",
+    "noticePreview": "Se muestra a quien no puede cambiar la tarea, para decirle por qué.",
+    "noTasks": "Este proyecto aún no tiene tareas. Añade una para ver su página aquí.",
+    "empty": "Vacío",
+    "dropHere": "Soltar aquí",
+    "pageHelp": "Cómo se organiza la página de cada tarea de este proyecto. Un campo que no está en ningún sitio se sigue mostrando, en Más campos.",
+    "useShippedPage": "Usar la página original",
+    "shippedPage": "Esta es la página original. Cambiarla la convierte en la del proyecto.",
+    "section": "Sección",
+    "sectionWith": "Sección con {{name}}",
+    "sectionTitle": "Título",
+    "startFolded": "Empezar plegada",
+    "toMoreFields": "Mover {{name}} a Más campos",
+    "toMoreFieldsHelp": "La página de cada tarea permite cambiar este campo. Si se quita de aquí, pasa a Más campos.",
+    "pageTitleHelp": "La página de cada tarea muestra su título.",
+    "parts": {
+      "header": "Encabezado",
+      "main": "Principal",
+      "side": "Lateral",
+      "status": "Estado",
+      "dates": "Fechas de inicio y vencimiento",
+      "byline": "Creada por",
+      "notice": "Aviso de solo lectura",
+      "actions": "Menú",
+      "relations": "Relaciones",
+      "case": "Caso",
+      "comments": "Comentarios"
+    },
+    "regionHelp": {
+      "header": "En la parte superior de la página, sobre las dos columnas.",
+      "main": "La columna ancha.",
+      "side": "La columna estrecha junto a Principal. En un teléfono la página es una sola columna; la vista previa de teléfono muestra su orden."
+    },
+    "partHelp": {
+      "comments": "Los comentarios de la tarea, y escribir uno nuevo.",
+      "relations": "Con qué está vinculada la tarea y qué está esperando.",
+      "case": "El caso de soporte de la tarea, si tiene uno.",
+      "byline": "Quién creó la tarea y cuándo.",
+      "notice": "Le dice a quien no puede cambiar la tarea por qué.",
+      "actions": "Qué más se puede hacer con la tarea: mover, duplicar, archivar, eliminar y las acciones de plug-ins."
+    }
   }
 }

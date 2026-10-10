@@ -827,5 +827,9 @@
   "SECURITY_NOWHERE_TO_SEND": "Este servidor aún no recibe informes de seguridad. Usa la dirección de abajo.",
   "FEEDBACK_NOWHERE_TO_SEND": "Este servidor aún no recibe comentarios. Usa la dirección de abajo.",
   "APPEAL_NOT_SUSPENDED": "Tu cuenta no está suspendida, así que no hay nada que apelar.",
-  "APPEAL_NOWHERE_TO_SEND": "Este servidor aún no recibe apelaciones. Usa la dirección de abajo."
+  "APPEAL_NOWHERE_TO_SEND": "Este servidor aún no recibe apelaciones. Usa la dirección de abajo.",
+  "COMMUNITY_SUSPENSION_NEEDS_GRANT": "Para suspender una comunidad o levantar su suspensión necesitas una concesión de moderación vigente sobre ella. Solicítala en Acceso.",
+  "COMMUNITY_NOT_SUSPENDABLE": "Esta comunidad no se puede suspender desde el estado en el que está ahora.",
+  "COMMUNITY_NOT_SUSPENDED": "Esta comunidad no está suspendida, así que no hay ninguna suspensión que levantar.",
+  "OPERATOR_CANNOT_ACT_ON_SELF": "No puedes hacer esto con tu propia cuenta desde aquí. Cámbialo en tu propia configuración."
 }

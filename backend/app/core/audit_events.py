@@ -78,6 +78,15 @@ class AuditEventType(str, Enum):
     USER_SUSPENDED = "user.suspended", AuditCategory.MODERATION
     USER_UNSUSPENDED = "user.unsuspended", AuditCategory.MODERATION
     USER_AGE_BLOCK_CLEARED = "user.age_block_cleared", AuditCategory.MODERATION
+    #: Staff ended every session an account had, everywhere.
+    USER_SESSIONS_REVOKED = "user.sessions_revoked", AuditCategory.MODERATION, 1
+    #: Staff cleared part of how an account appears to others: its names in
+    #: communities, its custom status or its decorations.
+    USER_PROFILE_FIELD_CLEARED = (
+        "user.profile_field_cleared",
+        AuditCategory.MODERATION,
+        1,
+    )
     #: A file somebody attached to a ticket or a report was opened: by the
     #: people working it, or by whoever attached it. Who looked at evidence,
     #: and when, is a record kept as long as the privileged-access family's.
