@@ -3,10 +3,13 @@ import { useTranslation } from "react-i18next";
 
 import {
   TaskSortFieldId,
+  type TaskStatusRead,
+  Tool,
   type ToolViewWrite,
   type ViewLayoutType,
   type ViewSortDirection,
 } from "@/api/generated/initiativeAPI.schemas";
+import { ProjectTasksFilters } from "@/components/projects/ProjectTasksFilters";
 import { viewLayouts } from "@/components/projects/projectTasksConfig";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,7 +22,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { cardOf, type NodePath, nodeAt, removable, type Selection } from "@/lib/views/draft";
+import { specFromApi, specToApi, taskFilterCount } from "@/lib/filters/taskFilters";
+import {
+  cardOf,
+  MAX_NAME_LENGTH,
+  type NodePath,
+  nodeAt,
+  removable,
+  type Selection,
+} from "@/lib/views/draft";
 import { type FieldDef, VIEW_NAMESPACES } from "@/lib/views/fields";
 import { editsAField, PAGE_REGIONS } from "@/lib/views/tasks";
 import type { ViewNode } from "@/lib/views/tree";
@@ -37,12 +48,14 @@ const NO_SORT = "none";
  */
 export const ViewSettingsPanel = ({
   view,
+  project,
   fields,
   selection,
   edits,
   locked,
 }: {
   view: ToolViewWrite;
+  project: ViewProject;
   fields: ReadonlyMap<string, FieldDef>;
   selection: Selection;
   edits: ViewEdits;
@@ -52,7 +65,7 @@ export const ViewSettingsPanel = ({
   // Disabled as one, so a save under way leaves every control as it was.
   <fieldset disabled={locked} className="min-w-0">
     {selection.kind === "view" ? (
-      <ViewSettings view={view} fields={fields} edits={edits} />
+      <ViewSettings view={view} project={project} fields={fields} edits={edits} />
     ) : selection.kind === "column" ? (
       <ColumnSettings field={selection.field} fields={fields} edits={edits} />
     ) : (
@@ -220,12 +233,18 @@ const Panel = ({ heading, children }: { heading: string; children: ReactNode }) 
   </section>
 );
 
+/** The project whose view is open: whose people, statuses and properties its
+ *  filters name. */
+export type ViewProject = { id: number; initiativeId: number; statuses: TaskStatusRead[] };
+
 const ViewSettings = ({
   view,
+  project,
   fields,
   edits,
 }: {
   view: ToolViewWrite;
+  project: ViewProject;
   fields: ReadonlyMap<string, FieldDef>;
   edits: ViewEdits;
 }) => {
@@ -324,6 +343,24 @@ const ViewSettings = ({
           ) : null}
         </div>
       ) : null}
+      <div className="space-y-2 border-t pt-4">
+        <p className="font-medium text-sm">{translate("viewEditor.filters")}</p>
+        <p className="text-muted-foreground text-xs">{translate("viewEditor.filtersHelp")}</p>
+        <ProjectTasksFilters
+          memberScope={{ type: "canOpen", tool: Tool.project, id: project.id }}
+          taskStatuses={project.statuses}
+          initiativeId={project.initiativeId}
+          value={specFromApi(definition.filters)}
+          // A view that filters nothing stores none.
+          onChange={(spec) =>
+            edits.setDefinition({
+              ...definition,
+              filters: taskFilterCount(spec) === 0 ? null : specToApi(spec),
+            })
+          }
+          stacked
+        />
+      </div>
     </Panel>
   );
 };
@@ -471,7 +508,7 @@ const CommittedInput = ({
     <Input
       id={id}
       value={text}
-      maxLength={100}
+      maxLength={MAX_NAME_LENGTH}
       onChange={(event) => setText(event.target.value)}
       onBlur={commit}
       onKeyDown={(event) => {

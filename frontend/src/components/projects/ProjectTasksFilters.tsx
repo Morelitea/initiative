@@ -56,6 +56,8 @@ type ProjectTasksFiltersProps = {
   /** The filter values, as one object — the same shape a preset holds. */
   value: TaskFilterSpec;
   onChange: (next: TaskFilterSpec) => void;
+  /** One field above another, for a narrow panel, as against a row that wraps. */
+  stacked?: boolean;
 };
 
 export const ProjectTasksFilters = ({
@@ -64,8 +66,10 @@ export const ProjectTasksFilters = ({
   initiativeId,
   value,
   onChange,
+  stacked = false,
 }: ProjectTasksFiltersProps) => {
   const { t } = useTranslation("projects");
+  const field = stacked ? "w-full space-y-2" : "w-full space-y-2 sm:w-48";
   const { data: tags = [] } = useTags();
 
   const patch = (fields: Partial<TaskFilterSpec>) => onChange({ ...value, ...fields });
@@ -110,7 +114,7 @@ export const ProjectTasksFilters = ({
     // does for every other filter bar.
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-end gap-4">
-        <div className="w-full space-y-2 sm:w-48">
+        <div className={field}>
           <Label
             htmlFor="assignee-filter"
             className="block font-medium text-muted-foreground text-xs"
@@ -141,7 +145,7 @@ export const ProjectTasksFilters = ({
             emptyMessage={t("filters.noUsersAvailable")}
           />
         </div>
-        <div className="w-full space-y-2 sm:w-48">
+        <div className={field}>
           <Label htmlFor="due-filter" className="block font-medium text-muted-foreground text-xs">
             {t("filters.dueFilter")}
           </Label>
@@ -162,7 +166,7 @@ export const ProjectTasksFilters = ({
             </SelectContent>
           </Select>
         </div>
-        <div className="w-full space-y-2 sm:w-48">
+        <div className={field}>
           <Label
             htmlFor="status-filter"
             className="block font-medium text-muted-foreground text-xs"
@@ -202,7 +206,7 @@ export const ProjectTasksFilters = ({
           />
         </div>
 
-        <div className="w-full space-y-2 sm:w-48">
+        <div className={field}>
           <Label htmlFor="tag-filter" className="block font-medium text-muted-foreground text-xs">
             {t("filters.filterByTag")}
           </Label>
@@ -214,7 +218,7 @@ export const ProjectTasksFilters = ({
             variant="filter"
           />
         </div>
-        <div className="w-full space-y-2 sm:w-60">
+        <div className={stacked ? "w-full space-y-2" : "w-full space-y-2 sm:w-60"}>
           <Label
             htmlFor="show-archived"
             className="block font-medium text-muted-foreground text-xs"

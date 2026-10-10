@@ -183,6 +183,12 @@ export const dropInto = (root: ViewNode, from: NodePath, holder: NodePath): Node
 /** The parts that hold others, where a part can be added or dropped. */
 export const HOLDERS = new Set(["card", "stack", "section", "header", "main", "side"]);
 
+/** How long a view's name or a section's title may be, as the server allows. */
+export const MAX_NAME_LENGTH = 100;
+
+/** How many views a project may have, as the server allows. */
+export const MAX_VIEWS = 40;
+
 /** How many parts of one install a tree may place, as the server allows. */
 export const MAX_PLUGIN_PARTS = 3;
 

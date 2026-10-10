@@ -428,6 +428,14 @@
       "byline": "Quién creó la tarea y cuándo.",
       "notice": "Le dice a quien no puede cambiar la tarea por qué.",
       "actions": "Qué más se puede hacer con la tarea: mover, duplicar, archivar, eliminar y las acciones de plug-ins."
-    }
+    },
+    "addView": "Añadir una vista",
+    "viewActions": "Más para esta vista",
+    "duplicateView": "Duplicar",
+    "deleteView": "Eliminar",
+    "newView": "Vista nueva",
+    "copyOf": "Copia de {{name}}",
+    "filters": "Filtros",
+    "filtersHelp": "La vista solo muestra las tareas que coinciden con estos. Cada persona puede acotarla más con sus propios filtros."
   }
 }

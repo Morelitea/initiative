@@ -13,6 +13,7 @@ import {
   buildPropertyDefinition,
   buildTask,
   buildTaskListResponse,
+  buildToolView,
   buildToolViewSet,
 } from "@/__tests__/factories";
 import { buildSavedViewSet } from "@/__tests__/factories/toolView.factory";
@@ -20,6 +21,7 @@ import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import type { ToolViewSetRead, ToolViewSetWrite } from "@/api/generated/initiativeAPI.schemas";
+import { useProjectViews } from "@/hooks/useProjectViews";
 
 import { TASK_PAGE, ViewEditor } from "./ViewEditor";
 
@@ -27,17 +29,24 @@ const STATUSES = buildDefaultTaskStatuses(1);
 
 let saves: ToolViewSetWrite[] = [];
 
+/** The editor as its page holds it: on the project's views as read, which a
+ *  save writes its answer over. */
 const editor = (slug: string, onClose = vi.fn(), set = buildToolViewSet()) => {
-  renderPage(() => (
-    <ViewEditor
-      projectId={1}
-      initiativeId={1}
-      statuses={STATUSES}
-      set={set}
-      initialSlug={slug}
-      onClose={onClose}
-    />
-  ));
+  server.use(communityHttp.get("/views/", () => HttpResponse.json(set)));
+  const Page = () => {
+    const read = useProjectViews(1).data;
+    return read ? (
+      <ViewEditor
+        projectId={1}
+        initiativeId={1}
+        statuses={STATUSES}
+        set={read}
+        initialSlug={slug}
+        onClose={onClose}
+      />
+    ) : null;
+  };
+  renderPage(Page);
   return { user: userEvent.setup(), onClose };
 };
 
@@ -262,6 +271,110 @@ describe("ViewEditor", () => {
     await user.click(screen.getByRole("button", { name: /^leave$/i }));
 
     expect(onClose).toHaveBeenCalled();
+  });
+
+  describe("the set of views", () => {
+    const viewPicker = () => screen.getByRole("combobox", { name: /view being edited/i });
+
+    it("adds a view, and keeps it open once the server names it", async () => {
+      const { user } = editor("board");
+      await outline();
+
+      await user.click(screen.getByRole("button", { name: /add a view/i }));
+      expect(viewPicker()).toHaveTextContent("New view");
+      const name = screen.getByLabelText(/^name$/i);
+      await user.clear(name);
+      await user.type(name, "Sprint{Enter}");
+      await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+      await waitFor(() => expect(saves).toHaveLength(1));
+      expect(saves[0].views.at(-1)).toEqual({
+        name: "Sprint",
+        is_default: false,
+        definition: { layout: { type: "board" } },
+      });
+      expect(await screen.findByRole("button", { name: /^save$/i })).toBeDisabled();
+      expect(viewPicker()).toHaveTextContent("Sprint");
+    });
+
+    it("deletes the default view and passes the default on", async () => {
+      const { user } = editor("table");
+      await outline();
+
+      await user.click(screen.getByRole("button", { name: /more for this view/i }));
+      await user.click(await screen.findByRole("menuitem", { name: /delete/i }));
+      expect(viewPicker()).toHaveTextContent("Board");
+      await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+      await waitFor(() => expect(saves).toHaveLength(1));
+      expect(saves[0].views.map((view) => [view.slug, view.is_default])).toEqual([
+        ["board", true],
+        ["calendar", false],
+        ["incomplete", false],
+        ["unassigned", false],
+        ["mine", false],
+      ]);
+    });
+
+    it("names a copy of a long-named view within the limit", async () => {
+      const long = "Q".repeat(100);
+      const { user } = editor(
+        "long",
+        vi.fn(),
+        buildToolViewSet({
+          views: [buildToolView({ slug: "long", name: long, is_default: true })],
+        })
+      );
+      await outline();
+
+      await user.click(screen.getByRole("button", { name: /more for this view/i }));
+      await user.click(await screen.findByRole("menuitem", { name: /duplicate/i }));
+      await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+      await waitFor(() => expect(saves).toHaveLength(1));
+      const copy = saves[0].views.at(-1)?.name ?? "";
+      expect(copy).toMatch(/^Q+… copy$/);
+      expect(copy.length).toBe(100);
+    });
+
+    it("keeps open the view opened while a save was under way", async () => {
+      let answer = () => {};
+      server.use(
+        communityHttp.put("/views/", async ({ request }) => {
+          const body = (await request.json()) as ToolViewSetWrite;
+          saves.push(body);
+          await new Promise<void>((resolve) => {
+            answer = resolve;
+          });
+          return HttpResponse.json(buildSavedViewSet(body));
+        })
+      );
+      const { user } = editor("board");
+      await outline();
+
+      await user.click(screen.getByRole("button", { name: /add a view/i }));
+      await user.click(screen.getByRole("button", { name: /^save$/i }));
+      await screen.findByRole("button", { name: /saving/i });
+      await user.click(viewPicker());
+      await user.click(await screen.findByRole("option", { name: "Table" }));
+      answer();
+
+      expect(await screen.findByRole("button", { name: /^save$/i })).toBeDisabled();
+      expect(viewPicker()).toHaveTextContent("Table");
+    });
+
+    it("stores the filters a view is fixed to", async () => {
+      const { user } = editor("board");
+      await outline();
+
+      await user.click(screen.getByRole("switch", { name: /show archived/i }));
+      await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+      await waitFor(() => expect(saves).toHaveLength(1));
+      expect(
+        saves[0].views.find((view) => view.slug === "board")?.definition.filters
+      ).toMatchObject({ include_archived: true });
+    });
   });
 
   describe("the task page", () => {

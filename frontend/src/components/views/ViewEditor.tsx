@@ -1,5 +1,16 @@
 import { useBlocker } from "@tanstack/react-router";
-import { Laptop, Redo2, Smartphone, Tablet, Undo2, X } from "lucide-react";
+import {
+  Copy,
+  Laptop,
+  MoreHorizontal,
+  Plus,
+  Redo2,
+  Smartphone,
+  Tablet,
+  Trash2,
+  Undo2,
+  X,
+} from "lucide-react";
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -13,6 +24,12 @@ import type {
 import { viewName } from "@/components/projects/projectTasksConfig";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Select,
   SelectContent,
@@ -33,6 +50,8 @@ import {
   HOLDERS,
   historyReducer,
   insertAt,
+  MAX_NAME_LENGTH,
+  MAX_VIEWS,
   moveNode,
   type NodePath,
   nodeAt,
@@ -81,12 +100,16 @@ export type ViewEdits = {
  *  so no view is named this. */
 export const TASK_PAGE = "page:task";
 
+/** A view in the editor, named by a key of the editor's own: its slug once
+ *  saved, and `new:<n>` until then, as the server names a new view. */
+type DraftView = ToolViewWrite & { key: string };
+
 /** What the editor changes: the views, and the task page's layout (null: the
  *  shipped page). One Save stores both. */
-type Draft = { views: ToolViewWrite[]; page: ItemLayoutDefinitionInput | null };
+type Draft = { views: DraftView[]; page: ItemLayoutDefinitionInput | null };
 
 const draftOf = (set: ToolViewSetRead): Draft => ({
-  views: viewWrites(set),
+  views: viewWrites(set).map((view) => ({ ...view, key: view.slug ?? "" })),
   page: taskPageOf(set),
 });
 
@@ -117,16 +140,10 @@ const stillThere = (selection: Selection, tree: ViewNode | null, columns: string
 
 const sameDraft = (a: Draft, b: Draft) => JSON.stringify(a) === JSON.stringify(b);
 
-/** What to open: the task page or the view asked for, while the set has it,
- *  else the set's default view, else its first. */
-const openingKey = (views: ToolViewWrite[], wanted?: string): string =>
-  wanted === TASK_PAGE
-    ? TASK_PAGE
-    : ((
-        views.find((view) => wanted !== undefined && view.slug === wanted) ??
-        views.find((view) => view.is_default) ??
-        views[0]
-      )?.slug ?? "");
+/** The view open: the one asked for while the draft has it (an undo may take
+ *  it away), else the default, else the first. */
+const viewOpen = (views: DraftView[], wanted: string): DraftView | undefined =>
+  views.find((view) => view.key === wanted) ?? views.find((view) => view.is_default) ?? views[0];
 
 /**
  * A project's views and its task page, edited where they are seen. It takes
@@ -164,16 +181,22 @@ export const ViewEditor = ({
   const [history, dispatch] = useReducer(historyReducer<Draft>, base, startHistory<Draft>);
   const draft = history.present;
   const { views } = draft;
-  // The open view is named by its slug, which a refreshed set keeps whatever
+  // The open view is named by its key, which a refreshed set keeps whatever
   // order it comes in.
-  const [active, setActive] = useState(() => openingKey(base.views, initialSlug));
+  const [active, setActive] = useState(initialSlug ?? "");
+  const [selected, setSelected] = useState<Selection>(VIEW_SELECTED);
   const onPage = active === TASK_PAGE;
-  const current = onPage ? undefined : views.find((view) => view.slug === active);
+  const current = onPage ? undefined : viewOpen(views, active);
+  // Another view opened in its place (the one asked for is gone, or an undo
+  // took it away), and nothing of the last stays selected.
+  if (current && current.key !== active) {
+    setActive(current.key);
+    setSelected(VIEW_SELECTED);
+  }
   const page = useMemo(() => taskPageRoot(draft.page as StoredRegions | null), [draft.page]);
   // The tree the part edits change.
   const tree = current ? cardOf(current.definition) : onPage ? page : null;
   const columns = current ? columnsOf(current.definition) : [];
-  const [selected, setSelected] = useState<Selection>(VIEW_SELECTED);
   const selection = stillThere(selected, tree, columns) ? selected : VIEW_SELECTED;
   const [width, setWidth] = useState<PreviewWidth>("desktop");
   const dirty = !sameDraft(draft, base);
@@ -184,22 +207,25 @@ export const ViewEditor = ({
   // Someone else's save, read while nothing is changed here, is what the
   // editor starts from. One read mid-edit is set aside: this editor's save
   // replaces the whole set.
-  // A set taken in, from either, may have lost the open view; then the
-  // default one opens.
   const adopt = (stored: ToolViewSetRead) => {
     const fresh = draftOf(stored);
     setSeen(stored);
     setBase(fresh);
     dispatch({ type: "reset", present: fresh });
-    if (!onPage && !fresh.views.some((view) => view.slug === active)) {
-      setActive(openingKey(fresh.views));
-      setSelected(VIEW_SELECTED);
-    }
   };
   const [seen, setSeen] = useState(set);
+  // This editor's own save, until the set read says what it answered: the
+  // read lags the answer, and shows the save's early copy before it.
+  const [awaiting, setAwaiting] = useState<Draft | null>(null);
+  const latest = useRef(set);
+  latest.current = set;
   if (seen !== set && !saving) {
-    if (dirty) setSeen(set);
-    else adopt(set);
+    setSeen(set);
+    if (awaiting) {
+      if (sameDraft(draftOf(set), awaiting)) setAwaiting(null);
+    } else if (!dirty) {
+      adopt(set);
+    }
   }
 
   const { data: definitions = [] } = useProperties({ initiativeId });
@@ -214,11 +240,11 @@ export const ViewEditor = ({
     dispatch({ type: "change", present: next });
     if (then) setSelected(then);
   };
-  const changeViews = (next: ToolViewWrite[], then?: Selection) =>
+  const changeViews = (next: DraftView[], then?: Selection) =>
     changeDraft({ ...draft, views: next }, then);
-  const changeView = (next: (view: ToolViewWrite) => ToolViewWrite, then?: Selection) =>
+  const changeView = (next: (view: DraftView) => DraftView, then?: Selection) =>
     changeViews(
-      views.map((view) => (view.slug === active ? next(view) : view)),
+      views.map((view) => (view.key === current?.key ? next(view) : view)),
       then
     );
   const changeDefinition = (definition: ViewDefinitionInput, then?: Selection) =>
@@ -235,7 +261,7 @@ export const ViewEditor = ({
     setDefinition: (definition) => changeDefinition(definition),
     rename: (name) => changeView((view) => ({ ...view, name })),
     makeDefault: () =>
-      changeViews(views.map((view) => ({ ...view, is_default: view.slug === active }))),
+      changeViews(views.map((view) => ({ ...view, is_default: view.key === current?.key }))),
     movePart: (from, to) => {
       if (!tree) return;
       changeTree(
@@ -291,13 +317,67 @@ export const ViewEditor = ({
     },
   };
 
-  const save = () =>
-    put.mutate(viewSetWrite(set, views, draft.page), {
-      onSuccess: (stored) => {
-        adopt(stored);
-        toast.success(t("viewEditor.saved"));
-      },
+  // A view is opened (and a new one added) as the last of the views with
+  // nothing selected, so its name and layout are what the settings show.
+  const newKey = useRef(0);
+  const openView = (view: DraftView, next: DraftView[]) => {
+    changeViews(next, VIEW_SELECTED);
+    setActive(view.key);
+  };
+  /** A copy's name, its source's shortened to leave room for the rest. */
+  const copyName = (from: DraftView) => {
+    const name = viewName({ slug: from.slug ?? "", name: from.name }, t);
+    const over = t("viewEditor.copyOf", { name }).length - MAX_NAME_LENGTH;
+    return t("viewEditor.copyOf", {
+      name: over > 0 ? `${name.slice(0, name.length - over - 1)}…` : name,
     });
+  };
+  const addView = (from?: DraftView) => {
+    newKey.current += 1;
+    const view: DraftView = {
+      key: `new:${newKey.current}`,
+      name: from ? copyName(from) : t("viewEditor.newView"),
+      is_default: false,
+      definition: from?.definition ?? { layout: { type: "board" } },
+    };
+    openView(view, [...views, view]);
+  };
+  /** The open view goes; the default passes to the first left where it held it. */
+  const deleteView = () => {
+    if (!current || views.length <= 1) return;
+    const rest = views.filter((view) => view.key !== current.key);
+    const next = current.is_default
+      ? rest.map((view, index) => ({ ...view, is_default: index === 0 }))
+      : rest;
+    openView(next.find((view) => view.is_default) ?? next[0], next);
+  };
+
+  // Which view is open when a save answers, which may not be the one open
+  // when it was sent.
+  const opened = useRef(active);
+  opened.current = active;
+  const save = () => {
+    const keys = views.map((view) => view.key);
+    put.mutate(
+      viewSetWrite(
+        set,
+        views.map(({ key: _key, ...view }) => view),
+        draft.page
+      ),
+      {
+        onSuccess: (stored) => {
+          adopt(stored);
+          const answer = draftOf(stored);
+          // Waited for only while the read has yet to say it.
+          if (!sameDraft(draftOf(latest.current), answer)) setAwaiting(answer);
+          // The server keeps the order, which names a view it named meanwhile.
+          const named = stored.views[keys.indexOf(opened.current)]?.slug;
+          if (named) setActive(named);
+          toast.success(t("viewEditor.saved"));
+        },
+      }
+    );
+  };
 
   // Leaving on purpose (Close after the question) passes.
   const leaving = useRef(false);
@@ -358,7 +438,7 @@ export const ViewEditor = ({
           </SelectTrigger>
           <SelectContent>
             {views.map((view) => (
-              <SelectItem key={view.slug} value={view.slug ?? ""}>
+              <SelectItem key={view.key} value={view.key}>
                 {viewName({ slug: view.slug ?? "", name: view.name }, t)}
               </SelectItem>
             ))}
@@ -366,6 +446,47 @@ export const ViewEditor = ({
             <SelectItem value={TASK_PAGE}>{t("viewEditor.taskPage")}</SelectItem>
           </SelectContent>
         </Select>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label={t("viewEditor.addView")}
+          disabled={!wide || saving || views.length >= MAX_VIEWS}
+          onClick={() => addView()}
+        >
+          <Plus className="h-4 w-4" />
+        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label={t("viewEditor.viewActions")}
+              disabled={!wide || saving || !current}
+            >
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuItem
+              disabled={views.length >= MAX_VIEWS}
+              onSelect={() => addView(current)}
+            >
+              <Copy className="h-4 w-4" />
+              {t("viewEditor.duplicateView")}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive"
+              // A project always has a view to open on.
+              disabled={views.length <= 1}
+              onSelect={deleteView}
+            >
+              <Trash2 className="h-4 w-4" />
+              {t("viewEditor.deleteView")}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <div className="flex-1" />
         <ToggleGroup
           type="single"
@@ -487,6 +608,7 @@ export const ViewEditor = ({
           <aside className="min-h-0 overflow-y-auto border-l">
             <ViewSettingsPanel
               view={current}
+              project={{ id: projectId, initiativeId, statuses }}
               fields={fields}
               selection={selection}
               edits={edits}
