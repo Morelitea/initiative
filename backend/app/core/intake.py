@@ -18,8 +18,9 @@ stream shows none of these surfaces and every writer call is a no-op.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
+from typing import Mapping, Optional
 
 
 class IntakeStream(str, Enum):
@@ -69,6 +70,44 @@ class SecurityTopic(str, Enum):
     #: Somebody else got into their account.
     account_compromise = "account_compromise"
     other = "other"
+
+
+class SupportTopic(str, Enum):
+    """What somebody asking for help is asking about."""
+
+    #: Their own account: signing in, their email, their age answer.
+    account = "account"
+    #: A community they are in.
+    community = "community"
+    #: Paying for something.
+    billing = "billing"
+    #: A copy of a community's data, or its erasure. Asked by whoever holds
+    #: the community's seat, since it is theirs to ask for.
+    data_request = "data_request"
+    other = "other"
+
+
+#: The help a person asks for from inside a community, about it. Offered only
+#: where the deployment takes help requests from that community; every other
+#: topic is about the person themselves, and is offered wherever support is
+#: taken at all.
+COMMUNITY_SUPPORT_TOPICS = frozenset(
+    {SupportTopic.community, SupportTopic.data_request}
+)
+
+
+class FeedbackTopic(str, Enum):
+    """What kind of feedback somebody is sending."""
+
+    idea = "idea"
+    problem = "problem"
+    praise = "praise"
+    other = "other"
+
+
+#: The one moderation case a person files about themselves: asking for their
+#: account's suspension to be lifted. Unlike a report it is a conversation.
+APPEAL = "appeal"
 
 
 #: Pictures a person may attach, by the type their bytes say they are.
@@ -122,6 +161,32 @@ class IntakeStreamMeta:
     #: of an initiative is what lets staff read a case, so a stream whose
     #: cases name people at risk binds where no other stream's staff work.
     isolated: bool = False
+    #: Topics whose cases talk differently from the stream's own.
+    topic_conversation: Mapping[str, Conversation] = field(default_factory=dict)
+    #: Topics with a cap of their own on one account's open cases, counted
+    #: among that topic's cases alone.
+    topic_open_caps: Mapping[str, int] = field(default_factory=dict)
+    #: Topics that take different attachments from the stream's own.
+    topic_evidence: Mapping[str, "EvidencePolicy"] = field(default_factory=dict)
+
+    def evidence_for(self, topic: Optional[str]) -> "EvidencePolicy":
+        """What may be attached to a case on ``topic``, or an answer on one."""
+        if topic is None:
+            return self.evidence
+        return self.topic_evidence.get(topic, self.evidence)
+
+    def conversation_for(self, topic: Optional[str]) -> Conversation:
+        """How a case on ``topic`` talks."""
+        if topic is None:
+            return self.conversation
+        return self.topic_conversation.get(topic, self.conversation)
+
+    def open_cap_for(self, topic: Optional[str]) -> tuple[Optional[int], bool]:
+        """One account's cap on open cases like this, and whether it counts
+        that topic's cases alone rather than the stream's."""
+        if topic is not None and topic in self.topic_open_caps:
+            return self.topic_open_caps[topic], True
+        return self.max_open_per_filer, False
 
 
 #: Every stream, declared once. ``intake_test`` holds the enum and this map in
@@ -150,6 +215,13 @@ STREAMS: dict[IntakeStream, IntakeStreamMeta] = {
         evidence=EvidencePolicy(5, 10 * _MB, IMAGE_TYPES | DOCUMENT_TYPES),
         retention_days=90,
         isolated=True,
+        # A report is not a conversation; an appeal is one, with the person
+        # whose account it is, and they keep one open at a time. It is
+        # written from the time-out screen, which opens nothing but itself,
+        # so it is words alone.
+        topic_conversation={APPEAL: Conversation.open},
+        topic_open_caps={APPEAL: 1},
+        topic_evidence={APPEAL: NO_EVIDENCE},
     ),
     IntakeStream.support: IntakeStreamMeta(
         # Alerted too: a community claiming sign-in claim values opens a
@@ -179,6 +251,11 @@ STREAMS: dict[IntakeStream, IntakeStreamMeta] = {
 def meta(stream: IntakeStream) -> IntakeStreamMeta:
     """What feeds ``stream``. Raises for a stream with no declaration."""
     return STREAMS[stream]
+
+
+def conversation_for(stream: IntakeStream, topic: Optional[str]) -> Conversation:
+    """How a case in ``stream`` on ``topic`` talks with whoever filed it."""
+    return STREAMS[stream].conversation_for(topic)
 
 
 class CaseField(str, Enum):

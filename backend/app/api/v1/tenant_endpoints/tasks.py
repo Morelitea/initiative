@@ -416,6 +416,7 @@ async def read_task_case(
             else None
         ),
         filer_subject=case.filer_subject,
+        topic=case.topic,
         subject_community_id=case.subject_guild_id,
         resource_type=case.resource_type,
         resource_id=case.resource_id,

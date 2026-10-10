@@ -1,4 +1,4 @@
-"""Filing a ticket: help, a report, and later the other kinds.
+"""Filing a ticket: help, a report, a security problem, feedback, an appeal.
 
 Two routes, both the signed-in person's own:
 
@@ -11,6 +11,10 @@ And the cases they filed, which they follow: the list, one case with what has
 been said to them about it, and their answer. What a filer reads is decided by
 the operations community's filer role (``app.db.filer_access``), which these
 routes read through.
+
+A suspended account reaches these too, for one shape: it may appeal its
+suspension, and follow and answer that appeal. Anything else it files or
+answers is refused as every other route refuses it.
 """
 
 from __future__ import annotations
@@ -31,19 +35,30 @@ from fastapi import (
 from fastapi.exceptions import RequestValidationError
 from pydantic import TypeAdapter, ValidationError
 
-from app.api.deps import UploadUserDep, UserSessionDep, get_current_active_user
+from app.api.deps import (
+    TicketHolder,
+    TicketHolderSessionDep,
+    UploadUserDep,
+    UserSessionDep,
+    get_current_active_user,
+)
 from app.core.audit_events import AuditEventType
-from app.core.intake import EvidencePolicy, IntakeStream, meta
+from app.core.intake import APPEAL, EvidencePolicy, IntakeStream, meta
 from app.core.messages import (
+    AppealMessages,
+    AuthMessages,
     EvidenceMessages,
+    FeedbackMessages,
     ModerationMessages,
     SecurityMessages,
     SupportMessages,
     TicketMessages,
 )
 from app.core.moderation import parse_target
-from app.models.platform.user import User
+from app.models.platform.user import User, UserStatus
 from app.schemas.platform.ticket import (
+    AppealTicketCreate,
+    FeedbackTicketCreate,
     FiledTicketDetailRead,
     FiledTicketList,
     FiledTicketRead,
@@ -59,8 +74,10 @@ from app.schemas.platform.ticket import (
 )
 from app.schemas.tenant.evidence import EvidencePolicyRead, EvidenceRead
 from app.services import audit as audit_service
+from app.services.platform import appeals as appeals_service
 from app.services.platform import disclosure as disclosure_service
 from app.services.platform import evidence as evidence_service
+from app.services.platform import feedback as feedback_service
 from app.services.platform import tickets as tickets_service
 from app.services.platform.intake import CaseCapReached
 from app.services.tenant import moderation as moderation_service
@@ -95,6 +112,7 @@ async def read_ticket_availability(
             stream.value: StreamAvailabilityRead(
                 mode=answer.mode,
                 contact=answer.contact,
+                types=list(answer.types),
                 evidence=EvidencePolicyRead.of(meta(stream).evidence),
             )
             for stream, answer in offered.items()
@@ -106,8 +124,9 @@ _TICKET = TypeAdapter(TicketCreate)
 
 #: How the filing is sent: the ticket as JSON in one part, and its files.
 TICKET_PART_DESCRIPTION = (
-    "The ticket, as JSON: a support request, a report or a security problem, "
-    "told apart by ``stream``."
+    "The ticket, as JSON: a support request, a report, a security problem, "
+    "feedback or an appeal, told apart by ``stream`` (and an appeal by its "
+    "``type``)."
 )
 
 
@@ -155,10 +174,16 @@ async def _read_files(
         ) from exc
 
 
+def _refuse_suspended() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN, detail=AuthMessages.ACCOUNT_SUSPENDED
+    )
+
+
 @me_router.post("", response_model=TicketAccepted, status_code=status.HTTP_202_ACCEPTED)
 async def file_ticket(
-    session: UserSessionDep,
-    current_user: CurrentUser,
+    session: TicketHolderSessionDep,
+    current_user: TicketHolder,
     payload: Annotated[str, Form(description=TICKET_PART_DESCRIPTION)],
     files: Annotated[list[UploadFile], File()] = [],  # noqa: B006
 ) -> TicketAccepted:
@@ -168,9 +193,12 @@ async def file_ticket(
     to as many ``files`` as the stream takes (``/availability`` says how many,
     how large and of which types). The reply says that it arrived and nothing
     more: not who will read it, and for a report not whether one already
-    existed.
+    existed. A suspended account may file an appeal and nothing else.
     """
     ticket = _parse_ticket(payload)
+    appealing = isinstance(ticket, AppealTicketCreate)
+    if current_user.status == UserStatus.suspended and not appealing:
+        raise _refuse_suspended()
     stream = IntakeStream(ticket.stream)
     try:
         await tickets_service.hold_pace(current_user, stream)
@@ -179,13 +207,67 @@ async def file_ticket(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail=TicketMessages.FILING_TOO_FAST,
         ) from exc
-    attached = await _read_files(files, meta(stream).evidence)
+    attached = await _read_files(
+        files, meta(stream).evidence_for(APPEAL if appealing else None)
+    )
 
     if isinstance(ticket, SupportTicketCreate):
         return await _ask_for_help(current_user, ticket, attached)
     if isinstance(ticket, SecurityTicketCreate):
         return await _report_security_problem(current_user, ticket, attached)
+    if isinstance(ticket, FeedbackTicketCreate):
+        return await _send_feedback(current_user, ticket, attached)
+    if isinstance(ticket, AppealTicketCreate):
+        return await _appeal(current_user, ticket, attached)
     return await _report(session, current_user, ticket, attached)
+
+
+async def _send_feedback(
+    sender: User,
+    payload: FeedbackTicketCreate,
+    attached: list[evidence_service.PreparedEvidence],
+) -> TicketAccepted:
+    try:
+        await feedback_service.send(
+            filer=sender,
+            topic=payload.type,
+            body=payload.body,
+            context=payload.context,
+            evidence=attached,
+        )
+    except feedback_service.NowhereToSend as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=FeedbackMessages.NOWHERE_TO_SEND,
+        ) from exc
+    return TicketAccepted()
+
+
+async def _appeal(
+    account: User,
+    payload: AppealTicketCreate,
+    attached: list[evidence_service.PreparedEvidence],
+) -> TicketAccepted:
+    try:
+        await appeals_service.appeal(
+            account=account, body=payload.body, evidence=attached
+        )
+    except appeals_service.NotSuspended as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=AppealMessages.NOT_SUSPENDED,
+        ) from exc
+    except CaseCapReached as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=TicketMessages.TOO_MANY_OPEN,
+        ) from exc
+    except appeals_service.NowhereToSend as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=AppealMessages.NOWHERE_TO_SEND,
+        ) from exc
+    return TicketAccepted()
 
 
 async def _report_security_problem(
@@ -225,6 +307,7 @@ async def _ask_for_help(
             requester=requester,
             subject=payload.subject,
             body=payload.body,
+            topic=payload.type,
             evidence=attached,
         )
     except support_service.SupportUnavailable as exc:
@@ -277,6 +360,7 @@ def _filed(ticket: tickets_service.FiledTicket) -> FiledTicketRead:
     return FiledTicketRead(
         task_id=ticket.task_id,
         stream=ticket.stream,
+        topic=ticket.topic,
         subject=ticket.subject,
         state=ticket.state,
         opened_at=ticket.opened_at,
@@ -285,7 +369,7 @@ def _filed(ticket: tickets_service.FiledTicket) -> FiledTicketRead:
 
 
 @me_router.get("", response_model=FiledTicketList)
-async def list_filed_tickets(current_user: CurrentUser) -> FiledTicketList:
+async def list_filed_tickets(current_user: TicketHolder) -> FiledTicketList:
     """The cases the reader filed, most recently moved first."""
     filed = await tickets_service.list_filed(current_user)
     return FiledTicketList(items=[_filed(ticket) for ticket in filed])
@@ -293,7 +377,7 @@ async def list_filed_tickets(current_user: CurrentUser) -> FiledTicketList:
 
 @me_router.get("/{task_id}", response_model=FiledTicketDetailRead)
 async def read_filed_ticket(
-    task_id: int, current_user: CurrentUser
+    task_id: int, current_user: TicketHolder
 ) -> FiledTicketDetailRead:
     """One case the reader filed, with what has been said to them about it.
 
@@ -310,7 +394,9 @@ async def read_filed_ticket(
         **_filed(detail.ticket).model_dump(),
         conversation=detail.conversation,
         can_reply=detail.can_reply,
-        evidence=EvidencePolicyRead.of(meta(detail.ticket.stream).evidence),
+        evidence=EvidencePolicyRead.of(
+            meta(detail.ticket.stream).evidence_for(detail.ticket.topic)
+        ),
         messages=[
             TicketMessageRead(
                 id=message.id,
@@ -335,14 +421,15 @@ async def read_filed_ticket(
 async def reply_to_filed_ticket(
     task_id: int,
     body: Annotated[str, Form()],
-    current_user: CurrentUser,
+    current_user: TicketHolder,
     files: Annotated[list[UploadFile], File()] = [],  # noqa: B006
 ) -> FiledTicketDetailRead:
     """Answer on a case the reader filed. Returns the case as it now stands.
 
     Sent as ``multipart/form-data``: the answer in ``body``, and any ``files``
     the stream takes. Paced like a filing into the case's stream: each answer
-    is something a person reads.
+    is something a person reads. A suspended account answers on its appeal
+    alone.
     """
     try:
         answer = TicketReplyCreate(body=body)
@@ -350,8 +437,15 @@ async def reply_to_filed_ticket(
         raise RequestValidationError(exc.errors()) from exc
     try:
         detail = await tickets_service.read_filed(current_user, task_id)
+        if (
+            current_user.status == UserStatus.suspended
+            and detail.ticket.topic != APPEAL
+        ):
+            raise _refuse_suspended()
         await tickets_service.hold_pace(current_user, detail.ticket.stream)
-        attached = await _read_files(files, meta(detail.ticket.stream).evidence)
+        attached = await _read_files(
+            files, meta(detail.ticket.stream).evidence_for(detail.ticket.topic)
+        )
         await tickets_service.reply(current_user, detail, answer.body, attached)
     except tickets_service.TicketNotFound as exc:
         raise HTTPException(

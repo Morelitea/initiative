@@ -115,7 +115,11 @@ Operators and owners can write **announcements** — notices shown in a dialog t
 
 **Settings → Platform → Communities** lists every community on the server, and **Manage** opens what you set for one of them: its storage and member limits, whether it may configure [its own sign-in](single-sign-on.md#letting-a-community-use-a-provider), and a few features you can switch on or off. See [File & object storage](object-storage.md#per-community-storage-limits) for the limits.
 
-**Help requests** is one of those features, and it starts off. Switched on, the community's members get a form behind **Ask for help**, and what they send lands in your support project (see [Where operations work lands](#where-operations-work-lands)) — so it can only be switched on once that project is set up. Off, the button gives them the support address from [Who to contact](#who-to-contact), or isn't shown at all if there isn't one.
+**Help requests** is one of those features, and it starts off. Switched on, the community's members can ask about the community itself behind **Ask for help**, and whoever holds its seat can ask for a copy of its data or for it to be deleted; what they send lands in your support project (see [Where operations work lands](#where-operations-work-lands)) — so it can only be switched on once that project is set up.
+
+Questions about somebody's own account — signing in, billing, anything else — don't depend on it. Once support is bound, anybody signed in can ask those from anywhere, inside a community or not: a person locked out of something has no community to ask from. With support not bound, the button gives the support address from [Who to contact](#who-to-contact), or isn't shown at all if there isn't one.
+
+Each support case carries the topic its asker chose, shown on the case beside its stream. A suspension appeal is a moderation case with the topic **Suspension appeal**, which — unlike a report — is a conversation: reply to the requester from the case as you would on support. One account has one appeal open at a time. **Feedback** cases carry the app's context in their description, where the sender kept it.
 
 ### A community's status
 
@@ -173,14 +177,14 @@ Whenever Initiative tells somebody to get in touch, it names an address. You pic
 
 | When somebody sees | It names |
 |---|---|
-| Their account's time-out screen | Moderation |
+| Their account's time-out screen, where appeals aren't taken | Moderation |
 | A suspended community | Moderation |
 | A community on hold | Support |
-| **Ask for help**, in a community that doesn't take help requests | Support |
+| **Ask for help**, where support isn't bound | Support |
 
 Leave a kind blank and it uses the general address. It never borrows another kind's, so a moderation question doesn't turn up in the support inbox wondering why it's there. With neither set, the notice says to contact whoever runs this server, which is true but not very helpful to somebody who doesn't know who that is.
 
-**Security** and **Feedback** have fields too. None of the notices above names them.
+**Security** and **Feedback** have fields too: they're what **Report a security problem** and **Send feedback** give where those aren't bound.
 
 ## Related
 

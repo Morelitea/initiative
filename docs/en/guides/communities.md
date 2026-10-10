@@ -246,9 +246,19 @@ Reporting something **illegal** asks which law it breaks, and goes to the commun
 
 ## Asking for help
 
-The lifebuoy at the foot of the sidebar is **Ask for help**. Where your server takes help requests from this community, it opens a short form — what it's about, what happened — and it goes to the people who run the server, not to the community's own admins.
+The lifebuoy at the foot of the sidebar is **Ask for help**. Where your server takes help requests, it opens a short form — what it's about, a line to name it, what happened — and it goes to the people who run the server, not to the community's own admins.
 
-Where the server takes no requests from here but has said who to write to, the button gives you that address instead. Where there's neither, the button isn't there, and **Documentation**, the question mark beside it, is where to look.
+What it's about decides what you can ask:
+
+- **Your account**, **billing** or **something else** — wherever the server takes help requests, inside a community or not.
+- **This community** — where the server takes help requests from the community you're in.
+- **A copy of this community's data, or deleting it** — for whoever holds the community's seat, where it takes help requests.
+
+Notices that used to say "contact whoever runs this server" — the age question, a read-only or suspended community, running out of seats — have the same **Ask for help** beside them, opened on what the notice is about.
+
+Where the server takes no requests but has said who to write to, the button gives you that address instead. Where there's neither, the button isn't there, and **Documentation**, the question mark beside it, is where to look.
+
+**Send feedback**, in your account menu and the command palette, tells the people who run the server what you think: an idea, a problem, praise or something else, with screenshots if they help. It shows you where the app was — its version, platform, language, theme, the page (without anything that names what was on it) and the window's size — and sends that with it unless you remove it. A problem you need an answer to has **I need an answer**, which sends it as a help request instead. Feedback lands in **My Tickets** too; the team writes first if they write at all, and you're told when it's been read.
 
 Every request you send lands in **My Tickets**, in the sidebar: where each one stands (**Received**, **In progress**, **Waiting on you**, **Closed**), what the team said, and your replies. You get a notification when it moves, so there's no need to keep checking. A report is listed there too, though the team looks into reports without replying to them.
 

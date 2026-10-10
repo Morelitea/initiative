@@ -3,12 +3,14 @@ import { Lock, ShieldAlert } from "lucide-react";
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 
+import { SupportTopic } from "@/api/generated/initiativeAPI.schemas";
 import {
   CommunityStatusNotice,
   communityStatusNoticeApplies,
 } from "@/components/communities/CommunityStatusNotice";
 import { StatusMessage } from "@/components/StatusMessage";
 import { CommunityHomeSkeleton, PageSkeleton } from "@/components/skeletons/PageSkeletons";
+import { HelpLink } from "@/components/support/HelpLink";
 import { useCommunities } from "@/hooks/useCommunities";
 
 export const Route = createFileRoute("/_serverRequired/_authenticated/c/$communityId")({
@@ -123,6 +125,9 @@ export function CommunityLayout() {
               ? t("closed.contact", { email: community.contact_email })
               : t("closed.contactNobody")
           }`}
+          action={
+            <HelpLink topic={SupportTopic.community} communityId={community.id} variant="outline" />
+          }
           backTo="/"
           backLabel={t("notMember.backToHome")}
         />

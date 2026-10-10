@@ -25,7 +25,14 @@ from sqlalchemy import String, cast
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.intake import Conversation, IntakeStream, meta
+from app.core.intake import (
+    Conversation,
+    FeedbackTopic,
+    IntakeStream,
+    SecurityTopic,
+    conversation_for,
+    meta,
+)
 from app.core.rate_limit import take_allowance
 from app.db import cohorts
 from app.db.session import routed_guild_id
@@ -43,13 +50,6 @@ if TYPE_CHECKING:
 
 #: The counter namespace a filing's pace is kept under.
 _PACE_NAMESPACE = "tickets"
-
-#: The streams a person can file into here. The others are still reached by
-#: their contact address; each joins this set in the phase that builds its
-#: form.
-FILEABLE: frozenset[IntakeStream] = frozenset(
-    {IntakeStream.support, IntakeStream.moderation}
-)
 
 
 class TicketMode(str, Enum):
@@ -71,6 +71,8 @@ class StreamAvailability:
     #: Who to write to about the stream, whatever the mode — a form whose
     #: filing turns out to have nowhere to go falls back to it.
     contact: Optional[str]
+    #: The topics the form offers this person from here, in offering order.
+    types: tuple[str, ...] = ()
 
 
 class FilingTooFast(Exception):
@@ -117,20 +119,29 @@ async def availability(
             # form is always there; a report the platform would have to take
             # falls back to the address when nothing is bound.
             offered[stream] = StreamAvailability(TicketMode.form, contact)
-        elif stream is IntakeStream.security and await intake_service.stream_is_bound(
-            stream
-        ):
-            # Anybody signed in may tell the server about a security problem.
-            offered[stream] = StreamAvailability(TicketMode.form, contact)
-        elif (
-            stream is IntakeStream.support
-            and guild_id is not None
-            and await intake_service.stream_is_bound(stream)
-            and await support_service.entitled(user, guild_id)
-        ):
-            offered[stream] = StreamAvailability(TicketMode.form, contact)
-        else:
+        elif not await intake_service.stream_is_bound(stream):
             offered[stream] = _fallback(contact)
+        elif stream is IntakeStream.support:
+            # Their own account is always theirs to ask about; a community
+            # only where it takes help requests, and its data only for the
+            # seat holder.
+            community = (
+                await support_service.community_topics(user, guild_id)
+                if guild_id is not None
+                else frozenset()
+            )
+            offered[stream] = StreamAvailability(
+                TicketMode.form,
+                contact,
+                tuple(t.value for t in support_service.offered_topics(community)),
+            )
+        else:
+            # Anybody signed in may tell the server about a security problem,
+            # or what they think.
+            topics = SecurityTopic if stream is IntakeStream.security else FeedbackTopic
+            offered[stream] = StreamAvailability(
+                TicketMode.form, contact, tuple(t.value for t in topics)
+            )
     return offered
 
 
@@ -171,11 +182,12 @@ def derive_state(
     status_id: Optional[int],
     awaiting_status_id: Optional[int],
     stream: IntakeStream,
+    topic: Optional[str] = None,
     trashed: bool = False,
 ) -> FilerState:
     """The state a case's status shows its filer.
 
-    A case the team put in the trash is closed to its filer. A stream with no
+    A case the team put in the trash is closed to its filer. A case with no
     conversation never waits on its filer, who has no way to answer.
     """
     if trashed or category == TaskStatusCategory.done:
@@ -183,7 +195,7 @@ def derive_state(
     if (
         awaiting_status_id is not None
         and status_id == awaiting_status_id
-        and meta(stream).conversation is not Conversation.none
+        and conversation_for(stream, topic) is not Conversation.none
     ):
         return FilerState.waiting_on_you
     if category == TaskStatusCategory.todo:
@@ -202,6 +214,8 @@ class FiledTicket:
     opened_at: datetime
     updated_at: Optional[datetime]
     status_id: Optional[int] = None
+    #: What it is about within its stream, as they chose.
+    topic: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -275,6 +289,7 @@ def _ticket_columns():
     return (
         IntakeCase.task_id,
         IntakeCase.stream,
+        IntakeCase.topic,
         IntakeCase.filer_subject,
         IntakeCase.opened_at,
         Task.updated_at,
@@ -291,6 +306,7 @@ def _ticket_from(row) -> FiledTicket:
     (
         task_id,
         stream,
+        topic,
         subject,
         opened_at,
         updated_at,
@@ -308,11 +324,13 @@ def _ticket_from(row) -> FiledTicket:
             status_id=status_id,
             awaiting_status_id=awaiting,
             stream=IntakeStream(stream),
+            topic=topic,
             trashed=deleted_at is not None,
         ),
         opened_at=opened_at,
         updated_at=updated_at,
         status_id=status_id,
+        topic=topic,
     )
 
 
@@ -399,7 +417,7 @@ async def read_filed(user: User, task_id: int) -> FiledTicketDetail:
         )
         for comment_id, author, content, created_at in said
     ]
-    conversation = meta(ticket.stream).conversation
+    conversation = conversation_for(ticket.stream, ticket.topic)
     return FiledTicketDetail(
         guild_id=guild_id,
         ticket=ticket,

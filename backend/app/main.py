@@ -52,6 +52,8 @@ from app.core.routing import MOUNTED, route_endpoint
 from app.core.version import __version__
 from app.core.smart_chips import SmartChipKind
 from app.schemas.platform.ticket import (
+    AppealTicketCreate,
+    FeedbackTicketCreate,
     ModerationTicketCreate,
     SecurityTicketCreate,
     SupportTicketCreate,
@@ -721,6 +723,8 @@ def custom_openapi() -> dict:
             (SupportTicketCreate, "validation"),
             (ModerationTicketCreate, "validation"),
             (SecurityTicketCreate, "validation"),
+            (FeedbackTicketCreate, "validation"),
+            (AppealTicketCreate, "validation"),
         ],
         ref_template="#/components/schemas/{model}",
     )

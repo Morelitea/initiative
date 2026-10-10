@@ -121,7 +121,7 @@ describe("CommunityStatusNotice", () => {
     state.support = { mode: "form", contact: null };
     renderWithProviders(<CommunityStatusNotice community={seatCommunity()} />);
     await userEvent.click(await screen.findByRole("button", { name: "Contact support" }));
-    expect(await screen.findByLabelText("What is this about?")).toBeInTheDocument();
+    expect(await screen.findByLabelText("Title")).toBeInTheDocument();
     expect(screen.queryByText("Something is wrong")).toBeNull();
   });
 

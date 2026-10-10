@@ -86,14 +86,23 @@
     "action": "Hilfe anfordern",
     "title": "Hilfe anfordern",
     "description": "Schreib uns, was los ist, und jemand kümmert sich darum.",
-    "subjectLabel": "Worum geht es?",
+    "subjectLabel": "Titel",
     "subjectPlaceholder": "Eine Zeile, damit es wiederzufinden ist",
     "bodyLabel": "Was ist passiert?",
     "bodyPlaceholder": "Was du getan hast, was du erwartet hast und was stattdessen passiert ist.",
     "browseFaq": "FAQ durchsehen",
     "submit": "Senden",
     "thanks": "Gesendet. Jemand kümmert sich darum.",
-    "error": "Das konnte nicht gesendet werden. Versuch es gleich noch einmal."
+    "error": "Das konnte nicht gesendet werden. Versuch es gleich noch einmal.",
+    "topicLabel": "Worum geht es?",
+    "topicPlaceholder": "Wähle eins aus",
+    "topics": {
+      "account": "Mein Konto",
+      "community": "Diese Community",
+      "billing": "Abrechnung",
+      "data_request": "Eine Kopie der Daten dieser Community oder ihre Löschung",
+      "other": "Etwas anderes"
+    }
   },
   "contact": {
     "title": "Kontakt aufnehmen",
@@ -173,6 +182,19 @@
         "remove": "Freigegeben: entfernt",
         "purge": "Freigegeben: endgültig gelöscht"
       }
+    },
+    "topics": {
+      "account": "Ihr Konto",
+      "community": "Ihre Community",
+      "billing": "Abrechnung",
+      "data_request": "Datenanfrage",
+      "other": "Sonstiges",
+      "vulnerability": "Schwachstelle",
+      "account_compromise": "Kontoübernahme",
+      "idea": "Idee",
+      "problem": "Problem",
+      "praise": "Lob",
+      "appeal": "Einspruch gegen Sperre"
     }
   },
   "evidence": {
@@ -187,7 +209,9 @@
     "heading": "Angehängt",
     "reveal": "{{name}} anzeigen",
     "view": "{{name}} ansehen",
-    "open": "{{name}} öffnen"
+    "open": "{{name}} öffnen",
+    "dropped_one": "{{names}} wurde entfernt: Das wird hier nicht angenommen.",
+    "dropped_other": "{{names}} wurden entfernt: Sie werden hier nicht angenommen."
   },
   "security": {
     "action": "Sicherheitsproblem melden",
@@ -208,5 +232,41 @@
     "submit": "Meldung senden",
     "thanks": "Gesendet. Du kannst es unter Meine Tickets verfolgen.",
     "error": "Das konnte nicht gesendet werden. Versuch es gleich noch einmal."
+  },
+  "feedback": {
+    "action": "Feedback senden",
+    "title": "Feedback senden",
+    "description": "Sag den Leuten, die diesen Server betreiben, was du denkst. Du kannst es unter „Meine Tickets“ verfolgen.",
+    "typeLabel": "Was für Feedback ist es?",
+    "typePlaceholder": "Wähle eins aus",
+    "topics": {
+      "idea": "Eine Idee",
+      "problem": "Ein Problem",
+      "praise": "Lob",
+      "other": "Etwas anderes"
+    },
+    "bodyLabel": "Was möchtest du ihnen sagen?",
+    "bodyPlaceholder": "Was du dir wünschst, was dich gestört hat oder was dir gefallen hat.",
+    "needsAnswer": "Ich brauche eine Antwort",
+    "needsAnswerHelp": "Sendet es stattdessen als Hilfeanfrage, damit dir jemand antwortet.",
+    "submit": "Feedback senden",
+    "thanks": "Danke! Die Leute, die diesen Server betreiben, werden es lesen.",
+    "error": "Das konnte nicht gesendet werden. Versuch es gleich noch einmal.",
+    "context": {
+      "title": "Wird mitgesendet",
+      "help": "Wo die App gerade war, damit sie sehen, was du gesehen hast. Nichts davon nennt dich oder etwas, das du geöffnet hast.",
+      "remove": "Entfernen",
+      "fields": {
+        "app_version": "Version",
+        "platform": "Plattform",
+        "locale": "Sprache",
+        "theme": "Design",
+        "route": "Seite",
+        "viewport": "Fenster"
+      }
+    }
+  },
+  "moderationTopics": {
+    "appeal": "Einspruch gegen deine Sperre"
   }
 }

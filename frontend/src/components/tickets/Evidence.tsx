@@ -40,6 +40,28 @@ const acceptFor = (types: string[]) =>
 /** One chosen file, told apart from the rest without its place in the list. */
 const fileKey = (file: File) => `${file.name}:${file.size}:${file.lastModified}`;
 
+/** The chosen files a policy still takes, in the order they were chosen, and
+ *  those it no longer does — for a form whose policy changed under them. */
+export const fitToPolicy = (
+  files: File[],
+  policy: EvidencePolicyRead
+): { kept: File[]; dropped: File[] } => {
+  const kept: File[] = [];
+  const dropped: File[] = [];
+  for (const file of files) {
+    if (
+      mayTake(file, policy.types) &&
+      file.size <= policy.max_bytes &&
+      kept.length < policy.max_files
+    ) {
+      kept.push(file);
+    } else {
+      dropped.push(file);
+    }
+  }
+  return { kept, dropped };
+};
+
 /** Where a file the reader filed is fetched from. */
 export const filedEvidenceUrl = (taskId: number, evidenceId: number) =>
   resolveHeaderlessApiUrl(`/api/v1/me/tickets/${taskId}/evidence/${evidenceId}`);

@@ -17,6 +17,10 @@ const fileOptions = vi.hoisted(() => ({
   current: undefined as { onError?: (e: unknown) => void } | undefined,
 }));
 const contacts = vi.hoisted(() => ({ moderation: null as string | null }));
+const offered = vi.hoisted(() => ({
+  support: ["account", "community", "billing", "other"] as string[],
+  supportMode: "form" as "form" | "email" | "none",
+}));
 const POLICY = vi.hoisted(() => ({
   max_files: 2,
   max_bytes: 1024,
@@ -30,8 +34,19 @@ vi.mock("@/hooks/useTickets", async () => {
     useTicketAvailability: () => ({
       data: {
         moderation: { mode: "form", contact: contacts.moderation, evidence: POLICY },
-        support: { mode: "form", contact: null, evidence: POLICY },
+        support: {
+          mode: offered.supportMode,
+          contact: null,
+          evidence: POLICY,
+          types: offered.support,
+        },
         security: { mode: "form", contact: null, evidence: POLICY },
+        feedback: {
+          mode: "form",
+          contact: null,
+          evidence: { ...POLICY, types: ["image/png"] },
+          types: ["idea", "problem", "praise", "other"],
+        },
       },
     }),
     useFileTicket: (options: { onError?: (e: unknown) => void }) => {
@@ -64,6 +79,8 @@ describe("FileTicketDialog", () => {
   beforeEach(() => {
     fileMutate.mockClear();
     contacts.moderation = null;
+    offered.support = ["account", "community", "billing", "other"];
+    offered.supportMode = "form";
   });
 
   describe("reporting something", () => {
@@ -231,33 +248,221 @@ describe("FileTicketDialog", () => {
   });
 
   describe("asking for help", () => {
-    it("sends the subject and words, trimmed, from the community", async () => {
+    const ask = (
+      topic?: "community" | "account" | "data_request",
+      communityId: number | null = 3
+    ) =>
       renderWithProviders(
         <FileTicketDialog
           open
           onOpenChange={() => {}}
-          ticket={{ stream: "support" }}
-          communityId={3}
+          ticket={{ stream: "support", topic }}
+          communityId={communityId}
         />,
         { auth: { user: buildUser() } }
       );
+
+    const write = async (user: ReturnType<typeof userEvent.setup>) => {
+      await user.type(screen.getByLabelText("Title"), " Lost my phone ");
+      await user.type(screen.getByLabelText("What happened?"), "I can't sign in.");
+    };
+
+    it("sends the subject and words, trimmed, about the community", async () => {
+      ask("community");
       const user = userEvent.setup();
 
       const send = screen.getByRole("button", { name: "Send" });
       expect(send).toBeDisabled();
-      await user.type(screen.getByLabelText("What is this about?"), " Lost my phone ");
-      await user.type(screen.getByLabelText("What happened?"), "I can't sign in.");
+      await write(user);
       await user.click(send);
 
       expect(fileMutate).toHaveBeenCalledWith({
         ticket: {
           stream: "support",
+          type: "community",
           community_id: 3,
           subject: "Lost my phone",
           body: "I can't sign in.",
         },
         files: [],
       });
+    });
+
+    it("names no community in a question about the reader's own account", async () => {
+      ask("community");
+      const user = userEvent.setup();
+
+      await user.click(screen.getByRole("combobox", { name: "What is it about?" }));
+      await user.click(await screen.findByRole("option", { name: "My account" }));
+      await write(user);
+      await user.click(screen.getByRole("button", { name: "Send" }));
+
+      expect(fileMutate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          ticket: expect.objectContaining({ type: "account", community_id: null }),
+        })
+      );
+    });
+
+    it("asks about the account from outside any community", async () => {
+      offered.support = ["account", "billing", "other"];
+      ask(undefined, null);
+      const user = userEvent.setup();
+      await write(user);
+      await user.click(screen.getByRole("button", { name: "Send" }));
+
+      expect(fileMutate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          ticket: expect.objectContaining({ type: "account", community_id: null }),
+        })
+      );
+    });
+
+    it("opens a community question it may not ask here on something else", async () => {
+      // The community takes no help requests, or it is closed to the reader.
+      offered.support = ["account", "billing", "other"];
+      ask("community");
+      const user = userEvent.setup();
+      await write(user);
+      await user.click(screen.getByRole("button", { name: "Send" }));
+
+      expect(fileMutate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          ticket: expect.objectContaining({ type: "other", community_id: null }),
+        })
+      );
+    });
+
+    it("offers a data request only where the server offers it", () => {
+      ask("data_request");
+      expect(screen.getByRole("combobox", { name: "What is it about?" })).not.toHaveTextContent(
+        /data/
+      );
+    });
+  });
+
+  describe("sending feedback", () => {
+    const CONTEXT = {
+      app_version: "0.70.0",
+      platform: "web",
+      route: "/c/$communityId/i/$initiativeId",
+    };
+
+    const feedback = (communityId: number | null = 3) =>
+      renderWithProviders(
+        <FileTicketDialog
+          open
+          onOpenChange={() => {}}
+          ticket={{ stream: "feedback", context: CONTEXT }}
+          communityId={communityId}
+        />,
+        { auth: { user: buildUser() } }
+      );
+
+    const choose = async (user: ReturnType<typeof userEvent.setup>, name: string) => {
+      await user.click(screen.getByRole("combobox", { name: "What kind of feedback is it?" }));
+      await user.click(await screen.findByRole("option", { name }));
+    };
+
+    it("sends the kind, the words and where the app was", async () => {
+      feedback();
+      const user = userEvent.setup();
+      // Shown before it is sent.
+      expect(screen.getByText("/c/$communityId/i/$initiativeId")).toBeInTheDocument();
+
+      await choose(user, "An idea");
+      await user.type(screen.getByLabelText("What do you want to tell them?"), "Dark print.");
+      await user.click(screen.getByRole("button", { name: "Send feedback" }));
+
+      expect(fileMutate).toHaveBeenCalledWith({
+        ticket: { stream: "feedback", type: "idea", body: "Dark print.", context: CONTEXT },
+        files: [],
+      });
+    });
+
+    it("sends no context once it is removed", async () => {
+      feedback();
+      const user = userEvent.setup();
+      await user.click(screen.getByRole("button", { name: "Remove" }));
+      expect(screen.queryByText("/c/$communityId/i/$initiativeId")).toBeNull();
+
+      await choose(user, "Praise");
+      await user.type(screen.getByLabelText("What do you want to tell them?"), "Lovely.");
+      await user.click(screen.getByRole("button", { name: "Send feedback" }));
+
+      expect(fileMutate).toHaveBeenCalledWith(
+        expect.objectContaining({ ticket: expect.objectContaining({ context: null }) })
+      );
+    });
+
+    it("sends a problem that needs an answer to support instead", async () => {
+      feedback();
+      const user = userEvent.setup();
+      // Only a problem asks.
+      expect(screen.queryByLabelText("I need an answer")).toBeNull();
+      await choose(user, "A problem");
+      await user.type(
+        screen.getByLabelText("What do you want to tell them?"),
+        "Export drops a row.\nEvery time."
+      );
+      await user.click(screen.getByLabelText("I need an answer"));
+      await user.click(screen.getByRole("button", { name: "Send" }));
+
+      expect(fileMutate).toHaveBeenCalledWith({
+        ticket: {
+          stream: "support",
+          type: "community",
+          community_id: 3,
+          subject: "Export drops a row.",
+          body: "Export drops a row.\nEvery time.",
+        },
+        files: [],
+      });
+    });
+
+    it("asks about the account where the community takes no help requests", async () => {
+      offered.support = ["account", "billing", "other"];
+      feedback();
+      const user = userEvent.setup();
+      await choose(user, "A problem");
+      await user.type(screen.getByLabelText("What do you want to tell them?"), "Broken.");
+      await user.click(screen.getByLabelText("I need an answer"));
+      await user.click(screen.getByRole("button", { name: "Send" }));
+
+      expect(fileMutate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          ticket: expect.objectContaining({
+            stream: "support",
+            type: "account",
+            community_id: null,
+          }),
+        })
+      );
+    });
+
+    it("takes off what feedback does not take when no answer is wanted after all", async () => {
+      feedback();
+      const user = userEvent.setup();
+      await choose(user, "A problem");
+      await user.click(screen.getByLabelText("I need an answer"));
+      const notes = new File(["notes"], "notes.pdf", { type: "application/pdf" });
+      const shot = new File(["png"], "shot.png", { type: "image/png" });
+      await user.upload(screen.getByTestId("evidence-input"), [notes, shot]);
+      expect(screen.getByText("notes.pdf")).toBeInTheDocument();
+
+      await user.click(screen.getByLabelText("I need an answer"));
+
+      expect(screen.queryByText("notes.pdf")).toBeNull();
+      expect(screen.getByText("shot.png")).toBeInTheDocument();
+      expect(screen.getByRole("status")).toHaveTextContent("Took off notes.pdf");
+    });
+
+    it("does not offer an answer where support takes nothing", async () => {
+      offered.supportMode = "email";
+      feedback();
+      const user = userEvent.setup();
+      await choose(user, "A problem");
+      expect(screen.queryByLabelText("I need an answer")).toBeNull();
     });
   });
 
@@ -275,7 +480,7 @@ describe("FileTicketDialog", () => {
       const user = userEvent.setup();
 
       const send = screen.getByRole("button", { name: "Send report" });
-      await user.type(screen.getByLabelText("What is this about?"), "Cookie without Secure");
+      await user.type(screen.getByLabelText("Title"), "Cookie without Secure");
       await user.type(screen.getByLabelText("What did you find?"), "On the sign-in reply.");
       // Not until it says what kind of problem it is.
       expect(send).toBeDisabled();

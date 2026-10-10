@@ -54,6 +54,7 @@ FILER_TABLE_ACCESS: dict[str, tuple[str, ...]] = {
         "id",
         "task_id",
         "stream",
+        "topic",
         "filer_user_id",
         "filer_subject",
         "opened_at",

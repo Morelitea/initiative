@@ -658,6 +658,11 @@ class AccountTimeOutRead(SanitizedBaseModel):
     since: Optional[datetime] = None
     #: The reason the moderator gave, where one was given.
     reason: Optional[str] = None
+    #: Whether an appeal can be filed here, rather than written to
+    #: ``contact_email``.
+    can_appeal: bool = False
+    #: The account's most recent appeal, which it follows on this screen.
+    appeal_task_id: Optional[int] = None
 
 
 class UserRead(UserBase):

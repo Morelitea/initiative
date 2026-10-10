@@ -1,7 +1,9 @@
 import { useTranslation } from "react-i18next";
 
+import { SupportTopic } from "@/api/generated/initiativeAPI.schemas";
 import { BirthdateField } from "@/components/auth/BirthdateField";
 import { useAgeConfirmation } from "@/components/auth/useAgeConfirmation";
+import { HelpLink } from "@/components/support/HelpLink";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -78,6 +80,8 @@ export const AgeConfirmationDialog = ({
           <>
             <p className="text-muted-foreground text-sm">{t("auth:confirmAge.blockedHelp")}</p>
             <DialogFooter>
+              {/* Their own answer, so a question about their account. */}
+              <HelpLink topic={SupportTopic.account} communityId={null} variant="ghost" />
               <Button variant="outline" onClick={() => setOpen(false)}>
                 {t("common:close")}
               </Button>

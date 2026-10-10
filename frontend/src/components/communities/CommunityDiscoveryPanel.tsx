@@ -27,7 +27,12 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { updateCommunity } from "@/api/generated/communities/communities";
-import type { CommunityCategory, CommunityRead } from "@/api/generated/initiativeAPI.schemas";
+import {
+  type CommunityCategory,
+  type CommunityRead,
+  SupportTopic,
+} from "@/api/generated/initiativeAPI.schemas";
+import { HelpLink } from "@/components/support/HelpLink";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -133,9 +138,12 @@ export const CommunityDiscoveryPanel = () => {
 
           {/* Why the toggle is unavailable, rather than an inert control. */}
           {!listed && seatLimited ? (
-            <p className="text-muted-foreground text-sm">
-              {t("communities:settings.discoveryCapacityBlocked")}
-            </p>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <p className="text-muted-foreground text-sm">
+                {t("communities:settings.discoveryCapacityBlocked")}
+              </p>
+              <HelpLink topic={SupportTopic.community} communityId={activeCommunity.id} />
+            </div>
           ) : null}
 
           {/* A listing is a front door; this is about the room behind it. Shown

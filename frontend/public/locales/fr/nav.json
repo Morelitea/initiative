@@ -98,5 +98,6 @@
   "createWiki": "Nouveau wiki",
   "sidebar": {
     "resize": "Faites glisser pour redimensionner la barre latérale"
-  }
+  },
+  "sendFeedback": "Envoyer un avis"
 }

@@ -86,14 +86,23 @@
     "action": "Demander de l'aide",
     "title": "Demander de l'aide",
     "description": "Dites-nous ce qui se passe et quelqu'un s'en chargera.",
-    "subjectLabel": "De quoi s'agit-il ?",
+    "subjectLabel": "Titre",
     "subjectPlaceholder": "Une ligne, pour pouvoir le retrouver",
     "bodyLabel": "Que s'est-il passé ?",
     "bodyPlaceholder": "Ce que vous faisiez, ce que vous attendiez et ce qui s'est passé à la place.",
     "browseFaq": "Consulter la FAQ",
     "submit": "Envoyer",
     "thanks": "Envoyé. Quelqu'un s'en chargera.",
-    "error": "Impossible d'envoyer. Réessayez dans un instant."
+    "error": "Impossible d'envoyer. Réessayez dans un instant.",
+    "topicLabel": "De quoi s'agit-il ?",
+    "topicPlaceholder": "Choisissez une option",
+    "topics": {
+      "account": "Mon compte",
+      "community": "Cette communauté",
+      "billing": "Facturation",
+      "data_request": "Une copie des données de cette communauté, ou leur suppression",
+      "other": "Autre chose"
+    }
   },
   "contact": {
     "title": "Prendre contact",
@@ -173,6 +182,19 @@
         "remove": "Libéré : retiré",
         "purge": "Libéré : purgé"
       }
+    },
+    "topics": {
+      "account": "Son compte",
+      "community": "Sa communauté",
+      "billing": "Facturation",
+      "data_request": "Demande de données",
+      "other": "Autre",
+      "vulnerability": "Vulnérabilité",
+      "account_compromise": "Compte compromis",
+      "idea": "Idée",
+      "problem": "Problème",
+      "praise": "Compliment",
+      "appeal": "Recours contre une suspension"
     }
   },
   "evidence": {
@@ -187,7 +209,9 @@
     "heading": "Pièces jointes",
     "reveal": "Afficher {{name}}",
     "view": "Voir {{name}}",
-    "open": "Ouvrir {{name}}"
+    "open": "Ouvrir {{name}}",
+    "dropped_one": "{{names}} a été retiré : ce formulaire ne l'accepte pas.",
+    "dropped_other": "{{names}} ont été retirés : ce formulaire ne les accepte pas."
   },
   "security": {
     "action": "Signaler un problème de sécurité",
@@ -208,5 +232,41 @@
     "submit": "Envoyer le signalement",
     "thanks": "Envoyé. Vous pouvez le suivre dans Mes tickets.",
     "error": "Impossible d'envoyer. Réessayez dans un instant."
+  },
+  "feedback": {
+    "action": "Envoyer un avis",
+    "title": "Envoyer un avis",
+    "description": "Dites à celles et ceux qui gèrent ce serveur ce que vous en pensez. Vous pouvez le suivre dans Mes tickets.",
+    "typeLabel": "De quel type d'avis s'agit-il ?",
+    "typePlaceholder": "Choisissez une option",
+    "topics": {
+      "idea": "Une idée",
+      "problem": "Un problème",
+      "praise": "Un compliment",
+      "other": "Autre chose"
+    },
+    "bodyLabel": "Que voulez-vous leur dire ?",
+    "bodyPlaceholder": "Ce que vous aimeriez, ce qui vous a gêné ou ce qui vous a plu.",
+    "needsAnswer": "J'ai besoin d'une réponse",
+    "needsAnswerHelp": "L'envoie plutôt comme demande d'aide, pour que quelqu'un vous réponde.",
+    "submit": "Envoyer l'avis",
+    "thanks": "Merci ! Celles et ceux qui gèrent ce serveur le liront.",
+    "error": "Impossible d'envoyer. Réessayez dans un instant.",
+    "context": {
+      "title": "Envoyé avec",
+      "help": "Où en était l'application, pour qu'ils voient ce que vous avez vu. Rien ici ne vous nomme, ni rien de ce que vous avez ouvert.",
+      "remove": "Retirer",
+      "fields": {
+        "app_version": "Version",
+        "platform": "Plateforme",
+        "locale": "Langue",
+        "theme": "Thème",
+        "route": "Page",
+        "viewport": "Fenêtre"
+      }
+    }
+  },
+  "moderationTopics": {
+    "appeal": "Recours contre votre suspension"
   }
 }

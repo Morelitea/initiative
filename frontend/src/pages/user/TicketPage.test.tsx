@@ -28,6 +28,7 @@ const now = new Date().toISOString();
 const ticket = (overrides: Partial<FiledTicketDetailRead> = {}): FiledTicketDetailRead => ({
   task_id: 7,
   stream: "support",
+  topic: "account",
   subject: "Lost my phone",
   state: "waiting_on_you",
   opened_at: now,

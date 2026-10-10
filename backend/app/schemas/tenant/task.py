@@ -327,7 +327,10 @@ class TaskCaseRead(SanitizedBaseModel):
     filer: Optional[UserPublic] = None
     #: What they called it when they filed it. The task's title is the team's.
     filer_subject: Optional[str] = None
-    #: What the stream allows with the filer: ``open``, ``staff_first`` (the
+    #: What it is about within its stream, as they chose: a support topic,
+    #: a security topic, ``appeal``.
+    topic: Optional[str] = None
+    #: What the case allows with the filer: ``open``, ``staff_first`` (the
     #: team speaks first), or ``none`` — also where nobody filed it.
     conversation: Conversation
     #: The binding's statuses that mean "waiting on the filer" and "being

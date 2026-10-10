@@ -116,6 +116,12 @@ export const CasePanel = ({ taskId, canEdit }: CasePanelProps) => {
         <CardTitle className="flex items-center gap-2 text-base">
           <Inbox className="h-4 w-4" aria-hidden="true" />
           {t(`streams.${found.stream}.title`)}
+          {/* What the filer said it is about, where they chose. */}
+          {found.topic ? (
+            <span className="font-normal text-muted-foreground">
+              · {t(`case.topics.${found.topic}`, { defaultValue: found.topic })}
+            </span>
+          ) : null}
         </CardTitle>
         <p className="text-muted-foreground text-sm">
           {filerName ? (

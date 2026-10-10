@@ -1601,7 +1601,8 @@ export function useReadMemberAvatar<
 
 /**
  * What a suspended account is told on its time-out screen: why, where a
- * reason was given, and whom to contact.
+ * reason was given, whom to contact, and whether it can appeal here — with
+ * the appeal it already made, which it follows on the same screen.
  *
  * Answers for an active account too — nobody to contact, since there is
  * nothing to lift — so the screen can ask without first knowing the status.

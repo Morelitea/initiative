@@ -9,6 +9,8 @@
 import { useQuery } from "@tanstack/react-query";
 
 import type {
+  AppealTicketCreate,
+  FeedbackTicketCreate,
   FiledTicketDetailRead,
   FiledTicketList,
   ModerationTicketCreate,
@@ -40,8 +42,13 @@ import type { QueryOpts } from "@/types/query";
 /** Where somebody is sent when there is neither a form nor an address. */
 export const FAQ_URL = docsUrl("faq/");
 
-/** One filing, told apart by its stream. */
-export type TicketCreate = SupportTicketCreate | ModerationTicketCreate | SecurityTicketCreate;
+/** One filing, told apart by its stream, and an appeal by its type. */
+export type TicketCreate =
+  | SupportTicketCreate
+  | ModerationTicketCreate
+  | SecurityTicketCreate
+  | FeedbackTicketCreate
+  | AppealTicketCreate;
 
 /** A filing and the files sent with it. */
 export interface TicketFiling {

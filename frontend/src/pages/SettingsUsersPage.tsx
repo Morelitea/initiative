@@ -8,7 +8,11 @@ import {
   deleteCommunityInvite,
   useListCommunityInvites,
 } from "@/api/generated/communities/communities";
-import type { CommunityRole, UserCommunityMember } from "@/api/generated/initiativeAPI.schemas";
+import {
+  type CommunityRole,
+  SupportTopic,
+  type UserCommunityMember,
+} from "@/api/generated/initiativeAPI.schemas";
 import { MemberDisplayNameDialog } from "@/components/communities/MemberDisplayNameDialog";
 import { RemoveCommunityMemberDialog } from "@/components/communities/RemoveCommunityMemberDialog";
 import { TransferContentOwnershipDialog } from "@/components/communities/TransferContentOwnershipDialog";
@@ -19,6 +23,7 @@ import {
   SkeletonRegion,
   TableSkeleton,
 } from "@/components/skeletons/PageSkeletons";
+import { HelpLink } from "@/components/support/HelpLink";
 import { UserHandle } from "@/components/UserHandle";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -478,9 +483,12 @@ export const SettingsUsersPage = () => {
                 </Button>
               </div>
             ) : atUserLimit ? (
-              <p className="text-muted-foreground text-sm">
-                {t("users.inviteSeatsFull", { max: maxUsers })}
-              </p>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <p className="text-muted-foreground text-sm">
+                  {t("users.inviteSeatsFull", { max: maxUsers })}
+                </p>
+                <HelpLink topic={SupportTopic.community} communityId={activeCommunityId} />
+              </div>
             ) : null}
             <div className="h-px bg-border" />
             {invitesQuery.isLoading ? (

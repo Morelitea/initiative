@@ -211,27 +211,33 @@ class CaseCapReached(Exception):
 
 
 async def _open_cases_filed_by(
-    session: AsyncSession, *, user_id: int, stream: IntakeStream
+    session: AsyncSession,
+    *,
+    user_id: int,
+    stream: IntakeStream,
+    topic: Optional[str] = None,
 ) -> int:
-    """How many of ``stream``'s cases ``user_id`` filed that are still open.
+    """How many of ``stream``'s cases ``user_id`` filed that are still open,
+    on ``topic`` alone where one is named.
 
     On the writer's own routed session, under the filer's lock, so the count
     and the case it admits are one decision. A case is open while its task is
     out of the trash and short of a ``done`` status — the same test a repeat
     uses to find the case it joins.
     """
-    count = (
-        await session.exec(
-            select(func.count())
-            .select_from(IntakeCase)
-            .join(Task, Task.id == IntakeCase.task_id)
-            .join(TaskStatus, TaskStatus.id == Task.task_status_id)
-            .where(IntakeCase.filer_user_id == user_id)
-            .where(IntakeCase.stream == stream.value)
-            .where(Task.deleted_at.is_(None))
-            .where(TaskStatus.category != TaskStatusCategory.done)
-        )
-    ).one()
+    query = (
+        select(func.count())
+        .select_from(IntakeCase)
+        .join(Task, Task.id == IntakeCase.task_id)
+        .join(TaskStatus, TaskStatus.id == Task.task_status_id)
+        .where(IntakeCase.filer_user_id == user_id)
+        .where(IntakeCase.stream == stream.value)
+        .where(Task.deleted_at.is_(None))
+        .where(TaskStatus.category != TaskStatusCategory.done)
+    )
+    if topic is not None:
+        query = query.where(IntakeCase.topic == topic)
+    count = (await session.exec(query)).one()
     return int(count)
 
 
@@ -240,6 +246,7 @@ async def _starting_state(
     stream: IntakeStream,
     binding: IntakeBinding,
     status_id: Optional[int],
+    topic: Optional[str],
 ) -> str:
     """The state a case landing in ``status_id`` shows whoever filed it."""
     from app.services.platform.tickets import derive_state
@@ -254,6 +261,7 @@ async def _starting_state(
         status_id=status_id,
         awaiting_status_id=binding.awaiting_filer_status_id,
         stream=stream,
+        topic=topic,
     ).value
 
 
@@ -419,6 +427,7 @@ async def open_case(
     detail: Optional[str] = None,
     evidence: Sequence["PreparedEvidence"] = (),
     evidence_by: Optional[int] = None,
+    topic: Optional[str] = None,
 ) -> Optional[CaseOutcome]:
     """File ``stream``'s work as a task in the project bound to it.
 
@@ -443,6 +452,10 @@ async def open_case(
     (``app.services.platform.evidence.prepare``). It is stored with the case,
     in the same transaction, beside the opening words when there are some, and
     as ``evidence_by``'s — the filer's when there is one.
+
+    ``topic`` is what the case is about within its stream, as the filer
+    chose. It is recorded on a new case, and a topic with a cap of its own
+    (``IntakeStreamMeta.topic_open_caps``) is held to it.
     """
     from app.services.platform import evidence as evidence_service
 
@@ -535,7 +548,7 @@ async def open_case(
                     task_id=existing.task_id, opened=False, case_id=int(existing.id)
                 )
 
-        cap = meta(stream).max_open_per_filer
+        cap, by_topic = meta(stream).open_cap_for(topic)
         if filer is not None and cap is not None:
             # Held for the rest of the transaction, so two filings at once
             # queue here and the second counts the first's case.
@@ -546,7 +559,10 @@ async def open_case(
                 dedupe_key=f"filer:{filer.user_id}",
             )
             held = await _open_cases_filed_by(
-                session, user_id=filer.user_id, stream=stream
+                session,
+                user_id=filer.user_id,
+                stream=stream,
+                topic=topic if by_topic else None,
             )
             if held >= cap:
                 raise CaseCapReached
@@ -573,6 +589,7 @@ async def open_case(
             stream=stream,
             task_id=task.id,
             dedupe_key=dedupe_key,
+            topic=topic,
             opened_at=moment,
             last_seen_at=moment,
             noted_at=moment,
@@ -582,7 +599,9 @@ async def open_case(
             # Where its filer starts, so the first move after it is news
             # to them however soon it comes.
             filer_notified_state=(
-                await _starting_state(session, stream, binding, task.task_status_id)
+                await _starting_state(
+                    session, stream, binding, task.task_status_id, topic
+                )
                 if filer is not None
                 else None
             ),
@@ -645,7 +664,7 @@ async def add_filer_reply(
         await set_rls_context(session, SystemGuild(guild_id))
         found = (
             await session.exec(
-                select(Task, IntakeCase.id)
+                select(Task, IntakeCase.id, IntakeCase.topic)
                 .join(IntakeCase, IntakeCase.task_id == Task.id)
                 .where(Task.id == task_id)
                 .where(IntakeCase.filer_user_id == filer.id)
@@ -655,7 +674,7 @@ async def add_filer_reply(
         ).one_or_none()
         if found is None:
             return False
-        task, case_id = found
+        task, case_id, topic = found
         category = (
             await session.exec(
                 select(TaskStatus.category).where(TaskStatus.id == task.task_status_id)
@@ -669,6 +688,7 @@ async def add_filer_reply(
                 binding.awaiting_filer_status_id if binding is not None else None
             ),
             stream=stream,
+            topic=topic,
             trashed=task.deleted_at is not None,
         )
         if state is FilerState.closed:

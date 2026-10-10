@@ -207,19 +207,31 @@ async def read_my_time_out(
     current_user: FactorExemptAccountHolder,
 ) -> AccountTimeOutRead:
     """What a suspended account is told on its time-out screen: why, where a
-    reason was given, and whom to contact.
+    reason was given, whom to contact, and whether it can appeal here — with
+    the appeal it already made, which it follows on the same screen.
 
     Answers for an active account too — nobody to contact, since there is
     nothing to lift — so the screen can ask without first knowing the status.
     """
+    from app.core.intake import APPEAL
+    from app.services.platform import tickets as tickets_service
+
     if current_user.status != UserStatus.suspended:
         return AccountTimeOutRead()
+    appeals = [
+        ticket
+        for ticket in await tickets_service.list_filed(current_user)
+        if ticket.stream is IntakeStream.moderation and ticket.topic == APPEAL
+    ]
+    latest = max(appeals, key=lambda ticket: ticket.opened_at, default=None)
     return AccountTimeOutRead(
         contact_email=await intake_service.contact_for(
             session, IntakeStream.moderation
         ),
         since=current_user.status_changed_at,
         reason=current_user.status_reason,
+        can_appeal=await intake_service.stream_is_bound(IntakeStream.moderation),
+        appeal_task_id=latest.task_id if latest is not None else None,
     )
 
 

@@ -8,6 +8,7 @@ import {
   LifeBuoy,
   ListTodo,
   MessageSquare,
+  MessageSquareHeart,
   Plus,
   Search,
   Settings,
@@ -21,6 +22,7 @@ import { useTranslation } from "react-i18next";
 import { type SearchSuggestion, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { InitiativeMark } from "@/components/icons/InitiativeMark";
 import { getOpenCreateTaskWizard } from "@/components/tasks/CreateTaskWizard";
+import { openFeedback, useFeedbackOffered } from "@/components/tickets/FeedbackSheet";
 import { useSecurityReporting } from "@/components/tickets/ReportSecurityProblem";
 import { getOpenCreateToolWizard } from "@/components/tools/CreateToolWizard";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -251,6 +253,7 @@ export function CommandCenter() {
   const dmEnabled = useDirectMessagesEnabled();
   const hasTickets = useHasFiledTickets();
   const securityReporting = useSecurityReporting();
+  const feedbackOffered = useFeedbackOffered();
   const showPlatformSettings = canManagePlatformConfig(user);
   const showOperatorDashboard = canAccessOperatorDashboard(user);
 
@@ -463,6 +466,18 @@ export function CommandCenter() {
             >
               <ShieldAlert className="text-muted-foreground" />
               <span>{t("actions.reportSecurityProblem")}</span>
+            </CommandItem>
+          )}
+          {feedbackOffered && (
+            <CommandItem
+              value="action-send-feedback"
+              onSelect={() => {
+                setOpen(false);
+                openFeedback();
+              }}
+            >
+              <MessageSquareHeart className="text-muted-foreground" />
+              <span>{t("actions.sendFeedback")}</span>
             </CommandItem>
           )}
         </CommandGroup>

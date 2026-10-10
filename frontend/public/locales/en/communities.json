@@ -371,7 +371,8 @@
     },
     "moderationRemoved": "A moderator took down something you wrote: {{reason}}",
     "moderationRemovedLegal": "Something you wrote was taken down for legal reasons",
-    "moderationWarned": "A warning from the moderators: {{message}}"
+    "moderationWarned": "A warning from the moderators: {{message}}",
+    "feedbackRead": "Your feedback was read"
   },
   "version": {
     "versionInformation": "Version Information",
