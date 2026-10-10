@@ -16,20 +16,28 @@ import {
   updateCalendarEvent,
   updateRsvp,
 } from "@/api/generated/calendar-events/calendar-events";
-import type {
-  CalendarEventCreate,
-  CalendarEventRead,
-  CalendarEventRSVPUpdate,
-  CalendarEventUpdate,
-  CalendarEventUpdateScope,
-  ICalImportRequest,
-  ICalImportResult,
-  ICalParseRequest,
-  ICalParseResult,
+import {
+  type CalendarEventCreate,
+  type CalendarEventRead,
+  type CalendarEventRSVPUpdate,
+  type CalendarEventUpdate,
+  type CalendarEventUpdateScope,
+  type ICalImportRequest,
+  type ICalImportResult,
+  type ICalParseRequest,
+  type ICalParseResult,
+  PropertyTarget,
 } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
+import type { OccurrenceScope } from "@/components/recurrence/OccurrenceScopeDialog";
 import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useCommunityMutation } from "@/hooks/useApiMutation";
+import {
+  type FieldSaveKind,
+  type ItemEdit,
+  useItemFieldSave,
+  useShownWithPending,
+} from "@/hooks/useFieldSave";
 import { withZone } from "@/lib/recurrence";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
@@ -46,11 +54,92 @@ export const useCalendarEvent = (
   const communityId = useActiveCommunityId();
   const { enabled: userEnabled = true, ...rest } = options ?? {};
   const params = occurrence ? { occurrence } : undefined;
-  return useQuery<CalendarEventRead>({
+  const query = useQuery<CalendarEventRead>({
     queryKey: getReadCalendarEventQueryKey(communityId, eventId!, params),
     queryFn: () => readCalendarEvent(communityId, eventId!, params),
     enabled: eventId !== null && Number.isFinite(eventId) && userEnabled,
     ...rest,
+  });
+  return useShownWithPending(eventSaves(occurrence), eventId, query);
+};
+
+/** A change to some of an event's fields. Its attendees are set as a whole,
+ *  on a route of their own. */
+export type EventPatch = CalendarEventUpdate & { attendee_ids?: number[] };
+
+export type EventEdit = ItemEdit<CalendarEventRead, EventPatch>;
+
+/** How an event is saved field by field, read at `occurrence` when it names
+ *  one date of a repeating event. */
+export const eventSaves = (
+  occurrence?: string | null
+): FieldSaveKind<CalendarEventRead, EventPatch> => ({
+  name: "event",
+  readKey: (communityId, id) =>
+    getReadCalendarEventQueryKey(communityId, id, occurrence ? { occurrence } : undefined),
+  patch: (communityId, id, { attendee_ids, ...patch }) =>
+    attendee_ids
+      ? setAttendees(communityId, id, attendee_ids, {
+          scope: patch.scope ?? undefined,
+          occurrence: patch.occurrence ?? undefined,
+        })
+      : updateCalendarEvent(communityId, id, withZone(patch)),
+  properties: PropertyTarget.calendar_event,
+  lists: (edit) =>
+    "patch" in edit ? q.allCalendarEvents() : q.propertyHolder(PropertyTarget.calendar_event),
+  itself: (id) => q.calendarEvent(id),
+});
+
+// The fields a change to one date of a repeating event may keep from the
+// rest of it, so changing one asks which dates it is for.
+const SERIES_FIELDS: (keyof EventPatch)[] = [
+  "title",
+  "description",
+  "location",
+  "start_at",
+  "end_at",
+  "all_day",
+  "attendee_ids",
+];
+
+/**
+ * The one way an event's page saves a field ({@link useItemFieldSave}). A
+ * change to a repeating event, or to one date of it, asks which dates it is
+ * for; "just this" and "from here on" answer with another event (the date's
+ * own, or the new series), which `onMoved` takes the page to.
+ */
+export const useEventFieldSave = (
+  event: CalendarEventRead,
+  label: string,
+  {
+    occurrence,
+    occurrenceStart,
+    askScope,
+    onMoved,
+  }: {
+    /** The date the page was opened at, when it names one. */
+    occurrence?: string | null;
+    /** The date a change is about, by its start in the series. */
+    occurrenceStart: string;
+    askScope: (action: "edit") => Promise<OccurrenceScope | null>;
+    onMoved: (moved: CalendarEventRead) => void;
+  }
+) => {
+  const repeating = Boolean(event.recurrence) || event.series_id != null;
+  return useItemFieldSave(eventSaves(occurrence), event.id, label, {
+    prepare: async (edit) => {
+      if (!repeating || !("patch" in edit)) return edit;
+      if (!SERIES_FIELDS.some((name) => name in edit.patch)) return edit;
+      const scope = await askScope("edit");
+      if (scope === null) return null;
+      const target = event.series_id != null ? { scope } : { scope, occurrence: occurrenceStart };
+      return { ...edit, patch: { ...edit.patch, ...target } };
+    },
+    movedTo: (written) => {
+      const moved = written.id !== undefined && written.id !== event.id;
+      if (moved) onMoved(written as CalendarEventRead);
+      return moved;
+    },
   });
 };
 

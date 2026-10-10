@@ -103,6 +103,10 @@ class CalendarEventCreate(CalendarEventBase, PropertiesOnCreate):
 class CalendarEventUpdate(PropertiesOnUpdate):
     title: Optional[TitleStr] = Field(default=None, min_length=1, max_length=255)
     description: Optional[MentionStr] = None
+    #: The description this ``description`` was written over, as the event
+    #: being changed holds it. Given and no longer the stored one, the update
+    #: is refused with ``CALENDAR_EVENT_DESCRIPTION_CHANGED``.
+    description_base: Optional[MentionStr] = None
     location: Optional[MentionStr] = Field(default=None, max_length=500)
     start_at: Optional[datetime] = None
     end_at: Optional[datetime] = None

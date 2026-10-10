@@ -1054,6 +1054,8 @@ class CalendarMessages:
 
 class CalendarEventMessages:
     NOT_FOUND = "CALENDAR_EVENT_NOT_FOUND"
+    #: An update named a description that is no longer the stored one.
+    DESCRIPTION_CHANGED = "CALENDAR_EVENT_DESCRIPTION_CHANGED"
     ICAL_PARSE_FAILED = "ICAL_PARSE_FAILED"
     ICAL_NO_EVENTS = "ICAL_NO_EVENTS_FOUND"
     ENDS_BEFORE_START = "CALENDAR_EVENT_ENDS_BEFORE_START"

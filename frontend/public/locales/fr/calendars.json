@@ -141,5 +141,14 @@
     "manage": "Vous pouvez supprimer ce lien dans Paramètres › Sécurité.",
     "keyName": "Calendrier : {{name}}",
     "error": "Impossible de créer le lien d'abonnement."
+  },
+  "eventPage": {
+    "titlePlaceholder": "Titre de l'événement",
+    "description": "Description",
+    "noDescription": "Aucune description.",
+    "when": "Quand",
+    "tagsPlaceholder": "Ajouter des étiquettes",
+    "moreFields": "Autres champs",
+    "readOnly": "Vous pouvez voir cet événement, mais pas le modifier."
   }
 }

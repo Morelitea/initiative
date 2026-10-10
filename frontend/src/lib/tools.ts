@@ -328,13 +328,6 @@ export const eventRoute = (
   eventId: number
 ): string => `${toolDetailRoute(Tool.calendar, initiativeId, calendarId)}/events/${eventId}`;
 
-/** e.g. "/i/1/calendars/2/events/9/settings". */
-export const eventSettingsRoute = (
-  initiativeId: number | null,
-  calendarId: number,
-  eventId: number
-): string => `${eventRoute(initiativeId, calendarId, eventId)}/settings`;
-
 /** e.g. "/i/1/counter-groups/3/counter/7". */
 export const counterRoute = (
   initiativeId: number | null,

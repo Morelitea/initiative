@@ -1544,6 +1544,7 @@ export interface CalendarEventUpdate {
   properties?: PropertyValueInput[] | null;
   title?: string | null;
   description?: string | null;
+  description_base?: string | null;
   location?: string | null;
   start_at?: string | null;
   end_at?: string | null;

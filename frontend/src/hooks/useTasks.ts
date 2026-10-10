@@ -234,7 +234,7 @@ const SERIES_FIELDS: (keyof TaskUpdate)[] = [
 ];
 
 /** How a task is saved field by field. */
-const TASK_SAVES: FieldSaveKind<TaskRead, TaskUpdate> = {
+export const TASK_SAVES: FieldSaveKind<TaskRead, TaskUpdate> = {
   name: "task",
   readKey: (communityId, id) => getReadTaskQueryKey(communityId, id),
   patch: (communityId, id, patch) => updateTask(communityId, id, withZone(patch)),
