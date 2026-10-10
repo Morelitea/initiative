@@ -116,12 +116,10 @@ async def get_for_export(
     row = await load(session, entity_id)
     if row is None:
         raise await reachability.missing_or_denied(
-            tool.plural,
+            tool,
             entity_id,
             user.id,
             guild_id,
-            not_found=tool.not_found_code,
-            denied=tool.no_access_code,
         )
     if row.initiative is not None:
         require_tool_enabled(tool, row.initiative)

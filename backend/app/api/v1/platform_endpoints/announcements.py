@@ -40,7 +40,7 @@ from app.api.deps import (
 )
 from app.core.capabilities import Capability
 from app.db.session import set_rls_context
-from app.core.messages import AnnouncementMessages
+from app.core.messages import ImageMessages, AnnouncementMessages
 from app.models.platform.announcement import (
     ANNOUNCEMENT_IMAGE_SPEC,
     Announcement,
@@ -152,7 +152,7 @@ async def read_announcement_image(
     if image is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=AnnouncementMessages.IMAGE_NOT_FOUND,
+            detail=ImageMessages.IMAGE_NOT_FOUND,
         )
     return Response(
         content=image.data,

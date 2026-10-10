@@ -17,6 +17,7 @@ from sqlmodel import delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy import text
 
+from app.core.tools import Tool
 from app.db.schema_provisioning import guild_schema_name
 from app.core.messages import (
     CalendarEventMessages,
@@ -644,7 +645,7 @@ async def test_create_event_requires_calendar_write(
         },
     )
     assert response.status_code == 403
-    assert response.json()["detail"] == "CALENDAR_WRITE_ACCESS_REQUIRED"
+    assert response.json() == Tool.calendar.write_required().body
 
 
 async def test_move_event_between_calendars_requires_write_on_both(
@@ -827,7 +828,7 @@ async def test_a_description_written_over_one_since_changed_is_refused(
     )
 
     assert stale.status_code == 409
-    assert stale.json()["detail"] == CalendarEventMessages.DESCRIPTION_CHANGED
+    assert stale.json()["detail"] == CommonMessages.DESCRIPTION_CHANGED
     assert current.status_code == 200
     assert current.json()["description"] == "Mine"
 

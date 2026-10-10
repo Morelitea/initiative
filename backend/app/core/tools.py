@@ -4,13 +4,21 @@ A tool is a first-class thing an initiative offers. Every tool is the same shape
 a soft-deletable content table under initiative-member RLS, shared via
 ``resource_grants`` (its string value IS the ``resource_type``). The single source
 of truth for that set — the DAC registries and every tool endpoint reference it
-rather than repeating string literals. Kept dependency-free (just an enum) so it
-can be imported anywhere. ``tools_test.py`` asserts every per-tool surface covers
+rather than repeating string literals. Kept free of app imports beyond the leaf
+``errors`` and ``messages`` modules, so it can be imported anywhere. ``tools_test.py`` asserts every per-tool surface covers
 this enum, so a new member that forgets to wire one fails CI.
 """
 
 from dataclasses import dataclass
 from enum import Enum
+
+from app.core.errors import CodedError
+from app.core.messages import KindMessages
+
+
+def kind_refusal(kind: str, code: str, status_code: int) -> CodedError:
+    """A ``KindMessages`` refusal about ``kind``, which its wording names."""
+    return CodedError(code, status_code, params={"kind": kind})
 
 
 def plural_of(stem: str) -> str:
@@ -60,54 +68,40 @@ class Tool(str, Enum):
         """The role ``PermissionKey`` value gating creating this tool."""
         return f"create_{self.plural}"
 
-    @property
-    def code_prefix(self) -> str:
-        """The SCREAMING_SNAKE stem every error code for this tool derives from
-        (``counter_group`` -> ``COUNTER_GROUP``)."""
-        return self.value.upper()
+    # The refusals every tool answers alike, each naming the tool. A method
+    # rather than a constant: each call is a fresh exception to raise.
 
-    @property
-    def not_found_code(self) -> str:
-        """``detail`` code for "no such <tool>"."""
-        return f"{self.code_prefix}_NOT_FOUND"
+    def not_found(self, status_code: int = 404) -> CodedError:
+        """No such <tool>, or not one this reader can see."""
+        return kind_refusal(self.value, KindMessages.NOT_FOUND, status_code)
 
-    @property
-    def no_access_code(self) -> str:
-        """``detail`` code for "this <tool> is not shared with you"."""
-        return f"{self.code_prefix}_NO_ACCESS"
+    def no_access(self) -> CodedError:
+        """This <tool> is not shared with you."""
+        return kind_refusal(self.value, KindMessages.NO_ACCESS, 403)
 
-    @property
-    def owner_required_code(self) -> str:
-        """``detail`` code for "only the <tool>'s owner may do that"."""
-        return f"{self.code_prefix}_OWNER_REQUIRED"
+    def owner_required(self) -> CodedError:
+        """Only the <tool>'s owner may do that."""
+        return kind_refusal(self.value, KindMessages.OWNER_REQUIRED, 403)
 
-    @property
-    def write_required_code(self) -> str:
-        """``detail`` code for "you may read this <tool> but not change it"."""
-        return f"{self.code_prefix}_WRITE_ACCESS_REQUIRED"
+    def write_required(self) -> CodedError:
+        """You may read this <tool> but not change it."""
+        return kind_refusal(self.value, KindMessages.WRITE_ACCESS_REQUIRED, 403)
 
-    @property
-    def create_permission_code(self) -> str:
-        """``detail`` code for "your initiative role may not create <tool>s"."""
-        return f"{self.code_prefix}_CREATE_PERMISSION_REQUIRED"
+    def create_denied(self) -> CodedError:
+        """Your initiative role may not create <tool>s."""
+        return kind_refusal(self.value, KindMessages.CREATE_PERMISSION_REQUIRED, 403)
 
-    @property
-    def role_permission_code(self) -> str:
-        """``detail`` code for "your initiative role does not permit this on
-        <tool>s" — gate 3, which is a different refusal from not having been
-        shared the row (:attr:`no_access_code`, gate 4)."""
-        return f"{self.code_prefix}_PERMISSION_REQUIRED"
+    def disabled(self) -> CodedError:
+        """This initiative has <tool>s switched off."""
+        return kind_refusal(self.value, KindMessages.TOOL_NOT_ENABLED, 403)
 
-    @property
-    def feature_disabled_code(self) -> str:
-        """``detail`` code for "this initiative has <tool>s switched off"."""
-        return f"{self.plural.upper()}_NOT_ENABLED"
+    def grant_cannot_manage_members(self) -> CodedError:
+        """A temporary grant reaches this <tool>'s content, not who may see it."""
+        return kind_refusal(self.value, KindMessages.GRANT_CANNOT_MANAGE_MEMBERS, 403)
 
-    @property
-    def grant_cannot_manage_members_code(self) -> str:
-        """``detail`` code for "a PAM grant reaches this <tool>'s content, not
-        who may see it"."""
-        return f"{self.code_prefix}_GRANT_CANNOT_MANAGE_MEMBERS"
+    def grantee_lacks_access(self) -> CodedError:
+        """Sharing was addressed to somebody whose role does not reach <tool>s."""
+        return kind_refusal(self.value, KindMessages.GRANTEE_LACKS_ACCESS, 422)
 
 
 @dataclass(frozen=True)
@@ -138,6 +132,10 @@ class Kind:
         """The column naming the tool this lives inside."""
         return f"{self.parent.value}_id" if self.parent else None
 
+    def not_found(self, status_code: int = 404) -> CodedError:
+        """No such <kind>, or not one this reader can see."""
+        return kind_refusal(self.value, KindMessages.NOT_FOUND, status_code)
+
 
 #: Every kind, keyed by its wire name. Append-only: a new kind takes the next
 #: unused code, and no existing code ever moves. The initial set was assigned in
@@ -166,6 +164,9 @@ KINDS: dict[str, Kind] = {
         Kind("tag", 13),
     )
 }
+
+#: Every kind, keyed by the table its rows live in.
+KIND_BY_TABLE: dict[str, Kind] = {kind.table: kind for kind in KINDS.values()}
 
 #: The kinds that live inside a tool.
 CHILD_KINDS: tuple[str, ...] = tuple(k.value for k in KINDS.values() if k.parent)

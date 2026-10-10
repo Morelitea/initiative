@@ -366,5 +366,87 @@
     "unsavedBody": "Vous avez une description non enregistrée. Si vous partez maintenant, elle sera perdue.",
     "leave": "Quitter",
     "stay": "Rester"
+  },
+  "kinds": {
+    "project": {
+      "name": "Projet",
+      "this": "ce projet",
+      "plural": "projets"
+    },
+    "file": {
+      "name": "Fichier",
+      "this": "ce fichier",
+      "plural": "fichiers"
+    },
+    "queue": {
+      "name": "File",
+      "this": "cette file",
+      "plural": "files"
+    },
+    "counter_group": {
+      "name": "Groupe de compteurs",
+      "this": "ce groupe de compteurs",
+      "plural": "groupes de compteurs"
+    },
+    "calendar": {
+      "name": "Calendrier",
+      "this": "ce calendrier",
+      "plural": "calendriers"
+    },
+    "dashboard": {
+      "name": "Tableau de bord",
+      "this": "ce tableau de bord",
+      "plural": "tableaux de bord"
+    },
+    "post": {
+      "name": "Publication",
+      "this": "cette publication",
+      "plural": "publications"
+    },
+    "gallery": {
+      "name": "Galerie",
+      "this": "cette galerie",
+      "plural": "galeries"
+    },
+    "wiki": {
+      "name": "Wiki",
+      "this": "ce wiki",
+      "plural": "wikis"
+    },
+    "task": {
+      "name": "Tâche",
+      "this": "cette tâche",
+      "plural": "tâches"
+    },
+    "queue_item": {
+      "name": "Élément de file",
+      "this": "cet élément de file",
+      "plural": "éléments de file"
+    },
+    "calendar_event": {
+      "name": "Événement",
+      "this": "cet événement",
+      "plural": "événements"
+    },
+    "counter": {
+      "name": "Compteur",
+      "this": "ce compteur",
+      "plural": "compteurs"
+    },
+    "gallery_image": {
+      "name": "Image",
+      "this": "cette image",
+      "plural": "images"
+    },
+    "wiki_page": {
+      "name": "Page",
+      "this": "cette page",
+      "plural": "pages"
+    },
+    "tag": {
+      "name": "Étiquette",
+      "this": "cette étiquette",
+      "plural": "étiquettes"
+    }
   }
 }

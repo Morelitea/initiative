@@ -21,7 +21,7 @@ from app.api.deps import (
 )
 from app.core.plugin_scopes import tool_resource
 from app.core.messages import PluginMessages, TagMessages
-from app.core.tools import Tool
+from app.core.tools import KINDS, Tool
 from app.db.guild_standing import InstallContext
 from app.db.initiative_rls import governing_path
 from app.models.tenant.tag import Tag
@@ -87,9 +87,7 @@ async def _get_tag_or_404(session: SessionDep, tag_id: int, guild_id: int) -> Ta
     result = await session.exec(stmt)
     tag = result.one_or_none()
     if tag is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=TagMessages.NOT_FOUND
-        )
+        raise KINDS["tag"].not_found()
     return tag
 
 
@@ -164,12 +162,7 @@ async def bulk_edit_tags(
             )
         ).all()
         if len(rows) != len(target_ids):
-            # Every tag target's code follows the one spelling:
-            # TASK_NOT_FOUND, QUEUE_ITEM_NOT_FOUND, WIKI_PAGE_NOT_FOUND, …
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"{target.upper()}_NOT_FOUND",
-            )
+            raise KINDS[target].not_found()
         parent_ids = list(dict.fromkeys(parent_id for _, parent_id in rows))
     # One load for every governing row, with what the decision reads: the
     # actions the database answered and the initiative's switches.

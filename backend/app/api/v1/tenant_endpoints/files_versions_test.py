@@ -373,7 +373,7 @@ async def test_download_version_unknown_returns_404(
         headers=owner.headers,
     )
     assert resp.status_code == 404
-    assert resp.json()["detail"] == "FILE_VERSION_NOT_FOUND"
+    assert resp.json()["detail"] == "VERSION_NOT_FOUND"
 
 
 async def test_download_version_cross_guild_forbidden(
@@ -497,7 +497,7 @@ async def test_delete_last_version_blocked(client: AsyncClient, acting_user) -> 
         headers=owner.headers,
     )
     assert resp.status_code == 400
-    assert resp.json()["detail"] == "FILE_CANNOT_DELETE_LAST_VERSION"
+    assert resp.json()["detail"] == "CANNOT_DELETE_LAST_VERSION"
 
 
 async def test_delete_version_non_owner_forbidden(

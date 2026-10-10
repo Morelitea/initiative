@@ -326,7 +326,7 @@ async def test_read_only_member_reads_but_writes_denied_at_role_level(
         },
     )
     assert resp.status_code == 403, resp.text
-    assert resp.json()["detail"] == Tool.project.write_required_code
+    assert resp.json() == Tool.project.write_required().body
 
 
 async def test_read_only_guild_admin_writes_denied_too(
@@ -353,13 +353,13 @@ async def test_read_only_guild_admin_writes_denied_too(
         },
     )
     assert resp.status_code == 403, resp.text
-    assert resp.json()["detail"] == Tool.project.write_required_code
+    assert resp.json() == Tool.project.write_required().body
 
     resp = await client.patch(
         a.g(f"/tasks/{task.id}"), headers=a.headers, json={"title": "after"}
     )
     assert resp.status_code == 403, resp.text
-    assert resp.json()["detail"] == Tool.project.write_required_code
+    assert resp.json() == Tool.project.write_required().body
 
 
 async def test_read_only_establishes_content_read_only_context(

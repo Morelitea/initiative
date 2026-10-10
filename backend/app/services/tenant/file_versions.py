@@ -15,7 +15,7 @@ import asyncio
 import logging
 from collections.abc import Collection
 from datetime import datetime, timezone
-from typing import Any, Protocol, TypeVar
+from typing import Any, TypeVar
 
 from fastapi import HTTPException, status
 from pydantic import BaseModel
@@ -25,6 +25,7 @@ from sqlalchemy.exc import DataError, IntegrityError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.messages import CommonMessages
 from app.schemas.tenant.tool import from_row
 from app.services.tenant import attachments as attachments_service
 
@@ -41,13 +42,6 @@ ReadT = TypeVar("ReadT", bound=BaseModel)
 #: directions. A blob left behind is waste somebody can sweep up; a blob
 #: deleted out from under a committed row is a file that is broken forever.
 _DEFINITIVELY_NOT_COMMITTED = (IntegrityError, DataError)
-
-
-class VersionMessages(Protocol):
-    """The refusals a tool answers version requests with."""
-
-    VERSION_NOT_FOUND: str
-    CANNOT_DELETE_LAST_VERSION: str
 
 
 def _history(parent: Any) -> tuple[type, Column]:
@@ -193,28 +187,27 @@ def discard_orphans(
 
 
 async def commit_version(
-    session: AsyncSession, guild_id: int, version: Any, *, conflict: str | None = None
+    session: AsyncSession, guild_id: int, version: Any, *, conflict: bool = False
 ) -> None:
     """Commit the write that added ``version``, whose files are already
     stored. When the commit fails its files are taken back (see
     :func:`discard_orphans`); with ``conflict``, a version number another
-    upload took first is answered 409 with it."""
+    upload took first is answered 409."""
     urls = _stored(version)
     try:
         await session.commit()
     except Exception as failed:
         await session.rollback()
         discard_orphans(guild_id, urls, failed)
-        if conflict is not None and isinstance(failed, IntegrityError):
+        if conflict and isinstance(failed, IntegrityError):
             raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT, detail=conflict
+                status_code=status.HTTP_409_CONFLICT,
+                detail=CommonMessages.VERSION_CONFLICT,
             ) from failed
         raise
 
 
-async def delete_version(
-    session: AsyncSession, parent: Any, version_id: int, messages: VersionMessages
-) -> Any:
+async def delete_version(session: AsyncSession, parent: Any, version_id: int) -> Any:
     """Delete one of ``parent``'s versions and return it; the caller commits,
     then calls :func:`release_files`. Deleting the current version makes the
     newest one left current. The last version is kept."""
@@ -231,12 +224,13 @@ async def delete_version(
     if len(versions) <= 1:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=messages.CANNOT_DELETE_LAST_VERSION,
+            detail=CommonMessages.CANNOT_DELETE_LAST_VERSION,
         )
     target = next((v for v in versions if v.id == version_id), None)
     if target is None:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=messages.VERSION_NOT_FOUND
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=CommonMessages.VERSION_NOT_FOUND,
         )
     if parent.current_version_id == target.id:
         _make_current(parent, next(v for v in versions if v is not target))

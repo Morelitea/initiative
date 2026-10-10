@@ -123,12 +123,10 @@ async def _get_project_or_404(
     )
     if not project:
         raise await reachability.missing_or_denied(
-            Tool.project.plural,
+            Tool.project,
             project_id,
             user_id,
             guild_id,
-            not_found=Tool.project.not_found_code,
-            denied=Tool.project.no_access_code,
         )
     return project
 

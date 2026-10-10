@@ -7,6 +7,7 @@ from decimal import Decimal
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.tools import KINDS, Tool
 from app.db.request_context import SystemGuild
 from app.db.session import set_rls_context
 from app.models.platform.guild import CommunityRole
@@ -137,7 +138,7 @@ async def test_feature_disabled_blocks_creation(
         json={"name": "X", "initiative_id": a.initiative.id},
     )
     assert response.status_code == 403
-    assert response.json()["detail"] == "COUNTER_GROUPS_NOT_ENABLED"
+    assert response.json() == Tool.counter_group.disabled().body
 
 
 async def test_list_counter_groups(client: AsyncClient, acting_user):
@@ -329,7 +330,7 @@ async def test_a_deleted_counter_does_not_step(
         json={"direction": "up"},
     )
     assert response.status_code == 404
-    assert response.json()["detail"] == "COUNTER_NOT_FOUND"
+    assert response.json() == KINDS["counter"].not_found().body
 
 
 async def test_a_reader_cannot_step_a_counter(
@@ -788,7 +789,7 @@ async def test_sort_counters_read_only_forbidden(client: AsyncClient, acting_use
         json={"field": "name", "direction": "asc"},
     )
     assert resp.status_code == 403
-    assert resp.json()["detail"] == "COUNTER_GROUP_WRITE_ACCESS_REQUIRED"
+    assert resp.json() == Tool.counter_group.write_required().body
 
 
 # ---------------------------------------------------------------------------

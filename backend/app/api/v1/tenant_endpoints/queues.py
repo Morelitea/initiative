@@ -11,7 +11,6 @@ import logging
 from fastapi import (
     APIRouter,
     Depends,
-    HTTPException,
     WebSocket,
     status,
 )
@@ -131,10 +130,7 @@ async def read_after_write(
         session, queue_id, populate_existing=True
     )
     if not queue:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=Tool.queue.not_found_code,
-        )
+        raise Tool.queue.not_found()
     return await _serialized_queue(session, queue, user_id=guild_context.user_id)
 
 

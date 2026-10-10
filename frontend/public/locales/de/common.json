@@ -366,5 +366,87 @@
     "unsavedBody": "Du hast eine nicht gespeicherte Beschreibung. Wenn du jetzt gehst, geht sie verloren.",
     "leave": "Verlassen",
     "stay": "Bleiben"
+  },
+  "kinds": {
+    "project": {
+      "name": "Projekt",
+      "this": "dieses Projekt",
+      "plural": "Projekte"
+    },
+    "file": {
+      "name": "Datei",
+      "this": "diese Datei",
+      "plural": "Dateien"
+    },
+    "queue": {
+      "name": "Warteschlange",
+      "this": "diese Warteschlange",
+      "plural": "Warteschlangen"
+    },
+    "counter_group": {
+      "name": "Zählergruppe",
+      "this": "diese Zählergruppe",
+      "plural": "Zählergruppen"
+    },
+    "calendar": {
+      "name": "Kalender",
+      "this": "diesen Kalender",
+      "plural": "Kalender"
+    },
+    "dashboard": {
+      "name": "Dashboard",
+      "this": "dieses Dashboard",
+      "plural": "Dashboards"
+    },
+    "post": {
+      "name": "Beitrag",
+      "this": "diesen Beitrag",
+      "plural": "Beiträge"
+    },
+    "gallery": {
+      "name": "Galerie",
+      "this": "diese Galerie",
+      "plural": "Galerien"
+    },
+    "wiki": {
+      "name": "Wiki",
+      "this": "dieses Wiki",
+      "plural": "Wikis"
+    },
+    "task": {
+      "name": "Aufgabe",
+      "this": "diese Aufgabe",
+      "plural": "Aufgaben"
+    },
+    "queue_item": {
+      "name": "Warteschlangenelement",
+      "this": "dieses Warteschlangenelement",
+      "plural": "Warteschlangenelemente"
+    },
+    "calendar_event": {
+      "name": "Termin",
+      "this": "diesen Termin",
+      "plural": "Termine"
+    },
+    "counter": {
+      "name": "Zähler",
+      "this": "diesen Zähler",
+      "plural": "Zähler"
+    },
+    "gallery_image": {
+      "name": "Bild",
+      "this": "dieses Bild",
+      "plural": "Bilder"
+    },
+    "wiki_page": {
+      "name": "Seite",
+      "this": "diese Seite",
+      "plural": "Seiten"
+    },
+    "tag": {
+      "name": "Tag",
+      "this": "diesen Tag",
+      "plural": "Tags"
+    }
   }
 }

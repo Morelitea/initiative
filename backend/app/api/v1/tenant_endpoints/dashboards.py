@@ -610,10 +610,7 @@ async def read_after_write(
         session, dashboard_id, populate_existing=True
     )
     if not dashboard:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=Tool.dashboard.not_found_code,
-        )
+        raise Tool.dashboard.not_found()
     return serialize_tool(
         DashboardRead, dashboard, user_id=user.id, context=guild_context
     )

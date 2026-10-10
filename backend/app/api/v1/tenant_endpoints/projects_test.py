@@ -19,6 +19,7 @@ from sqlalchemy.engine import Engine
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.tools import Tool
 from app.models.platform.guild import CommunityRole
 from app.core.relationships import RelationshipType
 from app.core.search import SearchEntityType
@@ -454,7 +455,7 @@ async def test_create_refuses_when_projects_are_switched_off(
     )
 
     assert response.status_code == 403
-    assert response.json()["detail"] == "PROJECTS_NOT_ENABLED"
+    assert response.json() == Tool.project.disabled().body
 
 
 async def test_a_guild_admin_does_not_list_projects_of_a_switched_off_initiative(

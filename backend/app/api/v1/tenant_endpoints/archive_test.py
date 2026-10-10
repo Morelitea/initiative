@@ -10,6 +10,7 @@ from datetime import datetime
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.tools import KINDS
 from app.models.platform.guild import CommunityRole
 from app.models.tenant.task import TaskStatusCategory
 from app.testing import create_file, create_queue, create_task
@@ -139,7 +140,7 @@ async def test_a_task_cannot_be_taken_out_from_under_an_archived_project(
         a.g(f"/unarchive/task/{task.id + 1000}"), headers=a.headers
     )
     assert missing.status_code == 404
-    assert missing.json()["detail"] == "TASK_NOT_FOUND"
+    assert missing.json() == KINDS["task"].not_found().body
 
 
 async def test_the_project_going_back_takes_its_tasks_with_it(

@@ -854,7 +854,7 @@ async def read_community_image(
     ):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=GuildMessages.IMAGE_NOT_FOUND,
+            detail=ImageMessages.IMAGE_NOT_FOUND,
         )
     return Response(
         content=image.data,

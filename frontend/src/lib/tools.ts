@@ -409,6 +409,22 @@ export const toolNavLabelKey = (tool: Tool): ParseKeys<"nav"> =>
 export const toolCreateLabelKey = (tool: Tool): ParseKeys<"nav"> =>
   `create${toolPascalSingular(tool)}` as ParseKeys<"nav">;
 
+/**
+ * The forms of a kind's name (`common:kinds`) that wording about it is filled
+ * in with: `{{kind}}` as a sentence starts with it, `{{thisKind}}` and
+ * `{{kinds}}`. A kind is any addressable thing — a tool, or what lives in one
+ * (mirrors backend `KINDS`) — and `messages_test` holds every locale to naming
+ * each one.
+ */
+export const kindNames = (
+  kind: string,
+  t: (key: string) => string
+): { kind: string; thisKind: string; kinds: string } => ({
+  kind: t(`common:kinds.${kind}.name`),
+  thisKind: t(`common:kinds.${kind}.this`),
+  kinds: t(`common:kinds.${kind}.plural`),
+});
+
 /** Role permission key gating viewing, e.g. "counter_groups_enabled". */
 export const toolViewPermission = (tool: Tool): PermissionKey =>
   `${toolPlural(tool)}_enabled` as PermissionKey;

@@ -28,7 +28,7 @@ from app.models.tenant.task import Task, TaskStatusCategory
 from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.testing.schema_harness import route_session_to_guild
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
-from app.core.messages import TaskMessages
+from app.core.messages import CommonMessages, TaskMessages
 from app.core.relationships import RelationshipType
 from app.core.search import SearchEntityType
 from app.testing.factories import (
@@ -608,7 +608,7 @@ async def test_a_description_written_over_an_old_one_is_refused(
 
     stale = await write("Older")
     assert stale.status_code == 409
-    assert stale.json()["detail"] == TaskMessages.DESCRIPTION_CHANGED
+    assert stale.json()["detail"] == CommonMessages.DESCRIPTION_CHANGED
 
     saved = await write("First")
     assert saved.status_code == 200

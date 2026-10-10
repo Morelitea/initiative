@@ -312,5 +312,5 @@ async def test_opening_a_tab_puts_the_tool_in_the_tabs_bar(
         outsider.g(f"/recents/{tool.value}/{entity.id}"), headers=outsider.headers
     )
     assert refused.status_code == 404, refused.text
-    assert refused.json()["detail"] == tool.not_found_code
+    assert refused.json() == tool.not_found().body
     assert (await client.get(RECENTS, headers=outsider.headers)).json() == []

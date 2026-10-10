@@ -223,10 +223,7 @@ async def read_after_write(
     """
     post = await posts_service.get_post(session, post_id, populate_existing=True)
     if not post:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=Tool.post.not_found_code,
-        )
+        raise Tool.post.not_found()
     await annotate_post_rows(session, [post], user_id=guild_context.user_id)
     return serialize_tool(
         PostRead, post, user_id=guild_context.user_id, context=guild_context

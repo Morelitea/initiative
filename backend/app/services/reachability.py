@@ -16,6 +16,7 @@ from typing import Any, Optional
 from sqlalchemy import ColumnElement, Select, null as sa_null
 from sqlmodel import SQLModel, select
 
+from app.core.tools import Tool
 from app.db import cohorts
 from app.db.session import set_rls_context
 from app.db.request_context import SystemGuild
@@ -149,28 +150,23 @@ def _not_drafts(*models: Any) -> list[Any]:
 
 
 async def missing_or_denied(
-    table: str,
+    tool: Tool,
     row_id: int,
     user_id: int | None,
     guild_id: int,
-    *,
-    not_found: str,
-    denied: str,
 ) -> Exception:
-    """The exception for a row the request could not see.
+    """The exception for a ``tool`` row the request could not see.
 
-    ``denied`` where the reader is in the row's initiative, ``not_found``
+    No access where the reader is in the row's initiative, not found
     otherwise. Returns the exception rather than raising it, so a caller reads
     as ``raise await missing_or_denied(...)``. An installed plug-in (``user_id``
-    ``None``) is answered ``not_found``: it is in no initiative as a member.
+    ``None``) is answered not found: it is in no initiative as a member.
     """
-    from fastapi import HTTPException, status
-
     if user_id is not None and await reader_is_in_the_initiative(
-        table, row_id, user_id, guild_id
+        tool.plural, row_id, user_id, guild_id
     ):
-        return HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=denied)
-    return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=not_found)
+        return tool.no_access()
+    return tool.not_found()
 
 
 async def reader_is_in_the_initiative(

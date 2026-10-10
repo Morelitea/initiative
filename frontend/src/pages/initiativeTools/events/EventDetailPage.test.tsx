@@ -130,7 +130,7 @@ describe("an event's page", () => {
       if (body.description_base === "Old") {
         // Someone else's change landed first.
         event.description = "Theirs";
-        return HttpResponse.json({ detail: "CALENDAR_EVENT_DESCRIPTION_CHANGED" }, { status: 409 });
+        return HttpResponse.json({ detail: "DESCRIPTION_CHANGED" }, { status: 409 });
       }
       return Object.assign(event, { description: body.description });
     });
@@ -156,7 +156,7 @@ describe("an event's page", () => {
     serve(event, (body) =>
       body.description_base === event.description
         ? Object.assign(event, { description: body.description })
-        : HttpResponse.json({ detail: "CALENDAR_EVENT_DESCRIPTION_CHANGED" }, { status: 409 })
+        : HttpResponse.json({ detail: "DESCRIPTION_CHANGED" }, { status: 409 })
     );
     const { queryClient } = open();
     const user = userEvent.setup();

@@ -10,7 +10,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import CommunityRole
 from app.models.tenant.initiative import InitiativeRoleModel
-from app.core.messages import RelationshipMessages, SharingMessages
+from app.core.messages import RelationshipMessages
 from app.core.tools import Tool
 from app.testing import (
     Actor,
@@ -829,7 +829,7 @@ async def test_sharing_does_not_reach_past_the_role_gate(
     )
 
     assert response.status_code == 422, response.text
-    assert response.json()["detail"] == SharingMessages.grantee_lacks_tool(Tool.queue)
+    assert response.json() == Tool.queue.grantee_lacks_access().body
 
     # Nothing was written, and the queue is still not theirs to open.
     seen = await client.get(b.g(f"/queues/{queue_data['id']}"), headers=b.headers)

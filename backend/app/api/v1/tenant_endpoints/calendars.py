@@ -295,10 +295,7 @@ async def read_after_write(
         session, calendar_id, populate_existing=True
     )
     if not calendar:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=Tool.calendar.not_found_code,
-        )
+        raise Tool.calendar.not_found()
     return serialize_tool(
         CalendarRead, calendar, user_id=guild_context.user_id, context=guild_context
     )

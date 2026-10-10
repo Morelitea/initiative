@@ -27,15 +27,9 @@ from app.api.deps import (
 from app.core.plugin_scopes import PluginScopeAccess, scope_name, tool_resource
 from app.core.messages import (
     PluginMessages,
-    CalendarEventMessages,
-    CounterMessages,
-    GalleryMessages,
     InitiativeMessages,
-    QueueMessages,
-    TaskMessages,
-    WikiMessages,
 )
-from app.core.tools import Tool
+from app.core.tools import KIND_BY_TABLE, Tool
 from app.db.guild_standing import InstallContext
 from app.db.initiative_rls import governing_path
 from app.db.session import require_actor_context
@@ -106,21 +100,9 @@ class ResourceAccessConfig:
         return self.tool
 
     @property
-    def not_found_msg(self) -> str:
-        return self.tool.not_found_code
-
-    @property
     def feature_attr(self) -> str:
         """The initiative flag gating the whole tool."""
         return self.tool.view_permission
-
-    @property
-    def feature_disabled_msg(self) -> str:
-        return self.tool.feature_disabled_code
-
-    @property
-    def create_denied_msg(self) -> str:
-        return self.tool.create_permission_code
 
 
 RESOURCE_ACCESS: dict[Tool, ResourceAccessConfig] = {
@@ -201,10 +183,7 @@ def require_tool_enabled(kind: Tool, initiative: Any) -> None:
     """
     attr = RESOURCE_ACCESS[kind].feature_attr
     if attr is not None and not getattr(initiative, attr):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=RESOURCE_ACCESS[kind].feature_disabled_msg,
-        )
+        raise kind.disabled()
 
 
 async def require_create(
@@ -218,8 +197,8 @@ async def require_create(
 
     Gate 3 at the moment of creation: the initiative role's create right for
     the tool, with a guild admin above it. The permission key comes from the
-    tool (``Tool.create_permission``) and the message from the registry, so a
-    ninth tool is gated by registering it rather than by copying this.
+    tool (``Tool.create_permission``) and so does the refusal, so a new tool
+    is gated by registering it rather than by copying this.
 
     The database asks the same question on INSERT — the rendered policy's
     ``initiative_role_permits(..., create_<plural>, false)`` leg. This one runs
@@ -234,10 +213,7 @@ async def require_create(
         permission_key=PermissionKey(kind.create_permission),
     ):
         return
-    raise HTTPException(
-        status_code=status.HTTP_403_FORBIDDEN,
-        detail=RESOURCE_ACCESS[kind].create_denied_msg,
-    )
+    raise kind.create_denied()
 
 
 async def prepare_create(
@@ -438,9 +414,7 @@ def authorize(
     cfg = RESOURCE_ACCESS[kind]
     initiative = getattr(row, "initiative", None)
     if initiative is not None and not getattr(initiative, cfg.feature_attr):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail=cfg.feature_disabled_msg
-        )
+        raise kind.disabled()
     permissions_service.require_access(
         permissions_service.DAC_RESOURCES[cfg.dac_kind],
         row,
@@ -476,12 +450,8 @@ async def load_authorized(
         ):
             # In the initiative, so the row is theirs to know about — sharing is
             # what refused it, and "denied" is the answer to that.
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN, detail=cfg.not_found_msg
-            )
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=cfg.not_found_msg
-        )
+            raise kind.not_found(status.HTTP_403_FORBIDDEN)
+        raise kind.not_found()
     authorize(
         kind,
         row,
@@ -501,8 +471,6 @@ class SubTool:
     #: async (session, id, *, populate_existing) -> the row, with its tool,
     #: that tool's initiative and ``actions`` loaded.
     load: Callable[..., Awaitable[Any]]
-    #: The refusal for one that is missing or out of reach.
-    not_found: str
     #: The column holding what it is called.
     name: str = "title"
     #: Columns a copy starts afresh rather than carries.
@@ -510,24 +478,20 @@ class SubTool:
 
 
 SUB_TOOLS: dict[type, SubTool] = {
-    Task: SubTool(task_queries.load_for_change, TaskMessages.NOT_FOUND),
-    CalendarEvent: SubTool(events_service.get_event, CalendarEventMessages.NOT_FOUND),
-    Counter: SubTool(
-        counters_service.get_counter, CounterMessages.NOT_FOUND, name="name"
-    ),
+    Task: SubTool(task_queries.load_for_change),
+    CalendarEvent: SubTool(events_service.get_event),
+    Counter: SubTool(counters_service.get_counter, name="name"),
     # A copy is not held out of the rotation.
     QueueItem: SubTool(
         queues_service.get_queue_item,
-        QueueMessages.ITEM_NOT_FOUND,
         name="label",
         copy_resets={"held_at_round": None},
     ),
     WikiPage: SubTool(
         wikis_service.get_page,
-        WikiMessages.PAGE_NOT_FOUND,
         copy_resets={"yjs_state": None, "yjs_updated_at": None},
     ),
-    GalleryImage: SubTool(galleries_service.get_image, GalleryMessages.IMAGE_NOT_FOUND),
+    GalleryImage: SubTool(galleries_service.get_image),
 }
 
 
@@ -612,10 +576,8 @@ async def reload_child(session: Any, model: type[Child], child_id: int) -> Child
     return row
 
 
-def _missing(model: type) -> HTTPException:
-    return HTTPException(
-        status_code=status.HTTP_404_NOT_FOUND, detail=SUB_TOOLS[model].not_found
-    )
+def _missing(model: type) -> Exception:
+    return KIND_BY_TABLE[model.__tablename__].not_found()
 
 
 # ── Unified grant-set flow ───────────────────────────────────────────────────

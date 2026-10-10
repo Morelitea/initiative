@@ -51,9 +51,10 @@ from app.api.deps import (
     plugin_scope,
 )
 from app.core.messages import (
+    ImageMessages,
     GalleryMessages,
 )
-from app.core.tools import Tool
+from app.core.tools import KINDS, Tool
 from app.db.query import apply_pagination, build_paginated_response
 from app.models.platform.user import User
 from app.models.tenant.gallery import Gallery, GalleryImage, GalleryImageVersion
@@ -132,12 +133,12 @@ async def _read_picture(
     except galleries_service.EmptyImageError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=GalleryMessages.IMAGE_EMPTY,
+            detail=ImageMessages.IMAGE_EMPTY,
         )
     except galleries_service.InvalidImageError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=GalleryMessages.INVALID_IMAGE,
+            detail=ImageMessages.IMAGE_INVALID,
         )
 
     # The second half of the gate: a header says what a file claims, and the
@@ -148,7 +149,7 @@ async def _read_picture(
     except galleries_service.InvalidImageError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=GalleryMessages.INVALID_IMAGE,
+            detail=ImageMessages.IMAGE_INVALID,
         )
     width, height = (
         (thumbnail.source_width, thumbnail.source_height)
@@ -384,10 +385,7 @@ async def read_after_write(
         session, gallery_id, populate_existing=True
     )
     if hydrated is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=Tool.gallery.not_found_code,
-        )
+        raise Tool.gallery.not_found()
     return serialize_tool(
         GalleryRead, hydrated, user_id=guild_context.user_id, context=guild_context
     )
@@ -658,10 +656,7 @@ async def bulk_delete_gallery_images(
         ).all()
     )
     if len(images) != len(ids):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=GalleryMessages.IMAGE_NOT_FOUND,
-        )
+        raise KINDS["gallery_image"].not_found()
     retention_days = await guilds_service.get_guild_retention_days(session)
     for image in images:
         await soft_delete_entity(
@@ -708,7 +703,7 @@ async def upload_gallery_image_version(
         session,
         guild_context.guild_id,
         version,
-        conflict=GalleryMessages.VERSION_CONFLICT,
+        conflict=True,
     )
     return file_versions.read(GalleryImageVersionRead, version, image)
 
@@ -752,8 +747,6 @@ async def delete_gallery_image_version(
     image = await resource_access.load_child(
         session, GalleryImage, image_id, action=Action.delete, parent_id=gallery_id
     )
-    deleted = await file_versions.delete_version(
-        session, image, version_id, GalleryMessages
-    )
+    deleted = await file_versions.delete_version(session, image, version_id)
     await session.commit()
     await file_versions.release_files(guild_context.guild_id, deleted)

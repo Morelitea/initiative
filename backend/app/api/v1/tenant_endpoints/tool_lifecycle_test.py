@@ -191,12 +191,12 @@ async def test_copying_takes_write_or_a_template_and_the_right_to_create(
         )
     path = a.g(f"/{tool.route_segment}/{entity.id}/duplicate")
 
-    async def copy(person, name: str | None = None) -> tuple[int, str | None]:
+    async def copy(person, name: str | None = None) -> tuple[int, dict]:
         response = await client.post(path, headers=person.headers, json={"name": name})
-        return response.status_code, response.json().get("detail")
+        return response.status_code, response.json()
 
-    assert await copy(reader) == (403, tool.write_required_code)
-    assert await copy(writer) == (403, tool.create_permission_code)
+    assert await copy(reader) == (403, tool.write_required().body)
+    assert await copy(writer) == (403, tool.create_denied().body)
     await grant_role_permission(session, a.initiative, f"create_{tool.plural}")
     assert (await copy(writer))[0] == 201
     if hasattr(entity, "is_template"):

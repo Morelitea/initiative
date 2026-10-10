@@ -16,6 +16,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
+from app.core.errors import CodedError
 from app.api import resource_access
 from app.api.deps import (
     RLSSessionDep,
@@ -89,16 +90,17 @@ async def bulk_set_resource_grants(
                     status="ok",
                 )
             )
-        except HTTPException as exc:
+        except (HTTPException, CodedError) as exc:
             outcome = _outcome_for(exc.status_code)
             if outcome is None:
                 raise
+            detail = exc.code if isinstance(exc, CodedError) else exc.detail
             results.append(
                 ResourceGrantBulkItemResult(
                     resource_type=item.resource_type,
                     resource_id=item.resource_id,
                     status=outcome,
-                    detail=exc.detail if isinstance(exc.detail, str) else None,
+                    detail=detail if isinstance(detail, str) else None,
                 )
             )
     return ResourceGrantBulkResponse(results=results)

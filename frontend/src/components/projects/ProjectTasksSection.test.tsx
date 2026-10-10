@@ -771,7 +771,10 @@ describe("ProjectTasksSection ticking tasks off", () => {
     await waitFor(() => expect(replies).toHaveLength(1));
     expect(await doneBox("Chore 1")).toBeChecked();
 
-    answer(0, HttpResponse.json({ detail: "TASK_NOT_FOUND" }, { status: 404 }));
+    answer(
+      0,
+      HttpResponse.json({ detail: "NOT_FOUND", params: { kind: "task" } }, { status: 404 })
+    );
 
     await waitFor(async () => expect(await doneBox("Chore 1")).not.toBeChecked());
   });

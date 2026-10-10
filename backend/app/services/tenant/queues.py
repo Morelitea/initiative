@@ -10,6 +10,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.orm import selectinload, undefer
 from sqlmodel import select
 
+from app.core.tools import KINDS
 from app.core.messages import QueueMessages
 from app.db.query import ids_in
 from app.models.tenant.queue import (
@@ -366,10 +367,7 @@ async def set_active_item(
         (item for item in items if item.id == item_id), None
     )
     if target is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=QueueMessages.ITEM_NOT_FOUND,
-        )
+        raise KINDS["queue_item"].not_found()
 
     if target.held_at_round is not None:
         target.held_at_round = None
@@ -464,10 +462,7 @@ async def release_held(
     items = getattr(queue, "items", None) or []
     target = next((item for item in items if item.id == item_id), None)
     if target is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=QueueMessages.ITEM_NOT_FOUND,
-        )
+        raise KINDS["queue_item"].not_found()
     if target.held_at_round is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

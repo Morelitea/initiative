@@ -100,23 +100,13 @@ async def _load(session: AsyncSession, entity_type: str, entity_id: int) -> Any:
         )
     row = (await session.exec(stmt)).one_or_none()
     if row is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=_NOT_FOUND[entity_type]
-        )
+        if entity_type == "initiative":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=InitiativeMessages.NOT_FOUND,
+            )
+        raise KINDS[entity_type].not_found()
     return row
-
-
-#: The "no such thing" code per kind — a tool's own, the one a row inside a
-#: tool is refused with, and the initiative's.
-_NOT_FOUND: dict[str, str] = {
-    **{t.value: resource_access.RESOURCE_ACCESS[t].not_found_msg for t in Tool},
-    **{
-        target: resource_access.SUB_TOOLS[ARCHIVE_REGISTRY[target]].not_found
-        for target in ARCHIVE_TARGETS
-        if target in KINDS and KINDS[target].parent
-    },
-    "initiative": InitiativeMessages.NOT_FOUND,
-}
 
 
 def _authorize(

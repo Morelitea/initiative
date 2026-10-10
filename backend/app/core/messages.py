@@ -4,8 +4,6 @@ These constants are used as HTTPException detail strings. The frontend
 maps these codes to localized user-facing messages via errors.json.
 """
 
-from app.core.tools import Tool
-
 
 class CommonMessages:
     """Codes that belong to no one tool."""
@@ -30,6 +28,42 @@ class CommonMessages:
     #: The request body is larger than its route takes. Answered by the
     #: transport (``app.core.body_limit``) before any handler runs.
     REQUEST_TOO_LARGE = "REQUEST_TOO_LARGE"
+
+    #: An update named a description that is no longer the stored one.
+    DESCRIPTION_CHANGED = "DESCRIPTION_CHANGED"
+    #: A write named a version of the content that is no longer current.
+    CONTENT_CHANGED = "CONTENT_CHANGED"
+    #: Content with a live collaboration room has that room as its writer; a
+    #: save from outside the session is refused.
+    LIVE_SESSION_OWNS_CONTENT = "LIVE_SESSION_OWNS_CONTENT"
+    VERSION_NOT_FOUND = "VERSION_NOT_FOUND"
+    CANNOT_DELETE_LAST_VERSION = "CANNOT_DELETE_LAST_VERSION"
+    #: Somebody else uploaded a version at the same moment.
+    VERSION_CONFLICT = "VERSION_CONFLICT"
+
+
+class KindMessages:
+    """Refusals about one kind of thing — a tool, or what lives inside one.
+
+    Raised with ``params={"kind": <its KINDS value>}`` (``app.core.tools``), and
+    worded once with the kind's name filled in, so a new tool or kind needs its
+    name in each locale rather than a sentence per refusal.
+    """
+
+    NOT_FOUND = "NOT_FOUND"
+    #: In the initiative, but not shared it.
+    NO_ACCESS = "NO_ACCESS"
+    OWNER_REQUIRED = "OWNER_REQUIRED"
+    #: Shared to read, not to change.
+    WRITE_ACCESS_REQUIRED = "WRITE_ACCESS_REQUIRED"
+    #: The initiative role may not create this tool.
+    CREATE_PERMISSION_REQUIRED = "CREATE_PERMISSION_REQUIRED"
+    #: The initiative has this tool switched off.
+    TOOL_NOT_ENABLED = "TOOL_NOT_ENABLED"
+    #: A temporary access grant reaches content, not who may see it.
+    GRANT_CANNOT_MANAGE_MEMBERS = "GRANT_CANNOT_MANAGE_MEMBERS"
+    #: Sharing was addressed to somebody whose role does not reach the tool.
+    GRANTEE_LACKS_ACCESS = "GRANTEE_LACKS_ACCESS"
 
 
 class AuthMessages:
@@ -142,6 +176,7 @@ class ImageMessages:
     IMAGE_INVALID = "IMAGE_INVALID"
     IMAGE_WRONG_SIZE = "IMAGE_WRONG_SIZE"
     IMAGE_WRONG_RATIO = "IMAGE_WRONG_RATIO"
+    IMAGE_NOT_FOUND = "IMAGE_NOT_FOUND"
 
 
 class GuildMessages:
@@ -240,7 +275,6 @@ class GuildMessages:
     # the one above because there is nothing to click: the answer stands, and
     # the reply has to say so rather than ask again.
     AGE_BELOW_MINIMUM = "COMMUNITY_AGE_BELOW_MINIMUM"
-    IMAGE_NOT_FOUND = "IMAGE_NOT_FOUND"
     BANNER_COLOR_INVALID = "BANNER_COLOR_INVALID"
     # Banner text is black or white; nothing between the two is offered.
     BANNER_TEXT_COLOR_INVALID = "BANNER_TEXT_COLOR_INVALID"
@@ -349,22 +383,15 @@ class ProjectMessages:
 
 
 class TaskMessages:
-    NOT_FOUND = "TASK_NOT_FOUND"
     #: The task was not opened by an intake stream.
     NOT_A_CASE = "TASK_NOT_A_CASE"
-    MISSING_AFTER_CREATE = "TASK_MISSING_AFTER_CREATE"
-    MISSING_AFTER_UPDATE = "TASK_MISSING_AFTER_UPDATE"
-    MISSING_AFTER_MOVE = "TASK_MISSING_AFTER_MOVE"
     ALREADY_IN_PROJECT = "TASK_ALREADY_IN_PROJECT"
     CANNOT_MOVE_TO_TEMPLATE = "TASK_CANNOT_MOVE_TO_TEMPLATE"
     PROJECT_MISMATCH = "TASK_PROJECT_MISMATCH"
     STATUS_NOT_FOUND = "TASK_STATUS_NOT_FOUND_FOR_PROJECT"
     INVALID_ASSIGNEE_ID = "TASK_INVALID_ASSIGNEE_ID"
-    DUPLICATE_NOT_FOUND = "TASK_DUPLICATE_NOT_FOUND"
     NOT_REPEATING = "TASK_NOT_REPEATING"
     NO_LATER_OCCURRENCE = "TASK_NO_LATER_OCCURRENCE"
-    #: An update named a description that is no longer the stored one.
-    DESCRIPTION_CHANGED = "TASK_DESCRIPTION_CHANGED"
 
 
 class ChecklistMessages:
@@ -452,7 +479,6 @@ class AuthProviderMessages:
 
 
 class TagMessages:
-    NOT_FOUND = "TAG_NOT_FOUND"
     NAME_ALREADY_EXISTS = "TAG_NAME_ALREADY_EXISTS"
     # Shared by every set-tags / bulk-tags surface: one or more of the
     # submitted tag ids does not resolve to an active tag in this guild.
@@ -471,7 +497,6 @@ class PropertyMessages:
 
 class AttachmentMessages:
     IMAGE_ONLY = "ATTACHMENT_IMAGE_ONLY"
-    FILE_EMPTY = "ATTACHMENT_FILE_EMPTY"
     INVALID_IMAGE = "ATTACHMENT_INVALID_IMAGE"
     TOO_LARGE = "ATTACHMENT_TOO_LARGE"
     STORAGE_QUOTA_EXCEEDED = "ATTACHMENT_STORAGE_QUOTA_EXCEEDED"
@@ -480,9 +505,6 @@ class AttachmentMessages:
 class FileMessages:
     NAME_ALREADY_EXISTS = "FILE_NAME_ALREADY_EXISTS"
     NAME_REQUIRED = "FILE_NAME_REQUIRED"
-    LIVE_SESSION_OWNS_CONTENT = "FILE_LIVE_SESSION_OWNS_CONTENT"
-    #: A write named a version of the content that is no longer current.
-    CONTENT_CHANGED = "FILE_CONTENT_CHANGED"
     COLLABORATION_UPDATE_INVALID = "FILE_COLLABORATION_UPDATE_INVALID"
     AI_NATIVE_ONLY = "FILE_AI_NATIVE_ONLY"
     SMART_LINK_URL_REQUIRED = "FILE_SMART_LINK_URL_REQUIRED"
@@ -491,10 +513,7 @@ class FileMessages:
     SPREADSHEET_FILE_TOO_LARGE = "FILE_SPREADSHEET_FILE_TOO_LARGE"
     SMART_LINK_URL_INVALID = "FILE_SMART_LINK_URL_INVALID"
     NOT_AN_UPLOADED_FILE = "FILE_NOT_AN_UPLOADED_FILE"
-    VERSION_NOT_FOUND = "FILE_VERSION_NOT_FOUND"
-    CANNOT_DELETE_LAST_VERSION = "FILE_CANNOT_DELETE_LAST_VERSION"
     VERSION_TYPE_MISMATCH = "FILE_VERSION_TYPE_MISMATCH"
-    VERSION_CONFLICT = "FILE_VERSION_CONFLICT"
     INVALID_FILE = "FILE_INVALID_FILE"
     FILE_TOO_LARGE = "FILE_TOO_LARGE"
 
@@ -503,7 +522,6 @@ class CommentMessages:
     NOT_FOUND = "COMMENT_NOT_FOUND"
     PERMISSION_DENIED = "COMMENT_PERMISSION_DENIED"
     PARENT_NOT_FOUND = "COMMENT_PARENT_NOT_FOUND"
-    TARGET_NOT_FOUND = "COMMENT_TARGET_NOT_FOUND"
     PARENT_MISMATCH = "COMMENT_PARENT_MISMATCH"
     PROVIDE_ONE_ENTITY = "COMMENT_PROVIDE_ONE_ENTITY"
     AUTHOR_ONLY_EDIT = "COMMENT_AUTHOR_ONLY_EDIT"
@@ -523,22 +541,12 @@ class CommentMessages:
 
 
 class SharingMessages:
-    """Refusals from the sharing flow.
-
-    One code per tool, derived from the enum rather than written out, so a new
-    tool has one the day it exists. ``tools_test`` fails if a locale has not
-    been given the wording for it.
-    """
+    """Refusals from the sharing flow."""
 
     #: A grant naming an installed plug-in, sent to a resource's own sharing. What
     #: a plug-in may reach is granted by the community's seat, so this list
     #: neither writes nor removes one.
     PLUGIN_INSTALL_GRANT_NOT_SET_HERE = "SHARING_PLUGIN_INSTALL_GRANT_NOT_SET_HERE"
-
-    @staticmethod
-    def grantee_lacks_tool(tool: "Tool") -> str:
-        """Sharing was addressed to somebody whose role does not reach ``tool``."""
-        return f"GRANTEE_LACKS_{tool.value.upper()}_ACCESS"
 
 
 class ReactionMessages:
@@ -1037,7 +1045,6 @@ class NotificationMessages:
 
 class AnnouncementMessages:
     NOT_FOUND = "ANNOUNCEMENT_NOT_FOUND"
-    IMAGE_NOT_FOUND = "ANNOUNCEMENT_IMAGE_NOT_FOUND"
     IMAGE_TOO_LARGE = "ANNOUNCEMENT_IMAGE_TOO_LARGE"
 
 
@@ -1053,9 +1060,6 @@ class CalendarMessages:
 
 
 class CalendarEventMessages:
-    NOT_FOUND = "CALENDAR_EVENT_NOT_FOUND"
-    #: An update named a description that is no longer the stored one.
-    DESCRIPTION_CHANGED = "CALENDAR_EVENT_DESCRIPTION_CHANGED"
     ICAL_PARSE_FAILED = "ICAL_PARSE_FAILED"
     ICAL_NO_EVENTS = "ICAL_NO_EVENTS_FOUND"
     ENDS_BEFORE_START = "CALENDAR_EVENT_ENDS_BEFORE_START"
@@ -1146,21 +1150,12 @@ class PostMessages:
 
 
 class GalleryMessages:
-    IMAGE_NOT_FOUND = "GALLERY_IMAGE_NOT_FOUND"
-    #: The bytes are not a raster image this app can show — or are an SVG,
-    #: which is a document rather than a picture.
-    INVALID_IMAGE = "GALLERY_INVALID_IMAGE"
     IMAGE_TOO_LARGE = "GALLERY_IMAGE_TOO_LARGE"
-    IMAGE_EMPTY = "GALLERY_IMAGE_EMPTY"
-    VERSION_NOT_FOUND = "GALLERY_VERSION_NOT_FOUND"
-    CANNOT_DELETE_LAST_VERSION = "GALLERY_CANNOT_DELETE_LAST_VERSION"
-    VERSION_CONFLICT = "GALLERY_VERSION_CONFLICT"
     #: A cover has to be one of the gallery's own pictures.
     COVER_NOT_IN_GALLERY = "GALLERY_COVER_NOT_IN_GALLERY"
 
 
 class WikiMessages:
-    PAGE_NOT_FOUND = "WIKI_PAGE_NOT_FOUND"
     #: A page cannot be its own parent.
     PAGE_PARENT_ITSELF = "WIKI_PAGE_PARENT_ITSELF"
     #: Filing a page under one of its own descendants would detach the branch
@@ -1170,11 +1165,6 @@ class WikiMessages:
     HOME_NOT_IN_WIKI = "WIKI_HOME_NOT_IN_WIKI"
     #: So does the page new ones are copied from.
     TEMPLATE_NOT_IN_WIKI = "WIKI_TEMPLATE_NOT_IN_WIKI"
-    #: A page with a live collaboration room has that room as the writer of
-    #: its content; a save from outside the session is refused.
-    LIVE_SESSION_OWNS_CONTENT = "WIKI_LIVE_SESSION_OWNS_CONTENT"
-    #: A write named a version of the content that is no longer current.
-    CONTENT_CHANGED = "WIKI_CONTENT_CHANGED"
 
 
 class MarketplaceMessages:
@@ -1269,14 +1259,12 @@ class MarketplaceRegistryMessages:
 
 
 class QueueMessages:
-    ITEM_NOT_FOUND = "QUEUE_ITEM_NOT_FOUND"
     NO_ITEMS = "QUEUE_NO_ITEMS"
     NO_CURRENT_ITEM = "QUEUE_NO_CURRENT_ITEM"
     ITEM_NOT_HELD = "QUEUE_ITEM_NOT_HELD"
 
 
 class CounterMessages:
-    NOT_FOUND = "COUNTER_NOT_FOUND"
     VIEW_MODE_REQUIRES_BOUNDS = "COUNTER_VIEW_MODE_REQUIRES_BOUNDS"
     MIN_GREATER_THAN_MAX = "COUNTER_MIN_GREATER_THAN_MAX"
     STEP_MUST_BE_POSITIVE = "COUNTER_STEP_MUST_BE_POSITIVE"

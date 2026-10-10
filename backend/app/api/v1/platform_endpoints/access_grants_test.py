@@ -298,7 +298,7 @@ async def test_a_grant_reaches_a_tools_content_not_who_it_is_shared_with(
     )
 
     assert resp.status_code == 403, resp.text
-    assert resp.json()["detail"] == tool.grant_cannot_manage_members_code
+    assert resp.json() == tool.grant_cannot_manage_members().body
 
 
 async def test_grantee_sees_guild_content(

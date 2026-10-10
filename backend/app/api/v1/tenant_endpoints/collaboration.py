@@ -23,6 +23,7 @@ from fastapi import (
     status,
 )
 
+from app.core.errors import CodedError
 from app.api.deps import (
     CommunityIdPath,
     CurrentUser,
@@ -105,7 +106,7 @@ class _Editing:
             resource_access.authorize(
                 self.spec.tool, resolved.governing, user, context=context
             )
-        except HTTPException:
+        except (HTTPException, CodedError):
             return None
         writes = permissions_service.allows(
             resolved.governing, permissions_service.Action.edit
@@ -325,13 +326,9 @@ async def _hand_over(
         raise_for_guild_access(exc)
     editing = _Editing(guild_id, spec, resource_id)
     if not await editing(session, user) or editing.resolved is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=spec.tool.not_found_code
-        )
+        raise spec.tool.not_found()
     if not editing.can_write:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail=spec.tool.write_required_code
-        )
+        raise spec.tool.write_required()
 
     room = await collaboration_manager.get_or_create_room(
         guild_id, spec.resource_type, resource_id, session

@@ -169,10 +169,7 @@ async def _resolve_project(
         )
     ).one_or_none()
     if project is None:
-        raise HTTPException(
-            status_code=http_status.HTTP_404_NOT_FOUND,
-            detail=Tool.project.not_found_code,
-        )
+        raise Tool.project.not_found()
     if project.archived_at is not None or project.deleted_at is not None:
         # Archived and trashed content takes no writes, so a case could not be
         # filed here. Refused at the moment of binding rather than discovered
