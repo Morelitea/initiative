@@ -22,6 +22,7 @@ import {
   buildUser,
 } from "@/__tests__/factories";
 import { readerCan } from "@/__tests__/factories/can";
+import { buildToolViewSet } from "@/__tests__/factories/toolView.factory";
 import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
@@ -460,6 +461,38 @@ describe("TaskEditPage", () => {
 
     await waitFor(() => expect(sent).toHaveLength(1));
     expect(sent[0]).toMatchObject({ priority: "high", scope: "this" });
+  });
+
+  it("lays the page out as its project's layout says, gathering what it leaves out", async () => {
+    server.use(
+      communityHttp.get("/views/", () =>
+        HttpResponse.json(
+          buildToolViewSet({
+            item_layouts: [
+              {
+                id: 1,
+                item_kind: "task",
+                definition: {
+                  main: [
+                    {
+                      type: "section",
+                      props: { title: "Work" },
+                      children: [{ type: "field", props: { field: "description" } }],
+                    },
+                  ],
+                  side: [],
+                },
+              },
+            ],
+          })
+        )
+      )
+    );
+    renderTaskPage();
+
+    const more = await screen.findByRole("button", { name: "More fields" });
+    expect(screen.getByRole("button", { name: "Work" })).toBeInTheDocument();
+    expect(more.closest("section")).toContainElement(await fieldNamed(/^status$/i));
   });
 
   it("shows every field read-only to a reader", async () => {

@@ -86,7 +86,8 @@
     "unsavedStay": "Rester",
     "skipOccurrence": "Passer cette occurrence",
     "taskSkipped": "Passée à l'occurrence suivante",
-    "skipError": "Impossible de passer cette occurrence"
+    "skipError": "Impossible de passer cette occurrence",
+    "moreFields": "Autres champs"
   },
   "scope": {
     "title": {

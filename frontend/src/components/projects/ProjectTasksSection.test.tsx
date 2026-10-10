@@ -18,6 +18,7 @@ import {
   buildTagSummary,
   buildTask,
   buildTaskListResponse,
+  buildToolView,
   buildToolViewSet,
 } from "@/__tests__/factories";
 import { communityHttp } from "@/__tests__/helpers/communityHttp";
@@ -607,6 +608,49 @@ describe("ProjectTasksSection export", () => {
 
   it("keeps the project's order from a view the table's sort does not reach", async () => {
     expect(await exportSorting("board")).toBeNull();
+  });
+
+  it("lists the tasks in a view's own sort until the reader sorts the table", async () => {
+    withViews({
+      stored: true,
+      views: [
+        buildToolView({
+          slug: "due",
+          is_default: true,
+          definition: { layout: { type: "table" }, sort: [{ field: "dueDate", direction: "asc" }] },
+        }),
+      ],
+    });
+
+    expect(JSON.parse((await exportSorting("due")) ?? "null")).toEqual([
+      { field: "due_date", dir: "asc" },
+      { field: "position", dir: "asc" },
+    ]);
+  });
+});
+
+describe("ProjectTasksSection table columns", () => {
+  it("shows the columns a view names, in its order", async () => {
+    withViews({
+      stored: true,
+      views: [
+        buildToolView({
+          slug: "lean",
+          is_default: true,
+          definition: { layout: { type: "table" }, columns: ["priority", "title", "dueDate"] },
+        }),
+      ],
+    });
+    section({ routerSearch: { view: "lean" } });
+
+    const headers = () =>
+      screen.queryAllByRole("columnheader").map((cell) => cell.textContent ?? "");
+    // The start date, which the view leaves out, is gone once it arrives.
+    await waitFor(() => expect(headers()).toContain("Due date"));
+    await waitFor(() => expect(headers()).not.toContain("Start date"));
+    const at = (name: string) => headers().indexOf(name);
+    expect(at("Priority")).toBeLessThan(at("Task"));
+    expect(at("Task")).toBeLessThan(at("Due date"));
   });
 });
 

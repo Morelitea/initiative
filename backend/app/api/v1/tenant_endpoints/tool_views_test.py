@@ -116,6 +116,36 @@ async def test_a_project_shows_the_shipped_views_until_it_saves_some(
     )
 
 
+#: A task's page: the side region left out is drawn as shipped.
+_PAGE: dict[str, Any] = {
+    "main": [
+        {
+            "type": "section",
+            "props": {"title": "Work", "collapsed": True},
+            "children": [
+                {"type": "field", "props": {"field": "description"}},
+                {"type": "plugin", "props": {"plugin": 3, "part": "builds"}},
+            ],
+        },
+        {"type": "comments"},
+    ],
+    "side": [
+        {
+            "type": "stack",
+            "props": {
+                "direction": "row",
+                "gap": "sm",
+                "wrap": True,
+                "align": "start",
+                "tone": "muted",
+            },
+            "children": [{"type": "status"}, {"type": "dates"}],
+        },
+        {"type": "properties"},
+    ],
+}
+
+
 async def test_saving_replaces_the_whole_set_and_deleting_returns_to_shipped(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
@@ -143,19 +173,15 @@ async def test_saving_replaces_the_whole_set_and_deleting_returns_to_shipped(
         params=params,
         json={
             **_set(_view("Only", "calendar", is_default=True)),
-            "item_layouts": [
-                {
-                    "item_kind": "task",
-                    "definition": {
-                        "side": {"type": "field", "props": {"field": "tags"}}
-                    },
-                }
-            ],
+            "item_layouts": [{"item_kind": "task", "definition": _PAGE}],
         },
         headers=a.headers,
     )
     assert [v["slug"] for v in again.json()["views"]] == ["only"]
-    assert [layout["item_kind"] for layout in again.json()["item_layouts"]] == ["task"]
+    assert [
+        (layout["item_kind"], layout["definition"])
+        for layout in again.json()["item_layouts"]
+    ] == [("task", {"header": None, **_PAGE})]
 
     cleared = await client.delete(url, params=params, headers=a.headers)
     assert cleared.status_code == 204
@@ -300,6 +326,17 @@ def _one(**extra: Any) -> dict[str, Any]:
         (_one(**_card({"type": "field", "props": {"field": "colour"}})), 422, None),
         (_one(definition={"columns": ["property:Size"]}), 422, None),
         (_one(definition={"columns": ["plugin:3:CI"]}), 422, None),
+        (_one(**_card({"type": "comments"})), 422, None),
+        (
+            {
+                **_one(),
+                "item_layouts": [
+                    {"item_kind": "task", "definition": {"main": [{"type": "card"}]}}
+                ],
+            },
+            422,
+            None,
+        ),
         (_one(definition={"columns": ["plugin:x:ci"]}), 422, None),
         (_one(**_card({"type": "plugin", "props": {"plugin": 3}})), 422, None),
         (
@@ -333,6 +370,8 @@ def _one(**extra: Any) -> dict[str, Any]:
         "unknown field",
         "a property by name",
         "a plug-in field outside the key's characters",
+        "a page's part on a card",
+        "a card on a page",
         "a plug-in field by name",
         "a plug-in part with no part",
         "too many of one plug-in's parts",

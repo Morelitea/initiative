@@ -12,6 +12,7 @@ import {
   type ViewVariant,
 } from "./fields";
 import { type PluginOnItems, PluginPartView } from "./plugins";
+import { Section } from "./section";
 
 /** A view as data: a registered part, its props, and what it holds. The same
  *  shape the plug-in SDK uses for parts. */
@@ -121,7 +122,7 @@ const PROPERTY_BY_ID = /^property:([1-9][0-9]*)$/;
 /** The field a node names. A stored view names a property by its definition
  *  id, which the server checks; the fields are keyed as the table's columns
  *  are, by name, and a property may be named with digits. */
-const fieldNamed = (
+export const fieldNamed = (
   fields: ReadonlyMap<string, FieldDef>,
   node: ViewNode
 ): FieldDef | undefined => {
@@ -210,11 +211,14 @@ export const LAYOUT_PARTS = {
   header: region("space-y-2 canvas-md:col-span-2"),
   main: column("canvas-md:col-start-1 canvas-md:row-start-2 canvas-md:gap-6"),
   side: column("canvas-md:col-start-2 canvas-md:row-start-2 canvas-md:gap-4"),
-  /** A bordered group of parts. */
+  /** A bordered group of parts, titled in the initiative's own words. */
   section: <I,>(node: ViewNode, item: I, view: ViewContext, parts: Parts<I>) => (
-    <section className="space-y-4 rounded-lg border bg-card p-4 text-card-foreground shadow-sm">
+    <Section
+      title={typeof node.props?.title === "string" ? node.props.title : undefined}
+      collapsed={node.props?.collapsed === true}
+    >
       {renderChildren(node, item, view, parts)}
-    </section>
+    </Section>
   ),
 };
 

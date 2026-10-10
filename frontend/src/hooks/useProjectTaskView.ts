@@ -7,6 +7,7 @@
  * reads it so an export starts from the same tasks.
  */
 
+import type { SortingState } from "@tanstack/react-table";
 import { useCallback, useMemo } from "react";
 
 import type {
@@ -29,6 +30,7 @@ import {
   taskSortFields,
 } from "@/lib/filters/taskFilters";
 import { resolveViewState, type StoredViews, type ViewSearch } from "@/lib/filters/views";
+import { fieldColumnId } from "@/lib/views/columns";
 
 /** A project's view, with its fixed filters as the task filter spec. */
 export type ProjectView = ToolViewRead & { filters: TaskFilterSpec };
@@ -224,11 +226,24 @@ export function useProjectTaskView({
 export const projectTaskTableKey = (projectId: number, viewSlug: string) =>
   `initiative-project-${projectId}-${viewSlug}-task-table`;
 
+/** A view's sort, as the table's sorting. */
+export const viewTableSorting = (view: ToolViewRead | null | undefined): SortingState =>
+  (view?.definition.sort ?? []).map(({ field, direction }) => ({
+    id: fieldColumnId(field),
+    desc: direction === "desc",
+  }));
+
 /** Which column one view of a project's task table is grouped and sorted by,
- *  as the reader left it. Kept beside the table's column-visibility map so the
- *  whole "how this list is shown" answer survives a reload together. */
-export const useProjectTaskTableState = (projectId: number, viewSlug: string) =>
-  usePersistedTableState(projectTaskTableKey(projectId, viewSlug));
+ *  as the reader left it, or sorted as the view is until they change it. Kept
+ *  beside the table's column-visibility map so the whole "how this list is
+ *  shown" answer survives a reload together. */
+export const useProjectTaskTableState = (
+  projectId: number,
+  view: ToolViewRead | null | undefined
+) => {
+  const sorting = useMemo(() => viewTableSorting(view), [view]);
+  return usePersistedTableState(projectTaskTableKey(projectId, view?.slug ?? ""), { sorting });
+};
 
 /** The order a view lists tasks in, as the endpoint's `sorting`: the table's
  *  own sort while it is the layout, and the project's order in every other. */
@@ -246,7 +261,7 @@ export function useProjectTaskExportView(projectId: number) {
     taskStatuses,
     search: NO_SEARCH,
   });
-  const [{ sorting }] = useProjectTaskTableState(projectId, view?.slug ?? "");
+  const [{ sorting }] = useProjectTaskTableState(projectId, view);
   return useMemo(
     () => ({ tasks: appliedSpec, taskSorting: taskViewSorting(layout, sorting), taskStatuses }),
     [appliedSpec, layout, sorting, taskStatuses]

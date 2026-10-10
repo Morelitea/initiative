@@ -86,7 +86,8 @@
     "unsavedStay": "Bleiben",
     "skipOccurrence": "Diesen Termin überspringen",
     "taskSkipped": "Weiter zum nächsten Termin",
-    "skipError": "Dieser Termin konnte nicht übersprungen werden"
+    "skipError": "Dieser Termin konnte nicht übersprungen werden",
+    "moreFields": "Weitere Felder"
   },
   "scope": {
     "title": {

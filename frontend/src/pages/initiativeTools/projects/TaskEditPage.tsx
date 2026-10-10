@@ -40,6 +40,7 @@ import { useCommunities } from "@/hooks/useCommunities";
 import { useInitiative } from "@/hooks/useInitiatives";
 import { useReadOnOpen } from "@/hooks/useNotifications";
 import { useProject, useProjectTaskStatuses, useWritableProjects } from "@/hooks/useProjects";
+import { useProjectViews } from "@/hooks/useProjectViews";
 import {
   useDeleteTask,
   useDuplicateTask,
@@ -100,6 +101,9 @@ export const TaskEditPage = () => {
   }, [taskProjectId, projectId]);
 
   const taskStatusesQuery = useProjectTaskStatuses(projectId ?? null);
+  // The project's views carry how its tasks' pages are laid out. One that
+  // cannot be read draws the page as shipped.
+  const viewsQuery = useProjectViews(projectId ?? null);
   const task = taskQuery.data;
   const showTask = (shown: TaskRead) =>
     queryClient.setQueryData<TaskRead>(getReadTaskQueryKey(communityId, parsedTaskId), shown);
@@ -249,7 +253,12 @@ export const TaskEditPage = () => {
     [writableProjectsQuery.data, keptIn, project?.initiative_id]
   );
 
-  if (taskQuery.isLoading || isProjectContextLoading || taskStatusesQuery.isLoading) {
+  if (
+    taskQuery.isLoading ||
+    isProjectContextLoading ||
+    taskStatusesQuery.isLoading ||
+    viewsQuery.isLoading
+  ) {
     return <TaskEditSkeleton label={t("edit.loadingTask")} />;
   }
 
@@ -381,6 +390,10 @@ export const TaskEditPage = () => {
       />
       <TaskPageView
         task={task}
+        layout={
+          viewsQuery.data?.item_layouts.find((layout) => layout.item_kind === "task")
+            ?.definition as Parameters<typeof TaskPageView>[0]["layout"]
+        }
         page={{
           readOnly: isReadOnly,
           readOnlyMessage,

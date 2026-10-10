@@ -35,7 +35,7 @@ const EMPTY: PersistedTableState = { grouping: [], sorting: [] };
  * />
  * ```
  *
- * ``defaults`` cover the first visit only — once anything is stored, that blob
+ * ``defaults`` cover the first visit to a key only — once anything is stored, that blob
  * is the whole answer, so a reader who deliberately cleared the sorting gets an
  * unsorted table back rather than the default returning behind them.
  *
@@ -53,9 +53,11 @@ export function usePersistedTableState(
   PersistedTableState,
   { setGrouping: (next: GroupingState) => void; setSorting: (next: SortingState) => void },
 ] {
-  // Captured once: a caller that rebuilds the object every render must not
-  // reset a table that has since been stored.
+  // Read only where nothing is stored, so a caller that rebuilds the object
+  // every render never resets a table that has since been stored; a list that
+  // swaps keys reads the defaults it has by then.
   const defaultsRef = useRef(defaults);
+  defaultsRef.current = defaults;
   const [state, setState] = useState<PersistedTableState>(() =>
     readStored(storageKey, defaultsRef.current)
   );

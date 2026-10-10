@@ -5,7 +5,7 @@ import { buildPropertyDefinition, buildPropertySummary, buildTask } from "@/__te
 import i18n from "@/__tests__/helpers/i18n-test";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import type { PropertyDefinitionRead, TaskListRead } from "@/api/generated/initiativeAPI.schemas";
-import { TASK_PAGE, taskFields } from "@/lib/views/tasks";
+import { TASK_PAGE, taskFields, taskPageTree } from "@/lib/views/tasks";
 import {
   LAYOUT_PARTS,
   type Parts,
@@ -186,5 +186,41 @@ describe("renderNode", () => {
       "relations",
       "comments",
     ]);
+  });
+});
+
+describe("taskPageTree", () => {
+  const regions = (tree: ViewNode) =>
+    Object.fromEntries((tree.children ?? []).map((region) => [region.type, region.children]));
+
+  it("draws what a layout stores, the rest as shipped, and gathers what it leaves out", () => {
+    const work: ViewNode = {
+      type: "section",
+      props: { title: "Work" },
+      children: [field("description")],
+    };
+
+    const page = regions(taskPageTree({ main: [work], side: [] }, "More fields"));
+
+    expect(page.header).toEqual(regions(TASK_PAGE).header);
+    expect(page.main).toEqual([work]);
+    const [more] = page.side ?? [];
+    expect(more.props).toMatchObject({ title: "More fields" });
+    expect(more.children?.map((node) => String(node.props?.field ?? node.type))).toEqual([
+      "checklist",
+      "status",
+      "priority",
+      "assignees",
+      "dates",
+      "recurrence",
+      "tags",
+      "properties",
+    ]);
+  });
+
+  it("adds no More fields where a layout places every field", () => {
+    expect(regions(taskPageTree({ main: regions(TASK_PAGE).main }, "More fields")).side).toEqual(
+      regions(TASK_PAGE).side
+    );
   });
 });

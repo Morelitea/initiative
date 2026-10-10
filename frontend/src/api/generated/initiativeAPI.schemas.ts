@@ -5825,24 +5825,165 @@ export const ItemKind = {
   post: "post",
 } as const;
 
+export interface SectionProps {
+  title?: string | null;
+  collapsed?: boolean | null;
+}
+
+export type TaskPagePartType = (typeof TaskPagePartType)[keyof typeof TaskPagePartType];
+
+export const TaskPagePartType = {
+  status: "status",
+  dates: "dates",
+  byline: "byline",
+  notice: "notice",
+  actions: "actions",
+  relations: "relations",
+  case: "case",
+  comments: "comments",
+} as const;
+
 /**
- * An item's page, in three regions. A field placed in none of them is
- * drawn in a "More fields" section.
+ * One of a task page's own parts, which edit or show more than one field:
+ * its status, its start and due dates, who made it, its read-only notice, its
+ * menu, its relations, its case and its comments.
  */
-export interface ItemLayoutDefinitionInput {
-  header?: CardPartInput | StackPartInput | FieldPart | PropertiesPart | PluginPart | null;
-  main?: CardPartInput | StackPartInput | FieldPart | PropertiesPart | PluginPart | null;
-  side?: CardPartInput | StackPartInput | FieldPart | PropertiesPart | PluginPart | null;
+export interface TaskPagePart {
+  type: TaskPagePartType;
 }
 
 /**
- * An item's page, in three regions. A field placed in none of them is
+ * A bordered group of an item page's parts.
+ */
+export interface SectionPartInput {
+  type: "section";
+  props?: SectionProps | null;
+  children?: (
+    | PageStackPartInput
+    | SectionPartInput
+    | FieldPart
+    | PropertiesPart
+    | PluginPart
+    | TaskPagePart
+  )[];
+}
+
+export interface PageStackPartInput {
+  type: "stack";
+  props?: StackProps | null;
+  children?: (
+    | PageStackPartInput
+    | SectionPartInput
+    | FieldPart
+    | PropertiesPart
+    | PluginPart
+    | TaskPagePart
+  )[];
+}
+
+/**
+ * An item's page, in three regions, each its parts in order. A region it
+ * leaves out is drawn as shipped, and a field placed in none of them is
+ * drawn in a "More fields" section.
+ */
+export interface ItemLayoutDefinitionInput {
+  header?:
+    | (
+        | PageStackPartInput
+        | SectionPartInput
+        | FieldPart
+        | PropertiesPart
+        | PluginPart
+        | TaskPagePart
+      )[]
+    | null;
+  main?:
+    | (
+        | PageStackPartInput
+        | SectionPartInput
+        | FieldPart
+        | PropertiesPart
+        | PluginPart
+        | TaskPagePart
+      )[]
+    | null;
+  side?:
+    | (
+        | PageStackPartInput
+        | SectionPartInput
+        | FieldPart
+        | PropertiesPart
+        | PluginPart
+        | TaskPagePart
+      )[]
+    | null;
+}
+
+/**
+ * A bordered group of an item page's parts.
+ */
+export interface SectionPartOutput {
+  type: "section";
+  props?: SectionProps | null;
+  children?: (
+    | PageStackPartOutput
+    | SectionPartOutput
+    | FieldPart
+    | PropertiesPart
+    | PluginPart
+    | TaskPagePart
+  )[];
+}
+
+export interface PageStackPartOutput {
+  type: "stack";
+  props?: StackProps | null;
+  children?: (
+    | PageStackPartOutput
+    | SectionPartOutput
+    | FieldPart
+    | PropertiesPart
+    | PluginPart
+    | TaskPagePart
+  )[];
+}
+
+/**
+ * An item's page, in three regions, each its parts in order. A region it
+ * leaves out is drawn as shipped, and a field placed in none of them is
  * drawn in a "More fields" section.
  */
 export interface ItemLayoutDefinitionOutput {
-  header?: CardPartOutput | StackPartOutput | FieldPart | PropertiesPart | PluginPart | null;
-  main?: CardPartOutput | StackPartOutput | FieldPart | PropertiesPart | PluginPart | null;
-  side?: CardPartOutput | StackPartOutput | FieldPart | PropertiesPart | PluginPart | null;
+  header?:
+    | (
+        | PageStackPartOutput
+        | SectionPartOutput
+        | FieldPart
+        | PropertiesPart
+        | PluginPart
+        | TaskPagePart
+      )[]
+    | null;
+  main?:
+    | (
+        | PageStackPartOutput
+        | SectionPartOutput
+        | FieldPart
+        | PropertiesPart
+        | PluginPart
+        | TaskPagePart
+      )[]
+    | null;
+  side?:
+    | (
+        | PageStackPartOutput
+        | SectionPartOutput
+        | FieldPart
+        | PropertiesPart
+        | PluginPart
+        | TaskPagePart
+      )[]
+    | null;
 }
 
 /**

@@ -138,52 +138,94 @@ const at = (order: number, node: ViewNode): ViewNode => ({
   props: { ...node.props, order },
 });
 
+type Region = "header" | "main" | "side";
+
 /**
  * A task's page as shipped: the title, who made it and what else can be done
  * with it across the top; what the task is in the main column; and the fields
  * that place it beside them. On one column, the fields follow the description.
  */
-export const TASK_PAGE: ViewNode = {
-  type: "page",
-  children: [
+export const TASK_PAGE_REGIONS: Record<Region, ViewNode[]> = {
+  header: [
     {
-      type: "header",
-      children: [
-        {
-          type: "stack",
-          props: { direction: "row", gap: "sm", align: "start" },
-          children: [field("title"), { type: "actions" }],
-        },
-        { type: "byline" },
-        { type: "notice" },
-      ],
+      type: "stack",
+      props: { direction: "row", gap: "sm", align: "start" },
+      children: [field("title"), { type: "actions" }],
     },
-    {
-      type: "main",
+    { type: "byline" },
+    { type: "notice" },
+  ],
+  main: [
+    at(1, { type: "section", children: [field("description")] }),
+    at(3, field("checklist")),
+    at(4, { type: "case" }),
+    at(6, { type: "comments" }),
+  ],
+  side: [
+    at(2, {
+      type: "section",
       children: [
-        at(1, { type: "section", children: [field("description")] }),
-        at(3, field("checklist")),
-        at(4, { type: "case" }),
-        at(6, { type: "comments" }),
+        { type: "status" },
+        field("priority"),
+        field("assignees"),
+        { type: "dates" },
+        field("recurrence"),
+        field("tags"),
+        { type: "properties" },
       ],
-    },
-    {
-      type: "side",
-      children: [
-        at(2, {
-          type: "section",
-          children: [
-            { type: "status" },
-            field("priority"),
-            field("assignees"),
-            { type: "dates" },
-            field("recurrence"),
-            field("tags"),
-            { type: "properties" },
-          ],
-        }),
-        at(5, { type: "relations" }),
-      ],
-    },
+    }),
+    at(5, { type: "relations" }),
   ],
 };
+
+/** The page parts that edit a field. */
+const EDITS_A_FIELD = new Set(["field", "status", "dates", "properties"]);
+
+const placedAs = (node: ViewNode) =>
+  node.type === "field" ? `field:${String(node.props?.field)}` : node.type;
+
+const nodesIn = (nodes: ViewNode[]): ViewNode[] =>
+  nodes.flatMap((node) => [node, ...nodesIn(node.children ?? [])]);
+
+/** What the shipped page edits, in its order. */
+const SHIPPED_FIELDS = nodesIn(Object.values(TASK_PAGE_REGIONS).flat()).filter((node) =>
+  EDITS_A_FIELD.has(node.type)
+);
+
+/**
+ * A task's page from its project's item layout: each region as stored, or as
+ * shipped where the layout leaves it out. What the shipped page edits and the
+ * layout places nowhere is drawn in a "More fields" section at the side, so a
+ * field still has a place on a page nobody laid out for it. A stored part
+ * carries no `order`, so on one column a stored region keeps its own order.
+ */
+export const taskPageTree = (
+  stored: Partial<Record<Region, ViewNode[] | null>> | undefined,
+  moreFields: string
+): ViewNode => {
+  const regions = {
+    header: stored?.header ?? TASK_PAGE_REGIONS.header,
+    main: stored?.main ?? TASK_PAGE_REGIONS.main,
+    side: stored?.side ?? TASK_PAGE_REGIONS.side,
+  };
+  const placed = new Set(nodesIn(Object.values(regions).flat()).map(placedAs));
+  const unplaced = SHIPPED_FIELDS.filter((node) => !placed.has(placedAs(node)));
+  // Last on one column, after whatever the regions hold.
+  const side = unplaced.length
+    ? [
+        ...regions.side,
+        at(7, { type: "section", props: { title: moreFields }, children: unplaced }),
+      ]
+    : regions.side;
+  return {
+    type: "page",
+    children: [
+      { type: "header", children: regions.header },
+      { type: "main", children: regions.main },
+      { type: "side", children: side },
+    ],
+  };
+};
+
+/** The page as shipped. */
+export const TASK_PAGE: ViewNode = taskPageTree(undefined, "");

@@ -87,8 +87,8 @@ export function sharedTaskColumns<T extends TaskListRead>({
   return {
     dateGroup,
     title: column("title", { sortFn: "alphanumeric" }),
-    startDate: column("startDate", { id: "start date", sortFn: dateSortingFn }),
-    dueDate: column("dueDate", { id: "due date", sortFn: dateSortingFn }),
+    startDate: column("startDate", { sortFn: dateSortingFn }),
+    dueDate: column("dueDate", { sortFn: dateSortingFn }),
     // Picking a priority here is the table's own, until fields edit.
     priority: column("priority", {
       sortFn: prioritySortingFn,
