@@ -187,3 +187,53 @@ async def test_old_windows_are_forgotten(session):
         )
         await system.commit()
     assert gone >= 1
+
+
+async def test_a_failed_flush_gives_its_counts_back(session, monkeypatch):
+    """A brief outage loses nothing: a one-off event still trips its rule."""
+    from app.db import cohorts
+
+    security_signals.observe(
+        {
+            "event_type": AuditEventType.AUTH_REFRESH_REUSE_DETECTED.value,
+            "target_user_id": 7,
+        },
+        now=_AT,
+    )
+    real = cohorts.system_session
+
+    def broken(*_args, **_kwargs):
+        raise RuntimeError("the database is away")
+
+    monkeypatch.setattr(cohorts, "system_session", broken)
+    assert await security_signals.flush() == []
+    assert security_signals.pending() == 1
+
+    monkeypatch.setattr(cohorts, "system_session", real)
+    (crossing,) = await security_signals.flush()
+    assert crossing.rule.name == "refresh_reuse"
+
+
+async def test_a_case_that_could_not_open_is_tried_again(
+    session, security_desk, monkeypatch
+):
+    """The window is stamped, so no other instance will open it: this one
+    keeps trying, and writes the threshold line once."""
+    from app.services.platform import intake
+
+    # Now, not the fixed moment the other tests use: a retry whose window has
+    # long passed is given up on.
+    for _ in range(50):
+        security_signals.observe(_failed_sign_in("198.51.100.9"))
+    real = intake.open_case
+
+    async def broken(*_args, **_kwargs):
+        raise RuntimeError("the operations community is away")
+
+    monkeypatch.setattr(intake, "open_case", broken)
+    assert len(await security_signals.flush()) == 1
+    assert await _cases(session, security_desk.id) == []
+
+    monkeypatch.setattr(intake, "open_case", real)
+    assert await security_signals.flush() == []
+    assert len(await _cases(session, security_desk.id)) == 1

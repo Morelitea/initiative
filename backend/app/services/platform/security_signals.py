@@ -148,6 +148,24 @@ def _take() -> dict[str, dict[tuple[str, datetime], _Bucket]]:
     return taken
 
 
+def _give_back(taken: dict[str, dict[tuple[str, datetime], _Bucket]]) -> None:
+    """Put counts a failed flush took back with what has been counted since,
+    so the next flush adds them: a brief outage loses nothing, and a one-off
+    event still trips its rule."""
+    with _lock:
+        for name, buckets in taken.items():
+            pending = _counts.rules.setdefault(name, {})
+            for slot, bucket in buckets.items():
+                since = pending.get(slot)
+                if since is None:
+                    pending[slot] = bucket
+                    continue
+                since.count += bucket.count
+                since.event_uuid = since.event_uuid or bucket.event_uuid
+                since.subject_user = since.subject_user or bucket.subject_user
+                since.subject_guild = since.subject_guild or bucket.subject_guild
+
+
 def pending() -> int:
     """How many buckets wait for the next flush. For tests and metrics."""
     with _lock:
@@ -155,8 +173,10 @@ def pending() -> int:
 
 
 def discard() -> None:
-    """Drop everything counted and not yet flushed. For tests."""
+    """Drop everything counted and not yet flushed, and every case waiting to
+    be opened. For tests."""
     _take()
+    _unopened.clear()
 
 
 # -- Flushing -------------------------------------------------------------------
@@ -185,7 +205,7 @@ _STAMP = text(
 )
 
 
-@dataclass(frozen=True)
+@dataclass
 class Crossing:
     """A window that reached its rule's threshold in this flush."""
 
@@ -195,6 +215,13 @@ class Crossing:
     window_start: datetime
     count: int
     bucket: _Bucket
+    #: The ``security.threshold_crossed`` line, once written.
+    line: Optional[dict[str, Any]] = None
+
+
+#: Crossings stamped whose case could not be opened yet: retried on every
+#: flush until it opens. The stamp means no other instance will try.
+_unopened: list[Crossing] = []
 
 
 async def flush() -> list[Crossing]:
@@ -203,19 +230,29 @@ async def flush() -> list[Crossing]:
     from app.db import cohorts
 
     taken = _take()
-    if not taken:
-        return []
     crossings: list[Crossing] = []
-    try:
-        async with cohorts.system_session(None) as session:
-            for name, buckets in taken.items():
-                crossings.extend(await _flush_rule(session, BY_NAME[name], buckets))
-            await session.commit()
-    except Exception:
-        logger.exception("security rules: could not add this interval's counts")
-        return []
-    for crossing in crossings:
-        await _open(crossing)
+    if taken:
+        try:
+            async with cohorts.system_session(None) as session:
+                for name, buckets in taken.items():
+                    crossings.extend(await _flush_rule(session, BY_NAME[name], buckets))
+                await session.commit()
+        except Exception:
+            logger.exception("security rules: could not add this interval's counts")
+            _give_back(taken)
+            crossings = []
+    # Cases a failed attempt left unopened go first, then this flush's. One
+    # whose window has long passed is given up on: the audit line stands.
+    now = datetime.now(timezone.utc)
+    waiting = [
+        crossing
+        for crossing in _unopened
+        if now < crossing.window_start + 2 * crossing.rule.window
+    ] + crossings
+    _unopened.clear()
+    for crossing in waiting:
+        if not await _open(crossing):
+            _unopened.append(crossing)
     return crossings
 
 
@@ -262,30 +299,16 @@ async def _flush_rule(
     return crossings
 
 
-async def _open(crossing: Crossing) -> None:
-    """Write the one line a crossing gets, and open or add to its case."""
+async def _open(crossing: Crossing) -> bool:
+    """Write the one line a crossing gets, and open or add to its case.
+    Returns whether the case is done with: ``False`` to try again."""
     from app.core.intake import IntakeStream
-    from app.services import audit as audit_service
     from app.services.platform.intake import CaseRefs, open_case
 
     rule = crossing.rule
-    line = audit_service.emit(
-        event_type=AuditEventType.SECURITY_THRESHOLD_CROSSED,
-        actor_user_id=None,
-        target_user_id=crossing.bucket.subject_user,
-        guild_id=crossing.bucket.subject_guild,
-        detail={
-            "rule": rule.name,
-            "severity": rule.severity.value,
-            # The audit log is the record: what was counted, by name.
-            "key": crossing.raw_key,
-            "count": crossing.count,
-            "threshold": rule.threshold,
-            "window_start": crossing.window_start.isoformat(),
-            "window_seconds": int(rule.window.total_seconds()),
-            "last_event": crossing.bucket.event_uuid,
-        },
-    )
+    if crossing.line is None:
+        crossing.line = _write_line(crossing)
+    line = crossing.line
     try:
         await open_case(
             IntakeStream.security,
@@ -306,8 +329,34 @@ async def _open(crossing: Crossing) -> None:
             dedupe_key=f"rule:{rule.name}:{crossing.key}",
             window=rule.window,
         )
-    except Exception:  # pragma: no cover - logged; the line stands
+    except Exception:
         logger.exception("security rules: could not open the case for %s", rule.name)
+        return False
+    return True
+
+
+def _write_line(crossing: Crossing) -> dict[str, Any]:
+    """The one audit line a crossing gets, whatever becomes of its case."""
+    from app.services import audit as audit_service
+
+    rule = crossing.rule
+    return audit_service.emit(
+        event_type=AuditEventType.SECURITY_THRESHOLD_CROSSED,
+        actor_user_id=None,
+        target_user_id=crossing.bucket.subject_user,
+        guild_id=crossing.bucket.subject_guild,
+        detail={
+            "rule": rule.name,
+            "severity": rule.severity.value,
+            # The audit log is the record: what was counted, by name.
+            "key": crossing.raw_key,
+            "count": crossing.count,
+            "threshold": rule.threshold,
+            "window_start": crossing.window_start.isoformat(),
+            "window_seconds": int(rule.window.total_seconds()),
+            "last_event": crossing.bucket.event_uuid,
+        },
+    )
 
 
 def _span(window: timedelta) -> str:

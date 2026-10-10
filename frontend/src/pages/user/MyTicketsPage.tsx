@@ -7,7 +7,7 @@
  * from, and where ``/.well-known/security.txt`` sends people to do it.
  */
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { FiledTicketRead } from "@/api/generated/initiativeAPI.schemas";
@@ -53,6 +53,11 @@ export const MyTicketsPage = () => {
   const { report } = useSearch({ strict: false }) as { report?: string };
   const navigate = useNavigate();
   const [reporting, setReporting] = useState(report === "security");
+  // Asked for again while already here — the command palette, say — opens it
+  // too, not only on arrival.
+  useEffect(() => {
+    if (report === "security") setReporting(true);
+  }, [report]);
 
   const closeReport = (open: boolean) => {
     setReporting(open);

@@ -15,6 +15,14 @@ vi.mock("@/hooks/useTickets", async () => {
   return {
     ...actual,
     useFiledTickets: () => ({ data: state.list, isLoading: false, isError: false }),
+    useTicketAvailability: () => ({
+      data: {
+        support: { mode: "none", contact: null, evidence: null },
+        moderation: { mode: "form", contact: null, evidence: null },
+        feedback: { mode: "none", contact: null, evidence: null },
+        security: { mode: "form", contact: null, evidence: null },
+      },
+    }),
   };
 });
 
@@ -63,5 +71,25 @@ describe("MyTicketsPage", () => {
     state.list = { items: [] };
     open();
     expect(await screen.findByText(/haven't filed any tickets/)).toBeInTheDocument();
+  });
+
+  it("opens the security form when a link asks for it", async () => {
+    state.list = { items: [] };
+    renderPage(MyTicketsPage, {
+      initialRoute: "/my-tickets/",
+      routerSearch: { report: "security" },
+      auth: { user: buildUser() },
+    });
+    expect(
+      await screen.findByRole("dialog", { name: "Report a security problem" })
+    ).toBeInTheDocument();
+  });
+
+  it("offers reporting a security problem where the server takes it", async () => {
+    state.list = { items: [] };
+    open();
+    expect(
+      await screen.findByRole("button", { name: "Report a security problem" })
+    ).toBeInTheDocument();
   });
 });
