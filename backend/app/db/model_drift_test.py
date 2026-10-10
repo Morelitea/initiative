@@ -19,6 +19,7 @@ assertion is an empty diff. Anything the models genuinely don't own belongs in
 not in a per-diff exception here.
 """
 
+import pytest
 from alembic.autogenerate import compare_metadata
 from alembic.migration import MigrationContext
 from sqlalchemy import text
@@ -26,6 +27,7 @@ from sqlmodel import SQLModel
 
 from app.db import base  # noqa: F401 — register every model on SQLModel.metadata
 from app.db.migration_filters import make_include_object
+from app.db.tenancy import GUILD_SCOPED_TABLES
 
 
 def _model_diffs(sync_conn, guild_autogen: bool) -> list:
@@ -59,6 +61,72 @@ async def test_models_match_guild_template(engine):
         "migration with: cd backend && python scripts/gen_guild_migration.py "
         f'"desc". Autogenerate sees:\n{_render(diffs)}'
     )
+
+
+#: ``pg_constraint.confdeltype``, as a model's ``ondelete`` spells it.
+_ON_DELETE = {
+    "a": "NO ACTION",
+    "r": "RESTRICT",
+    "c": "CASCADE",
+    "n": "SET NULL",
+    "d": "SET DEFAULT",
+}
+
+
+@pytest.mark.always
+async def test_guild_keys_let_go_as_the_models_say(engine):
+    """Every key between two guild tables is in the template, on the same
+    columns and table, doing on delete what its model says.
+
+    Guild mode leaves keys to the template (their names, and the references
+    out of the schema it omits), so the comparison above never sees them. What
+    a key does on delete is still read from the models: the trash tree skips a
+    key that lets go, and a purge leaves the rest to the database."""
+    async with engine.connect() as conn:
+        rows = (
+            await conn.execute(
+                text(
+                    """
+                    SELECT c.conrelid::regclass::text,
+                           ARRAY(
+                               SELECT a.attname::text
+                                 FROM unnest(c.conkey) WITH ORDINALITY AS k(num, pos)
+                                 JOIN pg_attribute a
+                                   ON a.attrelid = c.conrelid AND a.attnum = k.num
+                                ORDER BY k.pos
+                           ),
+                           c.confrelid::regclass::text,
+                           c.confdeltype::text
+                      FROM pg_constraint c
+                     WHERE c.contype = 'f'
+                       AND c.connamespace = 'guild_template'::regnamespace
+                    """
+                )
+            )
+        ).all()
+    in_template = {
+        (table.removeprefix("guild_template."), tuple(columns)): (
+            target.removeprefix("guild_template."),
+            _ON_DELETE[action],
+        )
+        for table, columns, target, action in rows
+    }
+    drift = []
+    for table in SQLModel.metadata.tables.values():
+        if table.name not in GUILD_SCOPED_TABLES:
+            continue
+        for key in table.foreign_key_constraints:
+            target = key.referred_table.name
+            if target not in GUILD_SCOPED_TABLES:
+                continue  # out of the schema: the template omits it on purpose
+            columns = tuple(column.name for column in key.columns)
+            declared = (target, (key.ondelete or "NO ACTION").upper())
+            actual = in_template.get((table.name, columns))
+            if actual != declared:
+                drift.append(
+                    f"{table.name}{list(columns)}: model {declared}, template {actual}"
+                )
+    assert not drift, "\n".join(drift)
 
 
 async def test_models_match_public_schema(engine):

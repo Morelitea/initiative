@@ -139,6 +139,8 @@ const grantEntry = (grant: AccessGrantRead, settingsGrant?: AccessGrantRead): Co
     configure: false,
     administer_content: false,
     seat: false,
+    // A grantee is no guest: what the grant reaches, it reaches community-wide.
+    community_wide: true,
     // A grant is never reached with a personal API key.
     use_api: false,
   },

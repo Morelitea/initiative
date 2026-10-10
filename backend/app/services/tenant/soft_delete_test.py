@@ -12,7 +12,8 @@ from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.schema_provisioning import guild_schema_name
-from app.db.soft_delete_filter import select_including_deleted
+from app.db.soft_delete_filter import SOFT_DELETE_MODELS, select_including_deleted
+from app.db.tenancy import GUILD_SCOPED_TABLES
 from app.models.platform.user import User
 from app.models.tenant.file import File, FileType
 from app.models.tenant.initiative import Initiative
@@ -1139,3 +1140,26 @@ async def test_every_tool_takes_its_thread_to_the_trash_and_back(
         assert response.status_code == 200, (tool, response.text)
 
     assert await live_comments() == {comment_id for _, comment_id in threads.values()}
+
+
+#: Keys into the trash that a purge lets go of itself, rather than the
+#: database: an upload's file on disk has to go with its row.
+_PURGED_BY_HAND = {("uploads", "initiative_id")}
+
+
+@pytest.mark.always
+def test_what_hangs_off_the_trash_goes_with_it():
+    """A row outside the trash that keys on one in it goes with it at the
+    database, or lets go of it, so purging a row is one DELETE per level."""
+    trashable = {model.__tablename__ for model in SOFT_DELETE_MODELS}
+    held = [
+        f"{table.name}.{column.name} -> {key.column.table.name}"
+        for table in SQLModel.metadata.tables.values()
+        if table.name in GUILD_SCOPED_TABLES and table.name not in trashable
+        for column in table.columns
+        for key in column.foreign_keys
+        if key.column.table.name in trashable
+        and (key.ondelete or "").upper() not in ("CASCADE", "SET NULL")
+        and (table.name, column.name) not in _PURGED_BY_HAND
+    ]
+    assert not held, held

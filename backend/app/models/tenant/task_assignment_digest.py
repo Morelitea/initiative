@@ -10,8 +10,10 @@ class TaskAssignmentDigestItem(SQLModel, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
     user_id: int = Field(foreign_key="users.id", nullable=False, index=True)
-    task_id: int = Field(foreign_key="tasks.id", nullable=False)
-    project_id: int = Field(foreign_key="projects.id", nullable=False)
+    task_id: int = Field(foreign_key="tasks.id", ondelete="CASCADE", nullable=False)
+    project_id: int = Field(
+        foreign_key="projects.id", ondelete="CASCADE", nullable=False
+    )
     task_title: str = Field(sa_column=Column(String(255), nullable=False))
     project_name: str = Field(sa_column=Column(String(255), nullable=False))
     assigned_by_name: str = Field(sa_column=Column(String(255), nullable=False))

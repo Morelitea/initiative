@@ -48,6 +48,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.identity_boundary import current_install_boundary
 from app.core.messages import PluginMessages, PropertyMessages, QueryMessages
 from app.core.tools import PROPERTY_TARGETS, Tool
+from app.db.base import MODELS_BY_TABLE
 from app.db.initiative_rls import entity_tables, governing_path
 from app.models.platform.identity_ref import IdentityEntity
 from app.models.platform.user_profile_view import MemberProfile
@@ -100,16 +101,6 @@ class PropertyLinkSpec:
         return row.id if self.via is None else getattr(row, self.via)
 
 
-def _models_by_table() -> dict[str, type[SQLModel]]:
-    import app.db.base  # noqa: F401 — registers every model on the metadata
-
-    return {
-        mapper.class_.__tablename__: mapper.class_
-        for mapper in SQLModel._sa_registry.mappers  # type: ignore[attr-defined]
-        if hasattr(mapper.class_, "__tablename__")
-    }
-
-
 async def _occurrences_follow(session: AsyncSession, row: Any) -> None:
     """A series' values carry to the occurrences that follow it."""
     from app.services.tenant import calendar_occurrences
@@ -139,8 +130,7 @@ def _link(target: str, models: dict[str, type[SQLModel]]) -> PropertyLinkSpec:
 
 
 def _links() -> dict[str, PropertyLinkSpec]:
-    models = _models_by_table()
-    return {target: _link(target, models) for target in PROPERTY_TARGETS}
+    return {target: _link(target, MODELS_BY_TABLE) for target in PROPERTY_TARGETS}
 
 
 #: One spec per ``PROPERTY_TARGETS`` entry, keyed by the wire name.

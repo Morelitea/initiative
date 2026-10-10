@@ -14,20 +14,13 @@ from __future__ import annotations
 from typing import Any, Optional
 
 from sqlalchemy import ColumnElement, Select, null as sa_null
-from sqlmodel import SQLModel, select
+from sqlmodel import select
 
 from app.core.tools import Tool
 from app.db import cohorts
+from app.db.base import MODELS_BY_TABLE
 from app.db.session import set_rls_context
 from app.db.request_context import SystemGuild
-
-
-def _model_for(table: str) -> Optional[type[SQLModel]]:
-    """The mapped class behind a table name, or None for a table with none."""
-    for mapper in SQLModel._sa_registry.mappers:
-        if mapper.local_table is not None and mapper.local_table.name == table:
-            return mapper.class_
-    return None
 
 
 def _comment_initiative() -> ColumnElement[Optional[int]]:
@@ -46,7 +39,7 @@ def _comment_initiative() -> ColumnElement[Optional[int]]:
 
     lookups = []
     for column, parent in COMMENT_PARENTS.items():
-        tool = _model_for(parent.governed_by.plural)
+        tool = MODELS_BY_TABLE.get(parent.governed_by.plural)
         if tool is None:  # pragma: no cover - a tool always has a table
             continue
         if parent.tool_fk is None:
@@ -56,7 +49,7 @@ def _comment_initiative() -> ColumnElement[Optional[int]]:
                 .scalar_subquery()
             )
             continue
-        mid = _model_for(parent.table)
+        mid = MODELS_BY_TABLE.get(parent.table)
         if mid is None:  # pragma: no cover - a declared parent always has one
             continue
         lookups.append(
@@ -113,7 +106,7 @@ def _initiative_through_parents(model: Any, row_id: int) -> Select[Any]:
     joins: list[tuple[Any, Any]] = []
     current: Any = model
     for fk, parent_table in hops:
-        parent = _model_for(parent_table)
+        parent = MODELS_BY_TABLE.get(parent_table)
         if parent is None:  # pragma: no cover - a declared hop has a table
             break
         joins.append((parent, getattr(current, fk) == parent.id))
@@ -181,7 +174,7 @@ async def reader_is_in_the_initiative(
     """
     from app.models.tenant.initiative import InitiativeMember
 
-    model = _model_for(table)
+    model = MODELS_BY_TABLE.get(table)
     if model is None:
         return False
 

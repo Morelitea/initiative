@@ -13,7 +13,6 @@ those items carry.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from functools import lru_cache
 from typing import Optional
 
 from sqlalchemy import select as sa_select
@@ -21,6 +20,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.tools import Tool
+from app.db.base import MODELS_BY_TABLE
 from app.models.tenant.resource_grant import ResourceGrant
 
 
@@ -39,31 +39,6 @@ class SharedResource:
     role_grant_count: int
 
 
-@lru_cache(maxsize=1)
-def _models_by_table() -> dict[str, type]:
-    """``tablename -> model``, built once.
-
-    Read off the registry rather than listed, so a tool added later is found
-    here without an edit. Mapped classes that are not tables of their own (a
-    view-backed projection, say) carry no ``__tablename__`` and are skipped.
-    """
-    import app.db.base  # noqa: F401 — registers every model
-
-    from sqlmodel import SQLModel
-
-    found: dict[str, type] = {}
-    for mapper in SQLModel._sa_registry.mappers:
-        table = getattr(mapper.class_, "__tablename__", None)
-        if isinstance(table, str):
-            found[table] = mapper.class_
-    return found
-
-
-def _model_for(tool: Tool):
-    """The SQLModel backing a tool's own rows."""
-    return _models_by_table().get(tool.plural)
-
-
 async def _names_for(
     session: AsyncSession, tool: Tool, ids: set[int]
 ) -> dict[int, Optional[str]]:
@@ -73,7 +48,7 @@ async def _names_for(
     ``title`` for a few — so a tool that calls it something else is read
     correctly without a list here saying so.
     """
-    model = _model_for(tool)
+    model = MODELS_BY_TABLE.get(tool.plural)
     if model is None or not ids:
         return {}
     label = getattr(model, model.display_field(), None)

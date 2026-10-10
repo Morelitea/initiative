@@ -44,9 +44,11 @@ from app.core.errors import CodedError
 from app.core.intake import IntakeStream
 from app.core.messages import HoldMessages
 from app.core.moderation import HoldReason, HoldRelease, HoldVia, LegalBasis
+from app.core.search import SearchEntityType
 from app.core.tools import plural_of
 from app.db import cohorts, gucs
 from app.db.guild_standing import GuildContext
+from app.db.base import MODELS_BY_TABLE
 from app.db.query import ids_in
 from app.db.request_context import SystemGuild
 from app.db.session import raise_flag, set_rls_context
@@ -66,21 +68,12 @@ class HoldError(CodedError):
     """A hold that can't be placed or released, and why."""
 
 
-def _holdable_targets() -> dict[str, type[HoldMixin]]:
-    """Every kind a hold may name, by its ``SearchEntityType`` value."""
-    from app.core.search import SearchEntityType
-
-    by_table = {str(model.__tablename__): model for model in hold_models()}
-    return {
-        kind.value: by_table[plural_of(kind.value)]
-        for kind in SearchEntityType
-        if plural_of(kind.value) in by_table
-    }
-
-
 def model_for(target_type: str) -> type[HoldMixin]:
-    model = _holdable_targets().get(target_type)
-    if model is None:
+    """The model a hold names by its ``SearchEntityType`` value."""
+    model = MODELS_BY_TABLE.get(plural_of(target_type))
+    if target_type not in SearchEntityType.__members__ or not (
+        model and issubclass(model, HoldMixin)
+    ):
         raise HoldError(HoldMessages.TARGET_NOT_FOUND, status.HTTP_404_NOT_FOUND)
     return model
 

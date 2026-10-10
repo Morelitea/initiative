@@ -87,6 +87,7 @@
     "noAccess": "Vous n'avez accès à aucune fonctionnalité de cette initiative. Contactez un responsable de l'initiative pour obtenir de l'aide.",
     "member_one": "{{count}} membre",
     "member_other": "{{count}} membres",
+    "guest": "Invité",
     "online_one": "{{count}} en ligne",
     "online_other": "{{count}} en ligne",
     "initiativeSettings": "Paramètres de l'initiative",

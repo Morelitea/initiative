@@ -171,6 +171,10 @@ class CommunityCan(SanitizedBaseModel):
     administer_content: bool = False
     #: Hold its top seat: sign-in, billing, AI, plug-ins, data and deletion.
     seat: bool = False
+    #: Reach the community beyond what was shared with them: its initiative
+    #: directory, its people, its plug-ins, its imports and exports. False for
+    #: a guest.
+    community_wide: bool = False
     #: Reach it with a personal API key, a subscription link included: false
     #: where its superadmin turned this member's API access off, and for a
     #: grant, which is never reached with one.

@@ -2336,6 +2336,7 @@ export interface CommunityCan {
   configure: boolean;
   administer_content: boolean;
   seat: boolean;
+  community_wide: boolean;
   use_api: boolean;
 }
 
@@ -5669,6 +5670,7 @@ export interface ImportJobRead {
 export interface InitiativeCan {
   manage: boolean;
   moderate: boolean;
+  roster: boolean;
   view: Tool[];
   create: Tool[];
 }
@@ -5840,6 +5842,7 @@ export interface InitiativeMemberRead {
   joined_at: string;
   oidc_managed: boolean;
   presence: Presence;
+  guest_until: string | null;
 }
 
 /**

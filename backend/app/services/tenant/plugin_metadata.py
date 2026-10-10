@@ -422,7 +422,8 @@ async def annotate_plugin_values(session: AsyncSession, tasks: Sequence[Task]) -
     ``session`` is the reader's, so which values it reads is the table's
     policies' answer; which installs' values are drawn is decided here. Each
     task's project is loaded. An installed plug-in reading tasks is drawn
-    none: it reads its own values through its metadata routes."""
+    none: it reads its own values through its metadata routes. Nor is a
+    guest, who runs no plug-in."""
     context = require_actor_context(session)
     initiatives = {
         task.id: task.project.initiative_id
@@ -430,7 +431,7 @@ async def annotate_plugin_values(session: AsyncSession, tasks: Sequence[Task]) -
         if task.id is not None and task.project is not None
     }
     found: dict[int, list[PluginValueSummary]] = defaultdict(list)
-    if initiatives and isinstance(context, GuildContext):
+    if initiatives and isinstance(context, GuildContext) and not context.guest:
         rows = await session.exec(
             select(
                 PluginMetadata.entity_id,

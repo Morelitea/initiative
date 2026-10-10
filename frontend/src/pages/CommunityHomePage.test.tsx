@@ -692,6 +692,23 @@ describe("CommunityHomePage", () => {
     expect(within(joinable).getByRole("button", { name: "Join" })).toBeInTheDocument();
   });
 
+  it("asks no directory for a guest, and still lists what is shared with them", async () => {
+    stubOneProject();
+    let asked = false;
+    server.use(
+      communityHttp.get("/initiatives/directory", () => {
+        asked = true;
+        return HttpResponse.json([NEBULA()]);
+      })
+    );
+
+    renderHomeFor({ role: "guest" });
+
+    expect(await screen.findByRole("link", { name: "Lunar Lander" })).toBeInTheDocument();
+    expect(screen.queryByText("Nebula")).not.toBeInTheDocument();
+    expect(asked).toBe(false);
+  });
+
   it("folds the whole initiatives section away from its heading", async () => {
     stubOneProject();
     stubDirectory([NEBULA()]);

@@ -542,13 +542,10 @@ def written_columns() -> dict[type[SQLModel], tuple[str, ...]]:
     """Every column somebody writes in, by model: the body of every source
     above, less a column that only names a kind (an enum). Whatever can be
     searched for is written somewhere, and this is where."""
-    models = {
-        mapper.local_table.name: mapper.class_
-        for mapper in SQLModel._sa_registry.mappers  # type: ignore[attr-defined]
-        if mapper.local_table.name in SEARCH_SOURCES
-    }
+    from app.db.base import MODELS_BY_TABLE
+
     written = {
-        models[table]: _written(table, source)
+        MODELS_BY_TABLE[table]: _written(table, source)
         for table, source in SEARCH_SOURCES.items()
     }
     return {model: columns for model, columns in written.items() if columns}

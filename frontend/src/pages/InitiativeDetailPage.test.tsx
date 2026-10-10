@@ -31,7 +31,7 @@ const VIEWABLE = [
   Tool.counter_group,
 ];
 
-function stubEverything(hidden: Tool[] = []) {
+function stubEverything(hidden: Tool[] = [], roster = true) {
   server.use(
     communityHttp.get("/initiatives/:id", ({ params }) =>
       HttpResponse.json(
@@ -47,6 +47,7 @@ function stubEverything(hidden: Tool[] = []) {
           can: {
             manage: false,
             moderate: false,
+            roster,
             view: VIEWABLE.filter((tool) => !hidden.includes(tool)),
             create: [],
           },
@@ -83,6 +84,20 @@ describe("InitiativeDetailPage", () => {
 
     expect((await screen.findAllByText("4 members")).length).toBeGreaterThan(0);
     expect(screen.getAllByText("Project Manager").length).toBeGreaterThan(0);
+  });
+
+  it("opens the roster from the headcount only for a reader who may read it", async () => {
+    stubEverything();
+    renderAt();
+    expect(await screen.findByRole("button", { name: "4 members" })).toBeInTheDocument();
+  });
+
+  it("shows a guest given items the headcount and nobody in it", async () => {
+    stubEverything([], false);
+    renderAt();
+
+    expect((await screen.findAllByText("4 members")).length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: "4 members" })).not.toBeInTheDocument();
   });
 
   it("selects the tab the route names", async () => {

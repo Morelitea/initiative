@@ -1234,6 +1234,8 @@ def _initiative_tool_actions() -> str:
 #:   or one of its managers who is not a guest.
 #: - ``moderate``: act on its moderation reports — "Full access" or a
 #:   community admin (:data:`INITIATIVE_FULL_ACCESS`), never a guest.
+#: - ``roster``: read who is in it — a member (a guest in it included), a
+#:   community admin or a grantee; not a guest given items in it.
 #: - ``view:<tool>`` and ``create:<tool>`` per tool.
 INITIATIVE_ACTIONS = f"""\
 CREATE OR REPLACE FUNCTION initiative_actions(p_initiative_id integer, p_user_id integer, p_st standing)
@@ -1256,6 +1258,11 @@ BEGIN
     END IF;
     IF NOT {_B.guest} AND initiative_full_access(p_initiative_id, true, p_st) THEN
         v_actions := v_actions || 'moderate'::text;
+    END IF;
+    IF {_B.system} OR {_B.admin} OR {_B.pam_any}
+       OR ({_B.this_guild}
+           AND p_initiative_id = ANY ({_B.field("member_initiatives")})) THEN
+        v_actions := v_actions || 'roster'::text;
     END IF;
 {_initiative_tool_actions()}
     RETURN v_actions;
