@@ -102,6 +102,13 @@ def test_an_editor_reference_carries_a_ref_instead_of_an_id():
         _mention("task", 0, "Waiting on a page"),
     )
     content["root"]["children"].append(_embed("task", 41, "Fix the bug"))
+    # An embed of a filter names this community's ids, so it crosses as its label.
+    content["root"]["children"].append(
+        {
+            **_embed("task", 0, "Open launch tasks"),
+            "query": {"initiative_id": 3, "project_id": 9, "filters": {}, "sort": []},
+        }
+    )
     before = copy.deepcopy(content)
 
     detached = detach_editor_references(content)
@@ -109,6 +116,9 @@ def test_an_editor_reference_carries_a_ref_instead_of_an_id():
     text, mention, chip, wikilink, waiting = _inline(detached)
     embed = detached["root"]["children"][1]
     assert (embed["entityId"], embed[SOURCE_REF]) == (0, "task:41")
+    label = detached["root"]["children"][2]
+    assert label["type"] == "paragraph"
+    assert label["children"][0]["text"] == "Open launch tasks"
     assert text == {"type": "text", "text": "See "}
     assert (mention["entityId"], mention[SOURCE_REF]) == (0, "task:41")
     assert (chip["entityId"], chip[SOURCE_REF]) == (0, "task:41")

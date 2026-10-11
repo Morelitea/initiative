@@ -8,15 +8,16 @@ import {
 import { storedEntityType } from "@/lib/smartChips";
 
 /**
- * `![[ ]]` in markdown: the embed as Obsidian writes one, with the reference
- * it names ahead of a `|` and the name it had after — `![[task:12|Roll call]]`.
- * The name is what a reader of the raw text sees; the reference is what comes
- * back live.
+ * `![[ ]]` in markdown: the embed with the reference it names ahead of a `|`
+ * and the name it had after — `![[task:12|Roll call]]`. The name is what a
+ * reader of the raw text sees; the reference is what comes back live. An
+ * embed of a filter names no one thing, so it is written as its label.
  */
 export const EMBED: ElementTransformer = {
   dependencies: [ReferenceEmbedNode],
   export: (node) => {
     if (!$isReferenceEmbedNode(node)) return null;
+    if (node.getQuery()) return node.getTextContent();
     // The name sits between `|` and `]]`, so neither can be in it.
     const name = node.getTextContent().replace(/[|\]]/g, "");
     return `![[${node.getEntityType()}:${node.getEntityId()}|${name}]]`;

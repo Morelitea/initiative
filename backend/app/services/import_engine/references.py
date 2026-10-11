@@ -97,6 +97,10 @@ def detach_editor_references(content: Any) -> Any:
     def walk(node: Any) -> Any:
         if not isinstance(node, dict):
             return node
+        if node.get("query"):
+            # An embed of a filter: its project, statuses, people and tags are
+            # this community's ids, which mean nothing where it is going.
+            return reference_as_text(node)
         field = REFERENCE_NODES.get(node.get("type"))
         if field is not None:
             kind = reference_node_kind(node)

@@ -10,6 +10,12 @@
  * is what an export shows and what the search index reads.
  *
  * It folds to its name, and folded is saved with the page, as a callout's is.
+ *
+ * What it shows is its `display`: the thing's card, or the facts about it
+ * that matter here. With a `query` it shows tasks matching a filter instead —
+ * a list, a table or a count — and names no one thing: its `entityId` is 0,
+ * which every reader of stored pages already passes over, and `text` is the
+ * label its author gave it.
  */
 
 import { addClassNamesToElement } from "@lexical/utils";
@@ -35,6 +41,7 @@ import {
   type EntityMentionNode,
 } from "@/components/ui/editor/nodes/entity-mention-node";
 import { ReferenceEmbed } from "@/components/ui/editor/nodes/reference-embed";
+import { CARD, type EmbedDisplay, readDisplay, readQuery, type TaskQuery } from "@/lib/embeds";
 import { storedEntityType } from "@/lib/smartChips";
 
 export type SerializedReferenceEmbedNode = Spread<
@@ -46,19 +53,38 @@ export type SerializedReferenceEmbedNode = Spread<
     /** Folded to its name. Absent in anything saved before embeds could fold,
      * which reads as open. */
     collapsed?: boolean;
+    /** How it draws. Absent in anything saved before it had a choice: a card. */
+    display?: EmbedDisplay;
+    /** The tasks it shows, for an embed of a filter rather than of one thing. */
+    query?: TaskQuery | null;
   },
   SerializedLexicalNode
 >;
 
 const TYPE_ATTR = "data-lexical-reference-embed";
 const ID_ATTR = "data-entity-id";
+const CONFIG_ATTR = "data-embed-config";
 
 function $convertEmbedElement(domNode: HTMLElement): DOMConversionOutput | null {
   const entityType = storedEntityType(domNode.getAttribute(TYPE_ATTR) ?? "");
   const entityId = Number(domNode.getAttribute(ID_ATTR));
   if (!entityType || !Number.isFinite(entityId)) return null;
+  let config: { display?: unknown; query?: unknown } = {};
+  try {
+    config = JSON.parse(domNode.getAttribute(CONFIG_ATTR) ?? "{}");
+  } catch {
+    // A pasted embed whose settings did not survive is still its card.
+  }
   return {
-    node: $createReferenceEmbedNode(entityType, entityId, domNode.textContent ?? ""),
+    node: new ReferenceEmbedNode(
+      entityType,
+      entityId,
+      domNode.textContent ?? "",
+      undefined,
+      false,
+      readDisplay(config.display),
+      readQuery(config.query)
+    ),
   };
 }
 
@@ -67,6 +93,8 @@ export class ReferenceEmbedNode extends DecoratorNode<JSX.Element> {
   __entityId: number;
   __text: string;
   __collapsed: boolean;
+  __display: EmbedDisplay;
+  __query: TaskQuery | null;
 
   static getType(): string {
     return "reference-embed";
@@ -78,16 +106,22 @@ export class ReferenceEmbedNode extends DecoratorNode<JSX.Element> {
       node.__entityId,
       node.__text,
       node.__key,
-      node.__collapsed
+      node.__collapsed,
+      node.__display,
+      node.__query
     );
   }
 
   static importJSON(serialized: SerializedReferenceEmbedNode): ReferenceEmbedNode {
-    return $createReferenceEmbedNode(
+    return new ReferenceEmbedNode(
       storedEntityType(serialized.entityType) ?? serialized.entityType,
       serialized.entityId,
-      serialized.text
-    ).setCollapsed(serialized.collapsed === true);
+      serialized.text,
+      undefined,
+      serialized.collapsed === true,
+      readDisplay(serialized.display),
+      readQuery(serialized.query)
+    );
   }
 
   constructor(
@@ -95,13 +129,17 @@ export class ReferenceEmbedNode extends DecoratorNode<JSX.Element> {
     entityId: number,
     text: string,
     key?: NodeKey,
-    collapsed = false
+    collapsed = false,
+    display: EmbedDisplay = CARD,
+    query: TaskQuery | null = null
   ) {
     super(key);
     this.__entityType = entityType;
     this.__entityId = entityId;
     this.__text = text;
     this.__collapsed = collapsed;
+    this.__display = display;
+    this.__query = query;
   }
 
   exportJSON(): SerializedReferenceEmbedNode {
@@ -111,8 +149,10 @@ export class ReferenceEmbedNode extends DecoratorNode<JSX.Element> {
       entityId: this.__entityId,
       text: this.__text,
       collapsed: this.__collapsed,
+      display: this.__display,
+      ...(this.__query && { query: this.__query }),
       type: "reference-embed",
-      version: 1,
+      version: 2,
     };
   }
 
@@ -138,6 +178,23 @@ export class ReferenceEmbedNode extends DecoratorNode<JSX.Element> {
     return writable;
   }
 
+  getDisplay(): EmbedDisplay {
+    return this.getLatest().__display;
+  }
+
+  getQuery(): TaskQuery | null {
+    return this.getLatest().__query;
+  }
+
+  /** What it shows, changed from its settings. */
+  setShown(display: EmbedDisplay, query: TaskQuery | null, text: string): this {
+    const writable = this.getWritable();
+    writable.__display = display;
+    writable.__query = query;
+    writable.__text = text;
+    return writable;
+  }
+
   /** Drawn as a callout — the same panel, colour and mark. */
   createDOM(config: EditorConfig): HTMLElement {
     const dom = document.createElement("div");
@@ -156,6 +213,12 @@ export class ReferenceEmbedNode extends DecoratorNode<JSX.Element> {
     const element = document.createElement("div");
     element.setAttribute(TYPE_ATTR, this.__entityType);
     element.setAttribute(ID_ATTR, String(this.__entityId));
+    if (this.__query || this.__display.mode !== CARD.mode) {
+      element.setAttribute(
+        CONFIG_ATTR,
+        JSON.stringify({ display: this.__display, query: this.__query })
+      );
+    }
     element.textContent = this.__text;
     return { element };
   }
@@ -183,6 +246,8 @@ export class ReferenceEmbedNode extends DecoratorNode<JSX.Element> {
         entityId={this.__entityId}
         fallback={this.__text}
         collapsed={this.__collapsed}
+        display={this.__display}
+        query={this.__query}
         nodeKey={this.getKey()}
       />
     );
@@ -195,6 +260,15 @@ export function $createReferenceEmbedNode(
   text: string
 ): ReferenceEmbedNode {
   return new ReferenceEmbedNode(entityType, entityId, text);
+}
+
+/** An embed of the tasks a filter matches, under the label its author gave. */
+export function $createTaskQueryEmbedNode(
+  query: TaskQuery,
+  display: EmbedDisplay,
+  text: string
+): ReferenceEmbedNode {
+  return new ReferenceEmbedNode("task", 0, text, undefined, false, display, query);
 }
 
 export function $isReferenceEmbedNode(

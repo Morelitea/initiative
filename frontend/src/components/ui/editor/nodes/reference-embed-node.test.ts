@@ -24,6 +24,7 @@ import {
   ReferenceEmbedNode,
 } from "@/components/ui/editor/nodes/reference-embed-node";
 import { EMBED } from "@/components/ui/editor/transformers/markdown-embed-transformer";
+import { EMPTY_TASK_FILTERS } from "@/lib/filters/taskFilters";
 
 function makeEditor(): LexicalEditor {
   return buildEditorFromExtensions(
@@ -46,7 +47,7 @@ const types = (editor: LexicalEditor) =>
   );
 
 describe("an embed in markdown", () => {
-  it("is Obsidian's `![[ ]]`, carrying the reference and the name", () => {
+  it("is `![[ ]]`, carrying the reference and the name", () => {
     const editor = makeEditor();
     const source = "![[task:12|Roll call]]";
     let exported = "";
@@ -143,5 +144,89 @@ describe("switching between a link and an embed", () => {
       { discrete: true }
     );
     expect(types(editor)).toEqual(["reference-embed", "paragraph"]);
+  });
+});
+
+describe("what an embed keeps", () => {
+  const stored = (node: object) => {
+    const editor = makeEditor();
+    editor.setEditorState(
+      editor.parseEditorState({
+        root: {
+          type: "root",
+          version: 1,
+          direction: null,
+          format: "",
+          indent: 0,
+          children: [node],
+        },
+      } as never)
+    );
+    return editor.getEditorState().read(() => {
+      const embed = $getRoot().getFirstChild();
+      if (!$isReferenceEmbedNode(embed)) throw new Error("not an embed");
+      return embed.exportJSON();
+    });
+  };
+
+  it("reads one saved before it had a choice as a card", () => {
+    const json = stored({
+      type: "reference-embed",
+      version: 1,
+      entityType: "task",
+      entityId: 12,
+      text: "Roll call",
+    });
+    expect(json.display).toEqual({ mode: "card" });
+    expect(json.query).toBeUndefined();
+  });
+
+  it("keeps the facts it shows, and the filter it shows tasks for", () => {
+    const query = {
+      initiative_id: 3,
+      project_id: 9,
+      filters: { ...EMPTY_TASK_FILTERS, status_categories: ["todo"] },
+      sort: [{ field: "due_date", dir: "asc" }],
+    };
+    expect(
+      stored({
+        type: "reference-embed",
+        version: 2,
+        entityType: "task",
+        entityId: 12,
+        text: "Roll call",
+        display: { mode: "fields", fields: ["task:status", "task:due", "nonsense"] },
+      }).display
+    ).toEqual({ mode: "fields", fields: ["task:status", "task:due"] });
+
+    const json = stored({
+      type: "reference-embed",
+      version: 2,
+      entityType: "task",
+      entityId: 0,
+      text: "Open launch tasks",
+      display: { mode: "table", columns: ["title", "dueDate"] },
+      query,
+    });
+    expect(json.query).toEqual(query);
+    expect(json.display).toEqual({ mode: "table", columns: ["title", "dueDate"] });
+  });
+
+  it("reads a filter whose values were damaged as the values it can trust", () => {
+    const json = stored({
+      type: "reference-embed",
+      version: 2,
+      entityType: "task",
+      entityId: 0,
+      text: "Open launch tasks",
+      display: { mode: "list" },
+      query: { initiative_id: 3, filters: { properties: null, assignees: ["me", 4] }, sort: "x" },
+    });
+    expect(json.query).toEqual({
+      initiative_id: 3,
+      project_id: null,
+      filters: { ...EMPTY_TASK_FILTERS, assignees: ["me"] },
+      sort: [],
+    });
   });
 });

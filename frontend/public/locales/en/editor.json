@@ -133,7 +133,35 @@
     "showAsEmbed": "Show in full",
     "showAsLink": "Show as a link",
     "expand": "Expand",
-    "collapse": "Collapse"
+    "collapse": "Collapse",
+    "settings": "Embed settings",
+    "showAs": "Show as",
+    "change": "Change",
+    "source": {
+      "item": "One thing",
+      "tasks": "Tasks matching a filter"
+    },
+    "modes": {
+      "card": "Card",
+      "fields": "Chosen details",
+      "list": "List",
+      "table": "Table",
+      "count": "Count"
+    },
+    "tasks": {
+      "untitled": "Tasks",
+      "total_one": "{{count}} task",
+      "total_other": "{{count}} tasks",
+      "none": "No tasks match.",
+      "previous": "Previous",
+      "next": "Next",
+      "page": "Page {{page}} of {{pages}}",
+      "label": "Label",
+      "labelPlaceholder": "Open launch tasks",
+      "from": "From",
+      "wholeInitiative": "Every project in this initiative",
+      "error": "These tasks couldn't be loaded."
+    }
   },
   "outline": {
     "title": "Contents",

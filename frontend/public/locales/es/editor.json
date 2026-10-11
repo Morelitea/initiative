@@ -133,7 +133,35 @@
     "showAsEmbed": "Mostrar completo",
     "showAsLink": "Mostrar como enlace",
     "expand": "Expandir",
-    "collapse": "Contraer"
+    "collapse": "Contraer",
+    "settings": "Ajustes de la inserción",
+    "showAs": "Mostrar como",
+    "change": "Cambiar",
+    "source": {
+      "item": "Un elemento",
+      "tasks": "Tareas que coinciden con un filtro"
+    },
+    "modes": {
+      "card": "Tarjeta",
+      "fields": "Detalles elegidos",
+      "list": "Lista",
+      "table": "Tabla",
+      "count": "Recuento"
+    },
+    "tasks": {
+      "untitled": "Tareas",
+      "total_one": "{{count}} tarea",
+      "total_other": "{{count}} tareas",
+      "none": "Ninguna tarea coincide.",
+      "previous": "Anterior",
+      "next": "Siguiente",
+      "page": "Página {{page}} de {{pages}}",
+      "label": "Etiqueta",
+      "labelPlaceholder": "Tareas abiertas del lanzamiento",
+      "from": "De",
+      "wholeInitiative": "Todos los proyectos de esta iniciativa",
+      "error": "No se pudieron cargar estas tareas."
+    }
   },
   "outline": {
     "title": "Contenido",

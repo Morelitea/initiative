@@ -4,10 +4,12 @@ import type { SerializedEditorState } from "lexical";
 import { HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 
+import { buildTask, buildTaskListResponse } from "@/__tests__/factories";
 import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
 import { Editor } from "@/components/ui/editor/editor";
+import { EMPTY_TASK_FILTERS } from "@/lib/filters/taskFilters";
 
 const paragraph = (text: string) => ({
   type: "paragraph",
@@ -97,5 +99,100 @@ describe("an embedded page", () => {
     // The inner page's embed of the outer one is a name, not the outer page again.
     await waitFor(() => expect(screen.getByRole("button", { name: "Outer" })).toBeInTheDocument());
     expect(screen.getAllByText("The outer page.")).toHaveLength(1);
+  });
+});
+
+const taskEmbed = (display: object, query: object) => ({
+  type: "reference-embed",
+  version: 2,
+  entityType: "task",
+  entityId: 0,
+  text: "Open launch tasks",
+  collapsed: false,
+  display,
+  query,
+});
+
+const LAUNCH = {
+  initiative_id: 3,
+  project_id: null,
+  filters: { ...EMPTY_TASK_FILTERS, assignees: ["me"], status_categories: ["todo"] },
+  sort: [],
+};
+
+describe("an embed of the tasks a filter matches", () => {
+  it("asks the task list as the reader, inside the page's initiative", async () => {
+    let asked: unknown;
+    server.use(
+      communityHttp.get("/tasks/", ({ request }) => {
+        asked = JSON.parse(new URL(request.url).searchParams.get("conditions") ?? "[]");
+        return HttpResponse.json(
+          buildTaskListResponse([
+            buildTask({ title: "Book the venue" }),
+            buildTask({ title: "Print the flyers" }),
+          ])
+        );
+      })
+    );
+
+    renderPage(() => (
+      <Editor
+        editorSerializedState={
+          page(taskEmbed({ mode: "list" }, LAUNCH)) as unknown as SerializedEditorState
+        }
+        readOnly
+        showToolbar={false}
+      />
+    ));
+
+    expect(await screen.findByText("Book the venue", {}, { timeout: 4000 })).toBeInTheDocument();
+    expect(screen.getByText("Print the flyers")).toBeInTheDocument();
+    expect(screen.getByText("Open launch tasks")).toBeInTheDocument();
+    // `me` goes to the server as `me`: each reader sees their own work.
+    expect(asked).toEqual(
+      expect.arrayContaining([
+        { field: "initiative_ids", op: "in_", value: [3] },
+        { field: "assignee_ids", op: "in_", value: ["me"] },
+      ])
+    );
+  });
+
+  it("counts them", async () => {
+    server.use(
+      communityHttp.get("/tasks/", () =>
+        HttpResponse.json({ ...buildTaskListResponse([buildTask()]), total_count: 12 })
+      )
+    );
+
+    renderPage(() => (
+      <Editor
+        editorSerializedState={
+          page(taskEmbed({ mode: "count" }, LAUNCH)) as unknown as SerializedEditorState
+        }
+        readOnly
+        showToolbar={false}
+      />
+    ));
+
+    expect(await screen.findByText("12", {}, { timeout: 4000 })).toBeInTheDocument();
+  });
+
+  it("says it could not load them, rather than that none match", async () => {
+    server.use(communityHttp.get("/tasks/", () => HttpResponse.json({}, { status: 500 })));
+
+    renderPage(() => (
+      <Editor
+        editorSerializedState={
+          page(taskEmbed({ mode: "count" }, LAUNCH)) as unknown as SerializedEditorState
+        }
+        readOnly
+        showToolbar={false}
+      />
+    ));
+
+    expect(
+      await screen.findByText("These tasks couldn't be loaded.", {}, { timeout: 6000 })
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
   });
 });

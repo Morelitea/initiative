@@ -1,4 +1,3 @@
-import { $insertNodeToNearestRoot } from "@lexical/utils";
 import type { LexicalEditor } from "lexical";
 import { $insertNodes } from "lexical";
 import { useEffect, useRef, useState } from "react";
@@ -16,7 +15,6 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import { $createReferenceEmbedNode } from "@/components/ui/editor/nodes/reference-embed-node";
 import { $createSmartChipNode } from "@/components/ui/editor/nodes/smart-chip-node";
 import { SMART_CHIP_MENU } from "@/components/ui/editor/plugins/smart-chip-menu";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
@@ -33,9 +31,10 @@ interface SmartChipInsertDialogProps {
   /** The fact to show, where the caller already chose one — the `/` menu has
    *  an entry per fact. `null` asks for the thing first and the fact after. */
   chipKind?: SmartChipKind | null;
-  /** Insert the chosen thing in full — what `![[ ]]` writes — rather than a
-   *  chip. Anything a `#` link can name can be embedded. */
-  embed?: boolean;
+  /** Choosing a thing to show in full rather than a chip: the choice is
+   *  handed here, for the embed's settings to go on from. Anything a `#` link
+   *  can name can be embedded. */
+  onPickEmbed?: (suggestion: SearchSuggestion) => void;
   initiativeId: number | null;
   activeEditor: LexicalEditor;
   onClose: () => void;
@@ -53,7 +52,7 @@ interface SmartChipInsertDialogProps {
  */
 export function SmartChipInsertDialog({
   chipKind = null,
-  embed = false,
+  onPickEmbed,
   initiativeId,
   activeEditor,
   onClose,
@@ -64,6 +63,7 @@ export function SmartChipInsertDialog({
   const [query, setQuery] = useState("");
   const debounced = useDebouncedValue(query, 200);
   const [chosen, setChosen] = useState<SearchSuggestion | null>(null);
+  const embed = onPickEmbed !== undefined;
 
   // `autoFocus` alone loses this race. Whatever opened the dialog hands focus
   // back as it goes — the toolbar's select restores its trigger, the `/` menu
@@ -107,15 +107,7 @@ export function SmartChipInsertDialog({
   };
 
   const choose = (suggestion: SearchSuggestion) => {
-    if (embed) {
-      activeEditor.update(() => {
-        $insertNodeToNearestRoot(
-          $createReferenceEmbedNode(suggestion.entity_type, suggestion.entity_id, suggestion.title)
-        );
-      });
-      onClose();
-      return;
-    }
+    if (onPickEmbed) return onPickEmbed(suggestion);
     if (chipKind) return insert(chipKind, suggestion);
     const kinds = chipKindsFor(suggestion.entity_type);
     // One fact means no question to ask.
