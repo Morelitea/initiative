@@ -7,6 +7,7 @@ import type {
   DetailLayoutDefinitionInput,
   DetailLayoutRead,
   GetLayoutsParams,
+  LayoutPreset,
   ListLayoutDefinitionInput,
   ListLayoutReadKind,
   ToolLayoutSetRead,
@@ -105,6 +106,8 @@ export type LayoutEdits = {
   removeColumn: (field: string) => void;
   /** At `index`, or last. */
   addColumn: (field: string, index?: number) => void;
+  /** The open list offers `presets`, in order. */
+  changePresets: (presets: LayoutPreset[]) => void;
   /** The open layout goes back to the shipped one. */
   resetLayout: () => void;
 };
@@ -366,6 +369,9 @@ export const LayoutEditor = ({
       const next = [...columns];
       next.splice(index ?? next.length, 0, field);
       changeList({ ...current.definition, columns: next }, { kind: "column", field });
+    },
+    changePresets: (presets) => {
+      if (current) changeList({ ...current.definition, presets });
     },
   };
 
@@ -636,6 +642,7 @@ export const LayoutEditor = ({
           <aside className="min-h-0 overflow-y-auto border-l">
             <ListLayoutSettings
               layout={current}
+              project={project}
               opensFirst={draft.opensOn === current.kind}
               stored={draft.lists[current.kind] != null}
               fields={fields}

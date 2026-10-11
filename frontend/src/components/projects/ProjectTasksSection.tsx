@@ -31,8 +31,8 @@ import {
   type TaskEntryMeta,
 } from "@/components/calendar";
 import { ToolFilterPanel } from "@/components/initiativeTools/shared/ToolFilterPanel";
+import { ToolLayoutSelect } from "@/components/initiativeTools/shared/ToolLayoutSelect";
 import { ToolListToolbar } from "@/components/initiativeTools/shared/ToolListToolbar";
-import { ToolViewSelect } from "@/components/initiativeTools/shared/ToolViewSelect";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { ProjectTaskComposer } from "@/components/projects/ProjectTaskComposer";
 import { ProjectTasksFilters } from "@/components/projects/ProjectTasksFilters";
@@ -66,6 +66,7 @@ import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useAuth } from "@/hooks/useAuth";
 import { useInitiative } from "@/hooks/useInitiatives";
 import {
+  type ProjectViewSearch,
   projectTaskTableKey,
   taskViewSorting,
   useProjectTaskTableState,
@@ -90,6 +91,7 @@ import {
   taskFilterCount,
 } from "@/lib/filters/taskFilters";
 import { cardOf } from "@/lib/layouts/draft";
+import { presetName } from "@/lib/layouts/presets";
 import { toast } from "@/lib/mascotToast";
 import { getProjectColor } from "@/lib/projectColor";
 import { rulePayload } from "@/lib/recurrence";
@@ -144,7 +146,7 @@ export const ProjectTasksSection = ({
   // task and its property values in one request.
   const [composerValue, setComposerValue] = useState<TaskFormValue>(() => emptyTaskFormValue());
   const navigate = useNavigate();
-  const search = useSearch({ strict: false }) as { layout?: string };
+  const search = useSearch({ strict: false }) as ProjectViewSearch;
   const {
     filtersLoaded,
     layoutsLoaded,
@@ -154,13 +156,70 @@ export const ProjectTasksSection = ({
     layouts,
     layout,
     kind,
+    presets,
+    preset,
     filtered,
     appliedSpec,
     sorting,
     setFilters,
     setSorting,
+    applyPreset,
     rememberLayout,
   } = useProjectTaskView({ projectId, taskStatuses, search });
+
+  /** Name `next` in the URL, or no preset (undefined). The URL is a link to
+   *  the preset while it names one. */
+  const namePreset = useCallback(
+    (next: string | undefined) =>
+      void navigate({
+        to: ".",
+        search: ((prev: Record<string, unknown>) => ({ ...prev, preset: next })) as never,
+        replace: true,
+        resetScroll: false,
+      }),
+    [navigate]
+  );
+
+  // A preset the URL names is applied as this person's own, once per preset,
+  // so it is what they come back to. One the layout doesn't offer is dropped.
+  const applied = useRef<string | null>(null);
+  useEffect(() => {
+    if (!search.preset || !layoutsLoaded || !filtersLoaded) return;
+    if (!preset) {
+      namePreset(undefined);
+      return;
+    }
+    const key = `${projectId}:${kind}:${preset.slug}`;
+    if (applied.current === key) return;
+    applied.current = key;
+    applyPreset(preset);
+  }, [
+    search.preset,
+    layoutsLoaded,
+    filtersLoaded,
+    preset,
+    projectId,
+    kind,
+    applyPreset,
+    namePreset,
+  ]);
+
+  // Changing the filters or the sort makes them this person's own, and the
+  // URL stops naming the preset they started from.
+  const changeFilters = useCallback(
+    (next: Parameters<typeof setFilters>[0]) => {
+      setFilters(next);
+      if (search.preset) namePreset(undefined);
+    },
+    [setFilters, search.preset, namePreset]
+  );
+  const changeSorting = useCallback(
+    (next: Parameters<typeof setSorting>[0]) => {
+      setSorting(next);
+      if (search.preset) namePreset(undefined);
+    },
+    [setSorting, search.preset, namePreset]
+  );
 
   /** Show the `next` list layout, and come back to it. The URL names it, so
    *  a link opens the same layout for whoever follows it. */
@@ -176,7 +235,12 @@ export const ProjectTasksSection = ({
       // you back to the top of it on every pick.
       void navigate({
         to: ".",
-        search: ((prev: Record<string, unknown>) => ({ ...prev, layout: chosen.kind })) as never,
+        // A preset is one layout's: another starts from this person's own.
+        search: ((prev: Record<string, unknown>) => ({
+          ...prev,
+          layout: chosen.kind,
+          preset: undefined,
+        })) as never,
         replace: true,
         resetScroll: false,
       });
@@ -194,6 +258,11 @@ export const ProjectTasksSection = ({
     [layouts, t]
   );
 
+  const presetOptions = useMemo(
+    () => presets.map((each) => ({ slug: each.slug, name: presetName(each, t as never) })),
+    [presets, t]
+  );
+
   // Closed until asked for. The filter button carries a count of what's set, so
   // a narrowed list still says so with the panel shut — and the fields no
   // longer take the top of the page before the list itself.
@@ -203,7 +272,7 @@ export const ProjectTasksSection = ({
   // the default as narrowing it.
   const activeFilterCount = taskFilterCount(appliedSpec);
 
-  const clearFilters = useCallback(() => setFilters(null), [setFilters]);
+  const clearFilters = useCallback(() => changeFilters(null), [changeFilters]);
 
   const [localOverride, setLocalOverride] = useState<TaskListRead[] | null>(null);
   const [isComposerOpen, setIsComposerOpen] = useState(initialComposerOpen ?? false);
@@ -235,7 +304,7 @@ export const ProjectTasksSection = ({
   // An export lists the tasks in the order the reader sees them: the table's
   // own sort while it is showing, and the project's order in every other
   // layout.
-  const tableState = useProjectTaskTableState(projectId, kind, sorting, setSorting);
+  const tableState = useProjectTaskTableState(projectId, kind, sorting, changeSorting);
   const exportSorting = useMemo(() => {
     const fields = taskViewSorting(kind, sorting);
     return fields.length > 0 ? { sorting: fields, tz: browserTimezone() } : {};
@@ -870,16 +939,19 @@ export const ProjectTasksSection = ({
             onOpenChange: setFiltersOpen,
             activeCount: activeFilterCount,
           }}
-          // The project's list layouts; this person's filters for each come
-          // with it.
+          // The project's list layouts, this person's filters for each coming
+          // with it, and the presets the one shown offers.
           viewControl={
-            <ToolViewSelect
-              views={layoutOptions}
+            <ToolLayoutSelect
+              layouts={layoutOptions}
               activeSlug={layout?.kind ?? null}
               modified={filtered}
               onSelect={selectLayout}
               label={t("layouts.label")}
               modifiedLabel={t("filters.modified")}
+              presets={presetOptions}
+              presetsLabel={t("presets.label")}
+              onPreset={namePreset}
             />
           }
           trailing={
@@ -930,7 +1002,7 @@ export const ProjectTasksSection = ({
             memberScope={{ type: "canOpen", tool: Tool.project, id: projectId }}
             taskStatuses={sortedTaskStatuses}
             value={appliedSpec}
-            onChange={setFilters}
+            onChange={changeFilters}
           />
         </ToolFilterPanel>
 

@@ -30,6 +30,7 @@ import type { TranslateFn } from "@/types/i18n";
 
 import type { EditableDetail } from "./details";
 import type { LayoutEdits } from "./LayoutEditor";
+import { LayoutPresets } from "./LayoutPresets";
 
 /**
  * The settings of the one thing selected, and only those: the list layout's
@@ -39,6 +40,7 @@ import type { LayoutEdits } from "./LayoutEditor";
  */
 export const ListLayoutSettings = ({
   layout,
+  project,
   opensFirst,
   stored,
   fields,
@@ -47,6 +49,7 @@ export const ListLayoutSettings = ({
   locked,
 }: {
   layout: ListLayout;
+  project: LayoutProject;
   /** Whether the project opens on it. */
   opensFirst: boolean;
   /** Whether the project changed it, as against drawing it as shipped. */
@@ -80,6 +83,7 @@ export const ListLayoutSettings = ({
               }}
             />
           </div>
+          <LayoutPresets layout={layout} project={project} fields={fields} edits={edits} />
           <Shipped stored={stored} edits={edits} />
         </Panel>
       ) : selection.kind === "column" ? (

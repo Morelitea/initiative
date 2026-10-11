@@ -3,6 +3,8 @@
  * they are in, and their own filters and sort for each, saved for them on the
  * project (a per-user preference). A layout is how the project draws its
  * tasks; what a person narrows the list to and how they order it are theirs.
+ * A layout's presets are where they can start from: picking one makes its
+ * filters and sort theirs.
  *
  * The project page reads it to show the list, and the project's export card
  * reads it so an export starts from the same tasks.
@@ -30,6 +32,7 @@ import {
   taskFilterCount,
   taskSortFields,
 } from "@/lib/filters/taskFilters";
+import { type Preset, presetsOf } from "@/lib/layouts/presets";
 
 /** Where one person's view of a project is kept. */
 export const projectViewsPreferenceKey = (projectId: number) => `project:${projectId}:views`;
@@ -82,15 +85,20 @@ export function sanitizeStoredView(raw: unknown): StoredView | null {
   return { layout: typeof layout === "string" ? layout : null, filters, sorting };
 }
 
+/** What the URL names: `?layout=` and `?preset=`, which a link means for
+ *  whoever opens it. */
+export type ProjectViewSearch = { layout?: string; preset?: string };
+
 /**
  * Which layout a person sees and their filters and sort for it: the layout the
  * URL names (a link means the same layout for whoever opens it), else the one
- * they were last in, else the one the project opens on. The page and the
- * route's prefetch both resolve it here, so the prefetch lands on the key the
- * page asks for.
+ * they were last in, else the one the project opens on. A preset the URL names
+ * gives its filters and sort; otherwise they are the person's own. The page
+ * and the route's prefetch both resolve it here, so the prefetch lands on the
+ * key the page asks for.
  */
 export const resolveProjectView = (
-  search: { layout?: string },
+  search: ProjectViewSearch,
   layouts: readonly ListLayoutRead[],
   stored: StoredView | null
 ) => {
@@ -101,11 +109,15 @@ export const resolveProjectView = (
     layouts[0] ??
     null;
   const kind: ListLayoutReadKind = layout?.kind ?? "table";
+  const presets = presetsOf(layout?.definition);
+  const preset = presets.find((each) => each.slug === search.preset) ?? null;
   return {
     layout,
     kind,
-    spec: stored?.filters[kind] ?? EMPTY_TASK_FILTERS,
-    sorting: stored?.sorting[kind] ?? EMPTY_SORTING,
+    presets,
+    preset,
+    spec: preset?.spec ?? stored?.filters[kind] ?? EMPTY_TASK_FILTERS,
+    sorting: preset?.sorting ?? stored?.sorting[kind] ?? EMPTY_SORTING,
   };
 };
 
@@ -121,8 +133,7 @@ export function useProjectTaskView({
   projectId: number;
   /** The project's statuses, to drop a filter on one that is gone. */
   taskStatuses: TaskStatusRead[];
-  /** What the URL names: `?layout=`, which a link means for whoever opens it. */
-  search: { layout?: string };
+  search: ProjectViewSearch;
 }) {
   const [storedRaw, setStored, { isLoaded: filtersLoaded }] = useViewPreference<unknown>(
     projectViewsPreferenceKey(projectId),
@@ -142,7 +153,7 @@ export function useProjectTaskView({
   const canConfigure = layoutsQuery.data?.can_configure ?? false;
   const layouts = useMemo(() => listLayouts(layoutsQuery.data), [layoutsQuery.data]);
 
-  const { layout, kind, spec, sorting } = useMemo(
+  const { layout, kind, presets, preset, spec, sorting } = useMemo(
     () => resolveProjectView(search, layouts, filtersLoaded ? stored : null),
     [search, layouts, stored, filtersLoaded]
   );
@@ -172,6 +183,21 @@ export function useProjectTaskView({
         ...view,
         layout: kind,
         sorting: next.length ? { ...view.sorting, [kind]: next } : without(view.sorting, kind),
+      })),
+    [kind, writeStored]
+  );
+
+  /** Make `preset`'s filters and sort this person's own for the layout on
+   *  screen. */
+  const applyPreset = useCallback(
+    (next: Preset) =>
+      writeStored((view) => ({
+        ...view,
+        layout: kind,
+        filters: { ...view.filters, [kind]: next.spec },
+        sorting: next.sorting.length
+          ? { ...view.sorting, [kind]: next.sorting }
+          : without(view.sorting, kind),
       })),
     [kind, writeStored]
   );
@@ -233,6 +259,10 @@ export function useProjectTaskView({
     canConfigure,
     layout,
     kind,
+    /** What the layout on screen offers to start from. */
+    presets,
+    /** The one the URL names, while it does. */
+    preset,
     spec,
     /** This person narrows the list on screen. */
     filtered: taskFilterCount(spec) > 0,
@@ -240,6 +270,7 @@ export function useProjectTaskView({
     sorting,
     setFilters,
     setSorting,
+    applyPreset,
     rememberLayout,
   };
 }

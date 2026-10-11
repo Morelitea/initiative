@@ -5,7 +5,8 @@ A target is one instance of a tool (a project) or, for a tool the initiative
 shares, the initiative itself (its calendar). It has one layout of each kind
 its tool draws: each way it lists what it holds, and its detail.
 Each is drawn as shipped until it is changed, and stored when it is, on its
-own; so is the list the target opens on.
+own; so is the list the target opens on. A project's lists also hold the
+presets they offer.
 """
 
 from __future__ import annotations
@@ -226,6 +227,13 @@ def check(target: Target, write: ToolLayoutWrite) -> dict[str, Any]:
     else:
         _require(write.kind, LIST_LAYOUTS.get(target.tool, ()))
         assert isinstance(definition, ListLayoutDefinition)
+        # Presets hold task filters, so only a project's lists offer them, and
+        # only a table is sorted by its own.
+        if definition.presets and (
+            target.tool != Tool.project
+            or (write.kind != "table" and any(p.sort for p in definition.presets))
+        ):
+            raise _bad_request(ToolLayoutMessages.KIND_NOT_ALLOWED)
         _within_limits(
             stored,
             [definition.card] if definition.card is not None else [],
@@ -292,8 +300,42 @@ async def reset(session: AsyncSession, target: Target, kind: str) -> None:
     await session.flush()
 
 
-async def copy_layouts(session: AsyncSession, source: Target, copy: Target) -> None:
-    """Give ``copy`` what ``source`` stored."""
+def _remap_presets(
+    definition: dict[str, Any], status_mapping: dict[int, int]
+) -> dict[str, Any]:
+    """``definition`` for a copied project. Status ids are the project's own
+    rows, so a preset's go through the copy's mapping, and one with no
+    counterpart is dropped."""
+    presets = definition.get("presets")
+    if not isinstance(presets, list):
+        return dict(definition)
+    return {
+        **definition,
+        "presets": [
+            {
+                **preset,
+                "filters": {
+                    **preset.get("filters", {}),
+                    "status_ids": [
+                        status_mapping[old]
+                        for old in preset.get("filters", {}).get("status_ids", [])
+                        if old in status_mapping
+                    ],
+                },
+            }
+            for preset in presets
+        ],
+    }
+
+
+async def copy_layouts(
+    session: AsyncSession,
+    source: Target,
+    copy: Target,
+    *,
+    status_mapping: dict[int, int],
+) -> None:
+    """Give ``copy`` what ``source`` stored, its presets' statuses its own."""
     for row in await list_rows(session, source):
         session.add(
             ToolLayout(
@@ -301,7 +343,7 @@ async def copy_layouts(session: AsyncSession, source: Target, copy: Target) -> N
                 tool=copy.tool.value,
                 tool_id=copy.tool_id,
                 kind=row.kind,
-                definition=dict(row.definition),
+                definition=_remap_presets(row.definition, status_mapping),
             )
         )
     await session.flush()

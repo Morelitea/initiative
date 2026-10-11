@@ -428,6 +428,29 @@
         "actions": "Qué más se puede hacer con el evento: denunciar, duplicar, separar y eliminar.",
         "relations": "Con qué está vinculado el evento."
       }
+    },
+    "presets": {
+      "heading": "Ajustes predefinidos",
+      "help": "Filtros, y en una tabla un orden, que cualquiera puede elegir en el menú del diseño para empezar. Elegir uno los hace suyos.",
+      "none": "Este diseño no ofrece ajustes predefinidos.",
+      "add": "Añadir ajuste predefinido",
+      "edit": "Editar {{name}}",
+      "moveUp": "Subir {{name}}",
+      "moveDown": "Bajar {{name}}",
+      "remove": "Quitar {{name}}",
+      "addTitle": "Añadir un ajuste predefinido",
+      "editTitle": "Editar ajuste predefinido",
+      "dialogHelp": "Elegirlo aplica estos filtros y este orden como propios, y la persona puede acotarlos más.",
+      "name": "Nombre",
+      "sortBy": "Ordenar por",
+      "noSort": "Sin orden propio",
+      "descending": "Descendente"
     }
+  },
+  "presets": {
+    "label": "Ajustes predefinidos",
+    "incomplete": "Pendientes",
+    "unassigned": "Sin asignar",
+    "mine": "Mías"
   }
 }

@@ -428,6 +428,29 @@
         "actions": "Ce qu'on peut faire d'autre avec l'événement : signaler, dupliquer, détacher et supprimer.",
         "relations": "Ce à quoi l'événement est lié."
       }
+    },
+    "presets": {
+      "heading": "Préréglages",
+      "help": "Des filtres, et pour un tableau un tri, que chacun peut choisir dans le menu de la disposition pour commencer. En choisir un en fait les siens.",
+      "none": "Cette disposition ne propose aucun préréglage.",
+      "add": "Ajouter un préréglage",
+      "edit": "Modifier {{name}}",
+      "moveUp": "Monter {{name}}",
+      "moveDown": "Descendre {{name}}",
+      "remove": "Retirer {{name}}",
+      "addTitle": "Ajouter un préréglage",
+      "editTitle": "Modifier le préréglage",
+      "dialogHelp": "Le choisir applique ces filtres et ce tri comme les siens, et la personne peut encore les affiner.",
+      "name": "Nom",
+      "sortBy": "Trier par",
+      "noSort": "Aucun tri propre",
+      "descending": "Décroissant"
     }
+  },
+  "presets": {
+    "label": "Préréglages",
+    "incomplete": "Non terminées",
+    "unassigned": "Non attribuées",
+    "mine": "Les miennes"
   }
 }

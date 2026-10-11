@@ -3,7 +3,8 @@
 A target has one layout of each kind its tool draws: how it lists its items (a
 project's table, board and calendar), and how it shows one of them (its task).
 A layout says how things are drawn; what a person narrows a list to and how
-they sort it are theirs, not the layout's.
+they sort it are theirs, not the layout's. A list can offer them presets: named
+filters (and, for a table, a sort) that a person picks to start from.
 
 A layout is a tree of registered parts: a ``card`` holds what an item shows, a
 ``stack`` lays its children out, a ``field`` draws one field, ``properties``
@@ -14,23 +15,31 @@ and the built-in field ids are ``Literal``s or enums, so the generated client
 carries the same vocabulary the renderer keys by. A property's field is named
 ``property:<definition id>``, so renaming it keeps every layout that shows it;
 a plug-in's is ``plugin:<install id>:<metadata key>``.
+
+``TaskFilterSpec`` is the filter shape a preset holds. It mirrors what the
+task filter controls show rather than the ``conditions`` DSL the list endpoint
+accepts, so a preset reads back as controls and a copied project can remap its
+status ids.
 """
 
 from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from typing import Annotated, List, Literal, Optional, Union
+from typing import Annotated, Any, List, Literal, Optional, Union, get_args
 
-from pydantic import AfterValidator, ConfigDict, Field
+from pydantic import AfterValidator, ConfigDict, Field, field_validator
 
 from app.core.tools import Tool
+from app.models.tenant.task import TaskStatusCategory
 from app.schemas.base import SanitizedBaseModel
+from app.schemas.query import FilterOp, SortDir
 from app.services.marketplace.manifest_values import (
     IDENTIFIER_CHARS,
     MAX_IDENTIFIER_LENGTH,
     is_metadata_key,
 )
+from app.services.tenant.properties import MAX_PROPERTY_FILTERS
 
 #: What one layout may hold. Every part of a tree counts as a
 #: node, as does every column.
@@ -39,10 +48,67 @@ MAX_DEPTH = 6
 MAX_DEFINITION_BYTES = 64 * 1024
 #: One plug-in's parts on one task: on a card, or across its detail.
 MAX_PLUGIN_PARTS = 3
+#: Presets on one list.
+MAX_PRESETS = 20
+
+# An assignee list holds user ids as strings beside two tokens that mean
+# something only when the list is read: "me" is whoever reads it, "none" a task
+# with no assignee. That is what makes a preset, and a link to it, mean the
+# same for everyone.
+ASSIGNEE_ME = "me"
+ASSIGNEE_NONE = "none"
+
+#: The tokens the due filter uses; ``None`` is any date.
+DueToken = Literal["overdue", "today", "7_days", "30_days"]
+
+MAX_STATUS_IDS = 50
+MAX_ASSIGNEES = 25
+MAX_TAG_IDS = 25
+
+SLUG_PATTERN = r"^[a-z0-9]+(?:-[a-z0-9]+)*$"
+MAX_SLUG_LENGTH = 64
 
 
 class _Strict(SanitizedBaseModel):
     model_config = ConfigDict(extra="forbid")
+
+
+# -- Filters ------------------------------------------------------------------
+
+
+class TaskPropertyFilter(_Strict):
+    property_id: int
+    op: FilterOp = FilterOp.eq
+    value: Any = None
+
+
+class TaskFilterSpec(_Strict):
+    """The task filters a preset holds. Unknown keys are refused."""
+
+    status_ids: List[int] = Field(default_factory=list, max_length=MAX_STATUS_IDS)
+    status_categories: List[TaskStatusCategory] = Field(default_factory=list)
+    assignees: List[str] = Field(default_factory=list, max_length=MAX_ASSIGNEES)
+    tag_ids: List[int] = Field(default_factory=list, max_length=MAX_TAG_IDS)
+    properties: List[TaskPropertyFilter] = Field(
+        default_factory=list, max_length=MAX_PROPERTY_FILTERS
+    )
+    due: Optional[DueToken] = None
+    include_archived: bool = False
+
+    @field_validator("assignees")
+    @classmethod
+    def _validate_assignees(cls, value: List[str]) -> List[str]:
+        for entry in value:
+            if entry not in (ASSIGNEE_ME, ASSIGNEE_NONE) and not entry.isdigit():
+                raise ValueError("assignees entries must be a user id, 'me', or 'none'")
+        return value
+
+    @field_validator("status_categories")
+    @classmethod
+    def _dedupe_categories(
+        cls, value: List[TaskStatusCategory]
+    ) -> List[TaskStatusCategory]:
+        return list(dict.fromkeys(value))
 
 
 # -- Fields -------------------------------------------------------------------
@@ -301,13 +367,55 @@ ListLayoutKind = Literal["table", "board", "calendar"]
 DetailLayoutKind = Literal["task", "calendar_event"]
 
 
+#: What a table can be sorted by, as the task list takes it.
+TaskSortField = Literal[
+    "title",
+    "due_date",
+    "start_date",
+    "date_group",
+    "priority",
+    "status_position",
+    "tag_name",
+]
+
+
+class PresetSort(_Strict):
+    field: TaskSortField
+    dir: SortDir = SortDir.asc
+
+
+class LayoutPreset(_Strict):
+    """Filters, and for a table a sort, that a person can pick to start from.
+    Picking one makes them that person's own."""
+
+    name: str = Field(min_length=1, max_length=100)
+    #: What a link to the preset carries; kept when it is renamed.
+    slug: str = Field(min_length=1, max_length=MAX_SLUG_LENGTH, pattern=SLUG_PATTERN)
+    filters: TaskFilterSpec = Field(default_factory=TaskFilterSpec)
+    sort: List[PresetSort] = Field(
+        default_factory=list, max_length=len(get_args(TaskSortField))
+    )
+
+
 class ListLayoutDefinition(_Strict):
-    """How a list draws its items. What it leaves out is drawn as shipped: a
-    board with no ``card`` draws the shipped card, a table with no ``columns``
-    the shipped columns."""
+    """How a list draws its items, and the presets it offers. What it leaves
+    out is drawn as shipped: a board with no ``card`` draws the shipped card, a
+    table with no ``columns`` the shipped columns, a list with no ``presets``
+    the shipped presets."""
 
     card: Optional[CardPart] = None
     columns: Optional[List[ColumnFieldId]] = None
+    presets: Optional[List[LayoutPreset]] = Field(default=None, max_length=MAX_PRESETS)
+
+    @field_validator("presets")
+    @classmethod
+    def _one_preset_per_slug(
+        cls, value: Optional[List[LayoutPreset]]
+    ) -> Optional[List[LayoutPreset]]:
+        slugs = [preset.slug for preset in value or ()]
+        if len(set(slugs)) != len(slugs):
+            raise ValueError("each preset needs its own slug")
+        return value
 
 
 class DetailLayoutDefinition(_Strict):

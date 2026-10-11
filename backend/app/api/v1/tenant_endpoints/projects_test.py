@@ -27,7 +27,7 @@ from app.models.tenant.initiative import InitiativeRoleModel
 from app.models.tenant.project_favorite import ProjectFavorite
 from app.models.tenant.project_order import ProjectOrder
 from app.models.tenant.resource_grant import ResourceAccessLevel
-from app.models.tenant.task import TaskStatusCategory
+from app.models.tenant.task import TaskStatus, TaskStatusCategory
 from app.services.tenant import tags as tags_service
 from app.testing.factories import (
     create_comment,
@@ -1554,14 +1554,20 @@ async def test_plain_write_edits_but_cannot_pin(
 
 
 async def test_duplicating_a_project_copies_its_layouts(
-    client: AsyncClient, acting_user
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     a = await acting_user(
         guild_role=CommunityRole.member, initiative=True, project=True
     )
+    review = await create_task_status(session, a.project, name="Review")
     url = a.g("/layouts/")
     source = {"tool": "project", "tool_id": a.project.id}
-    columns = {"kind": "table", "definition": {"columns": ["title", "dueDate"]}}
+    in_review = {"name": "In review", "slug": "in-review"}
+    in_review["filters"] = {"status_ids": [review.id]}
+    columns = {
+        "kind": "table",
+        "definition": {"columns": ["title", "dueDate"], "presets": [in_review]},
+    }
     for path, body in (("", columns), ("default", {"kind": "board"})):
         saved = await client.put(
             f"{url}{path}", params=source, json=body, headers=a.headers
@@ -1585,6 +1591,18 @@ async def test_duplicating_a_project_copies_its_layouts(
     layouts = {layout["kind"]: layout for layout in copied["layouts"]}
     assert layouts["table"]["definition"]["columns"] == ["title", "dueDate"]
     assert layouts["board"]["is_default"] is True
+    # A preset's statuses are the copy's own.
+    await route_session_to_guild(session, a.guild.id)
+    copied_review = (
+        await session.exec(
+            select(TaskStatus).where(
+                TaskStatus.project_id == duplicated.json()["id"],
+                TaskStatus.name == "Review",
+            )
+        )
+    ).one()
+    [preset] = layouts["table"]["definition"]["presets"]
+    assert preset["filters"]["status_ids"] == [copied_review.id]
 
 
 async def test_activity_feed_pages_newest_first(

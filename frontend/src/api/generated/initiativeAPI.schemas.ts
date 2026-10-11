@@ -6037,14 +6037,93 @@ export const TaskColumnFieldId = {
   tags: "tags",
 } as const;
 
+export interface TaskPropertyFilter {
+  property_id: number;
+  op?: FilterOp;
+  value?: unknown;
+}
+
+export type TaskFilterSpecDue = (typeof TaskFilterSpecDue)[keyof typeof TaskFilterSpecDue] | null;
+
+export const TaskFilterSpecDue = {
+  overdue: "overdue",
+  today: "today",
+  "7_days": "7_days",
+  "30_days": "30_days",
+} as const;
+
 /**
- * How a list draws its items. What it leaves out is drawn as shipped: a
- * board with no ``card`` draws the shipped card, a table with no ``columns``
- * the shipped columns.
+ * The task filters a preset holds. Unknown keys are refused.
+ */
+export interface TaskFilterSpec {
+  /** @maxItems 50 */
+  status_ids?: number[];
+  status_categories?: TaskStatusCategory[];
+  /** @maxItems 25 */
+  assignees?: string[];
+  /** @maxItems 25 */
+  tag_ids?: number[];
+  /** @maxItems 5 */
+  properties?: TaskPropertyFilter[];
+  due?: TaskFilterSpecDue;
+  include_archived?: boolean;
+}
+
+export type PresetSortField = (typeof PresetSortField)[keyof typeof PresetSortField];
+
+export const PresetSortField = {
+  title: "title",
+  due_date: "due_date",
+  start_date: "start_date",
+  date_group: "date_group",
+  priority: "priority",
+  status_position: "status_position",
+  tag_name: "tag_name",
+} as const;
+
+export type SortDir = (typeof SortDir)[keyof typeof SortDir];
+
+export const SortDir = {
+  asc: "asc",
+  desc: "desc",
+} as const;
+
+export interface PresetSort {
+  field: PresetSortField;
+  dir?: SortDir;
+}
+
+/**
+ * Filters, and for a table a sort, that a person can pick to start from.
+ * Picking one makes them that person's own.
+ */
+export interface LayoutPreset {
+  /**
+   * @minLength 1
+   * @maxLength 100
+   */
+  name: string;
+  /**
+   * @minLength 1
+   * @maxLength 64
+   * @pattern ^[a-z0-9]+(?:-[a-z0-9]+)*$
+   */
+  slug: string;
+  filters?: TaskFilterSpec;
+  /** @maxItems 7 */
+  sort?: PresetSort[];
+}
+
+/**
+ * How a list draws its items, and the presets it offers. What it leaves
+ * out is drawn as shipped: a board with no ``card`` draws the shipped card, a
+ * table with no ``columns`` the shipped columns, a list with no ``presets``
+ * the shipped presets.
  */
 export interface ListLayoutDefinitionOutput {
   card?: CardPartOutput | null;
   columns?: (TaskColumnFieldId | string)[] | null;
+  presets?: LayoutPreset[] | null;
 }
 
 /**
@@ -6239,13 +6318,15 @@ export interface LegalIndexRead {
 }
 
 /**
- * How a list draws its items. What it leaves out is drawn as shipped: a
- * board with no ``card`` draws the shipped card, a table with no ``columns``
- * the shipped columns.
+ * How a list draws its items, and the presets it offers. What it leaves
+ * out is drawn as shipped: a board with no ``card`` draws the shipped card, a
+ * table with no ``columns`` the shipped columns, a list with no ``presets``
+ * the shipped presets.
  */
 export interface ListLayoutDefinitionInput {
   card?: CardPartInput | null;
   columns?: (TaskColumnFieldId | string)[] | null;
+  presets?: LayoutPreset[] | null;
 }
 
 export type ListLayoutWriteKind = (typeof ListLayoutWriteKind)[keyof typeof ListLayoutWriteKind];
@@ -10892,13 +10973,6 @@ export interface FilterGroup {
   negate?: boolean;
   conditions: (FilterCondition | FilterGroup)[];
 }
-
-export type SortDir = (typeof SortDir)[keyof typeof SortDir];
-
-export const SortDir = {
-  asc: "asc",
-  desc: "desc",
-} as const;
 
 export interface SortField {
   field: string;

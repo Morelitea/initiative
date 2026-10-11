@@ -364,6 +364,13 @@ def _table(**definition: Any) -> dict[str, Any]:
     return {"kind": "table", "definition": definition}
 
 
+_SORT = {"field": "due_date", "dir": "desc"}
+
+
+def _preset(slug: str = "mine", **preset: Any) -> dict[str, Any]:
+    return {"name": "Mine", "slug": slug, **preset}
+
+
 def _task(*side: dict[str, Any]) -> dict[str, Any]:
     return {"kind": "task", "definition": {"side": list(side)}}
 
@@ -379,6 +386,14 @@ def _task(*side: dict[str, Any]) -> dict[str, Any]:
         (_table(columns=["assignees"]), 422, None),
         (_table(sort=[{"field": "dueDate"}]), 422, None),
         (_table(filters={"assignees": ["me"]}), 422, None),
+        (_table(presets=[_preset(), _preset()]), 422, None),
+        (_table(presets=[_preset("Mine!")]), 422, None),
+        (_table(presets=[_preset(filters={"assignees": ["bob"]})]), 422, None),
+        (
+            {"kind": "board", "definition": {"presets": [_preset(sort=[_SORT])]}},
+            400,
+            "TOOL_LAYOUTS_KIND_NOT_ALLOWED",
+        ),
         (_task({"type": "field", "props": {"field": "startDate"}}), 422, None),
         (_task({"type": "field", "props": {"field": "property:12"}}), 422, None),
         (_task({"type": "card"}), 422, None),
@@ -402,6 +417,10 @@ def _task(*side: dict[str, Any]) -> dict[str, Any]:
         "a column the table cannot draw",
         "a sort, which is a person's",
         "filters, which are a person's",
+        "two presets with one slug",
+        "a preset's slug outside its characters",
+        "a preset naming someone by name",
+        "a sort on a board's preset, which a board does not sort by",
         "a date alone on a task",
         "a property alone on a task",
         "a card on a task",
@@ -427,6 +446,33 @@ async def test_a_layout_is_refused_unless_every_part_is_one_we_draw(
     assert response.status_code == status, response.text
     if detail is not None:
         assert response.json()["detail"] == detail
+
+
+async def test_a_list_offers_the_presets_it_keeps(client: AsyncClient, acting_user):
+    a = await acting_user(
+        guild_role=CommunityRole.member, initiative=True, project=True
+    )
+    url = a.g("/layouts/")
+    mine = _preset(filters={"assignees": ["me"]}, sort=[_SORT])
+    unassigned = _preset("unassigned", name="Unassigned")
+    unassigned["filters"] = {"assignees": ["none"], "due": "overdue"}
+
+    for definition in ({"presets": [mine, unassigned]}, {"presets": []}):
+        saved = await client.put(
+            url,
+            params=_project(a),
+            json={"kind": "table", "definition": definition},
+            headers=a.headers,
+        )
+        assert saved.status_code == 200, saved.text
+        [table] = [each for each in saved.json()["layouts"] if each["kind"] == "table"]
+        presets = table["definition"]["presets"]
+        # Kept as written, with what was left out filled in; none is none, not
+        # the shipped ones.
+        assert [(p["slug"], p["filters"]["assignees"], p["sort"]) for p in presets] == [
+            (p["slug"], p["filters"]["assignees"], p.get("sort", []))
+            for p in definition["presets"]
+        ]
 
 
 async def test_a_layout_at_the_limits_is_kept(client: AsyncClient, acting_user):
@@ -502,6 +548,13 @@ async def test_a_shared_tool_is_laid_out_by_the_initiatives_managers(
     for wrong in (
         await client.put(url, params=params, json=_BOARD, headers=manager.headers),
         await client.put(url, params=params, json=_TASK, headers=manager.headers),
+        # Presets hold task filters, which the calendar's events are not.
+        await client.put(
+            url,
+            params=params,
+            json={"kind": "calendar", "definition": {"presets": [_preset()]}},
+            headers=manager.headers,
+        ),
         await client.delete(f"{url}task", params=params, headers=manager.headers),
     ):
         assert wrong.json()["detail"] == "TOOL_LAYOUTS_KIND_NOT_ALLOWED"

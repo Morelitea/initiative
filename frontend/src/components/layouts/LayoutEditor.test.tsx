@@ -262,6 +262,45 @@ describe("LayoutEditor", () => {
     await waitFor(() => expect(sent).toEqual([{ opensOn: "board" }]));
   });
 
+  it("adds a preset to the open list beside the shipped ones, sorted as chosen", async () => {
+    const { user } = editor("table");
+    await outline();
+
+    await user.click(screen.getByRole("button", { name: /add preset/i }));
+    const dialog = await screen.findByRole("dialog", { name: /add a preset/i });
+    await user.type(within(dialog).getByLabelText(/^name$/i), "Overdue first");
+    await user.click(within(dialog).getByRole("combobox", { name: /sort by/i }));
+    await user.click(await screen.findByRole("option", { name: /due date/i }));
+    await user.click(within(dialog).getByRole("switch", { name: /descending/i }));
+    await user.click(within(dialog).getByRole("button", { name: /^done$/i }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    await waitFor(() => expect(saved("table")).toBeDefined());
+    expect(saved("table")?.presets).toEqual([
+      expect.objectContaining({ name: "Incomplete", slug: "incomplete" }),
+      expect.objectContaining({ name: "Unassigned", slug: "unassigned" }),
+      expect.objectContaining({ name: "Mine", slug: "mine" }),
+      expect.objectContaining({
+        name: "Overdue first",
+        slug: "overdue-first",
+        sort: [{ field: "due_date", dir: "desc" }],
+      }),
+    ]);
+  });
+
+  it("takes a preset off the open list and keeps the rest in order", async () => {
+    const { user } = editor("board");
+    await outline();
+
+    await user.click(screen.getByRole("button", { name: /move mine up/i }));
+    await user.click(screen.getByRole("button", { name: /remove incomplete/i }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    await waitFor(() => expect(saved("board")).toBeDefined());
+    const presets = saved("board")?.presets as { slug: string }[] | undefined;
+    expect(presets?.map((preset) => preset.slug)).toEqual(["mine", "unassigned"]);
+  });
+
   it("asks before leaving with changes, and leaves at once without", async () => {
     const { user, onClose } = editor("board");
     await within(await canvas()).findByText(/priority: medium/i);
