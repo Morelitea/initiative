@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import CheckConstraint, Column, DateTime, SmallInteger, Text
+from sqlalchemy import CheckConstraint, Column, DateTime, Index, SmallInteger, Text
 from sqlmodel import Field, SQLModel
 
 from app.core.tools import CONTENT_KINDS
@@ -33,6 +33,8 @@ class EngagementLevel(SQLModel, table=True):
             name="ck_engagement_levels_level",
             info={FROM_REGISTRY: True},
         ),
+        # Read highest first by a picker, which stops at its limit.
+        Index("ix_engagement_levels_level", "level", "entity_type", "entity_id"),
     )
 
     entity_type: str = Field(sa_column=Column(Text, primary_key=True, nullable=False))

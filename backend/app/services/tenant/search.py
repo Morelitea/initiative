@@ -691,9 +691,9 @@ async def recent(
     refuse to find. What more people engaged with lately comes first, then the
     newest.
 
-    The candidates are the newest rows and the rows with a level, each read
-    through its own index and limited, so a picker never reads a level for
-    every row in the community.
+    The candidates are the newest rows and the highest levels, each limited:
+    the levels are read highest first through their own index, so a picker
+    stops at its limit rather than reading a level for every row.
     """
     limit = max(1, min(limit, SUGGEST_LIMIT))
     # One row per thing: the index holds a row per body chunk as well.
@@ -712,7 +712,11 @@ async def recent(
             (EngagementLevel.entity_type == SearchEntry.entity_type)
             & (EngagementLevel.entity_id == SearchEntry.entity_id),
         )
-        .order_by(EngagementLevel.level.desc(), *order)
+        .order_by(
+            EngagementLevel.level.desc(),
+            EngagementLevel.entity_type.desc(),
+            EngagementLevel.entity_id.desc(),  # type: ignore[attr-defined]
+        )
         .limit(limit)
         .subquery()
     )

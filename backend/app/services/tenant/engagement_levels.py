@@ -46,7 +46,7 @@ from app.db.initiative_rls import CONTENT_KIND_TABLES
 from app.db.request_context import Unattributed
 from app.db.session import routed_guild_id, set_rls_context
 from app.core.guild_auth_options import CommunityAuthOption
-from app.models.platform.guild import Guild
+from app.models.platform.guild import LIVE_STATUS_VALUES, Guild
 from app.models.tenant.engagement_level import LEVEL_MAX, EngagementLevel
 from app.models.tenant.recent_view import ViewSource
 from app.services.guild_sweeps import Visit
@@ -171,9 +171,10 @@ _LEVELS = text(
 )
 
 
-async def _community_allows(session: AsyncSession, guild_id: int) -> bool:
-    """Whether the community leaves ranking on: its own answer, which applies
-    while it holds the ``restrictions`` option."""
+async def _community(session: AsyncSession, guild_id: int) -> tuple[bool, bool]:
+    """Whether the community leaves ranking on (its own answer, which applies
+    while it holds the ``restrictions`` option), and whether its members can
+    read it."""
     row = (
         await session.exec(
             select(
@@ -181,18 +182,21 @@ async def _community_allows(session: AsyncSession, guild_id: int) -> bool:
                 guild_entitlements.holds_option(
                     Guild.id, CommunityAuthOption.restrictions
                 ),
+                Guild.status.in_(LIVE_STATUS_VALUES),  # type: ignore[attr-defined]
             ).where(Guild.id == guild_id)
         )
     ).one_or_none()
     if row is None:
-        return False
-    allowed, held = row
-    return bool(allowed) or not held
+        return False, False
+    allowed, held, live = row
+    return bool(allowed) or not held, bool(live)
 
 
 async def prepare() -> Visit:
     """The visit that works out one community's levels, with the deployment's
-    answer read once for the pass."""
+    answer read once for the pass. It runs wherever the community's schema
+    exists: levels are cleared wherever ranking is off, and worked out where
+    members can read."""
     async with cohorts.system_session(None) as session:
         await set_rls_context(session, Unattributed())
         enabled = (
@@ -205,8 +209,11 @@ async def prepare() -> Visit:
             session, LockNamespace.ENGAGEMENT_LEVELS, guild_id, wait=False
         ):
             return
-        if not (enabled and await _community_allows(session, guild_id)):
+        allowed, live = await _community(session, guild_id)
+        if not (enabled and allowed):
             await session.exec(delete(EngagementLevel))  # type: ignore[arg-type]
+            return
+        if not live:
             return
         now = datetime.now(timezone.utc)
         await session.exec(

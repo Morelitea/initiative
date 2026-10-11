@@ -902,6 +902,28 @@ async def test_what_more_people_engaged_with_comes_first(
     assert _task_ids(picked) == [elsewhere.id, older.id, newer.id]
 
 
+async def test_a_picker_keeps_an_old_popular_item_within_its_limit(
+    client, session, acting_user: ActingUser
+) -> None:
+    """The highest levels come first however old they are, then the newest, and
+    an item that is both is offered once."""
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
+    old = await create_task(session, a.project, title="old")
+    middle = [await create_task(session, a.project, title=f"t{i}") for i in range(2)]
+    newest = await create_task(session, a.project, title="newest")
+    for task, level in ((old, LEVEL_MAX), (newest, 3)):
+        session.add(EngagementLevel(entity_type="task", entity_id=task.id, level=level))
+    await session.commit()
+
+    for limit, expected in (
+        (1, [old.id]),
+        (2, [old.id, newest.id]),
+        (3, [old.id, newest.id, middle[1].id]),
+    ):
+        picked = await _recent(client, a, types="task", limit=limit)
+        assert _task_ids(picked) == expected, limit
+
+
 #: What a search for each query must put first, over the items below. The one
 #: thing that catches a ranking change that makes search worse.
 RELEVANCE = (

@@ -9,7 +9,7 @@ from sqlalchemy.exc import DBAPIError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import CommunityRole
+from app.models.platform.guild import CommunityRole, CommunityStatus
 from app.models.tenant.engagement_level import EngagementLevel
 from app.models.tenant.event_outbox import EventOutbox
 from app.models.tenant.recent_view import RecentView, ViewSource
@@ -24,7 +24,7 @@ from app.testing.routing import route_as
 
 async def _pass(guild_id: int) -> None:
     await each_guild(
-        [(Scope.ACTIVE, await engagement_levels.prepare())],
+        [(Scope.PROVISIONED, await engagement_levels.prepare())],
         name="test",
         only=[guild_id],
     )
@@ -218,6 +218,13 @@ async def test_turning_ranking_off_clears_the_levels(
     assert await _levels(session) == {}
 
     guild.allow_engagement_ranking = True
+    session.add(guild)
+    await session.commit()
+    await _pass(guild.id)
+    assert await _levels(session) == {("task", task.id): 1}
+
+    # A read-only community is still cleared when the deployment turns it off.
+    guild.status = CommunityStatus.read_only
     session.add(guild)
     settings_row = await app_settings_service.ensure_settings_row(session)
     settings_row.engagement_ranking_enabled = False

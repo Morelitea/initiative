@@ -137,9 +137,9 @@ async def hourly_pass() -> None:
     digest items, evidence past its keeping, plug-in auto-updates, and each
     community's engagement levels.
 
-    Trash is purged, plug-ins updated and levels worked out in active
-    communities only: a read-only or suspended one is frozen until it returns. Exports, imports and expiring
-    records go wherever the schema still exists.
+    Trash is purged and plug-ins updated in active communities only: a
+    read-only or suspended one is frozen until it returns. Exports, imports,
+    expiring records and engagement levels go wherever the schema still exists.
     """
     from app.services import notifications
     from app.services.export import worker as export_worker
@@ -160,7 +160,7 @@ async def hourly_pass() -> None:
             (Scope.PROVISIONED, import_worker.expire_payloads),
             (Scope.PROVISIONED, await expiry.prepare()),
             # After expiry, so what it let go no longer counts.
-            (Scope.ACTIVE, await engagement_levels.prepare()),
+            (Scope.PROVISIONED, await engagement_levels.prepare()),
             (Scope.ACTIVE, evidence.purge_due),
             # Held content keeps its community whatever its status.
             (Scope.PROVISIONED, holds.remind_due),
