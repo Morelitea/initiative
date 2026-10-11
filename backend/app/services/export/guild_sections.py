@@ -99,6 +99,7 @@ async def _build_settings(ctx: SectionContext) -> tuple[dict[str, Any], int] | N
         "allow_push_notifications": guild.allow_push_notifications,
         "allow_email_notifications": guild.allow_email_notifications,
         "redact_notification_content": guild.redact_notification_content,
+        "allow_engagement_ranking": guild.allow_engagement_ranking,
         "banner": dict(guild.banner or {}),
         "retention_days": setting.retention_days if setting else None,
     }

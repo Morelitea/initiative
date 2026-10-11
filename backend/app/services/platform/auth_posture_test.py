@@ -120,6 +120,7 @@ CASES: dict[tuple[str, str], Case] = {
     ("community", "allow_push_notifications"): Case(True, False, GUILD_SETTINGS),
     ("community", "allow_email_notifications"): Case(True, False, GUILD_SETTINGS),
     ("community", "redact_notification_content"): Case(False, True, GUILD_SETTINGS),
+    ("community", "allow_engagement_ranking"): Case(True, False, GUILD_SETTINGS),
 }
 
 RULES = pytest.mark.parametrize(

@@ -350,7 +350,7 @@ async def read_community_settings(
     session: UserSessionDep,
     _owner: ConfigManageDep,
 ) -> CommunitySettingsResponse:
-    """The four community-wide decisions, for the owner's settings page.
+    """The community-wide decisions, for the owner's settings page.
 
     Three of them are also on ``GET /config``, which is where every signed-in
     page reads them. ``default_dm_policy`` is not: nothing in the SPA acts on it
@@ -367,6 +367,7 @@ async def read_community_settings(
         deleted_community_retention_days=settings_obj.deleted_community_retention_days,
         deleted_account_retention_days=settings_obj.deleted_account_retention_days,
         on_hold_community_deletion_days=settings_obj.on_hold_community_deletion_days,
+        engagement_ranking_enabled=settings_obj.engagement_ranking_enabled,
     )
 
 
@@ -412,6 +413,10 @@ async def update_community_settings(
 
     ``on_hold_community_deletion_days`` reads the same way: how long a
     community stays on hold before it is deleted, and ``null`` for never.
+
+    ``engagement_ranking_enabled`` says whether search may order any
+    community's content by how many members engaged with it lately. Each
+    community is asked too, and off wins. Omitted, it is left alone.
     """
     settings_obj = await app_settings_service.update_community_settings(
         session,
@@ -419,6 +424,7 @@ async def update_community_settings(
         community_age_gate_enabled=payload.age_gate_enabled,
         default_dm_policy=payload.default_dm_policy,
         direct_messages_enabled=payload.direct_messages_enabled,
+        engagement_ranking_enabled=payload.engagement_ranking_enabled,
         deleted_community_retention_days=payload.deleted_community_retention_days,
         retention_provided="deleted_community_retention_days"
         in payload.model_fields_set,
@@ -438,6 +444,7 @@ async def update_community_settings(
         deleted_community_retention_days=settings_obj.deleted_community_retention_days,
         deleted_account_retention_days=settings_obj.deleted_account_retention_days,
         on_hold_community_deletion_days=settings_obj.on_hold_community_deletion_days,
+        engagement_ranking_enabled=settings_obj.engagement_ranking_enabled,
     )
 
 

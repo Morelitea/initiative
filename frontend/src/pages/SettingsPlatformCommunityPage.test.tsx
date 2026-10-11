@@ -42,6 +42,7 @@ vi.mock("@/hooks/useSettings", () => ({
       direct_messages_enabled: config.directMessages,
       deleted_community_retention_days: config.retentionDays,
       on_hold_community_deletion_days: config.holdDays,
+      engagement_ranking_enabled: true,
     },
   }),
 }));
@@ -88,6 +89,19 @@ describe("SettingsPlatformCommunityPage", () => {
     fireEvent.click(toggle());
 
     expect(updateMutate).toHaveBeenCalledWith({ community_directory_enabled: false });
+  });
+
+  it("turns engagement ranking off for every community", async () => {
+    renderPage();
+    const ranking = await screen.findByLabelText("Let communities rank results by engagement");
+
+    expect(ranking).toBeChecked();
+    fireEvent.click(ranking);
+
+    expect(updateMutate).toHaveBeenCalledWith({
+      community_directory_enabled: false,
+      engagement_ranking_enabled: false,
+    });
   });
 
   const ageToggle = () => screen.getByLabelText("Check members' age");

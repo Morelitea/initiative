@@ -64,6 +64,14 @@ export const SettingsPlatformCommunityPage = () => {
         );
         return;
       }
+      if (variables.engagement_ranking_enabled !== undefined) {
+        toast.success(
+          result.engagement_ranking_enabled
+            ? t("community.engagementRankingEnabledToast")
+            : t("community.engagementRankingDisabledToast")
+        );
+        return;
+      }
       toast.success(
         result.community_directory_enabled
           ? t("community.enabledToast")
@@ -200,6 +208,30 @@ export const SettingsPlatformCommunityPage = () => {
             })
           }
         />
+
+        {/* Each community is asked too, and off wins, so this is the most any
+            community can have. */}
+        <div className="space-y-4 border-t pt-4">
+          <div className="flex items-center gap-3">
+            <Switch
+              id="engagement-ranking-enabled"
+              checked={community?.engagement_ranking_enabled ?? true}
+              disabled={isLoading || update.isPending || !community}
+              onCheckedChange={(checked) =>
+                update.mutate({
+                  community_directory_enabled: communityDirectoryEnabled,
+                  engagement_ranking_enabled: Boolean(checked),
+                })
+              }
+            />
+            <Label htmlFor="engagement-ranking-enabled">
+              {t("community.engagementRankingLabel")}
+            </Label>
+          </div>
+          <p className="text-muted-foreground text-sm">
+            {t("community.engagementRankingHelpText")}
+          </p>
+        </div>
 
         <DeletedCommunityRetentionSection directoryEnabled={communityDirectoryEnabled} />
 

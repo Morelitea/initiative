@@ -1814,7 +1814,11 @@
       "saved_other": "Gelöschte Konten werden {{count}} Tage aufbewahrt.",
       "savedNever": "Gelöschte Konten werden unbegrenzt aufbewahrt.",
       "save": "Aufbewahrungsdauer für Konten speichern"
-    }
+    },
+    "engagementRankingLabel": "Communities erlauben, Ergebnisse nach Beteiligung zu ordnen",
+    "engagementRankingHelpText": "Ausgeschaltet ordnet keine Community auf diesem Server nach Beteiligung, unabhängig von ihrer eigenen Einstellung.",
+    "engagementRankingEnabledToast": "Communities können Ergebnisse nach Beteiligung ordnen.",
+    "engagementRankingDisabledToast": "Die Ordnung nach Beteiligung ist für alle Communities ausgeschaltet."
   },
   "account": {
     "passwordTitle": "Passwort",
@@ -2043,6 +2047,14 @@
       "offHelp": "Benachrichtigungen zu dieser Community nennen, worum es geht, sobald sie die App verlassen.",
       "platformHelp": "Dieser Server blendet Details überall aus – diese Community ist bereits abgedeckt."
     }
+  },
+  "communityEngagementRanking": {
+    "title": "Suchreihenfolge",
+    "label": "Suchergebnisse nach Beteiligung in der Community ordnen",
+    "help": "Die Suche zeigt weiter oben, was mehr Mitglieder in letzter Zeit geöffnet oder bearbeitet haben. Für jedes Element wird nur eine grobe Stufe gespeichert, nie wer es geöffnet hat oder wie oft, und sie wird nie außerhalb dieser Community geteilt.",
+    "platformHelp": "Dieser Server hat die Ordnung nach Beteiligung für alle Communities ausgeschaltet.",
+    "saved": "Suchreihenfolge gespeichert.",
+    "error": "Die Suchreihenfolge konnte nicht gespeichert werden."
   },
   "billingInsights": {
     "title": "Abrechnungskennzahlen",
