@@ -370,7 +370,8 @@
       "connections": "Connections",
       "jobs": "Exports and imports",
       "account": "Your account",
-      "moderation": "Moderation"
+      "moderation": "Moderation",
+      "cases": "Cases"
     },
     "reminderLeadTime": {
       "label": "Remind me",
@@ -413,7 +414,8 @@
       "connections": "Somebody asked to connect, or accepted.",
       "jobs": "An export or import you asked for has finished.",
       "account": "Something was done to your account. Always shows in the bell.",
-      "moderation": "A community's moderators took down or warned you about something you wrote. Always shows in the bell."
+      "moderation": "A community's moderators took down or warned you about something you wrote. Always shows in the bell.",
+      "cases": "A case opened where you work cases, or its requester answered and nobody has taken it."
     },
     "quietHours": {
       "title": "Quiet hours",

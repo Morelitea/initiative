@@ -285,3 +285,36 @@ describe("notificationText — a ticket the reader filed", () => {
     expect(notificationLink(ticket({ state: "closed" }))).toBe("/my-tickets/7");
   });
 });
+
+describe("notificationText — cases", () => {
+  it("names the stream and the case that opened", () => {
+    const line = notificationText(
+      notice("case_opened", { task_id: 4, stream: "security", task_title: "Leaked key" }),
+      t
+    );
+    expect(line).toContain("notifications.caseOpened");
+    expect(line).toContain("notifications.caseStreams.security");
+    expect(line).toContain("Leaked key");
+  });
+
+  it("counts the replies on a case nobody has taken", () => {
+    expect(
+      notificationText(notice("case_replied", { task_id: 4, commenter_name: "asker" }), t)
+    ).toContain("notifications.caseReplied");
+    expect(
+      notificationText(
+        notice("case_replied", {
+          task_id: 4,
+          commenters: [{ name: "asker" }],
+          commenter_count: 1,
+          comment_count: 3,
+        }),
+        t
+      )
+    ).toContain("notifications.caseRepliedMany");
+  });
+
+  it("opens the case", () => {
+    expect(notificationLink(notice("case_opened", { task_id: 4 }))).toBe("/go/task/4");
+  });
+});

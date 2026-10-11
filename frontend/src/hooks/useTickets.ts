@@ -17,10 +17,11 @@ import type {
   SecurityTicketCreate,
   SupportTicketCreate,
   TaskCaseRead,
+  TaskRead,
   TicketAccepted,
   TicketAvailability,
 } from "@/api/generated/initiativeAPI.schemas";
-import { getReadTaskCaseQueryKey, readTaskCase } from "@/api/generated/tasks/tasks";
+import { getReadTaskCaseQueryKey, readTaskCase, takeTaskCase } from "@/api/generated/tasks/tasks";
 import {
   fileTicket,
   getListFiledTicketsQueryKey,
@@ -33,7 +34,7 @@ import {
 } from "@/api/generated/tickets/tickets";
 import { invalidate, q } from "@/api/query-keys";
 import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
-import { useApiMutation } from "@/hooks/useApiMutation";
+import { useApiMutation, useCommunityMutation } from "@/hooks/useApiMutation";
 import { docsUrl } from "@/lib/links";
 import { queryClient } from "@/lib/queryClient";
 import type { MutationOpts } from "@/types/mutation";
@@ -152,6 +153,19 @@ export const refreshTaskCase = (taskId: number, communityId?: number) =>
       );
     },
   });
+
+/** Take an operations case: the reader is assigned beside whoever has it,
+ *  and a case waiting to be picked up is put to work. */
+export const useTakeCase = (options?: MutationOpts<TaskRead, number>) =>
+  useCommunityMutation<TaskRead, number>(
+    {
+      mutationFn: (communityId, taskId) => takeTaskCase(communityId, taskId),
+      invalidate: (_task, taskId) =>
+        Promise.all([invalidate(q.allTasks(), q.task(taskId)), refreshTaskCase(taskId)]),
+      errorKey: "intake:case.takeFailed",
+    },
+    options
+  );
 
 /** Whether the reader has filed anything worth a page of its own. */
 export const useHasFiledTickets = () => {

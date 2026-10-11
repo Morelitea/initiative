@@ -202,7 +202,10 @@
       "problem": "Problem",
       "praise": "Praise",
       "appeal": "Suspension appeal"
-    }
+    },
+    "take": "Take this case",
+    "taken": "You're on this case",
+    "takeFailed": "Couldn't take this case."
   },
   "evidence": {
     "attach": "Attach files",

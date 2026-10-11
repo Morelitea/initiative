@@ -202,7 +202,10 @@
       "problem": "Problem",
       "praise": "Lob",
       "appeal": "Einspruch gegen Sperre"
-    }
+    },
+    "take": "Fall übernehmen",
+    "taken": "Du bearbeitest diesen Fall",
+    "takeFailed": "Der Fall konnte nicht übernommen werden."
   },
   "evidence": {
     "attach": "Dateien anhängen",

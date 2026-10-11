@@ -7,7 +7,7 @@
  * reads, and nothing in the thread below ever reaches them.
  */
 import { Link } from "@tanstack/react-router";
-import { Inbox, KeyRound, Send } from "lucide-react";
+import { Inbox, KeyRound, Send, UserCheck } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -32,7 +32,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useCreateComment } from "@/hooks/useComments";
 import { useRelativeTime } from "@/hooks/useRelativeTime";
 import { useUpdateTask } from "@/hooks/useTasks";
-import { refreshTaskCase, useTaskCase } from "@/hooks/useTickets";
+import { refreshTaskCase, useTakeCase, useTaskCase } from "@/hooks/useTickets";
 import { minutesLeft } from "@/lib/formatDate";
 import { Capability, hasCapability } from "@/lib/permissions";
 import { getUserDisplayName } from "@/lib/userDisplay";
@@ -42,6 +42,8 @@ interface CasePanelProps {
   taskId: number;
   /** Whether the reader may change the task. */
   canEdit: boolean;
+  /** Who the task is assigned to, so the reader can take it if they aren't. */
+  assigneeIds: number[];
 }
 
 const Message = ({
@@ -184,9 +186,11 @@ const CaseAccess = ({
   );
 };
 
-export const CasePanel = ({ taskId, canEdit }: CasePanelProps) => {
+export const CasePanel = ({ taskId, canEdit, assigneeIds }: CasePanelProps) => {
   const { t } = useTranslation(["intake", "common"]);
+  const { user } = useAuth();
   const caseQuery = useTaskCase(taskId);
+  const takeCase = useTakeCase();
   const communityId = useActiveCommunityId();
   const [reply, setReply] = useState("");
   const createComment = useCreateComment();
@@ -197,6 +201,7 @@ export const CasePanel = ({ taskId, canEdit }: CasePanelProps) => {
   if (!found) return null;
 
   const filerName = found.filer ? getUserDisplayName(found.filer) : null;
+  const mine = user != null && assigneeIds.includes(user.id);
   const awaiting = found.awaiting_filer_status_id ?? null;
   const messages = found.messages ?? [];
   const teamHasSpoken = messages.some((message) => !message.from_requester);
@@ -257,6 +262,25 @@ export const CasePanel = ({ taskId, canEdit }: CasePanelProps) => {
             <span className="text-muted-foreground">{t("case.theyCalledIt")}</span>{" "}
             {found.filer_subject}
           </p>
+        ) : null}
+        {mine ? (
+          <p className="flex items-center gap-1.5 text-muted-foreground text-sm">
+            <UserCheck className="h-4 w-4" aria-hidden="true" />
+            {t("case.taken")}
+          </p>
+        ) : canEdit ? (
+          <div>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={takeCase.isPending}
+              onClick={() => takeCase.mutate(taskId)}
+            >
+              <UserCheck className="h-4 w-4" aria-hidden="true" />
+              {t("case.take")}
+            </Button>
+          </div>
         ) : null}
       </CardHeader>
       {loose.length > 0 ? (

@@ -372,7 +372,16 @@
     "moderationRemoved": "Ein Moderator hat etwas von dir entfernt: {{reason}}",
     "moderationRemovedLegal": "Etwas, das du geschrieben hast, wurde aus rechtlichen Gründen entfernt",
     "moderationWarned": "Eine Verwarnung der Moderatoren: {{message}}",
-    "feedbackRead": "Dein Feedback wurde gelesen"
+    "feedbackRead": "Dein Feedback wurde gelesen",
+    "caseOpened": "Neuer Fall ({{stream}}): {{taskTitle}}",
+    "caseReplied": "{{name}} hat auf {{taskTitle}} geantwortet, und niemand hat den Fall übernommen",
+    "caseRepliedMany": "{{name}} hat {{count}} Antworten auf {{taskTitle}} geschrieben, und niemand hat den Fall übernommen",
+    "caseStreams": {
+      "security": "Sicherheit",
+      "moderation": "Moderation",
+      "support": "Support",
+      "feedback": "Feedback"
+    }
   },
   "version": {
     "versionInformation": "Versionsinformationen",
