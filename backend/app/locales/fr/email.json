@@ -371,7 +371,8 @@
       "connections": "Contacts",
       "jobs": "Exports et imports",
       "account": "Votre compte",
-      "moderation": "Modération"
+      "moderation": "Modération",
+      "cases": "Dossiers"
     }
   },
   "signInCode": {
@@ -479,6 +480,18 @@
       "subject": "Un avertissement des modérateurs de cette communauté",
       "title": "Un avertissement des modérateurs de cette communauté",
       "body": "Les modérateurs ont écrit :<br><br>{{message}}"
+    }
+  },
+  "case": {
+    "opened": {
+      "subject": "Nouveau dossier : {{title}}",
+      "title": "Un nouveau dossier dans {{project}}",
+      "body": "<strong>{{title}}</strong> vient d'être ouvert, et personne ne l'a encore pris."
+    },
+    "replied": {
+      "subject": "{{actor}} a répondu sur un dossier",
+      "title": "{{actor}} a répondu sur un dossier que personne n'a pris",
+      "body": "La réponse se trouve sur <strong>{{title}}</strong>. Prenez le dossier pour lui répondre."
     }
   }
 }

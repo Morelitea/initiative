@@ -220,6 +220,10 @@
     "moderation": {
       "title": "Une notification de modération",
       "body": "Ouvrez Initiative pour la lire."
+    },
+    "cases": {
+      "title": "Du nouveau sur un dossier",
+      "body": "Ouvrez Initiative pour le lire."
     }
   },
   "quietHours": {
@@ -261,6 +265,16 @@
     "warned": {
       "title": "Un avertissement des modérateurs de cette communauté",
       "body": "{{message}}"
+    }
+  },
+  "case": {
+    "opened": {
+      "title": "Un nouveau dossier dans {{project}}",
+      "body": "{{title}}"
+    },
+    "replied": {
+      "title": "Une réponse sur un dossier que personne n'a pris",
+      "body": "{{actor}} a répondu sur {{title}}"
     }
   }
 }

@@ -371,7 +371,8 @@
       "connections": "Kontakte",
       "jobs": "Exporte und Importe",
       "account": "Dein Konto",
-      "moderation": "Moderation"
+      "moderation": "Moderation",
+      "cases": "Fälle"
     }
   },
   "signInCode": {
@@ -479,6 +480,18 @@
       "subject": "Eine Warnung der Moderatoren dieser Community",
       "title": "Eine Warnung der Moderatoren dieser Community",
       "body": "Die Moderatoren schreiben:<br><br>{{message}}"
+    }
+  },
+  "case": {
+    "opened": {
+      "subject": "Neuer Fall: {{title}}",
+      "title": "Ein neuer Fall in {{project}}",
+      "body": "<strong>{{title}}</strong> wurde gerade eröffnet, und noch niemand hat ihn übernommen."
+    },
+    "replied": {
+      "subject": "{{actor}} hat auf einen Fall geantwortet",
+      "title": "{{actor}} hat auf einen Fall geantwortet, den niemand übernommen hat",
+      "body": "Die Antwort steht bei <strong>{{title}}</strong>. Übernimm den Fall, um zu antworten."
     }
   }
 }

@@ -371,7 +371,8 @@
       "connections": "Contactos",
       "jobs": "Exportaciones e importaciones",
       "account": "Tu cuenta",
-      "moderation": "Moderación"
+      "moderation": "Moderación",
+      "cases": "Casos"
     }
   },
   "signInCode": {
@@ -479,6 +480,18 @@
       "subject": "Un aviso de los moderadores de esta comunidad",
       "title": "Un aviso de los moderadores de esta comunidad",
       "body": "Los moderadores escribieron:<br><br>{{message}}"
+    }
+  },
+  "case": {
+    "opened": {
+      "subject": "Caso nuevo: {{title}}",
+      "title": "Un caso nuevo en {{project}}",
+      "body": "Se acaba de abrir <strong>{{title}}</strong> y nadie lo ha tomado todavía."
+    },
+    "replied": {
+      "subject": "{{actor}} respondió en un caso",
+      "title": "{{actor}} respondió en un caso que nadie ha tomado",
+      "body": "Respondió en <strong>{{title}}</strong>. Toma el caso para contestarle."
     }
   }
 }

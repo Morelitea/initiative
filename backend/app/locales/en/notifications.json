@@ -220,6 +220,10 @@
     "moderation": {
       "title": "A moderation notice",
       "body": "Open Initiative to read it."
+    },
+    "cases": {
+      "title": "News about a case",
+      "body": "Open Initiative to read it."
     }
   },
   "quietHours": {
@@ -261,6 +265,16 @@
     "warned": {
       "title": "A warning from this community's moderators",
       "body": "{{message}}"
+    }
+  },
+  "case": {
+    "opened": {
+      "title": "A new case in {{project}}",
+      "body": "{{title}}"
+    },
+    "replied": {
+      "title": "A reply on a case nobody has taken",
+      "body": "{{actor}} replied on {{title}}"
     }
   }
 }

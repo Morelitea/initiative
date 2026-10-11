@@ -84,6 +84,9 @@ PUSH_CHANNELS: dict[NotificationType, str] = {
     NotificationType.ticket_updated: "comments",
     NotificationType.moderation_removal: "comments",
     NotificationType.moderation_warning: "comments",
+    # Work landing on a person, so the channel task assignments use.
+    NotificationType.case_opened: "task_assignment",
+    NotificationType.case_replied: "task_assignment",
 }
 
 
