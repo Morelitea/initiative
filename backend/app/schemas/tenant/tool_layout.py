@@ -388,7 +388,9 @@ class LayoutPreset(_Strict):
     """Filters, and for a table a sort, that a person can pick to start from.
     Picking one makes them that person's own."""
 
-    name: str = Field(min_length=1, max_length=100)
+    #: Left out for a shipped preset no one renamed, which each reader sees
+    #: named in their own language.
+    name: Optional[str] = Field(default=None, min_length=1, max_length=100)
     #: What a link to the preset carries; kept when it is renamed.
     slug: str = Field(min_length=1, max_length=MAX_SLUG_LENGTH, pattern=SLUG_PATTERN)
     filters: TaskFilterSpec = Field(default_factory=TaskFilterSpec)

@@ -6098,11 +6098,7 @@ export interface PresetSort {
  * Picking one makes them that person's own.
  */
 export interface LayoutPreset {
-  /**
-   * @minLength 1
-   * @maxLength 100
-   */
-  name: string;
+  name?: string | null;
   /**
    * @minLength 1
    * @maxLength 64

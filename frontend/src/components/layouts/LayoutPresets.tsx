@@ -33,6 +33,7 @@ import {
 import type { ListLayout } from "@/lib/layouts/draft";
 import { type FieldDef, LAYOUT_NAMESPACES } from "@/lib/layouts/fields";
 import {
+  MAX_PRESETS,
   type Preset,
   presetName,
   presetSlug,
@@ -80,8 +81,7 @@ export const LayoutPresets = ({
   // The preset open in the dialog, by its place; null adds one.
   const [open, setOpen] = useState<{ index: number | null } | null>(null);
 
-  const change = (next: Preset[]) =>
-    edits.changePresets(next.map((preset) => storedPreset(preset, translate)));
+  const change = (next: Preset[]) => edits.changePresets(next.map(storedPreset));
   const move = (index: number, by: number) => {
     const next = [...presets];
     const [moved] = next.splice(index, 1);
@@ -151,10 +151,21 @@ export const LayoutPresets = ({
           })}
         </ul>
       )}
-      <Button type="button" variant="outline" size="sm" onClick={() => setOpen({ index: null })}>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        disabled={presets.length >= MAX_PRESETS}
+        onClick={() => setOpen({ index: null })}
+      >
         <Plus className="h-4 w-4" />
         {translate("layoutEditor.presets.add")}
       </Button>
+      {presets.length >= MAX_PRESETS ? (
+        <p className="text-muted-foreground text-xs">
+          {translate("layoutEditor.presets.full", { count: MAX_PRESETS })}
+        </p>
+      ) : null}
       {open ? (
         <PresetDialog
           preset={open.index === null ? null : presets[open.index]}
@@ -171,8 +182,17 @@ export const LayoutPresets = ({
               );
               next.push({ slug, name, spec, sorting });
             } else {
-              // A rename keeps the slug, so links to it still open it.
-              next[open.index] = { ...next[open.index], name, nameKey: undefined, spec, sorting };
+              // A rename keeps the slug, so links to it still open it. A shipped
+              // one keeps being named in each reader's words until renamed.
+              const was = next[open.index];
+              const renamed = name !== presetName(was, translate);
+              next[open.index] = {
+                ...was,
+                name,
+                nameKey: renamed ? undefined : was.nameKey,
+                spec,
+                sorting,
+              };
             }
             change(next);
             setOpen(null);

@@ -26,6 +26,7 @@ import type {
   ToolLayoutSetRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import { calendarTarget, projectTarget, useToolLayouts } from "@/hooks/useToolLayouts";
+import { MAX_PRESETS } from "@/lib/layouts/presets";
 import type { LayoutNode } from "@/lib/layouts/tree";
 
 import { eventDetail, taskDetail } from "./details";
@@ -276,16 +277,41 @@ describe("LayoutEditor", () => {
     await user.click(screen.getByRole("button", { name: /^save$/i }));
 
     await waitFor(() => expect(saved("table")).toBeDefined());
-    expect(saved("table")?.presets).toEqual([
-      expect.objectContaining({ name: "Incomplete", slug: "incomplete" }),
-      expect.objectContaining({ name: "Unassigned", slug: "unassigned" }),
-      expect.objectContaining({ name: "Mine", slug: "mine" }),
-      expect.objectContaining({
-        name: "Overdue first",
-        slug: "overdue-first",
-        sort: [{ field: "due_date", dir: "desc" }],
-      }),
+    const presets = saved("table")?.presets as Record<string, unknown>[];
+    // The shipped ones are kept by slug alone, so each reader still reads
+    // their names in their own words.
+    expect(presets.map((preset) => [preset.slug, preset.name])).toEqual([
+      ["incomplete", undefined],
+      ["unassigned", undefined],
+      ["mine", undefined],
+      ["overdue-first", "Overdue first"],
     ]);
+    expect(presets[3].sort).toEqual([{ field: "due_date", dir: "desc" }]);
+  });
+
+  it("adds no preset past the most a list may offer", async () => {
+    const presets = Array.from({ length: MAX_PRESETS }, (_, index) => ({
+      name: `Preset ${index}`,
+      slug: `preset-${index}`,
+    }));
+    editor(
+      "table",
+      vi.fn(),
+      buildToolLayoutSet({
+        layouts: [
+          {
+            kind: "table",
+            is_default: true,
+            definition: { presets },
+            updated_at: "2026-10-01T12:00:00.000Z",
+          },
+        ],
+      })
+    );
+    await outline();
+
+    expect(screen.getByRole("button", { name: /add preset/i })).toBeDisabled();
+    expect(screen.getByText(/at most 20 presets/i)).toBeInTheDocument();
   });
 
   it("takes a preset off the open list and keeps the rest in order", async () => {

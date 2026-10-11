@@ -444,7 +444,8 @@
       "name": "Nombre",
       "sortBy": "Ordenar por",
       "noSort": "Sin orden propio",
-      "descending": "Descendente"
+      "descending": "Descendente",
+      "full": "Un diseño ofrece como máximo {{count}} ajustes predefinidos. Quita uno para añadir otro."
     }
   },
   "presets": {

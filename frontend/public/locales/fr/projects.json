@@ -444,7 +444,8 @@
       "name": "Nom",
       "sortBy": "Trier par",
       "noSort": "Aucun tri propre",
-      "descending": "Décroissant"
+      "descending": "Décroissant",
+      "full": "Une disposition propose au plus {{count}} préréglages. Retirez-en un pour en ajouter un autre."
     }
   },
   "presets": {

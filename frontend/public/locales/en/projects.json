@@ -444,7 +444,8 @@
       "name": "Name",
       "sortBy": "Sort by",
       "noSort": "No sort of its own",
-      "descending": "Descending"
+      "descending": "Descending",
+      "full": "A layout offers at most {{count}} presets. Remove one to add another."
     }
   },
   "presets": {

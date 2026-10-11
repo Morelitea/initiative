@@ -300,29 +300,36 @@ async def reset(session: AsyncSession, target: Target, kind: str) -> None:
     await session.flush()
 
 
-def _remap_presets(
-    definition: dict[str, Any], status_mapping: dict[int, int]
+def copied_definition(
+    definition: dict[str, Any],
+    status_mapping: dict[int, int],
+    *,
+    same_initiative: bool,
 ) -> dict[str, Any]:
     """``definition`` for a copied project. Status ids are the project's own
     rows, so a preset's go through the copy's mapping, and one with no
-    counterpart is dropped."""
+    counterpart is dropped. Properties are the initiative's, so a copy into
+    another initiative keeps no property filters."""
     presets = definition.get("presets")
     if not isinstance(presets, list):
         return dict(definition)
+
+    def copied(filters: dict[str, Any]) -> dict[str, Any]:
+        statuses = [
+            status_mapping[old]
+            for old in filters.get("status_ids", [])
+            if old in status_mapping
+        ]
+        return {
+            **filters,
+            "status_ids": statuses,
+            **({} if same_initiative else {"properties": []}),
+        }
+
     return {
         **definition,
         "presets": [
-            {
-                **preset,
-                "filters": {
-                    **preset.get("filters", {}),
-                    "status_ids": [
-                        status_mapping[old]
-                        for old in preset.get("filters", {}).get("status_ids", [])
-                        if old in status_mapping
-                    ],
-                },
-            }
+            {**preset, "filters": copied(preset.get("filters", {}))}
             for preset in presets
         ],
     }
@@ -343,7 +350,11 @@ async def copy_layouts(
                 tool=copy.tool.value,
                 tool_id=copy.tool_id,
                 kind=row.kind,
-                definition=_remap_presets(row.definition, status_mapping),
+                definition=copied_definition(
+                    row.definition,
+                    status_mapping,
+                    same_initiative=copy.initiative_id == source.initiative_id,
+                ),
             )
         )
     await session.flush()

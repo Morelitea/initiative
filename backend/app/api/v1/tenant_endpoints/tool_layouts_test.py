@@ -478,6 +478,29 @@ async def test_a_list_offers_the_presets_it_keeps(client: AsyncClient, acting_us
         ]
 
 
+@pytest.mark.parametrize("same_initiative", [True, False])
+def test_a_copy_keeps_its_presets_filters_where_they_still_mean_something(
+    same_initiative: bool,
+):
+    filters = {
+        "status_ids": [1, 2],
+        "properties": [{"property_id": 9, "op": "eq", "value": "red"}],
+    }
+    definition = {"presets": [_preset(filters=filters)]}
+
+    copied = tool_layouts_service.copied_definition(
+        definition, {1: 11}, same_initiative=same_initiative
+    )
+
+    # Statuses are the copy's own, and one it lacks is dropped; properties
+    # are the initiative's, so only a copy beside the project keeps them.
+    [preset] = copied["presets"]
+    assert preset["filters"]["status_ids"] == [11]
+    assert preset["filters"]["properties"] == (
+        filters["properties"] if same_initiative else []
+    )
+
+
 async def test_a_layout_at_the_limits_is_kept(client: AsyncClient, acting_user):
     a = await acting_user(
         guild_role=CommunityRole.member, initiative=True, project=True

@@ -46,8 +46,15 @@ const SHIPPED: readonly { slug: string; nameKey: string; filters: StoredTaskFilt
   { slug: "mine", nameKey: "presets.mine", filters: { assignees: [ASSIGNEE_ME] } },
 ];
 
+/** How many presets a list may offer, as the server allows. */
+export const MAX_PRESETS = 20;
+
+/** A shipped preset's name, by its slug. */
+const SHIPPED_NAMES = new Map(SHIPPED.map(({ slug, nameKey }) => [slug, nameKey]));
+
 /** The presets a list offers: its own, or the shipped ones where it keeps
- *  none of its own. */
+ *  none of its own. One kept with no name is a shipped one no one renamed,
+ *  named in each reader's words. */
 export const presetsOf = (definition: ListLayoutDefinitionInput | undefined): Preset[] =>
   definition?.presets == null
     ? SHIPPED.map(({ slug, nameKey, filters }) => ({
@@ -59,7 +66,8 @@ export const presetsOf = (definition: ListLayoutDefinitionInput | undefined): Pr
       }))
     : definition.presets.map((preset) => ({
         slug: preset.slug,
-        name: preset.name,
+        name: preset.name ?? preset.slug,
+        nameKey: preset.name ? undefined : SHIPPED_NAMES.get(preset.slug),
         spec: specFromStored(preset.filters as StoredTaskFilters),
         sorting: taskTableSorting(preset.sort ?? []),
       }));
@@ -68,9 +76,10 @@ export const presetsOf = (definition: ListLayoutDefinitionInput | undefined): Pr
 export const presetName = (preset: Preset, t: (key: string) => string): string =>
   preset.nameKey ? t(preset.nameKey) : preset.name;
 
-/** `preset` as a layout keeps it, named as the editor reads it. */
-export const storedPreset = (preset: Preset, t: (key: string) => string): LayoutPreset => ({
-  name: presetName(preset, t),
+/** `preset` as a layout keeps it: a shipped one by its slug alone, so each
+ *  reader still reads its name in their own words. */
+export const storedPreset = (preset: Preset): LayoutPreset => ({
+  ...(preset.nameKey ? {} : { name: preset.name }),
   slug: preset.slug,
   filters: preset.spec as unknown as PresetFilters,
   sort: tableSortFields(preset.sorting).map(({ field, dir }) => ({

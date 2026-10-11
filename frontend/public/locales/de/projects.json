@@ -444,7 +444,8 @@
       "name": "Name",
       "sortBy": "Sortieren nach",
       "noSort": "Keine eigene Sortierung",
-      "descending": "Absteigend"
+      "descending": "Absteigend",
+      "full": "Ein Layout bietet höchstens {{count}} Vorlagen. Entfernen Sie eine, um eine weitere hinzuzufügen."
     }
   },
   "presets": {

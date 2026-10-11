@@ -184,6 +184,8 @@ export const ProjectTasksSection = ({
   // so it is what they come back to. One the layout doesn't offer is dropped.
   const applied = useRef<string | null>(null);
   useEffect(() => {
+    // Once the URL lets go of a preset, picking it again is a new pick.
+    if (!search.preset) applied.current = null;
     if (!search.preset || !layoutsLoaded || !filtersLoaded) return;
     if (!preset) {
       namePreset(undefined);

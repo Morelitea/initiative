@@ -278,6 +278,26 @@ describe("ProjectTasksSection presets", () => {
     expect(urlLayout(router)).toBe("table");
   });
 
+  it("saves a preset picked again after the person changed its filters", async () => {
+    const writes = captureViewWrites();
+    const { router } = section();
+    const user = userEvent.setup();
+    await pickLayout(user, "Unassigned");
+    await waitFor(() => expect(urlPreset(router)).toBe("unassigned"));
+
+    // Their own change lets go of the preset...
+    await user.click(await screen.findByRole("button", { name: /filters/i }));
+    await toggleAssigneeToken(user, /^Assigned to me$/);
+    await waitFor(() => expect(urlPreset(router)).toBeUndefined());
+    writes.length = 0;
+
+    // ...and picking it again makes it theirs again.
+    await pickLayout(user, "Unassigned");
+    await waitFor(() =>
+      expect(writes.at(-1)).toMatchObject({ filters: { table: { assignees: ["none"] } } })
+    );
+  });
+
   it("offers the layout's own presets, with their sort", async () => {
     withLayouts({
       layouts: [
