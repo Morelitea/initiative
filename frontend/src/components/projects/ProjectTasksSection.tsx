@@ -22,7 +22,6 @@ import type {
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import {
   buildTaskCalendarEntries,
-  CALENDAR_VIEW_MODE_KEY,
   type CalendarEntry,
   type CalendarEntryReschedule,
   CalendarView,
@@ -67,7 +66,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { useInitiative } from "@/hooks/useInitiatives";
 import {
   type ProjectViewSearch,
-  projectTaskTableKey,
   taskViewSorting,
   useProjectTaskTableState,
   useProjectTaskView,
@@ -83,7 +81,6 @@ import {
   useTasks,
   useUpdateTask,
 } from "@/hooks/useTasks";
-import { useViewPreference } from "@/hooks/useViewPreference";
 import {
   buildTaskConditions,
   buildTaskListParams,
@@ -157,71 +154,18 @@ export const ProjectTasksSection = ({
     layout,
     kind,
     presets,
-    preset,
     filtered,
     appliedSpec,
     sorting,
     setFilters,
     setSorting,
-    applyPreset,
+    pickPreset,
     rememberLayout,
+    mode: calendarMode,
+    setMode: setCalendarMode,
+    grouping,
+    setGrouping,
   } = useProjectTaskView({ projectId, taskStatuses, search });
-
-  /** Name `next` in the URL, or no preset (undefined). The URL is a link to
-   *  the preset while it names one. */
-  const namePreset = useCallback(
-    (next: string | undefined) =>
-      void navigate({
-        to: ".",
-        search: ((prev: Record<string, unknown>) => ({ ...prev, preset: next })) as never,
-        replace: true,
-        resetScroll: false,
-      }),
-    [navigate]
-  );
-
-  // A preset the URL names is applied as this person's own, once per preset,
-  // so it is what they come back to. One the layout doesn't offer is dropped.
-  const applied = useRef<string | null>(null);
-  useEffect(() => {
-    // Once the URL lets go of a preset, picking it again is a new pick.
-    if (!search.preset) applied.current = null;
-    if (!search.preset || !layoutsLoaded || !filtersLoaded) return;
-    if (!preset) {
-      namePreset(undefined);
-      return;
-    }
-    const key = `${projectId}:${kind}:${preset.slug}`;
-    if (applied.current === key) return;
-    applied.current = key;
-    applyPreset(preset);
-  }, [
-    search.preset,
-    layoutsLoaded,
-    filtersLoaded,
-    preset,
-    projectId,
-    kind,
-    applyPreset,
-    namePreset,
-  ]);
-
-  // Changing the filters or the sort makes them this person's own, and the
-  // URL stops naming the preset they started from.
-  const changeFilters = useCallback(
-    (next: Parameters<typeof setFilters>[0]) => {
-      setFilters(next);
-      if (search.preset) namePreset(undefined);
-    },
-    [setFilters, search.preset, namePreset]
-  );
-  const changeSorting = useCallback(
-    (next: Parameters<typeof setSorting>[0]) => {
-      setSorting(next);
-      if (search.preset) namePreset(undefined);
-    },
-    [setSorting, search.preset, namePreset]
-  );
 
   /** Show the `next` list layout, and come back to it. The URL names it, so
    *  a link opens the same layout for whoever follows it. */
@@ -274,7 +218,7 @@ export const ProjectTasksSection = ({
   // the default as narrowing it.
   const activeFilterCount = taskFilterCount(appliedSpec);
 
-  const clearFilters = useCallback(() => changeFilters(null), [changeFilters]);
+  const clearFilters = useCallback(() => setFilters(null), [setFilters]);
 
   const [localOverride, setLocalOverride] = useState<TaskListRead[] | null>(null);
   const [isComposerOpen, setIsComposerOpen] = useState(initialComposerOpen ?? false);
@@ -306,7 +250,7 @@ export const ProjectTasksSection = ({
   // An export lists the tasks in the order the reader sees them: the table's
   // own sort while it is showing, and the project's order in every other
   // layout.
-  const tableState = useProjectTaskTableState(projectId, kind, sorting, changeSorting);
+  const tableState = useProjectTaskTableState(grouping, setGrouping, sorting, setSorting);
   const exportSorting = useMemo(() => {
     const fields = taskViewSorting(kind, sorting);
     return fields.length > 0 ? { sorting: fields, tz: browserTimezone() } : {};
@@ -320,12 +264,10 @@ export const ProjectTasksSection = ({
   // Calendar view state
   const { user } = useAuth();
   const weekStartsOn = (user?.week_starts_on ?? 0) as 0 | 1 | 2 | 3 | 4 | 5 | 6;
-  // Persist the chosen sub-view (day/week/month/...) per-user, shared with the
-  // other calendars via the same preference key.
-  const [calendarViewMode, setCalendarViewMode] = useViewPreference<CalendarViewMode>(
-    CALENDAR_VIEW_MODE_KEY,
-    "month"
-  );
+  // The chosen sub-view (day/week/month/...) is part of this person's view
+  // of the project.
+  const calendarViewMode = (calendarMode ?? "month") as CalendarViewMode;
+  const setCalendarViewMode = setCalendarMode as (next: CalendarViewMode) => void;
   const [calendarFocusDate, setCalendarFocusDate] = useState(() => new Date());
 
   // Fetch tasks with server-side filtering (page_size=0 fetches all for
@@ -953,7 +895,7 @@ export const ProjectTasksSection = ({
               modifiedLabel={t("filters.modified")}
               presets={presetOptions}
               presetsLabel={t("presets.label")}
-              onPreset={namePreset}
+              onPreset={pickPreset}
             />
           }
           trailing={
@@ -1004,7 +946,7 @@ export const ProjectTasksSection = ({
             memberScope={{ type: "canOpen", tool: Tool.project, id: projectId }}
             taskStatuses={sortedTaskStatuses}
             value={appliedSpec}
-            onChange={changeFilters}
+            onChange={setFilters}
           />
         </ToolFilterPanel>
 
@@ -1070,7 +1012,7 @@ export const ProjectTasksSection = ({
               // The table seeds its grouping and sorting once, at mount, and
               // each view keeps its own, so moving between projects or views has
               // to be a fresh table rather than the previous one's.
-              key={projectTaskTableKey(projectId, kind)}
+              key={`${projectId}:${kind}`}
               projectId={projectId}
               initiativeId={initiativeId}
               tasks={statusFilteredTasks}

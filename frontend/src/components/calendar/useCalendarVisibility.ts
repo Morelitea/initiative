@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 
-import { getItem, setItem } from "@/lib/storage";
+import type { CalendarVisibility } from "@/lib/filters/calendarFilters";
 
 type Id = number | null | undefined;
 
@@ -8,132 +8,106 @@ type Id = number | null | undefined;
 // calendars and projects, and their ids collide.
 const keyOf = (communityId: Id, id: number): string => `${communityId ?? 0}:${id}`;
 
-const readHidden = (storageKey: string) => {
-  try {
-    const parsed = JSON.parse(getItem(storageKey) ?? "null");
-    return {
-      calendars: new Set<string>(
-        Array.isArray(parsed?.hiddenCalendarKeys) ? parsed.hiddenCalendarKeys : []
-      ),
-      projects: new Set<string>(
-        Array.isArray(parsed?.hiddenProjectKeys) ? parsed.hiddenProjectKeys : []
-      ),
-      tasksHidden: parsed?.hideTasks === true,
-    };
-  } catch {
-    return { calendars: new Set<string>(), projects: new Set<string>(), tasksHidden: false };
-  }
+const withKey = (prev: readonly string[], key: string, hidden: boolean): string[] => {
+  const rest = prev.filter((each) => each !== key);
+  return hidden ? [...rest, key] : rest;
 };
 
-const withKey = (prev: ReadonlySet<string>, key: string, hidden: boolean): Set<string> => {
-  const next = new Set(prev);
-  if (hidden) {
-    next.add(key);
-  } else {
-    next.delete(key);
-  }
-  return next;
-};
-
-/** The stored keys of `communityId`'s calendars or projects. */
-const communityKeys = (keys: ReadonlySet<string>, communityId: Id): string[] => {
+/** The kept keys of `communityId`'s calendars or projects. */
+const communityKeys = (keys: readonly string[], communityId: Id): string[] => {
   const prefix = keyOf(communityId, 0).slice(0, -1);
-  return [...keys].filter((key) => key.startsWith(prefix));
+  return keys.filter((key) => key.startsWith(prefix));
 };
 
 /**
  * Which calendars, and which projects' task calendars, the reader has switched
- * off, kept under `storageKey`. Stored as the hidden sets so a calendar or
- * project that turns up later is shown. Tasks as a whole switch off on their
- * own, leaving the per-project choices as they were for when they come back.
+ * off: part of their filters on a calendar page, kept with the rest of their
+ * view. `change` takes what is hidden now and answers what is hidden next.
+ * Tasks as a whole switch off on their own, leaving the per-project choices as
+ * they were for when they come back.
  */
-export const useCalendarVisibility = (storageKey: string) => {
-  const [state, setState] = useState(() => ({ storageKey, ...readHidden(storageKey) }));
-  let current = state;
-  if (state.storageKey !== storageKey) {
-    current = { storageKey, ...readHidden(storageKey) };
-    setState(current);
-  }
-
-  useEffect(() => {
-    setItem(
-      current.storageKey,
-      JSON.stringify({
-        hiddenCalendarKeys: [...current.calendars],
-        hiddenProjectKeys: [...current.projects],
-        hideTasks: current.tasksHidden,
-      })
-    );
-  }, [current]);
-
-  // Stable across renders: they only write through the state setter.
+export const useCalendarVisibility = (
+  visibility: CalendarVisibility,
+  change: (next: (prev: CalendarVisibility) => CalendarVisibility) => void
+) => {
+  // Stable across renders: they only write through `change`.
   const actions = useMemo(
     () => ({
       toggleCalendar: (communityId: Id, calendarId: number) => {
         const key = keyOf(communityId, calendarId);
-        setState((prev) => ({
+        change((prev) => ({
           ...prev,
-          calendars: withKey(prev.calendars, key, !prev.calendars.has(key)),
+          hiddenCalendarKeys: withKey(
+            prev.hiddenCalendarKeys,
+            key,
+            !prev.hiddenCalendarKeys.includes(key)
+          ),
         }));
       },
       toggleProject: (communityId: Id, projectId: number) => {
         const key = keyOf(communityId, projectId);
-        setState((prev) => ({
+        change((prev) => ({
           ...prev,
-          projects: withKey(prev.projects, key, !prev.projects.has(key)),
+          hiddenProjectKeys: withKey(
+            prev.hiddenProjectKeys,
+            key,
+            !prev.hiddenProjectKeys.includes(key)
+          ),
         }));
       },
       showCalendar: (communityId: Id, calendarId: number) => {
         const key = keyOf(communityId, calendarId);
-        setState((prev) =>
-          prev.calendars.has(key)
-            ? { ...prev, calendars: withKey(prev.calendars, key, false) }
+        change((prev) =>
+          prev.hiddenCalendarKeys.includes(key)
+            ? { ...prev, hiddenCalendarKeys: withKey(prev.hiddenCalendarKeys, key, false) }
             : prev
         );
       },
-      toggleTasks: () => setState((prev) => ({ ...prev, tasksHidden: !prev.tasksHidden })),
+      toggleTasks: () => change((prev) => ({ ...prev, hideTasks: !prev.hideTasks })),
       /** Every calendar of `communityId` back on, loaded on this page or not. */
       showAllCalendars: (communityId: Id) =>
-        setState((prev) => {
-          const keys = communityKeys(prev.calendars, communityId);
+        change((prev) => {
+          const keys = communityKeys(prev.hiddenCalendarKeys, communityId);
           if (keys.length === 0) return prev;
-          const calendars = new Set(prev.calendars);
-          for (const key of keys) calendars.delete(key);
-          return { ...prev, calendars };
+          return {
+            ...prev,
+            hiddenCalendarKeys: prev.hiddenCalendarKeys.filter((key) => !keys.includes(key)),
+          };
         }),
       /** Tasks back on, every project's with them. */
-      showTasks: () => setState((prev) => ({ ...prev, projects: new Set(), tasksHidden: false })),
+      showTasks: () => change((prev) => ({ ...prev, hiddenProjectKeys: [], hideTasks: false })),
       clear: () =>
-        setState((prev) => ({
+        change((prev) => ({
           ...prev,
-          calendars: new Set(),
-          projects: new Set(),
-          tasksHidden: false,
+          hiddenCalendarKeys: [],
+          hiddenProjectKeys: [],
+          hideTasks: false,
         })),
     }),
-    []
+    [change]
   );
 
-  return useMemo(
-    () => ({
+  return useMemo(() => {
+    const calendars = new Set(visibility.hiddenCalendarKeys);
+    const projects = new Set(visibility.hiddenProjectKeys);
+    return {
       ...actions,
       isCalendarHidden: (communityId: Id, calendarId: number) =>
-        current.calendars.has(keyOf(communityId, calendarId)),
+        calendars.has(keyOf(communityId, calendarId)),
       isProjectHidden: (communityId: Id, projectId: number) =>
-        current.projects.has(keyOf(communityId, projectId)),
+        projects.has(keyOf(communityId, projectId)),
       /** Every calendar switched off in `communityId`, loaded on this page or not. */
       hiddenCalendarIds: (communityId: Id): number[] => {
         const prefix = keyOf(communityId, 0).slice(0, -1);
-        return communityKeys(current.calendars, communityId).map((key) =>
+        return communityKeys(visibility.hiddenCalendarKeys, communityId).map((key) =>
           Number(key.slice(prefix.length))
         );
       },
-      tasksHidden: current.tasksHidden,
+      tasksHidden: visibility.hideTasks,
       /** How far the tasks are narrowed: all of them off counts once, and
        *  makes the per-project choices moot. */
-      hiddenTaskCount: current.tasksHidden ? 1 : current.projects.size,
-      hiddenCount: current.calendars.size + current.projects.size + (current.tasksHidden ? 1 : 0),
-    }),
-    [actions, current]
-  );
+      hiddenTaskCount: visibility.hideTasks ? 1 : projects.size,
+      hiddenCount: calendars.size + projects.size + (visibility.hideTasks ? 1 : 0),
+    };
+  }, [actions, visibility]);
 };

@@ -53,16 +53,21 @@ const flushWrite = async (scopeKey: string): Promise<void> => {
 };
 
 /**
- * Returns `[value, setValue, { isLoaded }]`.
+ * Returns `[value, setValue, { isLoaded, items }]`.
  *
  * `isLoaded` is false until the initial server fetch resolves; consumers
  * that gate other queries on the persisted filters being available can
  * use it to avoid a redundant "fetch-with-defaults then re-fetch" pair.
+ * `items` is the whole map, for a reader that carries an older key over.
  */
 export function useViewPreference<T>(
   scopeKey: string,
   fallback: T
-): [T, (next: T | ((prev: T) => T)) => void, { isLoaded: boolean }] {
+): [
+  T,
+  (next: T | ((prev: T) => T)) => void,
+  { isLoaded: boolean; items: Readonly<Record<string, unknown>> | undefined },
+] {
   const queryClient = useQueryClient();
   const { user } = useAuth();
 
@@ -142,5 +147,5 @@ export function useViewPreference<T>(
   // so they don't block forever.
   const isLoaded = user === null || query.isSuccess || query.isError;
 
-  return [value, setValue, { isLoaded }];
+  return [value, setValue, { isLoaded, items: query.data?.items }];
 }

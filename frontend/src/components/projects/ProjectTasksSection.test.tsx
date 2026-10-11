@@ -258,8 +258,11 @@ describe("ProjectTasksSection presets", () => {
     await waitFor(() =>
       expect(writes).toContainEqual(
         expect.objectContaining({
-          layout: "table",
-          filters: { table: expect.objectContaining({ assignees: ["none"] }) },
+          parts: {
+            table: expect.objectContaining({
+              filters: expect.objectContaining({ assignees: ["none"] }),
+            }),
+          },
         })
       )
     );
@@ -294,7 +297,9 @@ describe("ProjectTasksSection presets", () => {
     // ...and picking it again makes it theirs again.
     await pickLayout(user, "Unassigned");
     await waitFor(() =>
-      expect(writes.at(-1)).toMatchObject({ filters: { table: { assignees: ["none"] } } })
+      expect(writes.at(-1)).toMatchObject({
+        parts: { table: { filters: { assignees: ["none"] } } },
+      })
     );
   });
 
@@ -333,7 +338,11 @@ describe("ProjectTasksSection presets", () => {
 
     await waitFor(() =>
       expect(writes).toContainEqual(
-        expect.objectContaining({ sorting: { table: [{ id: "due date", desc: true }] } })
+        expect.objectContaining({
+          parts: {
+            table: expect.objectContaining({ sorting: [{ id: "due date", desc: true }] }),
+          },
+        })
       )
     );
   });
@@ -422,7 +431,12 @@ describe("ProjectTasksSection a person's filters", () => {
 
     await waitFor(() => expect(fieldsUsed()).not.toContain("assignee_ids"));
     await waitFor(() =>
-      expect(writes).toContainEqual(expect.objectContaining({ layout: "table", filters: {} }))
+      expect(writes).toContainEqual(
+        expect.objectContaining({
+          layout: "table",
+          parts: { table: expect.not.objectContaining({ filters: expect.anything() }) },
+        })
+      )
     );
   });
 

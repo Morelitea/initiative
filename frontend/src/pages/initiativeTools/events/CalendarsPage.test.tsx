@@ -2,7 +2,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { endOfDay, endOfMonth, format, startOfDay, startOfMonth } from "date-fns";
 import { HttpResponse, http } from "msw";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   buildCommunity,
@@ -485,10 +485,22 @@ describe("CalendarsView on the calendar plug-in's own surface", () => {
   }
 
   // The community's own calendars are its admins' to add.
+  /** What the server keeps of this reader's views, as they save them. */
+  let kept: Record<string, unknown> = {};
+  beforeEach(() => {
+    kept = {};
+    server.use(
+      http.put("/api/v1/user-view-preferences/:scopeKey", async ({ params, request }) => {
+        kept[String(params.scopeKey)] = ((await request.json()) as { value: unknown }).value;
+        return HttpResponse.json({});
+      })
+    );
+  });
+
   function renderCommunityScope(community = buildCommunity({ id: 1, role: "admin" })) {
     const queryClient = createTestQueryClient();
     queryClient.setQueryData(VIEW_PREFERENCES_QUERY_KEY, {
-      items: { [CALENDAR_VIEW_MODE_KEY]: "list" },
+      items: { [CALENDAR_VIEW_MODE_KEY]: "list", ...kept },
     });
     return renderPage(() => <CalendarsView communityScope />, {
       queryClient,
@@ -571,7 +583,9 @@ describe("CalendarsView on the calendar plug-in's own surface", () => {
     await user.click(await screen.findByRole("checkbox", { name: "Holidays" }));
     await waitFor(() => expect(screen.queryByText("Midsummer")).toBeNull());
 
+    // It is kept for the reader, wherever they open it next.
     unmount();
+    await waitFor(() => expect(Object.keys(kept)).toContain("view:1:calendars"));
     renderCommunityScope();
 
     // One calendar left on: the title is its name, with its settings beside it.
