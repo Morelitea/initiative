@@ -4,46 +4,26 @@
  * Initiative API
  * OpenAPI spec version: 0.75.3
  */
-import { useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import type {
-  DataTag,
-  DefinedInitialDataOptions,
-  DefinedUseQueryResult,
+  MutationFunction,
   QueryClient,
-  QueryFunction,
-  QueryKey,
-  UndefinedInitialDataOptions,
-  UseQueryOptions,
-  UseQueryResult,
+  UseMutationOptions,
+  UseMutationResult,
 } from "@tanstack/react-query";
 
 import type {
+  EmbedRead,
   HTTPValidationError,
-  ReadReferenceEmbedsParams,
-  ReadSmartChipsParams,
   ReferenceEmbedList,
+  ReferenceRead,
   SmartChipStateList,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
-import type { ErrorType } from "../../mutator";
+import type { ErrorType, BodyType } from "../../mutator";
 
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
-
-const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKey: K } => {
-  const result = { queryKey } as T & { queryKey: K };
-  for (const key of Object.keys(query)) {
-    // The explicit queryKey always wins, matching the previous
-    // `{ ...query, queryKey }` spread where it was set last.
-    if (key === "queryKey") continue;
-    Object.defineProperty(result, key, {
-      enumerable: true,
-      configurable: true,
-      get: () => (query as Record<string, unknown>)[key],
-    });
-  }
-  return result;
-};
 
 /**
  * Read every chip on one page in one request.
@@ -55,128 +35,90 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
  */
 export const readSmartChips = (
   communityId: number,
-  params?: ReadSmartChipsParams,
+  referenceRead: BodyType<ReferenceRead>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<SmartChipStateList>(
-    { url: `/api/v1/c/${communityId}/smart-chips/`, method: "GET", params, signal },
+    {
+      url: `/api/v1/c/${communityId}/smart-chips/`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: referenceRead,
+      signal,
+    },
     options
   );
 };
 
-export const getReadSmartChipsQueryKey = (communityId: number, params?: ReadSmartChipsParams) => {
-  return [`/api/v1/c/${communityId}/smart-chips/`, ...(params ? [params] : [])] as const;
-};
+export const getReadSmartChipsMutationKey = () => ["readSmartChips"] as const;
 
-export const getReadSmartChipsQueryOptions = <
-  TData = Awaited<ReturnType<typeof readSmartChips>>,
+export const getReadSmartChipsMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
->(
-  communityId: number,
-  params?: ReadSmartChipsParams,
-  options?: {
-    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readSmartChips>>, TError, TData>>;
-    request?: SecondParameter<typeof apiMutator>;
-  }
-) => {
-  const { query: queryOptions, request: requestOptions } = options ?? {};
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof readSmartChips>>,
+    TError,
+    ReadSmartChipsMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof readSmartChips>>,
+  TError,
+  ReadSmartChipsMutationVariables,
+  TContext
+> => {
+  const mutationKey = getReadSmartChipsMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
 
-  const queryKey = queryOptions?.queryKey ?? getReadSmartChipsQueryKey(communityId, params);
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof readSmartChips>>,
+    ReadSmartChipsMutationVariables
+  > = (props) => {
+    const { communityId, data } = props ?? {};
 
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof readSmartChips>>> = ({ signal }) =>
-    readSmartChips(communityId, params, requestOptions, signal);
-
-  return {
-    queryKey,
-    queryFn,
-    enabled: communityId !== null && communityId !== undefined,
-    ...queryOptions,
-  } as UseQueryOptions<Awaited<ReturnType<typeof readSmartChips>>, TError, TData> & {
-    queryKey: DataTag<QueryKey, TData, TError>;
+    return readSmartChips(communityId, data, requestOptions);
   };
+
+  return { mutationFn, ...mutationOptions };
 };
 
-export type ReadSmartChipsQueryResult = NonNullable<Awaited<ReturnType<typeof readSmartChips>>>;
-export type ReadSmartChipsQueryError = ErrorType<HTTPValidationError>;
+export type ReadSmartChipsMutationResult = NonNullable<Awaited<ReturnType<typeof readSmartChips>>>;
+export type ReadSmartChipsMutationBody = BodyType<ReferenceRead>;
+export type ReadSmartChipsMutationError = ErrorType<HTTPValidationError>;
+export type ReadSmartChipsMutationVariables = {
+  communityId: number;
+  data: BodyType<ReferenceRead>;
+};
 
-export function useReadSmartChips<
-  TData = Awaited<ReturnType<typeof readSmartChips>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  communityId: number,
-  params: undefined | ReadSmartChipsParams,
-  options: {
-    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof readSmartChips>>, TError, TData>> &
-      Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readSmartChips>>,
-          TError,
-          Awaited<ReturnType<typeof readSmartChips>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadSmartChips<
-  TData = Awaited<ReturnType<typeof readSmartChips>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  communityId: number,
-  params?: ReadSmartChipsParams,
-  options?: {
-    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readSmartChips>>, TError, TData>> &
-      Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readSmartChips>>,
-          TError,
-          Awaited<ReturnType<typeof readSmartChips>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadSmartChips<
-  TData = Awaited<ReturnType<typeof readSmartChips>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  communityId: number,
-  params?: ReadSmartChipsParams,
-  options?: {
-    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readSmartChips>>, TError, TData>>;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Read Smart Chips
  */
-
-export function useReadSmartChips<
-  TData = Awaited<ReturnType<typeof readSmartChips>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  communityId: number,
-  params?: ReadSmartChipsParams,
+export const useReadSmartChips = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
-    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof readSmartChips>>, TError, TData>>;
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof readSmartChips>>,
+      TError,
+      ReadSmartChipsMutationVariables,
+      TContext
+    >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getReadSmartChipsQueryOptions(communityId, params, options);
-
-  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
-    queryKey: DataTag<QueryKey, TData, TError>;
-  };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
+): UseMutationResult<
+  Awaited<ReturnType<typeof readSmartChips>>,
+  TError,
+  ReadSmartChipsMutationVariables,
+  TContext
+> => {
+  return useMutation(getReadSmartChipsMutationOptions(options), queryClient);
+};
 /**
  * What an embedded reference shows: the thing's name, and its description
  * or, for prose, its body.
@@ -186,139 +128,89 @@ export function useReadSmartChips<
  */
 export const readReferenceEmbeds = (
   communityId: number,
-  params?: ReadReferenceEmbedsParams,
+  embedRead: BodyType<EmbedRead>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<ReferenceEmbedList>(
-    { url: `/api/v1/c/${communityId}/smart-chips/embeds`, method: "GET", params, signal },
+    {
+      url: `/api/v1/c/${communityId}/smart-chips/embeds`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: embedRead,
+      signal,
+    },
     options
   );
 };
 
-export const getReadReferenceEmbedsQueryKey = (
-  communityId: number,
-  params?: ReadReferenceEmbedsParams
-) => {
-  return [`/api/v1/c/${communityId}/smart-chips/embeds`, ...(params ? [params] : [])] as const;
-};
+export const getReadReferenceEmbedsMutationKey = () => ["readReferenceEmbeds"] as const;
 
-export const getReadReferenceEmbedsQueryOptions = <
-  TData = Awaited<ReturnType<typeof readReferenceEmbeds>>,
+export const getReadReferenceEmbedsMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
->(
-  communityId: number,
-  params?: ReadReferenceEmbedsParams,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof readReferenceEmbeds>>, TError, TData>
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  }
-) => {
-  const { query: queryOptions, request: requestOptions } = options ?? {};
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof readReferenceEmbeds>>,
+    TError,
+    ReadReferenceEmbedsMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof readReferenceEmbeds>>,
+  TError,
+  ReadReferenceEmbedsMutationVariables,
+  TContext
+> => {
+  const mutationKey = getReadReferenceEmbedsMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
 
-  const queryKey = queryOptions?.queryKey ?? getReadReferenceEmbedsQueryKey(communityId, params);
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof readReferenceEmbeds>>,
+    ReadReferenceEmbedsMutationVariables
+  > = (props) => {
+    const { communityId, data } = props ?? {};
 
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof readReferenceEmbeds>>> = ({ signal }) =>
-    readReferenceEmbeds(communityId, params, requestOptions, signal);
-
-  return {
-    queryKey,
-    queryFn,
-    enabled: communityId !== null && communityId !== undefined,
-    ...queryOptions,
-  } as UseQueryOptions<Awaited<ReturnType<typeof readReferenceEmbeds>>, TError, TData> & {
-    queryKey: DataTag<QueryKey, TData, TError>;
+    return readReferenceEmbeds(communityId, data, requestOptions);
   };
+
+  return { mutationFn, ...mutationOptions };
 };
 
-export type ReadReferenceEmbedsQueryResult = NonNullable<
+export type ReadReferenceEmbedsMutationResult = NonNullable<
   Awaited<ReturnType<typeof readReferenceEmbeds>>
 >;
-export type ReadReferenceEmbedsQueryError = ErrorType<HTTPValidationError>;
+export type ReadReferenceEmbedsMutationBody = BodyType<EmbedRead>;
+export type ReadReferenceEmbedsMutationError = ErrorType<HTTPValidationError>;
+export type ReadReferenceEmbedsMutationVariables = {
+  communityId: number;
+  data: BodyType<EmbedRead>;
+};
 
-export function useReadReferenceEmbeds<
-  TData = Awaited<ReturnType<typeof readReferenceEmbeds>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  communityId: number,
-  params: undefined | ReadReferenceEmbedsParams,
-  options: {
-    query: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof readReferenceEmbeds>>, TError, TData>
-    > &
-      Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readReferenceEmbeds>>,
-          TError,
-          Awaited<ReturnType<typeof readReferenceEmbeds>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadReferenceEmbeds<
-  TData = Awaited<ReturnType<typeof readReferenceEmbeds>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  communityId: number,
-  params?: ReadReferenceEmbedsParams,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof readReferenceEmbeds>>, TError, TData>
-    > &
-      Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readReferenceEmbeds>>,
-          TError,
-          Awaited<ReturnType<typeof readReferenceEmbeds>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadReferenceEmbeds<
-  TData = Awaited<ReturnType<typeof readReferenceEmbeds>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  communityId: number,
-  params?: ReadReferenceEmbedsParams,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof readReferenceEmbeds>>, TError, TData>
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
  * @summary Read Reference Embeds
  */
-
-export function useReadReferenceEmbeds<
-  TData = Awaited<ReturnType<typeof readReferenceEmbeds>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  communityId: number,
-  params?: ReadReferenceEmbedsParams,
+export const useReadReferenceEmbeds = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
   options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof readReferenceEmbeds>>, TError, TData>
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof readReferenceEmbeds>>,
+      TError,
+      ReadReferenceEmbedsMutationVariables,
+      TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getReadReferenceEmbedsQueryOptions(communityId, params, options);
-
-  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
-    queryKey: DataTag<QueryKey, TData, TError>;
-  };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
+): UseMutationResult<
+  Awaited<ReturnType<typeof readReferenceEmbeds>>,
+  TError,
+  ReadReferenceEmbedsMutationVariables,
+  TContext
+> => {
+  return useMutation(getReadReferenceEmbedsMutationOptions(options), queryClient);
+};

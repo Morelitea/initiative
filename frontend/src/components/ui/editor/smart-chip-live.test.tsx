@@ -64,8 +64,8 @@ function DocumentUnderTest() {
 describe("a smart chip in a real document", () => {
   it("shows what the thing is doing now, not the words stored beside it", async () => {
     server.use(
-      communityHttp.get("/smart-chips/", ({ request }) => {
-        const refs = new URL(request.url).searchParams.getAll("ref");
+      communityHttp.post("/smart-chips/", async ({ request }) => {
+        const { refs } = (await request.json()) as { refs: string[] };
         // One reference per chip: the answer names its own thing.
         expect(refs).toEqual(["counter:4:value"]);
         return HttpResponse.json({
@@ -94,7 +94,7 @@ describe("a smart chip in a real document", () => {
   });
 
   it("falls back to the stored label when the thing cannot be read", async () => {
-    server.use(communityHttp.get("/smart-chips/", () => HttpResponse.json({ items: [] })));
+    server.use(communityHttp.post("/smart-chips/", () => HttpResponse.json({ items: [] })));
 
     renderPage(DocumentUnderTest);
 

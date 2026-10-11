@@ -67,6 +67,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Smart chips, links and embeds show what they point at in every browser.** A browser extension that strips tracking from web addresses could remove what a document asked about, so every chip, `[[ ]]` link and embed on the page read as no longer available. The page now sends its references in the request itself, where nothing rewrites them.
 - **A wiki whose home page was deleted for good opens without it.** It used to keep naming the deleted page.
 - **Switching between files no longer blanks the one you open.** Moving from one file to another, for example from the recent items in the header, kept the last file's editor on screen with no loading state. It could then go blank and save that blank page over the file you were opening. The page now shows the next file loading until it arrives.
 - **Dragging a repeating event on the calendar always asks which dates it moves.** One whose repeat couldn't be read was moved whole without asking; dragging now asks exactly when the event's own page does, and names the same dates.

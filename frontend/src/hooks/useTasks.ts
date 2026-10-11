@@ -20,7 +20,6 @@ import type {
   TaskUpdateScope,
 } from "@/api/generated/initiativeAPI.schemas";
 import { PropertyTarget } from "@/api/generated/initiativeAPI.schemas";
-import { getReadSmartChipsQueryKey } from "@/api/generated/smart-chips/smart-chips";
 import {
   getListTaskStatusesQueryKey,
   listTaskStatuses,
@@ -53,6 +52,7 @@ import {
   useItemFieldSave,
   useShownWithPending,
 } from "@/hooks/useFieldSave";
+import { smartChipsKey } from "@/hooks/useSmartChips";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { fetchAllPages } from "@/lib/fetchAllPages";
 import { toast } from "@/lib/mascotToast";
@@ -316,7 +316,7 @@ export const useSetTaskDone = () => {
   const { mutateAsync, isPending } = useUpdateTask({
     onSuccess: () =>
       queryClient.invalidateQueries({
-        queryKey: getReadSmartChipsQueryKey(communityId),
+        queryKey: smartChipsKey(communityId),
       }),
   });
 

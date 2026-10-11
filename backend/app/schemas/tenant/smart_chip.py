@@ -6,10 +6,55 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
-from app.core.smart_chips import SmartChipAspect, SmartChipTone
+from app.core.smart_chips import SmartChipAspect, SmartChipKind, SmartChipTone
 from app.core.search import SearchEntityType
+
+
+#: Ceiling on one chips request, so the cost of answering one is bounded.
+#:
+#: The endpoint REFUSES a request carrying more rather than answering part of
+#: it, because a partial answer is indistinguishable from a page whose things
+#: were all deleted. A longer page asks in several requests instead — see
+#: ``REFS_PER_REQUEST`` in the client's ``useSmartChips``, which batches to this
+#: number. A request costs a few queries per kind it names, however many it
+#: names, so this is set to cover a whole document in one.
+MAX_REFS = 500
+
+#: Ceiling on one embeds request. Lower than a chip's: an embed answers with
+#: the whole body of what it names, and the editor asks for one at a time.
+MAX_EMBEDS = 25
+
+_REFS_DESCRIPTION = (
+    "References to read. `task:12` names a thing, `task:12:status` a fact "
+    "about it. One that names nothing is ignored."
+)
+
+
+class ReferenceRead(BaseModel):
+    """The references one page asks about, read together.
+
+    A body rather than a query string: what a page points at is its own
+    business, and a URL is rewritten and recorded by whatever it passes
+    through.
+    """
+
+    refs: List[str] = Field(
+        default_factory=list,
+        max_length=MAX_REFS,
+        description=_REFS_DESCRIPTION
+        + " Chips: "
+        + ", ".join(kind.value for kind in SmartChipKind),
+    )
+
+
+class EmbedRead(BaseModel):
+    """The references to show in full, as `kind:id`."""
+
+    refs: List[str] = Field(
+        default_factory=list, max_length=MAX_EMBEDS, description=_REFS_DESCRIPTION
+    )
 
 
 class SmartChipState(BaseModel):

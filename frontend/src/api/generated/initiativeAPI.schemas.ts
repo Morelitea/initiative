@@ -4819,6 +4819,17 @@ export interface EmailTestResponse {
   status: string;
 }
 
+/**
+ * The references to show in full, as `kind:id`.
+ */
+export interface EmbedRead {
+  /**
+   * References to read. `task:12` names a thing, `task:12:status` a fact about it. One that names nothing is ignored.
+   * @maxItems 25
+   */
+  refs?: string[];
+}
+
 export type SearchEntityType = (typeof SearchEntityType)[keyof typeof SearchEntityType];
 
 export const SearchEntityType = {
@@ -9112,6 +9123,21 @@ export interface ReferenceEmbedList {
 }
 
 /**
+ * The references one page asks about, read together.
+ *
+ * A body rather than a query string: what a page points at is its own
+ * business, and a URL is rewritten and recorded by whatever it passes
+ * through.
+ */
+export interface ReferenceRead {
+  /**
+   * References to read. `task:12` names a thing, `task:12:status` a fact about it. One that names nothing is ignored. Chips: calendar_event:when, counter:value, project:progress, task:assignee, task:due, task:priority, task:status, task:checklist
+   * @maxItems 500
+   */
+  refs?: string[];
+}
+
+/**
  * How a caller with no cookie presents its refresh token.
  *
  * The browser sends nothing here — its refresh token is a cookie it cannot
@@ -12573,22 +12599,6 @@ export type SuggestCommunityParams = {
    * @minimum 1
    */
   limit?: number;
-};
-
-export type ReadSmartChipsParams = {
-  /**
-   * A chip to read, as `kind:id:aspect` — `task:12:status`. Repeat it for every chip on the page; they are read together. Pairs that name no chip are ignored. Available: calendar_event:when, counter:value, project:progress, task:assignee, task:due, task:priority, task:status, task:checklist
-   * @maxItems 100
-   */
-  ref?: string[];
-};
-
-export type ReadReferenceEmbedsParams = {
-  /**
-   * A reference to show in full, as `kind:id` — `task:12`.
-   * @maxItems 100
-   */
-  ref?: string[];
 };
 
 export type ListPropertyDefinitionsParams = {

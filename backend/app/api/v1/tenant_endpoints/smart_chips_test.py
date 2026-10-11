@@ -20,7 +20,8 @@ from sqlmodel import select
 from app.models.tenant.task import TaskPriority, TaskStatus, TaskStatusCategory
 from app.core.references import NOT_REFERENCEABLE, REFERENCEABLE_TYPES
 from app.db.reference_targets import referenceable_types
-from app.services.tenant.smart_chips import MAX_REFS, SMART_CHIP_SOURCES
+from app.schemas.tenant.smart_chip import MAX_EMBEDS, MAX_REFS
+from app.services.tenant.smart_chips import SMART_CHIP_SOURCES
 from app.testing import (
     create_resource_grant,
     Actor,
@@ -64,8 +65,8 @@ async def _move_to(session, task, project, category: TaskStatusCategory) -> None
 
 
 async def _chips(client, actor: Actor, *refs: str) -> dict[str, dict]:
-    response = await client.get(
-        actor.g("/smart-chips/"), headers=actor.headers, params={"ref": list(refs)}
+    response = await client.post(
+        actor.g("/smart-chips/"), headers=actor.headers, json={"refs": list(refs)}
     )
     assert response.status_code == 200, response.text
     return {item["ref"]: item for item in response.json()["items"]}
@@ -248,10 +249,10 @@ async def test_an_embed_shows_the_name_and_the_description(
     counter = await create_counter(session, group, name="Signups")
     missing = f"task:{task.id + 999}"
 
-    response = await client.get(
+    response = await client.post(
         a.g("/smart-chips/embeds"),
         headers=a.headers,
-        params={"ref": [f"task:{task.id}", f"counter:{counter.id}", missing]},
+        json={"refs": [f"task:{task.id}", f"counter:{counter.id}", missing]},
     )
     assert response.status_code == 200, response.text
     body = {item["ref"]: item for item in response.json()["items"]}
@@ -280,10 +281,10 @@ def _prose(text: str) -> dict:
 
 
 async def _embeds(client, actor: Actor, *refs: str) -> dict[str, dict]:
-    response = await client.get(
+    response = await client.post(
         actor.g("/smart-chips/embeds"),
         headers=actor.headers,
-        params={"ref": list(refs)},
+        json={"refs": list(refs)},
     )
     assert response.status_code == 200, response.text
     return {item["ref"]: item for item in response.json()["items"]}
@@ -668,14 +669,21 @@ async def test_the_ceiling_is_refused_rather_than_quietly_trimmed(
     at_the_line = [f"task:{task.id}:status"] * 1 + [
         f"task:{9000 + i}:status" for i in range(MAX_REFS - 1)
     ]
-    response = await client.get(
-        a.g("/smart-chips/"), headers=a.headers, params={"ref": at_the_line}
+    response = await client.post(
+        a.g("/smart-chips/"), headers=a.headers, json={"refs": at_the_line}
     )
     assert response.status_code == 200
 
     over = [*at_the_line, f"task:{9999}:status"]
-    response = await client.get(
-        a.g("/smart-chips/"), headers=a.headers, params={"ref": over}
+    response = await client.post(
+        a.g("/smart-chips/"), headers=a.headers, json={"refs": over}
+    )
+    assert response.status_code == 422
+
+    # An embed answers with a whole body, so its ceiling is its own.
+    embeds = [f"task:{task.id + i}" for i in range(MAX_EMBEDS + 1)]
+    response = await client.post(
+        a.g("/smart-chips/embeds"), headers=a.headers, json={"refs": embeds}
     )
     assert response.status_code == 422
 

@@ -48,16 +48,12 @@ from app.models.tenant.task import (
     TaskStatus,
     TaskStatusCategory,
 )
-from app.schemas.tenant.smart_chip import ReferenceEmbed, SmartChipState
-
-#: Ceiling on one request, so the cost of answering one is bounded.
-#:
-#: The endpoint REFUSES a request carrying more rather than answering part of
-#: it, because a partial answer is indistinguishable from a page whose things
-#: were all deleted. A longer page asks in several requests instead — see
-#: ``REFS_PER_REQUEST`` in the client's ``useSmartChips``, which batches to this
-#: number. The slice below bounds a direct call on this service.
-MAX_REFS = 100
+from app.schemas.tenant.smart_chip import (
+    MAX_EMBEDS,
+    MAX_REFS,
+    ReferenceEmbed,
+    SmartChipState,
+)
 
 
 @dataclass(frozen=True)
@@ -576,7 +572,7 @@ async def read_embeds(
     """
     wanted: dict[SearchEntityType, set[int]] = {}
     parsed: list[tuple[str, SearchEntityType, int]] = []
-    for ref in dict.fromkeys(refs[:MAX_REFS]):
+    for ref in dict.fromkeys(refs[:MAX_EMBEDS]):
         named = parse_bare_ref(ref)
         if named is None:
             continue

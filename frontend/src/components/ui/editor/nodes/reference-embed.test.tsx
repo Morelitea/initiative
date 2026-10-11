@@ -44,8 +44,8 @@ const BODIES: Record<string, { title: string; body: object }> = {
 
 const serveBodies = () =>
   server.use(
-    communityHttp.get("/smart-chips/embeds", ({ request }) => {
-      const refs = new URL(request.url).searchParams.getAll("ref");
+    communityHttp.post("/smart-chips/embeds", async ({ request }) => {
+      const { refs } = (await request.json()) as { refs: string[] };
       return HttpResponse.json({
         items: refs.map((ref) => ({
           ref,
