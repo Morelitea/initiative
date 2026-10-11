@@ -446,7 +446,8 @@
       "noSort": "Sin orden propio",
       "descending": "Descendente",
       "full": "Un diseño ofrece como máximo {{count}} ajustes predefinidos. Quita uno para añadir otro."
-    }
+    },
+    "calendarListHelp": "Cómo el calendario de la iniciativa muestra sus eventos y tareas. Sus ajustes predefinidos son puntos de partida para todos."
   },
   "presets": {
     "label": "Ajustes predefinidos",

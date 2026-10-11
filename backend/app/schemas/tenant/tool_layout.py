@@ -16,10 +16,11 @@ carries the same vocabulary the renderer keys by. A property's field is named
 ``property:<definition id>``, so renaming it keeps every layout that shows it;
 a plug-in's is ``plugin:<install id>:<metadata key>``.
 
-``TaskFilterSpec`` is the filter shape a preset holds. It mirrors what the
-task filter controls show rather than the ``conditions`` DSL the list endpoint
-accepts, so a preset reads back as controls and a copied project can remap its
-status ids.
+A preset holds its tool's filter shape: ``TaskFilterSpec`` on a project's
+lists, ``CalendarFilterSpec`` on the initiative's calendar. Each mirrors what
+that list's filter controls show rather than the ``conditions`` DSL its
+endpoint accepts, so a preset reads back as controls and a copied project can
+remap its status ids.
 """
 
 from __future__ import annotations
@@ -31,7 +32,7 @@ from typing import Annotated, Any, List, Literal, Optional, Union, get_args
 from pydantic import AfterValidator, ConfigDict, Field, field_validator
 
 from app.core.tools import Tool
-from app.models.tenant.task import TaskStatusCategory
+from app.models.tenant.task import TaskPriority, TaskStatusCategory
 from app.schemas.base import SanitizedBaseModel
 from app.schemas.query import FilterOp, SortDir
 from app.services.marketplace.manifest_values import (
@@ -76,7 +77,7 @@ class _Strict(SanitizedBaseModel):
 # -- Filters ------------------------------------------------------------------
 
 
-class TaskPropertyFilter(_Strict):
+class PresetPropertyFilter(_Strict):
     property_id: int
     op: FilterOp = FilterOp.eq
     value: Any = None
@@ -89,7 +90,7 @@ class TaskFilterSpec(_Strict):
     status_categories: List[TaskStatusCategory] = Field(default_factory=list)
     assignees: List[str] = Field(default_factory=list, max_length=MAX_ASSIGNEES)
     tag_ids: List[int] = Field(default_factory=list, max_length=MAX_TAG_IDS)
-    properties: List[TaskPropertyFilter] = Field(
+    properties: List[PresetPropertyFilter] = Field(
         default_factory=list, max_length=MAX_PROPERTY_FILTERS
     )
     due: Optional[DueToken] = None
@@ -108,6 +109,22 @@ class TaskFilterSpec(_Strict):
     def _dedupe_categories(
         cls, value: List[TaskStatusCategory]
     ) -> List[TaskStatusCategory]:
+        return list(dict.fromkeys(value))
+
+
+class CalendarFilterSpec(_Strict):
+    """The filters a preset on the initiative's calendar holds: what its tasks
+    are, and the properties its events and tasks carry."""
+
+    status_categories: List[TaskStatusCategory] = Field(default_factory=list)
+    priorities: List[TaskPriority] = Field(default_factory=list)
+    properties: List[PresetPropertyFilter] = Field(
+        default_factory=list, max_length=MAX_PROPERTY_FILTERS
+    )
+
+    @field_validator("status_categories", "priorities")
+    @classmethod
+    def _dedupe(cls, value: List[Any]) -> List[Any]:
         return list(dict.fromkeys(value))
 
 
@@ -393,7 +410,10 @@ class LayoutPreset(_Strict):
     name: Optional[str] = Field(default=None, min_length=1, max_length=100)
     #: What a link to the preset carries; kept when it is renamed.
     slug: str = Field(min_length=1, max_length=MAX_SLUG_LENGTH, pattern=SLUG_PATTERN)
-    filters: TaskFilterSpec = Field(default_factory=TaskFilterSpec)
+    #: Its tool's shape, which the service holds it to.
+    filters: Union[TaskFilterSpec, CalendarFilterSpec] = Field(
+        default_factory=TaskFilterSpec
+    )
     sort: List[PresetSort] = Field(
         default_factory=list, max_length=len(get_args(TaskSortField))
     )

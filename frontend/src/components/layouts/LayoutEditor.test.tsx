@@ -29,13 +29,15 @@ import { calendarTarget, projectTarget, useToolLayouts } from "@/hooks/useToolLa
 import { MAX_PRESETS } from "@/lib/layouts/presets";
 import type { LayoutNode } from "@/lib/layouts/tree";
 
-import { eventDetail, taskDetail } from "./details";
+import { calendarPresets, eventDetail, taskDetail, taskPresets } from "./details";
 import { LayoutEditor } from "./LayoutEditor";
 
 const STATUSES = buildDefaultTaskStatuses(1);
 const PROJECT = { id: 1, initiativeId: 1, statuses: STATUSES };
 const PROJECT_DETAILS = [taskDetail(PROJECT)];
 const CALENDAR_DETAILS = [eventDetail(1)];
+const PROJECT_PRESETS = taskPresets(PROJECT);
+const CALENDAR_PRESETS = calendarPresets(1);
 
 type Write = ListLayoutWrite | DetailLayoutWrite;
 
@@ -62,6 +64,7 @@ const editor = (kind: string, onClose = vi.fn(), set = buildToolLayoutSet(), cal
         initiativeId={1}
         project={calendar ? undefined : PROJECT}
         details={calendar ? CALENDAR_DETAILS : PROJECT_DETAILS}
+        presets={calendar ? CALENDAR_PRESETS : PROJECT_PRESETS}
         set={read}
         initialKind={kind}
         onClose={onClose}
@@ -325,6 +328,24 @@ describe("LayoutEditor", () => {
     await waitFor(() => expect(saved("board")).toBeDefined());
     const presets = saved("board")?.presets as { slug: string }[] | undefined;
     expect(presets?.map((preset) => preset.slug)).toEqual(["mine", "unassigned"]);
+  });
+
+  it("offers presets on the calendar's list, with the calendar's own filters", async () => {
+    const { user } = editor("calendar", vi.fn(), buildToolLayoutSet({ tool: "calendar" }), true);
+
+    await user.click(await screen.findByRole("button", { name: /add preset/i }));
+    const dialog = await screen.findByRole("dialog", { name: /add a preset/i });
+    await user.type(within(dialog).getByLabelText(/^name$/i), "Urgent");
+    // Its filters are the calendar's: no assignees, and no sort.
+    expect(within(dialog).queryByRole("combobox", { name: /assignee/i })).toBeNull();
+    expect(within(dialog).queryByRole("combobox", { name: /sort by/i })).toBeNull();
+    await user.click(within(dialog).getByRole("button", { name: /^done$/i }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    await waitFor(() => expect(saved("calendar")).toBeDefined());
+    expect(saved("calendar")?.presets).toEqual([
+      expect.objectContaining({ name: "Urgent", slug: "urgent", sort: [] }),
+    ]);
   });
 
   it("asks before leaving with changes, and leaves at once without", async () => {

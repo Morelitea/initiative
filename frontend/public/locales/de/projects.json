@@ -446,7 +446,8 @@
       "noSort": "Keine eigene Sortierung",
       "descending": "Absteigend",
       "full": "Ein Layout bietet höchstens {{count}} Vorlagen. Entfernen Sie eine, um eine weitere hinzuzufügen."
-    }
+    },
+    "calendarListHelp": "Wie der Kalender der Initiative seine Termine und Aufgaben zeigt. Seine Vorlagen sind Ausgangspunkte für alle."
   },
   "presets": {
     "label": "Vorlagen",

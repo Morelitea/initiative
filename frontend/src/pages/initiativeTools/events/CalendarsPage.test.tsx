@@ -4,7 +4,13 @@ import { endOfDay, endOfMonth, format, startOfDay, startOfMonth } from "date-fns
 import { HttpResponse, http } from "msw";
 import { describe, expect, it, vi } from "vitest";
 
-import { buildCommunity, buildTask, communityCan, writerCan } from "@/__tests__/factories";
+import {
+  buildCommunity,
+  buildTask,
+  buildToolLayoutSet,
+  communityCan,
+  writerCan,
+} from "@/__tests__/factories";
 import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { createTestQueryClient, renderPage } from "@/__tests__/helpers/render";
@@ -274,6 +280,60 @@ describe("CalendarsView calendar-entries query", () => {
     await user.click(screen.getByLabelText("Dates"));
     await user.click(await screen.findByRole("button", { name: "Last month" }));
     expect(requests).toHaveLength(fetched);
+  });
+});
+
+describe("CalendarsView presets", () => {
+  /** The initiative calendar's layouts, its list offering `presets`. */
+  const withPresets = (presets: unknown[]) =>
+    server.use(
+      communityHttp.get("/layouts/", () =>
+        HttpResponse.json(
+          buildToolLayoutSet({
+            tool: "calendar",
+            layouts: [
+              {
+                kind: "calendar",
+                is_default: true,
+                definition: { presets } as never,
+                updated_at: "2026-10-01T12:00:00.000Z",
+              },
+            ],
+          })
+        )
+      )
+    );
+
+  it("applies a preset the calendar offers to its filters, and names it in the URL", async () => {
+    withPresets([{ name: "Urgent", slug: "urgent", filters: { priorities: ["urgent"] } }]);
+    const requests = stubEntries({ tasks: [] });
+    const { router } = renderCalendars();
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole("combobox", { name: /^layout$/i }));
+    await user.click(await screen.findByRole("option", { name: "Urgent" }));
+
+    await waitFor(() =>
+      expect(parseConditions(requests.at(-1) as URLSearchParams)).toContainEqual({
+        field: "priority",
+        op: "in_",
+        value: ["urgent"],
+      })
+    );
+    expect((router.state.location.search as { preset?: string }).preset).toBe("urgent");
+  });
+
+  it("offers no menu while the calendar has no presets", async () => {
+    server.use(
+      communityHttp.get("/layouts/", () =>
+        HttpResponse.json(buildToolLayoutSet({ tool: "calendar" }))
+      )
+    );
+    const requests = stubEntries({ tasks: [] });
+    renderCalendars();
+
+    await waitFor(() => expect(requests.length).toBeGreaterThan(0));
+    expect(screen.queryByRole("combobox", { name: /^layout$/i })).toBeNull();
   });
 });
 

@@ -394,6 +394,11 @@ def _task(*side: dict[str, Any]) -> dict[str, Any]:
             400,
             "TOOL_LAYOUTS_KIND_NOT_ALLOWED",
         ),
+        (
+            _table(presets=[_preset(filters={"priorities": ["high"]})]),
+            400,
+            "TOOL_LAYOUTS_KIND_NOT_ALLOWED",
+        ),
         (_task({"type": "field", "props": {"field": "startDate"}}), 422, None),
         (_task({"type": "field", "props": {"field": "property:12"}}), 422, None),
         (_task({"type": "card"}), 422, None),
@@ -421,6 +426,7 @@ def _task(*side: dict[str, Any]) -> dict[str, Any]:
         "a preset's slug outside its characters",
         "a preset naming someone by name",
         "a sort on a board's preset, which a board does not sort by",
+        "a project's preset in the calendar's filters",
         "a date alone on a task",
         "a property alone on a task",
         "a card on a task",
@@ -570,15 +576,26 @@ async def test_a_shared_tool_is_laid_out_by_the_initiatives_managers(
     assert refused.json()["detail"] == "INITIATIVE_MANAGER_REQUIRED"
     saved = await client.put(url, params=params, json=calendar, headers=manager.headers)
     assert saved.status_code == 200, saved.text
+    urgent = _preset("urgent", name="Urgent", filters={"priorities": ["urgent"]})
+    with_preset = {"kind": "calendar", "definition": {"presets": [urgent]}}
+    saved = await client.put(
+        url, params=params, json=with_preset, headers=manager.headers
+    )
+    assert saved.status_code == 200, saved.text
+    [kept] = saved.json()["layouts"][0]["definition"]["presets"]
+    assert kept["filters"]["priorities"] == ["urgent"]
     # The calendar draws none of a project's other kinds.
     for wrong in (
         await client.put(url, params=params, json=_BOARD, headers=manager.headers),
         await client.put(url, params=params, json=_TASK, headers=manager.headers),
-        # Presets hold task filters, which the calendar's events are not.
+        # The calendar's presets hold its own filters, which name no one.
         await client.put(
             url,
             params=params,
-            json={"kind": "calendar", "definition": {"presets": [_preset()]}},
+            json={
+                "kind": "calendar",
+                "definition": {"presets": [_preset(filters={"assignees": ["me"]})]},
+            },
             headers=manager.headers,
         ),
         await client.delete(f"{url}task", params=params, headers=manager.headers),

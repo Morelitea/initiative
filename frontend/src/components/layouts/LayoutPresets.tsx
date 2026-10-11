@@ -1,10 +1,8 @@
 import { ArrowDown, ArrowUp, Pencil, Plus, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { SortField } from "@/api/generated/initiativeAPI.schemas";
-import { Tool } from "@/api/generated/initiativeAPI.schemas";
-import { ProjectTasksFilters } from "@/components/projects/ProjectTasksFilters";
+import type { ListLayoutReadKind, SortField } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -24,17 +22,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import {
-  EMPTY_TASK_FILTERS,
-  type TaskFilterSpec,
-  tableSortFields,
-  taskTableSorting,
-} from "@/lib/filters/taskFilters";
+import { tableSortFields, taskTableSorting } from "@/lib/filters/taskFilters";
 import type { ListLayout } from "@/lib/layouts/draft";
 import { type FieldDef, LAYOUT_NAMESPACES } from "@/lib/layouts/fields";
 import {
   MAX_PRESETS,
   type Preset,
+  type PresetKind,
   presetName,
   presetSlug,
   presetsOf,
@@ -43,7 +37,24 @@ import {
 import type { TranslateFn } from "@/types/i18n";
 
 import type { LayoutEdits } from "./LayoutEditor";
-import type { LayoutProject } from "./LayoutSettingsPanel";
+
+/** A tool's presets, as the editor changes them: the presets it reads, what
+ *  one that narrows nothing holds, its list's own filter controls, and which
+ *  of its lists a preset can sort (a table, which a person sorts). */
+export type EditablePresets = {
+  kind: PresetKind<unknown>;
+  empty: unknown;
+  controls: (value: unknown, onChange: (next: unknown) => void) => ReactNode;
+  sortable: (kind: ListLayoutReadKind) => boolean;
+};
+
+/** `presets` as the editor takes them, whatever filters they hold. */
+export const editablePresets = <F,>(presets: {
+  kind: PresetKind<F>;
+  empty: F;
+  controls: (value: F, onChange: (next: F) => void) => ReactNode;
+  sortable: (kind: ListLayoutReadKind) => boolean;
+}): EditablePresets => presets as unknown as EditablePresets;
 
 /** What a preset can sort a table by, as the task list names it, and the
  *  field (or key) that names it for a reader. */
@@ -60,28 +71,28 @@ const SORTS: readonly { field: string; label: { field: string } | { key: string 
 const NO_SORT = "none";
 
 /**
- * The presets a project's list offers: each one's name, and buttons to change,
- * move or remove it, then one to add another. They are kept with the layout,
- * and saved with it.
+ * The presets a list offers: each one's name, and buttons to change, move or
+ * remove it, then one to add another. They are kept with the layout, and
+ * saved with it.
  */
 export const LayoutPresets = ({
   layout,
-  project,
+  of,
   fields,
   edits,
 }: {
   layout: ListLayout;
-  project: LayoutProject;
+  of: EditablePresets;
   fields: ReadonlyMap<string, FieldDef>;
   edits: LayoutEdits;
 }) => {
   const { t } = useTranslation(LAYOUT_NAMESPACES);
   const translate = t as TranslateFn;
-  const presets = presetsOf(layout.definition);
+  const presets = presetsOf(layout.definition, of.kind);
   // The preset open in the dialog, by its place; null adds one.
   const [open, setOpen] = useState<{ index: number | null } | null>(null);
 
-  const change = (next: Preset[]) => edits.changePresets(next.map(storedPreset));
+  const change = (next: Preset<unknown>[]) => edits.changePresets(next.map(storedPreset));
   const move = (index: number, by: number) => {
     const next = [...presets];
     const [moved] = next.splice(index, 1);
@@ -169,18 +180,18 @@ export const LayoutPresets = ({
       {open ? (
         <PresetDialog
           preset={open.index === null ? null : presets[open.index]}
-          sortable={layout.kind === "table"}
-          project={project}
+          sortable={of.sortable(layout.kind)}
+          of={of}
           fields={fields}
           onClose={() => setOpen(null)}
-          onSubmit={(name, spec, sorting) => {
+          onSubmit={(name, filters, sorting) => {
             const next = [...presets];
             if (open.index === null) {
               const slug = presetSlug(
                 name,
                 presets.map((each) => each.slug)
               );
-              next.push({ slug, name, spec, sorting });
+              next.push({ slug, name, filters, sorting });
             } else {
               // A rename keeps the slug, so links to it still open it. A shipped
               // one keeps being named in each reader's words until renamed.
@@ -190,7 +201,7 @@ export const LayoutPresets = ({
                 ...was,
                 name,
                 nameKey: renamed ? undefined : was.nameKey,
-                spec,
+                filters,
                 sorting,
               };
             }
@@ -207,24 +218,24 @@ export const LayoutPresets = ({
 const PresetDialog = ({
   preset,
   sortable,
-  project,
+  of,
   fields,
   onClose,
   onSubmit,
 }: {
   /** The preset changed, or null for a new one. */
-  preset: Preset | null;
+  preset: Preset<unknown> | null;
   /** The list is a table, which a preset can sort. */
   sortable: boolean;
-  project: LayoutProject;
+  of: EditablePresets;
   fields: ReadonlyMap<string, FieldDef>;
   onClose: () => void;
-  onSubmit: (name: string, spec: TaskFilterSpec, sorting: Preset["sorting"]) => void;
+  onSubmit: (name: string, filters: unknown, sorting: Preset["sorting"]) => void;
 }) => {
   const { t } = useTranslation([...LAYOUT_NAMESPACES, "common"]);
   const translate = t as TranslateFn;
   const [name, setName] = useState(preset ? presetName(preset, translate) : "");
-  const [spec, setSpec] = useState(preset?.spec ?? EMPTY_TASK_FILTERS);
+  const [filters, setFilters] = useState(preset ? preset.filters : of.empty);
   const [sort, setSort] = useState<SortField | null>(
     tableSortFields(preset?.sorting ?? [])[0] ?? null
   );
@@ -236,12 +247,12 @@ const PresetDialog = ({
 
   return (
     <Dialog open onOpenChange={(next) => (next ? undefined : onClose())}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="sm:max-w-2xl">
         <form
           onSubmit={(event) => {
             event.preventDefault();
             if (!trimmed) return;
-            onSubmit(trimmed, spec, sort ? taskTableSorting([sort]) : []);
+            onSubmit(trimmed, filters, sort ? taskTableSorting([sort]) : []);
           }}
           className="space-y-4"
         >
@@ -263,13 +274,7 @@ const PresetDialog = ({
               autoFocus
             />
           </div>
-          <ProjectTasksFilters
-            memberScope={{ type: "canOpen", tool: Tool.project, id: project.id }}
-            taskStatuses={project.statuses}
-            initiativeId={project.initiativeId}
-            value={spec}
-            onChange={setSpec}
-          />
+          {of.controls(filters, setFilters)}
           {sortable ? (
             <div className="grid-cols-pair grid gap-4">
               <div className="space-y-2">

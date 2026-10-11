@@ -18,6 +18,7 @@ from datetime import datetime, timezone
 from typing import Any, Iterable, Optional
 
 from fastapi import HTTPException, status
+from pydantic import ValidationError
 from sqlmodel import col, delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -32,6 +33,7 @@ from app.schemas.tenant.tool_layout import (
     MAX_DEPTH,
     MAX_NODES,
     MAX_PLUGIN_PARTS,
+    CalendarFilterSpec,
     CardPart,
     DetailLayoutDefinition,
     DetailLayoutRead,
@@ -45,6 +47,7 @@ from app.schemas.tenant.tool_layout import (
     SectionPart,
     StackPart,
     TaskDetailFieldId,
+    TaskFilterSpec,
     ToolLayoutRead,
     ToolLayoutWrite,
 )
@@ -227,19 +230,33 @@ def check(target: Target, write: ToolLayoutWrite) -> dict[str, Any]:
     else:
         _require(write.kind, LIST_LAYOUTS.get(target.tool, ()))
         assert isinstance(definition, ListLayoutDefinition)
-        # Presets hold task filters, so only a project's lists offer them, and
-        # only a table is sorted by its own.
-        if definition.presets and (
-            target.tool != Tool.project
-            or (write.kind != "table" and any(p.sort for p in definition.presets))
-        ):
-            raise _bad_request(ToolLayoutMessages.KIND_NOT_ALLOWED)
+        _check_presets(target.tool, write.kind, stored.get("presets") or [])
         _within_limits(
             stored,
             [definition.card] if definition.card is not None else [],
             len(definition.columns or ()),
         )
     return stored
+
+
+#: The filters a tool's presets hold: the shape its list filters by.
+PRESET_FILTERS: dict[Tool, type[TaskFilterSpec] | type[CalendarFilterSpec]] = {
+    Tool.project: TaskFilterSpec,
+    Tool.calendar: CalendarFilterSpec,
+}
+
+
+def _check_presets(tool: Tool, kind: str, presets: list[dict[str, Any]]) -> None:
+    """Refuse presets whose filters are not the tool's shape, or a sort on a
+    list other than a table, the one a person sorts by its own."""
+    shape = PRESET_FILTERS.get(tool)
+    for preset in presets:
+        if shape is None or (preset.get("sort") and kind != "table"):
+            raise _bad_request(ToolLayoutMessages.KIND_NOT_ALLOWED)
+        try:
+            shape.model_validate(preset.get("filters", {}))
+        except ValidationError:
+            raise _bad_request(ToolLayoutMessages.KIND_NOT_ALLOWED) from None
 
 
 async def _locked_rows(session: AsyncSession, target: Target) -> list[ToolLayout]:

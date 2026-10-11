@@ -32,7 +32,7 @@ import {
   taskFilterCount,
   taskSortFields,
 } from "@/lib/filters/taskFilters";
-import { type Preset, presetsOf } from "@/lib/layouts/presets";
+import { type Preset, presetsOf, TASK_PRESETS } from "@/lib/layouts/presets";
 
 /** Where one person's view of a project is kept. */
 export const projectViewsPreferenceKey = (projectId: number) => `project:${projectId}:views`;
@@ -109,14 +109,14 @@ export const resolveProjectView = (
     layouts[0] ??
     null;
   const kind: ListLayoutReadKind = layout?.kind ?? "table";
-  const presets = presetsOf(layout?.definition);
+  const presets = presetsOf(layout?.definition, TASK_PRESETS);
   const preset = presets.find((each) => each.slug === search.preset) ?? null;
   return {
     layout,
     kind,
     presets,
     preset,
-    spec: preset?.spec ?? stored?.filters[kind] ?? EMPTY_TASK_FILTERS,
+    spec: preset?.filters ?? stored?.filters[kind] ?? EMPTY_TASK_FILTERS,
     sorting: preset?.sorting ?? stored?.sorting[kind] ?? EMPTY_SORTING,
   };
 };
@@ -194,7 +194,7 @@ export function useProjectTaskView({
       writeStored((view) => ({
         ...view,
         layout: kind,
-        filters: { ...view.filters, [kind]: next.spec },
+        filters: { ...view.filters, [kind]: next.filters },
         sorting: next.sorting.length
           ? { ...view.sorting, [kind]: next.sorting }
           : without(view.sorting, kind),

@@ -446,7 +446,8 @@
       "noSort": "No sort of its own",
       "descending": "Descending",
       "full": "A layout offers at most {{count}} presets. Remove one to add another."
-    }
+    },
+    "calendarListHelp": "How the initiative's calendar lists its events and tasks. Its presets are where people can start from."
   },
   "presets": {
     "label": "Presets",

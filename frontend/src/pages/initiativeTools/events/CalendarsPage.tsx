@@ -1,4 +1,4 @@
-import { useParams, useRouter, useSearch } from "@tanstack/react-router";
+import { useNavigate, useParams, useRouter, useSearch } from "@tanstack/react-router";
 import { format } from "date-fns";
 import { FileDown, Loader2, Plus, Rss, Upload } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -48,8 +48,10 @@ import {
 } from "@/components/initiativeTools/events/CreateEventDialog";
 import { ICalImportDialog } from "@/components/initiativeTools/events/ICalImportDialog";
 import { ToolFilterPanel } from "@/components/initiativeTools/shared/ToolFilterPanel";
+import { ToolLayoutSelect } from "@/components/initiativeTools/shared/ToolLayoutSelect";
 import { ToolListToolbar } from "@/components/initiativeTools/shared/ToolListToolbar";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
+import { listLayoutLooks } from "@/components/projects/projectTasksConfig";
 import {
   PropertyFilter,
   type PropertyFilterCondition,
@@ -88,10 +90,13 @@ import { useInitiative } from "@/hooks/useInitiatives";
 import { useReadOnOpen } from "@/hooks/useNotifications";
 import { useRecordOpen } from "@/hooks/useRecents";
 import { useUpdateTask } from "@/hooks/useTasks";
+import { calendarTarget, listLayouts, useToolLayouts } from "@/hooks/useToolLayouts";
 import { useUnreadTree } from "@/hooks/useUnreadTree";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { getErrorMessage } from "@/lib/errorMessage";
+import type { CalendarFilters } from "@/lib/filters/calendarFilters";
+import { CALENDAR_PRESETS, type Preset, presetName, presetsOf } from "@/lib/layouts/presets";
 import { getProjectColor } from "@/lib/projectColor";
 import { getItem, setItem } from "@/lib/storage";
 import { browserTimezone } from "@/lib/timezones";
@@ -151,6 +156,21 @@ type CalendarsViewProps = {
   communityScope?: boolean;
 };
 
+/** Make a preset's filters the calendar's. */
+const usePresetApplier = (
+  setStatus: (next: TaskStatusCategory[]) => void,
+  setPriority: (next: TaskPriority[]) => void,
+  setProperties: (next: PropertyFilterCondition[]) => void
+) =>
+  useCallback(
+    ({ filters }: Preset<CalendarFilters>) => {
+      setStatus(filters.status_categories);
+      setPriority(filters.priorities);
+      setProperties(filters.properties);
+    },
+    [setStatus, setPriority, setProperties]
+  );
+
 export const CalendarsView = ({
   fixedInitiativeId,
   canCreate,
@@ -158,13 +178,15 @@ export const CalendarsView = ({
   soloCalendar,
   communityScope = false,
 }: CalendarsViewProps) => {
-  const { t } = useTranslation(["calendars", "tasks", "common", "access", "exports"]);
+  const { t } = useTranslation(["calendars", "tasks", "common", "access", "exports", "projects"]);
   const router = useRouter();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const gp = useCommunityPath();
   const communityId = useActiveCommunityId();
   const searchParams = useSearch({ strict: false }) as {
     create?: string;
+    preset?: string;
   };
   // The focus route addresses its calendar inside an initiative, so the path
   // is the fallback when this view isn't mounted as an initiative tab.
@@ -211,6 +233,7 @@ export const CalendarsView = ({
   const [propertyFilters, setPropertyFilters] = useState<PropertyFilterCondition[]>(
     () => storedPrefs.propertyFilters
   );
+  const applyPreset = usePresetApplier(setStatusFilters, setPriorityFilters, setPropertyFilters);
   // Which days to show and export. Kept for this visit only, like a search:
   // a saved range would leave the grid empty on a later month with no
   // obvious cause.
@@ -228,6 +251,69 @@ export const CalendarsView = ({
   useEffect(() => {
     if (focusCalendarId !== undefined) showCalendar(communityId, focusCalendarId);
   }, [focusCalendarId, communityId, showCalendar]);
+
+  // The initiative calendar's layout, and the presets its list offers. The
+  // community surfaces belong to no initiative, so they have none.
+  const layoutsQuery = useToolLayouts(
+    initiativeId != null && !communityOnly ? calendarTarget(initiativeId) : null
+  );
+  const presets = useMemo(
+    () => presetsOf(listLayouts(layoutsQuery.data)[0]?.definition, CALENDAR_PRESETS),
+    [layoutsQuery.data]
+  );
+  const preset = presets.find((each) => each.slug === searchParams.preset) ?? null;
+
+  /** Name `next` in the URL, or no preset (undefined). The URL is a link to
+   *  the preset while it names one. */
+  const namePreset = useCallback(
+    (next: string | undefined) =>
+      void navigate({
+        to: ".",
+        search: ((prev: Record<string, unknown>) => ({ ...prev, preset: next })) as never,
+        replace: true,
+        resetScroll: false,
+      }),
+    [navigate]
+  );
+
+  // A preset the URL names becomes this person's filters, once per preset;
+  // one the calendar doesn't offer is dropped. Changing them afterwards makes
+  // them their own, and the URL stops naming it.
+  const applied = useRef<string | null>(null);
+  const filtersNow: CalendarFilters = useMemo(
+    () => ({
+      status_categories: statusFilters,
+      priorities: priorityFilters,
+      properties: propertyFilters,
+    }),
+    [statusFilters, priorityFilters, propertyFilters]
+  );
+  useEffect(() => {
+    if (!searchParams.preset) {
+      applied.current = null;
+      return;
+    }
+    if (!layoutsQuery.data) return;
+    if (!preset) {
+      namePreset(undefined);
+      return;
+    }
+    const key = `${initiativeId}:${preset.slug}`;
+    if (applied.current !== key) {
+      applied.current = key;
+      applyPreset(preset);
+    } else if (JSON.stringify(filtersNow) !== JSON.stringify(preset.filters)) {
+      namePreset(undefined);
+    }
+  }, [
+    searchParams.preset,
+    layoutsQuery.data,
+    preset,
+    initiativeId,
+    filtersNow,
+    namePreset,
+    applyPreset,
+  ]);
 
   // Persist preferences
   useEffect(() => {
@@ -658,6 +744,36 @@ export const CalendarsView = ({
           communityOnly
             ? undefined
             : { open: filtersOpen, onOpenChange: setFiltersOpen, activeCount: activeFilterCount }
+        }
+        // The presets the calendar's layout offers, once it offers any.
+        viewControl={
+          presets.length > 0 ? (
+            <ToolLayoutSelect
+              layouts={[
+                {
+                  slug: "calendar",
+                  name: t(`projects:${listLayoutLooks.calendar.labelKey}` as never),
+                  icon: listLayoutLooks.calendar.icon,
+                },
+              ]}
+              activeSlug="calendar"
+              modified={
+                filtersNow.status_categories.length +
+                  filtersNow.priorities.length +
+                  filtersNow.properties.length >
+                0
+              }
+              onSelect={() => undefined}
+              label={t("projects:layouts.label")}
+              modifiedLabel={t("projects:filters.modified")}
+              presets={presets.map((each) => ({
+                slug: each.slug,
+                name: presetName(each, t as never),
+              }))}
+              presetsLabel={t("projects:presets.label")}
+              onPreset={namePreset}
+            />
+          ) : undefined
         }
         view={{
           value: viewMode,

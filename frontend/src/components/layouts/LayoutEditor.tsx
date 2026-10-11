@@ -72,6 +72,7 @@ import {
   listChoices,
   usePartLabel,
 } from "./LayoutOutline";
+import type { EditablePresets } from "./LayoutPresets";
 import {
   DetailLayoutSettings,
   type LayoutProject,
@@ -207,16 +208,19 @@ export const LayoutEditor = ({
   initiativeId,
   project,
   details,
+  presets,
   set,
   initialKind,
   onClose,
 }: {
   target: GetLayoutsParams;
   initiativeId: number;
-  /** The project whose lists these are. A target with no project lays out
-   *  its details alone. */
+  /** The project whose lists these are, drawn with its tasks. A target with
+   *  no project offers its lists' presets alone. */
   project?: LayoutProject;
   details: EditableDetail[];
+  /** The presets its lists offer. */
+  presets: EditablePresets;
   /** The target's layouts, read by someone who may change them. */
   set: ToolLayoutSetRead;
   /** The layout to open on: a list's kind, or the task's detail. */
@@ -229,8 +233,7 @@ export const LayoutEditor = ({
   const [base, setBase] = useState(() => draftOf(set, details));
   const [history, dispatch] = useReducer(historyReducer<Draft>, base, startHistory<Draft>);
   const draft = history.present;
-  // The lists offered, which only a project's are so far.
-  const kinds = project ? listLayouts(set).map((layout) => layout.kind) : [];
+  const kinds = listLayouts(set).map((layout) => layout.kind);
   const offered = [...kinds, ...details.map(({ spec }) => spec.kind)];
   const [active, setActive] = useState<string>(
     initialKind && offered.includes(initialKind as ListLayoutReadKind)
@@ -642,7 +645,8 @@ export const LayoutEditor = ({
           <aside className="min-h-0 overflow-y-auto border-l">
             <ListLayoutSettings
               layout={current}
-              project={project}
+              presets={presets}
+              help={`layoutEditor.listHelp.${current.kind}`}
               opensFirst={draft.opensOn === current.kind}
               stored={draft.lists[current.kind] != null}
               fields={fields}
@@ -651,6 +655,23 @@ export const LayoutEditor = ({
               locked={saving}
             />
           </aside>
+        </div>
+      ) : current ? (
+        // A list with nothing of its own to draw here (the calendar's events
+        // and tasks): its settings, which are its presets.
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="mx-auto w-full max-w-xl">
+            <ListLayoutSettings
+              layout={current}
+              presets={presets}
+              help="layoutEditor.calendarListHelp"
+              stored={draft.lists[current.kind] != null}
+              fields={fields}
+              selection={LAYOUT_SELECTED}
+              edits={edits}
+              locked={saving}
+            />
+          </div>
         </div>
       ) : detail && openDetail ? (
         <div className="grid min-h-0 flex-1 grid-cols-[16rem_minmax(0,1fr)_18rem]">

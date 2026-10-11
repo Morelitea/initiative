@@ -1562,6 +1562,42 @@ export interface CalendarEventUpdate {
 }
 
 /**
+ * Comparison operators for filter conditions.
+ *
+ * Negation is handled by the ``negate`` flag on FilterCondition,
+ * not by separate operators.
+ */
+export type FilterOp = (typeof FilterOp)[keyof typeof FilterOp];
+
+export const FilterOp = {
+  eq: "eq",
+  lt: "lt",
+  lte: "lte",
+  gt: "gt",
+  gte: "gte",
+  in_: "in_",
+  ilike: "ilike",
+  is_null: "is_null",
+} as const;
+
+export interface PresetPropertyFilter {
+  property_id: number;
+  op?: FilterOp;
+  value?: unknown;
+}
+
+/**
+ * The filters a preset on the initiative's calendar holds: what its tasks
+ * are, and the properties its events and tasks carry.
+ */
+export interface CalendarFilterSpec {
+  status_categories?: TaskStatusCategory[];
+  priorities?: TaskPriority[];
+  /** @maxItems 5 */
+  properties?: PresetPropertyFilter[];
+}
+
+/**
  * What the caller may do to one of a tool's rows
  * (``permissions.client_access``).
  */
@@ -4063,25 +4099,6 @@ export interface DecorationPackListResponse {
 }
 
 /**
- * Comparison operators for filter conditions.
- *
- * Negation is handled by the ``negate`` flag on FilterCondition,
- * not by separate operators.
- */
-export type FilterOp = (typeof FilterOp)[keyof typeof FilterOp];
-
-export const FilterOp = {
-  eq: "eq",
-  lt: "lt",
-  lte: "lte",
-  gt: "gt",
-  gte: "gte",
-  in_: "in_",
-  ilike: "ilike",
-  is_null: "is_null",
-} as const;
-
-/**
  * One condition a new statement about this dataset starts with.
  *
  * Shaped as the builder's own condition so a client seeds its filter rows
@@ -6037,12 +6054,6 @@ export const TaskColumnFieldId = {
   tags: "tags",
 } as const;
 
-export interface TaskPropertyFilter {
-  property_id: number;
-  op?: FilterOp;
-  value?: unknown;
-}
-
 export type TaskFilterSpecDue = (typeof TaskFilterSpecDue)[keyof typeof TaskFilterSpecDue] | null;
 
 export const TaskFilterSpecDue = {
@@ -6064,7 +6075,7 @@ export interface TaskFilterSpec {
   /** @maxItems 25 */
   tag_ids?: number[];
   /** @maxItems 5 */
-  properties?: TaskPropertyFilter[];
+  properties?: PresetPropertyFilter[];
   due?: TaskFilterSpecDue;
   include_archived?: boolean;
 }
@@ -6105,7 +6116,7 @@ export interface LayoutPreset {
    * @pattern ^[a-z0-9]+(?:-[a-z0-9]+)*$
    */
   slug: string;
-  filters?: TaskFilterSpec;
+  filters?: TaskFilterSpec | CalendarFilterSpec;
   /** @maxItems 7 */
   sort?: PresetSort[];
 }

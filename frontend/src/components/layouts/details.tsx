@@ -1,6 +1,7 @@
 /**
  * The details the layout editor lays out: a project's task, and the initiative
- * calendar's event. Each says what kind of detail it is, what the editor calls
+ * calendar's event; and the presets each tool's lists offer, with its own
+ * filter controls. Each says what kind of detail it is, what the editor calls
  * it and its parts, what its fields are, whether plug-ins draw on it, and
  * draws itself with one of its own while it is laid out.
  */
@@ -9,22 +10,28 @@ import { MoreHorizontal } from "lucide-react";
 import { type ReactNode, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { PropertyDefinitionRead } from "@/api/generated/initiativeAPI.schemas";
+import { type PropertyDefinitionRead, Tool } from "@/api/generated/initiativeAPI.schemas";
+import { ProjectTasksFilters } from "@/components/projects/ProjectTasksFilters";
+import { PropertyFilter } from "@/components/properties/PropertyFilter";
 import { useScopePrompt } from "@/components/recurrence/OccurrenceScopeDialog";
+import { TaskStatusPriorityFilters } from "@/components/tasks/TaskStatusPriorityFilters";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { useCalendarEntries } from "@/hooks/useCalendarEntries";
 import { useCalendarEvent } from "@/hooks/useCalendarEvents";
 import { useTask, useTasks } from "@/hooks/useTasks";
+import { type CalendarFilters, EMPTY_CALENDAR_FILTERS } from "@/lib/filters/calendarFilters";
 import { buildTaskListParams, EMPTY_TASK_FILTERS } from "@/lib/filters/taskFilters";
 import type { DetailLayoutSpec, StoredRegions } from "@/lib/layouts/detailLayout";
 import { EventLayoutView } from "@/lib/layouts/eventLayout";
 import { EVENT_LAYOUT, eventFields } from "@/lib/layouts/events";
 import type { FieldDef } from "@/lib/layouts/fields";
+import { CALENDAR_PRESETS, TASK_PRESETS } from "@/lib/layouts/presets";
 import { TaskLayoutView } from "@/lib/layouts/taskLayout";
 import { TASK_LAYOUT, taskFields } from "@/lib/layouts/tasks";
 import type { LayoutNode } from "@/lib/layouts/tree";
 
+import { editablePresets } from "./LayoutPresets";
 import type { LayoutProject } from "./LayoutSettingsPanel";
 
 /** A kind of detail, as the editor lays it out. */
@@ -189,3 +196,44 @@ export const eventDetail = (initiativeId: number): EditableDetail => ({
   plugins: false,
   preview: (tree) => <EventPreview initiativeId={initiativeId} tree={tree} />,
 });
+
+/** A project's lists' presets: its tasks' filters, and a table's sort. */
+export const taskPresets = (project: LayoutProject) =>
+  editablePresets({
+    kind: TASK_PRESETS,
+    empty: EMPTY_TASK_FILTERS,
+    controls: (value, onChange) => (
+      <ProjectTasksFilters
+        memberScope={{ type: "canOpen", tool: Tool.project, id: project.id }}
+        taskStatuses={project.statuses}
+        initiativeId={project.initiativeId}
+        value={value}
+        onChange={onChange}
+      />
+    ),
+    sortable: (kind) => kind === "table",
+  });
+
+/** The initiative calendar's presets: what its tasks are, and the properties
+ *  its events and tasks carry, as its page filters them. */
+export const calendarPresets = (initiativeId: number) =>
+  editablePresets<CalendarFilters>({
+    kind: CALENDAR_PRESETS,
+    empty: EMPTY_CALENDAR_FILTERS,
+    controls: (value, onChange) => (
+      <div className="space-y-4">
+        <TaskStatusPriorityFilters
+          statusFilters={value.status_categories}
+          onStatusChange={(status_categories) => onChange({ ...value, status_categories })}
+          priorityFilters={value.priorities}
+          onPriorityChange={(priorities) => onChange({ ...value, priorities })}
+        />
+        <PropertyFilter
+          value={value.properties}
+          onChange={(properties) => onChange({ ...value, properties })}
+          initiativeId={initiativeId}
+        />
+      </div>
+    ),
+    sortable: () => false,
+  });
