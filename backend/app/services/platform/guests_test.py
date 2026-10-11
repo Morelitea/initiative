@@ -318,16 +318,30 @@ async def test_a_guest_given_an_item_hears_of_it_and_is_heard_there(
     assert NotificationType.mention.value in await _heard(member_id)
 
 
-@pytest.mark.parametrize("guests_enabled", [True, False])
+@pytest.mark.parametrize(
+    ("guests_enabled", "ends_in", "projects_on", "heard"),
+    [
+        (True, HOUR, True, True),
+        # Guests are off on the platform.
+        (False, HOUR, True, False),
+        # The guest's time ran out, and the sweep has not been by.
+        (True, -HOUR, True, False),
+        # The initiative has projects switched off.
+        (True, HOUR, False, False),
+    ],
+)
 async def test_a_guest_hears_of_an_item_only_while_it_reaches_it(
-    acting_user, session, guests_enabled
+    acting_user, session, guests_enabled, ends_in, projects_on, heard
 ):
     await _platform(session, guests_enabled=guests_enabled)
     a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
     member = await acting_user(guild_role=CommunityRole.member, guild=a.guild)
     calendar = await create_guild_calendar(session, a.guild, a.user)
-    guest = await create_guest(session, a.guild)
+    guest = await create_guest(session, a.guild, ends_in=ends_in)
     await create_resource_grant(session, a.project, user=guest)
+    a.initiative.projects_enabled = projects_on
+    session.add(a.initiative)
+    await session.commit()
     project = named_people.Governing.of(Tool.project, a.project)
     everyone = named_people.Governing.of(Tool.calendar, calendar)
     guild_id, guest_id, member_id = a.guild.id, guest.id, member.user.id
@@ -340,7 +354,7 @@ async def test_a_guest_hears_of_an_item_only_while_it_reaches_it(
         session, Tool.calendar, [everyone.resource_id]
     )
 
-    reaches = {guest_id} if guests_enabled else set()
+    reaches = {guest_id} if heard else set()
     assert told.get(project.resource_id, set()) & {guest_id} == reaches
     assert await named_people.readers(session, project, [guest_id]) == reaches
     # A share with the whole community is its members', not its guests'.

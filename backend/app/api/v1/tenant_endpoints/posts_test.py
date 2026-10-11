@@ -11,7 +11,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import pytest
-from fastapi import HTTPException
+from app.core.errors import CodedError
 from httpx import AsyncClient
 from sqlalchemy import text
 from sqlmodel import select
@@ -977,7 +977,7 @@ async def test_a_draft_cannot_be_exported(draft_scene: _DraftScene, role_session
 
     s = await role_session("app_user")
     await route_as(s, user_id=reader.user.id, guild_id=guild_id)
-    with pytest.raises(HTTPException) as excinfo:
+    with pytest.raises(CodedError) as excinfo:
         await ADAPTERS["post"].fetch(s, reader.user, guild_id, draft.id)
     assert excinfo.value.status_code == 404
 
