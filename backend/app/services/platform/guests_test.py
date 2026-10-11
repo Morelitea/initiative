@@ -347,12 +347,8 @@ async def test_a_guest_hears_of_an_item_only_while_it_reaches_it(
     guild_id, guest_id, member_id = a.guild.id, guest.id, member.user.id
 
     await set_rls_context(session, SystemGuild(guild_id))
-    told = await permissions_service.audience(
-        session, Tool.project, [project.resource_id]
-    )
-    told_all = await permissions_service.audience(
-        session, Tool.calendar, [everyone.resource_id]
-    )
+    told = await permissions_service.audience(session, Tool.project, [a.project])
+    told_all = await permissions_service.audience(session, Tool.calendar, [calendar])
 
     reaches = {guest_id} if heard else set()
     assert told.get(project.resource_id, set()) & {guest_id} == reaches

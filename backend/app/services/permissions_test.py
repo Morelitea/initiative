@@ -678,7 +678,7 @@ async def test_the_audience_is_exactly_who_the_database_admits(
 
     s = await role_session("app_user")
     await route_as(s, user_id=w.owner.user.id, guild_id=w.guild.id)
-    shared = (await audience(s, Tool.post, [w.row_id]))[w.row_id]
+    shared = (await audience(s, Tool.post, [w.row]))[w.row_id]
     assert shared == {named.user.id, by_role.user.id}
 
     for actor in (named, by_role, unnamed, departed):
@@ -696,10 +696,10 @@ async def test_everyone_is_the_roster_as_it_is_now_and_nobody_is_nobody(
     await route_as(s, user_id=w.owner.user.id, guild_id=w.guild.id)
 
     await w.grant(None)
-    assert await audience(s, Tool.project, [w.row_id]) == {}
+    assert await audience(s, Tool.project, [w.row]) == {}
 
     await w.grant("read", everyone=True)
-    assert (await audience(s, Tool.project, [w.row_id]))[w.row_id] == {
+    assert (await audience(s, Tool.project, [w.row]))[w.row_id] == {
         w.owner.user.id,
         w.co_member.user.id,
     }

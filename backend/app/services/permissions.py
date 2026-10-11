@@ -28,7 +28,7 @@ from enum import Enum
 from typing import Any
 
 from fastapi import HTTPException, status
-from sqlalchemy import ColumnElement, false, func, inspect, true
+from sqlalchemy import ColumnElement, and_, false, func, inspect, or_, true
 from sqlalchemy.orm import joinedload, undefer
 from sqlmodel import select
 
@@ -224,22 +224,48 @@ def serialize_grants(row: Any, *, context: ActorContext | None) -> list:
 
 
 async def audience(
-    session: Any, tool: Tool, resource_ids: Iterable[int]
+    session: Any, tool: Tool, rows: Iterable[Any]
 ) -> dict[int, set[int]]:
-    """Who each resource is shared with, by id — the schema's
-    ``resource_audience``: the people a notification may name and a notice is
-    read by. Resources shared with nobody are absent."""
-    from app.db.session import routed_guild_id
+    """Who each of ``rows`` (``tool`` rows) is shared with and can open now, by
+    id: the schema's ``resource_audience``, narrowed to
+    :func:`named_people.readers_of`. The people a notification goes to and a
+    notice is read by. Rows that reach nobody are absent.
 
-    ids = sorted(set(resource_ids))
-    if not ids:
+    Read on :func:`named_people.roster_session` with ``whole``: who a thing
+    reaches is the community's answer, whoever is asking."""
+    from app.db.session import routed_guild_id
+    from app.services.tenant import named_people
+
+    by_id = {row.id: row for row in rows}
+    if not by_id:
         return {}
-    shared = func.resource_audience(
-        tool.value, ids, routed_guild_id(session)
-    ).table_valued("resource_id", "user_id")
-    rows = (await session.exec(select(shared.c.resource_id, shared.c.user_id))).all()
+    guild_id = routed_guild_id(session)
+    if guild_id is None:
+        raise RuntimeError("an audience is read inside a community")
+    shared = func.resource_audience(tool.value, sorted(by_id), guild_id).table_valued(
+        "resource_id", "user_id"
+    )
+    reaches = or_(
+        *(
+            and_(
+                shared.c.resource_id == row_id,
+                shared.c.user_id.in_(
+                    named_people.readers_of(
+                        named_people.Governing.of(tool, row), guild_id
+                    )
+                ),
+            )
+            for row_id, row in by_id.items()
+        )
+    )
+    async with named_people.roster_session(session, whole=True) as reader:
+        pairs = (
+            await reader.exec(
+                select(shared.c.resource_id, shared.c.user_id).where(reaches)
+            )
+        ).all()
     by_resource: dict[int, set[int]] = {}
-    for resource_id, user_id in rows:
+    for resource_id, user_id in pairs:
         by_resource.setdefault(resource_id, set()).add(user_id)
     return by_resource
 

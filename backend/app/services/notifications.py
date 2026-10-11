@@ -51,10 +51,6 @@ from app.db.session import (
     routed_guild_id,
     set_rls_context,
 )
-from app.models.platform.guild import (
-    GUILD_ADMIN_ROLES,
-    GuildMembership,
-)
 from app.models.platform.notice_outbox import NoticeOutboxItem
 from app.models.platform.notification import Notification, NotificationType
 from app.models.platform.user import User
@@ -78,9 +74,8 @@ from app.models.tenant.task import Task, TaskAssignee, TaskStatus, TaskStatusCat
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
 from app.services import email as email_service
 from app.services import permissions as permissions_service
-from app.services.tenant.named_people import roster_session
+from app.services.tenant.named_people import Governing, readers_of, roster_session
 from app.services.cross_guild import gather_across_guilds, member_guild_ids
-from app.services.membership import live_membership_clause
 from app.services.guild_sweeps import Scan, Scope
 from app.services.platform import accounts as accounts_service
 from app.services.platform import (
@@ -241,8 +236,9 @@ class Subject:
     resource_id: int
     #: Who the thing is shared with, against the roster as it stands.
     shared_with: frozenset[int]
-    #: Everybody who can open it now: ``shared_with`` and the community's
-    #: admins, who reach everything in it.
+    #: Everybody who can open it now (``named_people.readers_of``): those it
+    #: is shared with, and the community's admins and "Full access" roles,
+    #: who reach everything in it.
     readers: frozenset[int]
     target_path: str
 
@@ -265,9 +261,10 @@ async def resolve_subject(session: AsyncSession, ref: Ref) -> Subject | None:
 
     The governing tool and the hops to it come from ``governing_path`` — a task
     reaches its project by ``project_id``, an event its calendar by
-    ``calendar_id`` — so no notifier names its tool. Who it is shared with is
-    the schema's ``resource_audience`` (``permissions.audience``), the rule the
-    post audience uses.
+    ``calendar_id`` — so no notifier names its tool. Who can open it is
+    ``named_people.readers_of``, the rule naming somebody on it uses, and who
+    it is shared with is ``permissions.audience``, the rule the post audience
+    uses.
     """
     kind, entity_id = ref
     table = entity_tables()[kind]
@@ -290,20 +287,16 @@ async def resolve_subject(session: AsyncSession, ref: Ref) -> Subject | None:
     ).scalar_one_or_none()
     if row is None:
         return None
-    guild_id = routed_guild_id(session)
+    governing = Governing.of(tool, row)
     async with roster_session(session, whole=True) as reader:
-        admins = set(
+        readers = set(
             (
                 await reader.exec(
-                    select(GuildMembership.user_id).where(
-                        GuildMembership.guild_id == guild_id,
-                        GuildMembership.role.in_(GUILD_ADMIN_ROLES),  # type: ignore[attr-defined]
-                        live_membership_clause(),
-                    )
+                    readers_of(governing, cast(int, routed_guild_id(reader)))
                 )
             ).scalars()
         )
-        shared = (await permissions_service.audience(reader, tool, [row.id])).get(
+        shared = (await permissions_service.audience(reader, tool, [row])).get(
             row.id, set()
         )
     return Subject(
@@ -312,7 +305,7 @@ async def resolve_subject(session: AsyncSession, ref: Ref) -> Subject | None:
         initiative_id=row.initiative_id,
         resource_id=row.id,
         shared_with=frozenset(shared),
-        readers=frozenset(shared | admins),
+        readers=frozenset(readers),
         target_path=(
             reference_path(kind, entity_id)
             if kind in _ADDRESSABLE
