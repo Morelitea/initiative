@@ -513,7 +513,11 @@ const Relations = ({ task }: { task: TaskRead }) => {
 };
 
 const Case = ({ task }: { task: TaskRead }) => (
-  <CasePanel taskId={task.id} canEdit={!useTaskLayout().readOnly} />
+  <CasePanel
+    taskId={task.id}
+    canEdit={!useTaskLayout().readOnly}
+    assigneeIds={task.assignees.map((assignee) => assignee.id)}
+  />
 );
 
 const Comments = ({ task }: { task: TaskRead }) => {

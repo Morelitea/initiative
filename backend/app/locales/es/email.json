@@ -371,7 +371,8 @@
       "connections": "Contactos",
       "jobs": "Exportaciones e importaciones",
       "account": "Tu cuenta",
-      "moderation": "Moderación"
+      "moderation": "Moderación",
+      "cases": "Casos"
     }
   },
   "signInCode": {
@@ -479,6 +480,18 @@
       "subject": "Un aviso de los moderadores de esta comunidad",
       "title": "Un aviso de los moderadores de esta comunidad",
       "body": "Los moderadores escribieron:<br><br>{{message}}"
+    }
+  },
+  "case": {
+    "opened": {
+      "subject": "Se abrió un caso nuevo",
+      "title": "Se abrió un caso nuevo",
+      "body": "Se acaba de abrir un caso donde atiendes casos y nadie lo ha tomado todavía. Ábrelo en Initiative para leerlo."
+    },
+    "replied": {
+      "subject": "Una respuesta en un caso que nadie ha tomado",
+      "title": "Una respuesta en un caso que nadie ha tomado",
+      "body": "Quien presentó un caso respondió en él y nadie lo ha tomado todavía. Ábrelo en Initiative para leerlo."
     }
   }
 }

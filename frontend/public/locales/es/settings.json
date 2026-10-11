@@ -370,7 +370,8 @@
       "connections": "Contactos",
       "jobs": "Exportaciones e importaciones",
       "account": "Tu cuenta",
-      "moderation": "Moderación"
+      "moderation": "Moderación",
+      "cases": "Casos"
     },
     "reminderLeadTime": {
       "label": "Recordarme",
@@ -413,7 +414,8 @@
       "connections": "Alguien pidió conectar, o aceptó.",
       "jobs": "Terminó una exportación o importación que pediste.",
       "account": "Se hizo algo con tu cuenta. Siempre aparece en la campana.",
-      "moderation": "Los moderadores de una comunidad retiraron algo que escribiste o te avisaron por ello. Siempre aparece en la campana."
+      "moderation": "Los moderadores de una comunidad retiraron algo que escribiste o te avisaron por ello. Siempre aparece en la campana.",
+      "cases": "Se abrió un caso donde atiendes casos, o quien lo presentó respondió y nadie lo ha tomado."
     },
     "quietHours": {
       "title": "Horas de silencio",

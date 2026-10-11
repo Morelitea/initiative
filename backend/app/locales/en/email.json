@@ -371,7 +371,8 @@
       "connections": "Connections",
       "jobs": "Exports and imports",
       "account": "Your account",
-      "moderation": "Moderation"
+      "moderation": "Moderation",
+      "cases": "Cases"
     }
   },
   "signInCode": {
@@ -479,6 +480,18 @@
       "subject": "A warning from this community's moderators",
       "title": "A warning from this community's moderators",
       "body": "The moderators wrote:<br><br>{{message}}"
+    }
+  },
+  "case": {
+    "opened": {
+      "subject": "A new case was opened",
+      "title": "A new case was opened",
+      "body": "A case was just opened where you work cases, and nobody has taken it yet. Open it in Initiative to read it."
+    },
+    "replied": {
+      "subject": "A reply on a case nobody has taken",
+      "title": "A reply on a case nobody has taken",
+      "body": "Whoever filed a case answered on it, and nobody has taken it yet. Open it in Initiative to read it."
     }
   }
 }

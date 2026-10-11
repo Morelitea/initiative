@@ -73,6 +73,7 @@ class NotificationCategory(str, Enum):
     jobs = "jobs"
     account = "account"
     moderation = "moderation"
+    cases = "cases"
 
 
 #: How the settings page groups the rows. Presentation only — nothing resolves
@@ -307,6 +308,21 @@ CATEGORY_SPECS: Mapping[NotificationCategory, CategorySpec] = {
         personal=True,
         guild_scoped=True,
         mutable_channels=_KEEP_IN_APP,
+    ),
+    # Work arriving for the people who answer the operations community's
+    # cases: a new one, and a requester's answer on one nobody has taken. Told
+    # to everyone who can read the case, so each can turn it down.
+    NotificationCategory.cases: CategorySpec(
+        types=frozenset(
+            {
+                NotificationType.case_opened,
+                NotificationType.case_replied,
+            }
+        ),
+        group=CategoryGroup.activity,
+        personal=False,
+        guild_scoped=True,
+        mutable_channels=_ALL_MUTABLE,
     ),
 }
 

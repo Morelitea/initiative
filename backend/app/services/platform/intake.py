@@ -55,7 +55,7 @@ from app.models.tenant.project import Project
 from app.models.tenant.property import PropertyDefinition, PropertyType, PropertyValue
 from app.models.tenant.task import Task, TaskStatus, TaskStatusCategory
 from app.schemas.tenant.property import PropertyValueInput
-from app.services.platform import case_activity
+from app.services.platform import case_activity, case_notices
 from app.services.tenant import properties as properties_service
 from app.services.tenant import task_creation as task_creation_service
 from app.db.request_context import SystemGuild
@@ -621,6 +621,13 @@ async def open_case(
             )
             session.add(opening)
         await session.flush()
+        # Nobody is assigned to a new case, so everyone who works it hears.
+        await case_notices.opened(
+            session,
+            task=task,
+            stream=stream,
+            filer_id=filer.user_id if filer is not None else None,
+        )
         with evidence_service.Sealing(guild_id) as sealing:
             sealing.store(
                 session,
@@ -653,7 +660,8 @@ async def add_filer_reply(
     the "waiting on you" it moves on is the case's state now rather than when
     the page was read. Written on the writer's session, routed by ``guild_id``
     alone; the author is named explicitly, since the routing carries no user.
-    The task's assignees hear of it as they would of any comment on the task.
+    The task's assignees hear of it as they would of any comment on the task;
+    where nobody has taken it, everyone who can read it hears instead.
     ``evidence`` is stored with the answer, in the same transaction.
     """
     from app.services.platform import evidence as evidence_service
@@ -710,9 +718,15 @@ async def add_filer_reply(
                 case_id=case_id,
                 comment_id=comment.id,
             )
-            await notify_task_assignees(
-                session, comment=comment, author=filer, task=task
-            )
+            if await case_notices.is_taken(session, task_id):
+                await notify_task_assignees(
+                    session, comment=comment, author=filer, task=task
+                )
+            else:
+                # Nobody has taken it, so everyone who works it hears.
+                await case_notices.replied(
+                    session, task=task, comment=comment, filer=filer
+                )
             # Their other tabs follow the same conversation.
             ticket_stream.queue_ticket_signal(session, filer.id)
             active = binding.active_status_id if binding is not None else None

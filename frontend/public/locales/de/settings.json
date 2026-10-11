@@ -370,7 +370,8 @@
       "connections": "Kontakte",
       "jobs": "Exporte und Importe",
       "account": "Dein Konto",
-      "moderation": "Moderation"
+      "moderation": "Moderation",
+      "cases": "Fälle"
     },
     "reminderLeadTime": {
       "label": "Erinnere mich",
@@ -413,7 +414,8 @@
       "connections": "Jemand möchte sich vernetzen oder hat angenommen.",
       "jobs": "Ein Export oder Import, den du angefordert hast, ist fertig.",
       "account": "An deinem Konto wurde etwas geändert. Erscheint immer in der Glocke.",
-      "moderation": "Die Moderatoren einer Community haben etwas von dir entfernt oder dich deswegen verwarnt. Erscheint immer in der Glocke."
+      "moderation": "Die Moderatoren einer Community haben etwas von dir entfernt oder dich deswegen verwarnt. Erscheint immer in der Glocke.",
+      "cases": "Ein Fall wurde dort eröffnet, wo du Fälle bearbeitest, oder seine anfragende Person hat geantwortet und niemand hat ihn übernommen."
     },
     "quietHours": {
       "title": "Ruhezeiten",

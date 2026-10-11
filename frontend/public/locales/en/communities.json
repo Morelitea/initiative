@@ -372,7 +372,16 @@
     "moderationRemoved": "A moderator took down something you wrote: {{reason}}",
     "moderationRemovedLegal": "Something you wrote was taken down for legal reasons",
     "moderationWarned": "A warning from the moderators: {{message}}",
-    "feedbackRead": "Your feedback was read"
+    "feedbackRead": "Your feedback was read",
+    "caseOpened": "New {{stream}} case: {{taskTitle}}",
+    "caseReplied": "{{name}} replied on {{taskTitle}}, and nobody has taken it",
+    "caseRepliedMany": "{{name}} left {{count}} replies on {{taskTitle}}, and nobody has taken it",
+    "caseStreams": {
+      "security": "security",
+      "moderation": "moderation",
+      "support": "support",
+      "feedback": "feedback"
+    }
   },
   "version": {
     "versionInformation": "Version Information",

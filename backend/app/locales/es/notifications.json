@@ -220,6 +220,10 @@
     "moderation": {
       "title": "Un aviso de moderación",
       "body": "Abre Initiative para leerlo."
+    },
+    "cases": {
+      "title": "Novedades de un caso",
+      "body": "Abre Initiative para leerlas."
     }
   },
   "quietHours": {
@@ -261,6 +265,16 @@
     "warned": {
       "title": "Un aviso de los moderadores de esta comunidad",
       "body": "{{message}}"
+    }
+  },
+  "case": {
+    "opened": {
+      "title": "Un caso nuevo",
+      "body": "Abre Initiative para leerlo."
+    },
+    "replied": {
+      "title": "Una respuesta en un caso que nadie ha tomado",
+      "body": "Abre Initiative para leerla."
     }
   }
 }

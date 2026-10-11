@@ -455,6 +455,26 @@ async def read_task_case(
     )
 
 
+@router.post("/{task_id}/case/take", response_model=TaskRead)
+async def take_task_case(
+    task_id: int,
+    session: RLSSessionDep,
+    guild_context: GuildContextDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> Task:
+    """Take an operations case: the caller is assigned beside whoever already
+    has it, and a case still waiting to be picked up moves to the status its
+    stream calls active. 404 for a task no stream opened."""
+    task = await resource_access.load_child(session, Task, task_id, access="write")
+    if await cases_service.take(session, task, current_user.id) is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_A_CASE
+        )
+    _touch_project(task.project, datetime.now(timezone.utc))
+    await session.commit()
+    return await _response(session, task.id)
+
+
 async def _case_grants(guild_id: int, task_id: int) -> list[AccessGrantRead]:
     """The access grants asked for case ``task_id``, where this community is
     the operations community the grants' cases are in. Read on the system

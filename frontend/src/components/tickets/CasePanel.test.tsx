@@ -13,10 +13,16 @@ import type { AccessGrantRead, TaskCaseRead } from "@/api/generated/initiativeAP
 const state = vi.hoisted(() => ({ found: undefined as TaskCaseRead | undefined }));
 const createComment = vi.fn();
 const updateTask = vi.fn();
+const takeCase = vi.fn();
 
 vi.mock("@/hooks/useTickets", async () => {
   const actual = await vi.importActual<typeof import("@/hooks/useTickets")>("@/hooks/useTickets");
-  return { ...actual, useTaskCase: () => ({ data: state.found }), refreshTaskCase: vi.fn() };
+  return {
+    ...actual,
+    useTaskCase: () => ({ data: state.found }),
+    useTakeCase: () => ({ mutate: takeCase, isPending: false }),
+    refreshTaskCase: vi.fn(),
+  };
 });
 vi.mock("@/hooks/useComments", async () => {
   const actual = await vi.importActual<typeof import("@/hooks/useComments")>("@/hooks/useComments");
@@ -46,12 +52,22 @@ const supportCase = (overrides: Partial<TaskCaseRead> = {}): TaskCaseRead => ({
   ...overrides,
 });
 
-const renderPanel = () =>
-  renderWithProviders(<CasePanel taskId={3} canEdit />, { auth: { user: buildUser() } });
+const reader = buildUser({ id: 77 });
+
+const renderPanel = ({
+  canEdit = true,
+  assigneeIds = [] as number[],
+}: {
+  canEdit?: boolean;
+  assigneeIds?: number[];
+} = {}) =>
+  renderWithProviders(<CasePanel taskId={3} canEdit={canEdit} assigneeIds={assigneeIds} />, {
+    auth: { user: reader },
+  });
 
 /** Mounted in a router, for the Access section's link to the Access tab. */
 const renderRouted = (capabilities: string[] = []) =>
-  renderPage(() => <CasePanel taskId={3} canEdit />, {
+  renderPage(() => <CasePanel taskId={3} canEdit assigneeIds={[]} />, {
     auth: { user: buildUser({ capabilities: capabilities as never }) },
   });
 
@@ -60,6 +76,7 @@ describe("CasePanel", () => {
     state.found = undefined;
     createComment.mockReset().mockResolvedValue(buildComment({ id: 1 }));
     updateTask.mockReset().mockResolvedValue({});
+    takeCase.mockReset();
   });
 
   it("renders nothing for a task no stream opened", () => {
@@ -72,6 +89,28 @@ describe("CasePanel", () => {
     renderPanel();
     expect(await screen.findByText("Lost my phone")).toBeInTheDocument();
     expect(screen.getByText(/asker/)).toBeInTheDocument();
+  });
+
+  it("lets somebody who works it take it", async () => {
+    state.found = supportCase();
+    const user = userEvent.setup();
+    renderPanel({ assigneeIds: [12] });
+    await user.click(await screen.findByRole("button", { name: "Take this case" }));
+    expect(takeCase).toHaveBeenCalledWith(3);
+  });
+
+  it("says so once it is yours, and offers nothing to take", async () => {
+    state.found = supportCase();
+    renderPanel({ assigneeIds: [reader.id] });
+    expect(await screen.findByText("You're on this case")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Take this case" })).toBeNull();
+  });
+
+  it("offers nothing to take to somebody who cannot change it", async () => {
+    state.found = supportCase();
+    renderPanel({ canEdit: false });
+    expect(await screen.findByText("Lost my phone")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Take this case" })).toBeNull();
   });
 
   it("says a reply to them is said to them", async () => {

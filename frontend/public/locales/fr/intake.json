@@ -202,7 +202,10 @@
       "problem": "Problème",
       "praise": "Compliment",
       "appeal": "Recours contre une suspension"
-    }
+    },
+    "take": "Prendre ce dossier",
+    "taken": "Vous suivez ce dossier",
+    "takeFailed": "Impossible de prendre ce dossier."
   },
   "evidence": {
     "attach": "Joindre des fichiers",

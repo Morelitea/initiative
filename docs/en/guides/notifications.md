@@ -64,6 +64,7 @@ If push shows as **Blocked**, that's your phone rather than us. Open your device
 | **Joining things** | You're added to an initiative, or a project appears in one. |
 | **Waiting on you** | Somebody needs your decision — a join request, an access request. |
 | **Posts** | A notice goes up on a board you can see. Only the people it was shared with hear about it. |
+| **Cases** | A new case opens, or somebody answers on one nobody has taken. Only shows if you can read a project your server's cases land in. |
 | **Connections** | Somebody asked to connect with you, or accepted. |
 | **Exports and imports** | Something you asked for has finished. |
 | **Your account** | Something was done to your account by somebody else. |

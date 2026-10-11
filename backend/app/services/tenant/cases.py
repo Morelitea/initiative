@@ -3,7 +3,8 @@
 A case is an ordinary task with an ``intake_cases`` row beside it. This reads
 that row for the task view: which stream opened it, who filed it and what they
 called it, whether the stream holds a conversation with them, and which of the
-binding's statuses mean "waiting on them" and "being worked".
+binding's statuses mean "waiting on them" and "being worked". It also lets
+somebody who works the case take it.
 
 Everything is read on the caller's routed session, so a person who cannot read
 the task reads nothing here either.
@@ -12,7 +13,7 @@ the task reads nothing here either.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from sqlmodel import select
@@ -25,6 +26,7 @@ from app.models.platform.user_profile_view import MemberProfile
 from app.models.tenant.comment import Comment, CommentAudience
 from app.models.tenant.evidence import Evidence
 from app.models.tenant.intake import IntakeBinding, IntakeCase
+from app.models.tenant.task import Task, TaskAssignee, TaskStatus, TaskStatusCategory
 
 
 @dataclass(frozen=True)
@@ -131,3 +133,59 @@ async def _subject(session: AsyncSession, task_id: int) -> dict[str, object]:
         "resource_type": str(kind) if kind else None,
         "resource_id": whole(CaseField.resource_id.value),
     }
+
+
+async def take(session: AsyncSession, task: Task, user_id: int) -> Optional[bool]:
+    """Assign ``user_id`` to case ``task`` beside whoever already has it, and
+    move a case still waiting to be picked up to the status its stream calls
+    active. Returns whether they were newly assigned, or ``None`` where the
+    task is not a case.
+
+    The task is locked first, so two people taking it at once are both
+    assigned rather than one replacing the other. Never commits.
+    """
+    from app.services.tenant import task_creation
+
+    found = (
+        await session.exec(
+            select(IntakeCase.id, IntakeBinding.active_status_id)
+            .outerjoin(IntakeBinding, IntakeBinding.stream == IntakeCase.stream)
+            .where(IntakeCase.task_id == task.id)
+        )
+    ).first()
+    if found is None:
+        return None
+    active = found[1]
+    await session.refresh(task, ["task_status_id"], with_for_update=True)
+    held = list(
+        (
+            await session.exec(
+                select(TaskAssignee.user_id).where(TaskAssignee.task_id == task.id)
+            )
+        ).all()
+    )
+    newly = user_id not in held
+    if newly:
+        await task_creation.set_task_assignees(
+            session, task, [*held, user_id], project=task.project
+        )
+    if active is not None:
+        waiting = (
+            await session.exec(
+                select(TaskStatus.category).where(TaskStatus.id == task.task_status_id)
+            )
+        ).first() == TaskStatusCategory.todo
+        # Checked against the task's own project: a case moved elsewhere
+        # keeps its status rather than borrowing one.
+        belongs = (
+            await session.exec(
+                select(TaskStatus.id)
+                .where(TaskStatus.id == active)
+                .where(TaskStatus.project_id == task.project_id)
+            )
+        ).first()
+        if waiting and belongs is not None:
+            task.task_status_id = active
+    task.updated_at = datetime.now(timezone.utc)
+    session.add(task)
+    return newly

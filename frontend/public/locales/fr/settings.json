@@ -370,7 +370,8 @@
       "connections": "Contacts",
       "jobs": "Exports et imports",
       "account": "Votre compte",
-      "moderation": "Modération"
+      "moderation": "Modération",
+      "cases": "Dossiers"
     },
     "reminderLeadTime": {
       "label": "Me rappeler",
@@ -413,7 +414,8 @@
       "connections": "Quelqu'un a demandé à se connecter, ou a accepté.",
       "jobs": "Un export ou import que vous avez demandé est terminé.",
       "account": "Quelque chose a été fait sur votre compte. Toujours visible dans la cloche.",
-      "moderation": "Les modérateurs d'une communauté ont retiré quelque chose que vous avez écrit, ou vous ont averti à ce sujet. Toujours affiché dans la cloche."
+      "moderation": "Les modérateurs d'une communauté ont retiré quelque chose que vous avez écrit, ou vous ont averti à ce sujet. Toujours affiché dans la cloche.",
+      "cases": "Un dossier a été ouvert là où vous traitez les dossiers, ou la personne qui l'a soumis a répondu et personne ne l'a pris."
     },
     "quietHours": {
       "title": "Heures calmes",

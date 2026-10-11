@@ -74,6 +74,12 @@ class NotificationType(str, Enum):
     #: A community's moderators warned the recipient about something they
     #: wrote, in the moderator's own words. Never names or counts reporters.
     moderation_warning = "moderation_warning"
+    #: A case opened in the operations community, told to everyone who can
+    #: read it. Names the stream; the title is read when the line is.
+    case_opened = "case_opened"
+    #: Whoever filed a case answered on it, and nobody has taken it, so the
+    #: people who can read it hear instead of nobody.
+    case_replied = "case_replied"
 
 
 class Notification(SQLModel, table=True):

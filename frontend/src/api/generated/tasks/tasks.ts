@@ -723,6 +723,89 @@ export function useReadTaskCase<
 }
 
 /**
+ * Take an operations case: the caller is assigned beside whoever already
+ * has it, and a case still waiting to be picked up moves to the status its
+ * stream calls active. 404 for a task no stream opened.
+ * @summary Take Task Case
+ */
+export const takeTaskCase = (
+  communityId: number,
+  taskId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<TaskRead>(
+    { url: `/api/v1/c/${communityId}/tasks/${taskId}/case/take`, method: "POST", signal },
+    options
+  );
+};
+
+export const getTakeTaskCaseMutationKey = () => ["takeTaskCase"] as const;
+
+export const getTakeTaskCaseMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof takeTaskCase>>,
+    TError,
+    TakeTaskCaseMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof takeTaskCase>>,
+  TError,
+  TakeTaskCaseMutationVariables,
+  TContext
+> => {
+  const mutationKey = getTakeTaskCaseMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof takeTaskCase>>,
+    TakeTaskCaseMutationVariables
+  > = (props) => {
+    const { communityId, taskId } = props ?? {};
+
+    return takeTaskCase(communityId, taskId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type TakeTaskCaseMutationResult = NonNullable<Awaited<ReturnType<typeof takeTaskCase>>>;
+
+export type TakeTaskCaseMutationError = ErrorType<HTTPValidationError>;
+export type TakeTaskCaseMutationVariables = { communityId: number; taskId: number };
+
+/**
+ * @summary Take Task Case
+ */
+export const useTakeTaskCase = <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof takeTaskCase>>,
+      TError,
+      TakeTaskCaseMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof takeTaskCase>>,
+  TError,
+  TakeTaskCaseMutationVariables,
+  TContext
+> => {
+  return useMutation(getTakeTaskCaseMutationOptions(options), queryClient);
+};
+/**
  * @summary Move Task
  */
 export const moveTask = (

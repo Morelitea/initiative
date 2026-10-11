@@ -34,7 +34,7 @@ from app.schemas.platform.notification_prefs import (
     QuietHours,
 )
 from app.services import notifications as notifications_service
-from app.services.platform import email_outbox
+from app.services.platform import case_notices, email_outbox
 from app.services.platform import notification_prefs as prefs_service
 
 me_router = APIRouter()
@@ -48,7 +48,9 @@ _DIGEST_QUEUES: tuple[tuple[NotificationCategory, type], ...] = (
 )
 
 
-def _registry() -> list[NotificationCategoryRead]:
+def _registry(
+    hidden: frozenset[NotificationCategory] = frozenset(),
+) -> list[NotificationCategoryRead]:
     return [
         NotificationCategoryRead(
             category=category,
@@ -59,7 +61,16 @@ def _registry() -> list[NotificationCategoryRead]:
             defaults={channel: spec.defaults[channel] for channel in ALL_CHANNELS},
         )
         for category, spec in CATEGORY_SPECS.items()
+        if category not in hidden
     ]
+
+
+async def _hidden_for(user: User) -> frozenset[NotificationCategory]:
+    """The categories nothing would ever reach ``user`` in, left off their
+    page: cases, for somebody who works none."""
+    if await case_notices.works_cases(user):
+        return frozenset()
+    return frozenset({NotificationCategory.cases})
 
 
 def _section(doc: dict[str, Any], key: str) -> dict[str, Any]:
@@ -130,7 +141,7 @@ async def read_my_notification_preferences(
     window = prefs_service.quiet_hours(doc)
     schedule = prefs_service.email_schedule(doc)
     return NotificationPreferencesRead(
-        categories=_registry(),
+        categories=_registry(await _hidden_for(current_user)),
         settings=_section(doc, "categories"),
         quiet_hours=(
             QuietHours(

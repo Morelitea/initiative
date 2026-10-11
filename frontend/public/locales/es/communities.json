@@ -372,7 +372,16 @@
     "moderationRemoved": "Un moderador retiró algo que escribiste: {{reason}}",
     "moderationRemovedLegal": "Algo que escribiste se retiró por motivos legales",
     "moderationWarned": "Un aviso de los moderadores: {{message}}",
-    "feedbackRead": "Tu comentario fue leído"
+    "feedbackRead": "Tu comentario fue leído",
+    "caseOpened": "Caso nuevo de {{stream}}: {{taskTitle}}",
+    "caseReplied": "{{name}} respondió en {{taskTitle}} y nadie ha tomado el caso",
+    "caseRepliedMany": "{{name}} dejó {{count}} respuestas en {{taskTitle}} y nadie ha tomado el caso",
+    "caseStreams": {
+      "security": "seguridad",
+      "moderation": "moderación",
+      "support": "soporte",
+      "feedback": "comentarios"
+    }
   },
   "version": {
     "versionInformation": "Información de versión",

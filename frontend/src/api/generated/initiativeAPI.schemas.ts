@@ -6897,6 +6897,8 @@ export const NotificationType = {
   ticket_updated: "ticket_updated",
   moderation_removal: "moderation_removal",
   moderation_warning: "moderation_warning",
+  case_opened: "case_opened",
+  case_replied: "case_replied",
 } as const;
 
 export type NotificationReadData = { [key: string]: unknown };
@@ -6948,6 +6950,7 @@ export const NotificationCategory = {
   jobs: "jobs",
   account: "account",
   moderation: "moderation",
+  cases: "cases",
 } as const;
 
 /**
