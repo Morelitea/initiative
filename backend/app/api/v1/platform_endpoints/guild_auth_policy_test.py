@@ -18,6 +18,7 @@ from app.api.deps import (
     establish_guild_access,
 )
 from app.core import auth_context
+from app.db.schema_provisioning import GuildRoleKind, guild_role_name
 from app.db.session import set_rls_context
 from app.models.platform.guild import Guild, CommunityRole
 from app.models.platform.guild_auth_policy import GuildAuthPolicy
@@ -32,6 +33,7 @@ from app.testing.factories import (
     create_access_grant,
     create_auth_provider,
     create_file,
+    create_guest,
     create_guild,
     create_guild_auth_policy,
     create_guild_membership,
@@ -43,6 +45,7 @@ from app.testing.factories import (
 )
 from app.testing import route_as
 from app.db.request_context import SystemGuild
+from app.services.platform import app_settings as app_settings_service
 
 
 def _bearer(token: str) -> dict[str, str]:
@@ -105,6 +108,89 @@ async def test_the_seat_sets_reads_and_clears_the_policy(
     assert cleared.json()["auth_policy"]["policy"] == "open"
     session.expire_all()
     assert await session.get(GuildAuthPolicy, guild_id) is None
+
+
+async def test_a_guest_is_asked_the_guests_rule_and_a_member_the_members(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Two halves, each asked of its own people. The seat writes the guests'
+    half without meeting it, since it is not asked it."""
+    settings_row = await app_settings_service.ensure_settings_row(session)
+    settings_row.guests_enabled = True
+    session.add(settings_row)
+    await session.commit()
+    seat = await acting_user(guild_role=CommunityRole.superadmin)
+    provider = await create_auth_provider(session, slug="corp")
+    await create_guild_provider_connection(session, guild=seat.guild, provider=provider)
+    guest = await create_guest(session, seat.guild)
+    guild_id, provider_id = seat.guild.id, provider.id
+    guest_headers = _bearer(get_auth_token(guest))
+    through_corp = _sat_headers(seat.user, [provider_id])
+
+    asked = await client.patch(
+        _settings(guild_id),
+        headers=seat.headers,
+        json={"guest_auth_policy": {"policy": "required", "provider_id": provider_id}},
+    )
+    assert asked.status_code == 200, asked.text
+    assert asked.json()["auth_policy"]["policy"] == "open"
+    assert asked.json()["guest_auth_policy"]["provider_slug"] == "corp"
+
+    refused = await client.get(seat.g("/initiatives/"), headers=guest_headers)
+    assert refused.status_code == 401
+    assert refused.headers["X-Auth-Step-Up"] == "corp"
+    member_in = await client.get(seat.g("/initiatives/"), headers=seat.headers)
+    assert member_in.status_code == 200
+
+    # The other way round: members come through corp, guests come as they are.
+    swapped = await client.patch(
+        _settings(guild_id),
+        headers=through_corp,
+        json={
+            "auth_policy": {"policy": "required", "provider_id": provider_id},
+            "guest_auth_policy": {"policy": "open"},
+        },
+    )
+    assert swapped.status_code == 200, swapped.text
+    guest_in = await client.get(seat.g("/initiatives/"), headers=guest_headers)
+    assert guest_in.status_code == 200
+    member_refused = await client.get(seat.g("/initiatives/"), headers=seat.headers)
+    assert member_refused.status_code == 401
+
+    # Both open is no row at all.
+    await client.patch(
+        _settings(guild_id),
+        headers=through_corp,
+        json={"auth_policy": {"policy": "open"}},
+    )
+    session.expire_all()
+    assert await session.get(GuildAuthPolicy, guild_id) is None
+
+
+@pytest.mark.parametrize("connected", [True, False])
+async def test_a_guests_sso_rule_needs_a_connection_to_answer_it(
+    client: AsyncClient, session: AsyncSession, acting_user, connected: bool
+):
+    """Nobody meets a guests' rule before it is written, so asking guests for
+    the community's own single sign-on needs a connection that can answer."""
+    seat = await acting_user(guild_role=CommunityRole.superadmin)
+    if connected:
+        provider = await create_auth_provider(session, slug="corp")
+        await create_guild_provider_connection(
+            session, guild=seat.guild, provider=provider
+        )
+
+    response = await client.patch(
+        _settings(seat.guild.id),
+        headers=seat.headers,
+        json={"guest_auth_policy": {"policy": "required", "require_methods": ["sso"]}},
+    )
+
+    if connected:
+        assert response.status_code == 200, response.text
+    else:
+        assert response.status_code == 409, response.text
+        assert response.json()["detail"] == "AUTH_RULE_NOT_OFFERED"
 
 
 async def test_non_admin_cannot_manage_policy(
@@ -730,13 +816,16 @@ async def _database_admits(
     satisfied: list[int],
     asserted: dict | None = None,
     markers: frozenset[str] = frozenset(),
+    role: str | None = None,
 ) -> bool:
     """What ``public.guild_auth_satisfied()`` says, given the GUCs a request
-    with this standing would have set.
+    with this standing would have set, asked as ``role`` where one is named.
 
     One statement, so the settings and the question are certainly in the same
     transaction — the context is transaction-local and replays on each new one.
     """
+    if role is not None:
+        await session.exec(text(f'SET LOCAL ROLE "{role}"'))
     verdict = (
         await session.exec(
             text(
@@ -756,6 +845,8 @@ async def _database_admits(
             },
         )
     ).one()
+    if role is not None:
+        await session.exec(text("RESET ROLE"))
     return bool(verdict.verdict)
 
 
@@ -786,14 +877,17 @@ async def _app_admits(
     return True
 
 
+@pytest.mark.parametrize("guest", [False, True], ids=["members", "guests"])
 async def test_the_gate_and_the_database_agree_on_every_rule(
-    session: AsyncSession, acting_user
+    session: AsyncSession, acting_user, guest: bool
 ):
     """A rule is enforced in two places — Python before the request is routed,
     SQL inside the community's own row-level rules — and a disagreement between
     them is either a rule that does nothing or a refusal nobody can explain.
 
-    Every shape a rule can take, against every standing a session can have.
+    Every shape a rule can take, against every standing a session can have:
+    the members' half, and the guests' half asked from the community's guest
+    role while the members' half asks for something no standing here has.
     """
     member = await acting_user(guild_role=CommunityRole.member)
     provider = await create_auth_provider(session, slug="corp")
@@ -878,19 +972,33 @@ async def test_the_gate_and_the_database_agree_on_every_rule(
         for suffix, markers in proofs
     ]
 
+    role = guild_role_name(guild_id, GuildRoleKind.guest) if guest else None
+    # A provider no standing below came through, for the members' half the
+    # guests are never asked.
+    elsewhere_id = int((await create_auth_provider(session, slug="elsewhere")).id)
     for rule_name, fields in rules:
         row = await session.get(GuildAuthPolicy, guild_id)
         if row is not None:
             await session.delete(row)
             await session.commit()
-        stored = GuildAuthPolicy(guild_id=guild_id, **fields)
+        stored = (
+            GuildAuthPolicy(
+                guild_id=guild_id,
+                policy="required",
+                provider_id=elsewhere_id,
+                provider_slug="elsewhere",
+                **{f"guest_{name}": value for name, value in fields.items()},
+            )
+            if guest
+            else GuildAuthPolicy(guild_id=guild_id, **fields)
+        )
         session.add(stored)
         await session.commit()
         await session.refresh(stored)
 
         for standing, satisfied, asserted, markers in standings:
             in_app = await _app_admits(
-                session, stored, guild_id, satisfied, asserted, markers
+                session, stored.half(guest), guild_id, satisfied, asserted, markers
             )
             in_db = await _database_admits(
                 session,
@@ -899,11 +1007,14 @@ async def test_the_gate_and_the_database_agree_on_every_rule(
                 satisfied=satisfied,
                 asserted=asserted,
                 markers=markers,
+                role=role,
             )
             assert in_app == in_db, (
                 f"rule {rule_name!r} against a session showing {standing!r}: "
                 f"the gate says {in_app}, the database says {in_db}"
             )
+    if guest:
+        return
 
     # The matrix says the two layers agree; it does not say what they agree
     # on. Name one answer outright: a community asking for a passkey takes the
@@ -921,9 +1032,10 @@ async def test_the_gate_and_the_database_agree_on_every_rule(
     await session.refresh(asking_for_a_key)
     a_key = frozenset({"hwk", SECOND_FACTOR_AMR})
     a_code = frozenset({SECOND_FACTOR_AMR})
-    assert await _app_admits(session, asking_for_a_key, guild_id, [], None, a_key)
+    key_rule = asking_for_a_key.half(False)
+    assert await _app_admits(session, key_rule, guild_id, [], None, a_key)
     assert await db_admits(markers=a_key)
-    assert not await _app_admits(session, asking_for_a_key, guild_id, [], None, a_code)
+    assert not await _app_admits(session, key_rule, guild_id, [], None, a_code)
     assert not await db_admits(markers=a_code)
 
     # The matrix would pass if both layers refused everything, so pin the two

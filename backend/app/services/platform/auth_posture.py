@@ -37,6 +37,7 @@ from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable
 
 from fastapi import HTTPException, status
+from sqlalchemy import and_, or_
 from sqlalchemy import select as sa_select
 from sqlmodel import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -55,7 +56,7 @@ from app.core.security import AUTH_POLICY_UNMET_HEADER, has_usable_password
 from app.models.platform.app_setting import AppSetting
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.guild import Guild
-from app.models.platform.guild_auth_policy import GuildAuthPolicy
+from app.models.platform.guild_auth_policy import GuildAuthPolicy, SignInHalf
 from app.models.platform.user import User, UserRole, UserStatus
 from app.models.platform.user_passkey import UserPasskey
 from app.models.platform.user_totp import UserTotp
@@ -230,16 +231,21 @@ async def guilds_requiring_sign_in(session: AsyncSession) -> int:
     stands whatever happens to the route that satisfies it. Counted before
     single sign-on is withdrawn for that reason.
 
-    Any row that is not ``open`` counts. A requirement names a provider, or a
-    way in, or both, and a table constraint is what makes that list complete —
-    so this stays right when a third thing becomes requirable, rather than
-    quietly skipping it.
+    Any row with a half that is not ``open`` counts, its members' or its
+    guests'. A requirement names a provider, or a way in, or both, and a table
+    constraint is what makes that list complete — so this stays right when a
+    third thing becomes requirable, rather than quietly skipping it.
     """
     return (
         await session.exec(
             select(func.count())
             .select_from(GuildAuthPolicy)
-            .where(GuildAuthPolicy.policy != "open")
+            .where(
+                or_(
+                    GuildAuthPolicy.policy != "open",
+                    GuildAuthPolicy.guest_policy != "open",
+                )
+            )
         )
     ).one()
 
@@ -257,8 +263,16 @@ async def guilds_requiring_method(session: AsyncSession, method: LoginMethod) ->
             select(func.count())
             .select_from(GuildAuthPolicy)
             .where(
-                GuildAuthPolicy.policy != "open",
-                GuildAuthPolicy.require_methods.contains([method.value]),
+                or_(
+                    and_(
+                        GuildAuthPolicy.policy != "open",
+                        GuildAuthPolicy.require_methods.contains([method.value]),
+                    ),
+                    and_(
+                        GuildAuthPolicy.guest_policy != "open",
+                        GuildAuthPolicy.guest_require_methods.contains([method.value]),
+                    ),
+                )
             )
         )
     ).one()
@@ -649,7 +663,8 @@ _FACTOR_REQUIREMENTS = frozenset({LoginMethod.totp, LoginMethod.passkey})
 
 @dataclass(frozen=True)
 class _SignInRequirement(Rule):
-    """The community's sign-in requirement.
+    """The community's sign-in requirement, of its members or, with ``guest``,
+    of its guests.
 
     The provider or single sign-on it names applies whatever the community
     holds, and clearing it is always reachable: lifting a requirement only
@@ -657,14 +672,18 @@ class _SignInRequirement(Rule):
     community holds ``providers``.
     """
 
+    guest: bool = False
+
     async def read(self, ctx: RuleContext) -> SignInRequirement:
-        row = ctx.policy
-        if row is None or row.policy == "open":
+        if ctx.policy is None:
+            return _OPEN
+        half = ctx.policy.half(self.guest)
+        if half.policy == "open":
             return _OPEN
         return SignInRequirement(
             "required",
-            row.provider_id,
-            frozenset(LoginMethod(m) for m in row.require_methods or ()),
+            half.provider_id,
+            frozenset(LoginMethod(m) for m in half.require_methods),
         )
 
     def tightens(self, before: Any, after: Any) -> bool:
@@ -704,11 +723,28 @@ class _SignInRequirement(Rule):
         for method in sorted(after.methods & _FACTOR_REQUIREMENTS):
             if not await login_method_allowed(ctx.system, method):
                 raise not_offered(method.value)
+        # The members' rule is met by its writer before it is written, which
+        # shows the community's own single sign-on works. A guests' rule is
+        # not, so the sign-on it asks for has to be offered and connected.
+        if (
+            self.guest
+            and LoginMethod.sso in after.methods
+            and not (
+                await login_method_allowed(ctx.system, LoginMethod.sso)
+                and await guild_connections.connected_providers(
+                    ctx.system, guild_id=ctx.guild_id
+                )
+            )
+        ):
+            raise not_offered(LoginMethod.sso.value)
 
     async def writer_meets(self, ctx: RuleContext, after: Any) -> None:
         from app.core import auth_context
         from app.services.auth.assurance import SECOND_FACTOR_AMR, carries_passkey
 
+        # Whoever writes the guests' rule is not a guest, and is not asked it.
+        if self.guest:
+            return
         recorded = auth_context.current()
         amr = recorded.session_amr
         if (
@@ -732,21 +768,29 @@ class _SignInRequirement(Rule):
             raise self_unsatisfied(LoginMethod.passkey.value)
 
     async def write(self, ctx: RuleContext, after: Any) -> None:
-        # No row is open.
-        if after.policy == "open":
-            if ctx.policy is not None:
-                await ctx.session.delete(ctx.policy)
-            return
         provider = (
             await ctx.system.get(AuthProvider, after.provider_id)
             if after.provider_id is not None
             else None
         )
-        row = ctx.policy or GuildAuthPolicy(guild_id=ctx.guild_id, policy="required")
-        row.policy = "required"
-        row.provider_id = after.provider_id
-        row.provider_slug = provider.slug if provider else None
-        row.require_methods = sorted(m.value for m in after.methods)
+        half = SignInHalf(
+            after.policy,
+            after.provider_id,
+            provider.slug if provider else None,
+            tuple(sorted(m.value for m in after.methods)),
+        )
+        row = ctx.policy or GuildAuthPolicy(guild_id=ctx.guild_id, policy="open")
+        row.set_half(self.guest, half)
+        # No row is open, for members and guests alike.
+        if row.policy == "open" and row.guest_policy == "open":
+            if ctx.policy is not None:
+                await ctx.session.delete(ctx.policy)
+                # Flushed now, so the other half writing in the same change
+                # inserts its row after this one is gone.
+                await ctx.session.flush()
+                ctx.policy = None
+            return
+        ctx.policy = row
         ctx.session.add(row)
 
     async def audit(self, ctx: RuleContext, moved: dict[str, tuple[Any, Any]]) -> None:
@@ -763,6 +807,7 @@ class _SignInRequirement(Rule):
                 "to": after.policy,
                 "provider_id": after.provider_id,
                 "require_methods": sorted(m.value for m in after.methods),
+                **({"of": "guests"} if self.guest else {}),
             },
         )
 
@@ -811,6 +856,12 @@ COMMUNITY_RULES: dict[str, Rule] = {
     for rule in (
         _SignInRequirement(
             "auth_policy", area="auth_policy", entitlement=CommunityAuthOption.providers
+        ),
+        _SignInRequirement(
+            "guest_auth_policy",
+            area="guest_auth_policy",
+            entitlement=CommunityAuthOption.providers,
+            guest=True,
         ),
         _CommunityFactor(
             "require_second_factor",
@@ -875,6 +926,11 @@ async def _load(ctx: RuleContext) -> None:
 async def change(ctx: RuleContext, changes: dict[str, Any]) -> None:
     """Write ``changes`` (rule key → new value) as one change, and commit."""
     rules = _rules(ctx)
+    if ctx.guild_id is not None:
+        # Before the rows are read, so two changes to the same community, its
+        # two sign-in halves included, take turns rather than each writing
+        # back what it read.
+        await guilds_service.lock_guild_seats(ctx.session, ctx.guild_id)
     await _load(ctx)
     moved: dict[str, tuple[Any, Any]] = {}
     for key, value in changes.items():

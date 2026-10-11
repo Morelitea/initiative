@@ -105,7 +105,7 @@ from app.models.platform.guild import (
     CommunityRole,
     CommunityStatus,
 )
-from app.models.platform.guild_auth_policy import GuildAuthPolicy
+from app.models.platform.guild_auth_policy import GuildAuthPolicy, SignInHalf
 from app.models.platform.user import (
     LOGIN_STATUSES,
     User,
@@ -545,7 +545,7 @@ def _sign_in(satisfied: frozenset[int], on_behalf: bool) -> SignIn:
 
 async def _enforce_guild_auth_policy(
     session: AsyncSession,
-    policy: GuildAuthPolicy | None,
+    policy: SignInHalf | None,
     guild_id: int,
     satisfied: frozenset[int],
     markers: frozenset[str] = frozenset(),
@@ -567,9 +567,10 @@ async def _enforce_guild_auth_policy(
     are one question to ``guild_connection_admits``, which also applies the
     narrowing a community put on the connection.
 
-    ``policy`` is the guild's row, read under the routed session. A second
-    factor the community asks for applies while it holds the option it needs,
-    read as the database gate reads it.
+    ``policy`` is the half of the guild's row that applies to this request
+    (its guests' for a guest), read under the routed session. A second factor
+    the community asks for applies while it holds the option it needs, read as
+    the database gate reads it.
     """
     restricts, factors_apply = (
         await session.exec(
@@ -1321,9 +1322,10 @@ async def _refuse_sign_in(
     rule, under the routing, to name the step-up the caller owes.
     """
     guild_id = guild_context.guild_id
+    row = await session.get(GuildAuthPolicy, guild_id)
     await _enforce_guild_auth_policy(
         session,
-        await session.get(GuildAuthPolicy, guild_id),
+        row.half(guild_context.routes_as_guest) if row is not None else None,
         guild_id,
         satisfied,
         auth_context.current().session_amr,

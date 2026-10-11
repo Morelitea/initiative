@@ -101,7 +101,7 @@ from app.schemas.platform.guild import (
     MemberDisplayNameUpdate,
 )
 from app.models.platform.auth_provider import AuthProvider
-from app.models.platform.guild_auth_policy import GuildAuthPolicy
+from app.models.platform.guild_auth_policy import GuildAuthPolicy, SignInHalf
 from app.core.guild_auth_options import CommunityAuthOption, effective_options
 from app.services.platform import app_settings as app_settings_service
 from app.services.platform import auth_posture
@@ -1095,21 +1095,21 @@ async def read_community_billing_summary(
 
 
 def _auth_policy_read(
-    policy_row,
+    half: SignInHalf | None,
     provider_display_name: str | None = None,
     *,
     factor_required_by_platform: bool = False,
 ) -> CommunityAuthPolicyRead:
-    if policy_row is None or policy_row.policy == "open":
+    if half is None or half.policy == "open":
         return CommunityAuthPolicyRead(
             policy="open", factor_required_by_platform=factor_required_by_platform
         )
     return CommunityAuthPolicyRead(
         policy="required",
-        provider_id=policy_row.provider_id,
-        provider_slug=policy_row.provider_slug,
+        provider_id=half.provider_id,
+        provider_slug=half.provider_slug,
         provider_display_name=provider_display_name,
-        require_methods=list(policy_row.require_methods or ()),
+        require_methods=list(half.require_methods),
         factor_required_by_platform=factor_required_by_platform,
     )
 
@@ -1143,6 +1143,9 @@ async def _auth_settings_response(
         if administration
         else [],
         auth_policy=await _auth_policy_response(system_session, guild_id),
+        guest_auth_policy=await _auth_policy_response(
+            system_session, guild_id, guest=True
+        ),
         enforce_compliance_session=guild.enforce_compliance_session,
         require_second_factor=guild.require_second_factor,
         allow_push_notifications=guild.allow_push_notifications,
@@ -1167,15 +1170,16 @@ async def get_community_auth_settings(
 
 
 async def _auth_policy_response(
-    system_session: AsyncSession, guild_id: int
+    system_session: AsyncSession, guild_id: int, *, guest: bool = False
 ) -> CommunityAuthPolicyRead:
     policy_row = await system_session.get(GuildAuthPolicy, guild_id)
+    half = policy_row.half(guest) if policy_row is not None else None
     display_name = None
-    if policy_row is not None and policy_row.provider_id is not None:
-        provider = await system_session.get(AuthProvider, policy_row.provider_id)
+    if half is not None and half.provider_id is not None:
+        provider = await system_session.get(AuthProvider, half.provider_id)
         display_name = provider.display_name if provider else None
     return _auth_policy_read(
-        policy_row,
+        half,
         display_name,
         factor_required_by_platform=await _platform_asks_everyone(system_session),
     )
@@ -1205,26 +1209,31 @@ async def update_community_auth_settings(
     keeps an admin from locking the community behind a sign-in they have not
     completed.
 
+    The guests' requirement takes the same shapes and is asked of guests
+    instead of the members' one. Its writer is not a guest, so is not asked
+    to meet it.
+
     Nobody is signed out by a change. Existing API
     keys are left alone when keys are refused, so accepting them again
     restores them. Every notification answer only narrows what the deployment
     permits.
     """
+    requirements = {"auth_policy", "guest_auth_policy"}
     changes: dict[str, object] = {
         key: value
-        for key, value in payload.model_dump(exclude={"auth_policy"}).items()
+        for key, value in payload.model_dump(exclude=requirements).items()
         if value is not None
     }
-    if payload.auth_policy is not None:
-        changes["auth_policy"] = (
-            auth_posture.SignInRequirement(
-                "required",
-                payload.auth_policy.provider_id,
-                frozenset(payload.auth_policy.require_methods),
+    for key in requirements:
+        asked = getattr(payload, key)
+        if asked is not None:
+            changes[key] = (
+                auth_posture.SignInRequirement(
+                    "required", asked.provider_id, frozenset(asked.require_methods)
+                )
+                if asked.policy == "required"
+                else auth_posture.SignInRequirement()
             )
-            if payload.auth_policy.policy == "required"
-            else auth_posture.SignInRequirement()
-        )
     await auth_posture.change(
         auth_posture.RuleContext.community(
             seat_session, system_session, current_user, guild_id

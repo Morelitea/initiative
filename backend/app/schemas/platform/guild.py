@@ -613,6 +613,8 @@ class CommunityAuthSettingsRead(SanitizedBaseModel):
 
     auth_options: List[CommunityAuthOption] = Field(default_factory=list)
     auth_policy: CommunityAuthPolicyRead
+    #: What it asks of its guests instead. Open unless it says otherwise.
+    guest_auth_policy: CommunityAuthPolicyRead
     #: Whether its members sign in again every twelve hours, whatever the
     #: deployment's own limit says.
     enforce_compliance_session: bool
@@ -646,6 +648,8 @@ class CommunityAuthSettingsUpdate(SanitizedBaseModel):
 
     #: The sign-in requirement, replaced as a whole.
     auth_policy: Optional[CommunityAuthPolicyUpdate] = None
+    #: The guests' sign-in requirement, replaced as a whole.
+    guest_auth_policy: Optional[CommunityAuthPolicyUpdate] = None
     enforce_compliance_session: Optional[bool] = None
     require_second_factor: Optional[bool] = None
     allow_push_notifications: Optional[bool] = None

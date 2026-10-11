@@ -1,5 +1,6 @@
 """Which ways in the deployment permits."""
 
+import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -354,17 +355,26 @@ async def test_the_surface_needs_the_config_capability(
     assert methods.status_code == 403
 
 
+@pytest.mark.parametrize("half", ["", "guest_"], ids=["members", "guests"])
 async def test_withdrawing_sso_counts_a_guild_that_requires_a_method(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, half: str
 ):
     """A requirement can name a way in rather than a provider, and the guard
-    that holds single sign-on back has to see both kinds."""
+    that holds single sign-on back has to see both kinds, of members and of
+    guests."""
     from app.models.platform.guild_auth_policy import GuildAuthPolicy
 
     _, headers = await _owner(session)
     guild = await create_guild(session)
     session.add(
-        GuildAuthPolicy(guild_id=guild.id, policy="required", require_methods=["sso"])
+        GuildAuthPolicy(
+            guild_id=guild.id,
+            **{
+                "policy": "open",
+                f"{half}policy": "required",
+                f"{half}require_methods": ["sso"],
+            },
+        )
     )
     await session.commit()
 
