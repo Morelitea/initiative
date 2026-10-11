@@ -81,6 +81,9 @@ export const useAppConfig = () => {
      *  config loads, and false is also the default: guests are something an
      *  owner turns on. */
     guestsEnabled: query.data?.guests_enabled ?? false,
+    /** Whether this deployment orders search by engagement. True until the
+     *  config loads, and true is also the default. */
+    engagementRankingEnabled: query.data?.engagement_ranking_enabled ?? true,
     /** Whether this deployment permits signing in with a password. True until
      *  the config loads: the form is the thing most deployments have, and the
      *  server refuses either way, so showing it briefly costs nothing while

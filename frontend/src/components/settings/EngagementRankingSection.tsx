@@ -4,6 +4,7 @@ import { SettingsRow, SettingsSection } from "@/components/settings/SettingsSect
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/useAuth";
 import { useUpdateCurrentUser } from "@/hooks/useUsers";
+import { getErrorMessage } from "@/lib/errorMessage";
 import { toast } from "@/lib/mascotToast";
 
 /**
@@ -13,9 +14,13 @@ import { toast } from "@/lib/mascotToast";
  */
 export const EngagementRankingSection = () => {
   const { t } = useTranslation("settings");
-  const { user } = useAuth();
+  const { user, acceptUser } = useAuth();
   const update = useUpdateCurrentUser({
-    onSuccess: () => toast.success(t("privacy.engagementRanking.saved")),
+    onSuccess: (saved) => {
+      acceptUser(saved);
+      toast.success(t("privacy.engagementRanking.saved"));
+    },
+    onError: (err) => toast.error(getErrorMessage(err, "settings:privacy.engagementRanking.error")),
   });
 
   if (!user) return null;

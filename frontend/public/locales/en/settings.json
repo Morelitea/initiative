@@ -1852,8 +1852,7 @@
       "communitiesHint": "All count by default.",
       "ageLocked": "Messaging is available to people aged 16 and over. You have not told us whether you are.",
       "confirmAge": "Confirm my age",
-      "saved": "Saved.",
-      "platformDisabled": "This deployment does not offer direct messages, so there is nothing here to set. If it is switched back on, the policy and lists you had before come back with it."
+      "saved": "Saved."
     },
     "receipts": {
       "label": "Tell people when their messages reach you",
@@ -1902,7 +1901,8 @@
       "title": "Search ranking",
       "label": "Count my activity toward search ranking",
       "help": "When on, the items you open and change help decide what your communities' search lists first. Nobody can see what you opened. Turn it off and your activity stops counting from the next hourly update.",
-      "saved": "Search ranking saved."
+      "saved": "Search ranking saved.",
+      "error": "Couldn't save your search ranking choice. Try again."
     }
   },
   "twoFactor": {

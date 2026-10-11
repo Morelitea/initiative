@@ -8,7 +8,7 @@ import { SettingsPaneSkeleton } from "@/components/skeletons/PageSkeletons";
 import { Button } from "@/components/ui/button";
 import { useMyAI } from "@/hooks/useAISettings";
 import { useAuth } from "@/hooks/useAuth";
-import { useDirectMessagesEnabled } from "@/hooks/useDirectMessages";
+import { usePrivacySections } from "@/hooks/usePrivacySections";
 import { matchActiveTab } from "@/lib/tabs";
 
 const userSettingsTabs = [
@@ -38,10 +38,8 @@ export const UserSettingsLayout = () => {
   const location = useLocation();
   const router = useRouter();
   const { data: aiConnections, isError: aiUnknown } = useMyAI();
-  // Privacy is entirely about who may message this account -- the policy, the
-  // connections, the requests and the ignore list. A deployment with messaging
-  // off has none of it, so the tab is not offered.
-  const dmEnabled = useDirectMessagesEnabled();
+  // Privacy is offered while any of its sections has something to set here.
+  const privacy = usePrivacySections();
 
   if (!user) {
     return (
@@ -61,7 +59,7 @@ export const UserSettingsLayout = () => {
   const showAI = aiUnknown || hasAnythingToConfigure(aiConnections);
   const tabs = userSettingsTabs
     .filter((tab) => tab.value !== "ai" || showAI)
-    .filter((tab) => tab.value !== "privacy" || dmEnabled)
+    .filter((tab) => tab.value !== "privacy" || privacy.any)
     .map((tab) => ({
       value: tab.value,
       label: t(tab.labelKey),

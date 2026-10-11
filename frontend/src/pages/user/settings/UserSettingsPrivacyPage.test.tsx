@@ -9,7 +9,9 @@ import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { buildUser } from "@/__tests__/factories";
 import { renderPage } from "@/__tests__/helpers/render";
+import type { UserRead } from "@/api/generated/initiativeAPI.schemas";
 
 import { UserSettingsPrivacyPage } from "./UserSettingsPrivacyPage";
 
@@ -22,11 +24,21 @@ const mocks = vi.hoisted(() => ({
   ignoreByHandle: vi.fn(),
   noop: vi.fn(),
   updateMe: vi.fn(),
+  sections: vi.fn(),
 }));
 
+vi.mock("@/hooks/usePrivacySections", () => ({ usePrivacySections: () => mocks.sections() }));
+
+// The write answers with the account as saved, the way the server does.
 vi.mock("@/hooks/useUsers", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/hooks/useUsers")>()),
-  useUpdateCurrentUser: () => ({ mutate: mocks.updateMe, isPending: false }),
+  useUpdateCurrentUser: (options?: { onSuccess?: (saved: UserRead, vars: unknown) => void }) => ({
+    mutate: (vars: Partial<UserRead>) => {
+      mocks.updateMe(vars);
+      options?.onSuccess?.({ ...buildUser(), ...vars } as UserRead, vars);
+    },
+    isPending: false,
+  }),
 }));
 
 vi.mock("@/hooks/useDirectMessages", async (importOriginal) => ({
@@ -63,18 +75,43 @@ describe("UserSettingsPrivacyPage", () => {
     mocks.connections.mockReturnValue({ data: { accepted: [], incoming: [], outgoing: [] } });
     mocks.messages.mockReturnValue({ data: { accepted: [], incoming: [], outgoing: [] } });
     mocks.ignored.mockReturnValue({ data: { items: [], total: 0 } });
+    mocks.sections.mockReturnValue({ messages: true, ranking: true, cookies: false, any: true });
   });
 
-  it("lets a person stop their activity counting toward search ranking", async () => {
-    const user = userEvent.setup();
+  it("shows each section only where it has something to set", async () => {
+    mocks.sections.mockReturnValue({ messages: false, ranking: true, cookies: false, any: true });
+    const { unmount } = renderPage(UserSettingsPrivacyPage);
+
+    expect(await screen.findByRole("switch", { name: /count my activity/i })).toBeInTheDocument();
+    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+    unmount();
+
+    mocks.sections.mockReturnValue({ messages: true, ranking: false, cookies: false, any: true });
     renderPage(UserSettingsPrivacyPage);
 
-    const ranking = await screen.findByRole("switch", { name: /count my activity/i });
-    expect(ranking).toBeChecked();
-    await user.click(ranking);
-
-    expect(mocks.updateMe).toHaveBeenCalledWith({ count_toward_engagement_ranking: false });
+    expect(await screen.findByRole("radio", { name: /private/i })).toBeInTheDocument();
+    expect(screen.queryByRole("switch", { name: /count my activity/i })).not.toBeInTheDocument();
   });
+
+  it.each([true, false])(
+    "turns counting toward search ranking %s → the other way, and keeps what was saved",
+    async (counted) => {
+      const user = userEvent.setup();
+      const acceptUser = vi.fn();
+      renderPage(UserSettingsPrivacyPage, {
+        auth: { user: buildUser({ count_toward_engagement_ranking: counted }), acceptUser },
+      });
+
+      const ranking = await screen.findByRole("switch", { name: /count my activity/i });
+      expect(ranking).toHaveAttribute("aria-checked", String(counted));
+      await user.click(ranking);
+
+      expect(mocks.updateMe).toHaveBeenCalledWith({ count_toward_engagement_ranking: !counted });
+      expect(acceptUser).toHaveBeenCalledWith(
+        expect.objectContaining({ count_toward_engagement_ranking: !counted })
+      );
+    }
+  );
 
   it("offers the three options the rule has, and nothing else", async () => {
     renderPage(UserSettingsPrivacyPage);
