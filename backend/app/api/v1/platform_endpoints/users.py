@@ -1462,6 +1462,10 @@ async def update_me(
         current_user.recent_tabs_limit = recent_views_service.clamp_recent_limit(
             update_data["recent_tabs_limit"]
         )
+    if update_data.get("count_toward_engagement_ranking") is not None:
+        current_user.count_toward_engagement_ranking = update_data[
+            "count_toward_engagement_ranking"
+        ]
     if "timezone" in update_data:
         normalized_timezone = normalize_timezone(update_data["timezone"])
         if normalized_timezone:

@@ -183,6 +183,7 @@ export function buildUser(overrides: Partial<UserRead> = {}): UserRead {
     time_format: "system",
     timezone: "America/New_York",
     recent_tabs_limit: 20,
+    count_toward_engagement_ranking: true,
     event_reminder_minutes_before: null,
     last_overdue_notification_at: null,
     last_task_assignment_digest_at: null,
