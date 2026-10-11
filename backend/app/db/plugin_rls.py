@@ -164,9 +164,10 @@ SEARCH_ENTRY_READ_SCOPE: dict[SearchEntityType, PluginScopeResource] = (
 
 #: Tables no plug-in reaches, whose policies refuse an installed plug-in outright
 #: beside the grant it does not hold: a reaction and the line queued about it
-#: are one person's gesture, and a recent view one person's history.
+#: are one person's gesture, a recent view one person's history, and an
+#: engagement level what many people's history adds up to.
 PLUGIN_REFUSED_TABLES: frozenset[str] = frozenset(
-    {"reactions", "reaction_digest_items", "recent_views"}
+    {"reactions", "reaction_digest_items", "recent_views", "engagement_levels"}
 )
 
 

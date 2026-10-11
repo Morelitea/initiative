@@ -19,7 +19,7 @@ from sqlalchemy import text
 from app.core.reactions import ReactionTarget
 from app.db.initiative_rls import (
     COMMENT_PARENTS,
-    RECENT_ENTITY_TABLES,
+    CONTENT_KIND_TABLES,
     entity_tables,
     initiative_of,
     render_entity_access_fn,
@@ -427,6 +427,7 @@ _NO_SINGLE_PARENT = {
     "reactions": "one of eight tools, per row",
     "reaction_digest_items": "gated exactly like the reaction it describes",
     "recent_views": "one of eight tools, per row",
+    "engagement_levels": "any tool or sub-tool, per row",
     "property_values": "any tool or sub-tool, per row: read through its own table, written through entity_access",
     "plugin_metadata": "any item, per row, read through its own table, or the install itself",
     "search_entries": "names its tool in dac_tool",
@@ -649,7 +650,7 @@ def test_every_reaction_target_and_recentable_kind_is_an_arm():
     tables = entity_tables()
     for target in ReactionTarget:
         assert tables[target.value] == target.table
-    for kind, table in RECENT_ENTITY_TABLES.items():
+    for kind, table in CONTENT_KIND_TABLES.items():
         assert tables[kind] == table
 
 

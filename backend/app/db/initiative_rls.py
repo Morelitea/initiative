@@ -884,7 +884,7 @@ def entity_tables() -> dict[str, str]:
     for kind, table in (
         *((k.value, e.table) for k, e in ENDPOINT_KINDS.items()),
         *((t.value, t.table) for t in ReactionTarget),
-        *RECENT_ENTITY_TABLES.items(),
+        *CONTENT_KIND_TABLES.items(),
         *((p.kind, p.table) for p in _COMMENT_PARENTS),
     ):
         if tables.setdefault(kind, table) != table:
@@ -1217,10 +1217,10 @@ def relationships_path() -> InitiativePath:
     return InitiativePath(predicate=build, initiative_expr=locate)
 
 
-# recent_views is polymorphic over (entity_type, entity_id): every tool and
-# everything inside one, keyed by its wire name, with the table its ids point
-# at.
-RECENT_ENTITY_TABLES: dict[str, str] = {k: KINDS[k].table for k in CONTENT_KINDS}
+# The tables that name a piece of content by (entity_type, entity_id), recent
+# views and engagement levels, take every tool and everything inside one, keyed
+# by its wire name, with the table its ids point at.
+CONTENT_KIND_TABLES: dict[str, str] = {k: KINDS[k].table for k in CONTENT_KINDS}
 
 
 def webhook_subscription_path() -> InitiativePath:
@@ -1369,11 +1369,11 @@ def evidence_path() -> InitiativePath:
     )
 
 
-def recent_views_path() -> InitiativePath:
-    """A reader's own record of visiting something, reached exactly like the
-    thing itself: ``(entity_type, entity_id)`` is the pair the entity function
-    takes, and every recentable kind is one of its arms. Keeping the record
-    asks nothing of sharing beyond reading."""
+def content_kind_path() -> InitiativePath:
+    """A row about one piece of content, reached exactly like the content
+    itself: ``(entity_type, entity_id)`` is the pair the entity function takes,
+    and every content kind is one of its arms. Writing the row asks nothing of
+    sharing beyond reading."""
 
     def folded(t: str, w: WriteFlag, sw: WriteFlag) -> str:
         return _entity_call(f"{t}.entity_type", f"{t}.entity_id", w, sw)
@@ -1382,7 +1382,7 @@ def recent_views_path() -> InitiativePath:
         arms = " ".join(
             f"WHEN '{etype}' THEN "
             f"(SELECT {initiative_of(tbl, 're')} FROM {tbl} re WHERE re.id = {r}.entity_id)"  # noqa: S608
-            for etype, tbl in RECENT_ENTITY_TABLES.items()
+            for etype, tbl in CONTENT_KIND_TABLES.items()
         )
         return f"(CASE {r}.entity_type {arms} END)"
 
@@ -1411,7 +1411,7 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     # The change log itself. Scoped like the rows it describes, which is what
     # lets the poller read it AS the subscriber (see EVENT_SOURCES below).
     # Reading is the question this path answers; writing is the capture
-    # trigger's alone (app.db.guild_ddl._TRIGGER_WRITTEN_INSERT).
+    # trigger's alone (app.db.guild_ddl._WRITTEN_BY).
     # No sharing leg, decided 2026-09-10: the envelope is identifiers and
     # changed column names, and every consumer reads current state back
     # through the REST path, where sharing decides. The initiative gate is
@@ -1419,7 +1419,7 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     "event_outbox": direct(),
     # The events installed plug-ins emit, scoped by the initiative an event names
     # like the change log beside it. Written by the system engine alone
-    # (app.db.guild_ddl._TRIGGER_WRITTEN_INSERT) and read by the poller.
+    # (app.db.guild_ddl._WRITTEN_BY) and read by the poller.
     "plugin_event_outbox": direct(),
     # The search index. Derived from the content tables, and gated like them.
     "search_entries": search_entries_path(),
@@ -1491,7 +1491,8 @@ INITIATIVE_PATHS: dict[str, InitiativePath] = {
     # queued line is gated exactly like the gesture it describes.
     "reaction_digest_items": reactions_path(),
     "event_reminder_dispatches": via_event_calendar("event_id"),
-    "recent_views": recent_views_path(),
+    "recent_views": content_kind_path(),
+    "engagement_levels": content_kind_path(),
 }
 
 # Derived — the classification follows the registry, never duplicates it.
@@ -1956,6 +1957,7 @@ EVENT_SOURCES: dict[str, Emit | Silent] = {
     # content, so every subscription would pay for pure noise.
     "recent_views": Silent("one member's own viewing state"),
     "search_entries": Silent("derived index, rebuilt from the content it mirrors"),
+    "engagement_levels": Silent("derived ranking, rewritten by the hourly pass"),
     "project_orders": Silent("one member's own ordering state"),
     "project_favorites": Silent("one member's own pinning state"),
     "task_assignment_digest_items": Silent("internal digest bookkeeping"),

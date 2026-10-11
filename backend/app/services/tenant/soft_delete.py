@@ -253,8 +253,8 @@ async def restore_entity(
 
 async def _purge_references(session: AsyncSession, doomed: Level) -> None:
     """Drop every row that names one of these by ``(kind, id)``: edges,
-    reactions, recent views, custom property values, plug-ins' metadata and a
-    tool's views.
+    reactions, recent views, engagement levels, custom property values,
+    plug-ins' metadata and a tool's views.
 
     Nothing carries those out with the row they name, and once it is gone
     their policies have nothing to ask, so they go first. Each kind is read
@@ -264,8 +264,9 @@ async def _purge_references(session: AsyncSession, doomed: Level) -> None:
     from app.core.reactions import ReactionTarget
     from app.core.relationships import ENDPOINT_KINDS
     from app.core.tools import ITEM_KINDS, KINDS, LAYOUTS_PER_INSTANCE
-    from app.db.initiative_rls import RECENT_ENTITY_TABLES
+    from app.db.initiative_rls import CONTENT_KIND_TABLES
     from app.services.tenant import (
+        engagement_levels,
         plugin_metadata,
         properties,
         reactions,
@@ -276,7 +277,7 @@ async def _purge_references(session: AsyncSession, doomed: Level) -> None:
 
     edge_kinds = {endpoint.table: kind for kind, endpoint in ENDPOINT_KINDS.items()}
     reaction_targets = {target.table: target for target in ReactionTarget}
-    recent_kinds = {table: kind for kind, table in RECENT_ENTITY_TABLES.items()}
+    content_kinds = {table: kind for kind, table in CONTENT_KIND_TABLES.items()}
     item_kinds = {KINDS[kind].table: kind for kind in ITEM_KINDS}
     layout_tools = {tool.plural: tool for tool in LAYOUTS_PER_INSTANCE}
     for model, ids in doomed.items():
@@ -287,8 +288,9 @@ async def _purge_references(session: AsyncSession, doomed: Level) -> None:
             await relationships.purge_for_entities(session, kind, ids)
         if (target := reaction_targets.get(table)) is not None:
             await reactions.purge_reactions_for(session, target=target, target_ids=ids)
-        if (recent := recent_kinds.get(table)) is not None:
-            await recent_views.purge_for_entities(session, recent, ids)
+        if (content := content_kinds.get(table)) is not None:
+            await recent_views.purge_for_entities(session, content, ids)
+            await engagement_levels.purge_for_entities(session, content, ids)
         if (spec := properties.PROPERTY_LINKS_BY_MODEL.get(model)) is not None:
             await properties.drop_values(session, spec.target, ids)
         if (item := item_kinds.get(table)) is not None:

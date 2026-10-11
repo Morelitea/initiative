@@ -570,6 +570,7 @@ NOT_SEARCHABLE: dict[str, str] = {
     "intake_cases": "the key -> task map; the task it names is what is indexed",
     "evidence": "files attached to a report or a case, opened only through it",
     "recent_views": "one member's own viewing state",
+    "engagement_levels": "how widely an item was engaged with, not content",
     "tool_layouts": "how a tool is laid out, reached from the tool",
     "task_statuses": "column names, reached from the project",
     "file_versions": "history of a file already indexed",
