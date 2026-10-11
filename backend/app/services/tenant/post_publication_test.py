@@ -15,6 +15,7 @@ from sqlalchemy import text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.db import cohorts
 from app.models.platform.notification import Notification, NotificationType
 from app.models.tenant.post import Post
 from app.models.tenant.post_poll import PostPoll
@@ -32,6 +33,7 @@ from app.testing import (
     create_user,
     drain_notices,
     route_session_to_guild,
+    route_system,
 )
 
 
@@ -68,6 +70,16 @@ async def _draft(session, initiative, author, *, due_in: timedelta, **kw) -> int
     return cast(int, post.id)
 
 
+async def _publish(guild_id: int, *, now: datetime) -> list[int]:
+    """Publish what is due as the sweep does: on a system session of its own,
+    routed into the community with nobody behind it."""
+    async with cohorts.system_session(guild_id) as system:
+        await route_system(system, guild_id=guild_id)
+        published = await publish_due_posts(system, now=now)
+        await system.commit()
+    return published
+
+
 async def _notifications(session: AsyncSession, user_id: int) -> list[Notification]:
     await drain_notices()
     return list(
@@ -94,7 +106,7 @@ async def test_a_due_notice_is_published_and_announced(session: AsyncSession):
     )
 
     await route_session_to_guild(session, guild_of(initiative))
-    published = await publish_due_posts(session, now=datetime.now(timezone.utc))
+    published = await _publish(guild_of(initiative), now=datetime.now(timezone.utc))
     await session.commit()
 
     assert published == [post_id]
@@ -116,7 +128,7 @@ async def test_a_notice_not_yet_due_is_left_alone(session: AsyncSession):
     post_id = await _draft(session, initiative, author, due_in=timedelta(days=1))
 
     await route_session_to_guild(session, guild_of(initiative))
-    assert await publish_due_posts(session, now=datetime.now(timezone.utc)) == []
+    assert await _publish(guild_of(initiative), now=datetime.now(timezone.utc)) == []
     await session.commit()
 
     refreshed = (await session.exec(select(Post).where(Post.id == post_id))).one()
@@ -133,9 +145,9 @@ async def test_a_second_pass_publishes_nothing_twice(session: AsyncSession):
 
     await route_session_to_guild(session, guild_of(initiative))
     now = datetime.now(timezone.utc)
-    assert len(await publish_due_posts(session, now=now)) == 1
+    assert len(await _publish(guild_of(initiative), now=now)) == 1
     await session.commit()
-    assert await publish_due_posts(session, now=now) == []
+    assert await _publish(guild_of(initiative), now=now) == []
     await session.commit()
 
     assert len(await _notifications(session, reader_id)) == 1
@@ -152,7 +164,7 @@ async def test_a_trashed_draft_does_not_go_up(session: AsyncSession):
     session.add(row)
     await session.commit()
 
-    assert await publish_due_posts(session, now=datetime.now(timezone.utc)) == []
+    assert await _publish(guild_of(initiative), now=datetime.now(timezone.utc)) == []
     await session.commit()
     assert await _notifications(session, reader_id) == []
 
@@ -186,7 +198,7 @@ async def test_the_announcement_follows_the_sharing_not_the_roster(
     post = (await session.exec(select(Post).where(Post.id == post_id))).one()
     await create_resource_grant(session, post, user=named)
 
-    await publish_due_posts(session, now=datetime.now(timezone.utc))
+    await _publish(guild_of(initiative), now=datetime.now(timezone.utc))
     await session.commit()
 
     assert len(await _notifications(session, named_id)) == 1
@@ -207,7 +219,7 @@ async def test_somebody_who_ignores_the_author_is_not_told(session: AsyncSession
 
     await _draft(session, initiative, author, due_in=timedelta(minutes=-1))
     await route_session_to_guild(session, guild_of(initiative))
-    await publish_due_posts(session, now=datetime.now(timezone.utc))
+    await _publish(guild_of(initiative), now=datetime.now(timezone.utc))
     await session.commit()
 
     assert await _notifications(session, reader_id) == []
@@ -228,7 +240,7 @@ async def test_a_failed_announcement_does_not_re_publish(session: AsyncSession):
     with patch.object(publication, "announce_post", _explode):
         await route_session_to_guild(session, guild_of(initiative))
         with pytest.raises(RuntimeError):
-            await publish_due_posts(session, now=datetime.now(timezone.utc))
+            await _publish(guild_of(initiative), now=datetime.now(timezone.utc))
 
     # Published, despite the failure after it — the claim was committed before
     # the fan-out began — and so never claimed again.
@@ -236,7 +248,7 @@ async def test_a_failed_announcement_does_not_re_publish(session: AsyncSession):
     await route_session_to_guild(session, guild_of(initiative))
     refreshed = (await session.exec(select(Post).where(Post.id == post_id))).one()
     assert refreshed.published_at is not None
-    assert await publish_due_posts(session, now=datetime.now(timezone.utc)) == []
+    assert await _publish(guild_of(initiative), now=datetime.now(timezone.utc)) == []
 
 
 async def _explode(*_args, **_kwargs):
