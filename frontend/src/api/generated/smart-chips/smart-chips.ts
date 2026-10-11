@@ -13,6 +13,7 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  EmbedRead,
   HTTPValidationError,
   ReferenceEmbedList,
   ReferenceRead,
@@ -127,7 +128,7 @@ export const useReadSmartChips = <TError = ErrorType<HTTPValidationError>, TCont
  */
 export const readReferenceEmbeds = (
   communityId: number,
-  referenceRead: BodyType<ReferenceRead>,
+  embedRead: BodyType<EmbedRead>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
@@ -136,7 +137,7 @@ export const readReferenceEmbeds = (
       url: `/api/v1/c/${communityId}/smart-chips/embeds`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      data: referenceRead,
+      data: embedRead,
       signal,
     },
     options
@@ -184,11 +185,11 @@ export const getReadReferenceEmbedsMutationOptions = <
 export type ReadReferenceEmbedsMutationResult = NonNullable<
   Awaited<ReturnType<typeof readReferenceEmbeds>>
 >;
-export type ReadReferenceEmbedsMutationBody = BodyType<ReferenceRead>;
+export type ReadReferenceEmbedsMutationBody = BodyType<EmbedRead>;
 export type ReadReferenceEmbedsMutationError = ErrorType<HTTPValidationError>;
 export type ReadReferenceEmbedsMutationVariables = {
   communityId: number;
-  data: BodyType<ReferenceRead>;
+  data: BodyType<EmbedRead>;
 };
 
 /**

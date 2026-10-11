@@ -4819,6 +4819,17 @@ export interface EmailTestResponse {
   status: string;
 }
 
+/**
+ * The references to show in full, as `kind:id`.
+ */
+export interface EmbedRead {
+  /**
+   * References to read. `task:12` names a thing, `task:12:status` a fact about it. One that names nothing is ignored.
+   * @maxItems 25
+   */
+  refs?: string[];
+}
+
 export type SearchEntityType = (typeof SearchEntityType)[keyof typeof SearchEntityType];
 
 export const SearchEntityType = {
@@ -9121,7 +9132,7 @@ export interface ReferenceEmbedList {
 export interface ReferenceRead {
   /**
    * References to read. `task:12` names a thing, `task:12:status` a fact about it. One that names nothing is ignored. Chips: calendar_event:when, counter:value, project:progress, task:assignee, task:due, task:priority, task:status, task:checklist
-   * @maxItems 100
+   * @maxItems 500
    */
   refs?: string[];
 }

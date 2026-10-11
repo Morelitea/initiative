@@ -48,7 +48,12 @@ from app.models.tenant.task import (
     TaskStatus,
     TaskStatusCategory,
 )
-from app.schemas.tenant.smart_chip import MAX_REFS, ReferenceEmbed, SmartChipState
+from app.schemas.tenant.smart_chip import (
+    MAX_EMBEDS,
+    MAX_REFS,
+    ReferenceEmbed,
+    SmartChipState,
+)
 
 
 @dataclass(frozen=True)
@@ -567,7 +572,7 @@ async def read_embeds(
     """
     wanted: dict[SearchEntityType, set[int]] = {}
     parsed: list[tuple[str, SearchEntityType, int]] = []
-    for ref in dict.fromkeys(refs[:MAX_REFS]):
+    for ref in dict.fromkeys(refs[:MAX_EMBEDS]):
         named = parse_bare_ref(ref)
         if named is None:
             continue

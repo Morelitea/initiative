@@ -24,7 +24,7 @@ const POLL_MS = 60_000;
  * page costs follows what is actually written in it. Every real document fits
  * in the first.
  */
-export const REFS_PER_REQUEST = 100;
+export const REFS_PER_REQUEST = 500;
 
 /** The cache key of one batch of chips; prefix it with the community alone to
  *  refresh every chip in it. */

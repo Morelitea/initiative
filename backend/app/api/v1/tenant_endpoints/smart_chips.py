@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends
 from app.api.deps import RLSSessionDep, get_current_active_user, GuildContextDep
 from app.models.platform.user import User
 from app.schemas.tenant.smart_chip import (
+    EmbedRead,
     ReferenceEmbedList,
     ReferenceRead,
     SmartChipStateList,
@@ -47,7 +48,7 @@ async def read_smart_chips(
 
 @router.post("/embeds", response_model=ReferenceEmbedList)
 async def read_reference_embeds(
-    body: ReferenceRead,
+    body: EmbedRead,
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     _guild_context: GuildContextDep,

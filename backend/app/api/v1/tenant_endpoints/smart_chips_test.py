@@ -20,7 +20,7 @@ from sqlmodel import select
 from app.models.tenant.task import TaskPriority, TaskStatus, TaskStatusCategory
 from app.core.references import NOT_REFERENCEABLE, REFERENCEABLE_TYPES
 from app.db.reference_targets import referenceable_types
-from app.schemas.tenant.smart_chip import MAX_REFS
+from app.schemas.tenant.smart_chip import MAX_EMBEDS, MAX_REFS
 from app.services.tenant.smart_chips import SMART_CHIP_SOURCES
 from app.testing import (
     create_resource_grant,
@@ -677,6 +677,13 @@ async def test_the_ceiling_is_refused_rather_than_quietly_trimmed(
     over = [*at_the_line, f"task:{9999}:status"]
     response = await client.post(
         a.g("/smart-chips/"), headers=a.headers, json={"refs": over}
+    )
+    assert response.status_code == 422
+
+    # An embed answers with a whole body, so its ceiling is its own.
+    embeds = [f"task:{task.id + i}" for i in range(MAX_EMBEDS + 1)]
+    response = await client.post(
+        a.g("/smart-chips/embeds"), headers=a.headers, json={"refs": embeds}
     )
     assert response.status_code == 422
 
