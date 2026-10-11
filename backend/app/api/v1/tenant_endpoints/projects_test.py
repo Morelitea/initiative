@@ -1562,8 +1562,11 @@ async def test_duplicating_a_project_copies_its_layouts(
     review = await create_task_status(session, a.project, name="Review")
     url = a.g("/layouts/")
     source = {"tool": "project", "tool_id": a.project.id}
-    in_review = {"name": "In review", "slug": "in-review"}
-    in_review["filters"] = {"status_ids": [review.id]}
+    in_review = {
+        "name": "In review",
+        "slug": "in-review",
+        "filters": {"status_ids": [review.id]},
+    }
     columns = {
         "kind": "table",
         "definition": {"columns": ["title", "dueDate"], "presets": [in_review]},

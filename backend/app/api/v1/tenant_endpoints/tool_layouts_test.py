@@ -454,8 +454,11 @@ async def test_a_list_offers_the_presets_it_keeps(client: AsyncClient, acting_us
     )
     url = a.g("/layouts/")
     mine = _preset(filters={"assignees": ["me"]}, sort=[_SORT])
-    unassigned = _preset("unassigned", name="Unassigned")
-    unassigned["filters"] = {"assignees": ["none"], "due": "overdue"}
+    unassigned = _preset(
+        "unassigned",
+        name="Unassigned",
+        filters={"assignees": ["none"], "due": "overdue"},
+    )
 
     for definition in ({"presets": [mine, unassigned]}, {"presets": []}):
         saved = await client.put(
