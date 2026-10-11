@@ -626,7 +626,6 @@ async def open_case(
             session,
             task=task,
             stream=stream,
-            project_name=project.name,
             filer_id=filer.user_id if filer is not None else None,
         )
         with evidence_service.Sealing(guild_id) as sealing:

@@ -566,6 +566,98 @@ async def test_taking_a_case_assigns_you_and_puts_it_to_work(
     assert len(response.json()["assignees"]) == 2
 
 
+async def test_two_people_taking_a_case_at_once_are_both_assigned(
+    session, acting_user, desk, monkeypatch
+):
+    """Each on a session of their own, as two requests would be. The second
+    asks while the first has taken it and not yet committed; it must read who
+    has the case only once the first is done, or it writes the first out."""
+    import asyncio
+
+    from sqlalchemy.orm import selectinload
+
+    from app.services.platform.grant_cases import _as_reader
+    from app.services.tenant import cases as cases_service
+    from app.services.tenant import task_creation
+
+    sharer = await _colleague(session, acting_user, desk, shared=True)
+    filer = await acting_user("member")
+    task_id = await _file(filer.user)
+    taken = asyncio.Event()
+    committed = asyncio.Event()
+    replace = task_creation.set_task_assignees
+
+    async def after_the_first(own, task, assignee_ids, **kwargs):
+        # The second writes only after the first has committed, so a stale
+        # read of who had it would replace them.
+        if desk["staff"].user.id in assignee_ids:
+            await committed.wait()
+        return await replace(own, task, assignee_ids, **kwargs)
+
+    monkeypatch.setattr(task_creation, "set_task_assignees", after_the_first)
+
+    async def take(user, *, first: bool) -> None:
+        own, _guild_id = await _as_reader(user)
+        assert own is not None
+        try:
+            task = (
+                await own.exec(
+                    select(Task)
+                    .where(Task.id == task_id)
+                    .options(selectinload(Task.project))
+                )
+            ).one()
+            if not first:
+                await taken.wait()
+            await cases_service.take(own, task, user.id)
+            if first:
+                taken.set()
+                # Long enough for the second to ask.
+                await asyncio.sleep(0.3)
+            await own.commit()
+            if first:
+                committed.set()
+        finally:
+            await own.close()
+
+    await asyncio.gather(
+        take(sharer.user, first=True), take(desk["staff"].user, first=False)
+    )
+
+    await set_rls_context(session, SystemGuild(desk["guild_id"]))
+    held = set(
+        (
+            await session.exec(
+                select(TaskAssignee.user_id).where(TaskAssignee.task_id == task_id)
+            )
+        ).all()
+    )
+    await set_rls_context(session, Unattributed())
+    assert held == {sharer.user.id, desk["staff"].user.id}
+
+
+async def test_what_leaves_the_app_names_no_case(session, acting_user, desk):
+    """The email and the push say a case opened, never which: its title is
+    read in the app, by whoever can still read it then."""
+    filer = await acting_user("member")
+    await _file(filer.user, subject="Secret subject")
+
+    await set_rls_context(session, Unattributed())
+    (row,) = (
+        await session.exec(
+            select(NoticeOutboxItem)
+            .where(NoticeOutboxItem.user_id == desk["staff"].user.id)
+            .where(NoticeOutboxItem.type == NotificationType.case_opened.value)
+        )
+    ).all()
+    leaving = [row.push_title, row.push_body, row.email_subject, row.email_headline]
+    leaving += [row.email_body]
+    assert any(leaving), "nothing would leave the app to check"
+    for text in filter(None, leaving):
+        assert "Staff title" not in text
+        assert "Secret subject" not in text
+
+
 async def test_taking_needs_write_and_a_case(client, session, acting_user, desk):
     outsider = await _colleague(session, acting_user, desk, shared=False)
     filer = await acting_user("member")

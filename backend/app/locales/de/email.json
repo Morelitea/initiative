@@ -484,14 +484,14 @@
   },
   "case": {
     "opened": {
-      "subject": "Neuer Fall: {{title}}",
-      "title": "Ein neuer Fall in {{project}}",
-      "body": "<strong>{{title}}</strong> wurde gerade eröffnet, und noch niemand hat ihn übernommen."
+      "subject": "Ein neuer Fall wurde eröffnet",
+      "title": "Ein neuer Fall wurde eröffnet",
+      "body": "Dort, wo du Fälle bearbeitest, wurde gerade ein Fall eröffnet, und noch niemand hat ihn übernommen. Öffne ihn in Initiative, um ihn zu lesen."
     },
     "replied": {
-      "subject": "{{actor}} hat auf einen Fall geantwortet",
-      "title": "{{actor}} hat auf einen Fall geantwortet, den niemand übernommen hat",
-      "body": "Die Antwort steht bei <strong>{{title}}</strong>. Übernimm den Fall, um zu antworten."
+      "subject": "Eine Antwort auf einen Fall, den niemand übernommen hat",
+      "title": "Eine Antwort auf einen Fall, den niemand übernommen hat",
+      "body": "Wer einen Fall eingereicht hat, hat darauf geantwortet, und noch niemand hat ihn übernommen. Öffne ihn in Initiative, um ihn zu lesen."
     }
   }
 }

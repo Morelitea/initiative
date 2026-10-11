@@ -269,12 +269,12 @@
   },
   "case": {
     "opened": {
-      "title": "Un nouveau dossier dans {{project}}",
-      "body": "{{title}}"
+      "title": "Un nouveau dossier",
+      "body": "Ouvrez Initiative pour le lire."
     },
     "replied": {
       "title": "Une réponse sur un dossier que personne n'a pris",
-      "body": "{{actor}} a répondu sur {{title}}"
+      "body": "Ouvrez Initiative pour la lire."
     }
   }
 }

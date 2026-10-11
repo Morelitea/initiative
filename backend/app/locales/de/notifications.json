@@ -269,12 +269,12 @@
   },
   "case": {
     "opened": {
-      "title": "Ein neuer Fall in {{project}}",
-      "body": "{{title}}"
+      "title": "Ein neuer Fall",
+      "body": "Öffne Initiative, um ihn zu lesen."
     },
     "replied": {
       "title": "Eine Antwort auf einen Fall, den niemand übernommen hat",
-      "body": "{{actor}} hat auf {{title}} geantwortet"
+      "body": "Öffne Initiative, um sie zu lesen."
     }
   }
 }

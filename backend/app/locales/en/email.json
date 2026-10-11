@@ -484,14 +484,14 @@
   },
   "case": {
     "opened": {
-      "subject": "New case: {{title}}",
-      "title": "A new case in {{project}}",
-      "body": "<strong>{{title}}</strong> was just opened, and nobody has taken it yet."
+      "subject": "A new case was opened",
+      "title": "A new case was opened",
+      "body": "A case was just opened where you work cases, and nobody has taken it yet. Open it in Initiative to read it."
     },
     "replied": {
-      "subject": "{{actor}} replied on a case",
-      "title": "{{actor}} replied on a case nobody has taken",
-      "body": "They answered on <strong>{{title}}</strong>. Take the case to answer them."
+      "subject": "A reply on a case nobody has taken",
+      "title": "A reply on a case nobody has taken",
+      "body": "Whoever filed a case answered on it, and nobody has taken it yet. Open it in Initiative to read it."
     }
   }
 }

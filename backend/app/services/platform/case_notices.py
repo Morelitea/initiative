@@ -7,6 +7,10 @@ particular is answering it. A stream kept to an initiative of its own is told
 only to that initiative, since nobody else can read it. Each person can turn
 the ``cases`` category down.
 
+What leaves the app — the email and the push — names no case and nobody in
+it: it says a case opened, or was answered, and the app says which. The bell
+line carries only ids, and reads the title when it is read.
+
 Both ride the caller's transaction, on the session routed into the operations
 community, and never commit. :func:`works_cases` says who can hear them, so
 the settings page offers the category only to them.
@@ -59,7 +63,6 @@ async def opened(
     *,
     task: Task,
     stream: IntakeStream,
-    project_name: str,
     filer_id: Optional[int],
 ) -> None:
     """Tell everyone who can read case ``task`` that it opened. Whoever filed
@@ -75,7 +78,6 @@ async def opened(
         sorted(subject.readers - {filer_id}),
         about=subject,
         key="case.opened",
-        values={"title": task.title, "project": project_name},
         data={
             "task_id": task.id,
             "project_id": task.project_id,
@@ -101,7 +103,6 @@ async def replied(
         sorted(subject.readers),
         about=subject,
         key="case.replied",
-        values={"actor": name, "title": task.title},
         data={
             "comment_id": comment.id,
             "task_id": task.id,

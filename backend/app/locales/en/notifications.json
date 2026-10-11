@@ -269,12 +269,12 @@
   },
   "case": {
     "opened": {
-      "title": "A new case in {{project}}",
-      "body": "{{title}}"
+      "title": "A new case",
+      "body": "Open Initiative to read it."
     },
     "replied": {
       "title": "A reply on a case nobody has taken",
-      "body": "{{actor}} replied on {{title}}"
+      "body": "Open Initiative to read it."
     }
   }
 }
