@@ -723,6 +723,20 @@ class _SignInRequirement(Rule):
         for method in sorted(after.methods & _FACTOR_REQUIREMENTS):
             if not await login_method_allowed(ctx.system, method):
                 raise not_offered(method.value)
+        # The members' rule is met by its writer before it is written, which
+        # shows the community's own single sign-on works. A guests' rule is
+        # not, so the sign-on it asks for has to be offered and connected.
+        if (
+            self.guest
+            and LoginMethod.sso in after.methods
+            and not (
+                await login_method_allowed(ctx.system, LoginMethod.sso)
+                and await guild_connections.connected_providers(
+                    ctx.system, guild_id=ctx.guild_id
+                )
+            )
+        ):
+            raise not_offered(LoginMethod.sso.value)
 
     async def writer_meets(self, ctx: RuleContext, after: Any) -> None:
         from app.core import auth_context
@@ -912,6 +926,11 @@ async def _load(ctx: RuleContext) -> None:
 async def change(ctx: RuleContext, changes: dict[str, Any]) -> None:
     """Write ``changes`` (rule key → new value) as one change, and commit."""
     rules = _rules(ctx)
+    if ctx.guild_id is not None:
+        # Before the rows are read, so two changes to the same community, its
+        # two sign-in halves included, take turns rather than each writing
+        # back what it read.
+        await guilds_service.lock_guild_seats(ctx.session, ctx.guild_id)
     await _load(ctx)
     moved: dict[str, tuple[Any, Any]] = {}
     for key, value in changes.items():

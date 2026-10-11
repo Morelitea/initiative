@@ -167,6 +167,32 @@ async def test_a_guest_is_asked_the_guests_rule_and_a_member_the_members(
     assert await session.get(GuildAuthPolicy, guild_id) is None
 
 
+@pytest.mark.parametrize("connected", [True, False])
+async def test_a_guests_sso_rule_needs_a_connection_to_answer_it(
+    client: AsyncClient, session: AsyncSession, acting_user, connected: bool
+):
+    """Nobody meets a guests' rule before it is written, so asking guests for
+    the community's own single sign-on needs a connection that can answer."""
+    seat = await acting_user(guild_role=CommunityRole.superadmin)
+    if connected:
+        provider = await create_auth_provider(session, slug="corp")
+        await create_guild_provider_connection(
+            session, guild=seat.guild, provider=provider
+        )
+
+    response = await client.patch(
+        _settings(seat.guild.id),
+        headers=seat.headers,
+        json={"guest_auth_policy": {"policy": "required", "require_methods": ["sso"]}},
+    )
+
+    if connected:
+        assert response.status_code == 200, response.text
+    else:
+        assert response.status_code == 409, response.text
+        assert response.json()["detail"] == "AUTH_RULE_NOT_OFFERED"
+
+
 async def test_non_admin_cannot_manage_policy(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
