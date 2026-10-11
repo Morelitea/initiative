@@ -138,7 +138,8 @@ export const keptView = <F>(
 ): { view: StoredListView } => {
   const raw = items?.[spec.key];
   if (raw != null) return { view: sanitizeListView(raw) };
-  return { view: sanitizeListView(items ? (spec.carryOver?.(items) ?? null) : null) };
+  // Device carry-overs read with or without a map to read from.
+  return { view: sanitizeListView(spec.carryOver?.(items ?? {}) ?? null) };
 };
 
 /** The empty filters, sort, grouping and columns. */

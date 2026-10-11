@@ -6,7 +6,7 @@
  */
 
 import { Link } from "@tanstack/react-router";
-import type { SortingState } from "@tanstack/react-table";
+import type { ColumnVisibilityState, SortingState } from "@tanstack/react-table";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -21,7 +21,6 @@ import { DataTable } from "@/components/ui/data-table";
 import { RelativeTime } from "@/components/ui/relative-time";
 import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import type { GridToggleOptions } from "@/hooks/useGridSelection";
-import { usePersistedColumnVisibility } from "@/hooks/usePersistedColumnVisibility";
 import { useProperties } from "@/hooks/useProperties";
 import { useUnreadTree } from "@/hooks/useUnreadTree";
 import { useCommunityPath } from "@/lib/communityUrl";
@@ -32,6 +31,8 @@ import { toolDetailRoute, toolRouteSegment } from "@/lib/tools";
 export const TABLE_SORT_FIELDS: ReadonlySet<string> = new Set(["name", "updated_at"]);
 
 /** Where a tool's table keeps the reader's order and its hidden columns. */
+/** Where an older release kept a tool table's order and columns on the
+ *  device, read once into a person's view of the list. */
 export const toolTableStorageKey = (tool: Tool, what: "order" | "columns") =>
   `initiative-${toolRouteSegment(tool)}-${what}`;
 
@@ -52,6 +53,11 @@ type ToolIndexTableProps = {
   selection: TableSelection;
   sorting: SortingState;
   onSortingChange: (sorting: SortingState) => void;
+  /** The columns this person has shown or hidden, from their view. */
+  columnVisibility: ColumnVisibilityState;
+  onColumnVisibilityChange: (
+    next: ColumnVisibilityState | ((prev: ColumnVisibilityState) => ColumnVisibilityState)
+  ) => void;
 };
 
 export const ToolIndexTable = ({
@@ -62,6 +68,8 @@ export const ToolIndexTable = ({
   selection,
   sorting,
   onSortingChange,
+  columnVisibility: keptColumns,
+  onColumnVisibilityChange: setColumnVisibility,
 }: ToolIndexTableProps) => {
   const { t } = useTranslation("common");
   const columns = useColumns();
@@ -72,9 +80,13 @@ export const ToolIndexTable = ({
   const { data: definitions = [] } = useProperties({ initiativeId });
   // Property columns start hidden; the column menu turns them on.
   const hiddenByDefault = useMemo(() => propertyColumnIds(definitions), [definitions]);
-  const [columnVisibility, setColumnVisibility] = usePersistedColumnVisibility(
-    toolTableStorageKey(tool, "columns"),
-    hiddenByDefault
+  // A property column nobody chose about starts hidden.
+  const columnVisibility = useMemo(
+    () => ({
+      ...Object.fromEntries(hiddenByDefault.map((id) => [id, false])),
+      ...keptColumns,
+    }),
+    [hiddenByDefault, keptColumns]
   );
 
   // The selection object is rebuilt every render; the columns depend on its
