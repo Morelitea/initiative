@@ -80,6 +80,7 @@ from app.services import email as email_service
 from app.services import permissions as permissions_service
 from app.services.tenant.named_people import roster_session
 from app.services.cross_guild import gather_across_guilds, member_guild_ids
+from app.services.membership import live_membership_clause
 from app.services.guild_sweeps import Scan, Scope
 from app.services.platform import accounts as accounts_service
 from app.services.platform import (
@@ -290,13 +291,14 @@ async def resolve_subject(session: AsyncSession, ref: Ref) -> Subject | None:
     if row is None:
         return None
     guild_id = routed_guild_id(session)
-    async with roster_session(session) as reader:
+    async with roster_session(session, whole=True) as reader:
         admins = set(
             (
                 await reader.exec(
                     select(GuildMembership.user_id).where(
                         GuildMembership.guild_id == guild_id,
                         GuildMembership.role.in_(GUILD_ADMIN_ROLES),  # type: ignore[attr-defined]
+                        live_membership_clause(),
                     )
                 )
             ).scalars()
