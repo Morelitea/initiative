@@ -9,14 +9,18 @@ import { useTranslation } from "react-i18next";
 import type { SearchEntityType } from "@/api/generated/initiativeAPI.schemas";
 import { TaskDescription } from "@/components/tasks/TaskDescription";
 import { Button } from "@/components/ui/button";
+import { EmbedSettingsButton } from "@/components/ui/editor/nodes/embed-settings-button";
 import {
   $isReferenceEmbedNode,
   $showAsLink,
 } from "@/components/ui/editor/nodes/reference-embed-node";
+import { SmartChip } from "@/components/ui/editor/nodes/smart-chip";
+import { TaskQueryEmbed } from "@/components/ui/editor/nodes/task-query-embed";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useReferenceEmbed } from "@/hooks/useSmartChips";
 import { communityPath } from "@/lib/communityUrl";
+import type { EmbedDisplay, TaskQuery } from "@/lib/embeds";
 import { entityRefTypeFor } from "@/lib/entityResolver";
 import { hasBody } from "@/lib/posts";
 import { hitIcon } from "@/lib/searchResults";
@@ -66,7 +70,26 @@ interface ReferenceEmbedProps {
   fallback: string;
   /** Folded to its name, as the page saved it. */
   collapsed: boolean;
+  display: EmbedDisplay;
+  /** The tasks it shows, for an embed of a filter. */
+  query: TaskQuery | null;
   nodeKey: NodeKey;
+}
+
+/** What an embed draws: the tasks a filter matches, or one thing. */
+export function ReferenceEmbed(props: ReferenceEmbedProps) {
+  if (props.query) {
+    return (
+      <TaskQueryEmbed
+        query={props.query}
+        display={props.display}
+        label={props.fallback}
+        collapsed={props.collapsed}
+        nodeKey={props.nodeKey}
+      />
+    );
+  }
+  return <ItemEmbed {...props} />;
 }
 
 /**
@@ -77,12 +100,16 @@ interface ReferenceEmbedProps {
  * A thing that cannot be read — deleted, or never shared with this reader —
  * keeps the name it had, dimmed, and says so; the two look the same on
  * purpose, as they do for a link.
+ *
+ * Shown as `fields`, it is the facts about the thing chosen for this page —
+ * its status, who has it, when it is due — as live chips under its name.
  */
-export function ReferenceEmbed({
+function ItemEmbed({
   entityType,
   entityId,
   fallback,
   collapsed,
+  display,
   nodeKey,
 }: ReferenceEmbedProps) {
   const { t } = useTranslation(["editor", "search"]);
@@ -107,8 +134,11 @@ export function ReferenceEmbed({
     tool_id: null,
   });
 
-  const showBody = Boolean(embed?.body && hasBody(embed.body) && depth < MAX_BODY_DEPTH);
-  const foldable = showBody || Boolean(embed?.description);
+  const facts = display.mode === "fields" ? (display.fields ?? []) : [];
+  const showBody =
+    facts.length === 0 && Boolean(embed?.body && hasBody(embed.body) && depth < MAX_BODY_DEPTH);
+  const showDescription = facts.length === 0 && Boolean(embed?.description);
+  const foldable = facts.length > 0 || showBody || showDescription;
 
   const toggleFolded = () => {
     if (!editable) {
@@ -153,6 +183,7 @@ export function ReferenceEmbed({
           <span className="shrink-0 pt-0.5 text-muted-foreground text-xs">
             {t(`search:types.${entityType}` as never)}
           </span>
+          {editable ? <EmbedSettingsButton nodeKey={nodeKey} /> : null}
           {editable ? (
             <Button
               type="button"
@@ -181,9 +212,15 @@ export function ReferenceEmbed({
             </Button>
           ) : null}
         </div>
-        {folded && foldable ? null : showBody && embed?.body ? (
+        {folded && foldable ? null : facts.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-1">
+            {facts.map((kind) => (
+              <SmartChip key={kind} chipKind={kind} entityId={entityId} fallback="" />
+            ))}
+          </div>
+        ) : showBody && embed?.body ? (
           <EmbeddedBody body={embed.body} />
-        ) : embed?.description ? (
+        ) : showDescription && embed?.description ? (
           <TaskDescription content={embed.description} />
         ) : isFetched && !embed ? (
           <p className="text-muted-foreground text-sm">{t("references.unavailable")}</p>

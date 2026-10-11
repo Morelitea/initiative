@@ -133,7 +133,34 @@
     "showAsEmbed": "Afficher en entier",
     "showAsLink": "Afficher comme lien",
     "expand": "Déplier",
-    "collapse": "Replier"
+    "collapse": "Replier",
+    "settings": "Paramètres de l’intégration",
+    "showAs": "Afficher comme",
+    "change": "Changer",
+    "source": {
+      "item": "Un élément",
+      "tasks": "Tâches correspondant à un filtre"
+    },
+    "modes": {
+      "card": "Carte",
+      "fields": "Détails choisis",
+      "list": "Liste",
+      "table": "Tableau",
+      "count": "Nombre"
+    },
+    "tasks": {
+      "untitled": "Tâches",
+      "total_one": "{{count}} tâche",
+      "total_other": "{{count}} tâches",
+      "none": "Aucune tâche ne correspond.",
+      "previous": "Précédent",
+      "next": "Suivant",
+      "page": "Page {{page}} sur {{pages}}",
+      "label": "Libellé",
+      "labelPlaceholder": "Tâches ouvertes du lancement",
+      "from": "Depuis",
+      "wholeInitiative": "Tous les projets de cette initiative"
+    }
   },
   "outline": {
     "title": "Sommaire",

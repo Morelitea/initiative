@@ -133,7 +133,34 @@
     "showAsEmbed": "Vollständig anzeigen",
     "showAsLink": "Als Link anzeigen",
     "expand": "Aufklappen",
-    "collapse": "Zuklappen"
+    "collapse": "Zuklappen",
+    "settings": "Einbettungseinstellungen",
+    "showAs": "Anzeigen als",
+    "change": "Ändern",
+    "source": {
+      "item": "Ein Element",
+      "tasks": "Aufgaben, die einem Filter entsprechen"
+    },
+    "modes": {
+      "card": "Karte",
+      "fields": "Ausgewählte Details",
+      "list": "Liste",
+      "table": "Tabelle",
+      "count": "Anzahl"
+    },
+    "tasks": {
+      "untitled": "Aufgaben",
+      "total_one": "{{count}} Aufgabe",
+      "total_other": "{{count}} Aufgaben",
+      "none": "Keine Aufgaben entsprechen dem Filter.",
+      "previous": "Zurück",
+      "next": "Weiter",
+      "page": "Seite {{page}} von {{pages}}",
+      "label": "Bezeichnung",
+      "labelPlaceholder": "Offene Aufgaben für den Start",
+      "from": "Aus",
+      "wholeInitiative": "Allen Projekten dieser Initiative"
+    }
   },
   "outline": {
     "title": "Inhalt",
