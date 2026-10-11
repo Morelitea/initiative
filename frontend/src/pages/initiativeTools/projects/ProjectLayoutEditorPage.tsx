@@ -11,7 +11,7 @@ import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { useMemo } from "react";
 
 import { Tool } from "@/api/generated/initiativeAPI.schemas";
-import { taskDetail } from "@/components/layouts/details";
+import { taskDetail, taskPresets } from "@/components/layouts/details";
 import { LayoutEditor } from "@/components/layouts/LayoutEditor";
 import { ToolSettingsPermissionRequired } from "@/components/tools/settings/ToolSettingsGuard";
 import { useProject, useProjectTaskStatuses } from "@/hooks/useProjects";
@@ -38,8 +38,9 @@ export const ProjectLayoutEditorPage = () => {
     [project, statuses]
   );
   const details = useMemo(() => (editing ? [taskDetail(editing)] : []), [editing]);
+  const presets = useMemo(() => (editing ? taskPresets(editing) : null), [editing]);
 
-  if (!project || !editing || !set) return null;
+  if (!project || !editing || !set || !presets) return null;
   if (!set.can_configure) return <ToolSettingsPermissionRequired />;
   return (
     <LayoutEditor
@@ -49,6 +50,7 @@ export const ProjectLayoutEditorPage = () => {
       target={projectTarget(project.id)}
       initiativeId={project.initiative_id}
       project={editing}
+      presets={presets}
       details={details}
       set={set}
       initialKind={layout}

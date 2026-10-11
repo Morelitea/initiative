@@ -30,6 +30,7 @@ import type { TranslateFn } from "@/types/i18n";
 
 import type { EditableDetail } from "./details";
 import type { LayoutEdits } from "./LayoutEditor";
+import { type EditablePresets, LayoutPresets } from "./LayoutPresets";
 
 /**
  * The settings of the one thing selected, and only those: the list layout's
@@ -39,6 +40,8 @@ import type { LayoutEdits } from "./LayoutEditor";
  */
 export const ListLayoutSettings = ({
   layout,
+  presets,
+  help,
   opensFirst,
   stored,
   fields,
@@ -47,8 +50,11 @@ export const ListLayoutSettings = ({
   locked,
 }: {
   layout: ListLayout;
-  /** Whether the project opens on it. */
-  opensFirst: boolean;
+  presets: EditablePresets;
+  /** What the list is, as a key in `projects`. */
+  help: string;
+  /** Whether the target opens on it; left out where it has no other list. */
+  opensFirst?: boolean;
   /** Whether the project changed it, as against drawing it as shipped. */
   stored: boolean;
   fields: ReadonlyMap<string, FieldDef>;
@@ -64,22 +70,23 @@ export const ListLayoutSettings = ({
     <fieldset disabled={locked} className="min-w-0">
       {selection.kind === "layout" ? (
         <Panel heading={translate(listLayoutLooks[layout.kind].labelKey)}>
-          <p className="text-muted-foreground text-sm">
-            {translate(`layoutEditor.listHelp.${layout.kind}`)}
-          </p>
-          <div className="flex items-center justify-between gap-2">
-            <Label htmlFor="layout-default">{translate("layoutEditor.opensFirst")}</Label>
-            <Switch
-              id="layout-default"
-              checked={opensFirst}
-              // The project always opens on one list: choosing another is how
-              // this one stops being it.
-              disabled={opensFirst}
-              onCheckedChange={(checked) => {
-                if (checked) edits.makeDefault();
-              }}
-            />
-          </div>
+          <p className="text-muted-foreground text-sm">{translate(help)}</p>
+          {opensFirst !== undefined ? (
+            <div className="flex items-center justify-between gap-2">
+              <Label htmlFor="layout-default">{translate("layoutEditor.opensFirst")}</Label>
+              <Switch
+                id="layout-default"
+                checked={opensFirst}
+                // The project always opens on one list: choosing another is how
+                // this one stops being it.
+                disabled={opensFirst}
+                onCheckedChange={(checked) => {
+                  if (checked) edits.makeDefault();
+                }}
+              />
+            </div>
+          ) : null}
+          <LayoutPresets layout={layout} of={presets} fields={fields} edits={edits} />
           <Shipped stored={stored} edits={edits} />
         </Panel>
       ) : selection.kind === "column" ? (

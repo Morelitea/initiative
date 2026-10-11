@@ -26,15 +26,18 @@ import type {
   ToolLayoutSetRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import { calendarTarget, projectTarget, useToolLayouts } from "@/hooks/useToolLayouts";
+import { MAX_PRESETS } from "@/lib/layouts/presets";
 import type { LayoutNode } from "@/lib/layouts/tree";
 
-import { eventDetail, taskDetail } from "./details";
+import { calendarPresets, eventDetail, taskDetail, taskPresets } from "./details";
 import { LayoutEditor } from "./LayoutEditor";
 
 const STATUSES = buildDefaultTaskStatuses(1);
 const PROJECT = { id: 1, initiativeId: 1, statuses: STATUSES };
 const PROJECT_DETAILS = [taskDetail(PROJECT)];
 const CALENDAR_DETAILS = [eventDetail(1)];
+const PROJECT_PRESETS = taskPresets(PROJECT);
+const CALENDAR_PRESETS = calendarPresets(1);
 
 type Write = ListLayoutWrite | DetailLayoutWrite;
 
@@ -61,6 +64,7 @@ const editor = (kind: string, onClose = vi.fn(), set = buildToolLayoutSet(), cal
         initiativeId={1}
         project={calendar ? undefined : PROJECT}
         details={calendar ? CALENDAR_DETAILS : PROJECT_DETAILS}
+        presets={calendar ? CALENDAR_PRESETS : PROJECT_PRESETS}
         set={read}
         initialKind={kind}
         onClose={onClose}
@@ -260,6 +264,88 @@ describe("LayoutEditor", () => {
     await user.click(screen.getByRole("button", { name: /^save$/i }));
 
     await waitFor(() => expect(sent).toEqual([{ opensOn: "board" }]));
+  });
+
+  it("adds a preset to the open list beside the shipped ones, sorted as chosen", async () => {
+    const { user } = editor("table");
+    await outline();
+
+    await user.click(screen.getByRole("button", { name: /add preset/i }));
+    const dialog = await screen.findByRole("dialog", { name: /add a preset/i });
+    await user.type(within(dialog).getByLabelText(/^name$/i), "Overdue first");
+    await user.click(within(dialog).getByRole("combobox", { name: /sort by/i }));
+    await user.click(await screen.findByRole("option", { name: /due date/i }));
+    await user.click(within(dialog).getByRole("switch", { name: /descending/i }));
+    await user.click(within(dialog).getByRole("button", { name: /^done$/i }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    await waitFor(() => expect(saved("table")).toBeDefined());
+    const presets = saved("table")?.presets as Record<string, unknown>[];
+    // The shipped ones are kept by slug alone, so each reader still reads
+    // their names in their own words.
+    expect(presets.map((preset) => [preset.slug, preset.name])).toEqual([
+      ["incomplete", undefined],
+      ["unassigned", undefined],
+      ["mine", undefined],
+      ["overdue-first", "Overdue first"],
+    ]);
+    expect(presets[3].sort).toEqual([{ field: "due_date", dir: "desc" }]);
+  });
+
+  it("adds no preset past the most a list may offer", async () => {
+    const presets = Array.from({ length: MAX_PRESETS }, (_, index) => ({
+      name: `Preset ${index}`,
+      slug: `preset-${index}`,
+    }));
+    editor(
+      "table",
+      vi.fn(),
+      buildToolLayoutSet({
+        layouts: [
+          {
+            kind: "table",
+            is_default: true,
+            definition: { presets },
+            updated_at: "2026-10-01T12:00:00.000Z",
+          },
+        ],
+      })
+    );
+    await outline();
+
+    expect(screen.getByRole("button", { name: /add preset/i })).toBeDisabled();
+    expect(screen.getByText(/at most 20 presets/i)).toBeInTheDocument();
+  });
+
+  it("takes a preset off the open list and keeps the rest in order", async () => {
+    const { user } = editor("board");
+    await outline();
+
+    await user.click(screen.getByRole("button", { name: /move mine up/i }));
+    await user.click(screen.getByRole("button", { name: /remove incomplete/i }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    await waitFor(() => expect(saved("board")).toBeDefined());
+    const presets = saved("board")?.presets as { slug: string }[] | undefined;
+    expect(presets?.map((preset) => preset.slug)).toEqual(["mine", "unassigned"]);
+  });
+
+  it("offers presets on the calendar's list, with the calendar's own filters", async () => {
+    const { user } = editor("calendar", vi.fn(), buildToolLayoutSet({ tool: "calendar" }), true);
+
+    await user.click(await screen.findByRole("button", { name: /add preset/i }));
+    const dialog = await screen.findByRole("dialog", { name: /add a preset/i });
+    await user.type(within(dialog).getByLabelText(/^name$/i), "Urgent");
+    // Its filters are the calendar's: no assignees, and no sort.
+    expect(within(dialog).queryByRole("combobox", { name: /assignee/i })).toBeNull();
+    expect(within(dialog).queryByRole("combobox", { name: /sort by/i })).toBeNull();
+    await user.click(within(dialog).getByRole("button", { name: /^done$/i }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    await waitFor(() => expect(saved("calendar")).toBeDefined());
+    expect(saved("calendar")?.presets).toEqual([
+      expect.objectContaining({ name: "Urgent", slug: "urgent", sort: [] }),
+    ]);
   });
 
   it("asks before leaving with changes, and leaves at once without", async () => {

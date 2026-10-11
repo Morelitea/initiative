@@ -3,6 +3,8 @@
  * previously copy-pasted across route files.
  */
 
+import { parsePreset } from "@/lib/filters/layoutSearch";
+
 /** Search shape for routes whose only param is a page number. Keep the key
  * OPTIONAL — a required-but-undefined key would force `search` onto every
  * navigation targeting the route. */
@@ -32,10 +34,13 @@ export function validateInitiativeToolSearch(search: Record<string, unknown>): {
   create?: string;
   page?: number;
   status?: string;
+  preset?: string;
 } {
   return {
     create: typeof search.create === "string" ? search.create : undefined,
     page: validatePage(search.page),
     status: typeof search.status === "string" ? search.status : undefined,
+    // A preset of the tool's list to start from, while nothing else is changed.
+    preset: parsePreset(search.preset),
   };
 }

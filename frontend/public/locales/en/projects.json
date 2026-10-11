@@ -428,6 +428,31 @@
         "actions": "What else can be done with the event: report, duplicate, detach and delete.",
         "relations": "What the event is linked to."
       }
-    }
+    },
+    "presets": {
+      "heading": "Presets",
+      "help": "Filters, and on a table a sort, that anyone can pick from the layout menu to start from. Picking one makes them that person's own.",
+      "none": "This layout offers no presets.",
+      "add": "Add preset",
+      "edit": "Edit {{name}}",
+      "moveUp": "Move {{name}} up",
+      "moveDown": "Move {{name}} down",
+      "remove": "Remove {{name}}",
+      "addTitle": "Add a preset",
+      "editTitle": "Edit preset",
+      "dialogHelp": "Picking it applies these filters and this sort as the person's own, and they can narrow them further.",
+      "name": "Name",
+      "sortBy": "Sort by",
+      "noSort": "No sort of its own",
+      "descending": "Descending",
+      "full": "A layout offers at most {{count}} presets. Remove one to add another."
+    },
+    "calendarListHelp": "How the initiative's calendar lists its events and tasks. Its presets are where people can start from."
+  },
+  "presets": {
+    "label": "Presets",
+    "incomplete": "Incomplete",
+    "unassigned": "Unassigned",
+    "mine": "Mine"
   }
 }

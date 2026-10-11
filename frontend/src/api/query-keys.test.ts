@@ -50,8 +50,8 @@ describe("query-keys community scoping", () => {
     expect(meAggregate()).toBe(true);
   });
 
-  it("refreshes an initiative's list of views with its projects, and not with files", async () => {
-    const key = ["/api/v1/c/5/views/initiative", { initiative_id: 2 }];
+  it("refreshes an initiative's list of layouts with its projects, and not with files", async () => {
+    const key = ["/api/v1/c/5/layouts/initiative", { initiative_id: 2 }];
     const listed = seed(key);
 
     setInvalidationCommunity(5);

@@ -428,6 +428,31 @@
         "actions": "Was sonst mit dem Termin möglich ist: melden, duplizieren, lösen und löschen.",
         "relations": "Womit der Termin verknüpft ist."
       }
-    }
+    },
+    "presets": {
+      "heading": "Vorlagen",
+      "help": "Filter und bei einer Tabelle eine Sortierung, die alle im Layout-Menü als Ausgangspunkt wählen können. Wer eine wählt, übernimmt sie als eigene.",
+      "none": "Dieses Layout bietet keine Vorlagen.",
+      "add": "Vorlage hinzufügen",
+      "edit": "{{name}} bearbeiten",
+      "moveUp": "{{name}} nach oben",
+      "moveDown": "{{name}} nach unten",
+      "remove": "{{name}} entfernen",
+      "addTitle": "Vorlage hinzufügen",
+      "editTitle": "Vorlage bearbeiten",
+      "dialogHelp": "Wer sie wählt, übernimmt diese Filter und diese Sortierung als eigene und kann sie weiter eingrenzen.",
+      "name": "Name",
+      "sortBy": "Sortieren nach",
+      "noSort": "Keine eigene Sortierung",
+      "descending": "Absteigend",
+      "full": "Ein Layout bietet höchstens {{count}} Vorlagen. Entfernen Sie eine, um eine weitere hinzuzufügen."
+    },
+    "calendarListHelp": "Wie der Kalender der Initiative seine Termine und Aufgaben zeigt. Seine Vorlagen sind Ausgangspunkte für alle."
+  },
+  "presets": {
+    "label": "Vorlagen",
+    "incomplete": "Unerledigt",
+    "unassigned": "Nicht zugewiesen",
+    "mine": "Meine"
   }
 }

@@ -133,6 +133,9 @@ const pickLayout = async (user: ReturnType<typeof userEvent.setup>, name: string
 const urlLayout = (router: ReturnType<typeof section>["router"]) =>
   (router.state.location.search as { layout?: string }).layout;
 
+const urlPreset = (router: ReturnType<typeof section>["router"]) =>
+  (router.state.location.search as { preset?: string }).preset;
+
 beforeEach(() => {
   captureTaskRequests();
 });
@@ -150,10 +153,14 @@ describe("ProjectTasksSection layouts", () => {
 
     await waitFor(async () => expect(await layoutSwitcher()).toHaveTextContent("Board"));
     await user.click(await layoutSwitcher());
+    // Then the presets the layout shown offers, as shipped.
     expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
       "Table",
       "Board",
       "Calendar",
+      "Incomplete",
+      "Unassigned",
+      "Mine",
     ]);
   });
 
@@ -231,6 +238,111 @@ describe("ProjectTasksSection layouts", () => {
 
     await waitFor(async () => expect(await layoutSwitcher()).toHaveTextContent("Table"));
     await waitFor(() => expect(taskRequests).toBe(1));
+  });
+});
+
+describe("ProjectTasksSection presets", () => {
+  it("applies a preset as this person's own, and names it in the URL", async () => {
+    const writes = captureViewWrites();
+    const { router } = section();
+    const user = userEvent.setup();
+
+    await pickLayout(user, "Unassigned");
+
+    await waitFor(() => expect(urlPreset(router)).toBe("unassigned"));
+    await waitFor(() =>
+      expect(lastConditions).toContainEqual({ field: "assignee_ids", op: "is_null", value: true })
+    );
+    // The layout stays the one shown.
+    expect(await layoutSwitcher()).toHaveTextContent("Table");
+    await waitFor(() =>
+      expect(writes).toContainEqual(
+        expect.objectContaining({
+          layout: "table",
+          filters: { table: expect.objectContaining({ assignees: ["none"] }) },
+        })
+      )
+    );
+  });
+
+  it("opens the preset a link names, and lets go of it once the person narrows it", async () => {
+    const { router } = section({ routerSearch: { layout: "table", preset: "mine" } });
+
+    await waitFor(() =>
+      expect(lastConditions).toContainEqual({ field: "assignee_ids", op: "in_", value: ["me"] })
+    );
+    const user = await openFilters();
+    await toggleAssigneeToken(user, /^Unassigned$/);
+
+    await waitFor(() => expect(urlPreset(router)).toBeUndefined());
+    expect(urlLayout(router)).toBe("table");
+  });
+
+  it("saves a preset picked again after the person changed its filters", async () => {
+    const writes = captureViewWrites();
+    const { router } = section();
+    const user = userEvent.setup();
+    await pickLayout(user, "Unassigned");
+    await waitFor(() => expect(urlPreset(router)).toBe("unassigned"));
+
+    // Their own change lets go of the preset...
+    await user.click(await screen.findByRole("button", { name: /filters/i }));
+    await toggleAssigneeToken(user, /^Assigned to me$/);
+    await waitFor(() => expect(urlPreset(router)).toBeUndefined());
+    writes.length = 0;
+
+    // ...and picking it again makes it theirs again.
+    await pickLayout(user, "Unassigned");
+    await waitFor(() =>
+      expect(writes.at(-1)).toMatchObject({ filters: { table: { assignees: ["none"] } } })
+    );
+  });
+
+  it("offers the layout's own presets, with their sort", async () => {
+    withLayouts({
+      layouts: [
+        {
+          kind: "table",
+          is_default: true,
+          definition: {
+            presets: [
+              {
+                name: "Overdue first",
+                slug: "overdue",
+                filters: { due: "overdue" },
+                sort: [{ field: "due_date", dir: "desc" }],
+              },
+            ],
+          },
+          updated_at: "2026-10-01T12:00:00.000Z",
+        },
+      ],
+    });
+    const writes = captureViewWrites();
+    section();
+    const user = userEvent.setup();
+
+    await user.click(await layoutSwitcher());
+    expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
+      "Table",
+      "Board",
+      "Calendar",
+      "Overdue first",
+    ]);
+    await user.click(screen.getByRole("option", { name: "Overdue first" }));
+
+    await waitFor(() =>
+      expect(writes).toContainEqual(
+        expect.objectContaining({ sorting: { table: [{ id: "due date", desc: true }] } })
+      )
+    );
+  });
+
+  it("drops a preset the layout doesn't offer", async () => {
+    const { router } = section({ routerSearch: { layout: "board", preset: "nowhere" } });
+
+    await waitFor(() => expect(urlLayout(router)).toBe("board"));
+    await waitFor(() => expect(urlPreset(router)).toBeUndefined());
   });
 });
 

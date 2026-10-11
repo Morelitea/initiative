@@ -14,7 +14,7 @@ import {
 import { tasksQuery } from "@/hooks/useTasks";
 import { listLayouts, projectTarget, toolLayoutsQuery } from "@/hooks/useToolLayouts";
 import { VIEW_PREFERENCES_QUERY_KEY } from "@/hooks/useViewPreference";
-import { parseListLayout } from "@/lib/filters/layoutSearch";
+import { parseListLayout, parsePreset } from "@/lib/filters/layoutSearch";
 import { buildTaskListParams } from "@/lib/filters/taskFilters";
 
 export const Route = createFileRoute(
@@ -24,6 +24,8 @@ export const Route = createFileRoute(
     create: typeof search.create === "string" ? search.create : undefined,
     // Which of the project's list layouts it shows, which makes it linkable.
     layout: parseListLayout(search.layout),
+    // A preset of that layout to start from, while nothing else is changed.
+    preset: parsePreset(search.preset),
   }),
   // The prefetch depends on the search params, so the loader has to see them.
   loaderDeps: ({ search }) => search,

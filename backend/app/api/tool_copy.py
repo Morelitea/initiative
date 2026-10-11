@@ -316,6 +316,7 @@ async def _project_contents(
             session,
             tool_layouts_service.Target(Tool.project, source.id, source.initiative_id),
             tool_layouts_service.Target(Tool.project, copy.id, copy.initiative_id),
+            status_mapping=status_mapping,
         )
     return await task_creation.copy_project_tasks(
         session,

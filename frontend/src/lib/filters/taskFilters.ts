@@ -276,14 +276,19 @@ const COLUMN_BY_SORT_FIELD: Record<string, string> = Object.fromEntries(
   Object.entries(SORT_FIELD_BY_COLUMN).map(([columnId, field]) => [field, columnId])
 );
 
+/** The columns a table is sorted by, as the endpoint names them, and nothing
+ *  else: what a preset keeps. */
+export const tableSortFields = (sorting: SortingState): SortField[] =>
+  sorting.flatMap((column): SortField[] => {
+    const field = SORT_FIELD_BY_COLUMN[column.id];
+    return field ? [{ field, dir: column.desc ? "desc" : "asc" }] : [];
+  });
+
 /** A task table's sort as the endpoint's `sorting`. Columns the list cannot
  *  order by are left out, and ties keep the project's own order, as they do
  *  in the table. */
 export function taskSortFields(sorting: SortingState): SortField[] {
-  const fields = sorting.flatMap((column): SortField[] => {
-    const field = SORT_FIELD_BY_COLUMN[column.id];
-    return field ? [{ field, dir: column.desc ? "desc" : "asc" }] : [];
-  });
+  const fields = tableSortFields(sorting);
   // A date group on its own orders nothing within a group.
   if (fields.length === 1 && fields[0].field === "date_group") {
     fields.push({ field: "due_date", dir: fields[0].dir });

@@ -5,7 +5,8 @@ A target is one instance of a tool (a project) or, for a tool the initiative
 shares, the initiative itself (its calendar). It has one layout of each kind
 its tool draws: each way it lists what it holds, and its detail.
 Each is drawn as shipped until it is changed, and stored when it is, on its
-own; so is the list the target opens on.
+own; so is the list the target opens on. A project's lists also hold the
+presets they offer.
 """
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ from datetime import datetime, timezone
 from typing import Any, Iterable, Optional
 
 from fastapi import HTTPException, status
+from pydantic import ValidationError
 from sqlmodel import col, delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -31,6 +33,7 @@ from app.schemas.tenant.tool_layout import (
     MAX_DEPTH,
     MAX_NODES,
     MAX_PLUGIN_PARTS,
+    CalendarFilterSpec,
     CardPart,
     DetailLayoutDefinition,
     DetailLayoutRead,
@@ -44,6 +47,7 @@ from app.schemas.tenant.tool_layout import (
     SectionPart,
     StackPart,
     TaskDetailFieldId,
+    TaskFilterSpec,
     ToolLayoutRead,
     ToolLayoutWrite,
 )
@@ -226,12 +230,33 @@ def check(target: Target, write: ToolLayoutWrite) -> dict[str, Any]:
     else:
         _require(write.kind, LIST_LAYOUTS.get(target.tool, ()))
         assert isinstance(definition, ListLayoutDefinition)
+        _check_presets(target.tool, write.kind, stored.get("presets") or [])
         _within_limits(
             stored,
             [definition.card] if definition.card is not None else [],
             len(definition.columns or ()),
         )
     return stored
+
+
+#: The filters a tool's presets hold: the shape its list filters by.
+PRESET_FILTERS: dict[Tool, type[TaskFilterSpec] | type[CalendarFilterSpec]] = {
+    Tool.project: TaskFilterSpec,
+    Tool.calendar: CalendarFilterSpec,
+}
+
+
+def _check_presets(tool: Tool, kind: str, presets: list[dict[str, Any]]) -> None:
+    """Refuse presets whose filters are not the tool's shape, or a sort on a
+    list other than a table, the one a person sorts by its own."""
+    shape = PRESET_FILTERS.get(tool)
+    for preset in presets:
+        if shape is None or (preset.get("sort") and kind != "table"):
+            raise _bad_request(ToolLayoutMessages.KIND_NOT_ALLOWED)
+        try:
+            shape.model_validate(preset.get("filters", {}))
+        except ValidationError:
+            raise _bad_request(ToolLayoutMessages.KIND_NOT_ALLOWED) from None
 
 
 async def _locked_rows(session: AsyncSession, target: Target) -> list[ToolLayout]:
@@ -292,8 +317,49 @@ async def reset(session: AsyncSession, target: Target, kind: str) -> None:
     await session.flush()
 
 
-async def copy_layouts(session: AsyncSession, source: Target, copy: Target) -> None:
-    """Give ``copy`` what ``source`` stored."""
+def copied_definition(
+    definition: dict[str, Any],
+    status_mapping: dict[int, int],
+    *,
+    same_initiative: bool,
+) -> dict[str, Any]:
+    """``definition`` for a copied project. Status ids are the project's own
+    rows, so a preset's go through the copy's mapping, and one with no
+    counterpart is dropped. Properties are the initiative's, so a copy into
+    another initiative keeps no property filters."""
+    presets = definition.get("presets")
+    if not isinstance(presets, list):
+        return dict(definition)
+
+    def copied(filters: dict[str, Any]) -> dict[str, Any]:
+        statuses = [
+            status_mapping[old]
+            for old in filters.get("status_ids", [])
+            if old in status_mapping
+        ]
+        return {
+            **filters,
+            "status_ids": statuses,
+            **({} if same_initiative else {"properties": []}),
+        }
+
+    return {
+        **definition,
+        "presets": [
+            {**preset, "filters": copied(preset.get("filters", {}))}
+            for preset in presets
+        ],
+    }
+
+
+async def copy_layouts(
+    session: AsyncSession,
+    source: Target,
+    copy: Target,
+    *,
+    status_mapping: dict[int, int],
+) -> None:
+    """Give ``copy`` what ``source`` stored, its presets' statuses its own."""
     for row in await list_rows(session, source):
         session.add(
             ToolLayout(
@@ -301,7 +367,11 @@ async def copy_layouts(session: AsyncSession, source: Target, copy: Target) -> N
                 tool=copy.tool.value,
                 tool_id=copy.tool_id,
                 kind=row.kind,
-                definition=dict(row.definition),
+                definition=copied_definition(
+                    row.definition,
+                    status_mapping,
+                    same_initiative=copy.initiative_id == source.initiative_id,
+                ),
             )
         )
     await session.flush()

@@ -11,7 +11,7 @@ import { useNavigate, useParams } from "@tanstack/react-router";
 import { useMemo } from "react";
 
 import { InitiativeSettingsPermissionRequired } from "@/components/initiatives/settings/InitiativeSettingsGuard";
-import { eventDetail } from "@/components/layouts/details";
+import { calendarPresets, eventDetail } from "@/components/layouts/details";
 import { LayoutEditor } from "@/components/layouts/LayoutEditor";
 import { calendarTarget, useToolLayouts } from "@/hooks/useToolLayouts";
 import { useCommunityPath } from "@/lib/communityUrl";
@@ -27,8 +27,9 @@ export const CalendarLayoutEditorPage = () => {
   const target = useMemo(() => (id === null ? null : calendarTarget(id)), [id]);
   const set = useToolLayouts(target).data;
   const details = useMemo(() => (id === null ? [] : [eventDetail(id)]), [id]);
+  const presets = useMemo(() => (id === null ? null : calendarPresets(id)), [id]);
 
-  if (!set || !target || id === null) return null;
+  if (!set || !target || id === null || !presets) return null;
   if (!set.can_configure) return <InitiativeSettingsPermissionRequired />;
   return (
     <LayoutEditor
@@ -37,6 +38,7 @@ export const CalendarLayoutEditorPage = () => {
       key={id}
       target={target}
       initiativeId={id}
+      presets={presets}
       details={details}
       set={set}
       onClose={() => void navigate({ to: gp(`${initiativeRoute(id)}/settings/layouts`) })}

@@ -1562,6 +1562,42 @@ export interface CalendarEventUpdate {
 }
 
 /**
+ * Comparison operators for filter conditions.
+ *
+ * Negation is handled by the ``negate`` flag on FilterCondition,
+ * not by separate operators.
+ */
+export type FilterOp = (typeof FilterOp)[keyof typeof FilterOp];
+
+export const FilterOp = {
+  eq: "eq",
+  lt: "lt",
+  lte: "lte",
+  gt: "gt",
+  gte: "gte",
+  in_: "in_",
+  ilike: "ilike",
+  is_null: "is_null",
+} as const;
+
+export interface PresetPropertyFilter {
+  property_id: number;
+  op?: FilterOp;
+  value?: unknown;
+}
+
+/**
+ * The filters a preset on the initiative's calendar holds: what its tasks
+ * are, and the properties its events and tasks carry.
+ */
+export interface CalendarFilterSpec {
+  status_categories?: TaskStatusCategory[];
+  priorities?: TaskPriority[];
+  /** @maxItems 5 */
+  properties?: PresetPropertyFilter[];
+}
+
+/**
  * What the caller may do to one of a tool's rows
  * (``permissions.client_access``).
  */
@@ -4063,25 +4099,6 @@ export interface DecorationPackListResponse {
 }
 
 /**
- * Comparison operators for filter conditions.
- *
- * Negation is handled by the ``negate`` flag on FilterCondition,
- * not by separate operators.
- */
-export type FilterOp = (typeof FilterOp)[keyof typeof FilterOp];
-
-export const FilterOp = {
-  eq: "eq",
-  lt: "lt",
-  lte: "lte",
-  gt: "gt",
-  gte: "gte",
-  in_: "in_",
-  ilike: "ilike",
-  is_null: "is_null",
-} as const;
-
-/**
  * One condition a new statement about this dataset starts with.
  *
  * Shaped as the builder's own condition so a client seeds its filter rows
@@ -6037,14 +6054,83 @@ export const TaskColumnFieldId = {
   tags: "tags",
 } as const;
 
+export type TaskFilterSpecDue = (typeof TaskFilterSpecDue)[keyof typeof TaskFilterSpecDue] | null;
+
+export const TaskFilterSpecDue = {
+  overdue: "overdue",
+  today: "today",
+  "7_days": "7_days",
+  "30_days": "30_days",
+} as const;
+
 /**
- * How a list draws its items. What it leaves out is drawn as shipped: a
- * board with no ``card`` draws the shipped card, a table with no ``columns``
- * the shipped columns.
+ * The task filters a preset holds. Unknown keys are refused.
+ */
+export interface TaskFilterSpec {
+  /** @maxItems 50 */
+  status_ids?: number[];
+  status_categories?: TaskStatusCategory[];
+  /** @maxItems 25 */
+  assignees?: string[];
+  /** @maxItems 25 */
+  tag_ids?: number[];
+  /** @maxItems 5 */
+  properties?: PresetPropertyFilter[];
+  due?: TaskFilterSpecDue;
+  include_archived?: boolean;
+}
+
+export type PresetSortField = (typeof PresetSortField)[keyof typeof PresetSortField];
+
+export const PresetSortField = {
+  title: "title",
+  due_date: "due_date",
+  start_date: "start_date",
+  date_group: "date_group",
+  priority: "priority",
+  status_position: "status_position",
+  tag_name: "tag_name",
+} as const;
+
+export type SortDir = (typeof SortDir)[keyof typeof SortDir];
+
+export const SortDir = {
+  asc: "asc",
+  desc: "desc",
+} as const;
+
+export interface PresetSort {
+  field: PresetSortField;
+  dir?: SortDir;
+}
+
+/**
+ * Filters, and for a table a sort, that a person can pick to start from.
+ * Picking one makes them that person's own.
+ */
+export interface LayoutPreset {
+  name?: string | null;
+  /**
+   * @minLength 1
+   * @maxLength 64
+   * @pattern ^[a-z0-9]+(?:-[a-z0-9]+)*$
+   */
+  slug: string;
+  filters?: TaskFilterSpec | CalendarFilterSpec;
+  /** @maxItems 7 */
+  sort?: PresetSort[];
+}
+
+/**
+ * How a list draws its items, and the presets it offers. What it leaves
+ * out is drawn as shipped: a board with no ``card`` draws the shipped card, a
+ * table with no ``columns`` the shipped columns, a list with no ``presets``
+ * the shipped presets.
  */
 export interface ListLayoutDefinitionOutput {
   card?: CardPartOutput | null;
   columns?: (TaskColumnFieldId | string)[] | null;
+  presets?: LayoutPreset[] | null;
 }
 
 /**
@@ -6239,13 +6325,15 @@ export interface LegalIndexRead {
 }
 
 /**
- * How a list draws its items. What it leaves out is drawn as shipped: a
- * board with no ``card`` draws the shipped card, a table with no ``columns``
- * the shipped columns.
+ * How a list draws its items, and the presets it offers. What it leaves
+ * out is drawn as shipped: a board with no ``card`` draws the shipped card, a
+ * table with no ``columns`` the shipped columns, a list with no ``presets``
+ * the shipped presets.
  */
 export interface ListLayoutDefinitionInput {
   card?: CardPartInput | null;
   columns?: (TaskColumnFieldId | string)[] | null;
+  presets?: LayoutPreset[] | null;
 }
 
 export type ListLayoutWriteKind = (typeof ListLayoutWriteKind)[keyof typeof ListLayoutWriteKind];
@@ -10892,13 +10980,6 @@ export interface FilterGroup {
   negate?: boolean;
   conditions: (FilterCondition | FilterGroup)[];
 }
-
-export type SortDir = (typeof SortDir)[keyof typeof SortDir];
-
-export const SortDir = {
-  asc: "asc",
-  desc: "desc",
-} as const;
 
 export interface SortField {
   field: string;
