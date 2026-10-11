@@ -13,9 +13,10 @@ import { buildRouterContext, renderPage } from "@/__tests__/helpers/render";
 
 import { UserSettingsLayout } from "./UserSettingsLayout";
 
-const mocks = vi.hoisted(() => ({ ai: vi.fn() }));
+const mocks = vi.hoisted(() => ({ ai: vi.fn(), privacy: vi.fn() }));
 
 vi.mock("@/hooks/useAISettings", () => ({ useMyAI: () => mocks.ai() }));
+vi.mock("@/hooks/usePrivacySections", () => ({ usePrivacySections: () => mocks.privacy() }));
 
 const connection = (overrides: Record<string, unknown> = {}) => ({
   community_id: 1,
@@ -34,7 +35,10 @@ const connection = (overrides: Record<string, unknown> = {}) => ({
 
 const answerWith = (data: unknown[]) => mocks.ai.mockReturnValue({ data, isError: false });
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  mocks.privacy.mockReturnValue({ any: true });
+});
 
 const render = () => renderPage(UserSettingsLayout, { initialRoute: "/profile" });
 
@@ -75,6 +79,15 @@ describe("the settings tabs", () => {
     render();
 
     expect(await screen.findByRole("tab", { name: "AI" })).toBeInTheDocument();
+  });
+
+  it("leaves out Privacy only when none of its sections has anything to set", async () => {
+    answerWith([connection()]);
+    mocks.privacy.mockReturnValue({ any: false });
+    render();
+
+    await screen.findByRole("tab", { name: "Profile" });
+    expect(screen.queryByRole("tab", { name: /privacy/i })).not.toBeInTheDocument();
   });
 
   it("offers the Privacy tab, and its path resolves to a real route", async () => {

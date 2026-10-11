@@ -106,6 +106,27 @@ async def test_an_item_has_a_level_once_three_people_engaged(
     assert await _levels(session) == {("task", task.id): 2}
 
 
+async def test_somebody_who_asked_not_to_be_counted_is_left_out(
+    client, session: AsyncSession, acting_user
+):
+    """Turned off from their own settings, a person's opens count for nothing,
+    so three opens become two people and no level."""
+    people, task = await _three_people(session, acting_user)
+    await _all_opened(session, people, task)
+    await _pass(people[0].guild.id)
+    assert await _levels(session) == {("task", task.id): 1}
+
+    response = await client.patch(
+        "/api/v1/me",
+        json={"count_toward_engagement_ranking": False},
+        headers=people[2].headers,
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["count_toward_engagement_ranking"] is False
+    await _pass(people[0].guild.id)
+    assert await _levels(session) == {}
+
+
 async def test_an_open_from_search_counts_for_less(session: AsyncSession, acting_user):
     """Search orders by the level, so an open it led to weighs half."""
     (a, b, c), task = await _three_people(session, acting_user)

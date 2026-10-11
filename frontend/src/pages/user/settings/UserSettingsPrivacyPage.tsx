@@ -7,14 +7,28 @@ import { DirectMessagePolicyField } from "@/components/contacts/DirectMessagePol
 import { IgnoredAccountsSection } from "@/components/contacts/IgnoredAccountsSection";
 import { AgeConfirmationForm } from "@/components/contacts/UnreachableEmptyState";
 import { CookieChoicesSection } from "@/components/settings/CookieChoicesSection";
+import { EngagementRankingSection } from "@/components/settings/EngagementRankingSection";
 import { SettingsRow, SettingsSection } from "@/components/settings/SettingsSection";
 import { Switch } from "@/components/ui/switch";
-import {
-  useDirectMessagesEnabled,
-  useDmSettings,
-  useUpdateDmSettings,
-} from "@/hooks/useDirectMessages";
+import { useDmSettings, useUpdateDmSettings } from "@/hooks/useDirectMessages";
+import { usePrivacySections } from "@/hooks/usePrivacySections";
 import { toast } from "@/lib/mascotToast";
+
+/**
+ * What this account keeps to itself: who may reach it, whether its activity
+ * counts toward search ranking, and what this browser allows. Each section
+ * shows where it has something to set (``usePrivacySections``).
+ */
+export const UserSettingsPrivacyPage = () => {
+  const shown = usePrivacySections();
+  return (
+    <div className="space-y-6">
+      {shown.messages && <MessagingSections />}
+      {shown.ranking && <EngagementRankingSection />}
+      {shown.cookies && <CookieChoicesSection />}
+    </div>
+  );
+};
 
 /**
  * Who may reach this account.
@@ -22,13 +36,12 @@ import { toast } from "@/lib/mascotToast";
  * The policy says who may ask; the three lists under it are the standing
  * exceptions to it — connections ask whatever it says, pending requests are
  * asking to become one of those, and ignored accounts are the refusal that
- * outranks all of it. Read top to bottom the tab answers one question.
+ * outranks all of it. Read top to bottom the sections answer one question.
  */
-export const UserSettingsPrivacyPage = () => {
+const MessagingSections = () => {
   const { t } = useTranslation("settings");
   const { data, isLoading } = useDmSettings();
   const updateSettings = useUpdateDmSettings();
-  const dmEnabled = useDirectMessagesEnabled();
 
   // The age question gates everything where the deployment checks age — there
   // is no policy to choose while it is owed.
@@ -40,26 +53,8 @@ export const UserSettingsPrivacyPage = () => {
       { onSuccess: () => toast.success(t("privacy.dm.saved")) }
     );
 
-  // Every section here is about who may message this account, so a deployment
-  // that offers no messaging leaves nothing to set. The tab is already gone;
-  // this is for somebody who arrived by address or had it open when it was
-  // switched off.
-  if (!dmEnabled) {
-    return (
-      <div className="space-y-6">
-        <SettingsSection title={t("privacy.dm.title")}>
-          <p className="max-w-prose text-muted-foreground text-sm">
-            {t("privacy.dm.platformDisabled")}
-          </p>
-        </SettingsSection>
-        {/* Not about messaging, so it outlives messaging being switched off. */}
-        <CookieChoicesSection />
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-6">
+    <>
       <SettingsSection title={t("privacy.dm.title")} description={t("privacy.dm.description")}>
         {/* The age question gates the policy, so it is answered here, where
             the policy is set. */}
@@ -107,8 +102,6 @@ export const UserSettingsPrivacyPage = () => {
       >
         <IgnoredAccountsSection />
       </SettingsSection>
-
-      <CookieChoicesSection />
-    </div>
+    </>
   );
 };

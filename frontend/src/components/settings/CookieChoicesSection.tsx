@@ -4,7 +4,6 @@ import { SettingsSection } from "@/components/settings/SettingsSection";
 import { Button } from "@/components/ui/button";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useConsent } from "@/hooks/useConsent";
-import { useServer } from "@/hooks/useServer";
 import { reopenConsent } from "@/lib/consent";
 
 /**
@@ -14,21 +13,15 @@ import { reopenConsent } from "@/lib/consent";
  * and three pages deep, and taking an answer back has to stay as easy as
  * giving one.
  *
- * It reads this browser, which is what governs what loads here. The answer
+ * Shown where ``usePrivacySections`` says there is something to change. It
+ * reads this browser, which is what governs what loads here. The answer
  * also belongs to the account (see `useConsentSync`), so changing it here
  * reaches the other browsers this account signs in from.
  */
 export const CookieChoicesSection = () => {
   const { t } = useTranslation(["settings", "legal"]);
-  const { isNativePlatform } = useServer();
-  const { cookieCategories, cookieConsentEnabled } = useAppConfig();
+  const { cookieCategories } = useAppConfig();
   const { unanswered, granted } = useConsent();
-
-  // Nothing to change where the deployment uses nothing optional: there is no
-  // answer being held that could be different.
-  if (isNativePlatform || !cookieConsentEnabled || cookieCategories.length === 0) {
-    return null;
-  }
 
   const allowed = cookieCategories.filter((category) => granted.includes(category));
 

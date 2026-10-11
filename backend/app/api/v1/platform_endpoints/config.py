@@ -104,6 +104,11 @@ class AppConfig(BaseModel):
     # shows nothing about guests when false. A database setting like the ones
     # above.
     guests_enabled: bool
+    # Whether this deployment orders search by engagement at all. The SPA
+    # offers a person the switch to leave their own activity out only while
+    # this is on: off, there is nothing for it to leave out of. A database
+    # setting like the ones above.
+    engagement_ranking_enabled: bool
     # Whether an arriving visitor is asked what this deployment may keep in
     # their browser. Off by default, and unauthenticated by necessity -- the
     # question is put to somebody who has not signed in and may never do so. A
@@ -175,6 +180,7 @@ async def get_app_config(session: SessionDep) -> AppConfig:
         community_age_gate_enabled=app_settings.community_age_gate_enabled,
         direct_messages_enabled=app_settings.direct_messages_enabled,
         guests_enabled=app_settings.guests_enabled,
+        engagement_ranking_enabled=app_settings.engagement_ranking_enabled,
         cookie_consent_enabled=app_settings.cookie_consent_enabled,
         light_accent_color=app_settings.light_accent_color,
         dark_accent_color=app_settings.dark_accent_color,

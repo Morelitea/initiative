@@ -285,6 +285,13 @@ class User(SQLModel, table=True):
         default=20,
         sa_column=Column(Integer, nullable=False, server_default="20"),
     )
+    #: Whether what this person opens and changes counts toward the engagement
+    #: levels search orders by (app.services.tenant.engagement_levels). Theirs
+    #: to turn off, and on until they do.
+    count_toward_engagement_ranking: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )
     #: When this account said it belongs to somebody old enough to join a
     #: community the whole deployment can browse. NULL means it never has,
     #: which costs it nothing outside the directory. A timestamp rather than a

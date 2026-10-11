@@ -1852,8 +1852,7 @@
       "communitiesHint": "Toutes comptent par défaut.",
       "ageLocked": "La messagerie est réservée aux personnes de 16 ans et plus. Vous ne nous avez pas dit si c'est votre cas.",
       "confirmAge": "Confirmer mon âge",
-      "saved": "Enregistré.",
-      "platformDisabled": "Cette installation ne propose pas de messages privés : il n'y a donc rien à régler ici. S'ils sont réactivés, votre règle et vos listes reviennent telles quelles."
+      "saved": "Enregistré."
     },
     "receipts": {
       "label": "Indiquer aux autres quand leurs messages vous parviennent",
@@ -1897,6 +1896,13 @@
       "allowed": "Activé dans ce navigateur : {{categories}}.",
       "perBrowser": "Votre réponse suit votre compte : un autre navigateur ou appareil ne repose pas la question. Donnée avant votre connexion, elle reste dans ce navigateur jusque-là.",
       "change": "Modifier"
+    },
+    "engagementRanking": {
+      "title": "Classement de la recherche",
+      "label": "Compter mon activité dans le classement de la recherche",
+      "help": "Activé, les éléments que vous ouvrez et modifiez aident à décider ce que la recherche de vos communautés affiche en premier. Personne ne peut voir ce que vous avez ouvert. Désactivez-le et votre activité cesse de compter dès la prochaine mise à jour horaire.",
+      "saved": "Classement de la recherche enregistré.",
+      "error": "Impossible d'enregistrer votre choix pour le classement de la recherche. Réessayez."
     }
   },
   "twoFactor": {
