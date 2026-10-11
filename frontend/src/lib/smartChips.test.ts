@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   SearchEntityType,
@@ -7,7 +7,7 @@ import {
   type SmartChipState,
   SmartChipTone,
 } from "@/api/generated/initiativeAPI.schemas";
-import { batchedReader } from "@/hooks/useSmartChips";
+import { batchedReader, nextAsk } from "@/hooks/useSmartChips";
 import {
   CHIP_ENTITY_TYPES,
   CHIP_TONE_CLASSES,
@@ -217,5 +217,30 @@ describe("chips asking for themselves", () => {
     await Promise.all([load(1, "task:1"), load(2, "task:1")]);
 
     expect(read.mock.calls.map(([communityId]) => communityId).sort()).toEqual([1, 2]);
+  });
+});
+
+describe("a chip whose reading turns at a set time", () => {
+  const BACKSTOP = 5 * 60_000;
+  const now = new Date("2026-10-10T12:00:00Z");
+  const dated = (iso: string | null) => state({ ref: "task:1:due", date: iso });
+
+  afterEach(() => vi.useRealTimers());
+
+  it("asks again just after that moment, when it comes before the backstop", () => {
+    vi.useFakeTimers({ now });
+    expect(nextAsk(dated("2026-10-10T12:02:00Z"))).toBe(2 * 60_000 + 1_000);
+  });
+
+  it("waits for the backstop when that moment is further off", () => {
+    vi.useFakeTimers({ now });
+    expect(nextAsk(dated("2026-10-11T12:00:00Z"))).toBe(BACKSTOP);
+  });
+
+  it("waits for the backstop once that moment has passed, or where there is none", () => {
+    vi.useFakeTimers({ now });
+    expect(nextAsk(dated("2026-10-10T11:00:00Z"))).toBe(BACKSTOP);
+    expect(nextAsk(dated(null))).toBe(BACKSTOP);
+    expect(nextAsk(undefined)).toBe(BACKSTOP);
   });
 });

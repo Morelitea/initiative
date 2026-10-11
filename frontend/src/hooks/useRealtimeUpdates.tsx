@@ -134,9 +134,14 @@ const CONTAINER_SPECS: Record<string, (id: number, direct: boolean) => Spec[]> =
 /**
  * What a change to one facet of a resource makes stale, by the facet's label in
  * `changed`, where the facet is read at an address of its own rather than under
- * the resource's: a project's views, or an initiative's calendar views.
+ * the resource's: a project's views, or an initiative's calendar views. A
+ * project's columns are read by every chip showing a task's status, and the
+ * change names the project rather than its tasks, so it reaches them all.
  */
-const FACET_SPECS: Record<string, Spec> = { layouts: q.layouts() };
+const FACET_SPECS: Record<string, Spec> = {
+  layouts: q.layouts(),
+  statuses: q.allReferences("task"),
+};
 
 const isRef = (value: unknown): value is ResourceRef => {
   const ref = value as ResourceRef | undefined;

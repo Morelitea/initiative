@@ -111,7 +111,7 @@ const embedKey = (communityId: number, ref: string) =>
 
 /** When a reading turns on its own — a due date passing, an event starting —
  *  the chip asks again at that moment, rather than on a timer. */
-const nextAsk = (state: SmartChipState | null | undefined): number => {
+export const nextAsk = (state: SmartChipState | null | undefined): number => {
   const until = state?.date ? Date.parse(state.date) - Date.now() : Number.NaN;
   return until > 0 && until < BACKSTOP_MS ? until + 1_000 : BACKSTOP_MS;
 };

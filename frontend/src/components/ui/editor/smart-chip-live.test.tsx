@@ -106,50 +106,77 @@ describe("a smart chip in a real document", () => {
     await waitFor(() => expect(screen.getByText("Launch signups")).toBeInTheDocument());
   });
 
+  /** A task's box as the server reads it: done once a save says so. */
+  const serveTheBox = (task: { done: boolean }) =>
+    communityHttp.post("/smart-chips/", () =>
+      HttpResponse.json({
+        items: [
+          {
+            ref: "task:12:checklist",
+            entity_type: "task",
+            aspect: "checklist",
+            text: task.done ? "done" : "",
+            title: "Ship it",
+            tone: task.done ? "good" : "neutral",
+            color: null,
+            date: null,
+            number: null,
+            writable: true,
+          },
+        ],
+      })
+    );
+
+  const clickTheBox = async () => {
+    renderPage(() => (
+      <DocumentUnderTest document={documentWithAChip("task:checklist", 12, "Ship it")} />
+    ));
+    const box = await screen.findByRole("checkbox");
+    await waitFor(() => expect(box).toBeEnabled());
+    await userEvent.click(box);
+    return box;
+  };
+
   it("ticks a task the moment its box is clicked, and asks the server once", async () => {
+    const task = { done: false };
     let sent: unknown;
     let answer!: () => void;
     const answered = new Promise<void>((resolve) => {
       answer = resolve;
     });
     server.use(
-      communityHttp.post("/smart-chips/", () =>
-        HttpResponse.json({
-          items: [
-            {
-              ref: "task:12:checklist",
-              entity_type: "task",
-              aspect: "checklist",
-              text: "",
-              title: "Ship it",
-              tone: "neutral",
-              color: null,
-              date: null,
-              number: null,
-              writable: true,
-            },
-          ],
-        })
-      ),
+      serveTheBox(task),
       communityHttp.patch("/tasks/12", async ({ request }) => {
         sent = await request.json();
         await answered;
+        task.done = true;
         return HttpResponse.json(buildTask({ id: 12 }));
       })
     );
 
-    renderPage(() => (
-      <DocumentUnderTest document={documentWithAChip("task:checklist", 12, "Ship it")} />
-    ));
-
-    const box = await screen.findByRole("checkbox");
-    await waitFor(() => expect(box).toBeEnabled());
-    await userEvent.click(box);
+    const box = await clickTheBox();
 
     // Ticked before the server has answered, and the project's columns were
     // never read: the server picks the done column from the category.
     await waitFor(() => expect(sent).toMatchObject({ status_category: "done" }));
     expect(box).toBeChecked();
+
     answer();
+    await waitFor(() => expect(box).toBeEnabled());
+    expect(box).toBeChecked();
+  });
+
+  it("puts the box back when the server refuses the change", async () => {
+    server.use(
+      serveTheBox({ done: false }),
+      communityHttp.patch("/tasks/12", () =>
+        HttpResponse.json({ detail: "TASK_STATUS_NOT_FOUND_FOR_PROJECT" }, { status: 400 })
+      )
+    );
+
+    const box = await clickTheBox();
+
+    await waitFor(() => expect(box).toBeEnabled());
+    expect(box).not.toBeChecked();
   });
 });

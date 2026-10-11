@@ -337,6 +337,28 @@ describe("realtime resource frames", () => {
     expect(otherTask(), "another task's chip").toBe(false);
   });
 
+  it("refreshes every task's chip when a project's columns change", () => {
+    // A renamed or recoloured column changes what a status chip says, and the
+    // change names the project, not the tasks in it.
+    const status = seed(chipKey(COMMUNITY, `task:${ENTITY_ID}:status`));
+    const counter = seed(chipKey(COMMUNITY, "counter:4:value"));
+
+    applyChanges(
+      [
+        {
+          resource: { type: "projects", id: 7 },
+          parents: [],
+          action: "updated",
+          changed: ["statuses"],
+        },
+      ],
+      COMMUNITY
+    );
+
+    expect(status(), "a task's status chip").toBe(true);
+    expect(counter(), "a counter's chip").toBe(false);
+  });
+
   it("refreshes a project's layouts when they change, and not on any other update", () => {
     // The layouts are read at an address of their own, so the project's own
     // refresh does not reach them.

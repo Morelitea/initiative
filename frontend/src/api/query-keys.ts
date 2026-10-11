@@ -502,7 +502,12 @@ const references = (kind: string, id: number): Spec => ({
   communityExact: [`/api/v1/smart-chips/${kind}/${id}`, `/api/v1/smart-chips/embeds/${kind}/${id}`],
 });
 
-const allReferences = (): Spec => ({ communityPrefix: ["/api/v1/smart-chips/"] });
+/** Every chip and embed answer, or every one about a kind of thing. */
+const allReferences = (kind?: string): Spec => ({
+  communityPrefix: kind
+    ? [`/api/v1/smart-chips/${kind}/`, `/api/v1/smart-chips/embeds/${kind}/`]
+    : ["/api/v1/smart-chips/"],
+});
 
 // ── Layouts (community) ──────────────────────────────────────────────────────
 
