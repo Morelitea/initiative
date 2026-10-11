@@ -6,7 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildFileSummary } from "@/__tests__/factories";
 import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
-import { renderPage } from "@/__tests__/helpers/render";
+import { createTestQueryClient, renderPage } from "@/__tests__/helpers/render";
+import { queryClient as appQueryClient } from "@/lib/queryClient";
 
 const collaborating = { value: false };
 
@@ -69,10 +70,11 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-const renderDoc = () =>
+const renderDoc = (options: Parameters<typeof renderPage>[1] = {}) =>
   renderPage(FileDetailPage, {
     initialRoute: "/g/$communityId/i/$initiativeId/files/$fileId",
     routeParams: { communityId: "1", initiativeId: "1", fileId: "7" },
+    ...options,
   });
 
 describe("renaming a file", () => {
@@ -222,5 +224,42 @@ describe("renaming a file", () => {
 
     await waitFor(() => expect(patches).toHaveLength(1));
     expect(patches[0]).toMatchObject({ name: "Renamed" });
+  });
+});
+
+describe("switching files", () => {
+  it("shows the next file loading rather than the last one's body", async () => {
+    let arrive = () => {};
+    const arrived = new Promise<void>((resolve) => {
+      arrive = resolve;
+    });
+    server.use(
+      communityHttp.get("/files/:fileId", async ({ params }) => {
+        if (params.fileId !== "8") return HttpResponse.json(stored);
+        await arrived;
+        return HttpResponse.json(buildFileSummary({ id: 8, name: "Second", initiative_id: 1 }));
+      })
+    );
+    // The app's own client keeps the last answer while the next one loads.
+    const queryClient = createTestQueryClient();
+    queryClient.setDefaultOptions({
+      queries: {
+        ...queryClient.getDefaultOptions().queries,
+        placeholderData: appQueryClient.getDefaultOptions().queries?.placeholderData,
+      },
+    });
+    const { router } = renderDoc({ queryClient });
+    await screen.findByRole("button", { name: "edit the body" });
+
+    await router.navigate({ href: "/g/1/i/1/files/8" });
+
+    // The page stays mounted across the switch: an editor still open on the
+    // last file would report its body as the next one's edit.
+    expect(await screen.findByText("Loading file…")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "edit the body" })).not.toBeInTheDocument();
+
+    arrive();
+    expect(await screen.findByDisplayValue("Second")).toBeInTheDocument();
+    expect(patches).toEqual([]);
   });
 });
