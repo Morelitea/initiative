@@ -3,15 +3,15 @@
 ``guest_base`` appends to ``public.notice_outbox`` and is given the table's
 sequence beside it, as the other floors that append there are.
 
-Revision ID: 20261010_0495
-Revises: 20261010_0494
+Revision ID: 20261010_0497
+Revises: 20261010_0496
 Create Date: 2026-10-10
 """
 
 from alembic import op
 
-revision = "20261010_0495"
-down_revision = "20261010_0494"
+revision = "20261010_0497"
+down_revision = "20261010_0496"
 branch_labels = None
 depends_on = None
 
