@@ -1,7 +1,7 @@
 """The hourly pass that works out each community's engagement levels, and the
 gates on what it writes."""
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from sqlalchemy import delete, update
@@ -16,6 +16,8 @@ from app.models.tenant.recent_view import RecentView
 from app.services.guild_sweeps import Scope, each_guild
 from app.services.platform import app_settings as app_settings_service
 from app.services.tenant import engagement_levels
+from app.services.tenant.engagement_levels import HALF_LIFE
+from app.services.tenant.recent_views import WINDOW
 from app.testing import create_task, guild_administration
 from app.testing.routing import route_as
 
@@ -99,6 +101,73 @@ async def test_an_item_has_a_level_once_three_people_engaged(
     await _pass(a.guild.id)
     # Two opens at 1 and a change at 2: log2(1 + 4), floored.
     assert await _levels(session) == {("task", task.id): 2}
+
+
+async def test_each_person_counts_once_and_old_engagement_fades(
+    session: AsyncSession, acting_user
+):
+    """However often one person acts, they count once, at their weightiest. An
+    engagement halves every two days, and an item left with fewer than three
+    people inside the window loses its level."""
+    (a, b, c), task = await _three_people(session, acting_user)
+    await _all_opened(session, (b, c), task)
+    for _ in range(5):
+        session.add(
+            EventOutbox(
+                txn_id=1,
+                actor_user_id=a.user.id,
+                initiative_id=a.initiative.id,
+                resource_type="tasks",
+                resource_id=task.id,
+                action="updated",
+            )
+        )
+    await session.commit()
+    await _pass(a.guild.id)
+    # 2 + 1 + 1, not 5 × 2 + 1 + 1: log2(1 + 4), floored.
+    assert await _levels(session) == {("task", task.id): 2}
+
+    async def opened_ago(person, age: timedelta) -> None:
+        await session.exec(
+            update(RecentView)  # type: ignore[arg-type]
+            .where(RecentView.user_id == person.user.id)  # type: ignore[arg-type]
+            .values(last_viewed_at=datetime.now(timezone.utc) - age)
+        )
+        await session.commit()
+
+    await opened_ago(b, 2 * HALF_LIFE)
+    await opened_ago(c, 2 * HALF_LIFE)
+    await _pass(a.guild.id)
+    # 2 + 0.25 + 0.25: log2(3.5), floored.
+    assert await _levels(session) == {("task", task.id): 1}
+
+    await opened_ago(c, WINDOW + timedelta(hours=1))
+    await _pass(a.guild.id)
+    assert await _levels(session) == {}
+
+
+async def test_a_purge_holds_the_pass_off_until_it_commits(
+    session: AsyncSession, acting_user, role_session
+):
+    """The purge drops the levels in a transaction of its own, so the pass
+    waits for the purge's to end rather than levelling what it is removing."""
+    people, task = await _three_people(session, acting_user)
+    owner = people[0]
+    await _all_opened(session, people, task)
+    await _pass(owner.guild.id)
+    assert await _levels(session) == {("task", task.id): 1}
+
+    purging = await role_session("app_user")
+    await route_as(purging, user_id=owner.user.id, guild_id=owner.guild.id)
+    await engagement_levels.purge_for_entities(purging, "task", [task.id])
+    assert await _levels(session) == {}
+    await _pass(owner.guild.id)
+    assert await _levels(session) == {}
+
+    # This purge never removed the task, so once it ends the level comes back.
+    await purging.rollback()
+    await _pass(owner.guild.id)
+    assert await _levels(session) == {("task", task.id): 1}
 
 
 async def test_turning_ranking_off_clears_the_levels(

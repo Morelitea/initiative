@@ -32,7 +32,7 @@ from app.db import cohorts
 from app.db.advisory_locks import LockNamespace, advisory_lock
 from app.db.initiative_rls import CONTENT_KIND_TABLES
 from app.db.request_context import Unattributed
-from app.db.session import set_rls_context
+from app.db.session import routed_guild_id, set_rls_context
 from app.core.guild_auth_options import CommunityAuthOption
 from app.models.platform.guild import Guild
 from app.models.tenant.engagement_level import LEVEL_MAX, EngagementLevel
@@ -189,10 +189,17 @@ async def purge_for_entities(
     session: AsyncSession, entity_type: str, entity_ids: Iterable[int]
 ) -> None:
     """Drop the levels of these, for a purge: ``entity_id`` is a weak
-    reference, so nothing carries the rows out with the entity."""
+    reference, so nothing carries the rows out with the entity.
+
+    The rows go in a transaction of their own, so the pass's lock is taken in
+    the purge's first and held until it commits: no pass works out a level for
+    something while it is being purged."""
     ids = tuple(entity_ids)
     if not ids:
         return
+    guild_id = routed_guild_id(session)
+    if guild_id is not None:
+        await advisory_lock(session, LockNamespace.ENGAGEMENT_LEVELS, guild_id)
     await cohorts.exec_as_system(
         session,
         delete(EngagementLevel).where(  # type: ignore[arg-type]
