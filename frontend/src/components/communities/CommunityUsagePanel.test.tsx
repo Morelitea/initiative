@@ -59,6 +59,16 @@ describe("CommunityUsagePanel", () => {
     expect(screen.getByText("4 of 10")).toBeInTheDocument();
   });
 
+  it.each([
+    [null, "Unlimited"],
+    [3, "Up to 3 at a time"],
+    [0, "Not taking guests"],
+  ])("states a guest cap of %s as its effect", (maxGuests, said) => {
+    state.community = { ...state.community, max_guests: maxGuests };
+    renderWithProviders(<CommunityUsagePanel />);
+    expect(screen.getByText("Guests").parentElement).toHaveTextContent(said);
+  });
+
   it("shows no plan or portal UI, even to the seat of a billed deployment", () => {
     // The plan lives on the seat-only Billing tab (CommunityBillingPanel); this
     // panel is usage alone.

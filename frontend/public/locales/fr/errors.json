@@ -40,6 +40,7 @@
   "COMMUNITY_PROVISION_FAILED": "Échec de l'approvisionnement du stockage de la communauté",
   "COMMUNITY_MEMBERSHIP_MISSING": "Appartenance à la communauté manquante",
   "COMMUNITY_USER_LIMIT_REACHED": "Cette communauté a atteint sa limite d'utilisateurs. Demandez à un opérateur de l'augmenter.",
+  "COMMUNITY_GUEST_LIMIT_REACHED": "Cette communauté a atteint sa limite d'invités. Demandez à un opérateur de l'augmenter.",
   "CANNOT_CHANGE_OWN_ROLE": "Impossible de modifier votre propre rôle dans la communauté",
   "USER_NOT_FOUND_IN_COMMUNITY": "Utilisateur introuvable dans la communauté",
   "COMMUNITY_ROLE_NOT_ASSIGNABLE": "Ce rôle de communauté ne peut pas être attribué.",

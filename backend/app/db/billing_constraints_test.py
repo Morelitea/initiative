@@ -51,14 +51,17 @@ async def test_guild_cap_columns_nullable_with_nonnegative_checks(session):
     # NULL = no paid tier for the display label.
     assert cols["max_storage_bytes"] is True
     assert cols["max_users"] is True
+    assert cols["max_guests"] is True
     assert cols["tier_name"] is True
 
     checks = await _constraints(session, "guild_administration", "c")
     storage = checks["ck_guild_administration_max_storage_bytes_nonnegative"]
     users = checks["ck_guild_administration_max_users_nonnegative"]
+    guests = checks["ck_guild_administration_max_guests_nonnegative"]
     # NULL-aware form: the CHECK constrains values without outlawing NULL.
     assert "max_storage_bytes IS NULL" in storage and ">= 0" in storage
     assert "max_users IS NULL" in users and ">= 0" in users
+    assert "max_guests IS NULL" in guests and ">= 0" in guests
 
 
 async def test_billing_event_log_shape(session):

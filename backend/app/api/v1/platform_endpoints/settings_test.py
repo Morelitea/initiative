@@ -95,6 +95,8 @@ async def test_a_failed_test_email_answers_with_a_code_and_logs_the_cause(
 _GUILD_DIALS = [
     pytest.param("max_storage_bytes", 5_000_000, None, -1, id="storage-cap"),
     pytest.param("max_users", 25, None, 0, id="user-cap"),
+    # 0 is a setting here: the community takes no new guests.
+    pytest.param("max_guests", 0, None, -1, id="guest-cap"),
     pytest.param(
         "status",
         CommunityStatus.suspended.value,
@@ -181,6 +183,7 @@ async def test_each_dial_moves_on_its_own(
     before = {
         "max_storage_bytes": 2048,
         "max_users": 5,
+        "max_guests": 2,
         "status": CommunityStatus.read_only.value,
     }
     guild = await create_guild(session, **before)

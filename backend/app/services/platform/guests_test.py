@@ -1,7 +1,7 @@
 """Guests: a membership row with an end. It admits its holder until then,
 takes no seat, and only on the demo deployment carries a rung above ``guest``."""
 
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from sqlalchemy import func
@@ -24,11 +24,13 @@ from app.services.platform import users as users_service
 from app.services.tenant import named_people
 from app.testing import (
     create_guest,
+    create_guild,
     create_guild_calendar,
     create_guild_membership,
     create_initiative_member,
     create_resource_grant,
     create_task,
+    create_user,
     drain_notices,
     get_auth_headers,
 )
@@ -268,6 +270,45 @@ async def test_a_guests_community_is_left_out_where_members_are_offered_more(
     assert shared == sorted([guild_id, elsewhere_id])
     assert offered == [elsewhere_id]
     assert [row[0] for row in contacts] == [elsewhere_id]
+
+
+@pytest.mark.parametrize(
+    ("max_guests", "ended", "admitted"),
+    [
+        (None, False, True),
+        (2, False, True),
+        (1, False, False),
+        # A guest whose time ran out leaves room before the sweep removes them.
+        (1, True, True),
+        # The community takes no new guests.
+        (0, False, False),
+    ],
+)
+async def test_a_new_guest_waits_on_the_guest_cap_and_not_on_a_seat(
+    session, max_guests, ended, admitted
+):
+    guild = await create_guild(session, max_users=1, max_guests=max_guests)
+    await create_guild_membership(session, user=await create_user(session), guild=guild)
+    await create_guest(session, guild, ends_in=-HOUR if ended else HOUR)
+    newcomer = await create_user(session)
+    guild_id, newcomer_id = guild.id, newcomer.id
+
+    join = guilds_service.ensure_membership(
+        session,
+        guild_id=guild_id,
+        user_id=newcomer_id,
+        role=CommunityRole.guest,
+        guest_until=datetime.now(timezone.utc) + HOUR,
+    )
+
+    if admitted:
+        membership = await join
+        assert membership.guest_until is not None
+        assert await guilds_service.count_members(session, guild_id=guild_id) == 1
+    else:
+        with pytest.raises(guilds_service.GuildCapacityError) as refused:
+            await join
+        assert refused.value.code == GuildMessages.COMMUNITY_GUEST_LIMIT_REACHED
 
 
 async def _heard(user_id: int) -> set[str]:

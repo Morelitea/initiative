@@ -238,7 +238,7 @@ async def create_guild(
     a filler account and has no members.
 
     Overrides for the operator-set fields (``max_storage_bytes``, ``max_users``,
-    ``tier_name``, ``auth_options``) land on ``guild_administration``; the rest
+    ``max_guests``, ``tier_name``, ``auth_options``) land on ``guild_administration``; the rest
     on the guild. Example: ``guild = await create_guild(session, name="Test")``.
     """
     # Test guilds hold every sign-in option by default so the guild-auth
@@ -250,7 +250,13 @@ async def create_guild(
         "auth_options": [option.value for option in CommunityAuthOption],
         **{
             field: overrides.pop(field)
-            for field in ("max_storage_bytes", "max_users", "tier_name", "auth_options")
+            for field in (
+                "max_storage_bytes",
+                "max_users",
+                "max_guests",
+                "tier_name",
+                "auth_options",
+            )
             if field in overrides
         },
     }

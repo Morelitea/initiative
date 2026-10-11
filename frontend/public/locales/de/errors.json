@@ -42,6 +42,7 @@
   "COMMUNITY_PROVISION_FAILED": "Community-Speicher konnte nicht bereitgestellt werden",
   "COMMUNITY_MEMBERSHIP_MISSING": "Community-Mitgliedschaft fehlt",
   "COMMUNITY_USER_LIMIT_REACHED": "Diese Community hat ihr Benutzerlimit erreicht. Bitte einen Operator, es zu erhöhen.",
+  "COMMUNITY_GUEST_LIMIT_REACHED": "Diese Community hat ihr Gästelimit erreicht. Bitte einen Operator, es zu erhöhen.",
   "CANNOT_CHANGE_OWN_ROLE": "Du kannst deine eigene Community-Rolle nicht ändern",
   "USER_NOT_FOUND_IN_COMMUNITY": "Benutzer in der Community nicht gefunden",
   "COMMUNITY_ROLE_NOT_ASSIGNABLE": "Diese Community-Rolle kann nicht zugewiesen werden.",

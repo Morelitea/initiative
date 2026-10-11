@@ -219,11 +219,12 @@ class CommunityRead(CommunityBase):
     max_storage_bytes: Optional[int] = None
     max_users: Optional[int] = None
     member_count: int = 0
+    max_guests: Optional[int] = None
     # ADMIN-ONLY. Display/audit label of the paid tier (NULL = none /
     # self-hosted). Shown by the plan panel only when a billing portal is
     # configured; it is DISPLAY metadata and is never read in an enforcement
     # path (billing_foss_test scans for that). Enforcement reads
-    # max_storage_bytes / max_users / status.
+    # max_storage_bytes / max_users / max_guests / status.
     tier_name: Optional[str] = None
     # ADMIN-ONLY. Lifecycle status, so the app can show an admin a suspended
     # community as closed and a read-only one with its notice. ``None`` for
@@ -446,6 +447,9 @@ class PlatformCommunityStorageRead(SanitizedBaseModel):
     max_storage_bytes: Optional[int] = None
     # Max number of members for this guild. None means "unlimited".
     max_users: Optional[int] = None
+    # Max number of guests at once. None means "unlimited"; 0 takes no new
+    # guests.
+    max_guests: Optional[int] = None
     # Lifecycle status (active / read_only / suspended / deleted). Surfaced
     # only to platform operators here — never to guild members (CommunityRead omits it).
     status: CommunityStatus = CommunityStatus.active
@@ -531,6 +535,7 @@ class PlatformCommunityStorageUpdate(SanitizedBaseModel):
 
     max_storage_bytes: Optional[int] = Field(default=None, ge=0)
     max_users: Optional[int] = Field(default=None, ge=1)
+    max_guests: Optional[int] = Field(default=None, ge=0)
     status: Optional[CommunityStatus] = None
 
     @field_validator("status")

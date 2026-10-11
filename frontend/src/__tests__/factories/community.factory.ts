@@ -64,6 +64,7 @@ export function buildCommunity(overrides: Partial<CommunityRead> = {}): Communit
     retention_days: null,
     max_storage_bytes: null,
     max_users: null,
+    max_guests: null,
     member_count: 1,
     tier_name: null,
     status: null,

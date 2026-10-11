@@ -1317,6 +1317,7 @@
       "limits": "Límites",
       "features": "Funciones",
       "usersHelp": "Cuántas personas pueden pertenecer. Déjalo en blanco para no poner límite.",
+      "guestsHelp": "Cuántos invitados pueden tener a la vez. Con 0 no entran invitados nuevos, y los que ya están se quedan hasta que acabe su tiempo. Déjalo en blanco para no poner límite.",
       "storageHelp": "Cuánto pueden almacenar, en gigabytes. Déjalo en blanco para no poner límite.",
       "bannerLabel": "Imagen de cabecera",
       "bannerHelp": "Permite que suban una imagen de cabecera. Sin esto eligen un color en su lugar, y una cabecera ya subida se sigue mostrando.",
@@ -1334,6 +1335,7 @@
         }
       },
       "usersLabel": "Miembros",
+      "guestsLabel": "Invitados",
       "storageLabel": "Límite de almacenamiento",
       "decidesForItself": "Lo que decide por su cuenta",
       "deleted": "Eliminada",

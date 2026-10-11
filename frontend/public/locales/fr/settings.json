@@ -1317,6 +1317,7 @@
       "limits": "Limites",
       "features": "Fonctionnalités",
       "usersHelp": "Combien de personnes peuvent en faire partie. Laissez vide pour ne pas limiter.",
+      "guestsHelp": "Combien d'invités elle peut avoir à la fois. À 0, aucun nouvel invité n'entre, et ceux déjà présents restent jusqu'à la fin de leur temps. Laissez vide pour ne pas limiter.",
       "storageHelp": "Combien elles peuvent stocker, en gigaoctets. Laissez vide pour ne pas limiter.",
       "bannerLabel": "Bannière",
       "bannerHelp": "Leur permet d'envoyer une image de bannière. Sans cela elles choisissent une couleur, et une bannière déjà envoyée reste affichée.",
@@ -1334,6 +1335,7 @@
         }
       },
       "usersLabel": "Membres",
+      "guestsLabel": "Invités",
       "storageLabel": "Limite de stockage",
       "decidesForItself": "Ce qu'elle décide elle-même",
       "deleted": "Supprimée",

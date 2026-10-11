@@ -264,4 +264,5 @@ async def community_usage(request: Request, session: SessionDep) -> BillingUsage
         community_ref=payload.community_ref,
         usage_bytes=usage.usage_bytes,
         member_count=usage.member_count,
+        guest_count=usage.guest_count,
     )

@@ -130,6 +130,7 @@ BILLING_PORTAL_GRANT_REASON = "Opened the billing portal from the Guilds tab"
 _GUILD_ADMINISTRATION_FIELDS: tuple[str, ...] = (
     "max_storage_bytes",
     "max_users",
+    "max_guests",
     "auth_options",
     "banner_image_enabled",
     "support_enabled",
@@ -933,6 +934,7 @@ def _guild_storage_read(
             administration.max_storage_bytes if administration else None
         ),
         max_users=administration.max_users if administration else None,
+        max_guests=administration.max_guests if administration else None,
         status=current,
         status_changed_at=guild.status_changed_at,
         status_choices=(
@@ -1107,6 +1109,7 @@ async def update_platform_community_storage(
     if managed and (
         "max_storage_bytes" in provided
         or "max_users" in provided
+        or "max_guests" in provided
         or payload.auth_options is not None
         or payload.banner_image_enabled is not None
         or payload.support_enabled is not None
@@ -1130,6 +1133,8 @@ async def update_platform_community_storage(
             max_storage_bytes_provided="max_storage_bytes" in provided,
             max_users=payload.max_users,
             max_users_provided="max_users" in provided,
+            max_guests=payload.max_guests,
+            max_guests_provided="max_guests" in provided,
             auth_options=payload.auth_options,
             banner_image_enabled=payload.banner_image_enabled,
             support_enabled=payload.support_enabled,

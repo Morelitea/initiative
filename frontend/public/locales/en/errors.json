@@ -35,6 +35,7 @@
   "COMMUNITY_PROVISION_FAILED": "Failed to provision community storage",
   "COMMUNITY_MEMBERSHIP_MISSING": "Community membership missing",
   "COMMUNITY_USER_LIMIT_REACHED": "This community has reached its user limit. Ask an operator to raise it.",
+  "COMMUNITY_GUEST_LIMIT_REACHED": "This community has reached its guest limit. Ask an operator to raise it.",
   "CANNOT_CHANGE_OWN_ROLE": "Cannot change your own community role",
   "USER_NOT_FOUND_IN_COMMUNITY": "User not found in community",
   "COMMUNITY_ROLE_NOT_ASSIGNABLE": "That community role can't be assigned.",

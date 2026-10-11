@@ -220,6 +220,7 @@ def _serialize_guild(
         # Operator-set caps, shown against usage on the admin settings page.
         max_storage_bytes=admin_row.max_storage_bytes if admin_row else None,
         max_users=admin_row.max_users if admin_row else None,
+        max_guests=admin_row.max_guests if admin_row else None,
         # Display-only plan label (never an enforcement input); the SPA shows
         # it only when a billing portal is configured.
         tier_name=admin_row.tier_name if admin_row else None,
