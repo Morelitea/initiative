@@ -1135,15 +1135,17 @@ $function$
 """
 
 #: The people each resource in ``p_resource_ids`` is shared with, as
-#: ``(resource_id, user_id)`` rows: used to decide who gets a notification and
-#: who a post counts as its readers.
+#: ``(resource_id, user_id)`` rows. ``permissions.audience`` narrows it to who
+#: can open the resource now (``named_people.readers_of``), for who gets a
+#: notification and who a post counts as its readers.
 #:
 #: Someone is included when a grant names them, names a role they hold, or is
 #: shared with everyone in the initiative — and only while they are still a
-#: member of it. For a resource in no initiative, "everyone" means the
-#: community's members (``p_guild_id``). Community admins and access-grant
-#: holders are not included unless a grant names them.
-RESOURCE_AUDIENCE = """\
+#: member of it. A guest given the resource itself is included without being
+#: in its initiative. For a resource in no initiative, "everyone" means the
+#: community's members (``p_guild_id``), not its guests. Community admins and
+#: access-grant holders are not included unless a grant names them.
+RESOURCE_AUDIENCE = f"""\
 CREATE OR REPLACE FUNCTION resource_audience(p_tool text, p_resource_ids integer[], p_guild_id integer)
  RETURNS TABLE(resource_id integer, user_id integer)
  LANGUAGE plpgsql
@@ -1166,7 +1168,19 @@ BEGIN
       FROM resource_grants g
       JOIN public.guild_memberships m
         ON m.guild_id = p_guild_id
-       AND (g.user_id = m.user_id OR g.all_initiative_members)
+       AND m.user_id = g.user_id
+       AND m.role = '{CommunityRole.guest.value}'
+     WHERE g.resource_type = p_tool
+       AND g.resource_id = ANY (p_resource_ids)
+       AND g.initiative_id IS NOT NULL
+    UNION
+    SELECT DISTINCT g.resource_id, m.user_id
+      FROM resource_grants g
+      JOIN public.guild_memberships m
+        ON m.guild_id = p_guild_id
+       AND (g.user_id = m.user_id
+            OR (g.all_initiative_members
+                AND m.role <> '{CommunityRole.guest.value}'))
      WHERE g.resource_type = p_tool
        AND g.resource_id = ANY (p_resource_ids)
        AND g.initiative_id IS NULL;

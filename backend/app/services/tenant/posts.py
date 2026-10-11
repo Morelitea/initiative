@@ -101,11 +101,11 @@ async def audience_user_ids(
 ) -> set[int]:
     """Who a notice was shared with — the people to tell about it.
 
-    The schema's ``resource_audience`` (:func:`permissions.audience`): a post
-    shared with three people notifies three people, and a board of a hundred
-    members is not interrupted because somebody posted to a subset of it.
+    :func:`permissions.audience`: a post shared with three people notifies
+    three people, and a board of a hundred members is not interrupted because
+    somebody posted to a subset of it.
     """
-    audience = (await permissions_service.audience(session, Tool.post, [post.id])).get(
+    audience = (await permissions_service.audience(session, Tool.post, [post])).get(
         post.id, set()
     )
     if exclude is not None:
@@ -209,7 +209,9 @@ async def annotate_read_counts(session: AsyncSession, rows: Sequence[Post]) -> N
     by_post: dict[int, set[int]] = {}
     for post_id, user_id in pairs:
         by_post.setdefault(post_id, set()).add(user_id)
-    audiences = await permissions_service.audience(session, Tool.post, ids)
+    audiences = await permissions_service.audience(
+        session, Tool.post, [post for post in rows if post.id is not None]
+    )
     for post in rows:
         readers = current_readers(
             post, by_post.get(post.id, set()), audiences.get(post.id, set())

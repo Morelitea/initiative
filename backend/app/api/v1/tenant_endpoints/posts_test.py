@@ -31,6 +31,7 @@ from app.testing import (
     create_resource_grant,
     lexical_body,
     drain_notices,
+    grant_role_permission,
 )
 from app.testing import route_as
 
@@ -1201,6 +1202,25 @@ async def test_the_roster_says_who_read_it_and_who_has_not(
     assert [row["id"] for row in body["read"]] == [reader.user.id]
     assert body["read"][0]["read_at"] is not None
     assert [row["id"] for row in body["unread"]] == [waiting.user.id]
+
+
+async def test_the_roster_waits_only_on_who_can_open_it(
+    client: AsyncClient, acting_user, board: Actor, session
+):
+    """Somebody whose role keeps them off the board is not ignoring the
+    notice."""
+    await _joins(acting_user, board, initiative_role="member")
+    post = await create_post(session, board.initiative, board.user, name="Roster")
+    await grant_role_permission(
+        session, board.initiative, Tool.post.view_permission, enabled=False
+    )
+
+    response = await client.get(
+        board.g(f"/posts/{post.id}/reads"), headers=board.headers
+    )
+
+    assert response.status_code == 200
+    assert response.json()["unread"] == []
 
 
 async def test_the_roster_waits_only_on_who_it_was_shared_with(

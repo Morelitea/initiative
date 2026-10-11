@@ -44,7 +44,12 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.messages import CommonMessages
 from app.core.tools import DEFAULT_ENABLED_TOOLS, Tool
 from app.db import cohorts
-from app.db.session import install_context, routed_guild_id, set_rls_context
+from app.db.session import (
+    guild_context,
+    install_context,
+    routed_guild_id,
+    set_rls_context,
+)
 from app.models.platform.guild import GUILD_LADDER, GuildMembership, CommunityRole
 from app.models.platform.user_profile_view import MemberProfile
 from app.models.tenant.initiative import (
@@ -58,6 +63,7 @@ from app.models.tenant.property import PropertyValue
 from app.models.tenant.queue import QueueItem
 from app.models.tenant.resource_grant import ResourceGrant
 from app.models.tenant.task import Task, TaskAssignee
+from app.services.membership import live_membership_clause
 from app.services.platform.users import visible_to_other_people
 from app.db.request_context import SystemGuild
 
@@ -79,11 +85,11 @@ class Governing:
 
 
 def _grant_reaches(
-    governing: Governing, user_id: Any, *outer: Any
+    governing: Governing, user_id: Any, guest: ColumnElement[bool], *outer: Any
 ) -> ColumnElement[bool]:
     """A grant on the row that reaches ``user_id``: naming them, on a role
     they hold, or shared with every member of an initiative they are in (or of
-    the community, on a row that belongs to none)."""
+    the community, on a row that belongs to none, unless ``guest``)."""
     im = aliased(InitiativeMember)
     held = sa_select(im.role_id).where(im.user_id == user_id).correlate(*outer)
     joined = sa_select(im.initiative_id).where(im.user_id == user_id).correlate(*outer)
@@ -98,7 +104,7 @@ def _grant_reaches(
                 and_(
                     ResourceGrant.all_initiative_members.is_(True),
                     or_(
-                        ResourceGrant.initiative_id.is_(None),
+                        and_(ResourceGrant.initiative_id.is_(None), ~guest),
                         ResourceGrant.initiative_id.in_(joined),
                     ),
                 ),
@@ -120,8 +126,9 @@ def readers_of(governing: Governing, guild_id: int) -> Select:
         )
         .correlate(gm)
     )
+    guest = gm.role == CommunityRole.guest
     if governing.initiative_id is None:
-        reached = _grant_reaches(governing, gm.user_id, gm)
+        reached = _grant_reaches(governing, gm.user_id, guest, gm)
     else:
         im = aliased(InitiativeMember)
         role = aliased(InitiativeRoleModel)
@@ -154,20 +161,38 @@ def readers_of(governing: Governing, guild_id: int) -> Select:
                 ),
                 or_(
                     role.override_share_restrictions.is_(True),
-                    _grant_reaches(governing, gm.user_id, gm, im),
+                    _grant_reaches(governing, gm.user_id, guest, gm, im),
                 ),
             )
             .correlate(gm)
         )
+        # A guest given the row itself, in an initiative they are not in.
+        given = (
+            exists()
+            .where(
+                ResourceGrant.resource_type == tool.value,
+                ResourceGrant.resource_id == governing.resource_id,
+                ResourceGrant.user_id == gm.user_id,
+            )
+            .correlate(gm)
+        )
+        enabled = exists().where(
+            Initiative.id == governing.initiative_id,
+            getattr(Initiative, f"{tool.plural}_enabled").is_(True),
+        )
+        reached = or_(reached, and_(guest, given, enabled))
     return sa_select(gm.user_id).where(
         gm.guild_id == guild_id,
+        live_membership_clause(gm),
         present,
         or_(gm.role.in_(_ADMIN_RUNGS), reached),
     )
 
 
 @asynccontextmanager
-async def roster_session(session: AsyncSession) -> AsyncIterator[AsyncSession]:
+async def roster_session(
+    session: AsyncSession, *, whole: bool = False
+) -> AsyncIterator[AsyncSession]:
     """Where the routed community's roster is read for ``session``'s request.
 
     The request's own session for a person, so a row it has just made is seen.
@@ -175,8 +200,14 @@ async def roster_session(session: AsyncSession) -> AsyncIterator[AsyncSession]:
     and who can open something is not its scopes' to say, so its requests are
     answered by the community's own read instead, as
     :mod:`app.services.reachability` does.
+
+    A guest reads only their own place in the roster, which is what they may
+    name. ``whole`` is for who a notice reaches, which is the community's to
+    say whoever acted, so a guest's request reads that on the community's own
+    read too.
     """
-    if install_context(session) is None:
+    context = guild_context(session)
+    if install_context(session) is None and not (whole and context and context.guest):
         yield session
         return
     guild_id = routed_guild_id(session)
