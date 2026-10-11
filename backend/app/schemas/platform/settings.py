@@ -650,6 +650,9 @@ class CommunitySettingsResponse(SanitizedBaseModel):
     #: counted from when it was put there. ``None`` means never: it waits for
     #: somebody to lift the hold or delete it.
     on_hold_community_deletion_days: Optional[int] = None
+    #: Whether search may order a community's content by how many members
+    #: engaged with it lately. Each community is asked too, and off wins.
+    engagement_ranking_enabled: bool
 
 
 class NotificationSettingsResponse(SanitizedBaseModel):
@@ -693,6 +696,9 @@ class CommunitySettingsUpdate(SanitizedBaseModel):
     #: as it was; it is independent of the directory, which a deployment can
     #: run with or without messaging.
     direct_messages_enabled: Optional[bool] = None
+    #: Whether search may rank by engagement in any community. Omitted leaves
+    #: it as it was.
+    engagement_ranking_enabled: Optional[bool] = None
     #: How long a deleted community is kept, in days. This one reads its
     #: presence rather than its value, because ``null`` is an answer here
     #: ("never destroy one") and not the absence of one: omit the field to

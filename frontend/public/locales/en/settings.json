@@ -1814,7 +1814,11 @@
       "saved_other": "Deleted accounts are kept for {{count}} days.",
       "savedNever": "Deleted accounts are kept indefinitely.",
       "save": "Save how long accounts are kept"
-    }
+    },
+    "engagementRankingLabel": "Let communities rank results by engagement",
+    "engagementRankingHelpText": "When off, no community on this server ranks by engagement, whatever its own setting.",
+    "engagementRankingEnabledToast": "Communities can rank results by engagement.",
+    "engagementRankingDisabledToast": "Engagement ranking is off for every community."
   },
   "account": {
     "passwordTitle": "Password",
@@ -2043,6 +2047,14 @@
       "offHelp": "Notifications about this community name what they are about once they leave the app.",
       "platformHelp": "This server hides notification details everywhere, so this community is already covered."
     }
+  },
+  "communityEngagementRanking": {
+    "title": "Search order",
+    "label": "Rank search results by community engagement",
+    "help": "Search lists what more members have recently opened or worked on higher. Only a rough level is kept for each item, never who opened it or how many times, and it's never shared outside this community.",
+    "platformHelp": "This server has turned engagement ranking off for every community.",
+    "saved": "Search order saved.",
+    "error": "Couldn't save the search order."
   },
   "billingInsights": {
     "title": "Billing insights",

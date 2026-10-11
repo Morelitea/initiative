@@ -624,6 +624,10 @@ class CommunityAuthSettingsRead(SanitizedBaseModel):
     push_allowed_by_platform: bool = True
     email_allowed_by_platform: bool = True
     redacted_by_platform: bool = False
+    #: Whether search orders its content by how many members engaged with it
+    #: lately, and whether the deployment allows that at all.
+    allow_engagement_ranking: bool = True
+    engagement_ranking_allowed_by_platform: bool = True
 
 
 class CommunityAuthSettingsUpdate(SanitizedBaseModel):
@@ -642,6 +646,7 @@ class CommunityAuthSettingsUpdate(SanitizedBaseModel):
     allow_push_notifications: Optional[bool] = None
     allow_email_notifications: Optional[bool] = None
     redact_notification_content: Optional[bool] = None
+    allow_engagement_ranking: Optional[bool] = None
 
 
 class CommunityDeletionRequest(SanitizedBaseModel):

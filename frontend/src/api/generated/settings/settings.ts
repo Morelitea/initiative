@@ -745,7 +745,7 @@ export const useUpdateInterfaceSettings = <
   return useMutation(getUpdateInterfaceSettingsMutationOptions(options), queryClient);
 };
 /**
- * The four community-wide decisions, for the owner's settings page.
+ * The community-wide decisions, for the owner's settings page.
  *
  * Three of them are also on ``GET /config``, which is where every signed-in
  * page reads them. ``default_dm_policy`` is not: nothing in the SPA acts on it
@@ -910,6 +910,10 @@ export function useReadCommunitySettings<
  *
  * ``on_hold_community_deletion_days`` reads the same way: how long a
  * community stays on hold before it is deleted, and ``null`` for never.
+ *
+ * ``engagement_ranking_enabled`` says whether search may order any
+ * community's content by how many members engaged with it lately. Each
+ * community is asked too, and off wins. Omitted, it is left alone.
  * @summary Update Community Settings
  */
 export const updateCommunitySettings = (

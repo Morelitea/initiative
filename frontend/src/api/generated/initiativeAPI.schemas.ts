@@ -2223,6 +2223,8 @@ export interface CommunityAuthSettingsRead {
   push_allowed_by_platform: boolean;
   email_allowed_by_platform: boolean;
   redacted_by_platform: boolean;
+  allow_engagement_ranking: boolean;
+  engagement_ranking_allowed_by_platform: boolean;
 }
 
 /**
@@ -2240,6 +2242,7 @@ export interface CommunityAuthSettingsUpdate {
   allow_push_notifications?: boolean | null;
   allow_email_notifications?: boolean | null;
   redact_notification_content?: boolean | null;
+  allow_engagement_ranking?: boolean | null;
 }
 
 /**
@@ -3313,6 +3316,7 @@ export interface CommunitySettingsResponse {
   deleted_community_retention_days: number | null;
   deleted_account_retention_days: number | null;
   on_hold_community_deletion_days: number | null;
+  engagement_ranking_enabled: boolean;
 }
 
 export interface CommunitySettingsUpdate {
@@ -3320,6 +3324,7 @@ export interface CommunitySettingsUpdate {
   age_gate_enabled?: boolean | null;
   default_dm_policy?: DmPolicy | null;
   direct_messages_enabled?: boolean | null;
+  engagement_ranking_enabled?: boolean | null;
   deleted_community_retention_days?: number | null;
   deleted_account_retention_days?: number | null;
   on_hold_community_deletion_days?: number | null;

@@ -401,6 +401,16 @@ class Guild(SQLModel, table=True):
         sa_column=Column(Boolean, nullable=False, server_default="false"),
     )
 
+    # Whether search orders this community's content by how many members
+    # engaged with it lately. Also asked of the deployment on ``app_settings``,
+    # and off wins. Here for the reason the notification answers are: the seat
+    # sets it under ``restrictions``, and it has to survive the community
+    # lifting its sign-in requirement.
+    allow_engagement_ranking: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )
+
     # The operator-set caps, plan label, and sign-in entitlement — everything
     # this row is NOT. See GuildAdministration for why they live apart.
     administration: Optional["GuildAdministration"] = Relationship(

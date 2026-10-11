@@ -8,6 +8,7 @@ import {
 } from "@/api/client";
 import { CommunityAuthProvidersSection } from "@/components/auth/CommunityAuthProvidersSection";
 import { CommunityClaimRulesSection } from "@/components/auth/CommunityClaimRulesSection";
+import { CommunityEngagementRankingSection } from "@/components/auth/CommunityEngagementRankingSection";
 import { CommunityNotificationPolicySection } from "@/components/auth/CommunityNotificationPolicySection";
 import { ConnectSignInWizard } from "@/components/auth/ConnectSignInWizard";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -660,6 +661,8 @@ export const SettingsCommunitySecurityPage = () => {
           </Card>
 
           <CommunityNotificationPolicySection communityId={communityId} />
+
+          <CommunityEngagementRankingSection communityId={communityId} />
         </section>
       ) : null}
     </div>
