@@ -14,6 +14,7 @@ import {
 import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { createTestQueryClient, renderPage } from "@/__tests__/helpers/render";
+import { keepViewPreferences } from "@/__tests__/helpers/viewPreferences";
 import type { FilterCondition, FilterGroup } from "@/api/generated/initiativeAPI.schemas";
 import { CALENDAR_VIEW_MODE_KEY } from "@/components/calendar";
 import { dateRangeParams } from "@/components/ui/date-range-field";
@@ -488,13 +489,7 @@ describe("CalendarsView on the calendar plug-in's own surface", () => {
   /** What the server keeps of this reader's views, as they save them. */
   let kept: Record<string, unknown> = {};
   beforeEach(() => {
-    kept = {};
-    server.use(
-      http.put("/api/v1/user-view-preferences/:scopeKey", async ({ params, request }) => {
-        kept[String(params.scopeKey)] = ((await request.json()) as { value: unknown }).value;
-        return HttpResponse.json({});
-      })
-    );
+    kept = keepViewPreferences();
   });
 
   function renderCommunityScope(community = buildCommunity({ id: 1, role: "admin" })) {

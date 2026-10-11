@@ -1,5 +1,4 @@
 import { useNavigate } from "@tanstack/react-router";
-import { CalendarDays, Table2 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -7,29 +6,26 @@ import type { TaskListRead } from "@/api/generated/initiativeAPI.schemas";
 import { invalidate, q } from "@/api/query-keys";
 import {
   buildTaskCalendarEntries,
-  CALENDAR_VIEW_MODE_KEY,
   type CalendarEntry,
   CalendarView,
   type CalendarViewMode,
 } from "@/components/calendar";
-import {
-  ToolListToolbar,
-  type ToolViewOption,
-} from "@/components/initiativeTools/shared/ToolListToolbar";
+import { ToolFilterPanel } from "@/components/initiativeTools/shared/ToolFilterPanel";
+import { ToolLayoutSelect } from "@/components/initiativeTools/shared/ToolLayoutSelect";
+import { ToolListToolbar } from "@/components/initiativeTools/shared/ToolListToolbar";
 import { PullToRefresh } from "@/components/PullToRefresh";
+import { listLayoutLooks } from "@/components/projects/projectTasksConfig";
 import { SkeletonRegion, TableSkeleton } from "@/components/skeletons/PageSkeletons";
 import { FocusSummary } from "@/components/tasks/FocusSummary";
-import { GlobalTaskFilters } from "@/components/tasks/GlobalTaskFilters";
 import { globalTaskColumns } from "@/components/tasks/globalTaskColumns";
+import { TaskFilters } from "@/components/tasks/TaskFilters";
 import { DataTable } from "@/components/ui/data-table";
 import { useAuth } from "@/hooks/useAuth";
 import { useCommunities } from "@/hooks/useCommunities";
 import { useFocusSummary } from "@/hooks/useFocusSummary";
-import { useGlobalTasksTable } from "@/hooks/useGlobalTasksTable";
-import { usePersistedColumnVisibility } from "@/hooks/usePersistedColumnVisibility";
-import { usePersistedTableState } from "@/hooks/usePersistedTableState";
+import { MY_TASKS_VIEW, useGlobalTasksTable } from "@/hooks/useGlobalTasksTable";
+import { useListView } from "@/hooks/useListView";
 import { useProperties } from "@/hooks/useProperties";
-import { useViewPreference } from "@/hooks/useViewPreference";
 import { communityPath, useCommunityPath } from "@/lib/communityUrl";
 import { LAYOUT_NAMESPACES, type LayoutEnv } from "@/lib/layouts/fields";
 import { taskFields } from "@/lib/layouts/tasks";
@@ -37,23 +33,24 @@ import { getProjectColor } from "@/lib/projectColor";
 import { entityRefRoute, taskRoute } from "@/lib/tools";
 import type { TranslateFn } from "@/types/i18n";
 
+/** The ways My Tasks lists them. */
+const MY_TASKS_LAYOUTS = ["table", "calendar"] as const;
+
 export const MyTasksPage = () => {
   const { t } = useTranslation(["tasks", "dates", "common", "projects"]);
 
-  const viewOptions: ToolViewOption<"table" | "calendar">[] = [
-    { value: "table", label: t("projects:tasks.viewTable"), icon: Table2 },
-    { value: "calendar", label: t("projects:tasks.viewCalendar"), icon: CalendarDays },
-  ];
   const { communities } = useCommunities();
   const { user } = useAuth();
   const gp = useCommunityPath();
   const navigate = useNavigate();
 
-  const [viewMode, setViewMode] = useState<"table" | "calendar">("table");
-  const [calendarViewMode, setCalendarViewMode] = useViewPreference<CalendarViewMode>(
-    CALENDAR_VIEW_MODE_KEY,
-    "month"
-  );
+  // This person's view of My Tasks: table or calendar, the calendar's month
+  // or week, and the table's grouping and columns.
+  const view = useListView(MY_TASKS_VIEW);
+  const viewMode: "table" | "calendar" = view.layout === "calendar" ? "calendar" : "table";
+  const setViewMode = view.rememberLayout as (next: "table" | "calendar") => void;
+  const calendarViewMode = (view.mode ?? "month") as CalendarViewMode;
+  const setCalendarViewMode = view.setMode as (next: CalendarViewMode) => void;
   const [calendarFocusDate, setCalendarFocusDate] = useState(() => new Date());
   const weekStartsOn = (user?.week_starts_on ?? 0) as 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -91,25 +88,17 @@ export const MyTasksPage = () => {
     () => [...fields.values()].filter((field) => field.source === "property").map(({ id }) => id),
     [fields]
   );
-  const [columnVisibility, setColumnVisibility] = usePersistedColumnVisibility(
-    "initiative-my-tasks-columns",
-    propertyHiddenIds
-  );
-  // Grouping is the reader's own arrangement, so it outlives the visit. Sorting
-  // rides along with this list's other preferences (see useGlobalTasksTable),
-  // which is why only the grouping half is kept here.
-  const [tableState, { setGrouping }] = usePersistedTableState("initiative-my-tasks-table", {
-    grouping: ["date group"],
-  });
-  // Seed the two existing hidden-by-default columns from this page only on
-  // first-ever render; after that, persisted state governs everything.
+  const { columns: keptColumns, setColumns: setColumnVisibility, setGrouping } = view;
+  const tableState = { grouping: view.grouping };
+  // A column they never chose about is shown, but for the date window, the
+  // community ("guild", the id the stored state is keyed by) and properties.
   const effectiveColumnVisibility = useMemo(() => {
-    const next = { ...columnVisibility };
-    if (!("date group" in next)) next["date group"] = false;
-    // "guild" is the community column's id, which the stored state is keyed by.
-    if (!("guild" in next)) next["guild"] = false;
+    const next = { ...keptColumns };
+    for (const id of ["date group", "guild", ...propertyHiddenIds]) {
+      if (!(id in next)) next[id] = false;
+    }
     return next;
-  }, [columnVisibility]);
+  }, [keptColumns, propertyHiddenIds]);
 
   const columns = useMemo(
     () =>
@@ -196,12 +185,22 @@ export const MyTasksPage = () => {
                   }
                 : undefined
             }
-            view={{
-              value: viewMode,
-              onChange: setViewMode,
-              options: viewOptions,
-              label: t("common:toolbar.view"),
-            }}
+            // The same layout menu as a project's tasks: My Tasks offers the
+            // table and the calendar, and no presets.
+            viewControl={
+              <ToolLayoutSelect
+                layouts={MY_TASKS_LAYOUTS.map((kind) => ({
+                  slug: kind,
+                  name: t(`projects:${listLayoutLooks[kind].labelKey}` as never),
+                  icon: listLayoutLooks[kind].icon,
+                }))}
+                activeSlug={viewMode}
+                modified={viewMode === "table" && table.activeFilterCount > 0}
+                onSelect={(slug) => setViewMode(slug as "table" | "calendar")}
+                label={t("projects:layouts.label")}
+                modifiedLabel={t("projects:filters.modified")}
+              />
+            }
           />
         </div>
 
@@ -214,21 +213,18 @@ export const MyTasksPage = () => {
 
         {viewMode === "table" && (
           <>
-            <GlobalTaskFilters
+            <ToolFilterPanel
+              open={table.filtersOpen}
+              onOpenChange={table.setFiltersOpen}
               onClear={table.clearFilters}
               activeCount={table.activeFilterCount}
-              statusFilters={table.statusFilters}
-              setStatusFilters={table.setStatusFilters}
-              priorityFilters={table.priorityFilters}
-              setPriorityFilters={table.setPriorityFilters}
-              communityFilters={table.communityFilters}
-              setCommunityFilters={table.setCommunityFilters}
-              propertyFilters={table.propertyFilters}
-              setPropertyFilters={table.setPropertyFilters}
-              filtersOpen={table.filtersOpen}
-              setFiltersOpen={table.setFiltersOpen}
-              communities={communities}
-            />
+            >
+              <TaskFilters
+                scope={{ kind: "mine", communities }}
+                value={table.filters}
+                onChange={table.setFilters}
+              />
+            </ToolFilterPanel>
 
             <div className="relative">
               {/* A refetch is a background event: a status change has already

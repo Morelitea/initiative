@@ -15,7 +15,7 @@ import {
   type ToolArchiveChoice,
   ToolViewFilter,
 } from "@/components/initiativeTools/shared/ToolViewFilter";
-import { ProjectTasksFilters } from "@/components/projects/ProjectTasksFilters";
+import { TaskFilters } from "@/components/tasks/TaskFilters";
 import { ToolFilterFields, type ToolListFilters } from "@/components/tools/ToolFilterFields";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -200,12 +200,14 @@ function TaskFiltersField({ value, onChange, initiativeId, taskStatuses = [] }: 
   return (
     <div className="space-y-2">
       <p className="font-medium text-xs">{t("wizard.filter.tasks")}</p>
-      <ProjectTasksFilters
-        memberScope={
-          initiativeId == null ? { type: "community" } : { type: "initiative", initiativeId }
-        }
-        taskStatuses={taskStatuses}
-        initiativeId={initiativeId}
+      <TaskFilters
+        scope={{
+          kind: "project",
+          memberScope:
+            initiativeId == null ? { type: "community" } : { type: "initiative", initiativeId },
+          statuses: taskStatuses,
+          initiativeId: initiativeId,
+        }}
         value={value.tasks}
         onChange={(tasks) => onChange({ ...value, tasks })}
       />

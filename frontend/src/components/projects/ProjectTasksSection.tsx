@@ -34,7 +34,6 @@ import { ToolLayoutSelect } from "@/components/initiativeTools/shared/ToolLayout
 import { ToolListToolbar } from "@/components/initiativeTools/shared/ToolListToolbar";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { ProjectTaskComposer } from "@/components/projects/ProjectTaskComposer";
-import { ProjectTasksFilters } from "@/components/projects/ProjectTasksFilters";
 import { ProjectTasksKanbanView } from "@/components/projects/ProjectTasksKanbanView";
 import { ProjectTasksTableView } from "@/components/projects/ProjectTasksTableView";
 import { listLayoutLooks } from "@/components/projects/projectTasksConfig";
@@ -51,6 +50,7 @@ import { BulkEditTaskTagsDialog } from "@/components/tasks/BulkEditTaskTagsDialo
 import { ExportTasksButton } from "@/components/tasks/ExportTasksButton";
 import { TaskBulkEditDialog } from "@/components/tasks/TaskBulkEditDialog";
 import { TaskBulkEditPanel } from "@/components/tasks/TaskBulkEditPanel";
+import { TaskFilters } from "@/components/tasks/TaskFilters";
 import {
   emptyTaskFormValue,
   serializeTaskFormValue,
@@ -942,9 +942,12 @@ export const ProjectTasksSection = ({
           onClear={clearFilters}
           activeCount={activeFilterCount}
         >
-          <ProjectTasksFilters
-            memberScope={{ type: "canOpen", tool: Tool.project, id: projectId }}
-            taskStatuses={sortedTaskStatuses}
+          <TaskFilters
+            scope={{
+              kind: "project",
+              memberScope: { type: "canOpen", tool: Tool.project, id: projectId },
+              statuses: sortedTaskStatuses,
+            }}
             value={appliedSpec}
             onChange={setFilters}
           />

@@ -6,15 +6,17 @@
  *
  * Every list keeps its view here, in one shape:
  *
- * - `layout`: the list layout they were last in, where the list has several;
- * - `mode`: how they show it, where it offers ways (a calendar's month or
- *   week, a queue's list or on-deck, a gallery's masonry or grid);
+ * - `layout`: which way they were last looking at it, where it offers several
+ *   (a project's list layouts; My Tasks' table or calendar; a queue's list or
+ *   on-deck; a gallery's masonry, grid or timeline);
+ * - `mode`: a calendar's month, week, day or list;
  * - `parts`: for each layout (one, `LIST`, where there is only one), their
  *   filters, sort, grouping and hidden columns.
  *
  * A list says what its filters are, what someone who set none sees, and what
- * an older release kept for it, which is carried over the first time it is
- * read. A typed search and a date range are not kept: they are for one visit.
+ * an older release kept for it, which is read until they change something and
+ * then kept here. A typed search and a date range are not kept: they are for
+ * one visit.
  */
 
 import { useNavigate } from "@tanstack/react-router";
@@ -265,9 +267,9 @@ export function useListView<F>(
     loaded,
     /** The part on screen. */
     part,
-    /** The layout they were last in, where the list has several. */
+    /** Which way they were last looking at it, where it offers several. */
     layout: view.layout ?? null,
-    /** How they show it, or null where they never chose. */
+    /** A calendar's month, week, day or list, or null where they never chose. */
     mode: view.mode ?? null,
     ...current,
     setFilters,

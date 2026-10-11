@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import type {
   TagRead,
   TagSummary,
+  TaskPriority,
   TaskStatusCategory,
   TaskStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -32,6 +33,7 @@ import {
   type DueToken,
   type TaskFilterSpec,
 } from "@/lib/filters/taskFilters";
+import { PRIORITY_ORDER } from "@/lib/sorting";
 
 /**
  * Task statuses are per-project rows, so filtering by a status *id* only means
@@ -45,14 +47,27 @@ const STATUS_CATEGORIES: readonly TaskStatusCategory[] = ["backlog", "todo", "in
  *  prefix that can't collide with a numeric status id. */
 const CATEGORY_PREFIX = "category:";
 
-type ProjectTasksFiltersProps = {
-  /** Whose names the assignee picker offers. */
-  memberScope: MemberSearchScope;
-  /** One project's statuses; with none, the categories alone are offered. */
-  taskStatuses: TaskStatusRead[];
-  /** Scopes the property filter's definitions; omitted, it offers every
-   *  initiative's. */
-  initiativeId?: number;
+/** Which list the filters narrow: one project's tasks, or a person's own
+ *  across every community. Each offers what means something there. */
+export type TaskFiltersScope =
+  | {
+      kind: "project";
+      /** Whose names the assignee picker offers. */
+      memberScope: MemberSearchScope;
+      /** The project's statuses; with none, the categories alone are offered. */
+      statuses: TaskStatusRead[];
+      /** Scopes the property filter's definitions. */
+      initiativeId?: number;
+    }
+  | {
+      kind: "mine";
+      /** The communities their tasks come from. Tags and statuses are each
+       *  community's or project's own, so only categories are offered. */
+      communities: { id: number; name: string }[];
+    };
+
+type TaskFiltersProps = {
+  scope: TaskFiltersScope;
   /** The filter values, as one object — the same shape a preset holds. */
   value: TaskFilterSpec;
   onChange: (next: TaskFilterSpec) => void;
@@ -60,17 +75,16 @@ type ProjectTasksFiltersProps = {
   stacked?: boolean;
 };
 
-export const ProjectTasksFilters = ({
-  memberScope,
-  taskStatuses,
-  initiativeId,
-  value,
-  onChange,
-  stacked = false,
-}: ProjectTasksFiltersProps) => {
-  const { t } = useTranslation("projects");
+/**
+ * A task list's filters: the same controls on a project and on My Tasks,
+ * offering on each what means something there.
+ */
+export const TaskFilters = ({ scope, value, onChange, stacked = false }: TaskFiltersProps) => {
+  const { t } = useTranslation(["projects", "tasks"]);
+  const project = scope.kind === "project" ? scope : null;
+  const taskStatuses = project?.statuses ?? [];
   const field = stacked ? "w-full space-y-2" : "w-full space-y-2 sm:w-48";
-  const { data: tags = [] } = useTags();
+  const { data: tags = [] } = useTags({ enabled: project !== null });
 
   const patch = (fields: Partial<TaskFilterSpec>) => onChange({ ...value, ...fields });
 
@@ -114,37 +128,39 @@ export const ProjectTasksFilters = ({
     // does for every other filter bar.
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-end gap-4">
-        <div className={field}>
-          <Label
-            htmlFor="assignee-filter"
-            className="block font-medium text-muted-foreground text-xs"
-          >
-            {t("filters.filterByAssignee")}
-          </Label>
-          <MemberMultiSelect
-            id="assignee-filter"
-            variant="filter"
-            scope={memberScope}
-            selectedIds={assigneeIds.map(Number).filter(Number.isFinite)}
-            onChange={(ids) => setAssignees({ ids: ids.map(String) })}
-            tokens={[
-              {
-                value: ASSIGNEE_ME,
-                label: t("filters.assignedToMe"),
-                selected: assignedToMe,
-                onToggle: (selected) => setAssignees({ me: selected }),
-              },
-              {
-                value: ASSIGNEE_NONE,
-                label: t("filters.unassigned"),
-                selected: unassigned,
-                onToggle: (selected) => setAssignees({ none: selected }),
-              },
-            ]}
-            placeholder={t("filters.allAssignees")}
-            emptyMessage={t("filters.noUsersAvailable")}
-          />
-        </div>
+        {project ? (
+          <div className={field}>
+            <Label
+              htmlFor="assignee-filter"
+              className="block font-medium text-muted-foreground text-xs"
+            >
+              {t("filters.filterByAssignee")}
+            </Label>
+            <MemberMultiSelect
+              id="assignee-filter"
+              variant="filter"
+              scope={project.memberScope}
+              selectedIds={assigneeIds.map(Number).filter(Number.isFinite)}
+              onChange={(ids) => setAssignees({ ids: ids.map(String) })}
+              tokens={[
+                {
+                  value: ASSIGNEE_ME,
+                  label: t("filters.assignedToMe"),
+                  selected: assignedToMe,
+                  onToggle: (selected) => setAssignees({ me: selected }),
+                },
+                {
+                  value: ASSIGNEE_NONE,
+                  label: t("filters.unassigned"),
+                  selected: unassigned,
+                  onToggle: (selected) => setAssignees({ none: selected }),
+                },
+              ]}
+              placeholder={t("filters.allAssignees")}
+              emptyMessage={t("filters.noUsersAvailable")}
+            />
+          </div>
+        ) : null}
         <div className={field}>
           <Label htmlFor="due-filter" className="block font-medium text-muted-foreground text-xs">
             {t("filters.dueFilter")}
@@ -205,39 +221,88 @@ export const ProjectTasksFilters = ({
             emptyMessage={t("filters.noStatusesAvailable")}
           />
         </div>
-
         <div className={field}>
-          <Label htmlFor="tag-filter" className="block font-medium text-muted-foreground text-xs">
-            {t("filters.filterByTag")}
-          </Label>
-          <TagPicker
-            id="tag-filter"
-            selectedTags={selectedTags}
-            onChange={handleTagsChange}
-            placeholder={t("filters.allTags")}
-            variant="filter"
-          />
-        </div>
-        <div className={stacked ? "w-full space-y-2" : "w-full space-y-2 sm:w-60"}>
           <Label
-            htmlFor="show-archived"
+            htmlFor="priority-filter"
             className="block font-medium text-muted-foreground text-xs"
           >
-            {t("filters.archived")}
+            {t("tasks:filters.filterByPriority")}
           </Label>
-          <div className="flex h-9 items-center gap-3 rounded-md border bg-background/60 px-3">
-            <Switch
-              id="show-archived"
-              checked={value.include_archived}
-              onCheckedChange={(checked) => patch({ include_archived: Boolean(checked) })}
-              aria-label={t("filters.showArchived")}
-            />
-            <span className="text-muted-foreground text-sm">{t("filters.showArchived")}</span>
-          </div>
+          <MultiSelect
+            id="priority-filter"
+            selectedValues={value.priorities}
+            options={PRIORITY_ORDER.map((priority) => ({
+              value: priority,
+              label: t(`tasks:priority.${priority}` as never),
+            }))}
+            onChange={(values) => patch({ priorities: values as TaskPriority[] })}
+            placeholder={t("tasks:filters.allPriorities")}
+            emptyMessage={t("tasks:filters.noPriorities")}
+          />
         </div>
+        {scope.kind === "mine" ? (
+          <div className={field}>
+            <Label
+              htmlFor="community-filter"
+              className="block font-medium text-muted-foreground text-xs"
+            >
+              {t("tasks:filters.filterByCommunity")}
+            </Label>
+            <MultiSelect
+              id="community-filter"
+              selectedValues={value.community_ids.map(String)}
+              options={scope.communities.map((community) => ({
+                value: String(community.id),
+                label: community.name,
+              }))}
+              onChange={(values) =>
+                patch({ community_ids: values.map(Number).filter(Number.isFinite) })
+              }
+              placeholder={t("tasks:filters.allCommunities")}
+              emptyMessage={t("tasks:filters.noCommunities")}
+            />
+          </div>
+        ) : null}
+
+        {project ? (
+          <>
+            <div className={field}>
+              <Label
+                htmlFor="tag-filter"
+                className="block font-medium text-muted-foreground text-xs"
+              >
+                {t("filters.filterByTag")}
+              </Label>
+              <TagPicker
+                id="tag-filter"
+                selectedTags={selectedTags}
+                onChange={handleTagsChange}
+                placeholder={t("filters.allTags")}
+                variant="filter"
+              />
+            </div>
+            <div className={stacked ? "w-full space-y-2" : "w-full space-y-2 sm:w-60"}>
+              <Label
+                htmlFor="show-archived"
+                className="block font-medium text-muted-foreground text-xs"
+              >
+                {t("filters.archived")}
+              </Label>
+              <div className="flex h-9 items-center gap-3 rounded-md border bg-background/60 px-3">
+                <Switch
+                  id="show-archived"
+                  checked={value.include_archived}
+                  onCheckedChange={(checked) => patch({ include_archived: Boolean(checked) })}
+                  aria-label={t("filters.showArchived")}
+                />
+                <span className="text-muted-foreground text-sm">{t("filters.showArchived")}</span>
+              </div>
+            </div>
+          </>
+        ) : null}
       </div>
       <PropertyFilter
-        initiativeId={initiativeId}
+        initiativeId={project?.initiativeId}
         value={value.properties}
         onChange={(properties: PropertyFilterCondition[]) => patch({ properties })}
       />

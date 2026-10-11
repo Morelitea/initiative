@@ -19,6 +19,7 @@ import type {
   SortField,
   TaskStatusCategory,
 } from "@/api/generated/initiativeAPI.schemas";
+import { TaskPriority } from "@/api/generated/initiativeAPI.schemas";
 import type { DueFilterOption } from "@/components/projects/projectTasksConfig";
 import type { PropertyFilterCondition } from "@/components/properties/PropertyFilter";
 
@@ -33,6 +34,10 @@ export const ASSIGNEE_NONE = "none";
 export interface TaskFilterSpec {
   status_ids: number[];
   status_categories: TaskStatusCategory[];
+  priorities: TaskPriority[];
+  /** Only a list that holds several communities' tasks (My Tasks) narrows by
+   *  them. */
+  community_ids: number[];
   assignees: string[];
   tag_ids: number[];
   properties: PropertyFilterCondition[];
@@ -43,6 +48,8 @@ export interface TaskFilterSpec {
 export const EMPTY_TASK_FILTERS: TaskFilterSpec = {
   status_ids: [],
   status_categories: [],
+  priorities: [],
+  community_ids: [],
   assignees: [],
   tag_ids: [],
   properties: [],
@@ -60,6 +67,7 @@ export const DUE_LABEL_KEYS = {
 
 const DUE_TOKENS: readonly string[] = Object.keys(DUE_LABEL_KEYS);
 const CATEGORIES: readonly string[] = ["backlog", "todo", "in_progress", "done"];
+const PRIORITIES: readonly string[] = Object.values(TaskPriority);
 
 const numbers = (raw: unknown): number[] =>
   Array.isArray(raw) ? raw.filter((v): v is number => typeof v === "number") : [];
@@ -78,6 +86,12 @@ export function specFromStored(raw: StoredTaskFilters | null | undefined): TaskF
           (v): v is TaskStatusCategory => typeof v === "string" && CATEGORIES.includes(v)
         )
       : [],
+    priorities: Array.isArray(raw.priorities)
+      ? raw.priorities.filter(
+          (v): v is TaskPriority => typeof v === "string" && PRIORITIES.includes(v)
+        )
+      : [],
+    community_ids: numbers(raw.community_ids),
     assignees: Array.isArray(raw.assignees)
       ? raw.assignees.filter((v): v is string => typeof v === "string")
       : [],
@@ -99,6 +113,8 @@ export function taskFiltersEqual(a: TaskFilterSpec, b: TaskFilterSpec): boolean 
   return (
     sameIds(a.status_ids, b.status_ids) &&
     sameIds(a.status_categories, b.status_categories) &&
+    sameIds(a.priorities, b.priorities) &&
+    sameIds(a.community_ids, b.community_ids) &&
     sameIds(a.assignees, b.assignees) &&
     sameIds(a.tag_ids, b.tag_ids) &&
     a.due === b.due &&
@@ -113,6 +129,8 @@ export function taskFilterCount(spec: TaskFilterSpec): number {
   return (
     spec.status_ids.length +
     spec.status_categories.length +
+    spec.priorities.length +
+    spec.community_ids.length +
     spec.assignees.length +
     spec.tag_ids.length +
     spec.properties.length +
@@ -222,6 +240,14 @@ function statusConditions(spec: TaskFilterSpec): (FilterCondition | FilterGroup)
 export function taskSpecConditions(spec: TaskFilterSpec): (FilterCondition | FilterGroup)[] {
   return [
     ...statusConditions(spec),
+    ...(spec.priorities.length > 0
+      ? [{ field: "priority", op: "in_" as const, value: spec.priorities }]
+      : []),
+    // The cross-community list reads this as ``community_ids`` (plural, like
+    // ``initiative_ids``); the singular silently filters nothing.
+    ...(spec.community_ids.length > 0
+      ? [{ field: "community_ids", op: "in_" as const, value: spec.community_ids }]
+      : []),
     ...assigneeConditions(spec.assignees),
     ...(spec.tag_ids.length > 0
       ? [{ field: "tag_ids", op: "in_" as const, value: spec.tag_ids }]

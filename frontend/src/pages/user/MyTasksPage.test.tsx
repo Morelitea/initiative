@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { buildProjectTaskStatus, buildTagSummary, buildTask } from "@/__tests__/factories";
 import { server } from "@/__tests__/helpers/msw-server";
 import { createTestQueryClient, renderPage } from "@/__tests__/helpers/render";
+import { keepViewPreferences } from "@/__tests__/helpers/viewPreferences";
 import { VIEW_PREFERENCES_QUERY_KEY } from "@/hooks/useViewPreference";
 
 import { MyTasksPage } from "./MyTasksPage";
@@ -75,8 +76,10 @@ describe("MyTasksPage saved sort", () => {
     // And the rows under them were fetched in that order — one request, in the
     // saved sort, rather than the default sort followed by a throwaway refetch.
     expect(tableRequests(requests)).toHaveLength(1);
+    // Ties keep the project's own order, as on a project's table.
     expect(JSON.parse(tableRequests(requests)[0].get("sorting") ?? "[]")).toEqual([
       { field: "priority", dir: "desc" },
+      { field: "position", dir: "asc" },
     ]);
   });
 });
@@ -85,7 +88,8 @@ describe("MyTasksPage grouping", () => {
   it("remembers the grouping choice for the next visit", async () => {
     const user = userEvent.setup();
     stubTasks();
-    const first = renderMyTasks();
+    const kept = keepViewPreferences();
+    const first = renderPage(MyTasksPage, { queryClient: createTestQueryClient() });
 
     // Opens grouped by date window, as it always has.
     await waitFor(() => expect(groupSelect()).toHaveTextContent(/date/i));
@@ -94,8 +98,10 @@ describe("MyTasksPage grouping", () => {
     await user.click(screen.getByRole("option", { name: "None" }));
     await waitFor(() => expect(groupSelect()).toHaveTextContent(/none/i));
 
+    // It is kept for the reader, on any device.
     first.unmount();
-    renderMyTasks();
+    await waitFor(() => expect(kept["view:me:tasks"]).toBeDefined());
+    renderPage(MyTasksPage, { queryClient: createTestQueryClient() });
     await waitFor(() => expect(groupSelect()).toHaveTextContent(/none/i));
   });
 });
