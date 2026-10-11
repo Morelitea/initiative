@@ -9,6 +9,7 @@ import { renderWithProviders } from "@/__tests__/helpers/render";
 const state = vi.hoisted(() => ({
   community: null as ReturnType<typeof Object> | null,
   billing: null as { url: string } | null,
+  guestsEnabled: true,
   usage: { usage_bytes: 0 } as { usage_bytes: number } | undefined,
   usageError: false,
   usageEnabled: [] as boolean[],
@@ -21,7 +22,7 @@ vi.mock("@/hooks/useCommunities", async () => {
   return { ...actual, useCommunities: () => ({ activeCommunity: state.community }) };
 });
 vi.mock("@/hooks/useAppConfig", () => ({
-  useAppConfig: () => ({ billing: state.billing }),
+  useAppConfig: () => ({ billing: state.billing, guestsEnabled: state.guestsEnabled }),
 }));
 vi.mock("@/api/generated/storage/storage", () => ({
   useReadStorageUsage: (_communityId: number, options: { query: { enabled: boolean } }) => {
@@ -46,6 +47,7 @@ describe("CommunityUsagePanel", () => {
       tier_name: null,
     });
     state.billing = null;
+    state.guestsEnabled = true;
     state.usage = { usage_bytes: 500 };
     state.usageError = false;
     state.usageEnabled = [];
@@ -62,11 +64,20 @@ describe("CommunityUsagePanel", () => {
   it.each([
     [null, "Unlimited"],
     [3, "Up to 3 at a time"],
-    [0, "Not taking guests"],
   ])("states a guest cap of %s as its effect", (maxGuests, said) => {
     state.community = { ...state.community, max_guests: maxGuests };
     renderWithProviders(<CommunityUsagePanel />);
     expect(screen.getByText("Guests").parentElement).toHaveTextContent(said);
+  });
+
+  it.each([
+    ["a community that takes no guests", 0, true],
+    ["a deployment without guests", null, false],
+  ])("says nothing about guests to %s", (_who, maxGuests, enabled) => {
+    state.community = { ...state.community, max_guests: maxGuests };
+    state.guestsEnabled = enabled;
+    renderWithProviders(<CommunityUsagePanel />);
+    expect(screen.queryByText("Guests")).toBeNull();
   });
 
   it("shows no plan or portal UI, even to the seat of a billed deployment", () => {
