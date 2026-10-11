@@ -14,6 +14,7 @@ import type {
 } from "@/api/generated/initiativeAPI.schemas";
 import { listTaskStatuses } from "@/api/generated/task-statuses/task-statuses";
 import { getListMyTasksQueryKey, listMyTasks } from "@/api/generated/tasks/tasks";
+import { CALENDAR_VIEW_MODE_KEY } from "@/components/calendar";
 import { useCommunities } from "@/hooks/useCommunities";
 import { deviceJSON, LIST, type ListViewSpec, useListView, viewKey } from "@/hooks/useListView";
 import { useUpdateTaskInCommunity } from "@/hooks/useTasks";
@@ -81,7 +82,7 @@ export const MY_TASKS_VIEW: ListViewSpec<TaskFilterSpec> = {
       | undefined;
     const table = deviceJSON("initiative-my-tasks-table") as { grouping?: unknown } | null;
     const columns = deviceJSON("initiative-my-tasks-columns");
-    const mode = items["calendar:view-mode"];
+    const mode = items[CALENDAR_VIEW_MODE_KEY];
     if (!old && !table && !columns && typeof mode !== "string") return null;
     const sorting = old?.sorting;
     const filters = old ? fromOldNames(old) : {};

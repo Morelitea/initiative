@@ -94,7 +94,7 @@ interface DataTableProps<TData extends RowData> {
   /**
    * When provided, the DataTable treats ``columnVisibility`` as controlled
    * state. Use this together with ``onColumnVisibilityChange`` to persist
-   * toggles across sessions (see ``usePersistedColumnVisibility``).
+   * toggles across sessions (in their view, from ``useListView``).
    */
   columnVisibility?: ColumnVisibilityState;
   onColumnVisibilityChange?: (

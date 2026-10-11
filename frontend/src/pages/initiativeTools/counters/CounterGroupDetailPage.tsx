@@ -41,6 +41,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import {
   useCounterGroup,
@@ -54,14 +55,15 @@ import {
   useUpdateCounter,
   useUpdateCounterGroup,
 } from "@/hooks/useCounters";
+import { layoutViewSpec, useListView, viewKey } from "@/hooks/useListView";
 import { useReadOnOpen } from "@/hooks/useNotifications";
 import { useRecordOpen } from "@/hooks/useRecents";
 import { useToolRealtime } from "@/hooks/useResourceRealtime";
-import { useViewPreference } from "@/hooks/useViewPreference";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { toast } from "@/lib/mascotToast";
 import { counterRoute, toolListRoute, toolSettingsRoute } from "@/lib/tools";
 
+/** Where an older release kept a group's rows or grid. */
 const layoutStorageKey = (groupId: number) => `counter-group-${groupId}-layout`;
 
 export function CounterGroupDetailPage() {
@@ -98,10 +100,19 @@ export function CounterGroupDetailPage() {
   const [pendingDelete, setPendingDelete] = useState<CounterRead | null>(null);
   // The scope key encodes groupId, so the hook automatically returns
   // the right value when navigating between groups — no manual re-read.
-  const [persistedLayout, setPersistedLayout] = useViewPreference<string>(
-    groupId !== null ? layoutStorageKey(groupId) : "counter-group-noop-layout",
-    "row"
+  // Rows or a grid, kept in this person's view of the group. What an older
+  // release kept on the account carries over.
+  const communityId = useActiveCommunityId();
+  const viewSpec = useMemo(
+    () =>
+      layoutViewSpec(viewKey(communityId, "counter-group", groupId ?? 0), (items) =>
+        groupId !== null ? items[layoutStorageKey(groupId)] : undefined
+      ),
+    [communityId, groupId]
   );
+  const groupView = useListView(viewSpec);
+  const persistedLayout = groupView.layout;
+  const setPersistedLayout = groupView.rememberLayout;
   const layout: CounterLayout = persistedLayout === "grid" ? "grid" : "row";
 
   const toggleLayout = () => {

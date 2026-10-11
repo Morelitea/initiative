@@ -19,6 +19,7 @@ import type {
   SortField,
   TaskStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
+import { CALENDAR_VIEW_MODE_KEY } from "@/components/calendar";
 import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import {
   deviceJSON,
@@ -76,7 +77,7 @@ const carryProjectView = (
     if (Object.keys(entry).length > 0) parts[kind] = entry;
   }
   const layout = old.layout ?? old.view;
-  const mode = items["calendar:view-mode"];
+  const mode = items[CALENDAR_VIEW_MODE_KEY];
   if (Object.keys(parts).length === 0 && typeof layout !== "string" && typeof mode !== "string") {
     return null;
   }

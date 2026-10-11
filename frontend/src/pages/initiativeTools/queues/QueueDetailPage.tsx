@@ -28,8 +28,10 @@ import { ToolChest, ToolChestSegment } from "@/components/tools/ToolChest";
 import { ToolPageHeader } from "@/components/tools/ToolPageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useCanonicalInitiativeId } from "@/hooks/useCanonicalInitiativeId";
 import { useInitiative } from "@/hooks/useInitiatives";
+import { layoutViewSpec, useListView, viewKey } from "@/hooks/useListView";
 import { useReadOnOpen } from "@/hooks/useNotifications";
 import {
   useAdvanceTurn,
@@ -45,7 +47,6 @@ import {
 } from "@/hooks/useQueues";
 import { useRecordOpen } from "@/hooks/useRecents";
 import { useToolRealtime } from "@/hooks/useResourceRealtime";
-import { useViewPreference } from "@/hooks/useViewPreference";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { toast } from "@/lib/mascotToast";
 import { getItem } from "@/lib/storage";
@@ -69,13 +70,20 @@ export function QueueDetailPage() {
   useReadOnOpen(Tool.queue, viewedQueueId);
   useRecordOpen(Tool.queue, viewedQueueId);
 
-  // Per-queue view preference (list vs. on-deck). Falls back to the choice
-  // this device stored before the preference moved to the account.
-  const [storedView, setView] = useViewPreference<QueueView>(
-    `queue-${parsedId}-view`,
-    getItem(`queues.view.${parsedId}`) === "list" ? "list" : "on-deck"
+  // List or on-deck, kept in this person's view of the queue. What an older
+  // release kept, on the account or before that on this device, carries over.
+  const communityId = useActiveCommunityId();
+  const viewSpec = useMemo(
+    () =>
+      layoutViewSpec(
+        viewKey(communityId, "queue", parsedId),
+        (items) => items[`queue-${parsedId}-view`] ?? getItem(`queues.view.${parsedId}`)
+      ),
+    [communityId, parsedId]
   );
-  const view: QueueView = storedView === "list" ? "list" : "on-deck";
+  const queueView = useListView(viewSpec);
+  const view: QueueView = queueView.layout === "list" ? "list" : "on-deck";
+  const setView = queueView.rememberLayout as (next: QueueView) => void;
 
   // Turn controls just fire the mutation. The optimistic cache write happens
   // synchronously in the hook's `onMutate`; the On Deck component watches

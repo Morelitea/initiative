@@ -142,6 +142,22 @@ export const keptView = <F>(
   return { view: sanitizeListView(spec.carryOver?.(items ?? {}) ?? null) };
 };
 
+/** A list whose view is only which way it is shown (a queue's list or
+ *  on-deck, a counter group's rows or grid): its spec, carrying over what
+ *  `older` reads where an older release kept it. */
+export const layoutViewSpec = (
+  key: string,
+  older: (items: Readonly<Record<string, unknown>>) => unknown
+): ListViewSpec<null> => ({
+  key,
+  read: () => null,
+  defaults: { filters: null, ...NO_PART_VIEW },
+  carryOver: (items) => {
+    const layout = older(items);
+    return typeof layout === "string" ? { layout } : null;
+  },
+});
+
 /** The empty filters, sort, grouping and columns. */
 export const NO_PART_VIEW = {
   sorting: [] as SortingState,

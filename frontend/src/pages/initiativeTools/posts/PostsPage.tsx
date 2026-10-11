@@ -18,10 +18,12 @@ import { TimelineRail } from "@/components/timeline/TimelineRail";
 import type { ToolListFilters } from "@/components/tools/ToolFilterFields";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiative } from "@/hooks/useInitiatives";
+import { type ListViewSpec, NO_PART_VIEW, useListView, viewKey } from "@/hooks/useListView";
 import { PostReadTrackerProvider } from "@/hooks/usePostReadTracker";
 import { usePostsFeed, usePostsTimeline } from "@/hooks/usePosts";
 import { useToolCounts } from "@/hooks/useToolCounts";
@@ -83,14 +85,54 @@ type PostsViewProps = {
  * has passed. Heights are measured rather than assumed: a notice is as tall as
  * what somebody wrote.
  */
+/** What a person narrows an initiative's board by. */
+type PostsFilters = ToolListFilters<typeof Tool.post> & { read: ReadFilter };
+
+const readPostsFilters = (raw: unknown): PostsFilters => {
+  const kept = (raw !== null && typeof raw === "object" ? raw : {}) as Partial<PostsFilters>;
+  return { ...kept, read: kept.read === "unread" ? "unread" : "all" };
+};
+
+/** Where one person's view of an initiative's board is kept. */
+const postsViewSpec = (communityId: number, initiativeId: number): ListViewSpec<PostsFilters> => ({
+  key: viewKey(communityId, "initiative", initiativeId, "posts"),
+  read: readPostsFilters,
+  defaults: { filters: { read: "all" }, ...NO_PART_VIEW },
+});
+
 export const PostsView = ({ fixedInitiativeId, canCreate }: PostsViewProps) => {
   const { t } = useTranslation(["posts", "common"]);
   const router = useRouter();
   const gp = useCommunityPath();
 
-  const [listFilters, setListFilters] = useState<ToolListFilters<typeof Tool.post>>({});
+  // This person's view of the board: its filters, kept for them, but for a
+  // typed search, which is for this visit.
+  const communityId = useActiveCommunityId();
+  const viewSpec = useMemo(
+    () => postsViewSpec(communityId, fixedInitiativeId),
+    [communityId, fixedInitiativeId]
+  );
+  const postsView = useListView(viewSpec);
+  const [searchText, setSearchText] = useState("");
+  const { setFilters: keepFilters } = postsView;
+  const readFilter = postsView.filters.read;
+  const listFilters = useMemo<ToolListFilters<typeof Tool.post>>(() => {
+    const { read, ...kept } = postsView.filters;
+    void read;
+    return { ...kept, ...(searchText ? { search: searchText } : {}) };
+  }, [postsView.filters, searchText]);
+  const setListFilters = useCallback(
+    ({ search: typed, ...rest }: ToolListFilters<typeof Tool.post>) => {
+      setSearchText(typed ?? "");
+      keepFilters((prev) => ({ ...rest, read: prev.read }));
+    },
+    [keepFilters]
+  );
+  const setReadFilter = useCallback(
+    (read: ReadFilter) => keepFilters((prev) => ({ ...prev, read })),
+    [keepFilters]
+  );
   const tagIds = listFilters.tag_ids ?? [];
-  const [readFilter, setReadFilter] = useState<ReadFilter>("all");
   const [filtersOpen, setFiltersOpen] = useState(false);
   // Which of the board's two states it is showing. An archived notice is off
   // the feed, so this is the only place it can be reached.

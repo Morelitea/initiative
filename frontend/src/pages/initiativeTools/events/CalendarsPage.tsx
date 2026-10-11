@@ -19,6 +19,7 @@ import {
   buildEventCalendarEntry,
   buildTaskCalendarEntries,
   buildTaskOccurrenceEntries,
+  CALENDAR_VIEW_MODE_KEY,
   CALENDAR_VIEW_OPTIONS,
   type CalendarEntry,
   type CalendarEntryReschedule,
@@ -131,7 +132,7 @@ const calendarsViewSpec = (
     const carried = carriedCalendarView({
       prefs: deviceJSON("initiative-calendars-prefs"),
       visibility: deviceJSON(`initiative-calendar-visibility:${communityId}`),
-      mode: items["calendar:view-mode"],
+      mode: items[CALENDAR_VIEW_MODE_KEY],
     });
     return carried && { mode: carried.mode, parts: { [LIST]: { filters: carried.filters } } };
   },
