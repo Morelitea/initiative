@@ -185,6 +185,7 @@ _OWN_KIND_PARENTS: dict[str, tuple[str, ...]] = _derive_own_kind_parents()
 FREEZE_EXEMPT_TABLES: frozenset[str] = frozenset(
     {
         "recent_views",
+        "engagement_levels",
         "post_reads",
         "project_orders",
         "project_favorites",

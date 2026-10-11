@@ -190,9 +190,10 @@ _HEADER = """\
 -- rendered policies automatically (the provisioning stamp includes this
 -- rendering, so a registry change triggers the one-time sweep).
 --
--- One table deviates on INSERT: the change log (event_outbox) is written by the
--- capture trigger and by nothing else, so its insert policy admits the trigger
--- rather than re-deciding the writer's access — see _TRIGGER_WRITTEN_INSERT.
+-- A few tables deviate: the change log (event_outbox) is written by the capture
+-- trigger and by nothing else, so its insert policy admits the trigger rather
+-- than re-deciding the writer's access, and engagement levels are written by the
+-- system engine alone — see _WRITTEN_BY.
 --
 -- Soft-delete tables additionally carry a RESTRICTIVE FOR DELETE policy
 -- (soft_delete_admin_purge): hard delete = purge, and only a community's
@@ -338,22 +339,30 @@ _COMMANDS = (
     ("delete", "DELETE", "USING", True),
 )
 
-# Tables written only by a trigger or the system engine: their INSERT policy
-# admits that writer instead of re-deciding the writer's access.
+# Tables written only by a trigger or the system engine: the policy for each
+# command named here admits that writer instead of re-deciding the writer's
+# access.
 #
-# ``event_outbox`` is the one. A row lands there as a consequence of a content
+# ``event_outbox`` is the model. A row lands there as a consequence of a content
 # write that already cleared its own table's gate, so the log RECORDS what
 # happened rather than deciding it a second time — including a change that ends
 # the writer's own access, which it must still be able to record. Who may READ
 # the log is unchanged: the initiative gate, via the other three policies.
-_TRIGGER_WRITTEN_INSERT: dict[str, str] = {
-    "event_outbox": "pg_trigger_depth() > 0",
+_WRITTEN_BY: dict[str, dict[str, str]] = {
+    "event_outbox": {"INSERT": "pg_trigger_depth() > 0"},
     # The search index is derived: rows arrive from the refresh trigger as a
     # consequence of a content write that already cleared its own table's gate.
     # The reindex sweep routes as the guild admin, which is the second leg.
-    "search_entries": f"pg_trigger_depth() > 0 OR {IN_POLICY.system} OR {IN_POLICY.admin}",
+    "search_entries": {
+        "INSERT": f"pg_trigger_depth() > 0 OR {IN_POLICY.system} OR {IN_POLICY.admin}"
+    },
     # A plug-in's events are written by the system engine, on the plug-in's behalf.
-    "plugin_event_outbox": IN_POLICY.system,
+    "plugin_event_outbox": {"INSERT": IN_POLICY.system},
+    # Levels are the hourly pass's alone to write, whatever the command: no
+    # member keeps one, and a reader only reads it.
+    "engagement_levels": dict.fromkeys(
+        ("INSERT", "UPDATE", "DELETE"), IN_POLICY.system
+    ),
 }
 
 
@@ -377,8 +386,8 @@ def _table_block(table: str, path: InitiativePath) -> str:
             # task means reaching the project it goes in.
             if sharing is not None and sharing != ANSWERED:
                 pred = f"{pred} AND {sharing}"
-        if command == "INSERT" and table in _TRIGGER_WRITTEN_INSERT:
-            pred = _TRIGGER_WRITTEN_INSERT[table]
+        if (writer := _WRITTEN_BY.get(table, {}).get(command)) is not None:
+            pred = writer
         name = f"initiative_member_{suffix}"
         lines.append(f"DROP POLICY IF EXISTS {name} ON {table};")
         lines.append(f"CREATE POLICY {name} ON {table} AS PERMISSIVE FOR {command}")
@@ -1094,7 +1103,7 @@ def _plugin_predicates(table: str) -> dict[str, str]:
                 f"{_plugin_placed_initiatives()})"
             )
             return dict.fromkeys(("SELECT", "INSERT", "UPDATE", "DELETE"), placed)
-        if table not in _TRIGGER_WRITTEN_INSERT:
+        if "INSERT" not in _WRITTEN_BY.get(table, {}):
             return {}
         by_trigger = f"({_IID} IS NULL OR pg_trigger_depth() > 0)"
         predicates = dict.fromkeys(("SELECT", "INSERT", "UPDATE", "DELETE"), by_trigger)

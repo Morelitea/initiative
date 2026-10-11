@@ -349,6 +349,7 @@ CREATED_BY_EXEMPT_TABLES: frozenset[str] = frozenset(
         "plugin_schedule_runs",
         "event_reminder_dispatches",
         "search_entries",
+        "engagement_levels",
         "reaction_digest_items",
         "task_assignment_digest_items",
         "webhook_deliveries",

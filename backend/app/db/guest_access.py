@@ -62,6 +62,8 @@ _NAMED: dict[str, GuestAccess] = {
     "reactions": GuestAccess.write,
     "reaction_digest_items": GuestAccess.write,
     "recent_views": GuestAccess.write,
+    # How widely what they reach was engaged with, read beside it.
+    "engagement_levels": GuestAccess.read,
     "relationships": GuestAccess.write,
     "property_values": GuestAccess.write,
     "property_definitions": GuestAccess.read,

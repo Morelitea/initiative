@@ -90,6 +90,8 @@ class LockNamespace(IntEnum):
     #: shared by each write while it reads the pinned definition, exclusive
     #: while the values are reconciled to a new one.
     PLUGIN_FIELDS = _tag(b"PFLD")
+    #: Working out a guild's engagement levels, so one replica does each.
+    ENGAGEMENT_LEVELS = _tag(b"ENGL")
 
     # -- keyed by an account ------------------------------------------------
     #: Creating communities under the daily limit.
