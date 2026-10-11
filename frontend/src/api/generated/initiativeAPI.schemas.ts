@@ -7236,6 +7236,7 @@ export interface OperatorUserRead {
   week_starts_on: number;
   time_format: string;
   recent_tabs_limit: number;
+  count_toward_engagement_ranking: boolean;
   timezone: string;
   event_reminder_minutes_before: number | null;
   last_overdue_notification_at: string | null;
@@ -10362,6 +10363,7 @@ export interface UserRead {
   week_starts_on: number;
   time_format: string;
   recent_tabs_limit: number;
+  count_toward_engagement_ranking: boolean;
   timezone: string;
   event_reminder_minutes_before: number | null;
   last_overdue_notification_at: string | null;
@@ -10396,6 +10398,7 @@ export interface UserSelfUpdate {
   week_starts_on?: number | null;
   time_format?: string | null;
   recent_tabs_limit?: number | null;
+  count_toward_engagement_ranking?: boolean | null;
   timezone?: string | null;
   event_reminder_minutes_before?: number | null;
   color_theme?: string | null;

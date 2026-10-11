@@ -95,7 +95,7 @@ Members keep their own [notification settings](../guides/notifications.md) under
 
 What is kept is a rough level for each item, worked out once an hour from the last week of opens and changes in this community. An item gets a level only once three different people have engaged with it. The level names nobody and holds no count, and it is read only beside items the reader can already open. See [Data & compliance](data-and-compliance.md#what-initiative-keeps-about-use).
 
-Turn it off and the levels are deleted within the hour; results go back to being ordered by the match alone. Whoever runs the server can turn it off for every community, and then this switch says so and has nothing to decide.
+Turn it off and the levels are deleted within the hour; results go back to being ordered by the match alone. Whoever runs the server can turn it off for every community, and then this switch says so and has nothing to decide. Each member can also leave their own activity out, under **My Settings → Privacy**.
 
 ## Turning something off
 

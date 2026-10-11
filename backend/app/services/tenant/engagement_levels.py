@@ -10,7 +10,8 @@ the community already keeps, and writes nothing else:
   innermost item it sits in.
 
 Each person counts once per item, at their weightiest engagement, decayed by
-age, so opening something forty times is opening it once. An item gets a level
+age, so opening something forty times is opening it once. Somebody who turned
+``count_toward_engagement_ranking`` off is not counted at all. An item gets a level
 only once :data:`MIN_PEOPLE` different people engaged with it, and only the
 level is kept: no person, no count.
 
@@ -47,6 +48,7 @@ from app.db.request_context import Unattributed
 from app.db.session import routed_guild_id, set_rls_context
 from app.core.guild_auth_options import CommunityAuthOption
 from app.models.platform.guild import LIVE_STATUS_VALUES, Guild
+from app.models.platform.user import User
 from app.models.tenant.engagement_level import LEVEL_MAX, EngagementLevel
 from app.models.tenant.recent_view import ViewSource
 from app.services.guild_sweeps import Visit
@@ -102,6 +104,7 @@ _LEVELS = text(
                    ELSE :view_weight END AS weight
         FROM recent_views v
         WHERE v.last_viewed_at > :since
+          AND v.user_id <> ALL (:uncounted)
       UNION ALL
         SELECT o.actor_user_id, t.kind, t.id, o.occurred_at, :contribution_weight
         FROM event_outbox o
@@ -120,6 +123,7 @@ _LEVELS = text(
         WHERE o.occurred_at > :since
           AND o.actor_user_id IS NOT NULL
           AND o.actor_install_id IS NULL
+          AND o.actor_user_id <> ALL (:uncounted)
     ),
     per_person AS (
         SELECT kind, id,
@@ -159,6 +163,7 @@ _LEVELS = text(
 ).bindparams(
     bindparam("tables", type_=ARRAY(Text)),
     bindparam("kinds", type_=ARRAY(Text)),
+    bindparam("uncounted", type_=ARRAY(Integer)),
     bindparam("now", type_=DateTime(timezone=True)),
     bindparam("since", type_=DateTime(timezone=True)),
     bindparam("view_weight", type_=Float),
@@ -194,14 +199,25 @@ async def _community(session: AsyncSession, guild_id: int) -> tuple[bool, bool]:
 
 async def prepare() -> Visit:
     """The visit that works out one community's levels, with the deployment's
-    answer read once for the pass. It runs wherever the community's schema
-    exists: levels are cleared wherever ranking is off, and worked out where
-    members can read."""
+    answer and the accounts that asked not to be counted read once for the
+    pass. It runs wherever the community's schema exists: levels are cleared
+    wherever ranking is off, and worked out where members can read."""
     async with cohorts.system_session(None) as session:
         await set_rls_context(session, Unattributed())
         enabled = (
             await app_settings.get_app_settings(session)
         ).engagement_ranking_enabled
+        uncounted = list(
+            (
+                await session.exec(
+                    select(User.id).where(
+                        User.count_toward_engagement_ranking.is_(False)  # type: ignore[attr-defined]
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
     tables, kinds = zip(*((t, k) for k, t in CONTENT_KIND_TABLES.items()))
 
     async def visit(session: AsyncSession, guild_id: int) -> None:
@@ -221,6 +237,7 @@ async def prepare() -> Visit:
             params={
                 "tables": list(tables),
                 "kinds": list(kinds),
+                "uncounted": uncounted,
                 "now": now,
                 "since": now - WINDOW,
                 "view_weight": VIEW_WEIGHT,

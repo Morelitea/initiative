@@ -7,6 +7,7 @@ import { DirectMessagePolicyField } from "@/components/contacts/DirectMessagePol
 import { IgnoredAccountsSection } from "@/components/contacts/IgnoredAccountsSection";
 import { AgeConfirmationForm } from "@/components/contacts/UnreachableEmptyState";
 import { CookieChoicesSection } from "@/components/settings/CookieChoicesSection";
+import { EngagementRankingSection } from "@/components/settings/EngagementRankingSection";
 import { SettingsRow, SettingsSection } from "@/components/settings/SettingsSection";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -52,7 +53,8 @@ export const UserSettingsPrivacyPage = () => {
             {t("privacy.dm.platformDisabled")}
           </p>
         </SettingsSection>
-        {/* Not about messaging, so it outlives messaging being switched off. */}
+        {/* Not about messaging, so they outlive messaging being switched off. */}
+        <EngagementRankingSection />
         <CookieChoicesSection />
       </div>
     );
@@ -108,6 +110,7 @@ export const UserSettingsPrivacyPage = () => {
         <IgnoredAccountsSection />
       </SettingsSection>
 
+      <EngagementRankingSection />
       <CookieChoicesSection />
     </div>
   );

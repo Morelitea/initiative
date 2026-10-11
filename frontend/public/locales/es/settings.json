@@ -1897,6 +1897,12 @@
       "allowed": "Activado en este navegador: {{categories}}.",
       "perBrowser": "Tu respuesta acompaña a tu cuenta, así que otro navegador u otro dispositivo no vuelve a preguntar. Si la diste antes de iniciar sesión, se queda en ese navegador hasta que lo hagas.",
       "change": "Cambiar"
+    },
+    "engagementRanking": {
+      "title": "Orden de búsqueda",
+      "label": "Contar mi actividad en el orden de búsqueda",
+      "help": "Si está activado, los elementos que abres y modificas ayudan a decidir qué muestra primero la búsqueda de tus comunidades. Nadie puede ver lo que abriste. Desactívalo y tu actividad deja de contar a partir de la próxima actualización horaria.",
+      "saved": "Orden de búsqueda guardado."
     }
   },
   "twoFactor": {

@@ -1897,6 +1897,12 @@
       "allowed": "Switched on in this browser: {{categories}}.",
       "perBrowser": "Your answer follows your account, so a new browser or device won't ask again. Answered before you signed in, it stays in that browser until you do.",
       "change": "Change"
+    },
+    "engagementRanking": {
+      "title": "Search ranking",
+      "label": "Count my activity toward search ranking",
+      "help": "When on, the items you open and change help decide what your communities' search lists first. Nobody can see what you opened. Turn it off and your activity stops counting from the next hourly update.",
+      "saved": "Search ranking saved."
     }
   },
   "twoFactor": {

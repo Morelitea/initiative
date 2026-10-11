@@ -21,6 +21,12 @@ const mocks = vi.hoisted(() => ({
   ignored: vi.fn(),
   ignoreByHandle: vi.fn(),
   noop: vi.fn(),
+  updateMe: vi.fn(),
+}));
+
+vi.mock("@/hooks/useUsers", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks/useUsers")>()),
+  useUpdateCurrentUser: () => ({ mutate: mocks.updateMe, isPending: false }),
 }));
 
 vi.mock("@/hooks/useDirectMessages", async (importOriginal) => ({
@@ -57,6 +63,17 @@ describe("UserSettingsPrivacyPage", () => {
     mocks.connections.mockReturnValue({ data: { accepted: [], incoming: [], outgoing: [] } });
     mocks.messages.mockReturnValue({ data: { accepted: [], incoming: [], outgoing: [] } });
     mocks.ignored.mockReturnValue({ data: { items: [], total: 0 } });
+  });
+
+  it("lets a person stop their activity counting toward search ranking", async () => {
+    const user = userEvent.setup();
+    renderPage(UserSettingsPrivacyPage);
+
+    const ranking = await screen.findByRole("switch", { name: /count my activity/i });
+    expect(ranking).toBeChecked();
+    await user.click(ranking);
+
+    expect(mocks.updateMe).toHaveBeenCalledWith({ count_toward_engagement_ranking: false });
   });
 
   it("offers the three options the rule has, and nothing else", async () => {

@@ -1897,6 +1897,12 @@
       "allowed": "In diesem Browser aktiv: {{categories}}.",
       "perBrowser": "Ihre Antwort folgt Ihrem Konto, ein neuer Browser oder ein neues Gerät fragt also nicht erneut. Vor der Anmeldung gegeben, bleibt sie bis dahin in diesem Browser.",
       "change": "Ändern"
+    },
+    "engagementRanking": {
+      "title": "Suchreihenfolge",
+      "label": "Meine Aktivität für die Suchreihenfolge zählen",
+      "help": "Eingeschaltet helfen die Elemente, die du öffnest und änderst, zu entscheiden, was die Suche deiner Communities zuerst zeigt. Niemand kann sehen, was du geöffnet hast. Schalte es aus, und deine Aktivität zählt ab der nächsten stündlichen Aktualisierung nicht mehr.",
+      "saved": "Suchreihenfolge gespeichert."
     }
   },
   "twoFactor": {
