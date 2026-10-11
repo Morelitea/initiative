@@ -57,6 +57,12 @@ Direct messages are off by default: every account is created on the **Private** 
 
 It's read **once**, when an account is made. Changing it opens no existing account and closes none either — people who already have a setting keep it. See [Who can reach you](../guides/messages.md#who-can-reach-you).
 
+### Ranking search by engagement
+
+Search puts what more members have recently opened or worked on a little higher, from a rough level per item that the server works out once an hour. It's on unless you switch off **Let communities rank results by engagement**, under the same **Settings → Platform → Community** tab. Off, no community ranks by engagement whatever it chose, and every level is deleted within the hour.
+
+A community holding its own security standard can turn it off for itself as well. If your privacy policy needs to describe it, [Data & compliance](../security/data-and-compliance.md#what-initiative-keeps-about-use) has what is kept and for how long.
+
 ### How long people stay signed in
 
 Two different things, and it's worth keeping them apart.

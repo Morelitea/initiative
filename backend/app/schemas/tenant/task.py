@@ -31,7 +31,7 @@ from app.schemas.tenant.property import (
 )
 
 from app.core.intake import Conversation, IntakeStream
-from app.models.tenant.task import TaskPriority
+from app.models.tenant.task import TaskPriority, TaskStatusCategory
 from app.models.platform.user import UserStatus
 
 
@@ -147,6 +147,11 @@ class TaskUpdate(PropertiesOnUpdate):
     #: ``DESCRIPTION_CHANGED``.
     description_base: Optional[RichMentionStr] = None
     task_status_id: Optional[int] = None
+    #: Move the task to its project's column of this category (the nearest
+    #: one before it where the project has none), for a caller that knows
+    #: "done" but not which column that is. Ignored with ``task_status_id``,
+    #: and a task already in this category stays in its column.
+    status_category: Optional[TaskStatusCategory] = None
     priority: Optional[TaskPriority] = None
     assignee_ids: Optional[List[PersonId]] = None
     start_date: Optional[datetime] = None

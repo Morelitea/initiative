@@ -101,6 +101,17 @@ Fonts are served from the deployment's own server, and no page loads a script fr
 !!! info "If you host it yourself"
     The tables above describe Initiative. A reverse proxy, CDN or web application firewall you put in front of it may add cookies of its own — that's yours to document if your obligations call for it.
 
+## What Initiative keeps about use
+
+Two records of how a community's content is used are kept inside that community's own data, and neither leaves the server.
+
+| What | Kept for | Used for |
+|---|---|---|
+| **Recent views.** Each person's latest open of each item in a community, when it was, and whether it came from search. One row per person per item. | At least 7 days. After that, only the items still in the person's recent tabs. Deleted when they leave the community or delete their account. | The recent-items tabs, and the engagement levels below. Each person sees only their own. |
+| **Engagement levels.** A rough level for each item that at least three different people opened or changed in the last 7 days. No person, no count. | Worked out again every hour, so an item drops out once fewer than three people have engaged with it within the week. | Ordering search, the command palette and pickers. Shown to nobody, and read only beside items the reader can already open. |
+
+The levels are worked out from the recent views and from the change log Initiative already keeps for 7 days. No decision is made about a person. A community holding its own security standard can turn the levels off, and whoever runs the server can turn them off for every community. Either way they are deleted within the hour. See [Ranking search by engagement](community-security.md#ranking-search-by-engagement).
+
 ## Your data rights
 
 ### Getting your data out

@@ -16,7 +16,6 @@ import type { EditorVariant } from "@/components/ui/editor/variant";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useSelfInCommunity } from "@/hooks/useCommunities";
 import { MentionedPeopleScope } from "@/hooks/useMentionedPeople";
-import { SmartChipScope } from "@/hooks/useSmartChips";
 import { getUserColorHsl } from "@/lib/userColor";
 import { getUserDisplayName } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
@@ -135,62 +134,60 @@ export function Editor({
           </div>
         </div>
       )}
-      {/* Outside the composer on purpose: chips, references and mentions render
-          as Lexical decorators, which the composer portals in itself. Only
-          something above it is an ancestor of all of them. */}
-      <SmartChipScope>
-        <MentionedPeopleScope>
-          <LexicalExtensionComposer extension={appExtension} contentEditable={null}>
-            <TooltipProvider>
-              <Plugins
-                showToolbar={showToolbar}
-                readOnly={readOnly}
-                collaborative={useCollaborativeMode}
-                cursorsContainerRef={cursorsContainerRef}
-                initiativeId={initiativeId}
-                subject={subject}
-                supportsEntityMentions={supportsEntityMentions}
-                variant={variant}
-                maxLength={maxLength}
-                compact={compact}
-                onWikilinkNavigate={onWikilinkNavigate}
-                onCreateReferencedThing={onCreateReferencedThing}
-              />
+      {/* Outside the composer on purpose: mentions render as Lexical
+          decorators, which the composer portals in itself. Only something above
+          it is an ancestor of all of them. */}
+      <MentionedPeopleScope>
+        <LexicalExtensionComposer extension={appExtension} contentEditable={null}>
+          <TooltipProvider>
+            <Plugins
+              showToolbar={showToolbar}
+              readOnly={readOnly}
+              collaborative={useCollaborativeMode}
+              cursorsContainerRef={cursorsContainerRef}
+              initiativeId={initiativeId}
+              subject={subject}
+              supportsEntityMentions={supportsEntityMentions}
+              variant={variant}
+              maxLength={maxLength}
+              compact={compact}
+              onWikilinkNavigate={onWikilinkNavigate}
+              onCreateReferencedThing={onCreateReferencedThing}
+            />
 
-              {/* Publishes the headings to a `DocumentOutlineScope`, where the
+            {/* Publishes the headings to a `DocumentOutlineScope`, where the
                 page's contents list reads them. Inert without one. */}
-              <DocumentOutlineTracker />
+            <DocumentOutlineTracker />
 
-              {useCollaborativeMode && providerFactory && (
-                <LexicalCollaboration>
-                  {/* The server makes a document's Yjs state from its saved
+            {useCollaborativeMode && providerFactory && (
+              <LexicalCollaboration>
+                {/* The server makes a document's Yjs state from its saved
                       content before anyone joins, so the room always arrives
                       holding the document and no tab fills it. */}
-                  <CollaborationPlugin
-                    id="main"
-                    providerFactory={providerFactory}
-                    shouldBootstrap={false}
-                    username={userName}
-                    cursorColor={userColor.current}
-                    cursorsContainerRef={cursorsContainerRef}
-                    excludedProperties={COLLAB_EXCLUDED_PROPERTIES}
-                  />
-                </LexicalCollaboration>
-              )}
-
-              {!readOnly && (trackChanges ?? !useCollaborativeMode) && (
-                <OnChangePlugin
-                  ignoreSelectionChange={true}
-                  onChange={(editorState) => {
-                    onChange?.(editorState);
-                    onSerializedChange?.(editorState.toJSON());
-                  }}
+                <CollaborationPlugin
+                  id="main"
+                  providerFactory={providerFactory}
+                  shouldBootstrap={false}
+                  username={userName}
+                  cursorColor={userColor.current}
+                  cursorsContainerRef={cursorsContainerRef}
+                  excludedProperties={COLLAB_EXCLUDED_PROPERTIES}
                 />
-              )}
-            </TooltipProvider>
-          </LexicalExtensionComposer>
-        </MentionedPeopleScope>
-      </SmartChipScope>
+              </LexicalCollaboration>
+            )}
+
+            {!readOnly && (trackChanges ?? !useCollaborativeMode) && (
+              <OnChangePlugin
+                ignoreSelectionChange={true}
+                onChange={(editorState) => {
+                  onChange?.(editorState);
+                  onSerializedChange?.(editorState.toJSON());
+                }}
+              />
+            )}
+          </TooltipProvider>
+        </LexicalExtensionComposer>
+      </MentionedPeopleScope>
     </div>
   );
 }

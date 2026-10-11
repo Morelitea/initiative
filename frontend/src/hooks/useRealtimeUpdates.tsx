@@ -9,7 +9,7 @@ import { syncComments } from "@/hooks/useComments";
 import { canvasIsStale, dashboardDataKey } from "@/hooks/useSqlQuery";
 import { openLiveSocket } from "@/lib/liveSocket";
 import { queryClient } from "@/lib/queryClient";
-import { TOOLS, toolPlural } from "@/lib/tools";
+import { singularOf, TOOLS, toolPlural } from "@/lib/tools";
 import { buildCommunityWsUrl } from "@/lib/wsUrl";
 
 import { useAuth } from "./useAuth";
@@ -134,9 +134,14 @@ const CONTAINER_SPECS: Record<string, (id: number, direct: boolean) => Spec[]> =
 /**
  * What a change to one facet of a resource makes stale, by the facet's label in
  * `changed`, where the facet is read at an address of its own rather than under
- * the resource's: a project's views, or an initiative's calendar views.
+ * the resource's: a project's views, or an initiative's calendar views. A
+ * project's columns are read by every chip showing a task's status, and the
+ * change names the project rather than its tasks, so it reaches them all.
  */
-const FACET_SPECS: Record<string, Spec> = { layouts: q.layouts() };
+const FACET_SPECS: Record<string, Spec> = {
+  layouts: q.layouts(),
+  statuses: q.allReferences("task"),
+};
 
 const isRef = (value: unknown): value is ResourceRef => {
   const ref = value as ResourceRef | undefined;
@@ -192,9 +197,14 @@ export const applyChanges = (changes: readonly RealtimeChange[], communityId: nu
 
   for (const [ref, recount] of resources.values()) {
     specs.push(...(RESOURCE_SPECS[ref.type]?.(ref.id, recount) ?? []));
+    // What a chip, link or embed says about it — its name, its status, its body.
+    specs.push(q.references(singularOf(ref.type), ref.id));
   }
   for (const [ref, direct] of containers.values()) {
     specs.push(...(CONTAINER_SPECS[ref.type]?.(ref.id, direct) ?? []));
+    // A reading about the thing a change sits directly in: a project's
+    // progress moves with its tasks.
+    if (direct) specs.push(q.references(singularOf(ref.type), ref.id));
   }
   if (specs.length > 0) void invalidate(...specs);
 

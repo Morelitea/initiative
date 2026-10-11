@@ -1,168 +1,162 @@
-import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
-import type { ReactNode } from "react";
-import { createContext, useCallback, useContext, useMemo, useState } from "react";
+import { useQueries, useQuery } from "@tanstack/react-query";
 
 import type {
   ReferenceEmbed,
   SearchEntityType,
   SmartChipState,
-  SmartChipStateList,
 } from "@/api/generated/initiativeAPI.schemas";
 import { readReferenceEmbeds, readSmartChips } from "@/api/generated/smart-chips/smart-chips";
 import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
-import { referenceRef } from "@/lib/smartChips";
+import { referenceRef, storedEntityType } from "@/lib/smartChips";
 
-/** How long a chip may be behind the thing it is about. */
+/** How long an answer is trusted when nothing has said it changed — what a
+ *  remount or a tab brought forward asks again after. */
 const STALE_MS = 30_000;
-/** How often an open document asks again while its tab is in front. */
-const POLL_MS = 60_000;
 /**
- * How many references one request may carry — the server's own ceiling, which
- * it enforces by refusing the request rather than answering part of it.
+ * How often a chip asks again with nothing having said it changed.
  *
- * A page longer than this asks in several requests instead of one, so what a
- * page costs follows what is actually written in it. Every real document fits
- * in the first.
+ * The realtime bus is what keeps a chip current: a change to the thing it is
+ * about marks it stale the moment it lands. This only covers what the bus
+ * cannot deliver — something in an initiative this tab's socket did not join.
+ */
+const BACKSTOP_MS = 5 * 60_000;
+
+/**
+ * How many references one request may carry — the server's own ceilings
+ * (`MAX_REFS`, `MAX_EMBEDS`), which it enforces by refusing the request rather
+ * than answering part of it. A moment that asks for more sends several.
  */
 export const REFS_PER_REQUEST = 500;
+export const EMBEDS_PER_REQUEST = 25;
 
-/** The cache key of one batch of chips; prefix it with the community alone to
- *  refresh every chip in it. */
-export const smartChipsKey = (communityId: number, refs?: string[]) =>
-  refs ? (["smart-chips", communityId, refs] as const) : (["smart-chips", communityId] as const);
+interface Waiter<T> {
+  resolve: (value: T | null) => void;
+  reject: (error: unknown) => void;
+}
 
-const referenceEmbedKey = (communityId: number, ref: string) =>
-  ["reference-embeds", communityId, ref] as const;
+/**
+ * One request for everything asked in the same moment.
+ *
+ * Every chip asks for itself, and a page of thirty still makes one call: the
+ * asks made while a render commits are held for a tick, then sent together,
+ * split at `limit`. Each ask is answered with its own item, or `null` where
+ * the server left it out — gone, or not this reader's to see.
+ */
+export const batchedReader = <T extends { ref: string }>(
+  read: (communityId: number, refs: string[]) => Promise<T[]>,
+  limit: number
+) => {
+  const pending = new Map<number, Map<string, Waiter<T>[]>>();
 
-/** One page's references, split into what a request will carry. */
-export const referenceBatches = (refs: string[]): string[][] => {
-  // Sorted first, so the same page splits the same way however its nodes are
-  // ordered and each batch keeps a stable cache key.
-  const sorted = [...new Set(refs)].sort();
-  const batches: string[][] = [];
-  for (let index = 0; index < sorted.length; index += REFS_PER_REQUEST) {
-    batches.push(sorted.slice(index, index + REFS_PER_REQUEST));
-  }
-  return batches;
+  const send = (communityId: number, waiting: Map<string, Waiter<T>[]>) => {
+    const refs = [...waiting.keys()];
+    for (let index = 0; index < refs.length; index += limit) {
+      const chunk = refs.slice(index, index + limit);
+      const settle = (answer: (waiter: Waiter<T>, ref: string) => void) => {
+        for (const ref of chunk) for (const waiter of waiting.get(ref) ?? []) answer(waiter, ref);
+      };
+      read(communityId, chunk).then(
+        (items) => {
+          const byRef = new Map(items.map((item) => [item.ref, item]));
+          settle((waiter, ref) => waiter.resolve(byRef.get(ref) ?? null));
+        },
+        (error) => settle((waiter) => waiter.reject(error))
+      );
+    }
+  };
+
+  return (communityId: number, ref: string): Promise<T | null> =>
+    new Promise((resolve, reject) => {
+      let waiting = pending.get(communityId);
+      if (!waiting) {
+        const held = new Map<string, Waiter<T>[]>();
+        waiting = held;
+        pending.set(communityId, held);
+        setTimeout(() => {
+          pending.delete(communityId);
+          send(communityId, held);
+        }, 0);
+      }
+      waiting.set(ref, [...(waiting.get(ref) ?? []), { resolve, reject }]);
+    });
 };
 
-/** The batches read back as one answer.
+const loadChip = batchedReader(
+  (communityId, refs) => readSmartChips(communityId, { refs }).then((answer) => answer.items),
+  REFS_PER_REQUEST
+);
+
+const loadEmbed = batchedReader(
+  (communityId, refs) => readReferenceEmbeds(communityId, { refs }).then((answer) => answer.items),
+  EMBEDS_PER_REQUEST
+);
+
+/** The thing a reference is about, as its cache address names it: a body
+ *  saved under an earlier spelling of a kind is kept with today's. */
+const subject = (ref: string) => {
+  const [kind, id] = ref.split(":");
+  return `${storedEntityType(kind) ?? kind}/${id}`;
+};
+
+/**
+ * Where one chip's answer is kept: addressed like a read of its own, by the
+ * thing it is about and then the fact, so a change to the thing names every
+ * chip about it at once (`q.references(kind, id)`).
+ */
+export const chipKey = (communityId: number, ref: string) =>
+  [`/api/v1/c/${communityId}/smart-chips/${subject(ref)}`, ref] as const;
+
+const embedKey = (communityId: number, ref: string) =>
+  [`/api/v1/c/${communityId}/smart-chips/embeds/${subject(ref)}`, ref] as const;
+
+/** When a reading turns on its own — a due date passing, an event starting —
+ *  the chip asks again at that moment, rather than on a timer. */
+export const nextAsk = (state: SmartChipState | null | undefined): number => {
+  const until = state?.date ? Date.parse(state.date) - Date.now() : Number.NaN;
+  return until > 0 && until < BACKSTOP_MS ? until + 1_000 : BACKSTOP_MS;
+};
+
+const chipQuery = (communityId: number, ref: string, enabled = true) => ({
+  queryKey: chipKey(communityId, ref),
+  queryFn: () => loadChip(communityId, ref),
+  enabled: enabled && communityId > 0,
+  staleTime: STALE_MS,
+  refetchInterval: (query: { state: { data?: SmartChipState | null } }) =>
+    nextAsk(query.state.data),
+});
+
+/**
+ * What one reference says right now, or `undefined` while it loads and where
+ * it cannot be read — deleted, or never shared with this reader.
+ *
+ * A chip asks `task:12:status`, a link asks `task:12`. Each asks for itself;
+ * the reader gathers whatever a page asks in one moment into one request.
+ * `communityId` reads it in a community other than the page's, for a surface
+ * that spans communities.
+ */
+export const useChipState = (ref: string, communityId?: number): SmartChipState | undefined => {
+  const active = useActiveCommunityId();
+  return useQuery(chipQuery(communityId ?? active, ref)).data ?? undefined;
+};
+
+/** The answers a list of references has so far.
  *
  * Module scope so its identity is stable: `combine` runs on every render, and
- * a fresh function here would rebuild the result — and every chip below it —
- * each time the document is touched. */
-const combineBatches = (results: { data?: SmartChipStateList; isFetched: boolean }[]) => ({
-  data: { items: results.flatMap((result) => result.data?.items ?? []) },
+ * a fresh function here would rebuild the result each time. */
+const combineStates = (results: { data?: SmartChipState | null; isFetched: boolean }[]) => ({
+  states: results.flatMap((result) => (result.data ? [result.data] : [])),
   isFetched: results.every((result) => result.isFetched),
 });
 
-/**
- * Everything one page refers to, in as few requests as it takes.
- *
- * A document with thirty chips makes one call, not thirty: the scope collects
- * the references out of the editor and asks for them together.
- * `communityIdOverride` reads them in a community other than the page's, for a
- * surface that spans communities.
- */
-export const useSmartChipStates = (
-  refs: string[],
-  enabled = true,
-  communityIdOverride?: number
-) => {
-  const activeCommunityId = useActiveCommunityId();
-  const communityId = communityIdOverride ?? activeCommunityId;
-  const batches = referenceBatches(refs);
+/** What every reference in a list says right now — for a surface that holds
+ *  its references as data rather than as nodes: a list of links, a thread. */
+export const useChipStates = (refs: string[], enabled = true, communityId?: number) => {
+  const active = useActiveCommunityId();
   return useQueries({
-    queries: batches.map((refs) => ({
-      queryKey: smartChipsKey(communityId, refs),
-      queryFn: ({ signal }) => readSmartChips(communityId, { refs }, undefined, signal),
-      enabled: enabled && communityId != null,
-      staleTime: STALE_MS,
-      // A chip goes stale because someone else moved something, so it is asked
-      // again on a timer rather than waiting for this reader to do anything.
-      // React Query pauses this while the tab is in the background.
-      refetchInterval: POLL_MS,
-      placeholderData: keepPreviousData,
-    })),
-    combine: combineBatches,
+    queries: refs.map((ref) => chipQuery(communityId ?? active, ref, enabled)),
+    combine: combineStates,
   });
 };
-
-/**
- * What the page refers to NOW, out of everything the batches answered.
- *
- * A batch keeps its previous answer while a changed page reloads, which is what
- * stops every chip blanking to its stored label on the keystroke that adds one.
- * The cost is that an answer can outlive the reference that asked for it: edit a
- * long document and the batches repartition, so the previous answer may cover
- * references the page no longer holds. Keyed by reference, that could never
- * show one chip another's reading — but it could keep answering for something
- * deleted, so what the page does not refer to is dropped here.
- */
-export const currentStates = (
-  items: SmartChipState[],
-  refs: string[]
-): Map<string, SmartChipState> => {
-  const wanted = new Set(refs);
-  const states = new Map<string, SmartChipState>();
-  for (const state of items) {
-    if (wanted.has(state.ref)) states.set(state.ref, state);
-  }
-  return states;
-};
-
-interface SmartChipScopeValue {
-  /** What everything on this page currently says, by reference. */
-  states: Map<string, SmartChipState>;
-  /** What the page refers to, handed up by whatever can see the content. */
-  report: (refs: string[]) => void;
-}
-
-const SmartChipScopeContext = createContext<SmartChipScopeValue>({
-  states: new Map(),
-  report: () => {},
-});
-
-/**
- * The page's live answers, above the thing that renders the chips.
- *
- * This sits **outside** the editor rather than being one of its plugins, and
- * that placement is the whole point. Chips are Lexical decorators, which the
- * composer renders as portals of its own — a provider mounted among the plugins
- * is not an ancestor of any of them, so every chip would read an empty map and
- * show the words stored beside it instead of the live reading.
- *
- * Content is reported up (`report`) rather than walked here, because only
- * something inside the editor can see the document.
- */
-export function SmartChipScope({ children }: { children: ReactNode }) {
-  const [refs, setRefs] = useState<string[]>([]);
-
-  const report = useCallback((next: string[]) => {
-    // Compared as a string so an edit that moves a reference without changing
-    // the set does not start a new request.
-    setRefs((current) => (current.join() === next.join() ? current : next));
-  }, []);
-
-  const { data } = useSmartChipStates(refs);
-
-  const value = useMemo(
-    () => ({ states: currentStates(data?.items ?? [], refs), report }),
-    [data, refs, report]
-  );
-
-  return <SmartChipScopeContext.Provider value={value}>{children}</SmartChipScopeContext.Provider>;
-}
-
-/** How a page tells its scope what it refers to. */
-export const useReportReferences = () => useContext(SmartChipScopeContext).report;
-
-/** What everything this page refers to currently says, by reference.
- *
- * Chips and links read from the same map: a chip asks `task:12:status`, a link
- * asks `task:12`, and the page asked for both together. */
-export const useChipState = (ref: string): SmartChipState | undefined =>
-  useContext(SmartChipScopeContext).states.get(ref);
 
 /** What a referenced thing is called right now, or `undefined` where it cannot
  *  be read — deleted, or never shared with this reader. */
@@ -173,20 +167,16 @@ export const useReferenceTitle = (
 
 /**
  * What an embedded reference shows — the thing's name and its description —
- * or `undefined` while loading and wherever it cannot be read.
- *
- * Asked once per embed rather than on the chips' timer: a description is text
- * somebody writes, not a reading that moves on its own, so it is read again
- * when the reader comes back to the page rather than every minute.
+ * or `null` where it cannot be read. Kept current the way a chip is: a change
+ * to the thing marks it stale.
  */
 export const useReferenceEmbed = (entityType: SearchEntityType, entityId: number) => {
   const communityId = useActiveCommunityId();
   const ref = referenceRef(entityType, entityId);
-  return useQuery({
-    queryKey: referenceEmbedKey(communityId, ref),
-    queryFn: ({ signal }) => readReferenceEmbeds(communityId, { refs: [ref] }, undefined, signal),
-    enabled: communityId != null,
+  return useQuery<ReferenceEmbed | null>({
+    queryKey: embedKey(communityId, ref),
+    queryFn: () => loadEmbed(communityId, ref),
+    enabled: communityId > 0,
     staleTime: STALE_MS,
-    select: (data): ReferenceEmbed | null => data.items.find((item) => item.ref === ref) ?? null,
   });
 };

@@ -38,6 +38,12 @@ Each result shows the line that matched, with your words highlighted, so you can
 
 **Archived things** are left out unless you switch **Include archived** on.
 
+### What comes first
+
+The best match, mostly. But when two things match about as well, the one more of your community has been opening or working on this week goes a little higher. The meeting notes four people have been living in all week beat the ones somebody made in March and never opened again.
+
+It takes three different people before anything counts, and one person opening a page forty times is one person. It only reorders what you'd have found anyway: nothing turns up because it's popular, and nobody can tell who opened what. Pickers lean the same way before you type anything. A community can [turn it off](../security/community-security.md#ranking-search-by-engagement).
+
 ### When you don't spell it right
 
 Which is most of the time, and is fine:

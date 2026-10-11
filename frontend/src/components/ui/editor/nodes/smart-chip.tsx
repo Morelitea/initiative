@@ -30,8 +30,8 @@ interface SmartChipProps {
  * twice. What the reading is ABOUT is one hover away: the card says what the
  * thing is called now, what kind of thing it is, and which fact this is.
  *
- * Reads from the page's one request rather than making its own, so a document
- * with thirty of these still makes a single call.
+ * Each chip asks for itself and the asks of one moment go out together, so a
+ * document with thirty of these still makes a single call.
  */
 export function SmartChip(props: SmartChipProps) {
   // The one chip that is acted on rather than read is drawn as what it is: a

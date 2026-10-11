@@ -13,7 +13,6 @@ import { documentExtension } from "@/components/ui/editor/document-extension";
 import { $createSmartChipNode } from "@/components/ui/editor/nodes/smart-chip-node";
 import { Plugins } from "@/components/ui/editor/plugins";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { SmartChipScope } from "@/hooks/useSmartChips";
 
 /**
  * A chip reads its live state where it is only being READ.
@@ -38,16 +37,14 @@ function Grab(): null {
 function ReadOnlyHarness() {
   const extension = useMemo(() => documentExtension({ collaborative: false, editable: false }), []);
   return (
-    <SmartChipScope>
-      <LexicalExtensionComposer extension={extension} contentEditable={null}>
-        <TooltipProvider>
-          <Grab />
-          {/* Exactly how a post's body is rendered on the board: read-only,
+    <LexicalExtensionComposer extension={extension} contentEditable={null}>
+      <TooltipProvider>
+        <Grab />
+        {/* Exactly how a post's body is rendered on the board: read-only,
               no toolbar, and no mention-inserting. */}
-          <Plugins showToolbar={false} readOnly initiativeId={7} />
-        </TooltipProvider>
-      </LexicalExtensionComposer>
-    </SmartChipScope>
+        <Plugins showToolbar={false} readOnly initiativeId={7} />
+      </TooltipProvider>
+    </LexicalExtensionComposer>
   );
 }
 

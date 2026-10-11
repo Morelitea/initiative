@@ -1,7 +1,7 @@
 """How many people engaged with each item lately, as a coarse level.
 
-Search orders by the level (it is read beside the item, gated like the item
-itself). The hourly pass works it out in each active community from two records
+Search orders by the level, read through :func:`level_of` beside the item and
+gated like the item itself; it only reorders what a search already found. The hourly pass works it out in each active community from two records
 the community already keeps, and writes nothing else:
 
 - **Views**: each person's latest open of each item, from ``recent_views``.
@@ -21,9 +21,21 @@ option), or a deployment that did, holds no levels: the pass clears them.
 from __future__ import annotations
 
 from collections.abc import Iterable
+from typing import Any
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import DateTime, Float, Integer, Text, bindparam, delete, select, text
+from sqlalchemy import (
+    DateTime,
+    Float,
+    Integer,
+    Text,
+    bindparam,
+    delete,
+    func,
+    select,
+    text,
+)
+from sqlalchemy.sql.elements import ColumnElement
 from sqlalchemy.dialects.postgresql import ARRAY
 
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -34,8 +46,9 @@ from app.db.initiative_rls import CONTENT_KIND_TABLES
 from app.db.request_context import Unattributed
 from app.db.session import routed_guild_id, set_rls_context
 from app.core.guild_auth_options import CommunityAuthOption
-from app.models.platform.guild import Guild
+from app.models.platform.guild import LIVE_STATUS_VALUES, Guild
 from app.models.tenant.engagement_level import LEVEL_MAX, EngagementLevel
+from app.models.tenant.recent_view import ViewSource
 from app.services.guild_sweeps import Visit
 from app.services.platform import app_settings, guild_entitlements
 from app.services.tenant.recent_views import WINDOW
@@ -44,10 +57,35 @@ from app.services.tenant.recent_views import WINDOW
 HALF_LIFE = timedelta(days=2)
 #: What opening an item counts for.
 VIEW_WEIGHT = 1.0
+#: What opening it from search counts for: search orders by the level, so an
+#: open it led to says less about the item.
+SEARCH_VIEW_WEIGHT = 0.5
 #: What changing it counts for: acting on something says more than opening it.
 CONTRIBUTION_WEIGHT = 2.0
 #: The fewest different people an item needs before it has a level.
 MIN_PEOPLE = 3
+#: How much each level lifts a match: its rank times ``1 + BOOST × level``.
+BOOST = 0.1
+
+
+def level_of(entity_type: Any, entity_id: Any) -> ColumnElement[int]:
+    """An item's level, 0 where it has none, read under the reader's own
+    policies: a level is seen only beside an item the reader can read."""
+    return func.coalesce(
+        select(EngagementLevel.level)
+        .where(
+            EngagementLevel.entity_type == entity_type,
+            EngagementLevel.entity_id == entity_id,
+        )
+        .scalar_subquery(),
+        0,
+    )
+
+
+def boosted(rank: Any, level: Any) -> ColumnElement[float]:
+    """A match's rank, lifted by its level. It reorders matches and never adds
+    one."""
+    return rank * (1 + BOOST * level)
 
 
 #: One statement per community: score every item engaged with inside
@@ -59,7 +97,9 @@ _LEVELS = text(
     WITH kinds AS (SELECT unnest(:tables) AS tbl, unnest(:kinds) AS kind),
     engaged AS (
         SELECT v.user_id, v.entity_type AS kind, v.entity_id AS id,
-               v.last_viewed_at AS at, :view_weight AS weight
+               v.last_viewed_at AS at,
+               CASE v.source WHEN :searched THEN :search_view_weight
+                   ELSE :view_weight END AS weight
         FROM recent_views v
         WHERE v.last_viewed_at > :since
       UNION ALL
@@ -122,6 +162,8 @@ _LEVELS = text(
     bindparam("now", type_=DateTime(timezone=True)),
     bindparam("since", type_=DateTime(timezone=True)),
     bindparam("view_weight", type_=Float),
+    bindparam("search_view_weight", type_=Float),
+    bindparam("searched", type_=Text),
     bindparam("contribution_weight", type_=Float),
     bindparam("half_life", type_=Float),
     bindparam("level_max", type_=Integer),
@@ -129,9 +171,10 @@ _LEVELS = text(
 )
 
 
-async def _community_allows(session: AsyncSession, guild_id: int) -> bool:
-    """Whether the community leaves ranking on: its own answer, which applies
-    while it holds the ``restrictions`` option."""
+async def _community(session: AsyncSession, guild_id: int) -> tuple[bool, bool]:
+    """Whether the community leaves ranking on (its own answer, which applies
+    while it holds the ``restrictions`` option), and whether its members can
+    read it."""
     row = (
         await session.exec(
             select(
@@ -139,18 +182,21 @@ async def _community_allows(session: AsyncSession, guild_id: int) -> bool:
                 guild_entitlements.holds_option(
                     Guild.id, CommunityAuthOption.restrictions
                 ),
+                Guild.status.in_(LIVE_STATUS_VALUES),  # type: ignore[attr-defined]
             ).where(Guild.id == guild_id)
         )
     ).one_or_none()
     if row is None:
-        return False
-    allowed, held = row
-    return bool(allowed) or not held
+        return False, False
+    allowed, held, live = row
+    return bool(allowed) or not held, bool(live)
 
 
 async def prepare() -> Visit:
     """The visit that works out one community's levels, with the deployment's
-    answer read once for the pass."""
+    answer read once for the pass. It runs wherever the community's schema
+    exists: levels are cleared wherever ranking is off, and worked out where
+    members can read."""
     async with cohorts.system_session(None) as session:
         await set_rls_context(session, Unattributed())
         enabled = (
@@ -163,8 +209,11 @@ async def prepare() -> Visit:
             session, LockNamespace.ENGAGEMENT_LEVELS, guild_id, wait=False
         ):
             return
-        if not (enabled and await _community_allows(session, guild_id)):
+        allowed, live = await _community(session, guild_id)
+        if not (enabled and allowed):
             await session.exec(delete(EngagementLevel))  # type: ignore[arg-type]
+            return
+        if not live:
             return
         now = datetime.now(timezone.utc)
         await session.exec(
@@ -175,6 +224,8 @@ async def prepare() -> Visit:
                 "now": now,
                 "since": now - WINDOW,
                 "view_weight": VIEW_WEIGHT,
+                "search_view_weight": SEARCH_VIEW_WEIGHT,
+                "searched": ViewSource.search.value,
                 "contribution_weight": CONTRIBUTION_WEIGHT,
                 "half_life": HALF_LIFE.total_seconds(),
                 "level_max": LEVEL_MAX,
