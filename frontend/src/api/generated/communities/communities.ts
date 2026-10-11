@@ -2262,6 +2262,10 @@ export function useGetCommunityAuthSettings<
  * keeps an admin from locking the community behind a sign-in they have not
  * completed.
  *
+ * The guests' requirement takes the same shapes and is asked of guests
+ * instead of the members' one. Its writer is not a guest, so is not asked
+ * to meet it.
+ *
  * Nobody is signed out by a change. Existing API
  * keys are left alone when keys are refused, so accepting them again
  * restores them. Every notification answer only narrows what the deployment

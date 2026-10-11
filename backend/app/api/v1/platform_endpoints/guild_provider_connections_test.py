@@ -6,6 +6,7 @@ sees only the providers it is allowed to, and the narrowing it sets is what
 decides whether somebody arriving is one of theirs.
 """
 
+import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -242,8 +243,9 @@ async def test_one_communitys_connection_is_not_anothers_to_change(
 # ── What a requirement keeps ───────────────────────────────────────────────
 
 
+@pytest.mark.parametrize("half", ["", "guest_"], ids=["members", "guests"])
 async def test_a_required_provider_cannot_be_disconnected(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, half: str
 ):
     admin, guild = await _seat(session)
     provider = await create_auth_provider(session, slug="corp")
@@ -253,9 +255,12 @@ async def test_a_required_provider_cannot_be_disconnected(
     session.add(
         GuildAuthPolicy(
             guild_id=guild.id,
-            policy="required",
-            provider_id=provider.id,
-            provider_slug=provider.slug,
+            **{
+                "policy": "open",
+                f"{half}policy": "required",
+                f"{half}provider_id": provider.id,
+                f"{half}provider_slug": provider.slug,
+            },
         )
     )
     await session.commit()

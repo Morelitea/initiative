@@ -32,6 +32,7 @@ let settings: CommunityAuthSettingsRead | undefined;
 const baseSettings = (): CommunityAuthSettingsRead => ({
   auth_options: ["restrictions", "providers"],
   auth_policy: openPolicy,
+  guest_auth_policy: openPolicy,
   enforce_compliance_session: false,
   require_second_factor: false,
   allow_push_notifications: true,

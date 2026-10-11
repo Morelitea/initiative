@@ -2252,6 +2252,7 @@ export interface CommunityAuthPolicyUpdate {
 export interface CommunityAuthSettingsRead {
   auth_options: CommunityAuthOption[];
   auth_policy: CommunityAuthPolicyRead;
+  guest_auth_policy: CommunityAuthPolicyRead;
   enforce_compliance_session: boolean;
   require_second_factor: boolean;
   allow_push_notifications: boolean;
@@ -2274,6 +2275,7 @@ export interface CommunityAuthSettingsRead {
  */
 export interface CommunityAuthSettingsUpdate {
   auth_policy?: CommunityAuthPolicyUpdate | null;
+  guest_auth_policy?: CommunityAuthPolicyUpdate | null;
   enforce_compliance_session?: boolean | null;
   require_second_factor?: boolean | null;
   allow_push_notifications?: boolean | null;

@@ -299,8 +299,30 @@ AS $function$
         -- asks of the session. Both have to hold.
         public.platform_factor_satisfied()
         AND NOT EXISTS (
-            SELECT 1 FROM public.guild_auth_policies p
-            WHERE p.guild_id = {gucs.ROUTED_GUILD_ID}
+            SELECT 1
+            FROM public.guild_auth_policies r
+            -- The half that applies: a request routed into one of the
+            -- community's guest roles, each granted the guest floor, is asked
+            -- what the community asks of its guests.
+            CROSS JOIN LATERAL (
+                SELECT EXISTS (
+                    SELECT 1 FROM pg_auth_members m
+                    WHERE m.member = to_regrole(current_user)
+                      AND m.roleid = to_regrole('guest_base')
+                ) AS guest
+            ) routed
+            CROSS JOIN LATERAL (
+                SELECT
+                    r.guild_id,
+                    CASE WHEN routed.guest THEN r.guest_policy ELSE r.policy END
+                        AS policy,
+                    CASE WHEN routed.guest THEN r.guest_provider_id ELSE r.provider_id END
+                        AS provider_id,
+                    CASE WHEN routed.guest THEN r.guest_require_methods
+                        ELSE r.require_methods END
+                        AS require_methods
+            ) p
+            WHERE r.guild_id = {gucs.ROUTED_GUILD_ID}
               AND p.policy <> 'open'
               AND (
                   -- The provider this guild names, if it names one: the

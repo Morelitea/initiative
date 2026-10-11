@@ -215,13 +215,16 @@ async def _ensure_not_required(
     Lifting the requirement first is the way round it.
     """
     policy = await session.get(GuildAuthPolicy, guild_id)
-    required = policy is not None and policy.policy == "required"
-    names_this_provider = required and policy.provider_id == connection.provider_id
+    # Its members' requirement and its guests' alike.
+    halves = (
+        [h for h in (policy.half(False), policy.half(True)) if h.policy == "required"]
+        if policy is not None
+        else []
+    )
+    names_this_provider = any(h.provider_id == connection.provider_id for h in halves)
     is_last_live_connection = False
-    if (
-        required
-        and connection.enabled
-        and LoginMethod.sso.value in (policy.require_methods or ())
+    if connection.enabled and any(
+        LoginMethod.sso.value in h.require_methods for h in halves
     ):
         another = (
             await session.exec(
