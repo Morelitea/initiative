@@ -6,10 +6,39 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
-from app.core.smart_chips import SmartChipAspect, SmartChipTone
+from app.core.smart_chips import SmartChipAspect, SmartChipKind, SmartChipTone
 from app.core.search import SearchEntityType
+
+
+#: Ceiling on one request, so the cost of answering one is bounded.
+#:
+#: The endpoint REFUSES a request carrying more rather than answering part of
+#: it, because a partial answer is indistinguishable from a page whose things
+#: were all deleted. A longer page asks in several requests instead — see
+#: ``REFS_PER_REQUEST`` in the client's ``useSmartChips``, which batches to this
+#: number.
+MAX_REFS = 100
+
+
+class ReferenceRead(BaseModel):
+    """The references one page asks about, read together.
+
+    A body rather than a query string: what a page points at is its own
+    business, and a URL is rewritten and recorded by whatever it passes
+    through.
+    """
+
+    refs: List[str] = Field(
+        default_factory=list,
+        max_length=MAX_REFS,
+        description=(
+            "References to read. `task:12` names a thing, `task:12:status` a "
+            "fact about it. One that names nothing is ignored. Chips: "
+            + ", ".join(kind.value for kind in SmartChipKind)
+        ),
+    )
 
 
 class SmartChipState(BaseModel):

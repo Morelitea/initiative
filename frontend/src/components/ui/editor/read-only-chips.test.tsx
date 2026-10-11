@@ -55,8 +55,8 @@ describe("a read-only document's smart chips", () => {
   it("asks for the state of what it refers to", async () => {
     asked = [];
     server.use(
-      communityHttp.get("/smart-chips", ({ request }) => {
-        asked = new URL(request.url).searchParams.getAll("ref");
+      communityHttp.post("/smart-chips", async ({ request }) => {
+        asked = ((await request.json()) as { refs: string[] }).refs;
         return HttpResponse.json({ items: [] });
       })
     );

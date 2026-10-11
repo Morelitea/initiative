@@ -405,7 +405,7 @@ describe("RelationsSection", () => {
       other: { ...built.other, type: SearchEntityType.project, id: 7 },
     };
     server.use(
-      communityHttp.get("/smart-chips/", () =>
+      communityHttp.post("/smart-chips/", () =>
         HttpResponse.json({
           items: [
             {

@@ -7,36 +7,28 @@ gates as the thing it is about.
 
 from __future__ import annotations
 
-from typing import Annotated, List
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends
 
 from app.api.deps import RLSSessionDep, get_current_active_user, GuildContextDep
-from app.core.smart_chips import SmartChipKind
 from app.models.platform.user import User
-from app.schemas.tenant.smart_chip import ReferenceEmbedList, SmartChipStateList
+from app.schemas.tenant.smart_chip import (
+    ReferenceEmbedList,
+    ReferenceRead,
+    SmartChipStateList,
+)
 from app.services.tenant import smart_chips as smart_chips_service
 
 router = APIRouter()
 
 
-_REF_DESCRIPTION = (
-    "A chip to read, as `kind:id:aspect` — `task:12:status`. Repeat it for "
-    "every chip on the page; they are read together. Pairs that name no chip "
-    "are ignored. Available: " + ", ".join(kind.value for kind in SmartChipKind)
-)
-
-
-@router.get("/", response_model=SmartChipStateList)
+@router.post("/", response_model=SmartChipStateList)
 async def read_smart_chips(
+    body: ReferenceRead,
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     _guild_context: GuildContextDep,
-    ref: List[str] = Query(
-        default=[],
-        max_length=smart_chips_service.MAX_REFS,
-        description=_REF_DESCRIPTION,
-    ),
 ) -> SmartChipStateList:
     """Read every chip on one page in one request.
 
@@ -48,21 +40,17 @@ async def read_smart_chips(
         items=await smart_chips_service.read_smart_chips(
             session,
             user_id=current_user.id,
-            refs=ref,
+            refs=body.refs,
         )
     )
 
 
-@router.get("/embeds", response_model=ReferenceEmbedList)
+@router.post("/embeds", response_model=ReferenceEmbedList)
 async def read_reference_embeds(
+    body: ReferenceRead,
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     _guild_context: GuildContextDep,
-    ref: List[str] = Query(
-        default=[],
-        max_length=smart_chips_service.MAX_REFS,
-        description="A reference to show in full, as `kind:id` — `task:12`.",
-    ),
 ) -> ReferenceEmbedList:
     """What an embedded reference shows: the thing's name, and its description
     or, for prose, its body.
@@ -71,6 +59,6 @@ async def read_reference_embeds(
     """
     return ReferenceEmbedList(
         items=await smart_chips_service.read_embeds(
-            session, user_id=current_user.id, refs=ref
+            session, user_id=current_user.id, refs=body.refs
         )
     )

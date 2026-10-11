@@ -8,12 +8,7 @@ import type {
   SmartChipState,
   SmartChipStateList,
 } from "@/api/generated/initiativeAPI.schemas";
-import {
-  getReadReferenceEmbedsQueryKey,
-  getReadSmartChipsQueryKey,
-  readReferenceEmbeds,
-  readSmartChips,
-} from "@/api/generated/smart-chips/smart-chips";
+import { readReferenceEmbeds, readSmartChips } from "@/api/generated/smart-chips/smart-chips";
 import { useActiveCommunityId } from "@/hooks/useActiveCommunityId";
 import { referenceRef } from "@/lib/smartChips";
 
@@ -30,6 +25,14 @@ const POLL_MS = 60_000;
  * in the first.
  */
 export const REFS_PER_REQUEST = 100;
+
+/** The cache key of one batch of chips; prefix it with the community alone to
+ *  refresh every chip in it. */
+export const smartChipsKey = (communityId: number, refs?: string[]) =>
+  refs ? (["smart-chips", communityId, refs] as const) : (["smart-chips", communityId] as const);
+
+const referenceEmbedKey = (communityId: number, ref: string) =>
+  ["reference-embeds", communityId, ref] as const;
 
 /** One page's references, split into what a request will carry. */
 export const referenceBatches = (refs: string[]): string[][] => {
@@ -70,9 +73,9 @@ export const useSmartChipStates = (
   const communityId = communityIdOverride ?? activeCommunityId;
   const batches = referenceBatches(refs);
   return useQueries({
-    queries: batches.map((ref) => ({
-      queryKey: getReadSmartChipsQueryKey(communityId, { ref }),
-      queryFn: () => readSmartChips(communityId, { ref }),
+    queries: batches.map((refs) => ({
+      queryKey: smartChipsKey(communityId, refs),
+      queryFn: ({ signal }) => readSmartChips(communityId, { refs }, undefined, signal),
       enabled: enabled && communityId != null,
       staleTime: STALE_MS,
       // A chip goes stale because someone else moved something, so it is asked
@@ -179,10 +182,9 @@ export const useReferenceTitle = (
 export const useReferenceEmbed = (entityType: SearchEntityType, entityId: number) => {
   const communityId = useActiveCommunityId();
   const ref = referenceRef(entityType, entityId);
-  const params = { ref: [ref] };
   return useQuery({
-    queryKey: getReadReferenceEmbedsQueryKey(communityId, params),
-    queryFn: () => readReferenceEmbeds(communityId, params),
+    queryKey: referenceEmbedKey(communityId, ref),
+    queryFn: ({ signal }) => readReferenceEmbeds(communityId, { refs: [ref] }, undefined, signal),
     enabled: communityId != null,
     staleTime: STALE_MS,
     select: (data): ReferenceEmbed | null => data.items.find((item) => item.ref === ref) ?? null,
