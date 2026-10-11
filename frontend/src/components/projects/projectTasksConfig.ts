@@ -1,7 +1,10 @@
-import type { TFunction } from "i18next";
-import { Calendar, Kanban, type LucideIcon, Table } from "lucide-react";
+import { Calendar, CalendarDays, FileText, Kanban, type LucideIcon, Table } from "lucide-react";
 
-import type { TaskPriority, ViewLayoutType } from "@/api/generated/initiativeAPI.schemas";
+import type {
+  DetailLayoutRead,
+  ListLayoutReadKind,
+  TaskPriority,
+} from "@/api/generated/initiativeAPI.schemas";
 
 export type DueFilterOption = "all" | "today" | "7_days" | "30_days" | "overdue";
 
@@ -24,31 +27,23 @@ export const priorityDotClass: Record<TaskPriority, string> = {
   urgent: "bg-destructive",
 };
 
-/** Each view layout's icon, and its name in `projects`. */
-export const viewLayouts: Record<ViewLayoutType, { icon: LucideIcon; labelKey: string }> = {
+type Look = { icon: LucideIcon; labelKey: string };
+
+/** Each list layout's icon, and its name in `projects`. */
+export const listLayoutLooks: Record<ListLayoutReadKind, Look> = {
   table: { icon: Table, labelKey: "tasks.viewTable" },
   board: { icon: Kanban, labelKey: "tasks.viewBoard" },
   calendar: { icon: Calendar, labelKey: "tasks.viewCalendar" },
 };
 
-/** The views Initiative ships for a project, by slug: the name each is shipped
- *  with and its name in `projects` (mirrors `SHIPPED` in the backend). */
-const SHIPPED_NAMES: Partial<Record<string, { name: string; labelKey: string }>> = {
-  table: { name: "Table", labelKey: viewLayouts.table.labelKey },
-  board: { name: "Board", labelKey: viewLayouts.board.labelKey },
-  calendar: { name: "Calendar", labelKey: viewLayouts.calendar.labelKey },
-  incomplete: { name: "Incomplete", labelKey: "views.shipped.incomplete" },
-  unassigned: { name: "Unassigned", labelKey: "views.shipped.unassigned" },
-  mine: { name: "Mine", labelKey: "views.shipped.mine" },
+/** Each detail layout's icon, and its name in `projects`. */
+export const detailLayoutLooks: Record<DetailLayoutRead["kind"], Look> = {
+  task: { icon: FileText, labelKey: "layoutEditor.taskLayout" },
+  calendar_event: { icon: CalendarDays, labelKey: "layoutEditor.eventDetail.name" },
 };
 
-/** A view's name to show. A shipped view still carrying its shipped name is
- *  shown in the reader's language; once renamed, it is shown as named. What is
- *  saved is always the name as stored. */
-export const viewName = (
-  view: { slug: string; name: string },
-  t: TFunction<readonly ["projects", "common"]>
-): string => {
-  const shipped = SHIPPED_NAMES[view.slug];
-  return shipped?.name === view.name ? t(shipped.labelKey as never) : view.name;
-};
+/** Any layout's icon and name. */
+export const layoutLook = (kind: ListLayoutReadKind | DetailLayoutRead["kind"]): Look =>
+  kind in listLayoutLooks
+    ? listLayoutLooks[kind as ListLayoutReadKind]
+    : detailLayoutLooks[kind as DetailLayoutRead["kind"]];

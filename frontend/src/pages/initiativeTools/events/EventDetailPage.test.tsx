@@ -8,7 +8,11 @@ import userEvent from "@testing-library/user-event";
 import { HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { buildCalendarEvent, buildPropertySummary } from "@/__tests__/factories";
+import {
+  buildCalendarEvent,
+  buildPropertySummary,
+  buildToolLayoutSet,
+} from "@/__tests__/factories";
 import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
@@ -75,6 +79,37 @@ describe("an event's page", () => {
     await user.type(title, "Retro{Enter}");
 
     await waitFor(() => expect(sent).toEqual([{ title: "Retro" }]));
+    expect(screen.getByDisplayValue("Room 2")).toBeInTheDocument();
+  });
+
+  it("lays itself out as its initiative's calendar does", async () => {
+    serve(buildCalendarEvent({ id: 9, title: "Standup", location: "Room 2" }));
+    server.use(
+      communityHttp.get("/layouts/", ({ request }) => {
+        const target = new URL(request.url).searchParams;
+        expect([target.get("tool"), target.get("initiative_id")]).toEqual(["calendar", "1"]);
+        return HttpResponse.json(
+          buildToolLayoutSet({
+            tool: "calendar",
+            layouts: [
+              {
+                kind: "calendar_event",
+                definition: {
+                  header: [{ type: "field", props: { field: "title" } }],
+                  main: [],
+                  side: [],
+                },
+                updated_at: "2026-10-01T12:00:00.000Z",
+              },
+            ],
+          })
+        );
+      })
+    );
+    open();
+
+    // What the layout places nowhere is still on the page, under More fields.
+    expect(await screen.findByText("More fields")).toBeInTheDocument();
     expect(screen.getByDisplayValue("Room 2")).toBeInTheDocument();
   });
 

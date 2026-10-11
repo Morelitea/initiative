@@ -6,7 +6,7 @@ import {
   buildTaskListParams,
   EMPTY_TASK_FILTERS,
   matchesDueWindow,
-  specFromApi,
+  specFromStored,
   type TaskFilterSpec,
   taskFilterCount,
   taskFiltersEqual,
@@ -192,14 +192,14 @@ describe("matchesDueWindow", () => {
   });
 });
 
-describe("specFromApi", () => {
+describe("specFromStored", () => {
   it("fills every field from a partial payload", () => {
-    expect(specFromApi({ assignees: ["me"] })).toEqual(spec({ assignees: ["me"] }));
+    expect(specFromStored({ assignees: ["me"] })).toEqual(spec({ assignees: ["me"] }));
   });
 
   it("drops values of the wrong type rather than throwing", () => {
     expect(
-      specFromApi({
+      specFromStored({
         status_ids: ["nope"] as never,
         due: "next-week" as never,
         status_categories: ["invented"] as never,
@@ -208,7 +208,7 @@ describe("specFromApi", () => {
   });
 
   it("treats a missing payload as no filters", () => {
-    expect(specFromApi(null)).toEqual(EMPTY_TASK_FILTERS);
+    expect(specFromStored(null)).toEqual(EMPTY_TASK_FILTERS);
   });
 });
 

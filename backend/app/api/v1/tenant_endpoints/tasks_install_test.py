@@ -372,29 +372,21 @@ async def test_updates_moves_ticks_and_duplicates_what_it_may_write(
     assert_names_nobody(copied.text, [installed.seat.user.id, gid])
 
 
-async def test_duplicates_a_project_with_the_shipped_views(
+async def test_duplicates_a_project_with_the_shipped_layouts(
     client, session, acting_user, role_session
 ):
-    """Views are not a plug-in's to read, so its copy of a project that
-    stores some has the shipped views."""
+    """Layouts are not a plug-in's to read, so its copy of a project that
+    stores some has the shipped ones."""
     installed = await install_plugin(session, acting_user, role_session, granted=WRITE)
     headers = install_headers(installed, WRITE)
     gid = installed.guild.id
     project_id = await _own_project(client, installed, headers, "Laid out")
-    views = guild_url(gid, "/views/")
+    layouts = guild_url(gid, "/layouts/")
     saved = await client.put(
-        views,
+        layouts,
         params={"tool": "project", "tool_id": project_id},
         headers=installed.seat.headers,
-        json={
-            "views": [
-                {
-                    "name": "Sprint",
-                    "is_default": True,
-                    "definition": {"layout": {"type": "board"}},
-                }
-            ]
-        },
+        json={"kind": "table", "definition": {"columns": ["title"]}},
     )
     assert saved.status_code == 200, saved.text
 
@@ -404,12 +396,12 @@ async def test_duplicates_a_project_with_the_shipped_views(
 
     assert copied.status_code == 201, copied.text
     read = await client.get(
-        views,
+        layouts,
         params={"tool": "project", "tool_id": copied.json()["id"]},
         headers=installed.seat.headers,
     )
     assert read.status_code == 200, read.text
-    assert read.json()["stored"] is False
+    assert {layout["updated_at"] for layout in read.json()["layouts"]} == {None}
 
 
 async def test_makes_a_project_from_a_template_with_its_task_links(

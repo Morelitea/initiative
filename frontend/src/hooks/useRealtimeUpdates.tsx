@@ -136,7 +136,7 @@ const CONTAINER_SPECS: Record<string, (id: number, direct: boolean) => Spec[]> =
  * `changed`, where the facet is read at an address of its own rather than under
  * the resource's: a project's views, or an initiative's calendar views.
  */
-const FACET_SPECS: Record<string, Spec> = { views: q.views() };
+const FACET_SPECS: Record<string, Spec> = { layouts: q.layouts() };
 
 const isRef = (value: unknown): value is ResourceRef => {
   const ref = value as ResourceRef | undefined;

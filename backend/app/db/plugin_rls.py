@@ -73,7 +73,7 @@ _NOT_PLUGIN_SURFACE: frozenset[str] = frozenset(
         # Run by the reminder scheduler.
         "event_reminder_dispatches",
         # How an initiative lays its tools out, which its own managers set.
-        "tool_views",
+        "tool_layouts",
         # Operations intake, which the community's own staff runs.
         "intake_bindings",
         "intake_cases",

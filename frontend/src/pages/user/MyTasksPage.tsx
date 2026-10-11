@@ -31,10 +31,10 @@ import { usePersistedTableState } from "@/hooks/usePersistedTableState";
 import { useProperties } from "@/hooks/useProperties";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { communityPath, useCommunityPath } from "@/lib/communityUrl";
+import { LAYOUT_NAMESPACES, type LayoutEnv } from "@/lib/layouts/fields";
+import { taskFields } from "@/lib/layouts/tasks";
 import { getProjectColor } from "@/lib/projectColor";
 import { entityRefRoute, taskRoute } from "@/lib/tools";
-import { VIEW_NAMESPACES, type ViewEnv } from "@/lib/views/fields";
-import { taskFields } from "@/lib/views/tasks";
 import type { TranslateFn } from "@/types/i18n";
 
 export const MyTasksPage = () => {
@@ -67,8 +67,8 @@ export const MyTasksPage = () => {
   const { data: allPropertyDefinitions = [] } = useProperties();
   const fields = useMemo(() => taskFields(allPropertyDefinitions), [allPropertyDefinitions]);
   // Rows come from every community: each one's links go to its own.
-  const { t: viewT } = useTranslation(VIEW_NAMESPACES);
-  const env = useMemo<ViewEnv>(() => {
+  const { t: viewT } = useTranslation(LAYOUT_NAMESPACES);
+  const env = useMemo<LayoutEnv>(() => {
     const path = (to: string, task: TaskListRead) => {
       const communityId = task.community_id ?? table.activeCommunityId;
       return communityId ? communityPath(communityId, to) : to;

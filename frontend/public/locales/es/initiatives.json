@@ -274,16 +274,13 @@
       "turnedOffNote": "No conceden nada hasta que la herramienta se vuelva a activar en Detalles. Mientras tanto no se pierde nada de lo que contienen."
     },
     "managerDescription": "Los gestores dirigen esta iniciativa — sus miembros, sus roles y sus ajustes — y pueden ver y crear en todas las herramientas. Qué elementos concretos pueden abrir lo sigue decidiendo cómo se comparte cada uno.",
-    "viewsTab": "Vistas",
-    "views": {
-      "heading": "Vistas",
-      "description": "Las vistas de cada proyecto, y si tiene su propia página de tarea. Las vistas de un proyecto se cambian en su editor.",
+    "layoutsTab": "Diseños",
+    "layouts": {
+      "heading": "Diseños",
+      "description": "Cómo muestra cada herramienta de esta iniciativa lo que contiene: cada diseño, cuándo cambió por última vez y en qué lista se abre un proyecto. Se cambian en el editor de cada una.",
       "noProjects": "Esta iniciativa aún no tiene proyectos.",
-      "loadError": "No se pudieron cargar las vistas.",
-      "default": "Se abre primero",
-      "shippedViews": "Las vistas originales",
-      "ownTaskPage": "Su propia página de tarea",
-      "shippedTaskPage": "La página de tarea original"
+      "loadError": "No se pudieron cargar los diseños.",
+      "calendar": "Calendario"
     }
   },
   "advancedTools": "Herramientas",

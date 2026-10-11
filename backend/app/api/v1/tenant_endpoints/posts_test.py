@@ -11,12 +11,12 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import pytest
-from fastapi import HTTPException
 from httpx import AsyncClient
 from sqlalchemy import text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.errors import CodedError
 from app.core.tools import Tool
 from app.models.platform.guild import CommunityRole
 from app.models.platform.notification import Notification, NotificationType
@@ -977,9 +977,9 @@ async def test_a_draft_cannot_be_exported(draft_scene: _DraftScene, role_session
 
     s = await role_session("app_user")
     await route_as(s, user_id=reader.user.id, guild_id=guild_id)
-    with pytest.raises(HTTPException) as excinfo:
+    with pytest.raises(CodedError) as refusal:
         await ADAPTERS["post"].fetch(s, reader.user, guild_id, draft.id)
-    assert excinfo.value.status_code == 404
+    assert refusal.value.status_code == 404
 
 
 async def test_its_author_still_reaches_a_draft_everywhere(

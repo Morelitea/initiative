@@ -48,7 +48,7 @@ export const ProjectDetailPage = () => {
       q.project(parsedProjectId),
       q.allTasks(),
       q.projectTaskStatuses(parsedProjectId),
-      q.views()
+      q.layouts()
     );
   }, [parsedProjectId]);
 

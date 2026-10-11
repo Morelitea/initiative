@@ -330,10 +330,10 @@ describe("realtime resource frames", () => {
     expect(project(), "project").toBe(true);
   });
 
-  it("refreshes a project's views when they change, and not on any other update", () => {
-    // The views are read at an address of their own, so the project's own
+  it("refreshes a project's layouts when they change, and not on any other update", () => {
+    // The layouts are read at an address of their own, so the project's own
     // refresh does not reach them.
-    const views = seed([`/api/v1/c/${COMMUNITY}/views/`, { tool: "project", tool_id: 7 }]);
+    const layouts = seed([`/api/v1/c/${COMMUNITY}/layouts/`, { tool: "project", tool_id: 7 }]);
     const project = (changed: string[]) => ({
       resource: { type: "projects", id: 7 },
       parents: [],
@@ -342,10 +342,10 @@ describe("realtime resource frames", () => {
     });
 
     applyChanges([project(["name"])], COMMUNITY);
-    expect(views(), "after a rename").toBe(false);
+    expect(layouts(), "after a rename").toBe(false);
 
-    applyChanges([project(["views"])], COMMUNITY);
-    expect(views(), "after a views change").toBe(true);
+    applyChanges([project(["layouts"])], COMMUNITY);
+    expect(layouts(), "after a layouts change").toBe(true);
   });
 
   it("refreshes the roster, the roles, what they permit and the properties", () => {
