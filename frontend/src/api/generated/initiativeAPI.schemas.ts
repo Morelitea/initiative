@@ -10061,6 +10061,7 @@ export interface TaskUpdate {
   description?: string | null;
   description_base?: string | null;
   task_status_id?: number | null;
+  status_category?: TaskStatusCategory | null;
   priority?: TaskPriority | null;
   assignee_ids?: number[] | null;
   start_date?: string | null;

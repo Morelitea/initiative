@@ -58,7 +58,6 @@ import {
   DynamicTablePickerPlugin,
   TablePickerPlugin,
 } from "@/components/ui/editor/plugins/picker/table-picker-plugin";
-import { SmartChipRefsPlugin } from "@/components/ui/editor/plugins/smart-chip-refs-plugin";
 import { TabFocusPlugin } from "@/components/ui/editor/plugins/tab-focus-plugin";
 import { TableActionMenuPlugin } from "@/components/ui/editor/plugins/table-action-menu-plugin";
 import { BlockFormatDropDown } from "@/components/ui/editor/plugins/toolbar/block-format-toolbar-plugin";
@@ -373,16 +372,10 @@ export function Plugins({
         <MermaidPreviewPlugin />
         {!readOnly && <MentionsPlugin initiativeId={initiativeId ?? undefined} />}
         {/* Not gated on `supportsEntityMentions`: that flag says whether this
-            editor lets you INSERT a reference, and reading one is a different
-            question. A read-only view renders chips too, and a chip with
-            nothing reported to the scope shows "no longer available" instead of
-            its reading — which is what the post feed did. Reporting nothing
-            costs nothing, so an editor with no chips pays for this in an empty
-            array. */}
-        <SmartChipRefsPlugin />
-        {/* Ungated for the same reason: a read-only view renders mentions too,
-            and an unreported one shows the name it was written with instead of
-            who that person is now. */}
+            editor lets you INSERT a mention, and reading one is a different
+            question. A read-only view renders mentions too, and an unreported
+            one shows the name it was written with instead of who that person
+            is now. */}
         <MentionedPeoplePlugin />
         {supportsEntityMentions && !readOnly && (
           <EntityMentionsPlugin initiativeId={initiativeId} subject={subject} />

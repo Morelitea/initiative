@@ -26,7 +26,6 @@ import {
 import { $createStatusNode, $isStatusNode } from "@/components/ui/editor/nodes/status-node";
 import { Plugins } from "@/components/ui/editor/plugins";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { SmartChipScope } from "@/hooks/useSmartChips";
 
 function makeEditor(): LexicalEditor {
   return buildEditorFromExtensions(
@@ -111,14 +110,12 @@ function Grab(): null {
 function Harness() {
   const extension = useMemo(() => documentExtension({ collaborative: false, editable: true }), []);
   return (
-    <SmartChipScope>
-      <LexicalExtensionComposer extension={extension} contentEditable={null}>
-        <TooltipProvider>
-          <Grab />
-          <Plugins showToolbar={false} readOnly={false} initiativeId={7} />
-        </TooltipProvider>
-      </LexicalExtensionComposer>
-    </SmartChipScope>
+    <LexicalExtensionComposer extension={extension} contentEditable={null}>
+      <TooltipProvider>
+        <Grab />
+        <Plugins showToolbar={false} readOnly={false} initiativeId={7} />
+      </TooltipProvider>
+    </LexicalExtensionComposer>
   );
 }
 

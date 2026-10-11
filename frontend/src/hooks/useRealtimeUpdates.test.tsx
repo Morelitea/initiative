@@ -23,6 +23,7 @@ import type { CommentRead } from "@/api/generated/initiativeAPI.schemas";
 import { setInvalidationCommunity } from "@/api/query-keys";
 import { commentThreadQueryOptions } from "@/hooks/useComments";
 import { applyChanges, useRealtimeUpdates } from "@/hooks/useRealtimeUpdates";
+import { chipKey } from "@/hooks/useSmartChips";
 import { dashboardDataKey } from "@/hooks/useSqlQuery";
 import { queryClient } from "@/lib/queryClient";
 import { TOOLS, toolIdParam, toolPlural, toolRouteSegment } from "@/lib/tools";
@@ -311,9 +312,12 @@ describe("realtime resource frames", () => {
     }
   });
 
-  it("refreshes a task's project from the task's own frame", () => {
+  it("refreshes a task's project and the chips about both from the task's own frame", () => {
     const task = seed([`/api/v1/c/${COMMUNITY}/tasks/${ENTITY_ID}`]);
     const project = seed([`/api/v1/c/${COMMUNITY}/projects/7`]);
+    const status = seed(chipKey(COMMUNITY, `task:${ENTITY_ID}:status`));
+    const progress = seed(chipKey(COMMUNITY, "project:7:progress"));
+    const otherTask = seed(chipKey(COMMUNITY, `task:${ENTITY_ID + 1}:status`));
 
     applyChanges(
       [
@@ -328,6 +332,9 @@ describe("realtime resource frames", () => {
 
     expect(task(), "task").toBe(true);
     expect(project(), "project").toBe(true);
+    expect(status(), "the task's chip").toBe(true);
+    expect(progress(), "the project's progress chip").toBe(true);
+    expect(otherTask(), "another task's chip").toBe(false);
   });
 
   it("refreshes a project's layouts when they change, and not on any other update", () => {

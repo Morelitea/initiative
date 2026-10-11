@@ -61,12 +61,34 @@ _DEFAULT_CATEGORY_PREFERENCE: Sequence[TaskStatusCategory] = (
     TaskStatusCategory.todo,
 )
 
+#: Where a task moved to a category lands when its project has no column of
+#: that category: the nearest one before it, so "done" in a project with no
+#: done column is the furthest the project goes. The client's
+#: ``CATEGORY_FALLBACK`` says the same.
+CATEGORY_FALLBACK: dict[TaskStatusCategory, Sequence[TaskStatusCategory]] = {
+    TaskStatusCategory.backlog: (TaskStatusCategory.backlog,),
+    TaskStatusCategory.todo: (TaskStatusCategory.todo, TaskStatusCategory.backlog),
+    TaskStatusCategory.in_progress: (
+        TaskStatusCategory.in_progress,
+        TaskStatusCategory.todo,
+        TaskStatusCategory.backlog,
+    ),
+    TaskStatusCategory.done: (
+        TaskStatusCategory.done,
+        TaskStatusCategory.in_progress,
+        TaskStatusCategory.todo,
+        TaskStatusCategory.backlog,
+    ),
+}
+
 
 def first_by_category_preference(
     statuses: Sequence[TaskStatus],
+    preference: Sequence[TaskStatusCategory] = _DEFAULT_CATEGORY_PREFERENCE,
 ) -> TaskStatus | None:
-    """The status a project should treat as its entry column."""
-    for category in _DEFAULT_CATEGORY_PREFERENCE:
+    """The first status in ``preference`` order — by default, the column a
+    project should treat as its entry column."""
+    for category in preference:
         match = next((s for s in statuses if s.category == category), None)
         if match is not None:
             return match

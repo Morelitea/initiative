@@ -6,8 +6,7 @@
  * be a link: the handle a profile is addressed by is the username and the
  * number together, neither of which is written into the mention.
  *
- * So the page collects its ids and asks for them together, the way
- * `SmartChipScope` does for the things a page refers to. A thread of forty
+ * So the page collects its ids and asks for them together. A thread of forty
  * comments naming the same three people asks about three people, once.
  */
 

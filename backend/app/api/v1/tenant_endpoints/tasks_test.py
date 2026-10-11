@@ -366,6 +366,30 @@ async def test_create_task(client: AsyncClient, session: AsyncSession, acting_us
     assert hourly.status_code == 422
 
 
+async def test_a_category_moves_a_task_to_its_column(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """A caller that knows "done" but not which column that is sends the
+    category, and the task lands in the project's column of it. A task already
+    in that category stays in its column."""
+    a = await acting_user(guild_role=CommunityRole.admin, initiative=True, project=True)
+    task = await create_task(session, a.project)
+
+    async def move(category: str) -> dict:
+        response = await client.patch(
+            a.g(f"/tasks/{task.id}"),
+            headers=a.headers,
+            json={"status_category": category},
+        )
+        assert response.status_code == 200, response.text
+        return response.json()["task_status"]
+
+    done = await move("done")
+    assert done["category"] == "done"
+    assert (await move("done"))["id"] == done["id"]
+    assert (await move("in_progress"))["category"] == "in_progress"
+
+
 async def test_create_task_with_status(
     client: AsyncClient, session: AsyncSession, acting_user
 ):

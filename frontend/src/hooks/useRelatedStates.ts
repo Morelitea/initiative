@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 
 import type { RelationshipRead, SmartChipState } from "@/api/generated/initiativeAPI.schemas";
-import { currentStates, useSmartChipStates } from "@/hooks/useSmartChips";
+import { useChipStates } from "@/hooks/useSmartChips";
 import { chipAspect, chipKindsFor, chipRef } from "@/lib/smartChips";
 
 /**
@@ -29,9 +29,10 @@ const headlineRef = (type: RelationshipRead["other"]["type"], id: number): strin
  *
  * A list of links is a list of names, and a name does not say whether the task
  * is finished or when the event is. This asks the server the same way a
- * document's chips do — one batched request for the lot, re-read on a timer —
- * so the panel says what things are now rather than what they were called when
- * somebody linked them.
+ * document's chips do, and shares their answers — the panel and a page showing
+ * the same task read one entry, kept current by the same signal — so it says
+ * what things are now rather than what they were called when somebody linked
+ * them.
  */
 export const useRelatedStates = (edges: RelationshipRead[], enabled = true) => {
   const refs = useMemo(() => {
@@ -43,10 +44,10 @@ export const useRelatedStates = (edges: RelationshipRead[], enabled = true) => {
     return [...new Set(found)];
   }, [edges]);
 
-  const { data } = useSmartChipStates(refs, enabled && refs.length > 0);
+  const { states } = useChipStates(refs, enabled);
 
   return useMemo(() => {
-    const byRef = currentStates(data?.items ?? [], refs);
+    const byRef = new Map(states.map((state) => [state.ref, state]));
     const byEnd = new Map<string, SmartChipState>();
     for (const edge of edges) {
       const ref = headlineRef(edge.other.type, edge.other.id);
@@ -54,5 +55,5 @@ export const useRelatedStates = (edges: RelationshipRead[], enabled = true) => {
       if (state) byEnd.set(`${edge.other.type}:${edge.other.id}`, state);
     }
     return byEnd;
-  }, [data, refs, edges]);
+  }, [states, edges]);
 };

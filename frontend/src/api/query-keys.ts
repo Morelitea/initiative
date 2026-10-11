@@ -494,6 +494,16 @@ const wikiPages = (wikiId: number): Spec => ({
 /** One page's own read. */
 const wikiPage = (pageId: number): Spec => ({ communityExact: [`/api/v1/wiki-pages/${pageId}`] });
 
+// ── References (community) ───────────────────────────────────────────────────
+
+/** Every chip, link and embed answer about one thing. `useSmartChips` keeps
+ *  them at the thing's address, so a change to it names them all. */
+const references = (kind: string, id: number): Spec => ({
+  communityExact: [`/api/v1/smart-chips/${kind}/${id}`, `/api/v1/smart-chips/embeds/${kind}/${id}`],
+});
+
+const allReferences = (): Spec => ({ communityPrefix: ["/api/v1/smart-chips/"] });
+
 // ── Layouts (community) ──────────────────────────────────────────────────────
 
 /** An initiative's list of its tools' layouts, for its settings. */
@@ -604,7 +614,7 @@ const allPropertyHolders = (): Spec =>
 // name its rows one by one says so instead, and this is the answer.
 
 const communityContent = (): Spec =>
-  compose(allInitiatives(), ...TOOLS.map(toolList), allTasks(), allComments());
+  compose(allInitiatives(), ...TOOLS.map(toolList), allTasks(), allComments(), allReferences());
 
 /** Every description, by name. The only export a call site needs beside `invalidate`. */
 export const q = {
@@ -623,6 +633,7 @@ export const q = {
   allProjects,
   allProperties,
   allPropertyHolders,
+  allReferences,
   allQueues,
   allSettings,
   allTags,
@@ -632,6 +643,7 @@ export const q = {
   appConfig,
   pluginServices,
   plugins,
+  references,
   authProviders,
   communityNarrowings,
   authSettings,

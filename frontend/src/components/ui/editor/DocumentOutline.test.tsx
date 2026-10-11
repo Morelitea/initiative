@@ -18,7 +18,6 @@ import {
 import { documentExtension } from "@/components/ui/editor/document-extension";
 import { Plugins } from "@/components/ui/editor/plugins";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { SmartChipScope } from "@/hooks/useSmartChips";
 
 const entry = (key: string, text: string, tag: HeadingTagType): TableOfContentsEntry => [
   key,
@@ -88,17 +87,15 @@ function Harness() {
 
   return (
     <DocumentOutlineScope>
-      <SmartChipScope>
-        <div data-testid="scrollport" style={{ overflowY: "auto" }}>
-          <LexicalExtensionComposer extension={extension} contentEditable={null}>
-            <TooltipProvider>
-              <Grab />
-              <Plugins showToolbar initiativeId={7} />
-              <DocumentOutlineTracker />
-            </TooltipProvider>
-          </LexicalExtensionComposer>
-        </div>
-      </SmartChipScope>
+      <div data-testid="scrollport" style={{ overflowY: "auto" }}>
+        <LexicalExtensionComposer extension={extension} contentEditable={null}>
+          <TooltipProvider>
+            <Grab />
+            <Plugins showToolbar initiativeId={7} />
+            <DocumentOutlineTracker />
+          </TooltipProvider>
+        </LexicalExtensionComposer>
+      </div>
       <DocumentOutlinePanel isOpen onOpenChange={() => {}} />
     </DocumentOutlineScope>
   );

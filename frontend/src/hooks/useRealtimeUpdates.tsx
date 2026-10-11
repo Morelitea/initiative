@@ -9,7 +9,7 @@ import { syncComments } from "@/hooks/useComments";
 import { canvasIsStale, dashboardDataKey } from "@/hooks/useSqlQuery";
 import { openLiveSocket } from "@/lib/liveSocket";
 import { queryClient } from "@/lib/queryClient";
-import { TOOLS, toolPlural } from "@/lib/tools";
+import { singularOf, TOOLS, toolPlural } from "@/lib/tools";
 import { buildCommunityWsUrl } from "@/lib/wsUrl";
 
 import { useAuth } from "./useAuth";
@@ -192,9 +192,14 @@ export const applyChanges = (changes: readonly RealtimeChange[], communityId: nu
 
   for (const [ref, recount] of resources.values()) {
     specs.push(...(RESOURCE_SPECS[ref.type]?.(ref.id, recount) ?? []));
+    // What a chip, link or embed says about it — its name, its status, its body.
+    specs.push(q.references(singularOf(ref.type), ref.id));
   }
   for (const [ref, direct] of containers.values()) {
     specs.push(...(CONTAINER_SPECS[ref.type]?.(ref.id, direct) ?? []));
+    // A reading about the thing a change sits directly in: a project's
+    // progress moves with its tasks.
+    if (direct) specs.push(q.references(singularOf(ref.type), ref.id));
   }
   if (specs.length > 0) void invalidate(...specs);
 
