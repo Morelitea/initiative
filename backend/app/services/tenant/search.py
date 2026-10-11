@@ -12,7 +12,18 @@ import re
 from dataclasses import dataclass, replace
 from typing import Iterable, Optional, Sequence
 
-from sqlalchemy import Select, String, Text, cast, false, func, literal, select, text
+from sqlalchemy import (
+    Select,
+    String,
+    Text,
+    cast,
+    false,
+    func,
+    literal,
+    select,
+    text,
+    union,
+)
 from sqlalchemy.dialects.postgresql import TSQUERY
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -30,9 +41,11 @@ from app.db.plugin_rls import SEARCH_ENTRY_READ_SCOPE
 from app.db.guild_standing import ActorContext, InstallContext
 from app.db.search_index import MENTION_LEXEME, entity_types
 from app.models.platform.user_profile_view import GuildMember
+from app.models.tenant.engagement_level import EngagementLevel
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.search_entry import SearchEntry
 from app.schemas.tenant.search import SearchHit, SearchResults, SearchSuggestion
+from app.services.tenant.engagement_levels import boosted, level_of
 from app.db.authorization import standing_arg
 
 
@@ -440,7 +453,8 @@ async def search(
     page: int = 1,
     page_size: int = 20,
 ) -> SearchResults:
-    """Ranked matches across the guild, newest first among equals.
+    """Ranked matches across the guild, newest first among equals. A match's
+    rank is lifted by its engagement level (:func:`boosted`).
 
     ``total`` counts entities, not chunks, and is exact: every gate is a
     predicate in this one statement, so there is nothing to filter afterwards.
@@ -455,15 +469,19 @@ async def search(
     parsed = cast(
         literal(await session.scalar(select(cast(_tsquery(query), Text)))), TSQUERY
     )
-    best = _best_chunk(search_match_clause(parsed) & filters.clause(), parsed)
-    total = await session.scalar(select(func.count()).select_from(best)) or 0
+    chunks = _best_chunk(search_match_clause(parsed) & filters.clause(), parsed)
+    total = await session.scalar(select(func.count()).select_from(chunks)) or 0
+    # Each match beside its engagement level, read once it has matched.
+    best = select(
+        chunks, level_of(chunks.c.entity_type, chunks.c.entity_id).label("level")
+    ).subquery()
 
     def ranked(rows) -> tuple:
         # entity_type/entity_id last: rank and timestamp both tie, and an order
         # that is not total lets a row repeat on one page and vanish from the
         # next.
         return (
-            rows.c.rank.desc(),
+            boosted(rows.c.rank, rows.c.level).desc(),
             rows.c.updated_at.desc(),
             rows.c.entity_type,
             rows.c.entity_id,
@@ -613,15 +631,22 @@ async def suggest(
     )(parsed)
     clause = search_match_clause(parsed) & title_match & filters.clause()
     rank = func.ts_rank_cd(SearchEntry.tsv, parsed)
+    # A plug-in reads no levels, so its answers are ordered by the match alone.
+    level = (
+        literal(0)
+        if install is not None
+        else level_of(SearchEntry.entity_type, SearchEntry.entity_id)
+    )
     ranked = (
         select(
             *_suggestion_columns(user_id, install=install),
             rank.label("rank"),
+            level.label("level"),
             SearchEntry.updated_at,
         )
         .where(clause, SearchEntry.chunk_ix == 0)
         .order_by(
-            rank.desc(),
+            boosted(rank, level).desc(),
             SearchEntry.updated_at.desc(),
             SearchEntry.entity_type,
             SearchEntry.entity_id,
@@ -634,7 +659,10 @@ async def suggest(
             # Re-stated outside the wrap: a subquery's ordering is not something
             # the query around it inherits.
             described.order_by(
-                described.selected_columns.rank.desc(),
+                boosted(
+                    described.selected_columns.rank,
+                    described.selected_columns.level,
+                ).desc(),
                 described.selected_columns.updated_at.desc(),
                 described.selected_columns.entity_type,
                 described.selected_columns.entity_id,
@@ -660,25 +688,51 @@ async def recent(
 
     Deliberately the same rows, filters and gate as :func:`suggest` — only the
     ordering differs — so a picker cannot offer something its own search would
-    refuse to find.
+    refuse to find. What more people engaged with lately comes first, then the
+    newest.
+
+    The candidates are the newest rows and the rows with a level, each read
+    through its own index and limited, so a picker never reads a level for
+    every row in the community.
     """
     limit = max(1, min(limit, SUGGEST_LIMIT))
-    clause = filters.clause()
-    newest = (
-        select(*_suggestion_columns(user_id), SearchEntry.updated_at)
-        # One row per thing: the index holds a row per body chunk as well.
-        .where(clause, SearchEntry.chunk_ix == 0)
+    # One row per thing: the index holds a row per body chunk as well.
+    rows_here = select(*_suggestion_columns(user_id), SearchEntry.updated_at).where(
+        filters.clause(), SearchEntry.chunk_ix == 0
+    )
+    order = (
+        SearchEntry.updated_at.desc(),
+        SearchEntry.entity_type,
+        SearchEntry.entity_id,
+    )
+    newest = rows_here.order_by(*order).limit(limit).subquery()
+    engaged = (
+        rows_here.join(
+            EngagementLevel,
+            (EngagementLevel.entity_type == SearchEntry.entity_type)
+            & (EngagementLevel.entity_id == SearchEntry.entity_id),
+        )
+        .order_by(EngagementLevel.level.desc(), *order)
+        .limit(limit)
+        .subquery()
+    )
+    candidates = union(select(newest), select(engaged)).subquery()
+    level = level_of(candidates.c.entity_type, candidates.c.entity_id)
+    chosen = (
+        select(candidates, level.label("level"))
         .order_by(
-            SearchEntry.updated_at.desc(),
-            SearchEntry.entity_type,
-            SearchEntry.entity_id,
+            level.desc(),
+            candidates.c.updated_at.desc(),
+            candidates.c.entity_type,
+            candidates.c.entity_id,
         )
         .limit(limit)
     )
-    described = _with_context(newest)
+    described = _with_context(chosen)
     rows = (
         await session.exec(
             described.order_by(
+                described.selected_columns.level.desc(),
                 described.selected_columns.updated_at.desc(),
                 described.selected_columns.entity_type,
                 described.selected_columns.entity_id,

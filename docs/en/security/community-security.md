@@ -89,6 +89,14 @@ Sign-in codes, address confirmations, password resets and notices about somebody
 
 Members keep their own [notification settings](../guides/notifications.md) underneath all of this. These switches are a ceiling, not a default: they can make a channel unavailable, never turn one on for somebody who asked for silence.
 
+### Ranking search by engagement
+
+**Rank search results by community engagement** puts what more members have recently opened or worked on a little higher in search, the command palette and pickers. It reorders results; it never adds one.
+
+What is kept is a rough level for each item, worked out once an hour from the last week of opens and changes in this community. An item gets a level only once three different people have engaged with it. The level names nobody and holds no count, and it is read only beside items the reader can already open. See [Data & compliance](data-and-compliance.md#what-initiative-keeps-about-use).
+
+Turn it off and the levels are deleted within the hour; results go back to being ordered by the match alone. Whoever runs the server can turn it off for every community, and then this switch says so and has nothing to decide.
+
 ## Turning something off
 
 Nothing here destroys anything on the way out.
@@ -101,6 +109,7 @@ Nothing here destroys anything on the way out.
 | **Stop asking for twelve-hour sessions** | People stop being timed out for idleness the next time the app renews their session, and return to the ordinary length at their next sign-in. A session already held to twelve hours keeps that limit until it ends. |
 | **Allow mobile notifications again** | Phones receive this community's notifications again, from the next one sent. |
 | **Stop hiding notification details** | The next notification to leave names what it is about. Ones already sent are not revisited. |
+| **Rank by engagement again** | Levels are worked out again at the next hourly pass, from the opens and changes of the past week. |
 
 If whoever runs your server withdraws one of the two switches, that half of the tab closes and nothing else happens: your connections stay, your members keep signing in, nobody is ejected or unlinked, and **a requirement you already set stays in force**. What closed is your ability to change the setup, not the setup — so changing it after that means asking for the switch back.
 
@@ -113,6 +122,8 @@ If whoever runs your server withdraws one of the two switches, that half of the 
     **The requirement** is one row per community: `open`, or `required` naming a provider and/or the methods a session must carry (`sso`, `totp`, `passkey`). `password` is refused by a database constraint — whether passwords exist at all is the server's question, not a community's. It is enforced at the community-context gate, which answers with a step-up challenge, and again inside the database's row-level security.
 
     **Notification delivery** is three booleans on the community, each read alongside the platform's own where a notification is sent rather than at the moment either is saved, so tightening the server's answer covers every community at once and no community row is rewritten. Redaction is applied to the message as it is built for the channel it leaves on; the stored notification the bell reads is unaffected. A community switching mobile notifications off stops its own sends — the device registrations themselves belong to the account, not to any one community, so they stay.
+
+    **Engagement ranking** is a flag on the community, read with the server's own by the hourly pass. Each person counts once per item, at their weightiest engagement (an open counts 1, half that when it came from search, and a change 2), halving every two days over a seven-day window. An item needs three different people before it has a level, which is `floor(log2(1 + score))`, capped at 7. A search match's rank is multiplied by `1 + 0.1 × level`. Levels sit in each community's own schema and are read through the same per-item gate as the item; plug-ins can't read them.
 
     **API access** is a flag on each membership, read by the community-context gate on every request made with a personal key, so a key is judged when it is used, not when it is created. **Session length** is a flag on the community itself rather than on the policy row, which is why it outlives a requirement being lifted. The session standard is twelve hours, `min()`-ed with the server's own limit; sessions come under it at their next sign-in, in a browser and in the apps alike. The idle standard is fifteen minutes, carried by the session's own two clocks rather than checked per request: the refresh row expires that far out and each renewal reads the window again and re-stamps it from the person's last input, which the client reports as `idle_seconds`, and the access token is minted no longer-lived than the row it names. So an idle session lapses on its own, and the control costs one sign-in rather than a database read on every call.
 
