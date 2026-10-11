@@ -10,16 +10,16 @@ nothing.
 The seat writes its community's answer, so ``app_superadmin`` gets ``UPDATE``
 on the new ``guilds`` column beside the switches it already sets.
 
-Revision ID: 20261010_0493
-Revises: 20261010_0492
+Revision ID: 20261010_0494
+Revises: 20261010_0493
 Create Date: 2026-10-10
 """
 
 import sqlalchemy as sa
 from alembic import op
 
-revision = "20261010_0493"
-down_revision = "20261010_0492"
+revision = "20261010_0494"
+down_revision = "20261010_0493"
 branch_labels = None
 depends_on = None
 
