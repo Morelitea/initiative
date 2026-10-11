@@ -648,6 +648,7 @@ export interface AppConfig {
   community_directory_enabled: boolean;
   community_age_gate_enabled: boolean;
   direct_messages_enabled: boolean;
+  guests_enabled: boolean;
   cookie_consent_enabled: boolean;
   light_accent_color: string;
   dark_accent_color: string;

@@ -100,6 +100,10 @@ class AppConfig(BaseModel):
     # command palette and the per-person message controls. A database setting
     # like the two above, so it changes without a redeploy.
     direct_messages_enabled: bool
+    # Whether this deployment lets communities have guests at all. The SPA
+    # shows nothing about guests when false. A database setting like the ones
+    # above.
+    guests_enabled: bool
     # Whether an arriving visitor is asked what this deployment may keep in
     # their browser. Off by default, and unauthenticated by necessity -- the
     # question is put to somebody who has not signed in and may never do so. A
@@ -170,6 +174,7 @@ async def get_app_config(session: SessionDep) -> AppConfig:
         community_directory_enabled=app_settings.community_directory_enabled,
         community_age_gate_enabled=app_settings.community_age_gate_enabled,
         direct_messages_enabled=app_settings.direct_messages_enabled,
+        guests_enabled=app_settings.guests_enabled,
         cookie_consent_enabled=app_settings.cookie_consent_enabled,
         light_accent_color=app_settings.light_accent_color,
         dark_accent_color=app_settings.dark_accent_color,

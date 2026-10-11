@@ -444,7 +444,6 @@
     "guests": "Invités",
     "guestsUpTo": "Jusqu'à {{max}} à la fois",
     "guestsUnlimited": "Illimité",
-    "guestsNone": "N'accepte pas d'invités",
     "currentPlan": "Forfait actuel :",
     "selfHosted": "Auto-hébergé",
     "upgrade": "Mettre à niveau",

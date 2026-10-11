@@ -444,7 +444,6 @@
     "guests": "Guests",
     "guestsUpTo": "Up to {{max}} at a time",
     "guestsUnlimited": "Unlimited",
-    "guestsNone": "Not taking guests",
     "currentPlan": "Current plan:",
     "selfHosted": "Self-hosted",
     "upgrade": "Upgrade",
