@@ -3256,6 +3256,7 @@ export interface CommunityRead {
   max_storage_bytes: number | null;
   max_users: number | null;
   member_count: number;
+  max_guests: number | null;
   tier_name: string | null;
   status: CommunityStatus | null;
   content_read_only: boolean;
@@ -7691,6 +7692,7 @@ export interface PlatformCommunityStorageRead {
   tier_name: string | null;
   max_storage_bytes: number | null;
   max_users: number | null;
+  max_guests: number | null;
   status: CommunityStatus;
   status_changed_at: string | null;
   status_choices: CommunityStatus[];
@@ -7728,6 +7730,7 @@ export interface PlatformCommunityStorageListResponse {
 export interface PlatformCommunityStorageUpdate {
   max_storage_bytes?: number | null;
   max_users?: number | null;
+  max_guests?: number | null;
   status?: CommunityStatus | null;
   auth_options?: CommunityAuthOption[] | null;
   banner_image_enabled?: boolean | null;

@@ -59,6 +59,8 @@ class LockNamespace(IntEnum):
     GUILD_PROVISION = _tag(b"PROV")
     #: Admitting a member under the guild's ``max_users``.
     MEMBER_CAP = _tag(b"USER")
+    #: Admitting a guest under the guild's ``max_guests``.
+    GUEST_CAP = _tag(b"GUES")
     #: Changes that could empty a guild's seat or impose a requirement on it.
     GUILD_SEATS = 8471
     #: Admitting an upload under the guild's ``max_storage_bytes``.

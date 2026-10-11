@@ -58,6 +58,11 @@ class GuildAdministration(SQLModel, table=True):
     max_users: Optional[int] = Field(
         default=None, sa_column=Column(Integer, nullable=True)
     )
+    # Max number of guests at once. NULL = unlimited (default); 0 takes no new
+    # guests, and those already in stay until their time ends.
+    max_guests: Optional[int] = Field(
+        default=None, sa_column=Column(Integer, nullable=True)
+    )
     # Display/audit label of the paid tier (NULL = none). CONTRACT: never an
     # enforcement input — enforcement reads only max_storage_bytes / max_users
     # / guilds.status, so the FOSS app enforces numbers, not plans. A test pins

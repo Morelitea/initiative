@@ -31,7 +31,7 @@ class BillingCommunityTierApply(SanitizedBaseModel):
     Tier *definitions* live in the billing service's own database; what
     crosses this boundary is only the display label (``tier_name``) and the
     **computed** caps initiative already owns (``max_storage_bytes`` /
-    ``max_users``), plus the lifecycle ``status``.
+    ``max_users`` / ``max_guests``), plus the lifecycle ``status``.
 
     The writable fields use omit-to-skip sentinel semantics (the service
     inspects ``model_fields_set``): omit a field to leave it untouched, send
@@ -51,6 +51,7 @@ class BillingCommunityTierApply(SanitizedBaseModel):
     tier_name: Optional[str] = Field(default=None, max_length=64)
     max_storage_bytes: Optional[int] = Field(default=None, ge=0)
     max_users: Optional[int] = Field(default=None, ge=1)
+    max_guests: Optional[int] = Field(default=None, ge=0)
     status: Optional[CommunityStatus] = None
     feature_keys: Optional[list[str]] = Field(default=None, max_length=64)
     plan_is_free: Optional[bool] = None
@@ -64,7 +65,7 @@ class BillingCommunityTierApply(SanitizedBaseModel):
         if self.source in _ACTOR_REQUIRED_SOURCES and not self.actor:
             raise ValueError(BillingMessages.ACTOR_REQUIRED)
         if self.source is BillingSource.support_manual:
-            forbidden = {"tier_name", "max_users", "status"}
+            forbidden = {"tier_name", "max_users", "max_guests", "status"}
             if forbidden & self.model_fields_set:
                 raise ValueError(BillingMessages.SUPPORT_SOURCE_RESTRICTED)
         # Suspension is the platform operator's, and deletion is deletion's.
@@ -87,6 +88,7 @@ class BillingCommunityTierRead(SanitizedBaseModel):
     tier_name: Optional[str] = None
     max_storage_bytes: Optional[int] = None
     max_users: Optional[int] = None
+    max_guests: Optional[int] = None
     status: CommunityStatus
     feature_keys: list[str] = Field(default_factory=list)
     plan_is_free: Optional[bool] = None
@@ -154,14 +156,16 @@ class BillingUsageRequest(SanitizedBaseModel):
 
 
 class BillingUsageRead(SanitizedBaseModel):
-    """Current stored bytes and member count for one guild — the figures
-    ``enforce_storage_quota`` and the ``max_users`` check read. Billing needs
-    the count so a seat purchase is never cut below the people already in the
-    community. Read-only; the app never pushes usage anywhere."""
+    """Current stored bytes, member count and guest count for one guild — the
+    figures ``enforce_storage_quota`` and the ``max_users`` and ``max_guests``
+    checks read. Billing needs the counts so a purchase is never cut below the
+    people already in the community. Read-only; the app never pushes usage
+    anywhere."""
 
     community_ref: str
     usage_bytes: int
     member_count: int
+    guest_count: int
 
 
 class BillingCommunityNameRequest(SanitizedBaseModel):

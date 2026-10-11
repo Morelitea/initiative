@@ -214,6 +214,7 @@ _GUILD_TIER_COLUMNS = (
     GuildAdministration.tier_name,
     GuildAdministration.max_storage_bytes,
     GuildAdministration.max_users,
+    GuildAdministration.max_guests,
     GuildAdministration.banner_image_enabled,
     GuildAdministration.support_enabled,
     GuildAdministration.auth_options,
@@ -384,7 +385,13 @@ async def apply_guild_tier(
         # Two rows, one transaction: the caps and plan label on
         # ``guild_administration``, the lifecycle status on ``guilds``.
         administration_values: dict = {}
-        for field in ("tier_name", "max_storage_bytes", "max_users", "plan_is_free"):
+        for field in (
+            "tier_name",
+            "max_storage_bytes",
+            "max_users",
+            "max_guests",
+            "plan_is_free",
+        ):
             if field in provided:
                 administration_values[field] = getattr(payload, field)
         if "feature_keys" in provided and payload.feature_keys is not None:
@@ -441,6 +448,7 @@ async def apply_guild_tier(
         tier_name=row.tier_name,
         max_storage_bytes=row.max_storage_bytes,
         max_users=row.max_users,
+        max_guests=row.max_guests,
         status=CommunityStatus(row.status),
         feature_keys=billing_capabilities.package_of(
             banner_image_enabled=row.banner_image_enabled,
@@ -485,17 +493,18 @@ class GuildUsage:
     """What one guild is using, for the signed usage read.
 
     ``usage_bytes`` is the figure ``enforce_storage_quota`` enforces against;
-    ``member_count`` is the one ``ensure_membership`` compares with
-    ``max_users``. Billing reads the second so a seat count is never cut below
-    the people already in the community.
+    ``member_count`` and ``guest_count`` are the ones ``ensure_membership``
+    compares with ``max_users`` and ``max_guests``. Billing reads them so a
+    plan is never cut below the people already in the community.
     """
 
     usage_bytes: int
     member_count: int
+    guest_count: int
 
 
 async def guild_usage(guild_id: int) -> GuildUsage:
-    """Current stored bytes and member count for one guild, for the signed
+    """Current stored bytes, member count and guest count for one guild, for the signed
     usage read.
 
     Neither is visible to the column-scoped ``initiative_billing`` role:
@@ -510,7 +519,7 @@ async def guild_usage(guild_id: int) -> GuildUsage:
     anywhere.
     """
     from app.db import cohorts
-    from app.services.platform.guilds import count_members
+    from app.services.platform.guilds import count_guests, count_members
     from app.services.tenant.attachments import get_guild_storage_usage
 
     async with cohorts.system_session(guild_id) as session:
@@ -521,8 +530,10 @@ async def guild_usage(guild_id: int) -> GuildUsage:
         if exists is None:
             raise CodedError(BillingMessages.COMMUNITY_NOT_FOUND, 404)
         member_count = await count_members(session, guild_id=guild_id)
+        guest_count = await count_guests(session, guild_id=guild_id)
 
     return GuildUsage(
         usage_bytes=await get_guild_storage_usage(guild_id),
         member_count=member_count,
+        guest_count=guest_count,
     )

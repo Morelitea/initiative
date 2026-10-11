@@ -1238,6 +1238,7 @@
       "limits": "Limits",
       "features": "Features",
       "usersHelp": "How many people may belong. Leave blank for no limit.",
+      "guestsHelp": "How many guests they may have at once. 0 takes no new guests, and those already in stay until their time ends. Leave blank for no limit.",
       "storageHelp": "How much they may store, in gigabytes. Leave blank for no limit.",
       "bannerLabel": "Banner artwork",
       "bannerHelp": "Let them upload a banner image. Without it they pick a banner colour instead, and any banner already uploaded keeps showing.",
@@ -1255,6 +1256,7 @@
         }
       },
       "usersLabel": "Members",
+      "guestsLabel": "Guests",
       "storageLabel": "Storage limit",
       "decidesForItself": "What it decides for itself",
       "deleted": "Deleted",

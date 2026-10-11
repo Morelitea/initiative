@@ -12,7 +12,7 @@ import { formatBytes } from "@/lib/fileUtils";
 const ratioPct = (used: number, max: number | null): number | null =>
   max && max > 0 ? Math.min(100, Math.round((used / max) * 100)) : null;
 
-/** Community usage against its storage and member caps.
+/** Community usage against its storage and member caps, and its guest cap.
  *
  * On the seat's Usage tab, the first in community settings, on every install:
  * self-hosted, the caps are the operator's; hosted, they come with the plan,
@@ -43,6 +43,7 @@ export const CommunityUsagePanel = () => {
   const maxUsers = activeCommunity.max_users; // null = unlimited
   const storagePct = usedBytes == null ? null : ratioPct(usedBytes, maxBytes);
   const memberPct = ratioPct(members, maxUsers);
+  const maxGuests = activeCommunity.max_guests; // null = unlimited, 0 = none
 
   return (
     <Card>
@@ -81,6 +82,17 @@ export const CommunityUsagePanel = () => {
             </span>
           </div>
           {memberPct != null && <Progress value={memberPct} />}
+        </div>
+
+        <div className="flex justify-between text-sm">
+          <span className="font-medium">{t("usagePanel.guests")}</span>
+          <span className="text-muted-foreground">
+            {maxGuests == null
+              ? t("usagePanel.guestsUnlimited")
+              : maxGuests === 0
+                ? t("usagePanel.guestsNone")
+                : t("usagePanel.guestsUpTo", { max: maxGuests })}
+          </span>
         </div>
       </CardContent>
     </Card>

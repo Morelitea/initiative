@@ -45,6 +45,7 @@ from app.testing import (
     billing_guild_ref,
     guild_administration,
     create_guild,
+    create_guest,
     create_guild_membership,
     create_upload,
     create_user,
@@ -337,6 +338,7 @@ async def test_apply_guild_tier_happy_path(client: AsyncClient, session: AsyncSe
             tier_name="gold",
             max_storage_bytes=50 * 1024**3,
             max_users=25,
+            max_guests=0,
         ),
     )
     assert response.status_code == 200, response.text
@@ -345,6 +347,7 @@ async def test_apply_guild_tier_happy_path(client: AsyncClient, session: AsyncSe
     assert data["tier_name"] == "gold"
     assert data["max_storage_bytes"] == 50 * 1024**3
     assert data["max_users"] == 25
+    assert data["max_guests"] == 0
     assert data["status"] == "active"
     assert data["member_count"] == 0  # the factory creates no membership rows
 
@@ -353,6 +356,7 @@ async def test_apply_guild_tier_happy_path(client: AsyncClient, session: AsyncSe
     assert administration.tier_name == "gold"
     assert administration.max_storage_bytes == 50 * 1024**3
     assert administration.max_users == 25
+    assert administration.max_guests == 0
 
     event = (
         await session.exec(
@@ -937,6 +941,7 @@ async def test_usage_sums_guild_bytes(client: AsyncClient, session: AsyncSession
         "community_ref": await billing_guild_ref(guild.id),
         "usage_bytes": 1234,
         "member_count": 0,
+        "guest_count": 0,
     }
 
 
@@ -950,6 +955,7 @@ async def test_usage_zero_for_empty_guild(client: AsyncClient, session: AsyncSes
         "community_ref": await billing_guild_ref(guild.id),
         "usage_bytes": 0,
         "member_count": 0,
+        "guest_count": 0,
     }
 
 
@@ -963,6 +969,7 @@ async def test_usage_counts_guild_members(client: AsyncClient, session: AsyncSes
     for n in range(2):
         member = await create_user(session, email=f"member{n}@example.com")
         await create_guild_membership(session, user=member, guild=guild)
+    await create_guest(session, guild)
     other = await create_guild(session, creator=owner)
     await create_guild_membership(
         session,
@@ -974,7 +981,9 @@ async def test_usage_counts_guild_members(client: AsyncClient, session: AsyncSes
         client, "usage", {"community_ref": await billing_guild_ref(guild.id)}
     )
     assert response.status_code == 200, response.text
+    # A guest takes no seat, and is counted on its own.
     assert response.json()["member_count"] == 3
+    assert response.json()["guest_count"] == 1
 
 
 async def test_usage_unknown_guild_404(client: AsyncClient, session: AsyncSession):

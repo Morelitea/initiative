@@ -40,6 +40,7 @@ const communitiesData: PlatformCommunityStorageRead[] = [
     tier_name: "Bespoke Plan",
     max_storage_bytes: 10 * GIB,
     max_users: 10,
+    max_guests: 10,
     status: "active",
     status_changed_at: null,
     status_choices: ["active", "read_only", "on_hold", "suspended"],
@@ -58,6 +59,7 @@ const communitiesData: PlatformCommunityStorageRead[] = [
     tier_name: null,
     max_storage_bytes: null,
     max_users: null,
+    max_guests: null,
     status: "active",
     status_changed_at: null,
     status_choices: ["active", "read_only", "on_hold", "suspended"],
@@ -76,6 +78,7 @@ const communitiesData: PlatformCommunityStorageRead[] = [
     tier_name: "Bespoke Plan",
     max_storage_bytes: null,
     max_users: 10,
+    max_guests: 10,
     status: "suspended",
     status_changed_at: "2026-07-05T00:00:00Z",
     status_choices: ["active", "read_only", "on_hold", "suspended"],
@@ -94,6 +97,7 @@ const communitiesData: PlatformCommunityStorageRead[] = [
     tier_name: null,
     max_storage_bytes: null,
     max_users: null,
+    max_guests: null,
     status: "deleted",
     status_changed_at: "2026-09-01T00:00:00Z",
     status_choices: [],
@@ -217,6 +221,7 @@ const openSheet = async (communityName: string) => {
 
 const storageInput = () => screen.getByLabelText("Storage limit") as HTMLInputElement;
 const userLimitInput = () => screen.getByLabelText("Members") as HTMLInputElement;
+const guestLimitInput = () => screen.getByLabelText("Guests") as HTMLInputElement;
 
 /** Type into a box and leave it, which is the only way either cap is saved. */
 const typeAndLeave = (input: HTMLInputElement, value: string) => {
@@ -251,10 +256,10 @@ describe("OperatorDashboardCommunitiesPage", () => {
     });
   });
 
-  // Both caps are the same editor: pre-filled from what is stored, saved on
+  // Every cap is the same editor: pre-filled from what is stored, saved on
   // blur, blank meaning no limit at all, and anything the field cannot mean
-  // snapped back rather than sent. Capped Community holds both caps at 10;
-  // Open Community holds neither.
+  // snapped back rather than sent. Capped Community holds every cap at 10;
+  // Open Community holds none.
   describe.each([
     {
       what: "storage limit",
@@ -274,6 +279,19 @@ describe("OperatorDashboardCommunitiesPage", () => {
       cleared: { max_users: null },
       rejects: [
         ["zero", "0"],
+        ["a negative number", "-2"],
+        ["a fraction", "2.5"],
+      ],
+    },
+    {
+      what: "guest limit",
+      input: guestLimitInput,
+      stored: "10",
+      // 0 is a setting of its own: no new guests.
+      typed: "0",
+      saves: { max_guests: 0 },
+      cleared: { max_guests: null },
+      rejects: [
         ["a negative number", "-2"],
         ["a fraction", "2.5"],
       ],

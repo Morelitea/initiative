@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 from sqlalchemy import ColumnElement, case, exists, func, or_, text
 from sqlalchemy.orm import aliased
-from sqlmodel import select, delete
+from sqlmodel import col, delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.audit_events import AuditEventType
@@ -70,7 +70,8 @@ class GuildInviteError(CodedError):
 
 
 class GuildCapacityError(CodedError):
-    """Raised when adding a member would exceed the guild's ``max_users`` cap."""
+    """Raised when adding a member would exceed the guild's ``max_users`` cap,
+    or a guest its ``max_guests``."""
 
     status_code = 403
 
@@ -315,13 +316,16 @@ async def ensure_membership(
     actor_user_id: int | None = None,
     via: str = "direct",
     invite_id: int | None = None,
+    guest_until: datetime | None = None,
 ) -> GuildMembership:
     """Put ``user_id`` in ``guild_id``, or return the membership they hold.
 
     ``actor_user_id`` is who brought them in; it defaults to the person joining,
     which is what every self-service path is. ``via`` names the way in — the
     value rides the record — and ``invite_id`` says which standing offer was
-    redeemed, where one was.
+    redeemed, where one was. ``guest_until`` makes the new membership a
+    guest's, until then: it takes no seat, so the guest cap applies instead of
+    the member cap, and it joins no initiative on its own.
     """
     stmt = select(GuildMembership).where(
         GuildMembership.guild_id == guild_id,
@@ -345,7 +349,10 @@ async def ensure_membership(
     # (re-joins / role updates return above), so an existing member is never
     # blocked. SSO/OIDC provisioning uses a separate insert path
     # (oidc_sync._create_guild_membership) and is intentionally exempt.
-    await _assert_member_capacity(session, guild_id=guild_id)
+    if guest_until is None:
+        await _assert_member_capacity(session, guild_id=guild_id)
+    else:
+        await _assert_guest_capacity(session, guild_id=guild_id)
     # A listed community never gains somebody who has answered the age question
     # as under the minimum, by any route. The paths with a person at the
     # keyboard ask the question first (``assert_age_confirmed``); this is the
@@ -368,10 +375,13 @@ async def ensure_membership(
         role=role,
         position=next_position,
         oidc_provider_id=oidc_provider_id,
+        guest_until=guest_until,
     )
     session.add(membership)
     await session.flush()
     detail: dict[str, object] = {"role": role.value, "via": via}
+    if guest_until is not None:
+        detail["guest_until"] = guest_until.isoformat()
     if invite_id is not None:
         detail["invite_id"] = invite_id
     await audit_service.record(
@@ -392,9 +402,10 @@ async def ensure_membership(
     # Nudge billing that this guild's membership changed. No-op unless a
     # hosted deployment configured the outbound billing settings.
     billing_ping.notify_membership_changed(guild_id)
-    enroll_new_member_in_auto_join_initiatives(
-        session, guild_id=guild_id, user_id=user_id, role=role
-    )
+    if guest_until is None:
+        enroll_new_member_in_auto_join_initiatives(
+            session, guild_id=guild_id, user_id=user_id, role=role
+        )
     return membership
 
 
@@ -504,6 +515,22 @@ async def _assert_member_capacity(
         await advisory_lock(session, LockNamespace.MEMBER_CAP, guild_id)
     if await count_members(session, guild_id=guild_id) >= administration.max_users:
         raise GuildCapacityError(GuildMessages.COMMUNITY_USER_LIMIT_REACHED)
+
+
+async def _assert_guest_capacity(session: AsyncSession, *, guild_id: int) -> None:
+    """Raise ``GuildCapacityError`` if the guild is at its ``max_guests`` cap.
+
+    The guest half of :func:`_assert_member_capacity`, on the join path only:
+    the same session requirement, and with a cap set the same transaction-scoped
+    lock, under its own namespace so guests and members do not queue behind
+    each other. A cap of 0 takes no new guests.
+    """
+    administration = await get_administration(session, guild_id=guild_id)
+    if administration.max_guests is None:
+        return
+    await advisory_lock(session, LockNamespace.GUEST_CAP, guild_id)
+    if await count_guests(session, guild_id=guild_id) >= administration.max_guests:
+        raise GuildCapacityError(GuildMessages.COMMUNITY_GUEST_LIMIT_REACHED)
 
 
 async def _next_membership_position(session: AsyncSession, *, user_id: int) -> int:
@@ -790,6 +817,22 @@ async def count_members(session: AsyncSession, *, guild_id: int) -> int:
             .where(
                 GuildMembership.guild_id == guild_id,
                 GuildMembership.guest_until.is_(None),
+            )
+        )
+    ).one()
+
+
+async def count_guests(session: AsyncSession, *, guild_id: int) -> int:
+    """How many guests a guild has now: those whose time has not ended. A
+    guest whose time ran out leaves room at once, before the sweep removes
+    the row. Same session requirement as :func:`count_members`."""
+    return (
+        await session.exec(
+            select(func.count())
+            .select_from(GuildMembership)
+            .where(
+                GuildMembership.guild_id == guild_id,
+                col(GuildMembership.guest_until) > func.now(),
             )
         )
     ).one()
@@ -1116,6 +1159,8 @@ async def update_guild(
     max_storage_bytes_provided: bool = False,
     max_users: int | None = None,
     max_users_provided: bool = False,
+    max_guests: int | None = None,
+    max_guests_provided: bool = False,
     auth_options: list[CommunityAuthOption] | None = None,
     banner_image_enabled: bool | None = None,
     support_enabled: bool | None = None,
@@ -1192,6 +1237,7 @@ async def update_guild(
     if (
         max_storage_bytes_provided
         or max_users_provided
+        or max_guests_provided
         or auth_options is not None
         or banner_image_enabled is not None
         or support_enabled is not None
@@ -1206,6 +1252,9 @@ async def update_guild(
             administration_updated = True
         if max_users_provided and administration.max_users != max_users:
             administration.max_users = max_users
+            administration_updated = True
+        if max_guests_provided and administration.max_guests != max_guests:
+            administration.max_guests = max_guests
             administration_updated = True
         # An explicit ``null`` is meaningless for an entitlement (unlike the
         # caps, where null resets to unlimited), so guard on ``is not None`` and

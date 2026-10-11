@@ -70,7 +70,7 @@ async def test_billing_role_is_confined_to_its_column_and_guild_surface(
     caps = (
         await s.exec(
             text(
-                "SELECT guild_id, tier_name, max_storage_bytes, max_users "
+                "SELECT guild_id, tier_name, max_storage_bytes, max_users, max_guests "
                 "FROM guild_administration WHERE guild_id = :gid"
             ),
             params={"gid": guild_a.id},

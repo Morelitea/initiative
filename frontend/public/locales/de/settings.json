@@ -1317,6 +1317,7 @@
       "limits": "Grenzen",
       "features": "Funktionen",
       "usersHelp": "Wie viele Personen dazugehören dürfen. Für unbegrenzt leer lassen.",
+      "guestsHelp": "Wie viele Gäste sie gleichzeitig haben dürfen. Bei 0 kommen keine neuen Gäste hinzu, und wer schon da ist, bleibt bis zum Ende seiner Zeit. Für unbegrenzt leer lassen.",
       "storageHelp": "Wie viel sie speichern dürfen, in Gigabyte. Für unbegrenzt leer lassen.",
       "bannerLabel": "Bannerbild",
       "bannerHelp": "Erlaubt das Hochladen eines Bannerbilds. Ohne das wählen sie stattdessen eine Bannerfarbe; ein bereits hochgeladenes Banner bleibt sichtbar.",
@@ -1334,6 +1335,7 @@
         }
       },
       "usersLabel": "Mitglieder",
+      "guestsLabel": "Gäste",
       "storageLabel": "Speicherlimit",
       "decidesForItself": "Was sie selbst entscheidet",
       "deleted": "Gelöscht",
