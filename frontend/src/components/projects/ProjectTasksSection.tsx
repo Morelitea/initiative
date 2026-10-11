@@ -9,7 +9,7 @@ import {
 } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { AlertTriangle, Archive, BookmarkPlus, Plus, RotateCcw, Save } from "lucide-react";
+import { AlertTriangle, Archive, Plus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -58,7 +58,6 @@ import {
   type TaskFormValue,
   taskFormPropertyValues,
 } from "@/components/tasks/TaskForm";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Dialog } from "@/components/ui/dialog";
@@ -87,9 +86,7 @@ import { useViewPreference } from "@/hooks/useViewPreference";
 import {
   buildTaskConditions,
   buildTaskListParams,
-  EMPTY_TASK_FILTERS,
   matchesDueWindow,
-  type TaskFilterSpec,
   taskFilterCount,
 } from "@/lib/filters/taskFilters";
 import { cardOf } from "@/lib/layouts/draft";
@@ -155,7 +152,6 @@ export const ProjectTasksSection = ({
     retryLayouts,
     retryingLayouts,
     layouts,
-    canConfigure,
     layout,
     kind,
     filtered,
