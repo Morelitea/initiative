@@ -9,10 +9,10 @@ from sqlalchemy.exc import DBAPIError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import CommunityRole
+from app.models.platform.guild import CommunityRole, CommunityStatus
 from app.models.tenant.engagement_level import EngagementLevel
 from app.models.tenant.event_outbox import EventOutbox
-from app.models.tenant.recent_view import RecentView
+from app.models.tenant.recent_view import RecentView, ViewSource
 from app.services.guild_sweeps import Scope, each_guild
 from app.services.platform import app_settings as app_settings_service
 from app.services.tenant import engagement_levels
@@ -24,7 +24,7 @@ from app.testing.routing import route_as
 
 async def _pass(guild_id: int) -> None:
     await each_guild(
-        [(Scope.ACTIVE, await engagement_levels.prepare())],
+        [(Scope.PROVISIONED, await engagement_levels.prepare())],
         name="test",
         only=[guild_id],
     )
@@ -53,7 +53,9 @@ async def _three_people(session: AsyncSession, acting_user):
     return [a, *others], task
 
 
-async def _all_opened(session: AsyncSession, people, task) -> None:
+async def _all_opened(
+    session: AsyncSession, people, task, source: ViewSource = ViewSource.direct
+) -> None:
     now = datetime.now(timezone.utc)
     for person in people:
         session.add(
@@ -62,6 +64,7 @@ async def _all_opened(session: AsyncSession, people, task) -> None:
                 entity_type="task",
                 entity_id=task.id,
                 last_viewed_at=now,
+                source=source.value,
             )
         )
     await session.commit()
@@ -101,6 +104,27 @@ async def test_an_item_has_a_level_once_three_people_engaged(
     await _pass(a.guild.id)
     # Two opens at 1 and a change at 2: log2(1 + 4), floored.
     assert await _levels(session) == {("task", task.id): 2}
+
+
+async def test_an_open_from_search_counts_for_less(session: AsyncSession, acting_user):
+    """Search orders by the level, so an open it led to weighs half."""
+    (a, b, c), task = await _three_people(session, acting_user)
+    await _all_opened(session, (a, b), task, source=ViewSource.search)
+    session.add(
+        EventOutbox(
+            txn_id=1,
+            actor_user_id=c.user.id,
+            initiative_id=a.initiative.id,
+            resource_type="tasks",
+            resource_id=task.id,
+            action="updated",
+        )
+    )
+    await session.commit()
+    await _pass(a.guild.id)
+    # 0.5 + 0.5 + 2 a moment old, where two direct opens make 4: log2(1 + just
+    # under 3), floored.
+    assert await _levels(session) == {("task", task.id): 1}
 
 
 async def test_each_person_counts_once_and_old_engagement_fades(
@@ -194,6 +218,13 @@ async def test_turning_ranking_off_clears_the_levels(
     assert await _levels(session) == {}
 
     guild.allow_engagement_ranking = True
+    session.add(guild)
+    await session.commit()
+    await _pass(guild.id)
+    assert await _levels(session) == {("task", task.id): 1}
+
+    # A read-only community is still cleared when the deployment turns it off.
+    guild.status = CommunityStatus.read_only
     session.add(guild)
     settings_row = await app_settings_service.ensure_settings_row(session)
     settings_row.engagement_ranking_enabled = False
