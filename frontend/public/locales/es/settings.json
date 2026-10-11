@@ -1814,7 +1814,11 @@
       "saved_other": "Las cuentas eliminadas se conservan {{count}} días.",
       "savedNever": "Las cuentas eliminadas se conservan indefinidamente.",
       "save": "Guardar cuánto se conservan las cuentas"
-    }
+    },
+    "engagementRankingLabel": "Permitir que las comunidades ordenen los resultados por participación",
+    "engagementRankingHelpText": "Si está desactivado, ninguna comunidad de este servidor ordena por participación, sea cual sea su propia configuración.",
+    "engagementRankingEnabledToast": "Las comunidades pueden ordenar los resultados por participación.",
+    "engagementRankingDisabledToast": "El orden por participación está desactivado en todas las comunidades."
   },
   "account": {
     "passwordTitle": "Contraseña",
@@ -2043,6 +2047,14 @@
       "offHelp": "Las notificaciones sobre esta comunidad dicen de qué tratan al salir de la aplicación.",
       "platformHelp": "Este servidor oculta los detalles en todas partes, así que esta comunidad ya está cubierta."
     }
+  },
+  "communityEngagementRanking": {
+    "title": "Orden de búsqueda",
+    "label": "Ordenar los resultados de búsqueda según la participación de la comunidad",
+    "help": "La búsqueda muestra más arriba lo que más miembros han abierto o trabajado recientemente. Solo se guarda un nivel aproximado de cada elemento, nunca quién lo abrió ni cuántas veces, y nunca se comparte fuera de esta comunidad.",
+    "platformHelp": "Este servidor ha desactivado el orden por participación en todas las comunidades.",
+    "saved": "Orden de búsqueda guardado.",
+    "error": "No se pudo guardar el orden de búsqueda."
   },
   "billingInsights": {
     "title": "Métricas de facturación",

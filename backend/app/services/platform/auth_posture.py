@@ -842,6 +842,12 @@ COMMUNITY_RULES: dict[str, Rule] = {
             loose=False,
             entitlement=_RESTRICTIONS,
         ),
+        Rule(
+            "allow_engagement_ranking",
+            area="engagement_ranking",
+            loose=True,
+            entitlement=_RESTRICTIONS,
+        ),
     )
 }
 

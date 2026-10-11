@@ -311,6 +311,14 @@ class AppSetting(SQLModel, table=True):
         sa_column=Column(Boolean, nullable=False, server_default="true"),
     )
 
+    # Whether search may order a community's content by how many members
+    # engaged with it lately. Each community is asked too, and off wins, so a
+    # community can turn off what this allows and never the reverse.
+    engagement_ranking_enabled: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )
+
     # Whether a member's share to this deployment's marketplace goes on the
     # shelf straight away. Off by default: each one waits for the owner to
     # approve it. A deployment whose members all know each other turns it on.

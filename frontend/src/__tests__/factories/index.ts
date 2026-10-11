@@ -87,13 +87,7 @@ export {
   buildTaskListResponse,
   resetCounter as resetTaskCounter,
 } from "./task.factory";
-export {
-  buildSavedViewSet,
-  buildShippedProjectViews,
-  buildToolView,
-  buildToolViewSet,
-  resetCounter as resetToolViewCounter,
-} from "./toolView.factory";
+export { buildSavedLayoutSet, buildToolLayoutSet } from "./toolLayout.factory";
 export {
   buildOwnedDecoration,
   buildUser,
@@ -123,7 +117,6 @@ import { resetRecentCounter } from "./recent.factory";
 import { resetCounter as resetSearchCounter } from "./search.factory";
 import { resetCounter as resetTagCounter } from "./tag.factory";
 import { resetCounter as resetTaskCounter } from "./task.factory";
-import { resetCounter as resetToolViewCounter } from "./toolView.factory";
 import { resetCounter as resetUserCounter } from "./user.factory";
 import { resetCounter as resetWikiCounter } from "./wiki.factory";
 
@@ -145,7 +138,6 @@ export function resetFactories(): void {
   resetPropertyCounter();
   resetRecentCounter();
   resetMarketplaceCounter();
-  resetToolViewCounter();
   resetSearchCounter();
   resetDmCounter();
   resetPostCounter();

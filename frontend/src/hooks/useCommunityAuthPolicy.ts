@@ -64,7 +64,12 @@ export const useCommunityLoginProviders = (
   });
 };
 
-/** The complete Authentication settings available to a settings superadmin. */
+/**
+ * The complete Authentication settings available to a settings superadmin.
+ *
+ * Read again each time the page opens: it carries the deployment's answers
+ * beside the community's, and those are written from the platform's pages.
+ */
 export const useCommunityAuthSettings = (
   communityId: number,
   options?: QueryOpts<CommunityAuthSettingsRead>
@@ -73,6 +78,7 @@ export const useCommunityAuthSettings = (
     queryKey: getGetCommunityAuthSettingsQueryKey(communityId),
     queryFn: () => getCommunityAuthSettings(communityId),
     enabled: communityId > 0,
+    refetchOnMount: "always",
     ...options,
   });
 };

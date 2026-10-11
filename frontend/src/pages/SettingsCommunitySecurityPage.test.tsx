@@ -40,6 +40,8 @@ const baseSettings = (): CommunityAuthSettingsRead => ({
   push_allowed_by_platform: true,
   email_allowed_by_platform: true,
   redacted_by_platform: false,
+  allow_engagement_ranking: true,
+  engagement_ranking_allowed_by_platform: true,
 });
 /** Change what the server says, for a case that varies it. */
 const stored = (patch: Partial<CommunityAuthSettingsRead>) => {
@@ -374,6 +376,27 @@ describe("SettingsCommunitySecurityPage", () => {
       render();
 
       expect(screen.queryByLabelText(/require a second factor/i)).not.toBeInTheDocument();
+    });
+  });
+
+  describe("ranking search by engagement", () => {
+    const rankingSwitch = () => screen.getByLabelText(/rank search results by community/i);
+
+    it("saves on its own", async () => {
+      const user = mounted();
+
+      await user.click(rankingSwitch());
+
+      expect(save).toHaveBeenCalledWith({ allow_engagement_ranking: false }, expect.anything());
+    });
+
+    it("is held where the deployment has turned it off", () => {
+      stored({ engagement_ranking_allowed_by_platform: false });
+      render();
+
+      expect(rankingSwitch()).not.toBeChecked();
+      expect(rankingSwitch()).toBeDisabled();
+      expect(screen.getByText(/turned engagement ranking off/i)).toBeInTheDocument();
     });
   });
 

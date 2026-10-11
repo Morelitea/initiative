@@ -1814,7 +1814,11 @@
       "saved_other": "Les comptes supprimés sont conservés {{count}} jours.",
       "savedNever": "Les comptes supprimés sont conservés indéfiniment.",
       "save": "Enregistrer la durée de conservation des comptes"
-    }
+    },
+    "engagementRankingLabel": "Permettre aux communautés de classer les résultats par engagement",
+    "engagementRankingHelpText": "Désactivé, aucune communauté de ce serveur ne classe par engagement, quel que soit son propre réglage.",
+    "engagementRankingEnabledToast": "Les communautés peuvent classer les résultats par engagement.",
+    "engagementRankingDisabledToast": "Le classement par engagement est désactivé pour toutes les communautés."
   },
   "account": {
     "passwordTitle": "Mot de passe",
@@ -2043,6 +2047,14 @@
       "offHelp": "Les notifications concernant cette communauté indiquent de quoi il s'agit une fois sorties de l'application.",
       "platformHelp": "Ce serveur masque les détails partout : cette communauté est déjà couverte."
     }
+  },
+  "communityEngagementRanking": {
+    "title": "Ordre de recherche",
+    "label": "Classer les résultats de recherche selon l'engagement de la communauté",
+    "help": "La recherche place plus haut ce que davantage de membres ont récemment ouvert ou modifié. Seul un niveau approximatif est conservé pour chaque élément, jamais qui l'a ouvert ni combien de fois, et il n'est jamais partagé en dehors de cette communauté.",
+    "platformHelp": "Ce serveur a désactivé le classement par engagement pour toutes les communautés.",
+    "saved": "Ordre de recherche enregistré.",
+    "error": "Impossible d'enregistrer l'ordre de recherche."
   },
   "billingInsights": {
     "title": "Indicateurs de facturation",

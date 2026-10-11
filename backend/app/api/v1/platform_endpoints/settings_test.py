@@ -1050,6 +1050,43 @@ async def test_owner_switches_the_community_directory_on_and_off(
 
 
 # ---------------------------------------------------------------------------
+# Ranking by engagement
+# ---------------------------------------------------------------------------
+
+
+async def test_the_deployment_and_a_community_each_turn_engagement_ranking_off(
+    client: AsyncClient, session: AsyncSession, owner, acting_user
+) -> None:
+    """The owner answers for the deployment and the seat for its community,
+    and the community's page is told the deployment's answer beside its own."""
+    seat = await acting_user(guild_role=CommunityRole.superadmin)
+    await guild_administration(session, seat.guild, auth_options=["restrictions"])
+    community = f"/api/v1/communities/{seat.guild.id}/auth-settings"
+
+    written = await client.patch(
+        community, json={"allow_engagement_ranking": False}, headers=seat.headers
+    )
+    assert written.status_code == 200, written.text
+    assert written.json()["allow_engagement_ranking"] is False
+    assert written.json()["engagement_ranking_allowed_by_platform"] is True
+
+    resp = await client.put(
+        "/api/v1/settings/community",
+        json={
+            "community_directory_enabled": False,
+            "engagement_ranking_enabled": False,
+        },
+        headers=owner.headers,
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["engagement_ranking_enabled"] is False
+
+    body = (await client.get(community, headers=seat.headers)).json()
+    assert body["engagement_ranking_allowed_by_platform"] is False
+    assert body["allow_engagement_ranking"] is False
+
+
+# ---------------------------------------------------------------------------
 # How long somebody stays signed in
 # ---------------------------------------------------------------------------
 

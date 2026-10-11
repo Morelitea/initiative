@@ -8,7 +8,7 @@ import type {
   TagSummary,
   TimelineBucket,
 } from "@/api/generated/initiativeAPI.schemas";
-import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { Tool, ViewSource } from "@/api/generated/initiativeAPI.schemas";
 import { ToolCommentsPanel } from "@/components/comments/ToolCommentsPanel";
 import { ToolRelationsPanel } from "@/components/entities/ToolRelationsPanel";
 import { BulkEditImageTagsDialog } from "@/components/initiativeTools/galleries/BulkEditImageTagsDialog";
@@ -55,7 +55,7 @@ import { type GridToggleOptions, useGridSelection } from "@/hooks/useGridSelecti
 import { useImageUploader } from "@/hooks/useImageUploader";
 import { useInitiative } from "@/hooks/useInitiatives";
 import { useReadOnOpen } from "@/hooks/useNotifications";
-import { useRecordRecentView } from "@/hooks/useRecents";
+import { useRecordOpen } from "@/hooks/useRecents";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { formatPeriod } from "@/lib/formatDate";
@@ -88,10 +88,7 @@ const isViewMode = (value: unknown): value is ViewMode =>
  */
 export function GalleryDetailPage() {
   const { t } = useTranslation(["galleries", "common"]);
-  const { communityId, galleryId } = useParams({ strict: false }) as {
-    communityId: string;
-    galleryId: string;
-  };
+  const { galleryId } = useParams({ strict: false }) as { galleryId: string };
   const parsedId = Number(galleryId);
   const gp = useCommunityPath();
 
@@ -99,13 +96,9 @@ export function GalleryDetailPage() {
   const gallery = galleryQuery.data;
   const initiativeId = useCanonicalInitiativeId(gallery?.initiative_id);
 
-  const recordViewMutation = useRecordRecentView(Tool.gallery, Number(communityId));
   const viewedId = gallery?.id;
   useReadOnOpen(Tool.gallery, viewedId);
-  useEffect(() => {
-    if (!viewedId) return;
-    recordViewMutation.mutate(viewedId);
-  }, [viewedId, recordViewMutation.mutate]);
+  useRecordOpen(Tool.gallery, viewedId);
 
   const canEdit = Boolean(gallery?.can.edit);
   const initiativeQuery = useInitiative(gallery?.initiative_id ?? null);
@@ -188,6 +181,8 @@ export function GalleryDetailPage() {
   // than by index, so a page arriving underneath does not swap the picture
   // somebody is looking at.
   const [openId, setOpenId] = useState<number | null>(null);
+  // An image opens in the lightbox.
+  useRecordOpen("gallery_image", openId ?? undefined, { source: ViewSource.direct });
   const [detailsId, setDetailsId] = useState<number | null>(null);
   const openIndex = openId === null ? -1 : images.findIndex((image) => image.id === openId);
   const lightboxItems = useMemo<LightboxItem[]>(

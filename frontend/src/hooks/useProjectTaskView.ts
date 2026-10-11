@@ -1,7 +1,8 @@
 /**
- * One person's view of a project's tasks: which of the project's views they
- * are in, and the filters it shows them — their own for that view, or the
- * view's — ranked against the URL and the project's default view.
+ * One person's view of a project's tasks: which of the project's list layouts
+ * they are in, and their own filters and sort for each, saved for them on the
+ * project (a per-user preference). A layout is how the project draws its
+ * tasks; what a person narrows the list to and how they order it are theirs.
  *
  * The project page reads it to show the list, and the project's export card
  * reads it so an export starts from the same tasks.
@@ -11,56 +12,106 @@ import type { SortingState } from "@tanstack/react-table";
 import { useCallback, useMemo } from "react";
 
 import type {
-  TaskFilterSpec as ApiTaskFilterSpec,
+  ListLayoutRead,
+  ListLayoutReadKind,
   SortField,
   TaskStatusRead,
-  ToolViewRead,
-  ViewLayoutType,
-  ViewSort,
 } from "@/api/generated/initiativeAPI.schemas";
-import { usePersistedTableState } from "@/hooks/usePersistedTableState";
+import { type PersistedTableState, usePersistedTableState } from "@/hooks/usePersistedTableState";
 import { useProjectTaskStatuses } from "@/hooks/useProjects";
-import { useProjectViews } from "@/hooks/useProjectViews";
 import { useTags } from "@/hooks/useTags";
+import { listLayouts, useProjectLayouts } from "@/hooks/useToolLayouts";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import {
   EMPTY_TASK_FILTERS,
-  specFromApi,
+  type StoredTaskFilters,
+  specFromStored,
   type TaskFilterSpec,
-  taskFiltersEqual,
+  taskFilterCount,
   taskSortFields,
 } from "@/lib/filters/taskFilters";
-import { resolveViewState, type StoredViews, type ViewSearch } from "@/lib/filters/views";
-import { fieldColumnId } from "@/lib/views/columns";
 
-/** A project's view, with its fixed filters as the task filter spec. */
-export type ProjectView = ToolViewRead & { filters: TaskFilterSpec };
-
-/** Where one person's own state for a project's views is kept. */
+/** Where one person's view of a project is kept. */
 export const projectViewsPreferenceKey = (projectId: number) => `project:${projectId}:views`;
 
+/** What one person keeps for a project: the layout they were last in, and their
+ *  own filters and sort for each layout they changed, by its kind. */
+export interface StoredView {
+  layout: string | null;
+  filters: Record<string, TaskFilterSpec>;
+  sorting: Record<string, SortingState>;
+}
+
+const EMPTY_VIEW: StoredView = { layout: null, filters: {}, sorting: {} };
+const EMPTY_SORTING: SortingState = [];
+
+const isSorting = (raw: unknown): raw is SortingState =>
+  Array.isArray(raw) &&
+  raw.every(
+    (each) =>
+      each !== null &&
+      typeof each === "object" &&
+      typeof (each as { id?: unknown }).id === "string" &&
+      typeof (each as { desc?: unknown }).desc === "boolean"
+  );
+
 /**
- * Coerce whatever comes back from the server into this person's views state,
- * or null when nothing is stored. Drops anything with the wrong type, so a
- * stale or corrupted blob can't crash the UI.
+ * Coerce whatever comes back from the server into this person's view, or null
+ * when nothing is stored. Drops anything with the wrong type, so a stale or
+ * corrupted blob can't crash the UI. What an older release kept (`view`, the
+ * view it named) is read as the layout of that name.
  */
-export function sanitizeStoredViews(raw: unknown): StoredViews<TaskFilterSpec> | null {
+export function sanitizeStoredView(raw: unknown): StoredView | null {
   if (raw === null || typeof raw !== "object") return null;
-  const parsed = raw as { view?: unknown; filters?: unknown };
+  const parsed = raw as { layout?: unknown; view?: unknown; filters?: unknown; sorting?: unknown };
   const filters: Record<string, TaskFilterSpec> = {};
   if (parsed.filters !== null && typeof parsed.filters === "object") {
-    for (const [slug, spec] of Object.entries(parsed.filters)) {
+    for (const [kind, spec] of Object.entries(parsed.filters)) {
       if (spec !== null && typeof spec === "object") {
-        filters[slug] = specFromApi(spec as ApiTaskFilterSpec);
+        filters[kind] = specFromStored(spec as StoredTaskFilters);
       }
     }
   }
-  return { view: typeof parsed.view === "string" ? parsed.view : null, filters };
+  const sorting: Record<string, SortingState> = {};
+  if (parsed.sorting !== null && typeof parsed.sorting === "object") {
+    for (const [kind, sort] of Object.entries(parsed.sorting)) {
+      if (isSorting(sort)) sorting[kind] = sort;
+    }
+  }
+  const layout = parsed.layout ?? parsed.view;
+  return { layout: typeof layout === "string" ? layout : null, filters, sorting };
 }
 
-/** A set's views with their filters as specs, in order. */
-export const projectViews = (views: readonly ToolViewRead[] | undefined): ProjectView[] =>
-  (views ?? []).map((view) => ({ ...view, filters: specFromApi(view.definition.filters) }));
+/**
+ * Which layout a person sees and their filters and sort for it: the layout the
+ * URL names (a link means the same layout for whoever opens it), else the one
+ * they were last in, else the one the project opens on. The page and the
+ * route's prefetch both resolve it here, so the prefetch lands on the key the
+ * page asks for.
+ */
+export const resolveProjectView = (
+  search: { layout?: string },
+  layouts: readonly ListLayoutRead[],
+  stored: StoredView | null
+) => {
+  const layout =
+    layouts.find((each) => each.kind === search.layout) ??
+    layouts.find((each) => each.kind === stored?.layout) ??
+    layouts.find((each) => each.is_default) ??
+    layouts[0] ??
+    null;
+  const kind: ListLayoutReadKind = layout?.kind ?? "table";
+  return {
+    layout,
+    kind,
+    spec: stored?.filters[kind] ?? EMPTY_TASK_FILTERS,
+    sorting: stored?.sorting[kind] ?? EMPTY_SORTING,
+  };
+};
+
+/** `record` without `key`. */
+const without = <T>(record: Record<string, T>, key: string): Record<string, T> =>
+  Object.fromEntries(Object.entries(record).filter(([each]) => each !== key));
 
 export function useProjectTaskView({
   projectId,
@@ -70,96 +121,65 @@ export function useProjectTaskView({
   projectId: number;
   /** The project's statuses, to drop a filter on one that is gone. */
   taskStatuses: TaskStatusRead[];
-  /** What the URL names, which a link means for whoever opens it. */
-  search: ViewSearch;
+  /** What the URL names: `?layout=`, which a link means for whoever opens it. */
+  search: { layout?: string };
 }) {
   const [storedRaw, setStored, { isLoaded: filtersLoaded }] = useViewPreference<unknown>(
     projectViewsPreferenceKey(projectId),
     null
   );
-  const stored = useMemo(() => sanitizeStoredViews(storedRaw), [storedRaw]);
+  const stored = useMemo(() => sanitizeStoredView(storedRaw), [storedRaw]);
 
-  // The project's shared views. `can_configure` is computed server-side and is
-  // what gates every curation affordance.
-  const viewsQuery = useProjectViews(projectId);
-  // The list waits for its views, which say what it is filtered by. A set
-  // that cannot be read is reported, with a way to ask again, rather than
+  // The project's layouts. `can_configure` is computed server-side and is what
+  // gates the editor. The list waits for them, which say how it is drawn; a
+  // set that cannot be read is reported, with a way to ask again, rather than
   // guessed at.
-  const viewsLoaded = viewsQuery.data !== undefined;
-  const viewsFailed = viewsQuery.isError && !viewsLoaded;
-  const { refetch: refetchViews } = viewsQuery;
-  const retryViews = useCallback(() => void refetchViews(), [refetchViews]);
-  const canConfigure = viewsQuery.data?.can_configure ?? false;
-  const views = useMemo(() => projectViews(viewsQuery.data?.views), [viewsQuery.data]);
+  const layoutsQuery = useProjectLayouts(projectId);
+  const layoutsLoaded = layoutsQuery.data !== undefined;
+  const layoutsFailed = layoutsQuery.isError && !layoutsLoaded;
+  const { refetch: refetchLayouts } = layoutsQuery;
+  const retryLayouts = useCallback(() => void refetchLayouts(), [refetchLayouts]);
+  const canConfigure = layoutsQuery.data?.can_configure ?? false;
+  const layouts = useMemo(() => listLayouts(layoutsQuery.data), [layoutsQuery.data]);
 
-  // URL first (a link means the same thing for whoever opens it), then the
-  // view this person was last in, then the project's default. See
-  // lib/filters/views.
-  const { view, spec, modified, unresolvedView } = useMemo(
-    () =>
-      resolveViewState({
-        search,
-        views,
-        stored: filtersLoaded ? stored : null,
-        emptySpec: EMPTY_TASK_FILTERS,
-        equals: taskFiltersEqual,
-      }),
-    [search, views, stored, filtersLoaded]
+  const { layout, kind, spec, sorting } = useMemo(
+    () => resolveProjectView(search, layouts, filtersLoaded ? stored : null),
+    [search, layouts, stored, filtersLoaded]
   );
 
-  /** Record `patch` for this person, keeping only their filters for views the
-   *  project still has. */
   const writeStored = useCallback(
-    (patch: (current: StoredViews<TaskFilterSpec>) => StoredViews<TaskFilterSpec>) =>
-      setStored((prev: unknown) => {
-        const current = sanitizeStoredViews(prev) ?? { view: null, filters: {} };
-        const next = patch(current);
-        if (views.length === 0) return next;
-        return {
-          ...next,
-          filters: Object.fromEntries(
-            Object.entries(next.filters).filter(([slug]) =>
-              views.some((each) => each.slug === slug)
-            )
-          ),
-        };
-      }),
-    [setStored, views]
+    (patch: (current: StoredView) => StoredView) =>
+      setStored((prev: unknown) => patch(sanitizeStoredView(prev) ?? EMPTY_VIEW)),
+    [setStored]
   );
 
-  /** Keep `next` as this person's own filters for the view on screen, or drop
-   *  theirs (null) to go back to the view's. */
-  const setOwnFilters = useCallback(
-    (next: TaskFilterSpec | null) => {
-      if (!view) return;
-      writeStored(({ filters }) => {
-        const others = Object.entries(filters).filter(([slug]) => slug !== view.slug);
-        return {
-          view: view.slug,
-          filters: Object.fromEntries(next ? [...others, [view.slug, next]] : others),
-        };
-      });
-    },
-    [view, writeStored]
-  );
-
-  /** Make `slug` the view this person comes back to, dropping their own
-   *  filters for it when they arrived by a link that names it. */
-  const rememberView = useCallback(
-    (slug: string, dropOwnFilters = false) =>
-      writeStored(({ filters }) => ({
-        view: slug,
-        filters: dropOwnFilters
-          ? Object.fromEntries(Object.entries(filters).filter(([each]) => each !== slug))
-          : filters,
+  /** Keep `next` as this person's filters for the layout on screen, or drop
+   *  theirs (null) to see every task. */
+  const setFilters = useCallback(
+    (next: TaskFilterSpec | null) =>
+      writeStored((view) => ({
+        ...view,
+        layout: kind,
+        filters: next ? { ...view.filters, [kind]: next } : without(view.filters, kind),
       })),
-    [writeStored]
+    [kind, writeStored]
   );
 
-  /** Whether this person keeps filters of their own for `slug`. */
-  const hasOwnFilters = useCallback(
-    (slug: string) => stored !== null && Object.hasOwn(stored.filters, slug),
-    [stored]
+  /** Keep `next` as this person's sort for the layout on screen. */
+  const setSorting = useCallback(
+    (next: SortingState) =>
+      writeStored((view) => ({
+        ...view,
+        layout: kind,
+        sorting: next.length ? { ...view.sorting, [kind]: next } : without(view.sorting, kind),
+      })),
+    [kind, writeStored]
+  );
+
+  /** Make `next` the layout this person comes back to. */
+  const rememberLayout = useCallback(
+    (next: ListLayoutReadKind) => writeStored((view) => ({ ...view, layout: next })),
+    [writeStored]
   );
 
   // Fetch community tags for filtering
@@ -172,10 +192,9 @@ export function useProjectTaskView({
    * still sent as `tag_ids in (42)`, which matches nothing, so the list goes
    * empty and the control that would explain why has no option left to render.
    *
-   * Pruning is derived rather than written back — the values may have come
-   * from a shared view, and rewriting that on someone's behalf (or marking
-   * it modified) is not this component's call. Editing any filter persists the
-   * pruned set, so it heals on the first change.
+   * Pruning is derived rather than written back: rewriting someone's filters
+   * on their behalf is not this component's call. Editing any filter persists
+   * the pruned set, so it heals on the first change.
    *
    * The two lookups fail differently. Statuses arrive as a prop, so an empty
    * list means "not loaded yet" and nothing is pruned. Tags are fetched: while
@@ -206,68 +225,75 @@ export function useProjectTaskView({
 
   return {
     filtersLoaded,
-    viewsLoaded,
-    viewsFailed,
-    retryViews,
-    retryingViews: viewsQuery.isFetching,
-    views,
+    layoutsLoaded,
+    layoutsFailed,
+    retryLayouts,
+    retryingLayouts: layoutsQuery.isFetching,
+    layouts,
     canConfigure,
-    view,
-    layout: view?.definition.layout.type ?? "table",
+    layout,
+    kind,
     spec,
-    modified,
-    unresolvedView,
+    /** This person narrows the list on screen. */
+    filtered: taskFilterCount(spec) > 0,
     appliedSpec,
-    setOwnFilters,
-    rememberView,
-    hasOwnFilters,
+    sorting,
+    setFilters,
+    setSorting,
+    rememberLayout,
   };
 }
 
-export const projectTaskTableKey = (projectId: number, viewSlug: string) =>
-  `initiative-project-${projectId}-${viewSlug}-task-table`;
+export const projectTaskTableKey = (projectId: number, kind: string) =>
+  `initiative-project-${projectId}-${kind}-task-table`;
 
-/** A view's sort, as the table's sorting. */
-export const viewTableSorting = (
-  view: { definition: { sort?: ViewSort[] | null } } | null | undefined
-): SortingState =>
-  (view?.definition.sort ?? []).map(({ field, direction }) => ({
-    id: fieldColumnId(field),
-    desc: direction === "desc",
-  }));
+/** How a project's task table is shown to one person: grouped as they left it
+ *  on this device, and sorted as their view keeps it. */
+export type ProjectTaskTableState = [
+  PersistedTableState,
+  {
+    setGrouping: (next: PersistedTableState["grouping"]) => void;
+    setSorting: (next: SortingState) => void;
+  },
+];
 
-/** Which column one view of a project's task table is grouped and sorted by,
- *  as the reader left it, or sorted as the view is until they change it. Kept
- *  beside the table's column-visibility map so the whole "how this list is
- *  shown" answer survives a reload together. */
 export const useProjectTaskTableState = (
   projectId: number,
-  view: ToolViewRead | null | undefined
-) => {
-  const sorting = useMemo(() => viewTableSorting(view), [view]);
-  return usePersistedTableState(projectTaskTableKey(projectId, view?.slug ?? ""), { sorting });
+  kind: string,
+  sorting: SortingState,
+  setSorting: (next: SortingState) => void
+): ProjectTaskTableState => {
+  const [{ grouping }, { setGrouping }] = usePersistedTableState(
+    projectTaskTableKey(projectId, kind)
+  );
+  return useMemo(
+    () => [
+      { grouping, sorting },
+      { setGrouping, setSorting },
+    ],
+    [grouping, sorting, setGrouping, setSorting]
+  );
 };
 
-/** The order a view lists tasks in, as the endpoint's `sorting`: the table's
- *  own sort while it is the layout, and the project's order in every other. */
+/** The order a list shows tasks in, as the endpoint's `sorting`: the table's
+ *  sort while it is the layout, and the project's order in every other. */
 export const taskViewSorting = (
-  layout: ViewLayoutType,
+  kind: ListLayoutReadKind,
   tableSorting: Parameters<typeof taskSortFields>[0]
-): SortField[] => (layout === "table" ? taskSortFields(tableSorting) : []);
+): SortField[] => (kind === "table" ? taskSortFields(tableSorting) : []);
 
 /** What an export of the project starts from for this person: the tasks and
  *  the order their view of it shows, with the statuses those filters name. */
 export function useProjectTaskExportView(projectId: number) {
   const taskStatuses = useProjectTaskStatuses(projectId).data ?? EMPTY_STATUSES;
-  const { appliedSpec, layout, view } = useProjectTaskView({
+  const { appliedSpec, kind, sorting } = useProjectTaskView({
     projectId,
     taskStatuses,
     search: NO_SEARCH,
   });
-  const [{ sorting }] = useProjectTaskTableState(projectId, view);
   return useMemo(
-    () => ({ tasks: appliedSpec, taskSorting: taskViewSorting(layout, sorting), taskStatuses }),
-    [appliedSpec, layout, sorting, taskStatuses]
+    () => ({ tasks: appliedSpec, taskSorting: taskViewSorting(kind, sorting), taskStatuses }),
+    [appliedSpec, kind, sorting, taskStatuses]
   );
 }
 

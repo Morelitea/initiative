@@ -2223,6 +2223,8 @@ export interface CommunityAuthSettingsRead {
   push_allowed_by_platform: boolean;
   email_allowed_by_platform: boolean;
   redacted_by_platform: boolean;
+  allow_engagement_ranking: boolean;
+  engagement_ranking_allowed_by_platform: boolean;
 }
 
 /**
@@ -2240,6 +2242,7 @@ export interface CommunityAuthSettingsUpdate {
   allow_push_notifications?: boolean | null;
   allow_email_notifications?: boolean | null;
   redact_notification_content?: boolean | null;
+  allow_engagement_ranking?: boolean | null;
 }
 
 /**
@@ -3313,6 +3316,7 @@ export interface CommunitySettingsResponse {
   deleted_community_retention_days: number | null;
   deleted_account_retention_days: number | null;
   on_hold_community_deletion_days: number | null;
+  engagement_ranking_enabled: boolean;
 }
 
 export interface CommunitySettingsUpdate {
@@ -3320,6 +3324,7 @@ export interface CommunitySettingsUpdate {
   age_gate_enabled?: boolean | null;
   default_dm_policy?: DmPolicy | null;
   direct_messages_enabled?: boolean | null;
+  engagement_ranking_enabled?: boolean | null;
   deleted_community_retention_days?: number | null;
   deleted_account_retention_days?: number | null;
   on_hold_community_deletion_days?: number | null;
@@ -4096,6 +4101,231 @@ export interface DeletionEligibilityResponse {
   can_delete: boolean;
   last_owner: boolean;
   sole_superadmin_communities: string[];
+}
+
+export type TaskDetailFieldId = (typeof TaskDetailFieldId)[keyof typeof TaskDetailFieldId];
+
+export const TaskDetailFieldId = {
+  title: "title",
+  description: "description",
+  assignees: "assignees",
+  recurrence: "recurrence",
+  checklist: "checklist",
+  priority: "priority",
+  tags: "tags",
+} as const;
+
+/**
+ * What an event's detail edits as a field. Its dates, its properties and
+ * your answer are parts of their own.
+ */
+export type EventDetailFieldId = (typeof EventDetailFieldId)[keyof typeof EventDetailFieldId];
+
+export const EventDetailFieldId = {
+  title: "title",
+  description: "description",
+  location: "location",
+  recurrence: "recurrence",
+  attendees: "attendees",
+  tags: "tags",
+} as const;
+
+export interface DetailFieldProps {
+  field: TaskDetailFieldId | EventDetailFieldId | string;
+}
+
+export interface DetailFieldPart {
+  type: "field";
+  props: DetailFieldProps;
+}
+
+export interface SectionProps {
+  title?: string | null;
+  collapsed?: boolean | null;
+}
+
+export type OwnPartType = (typeof OwnPartType)[keyof typeof OwnPartType];
+
+export const OwnPartType = {
+  status: "status",
+  dates: "dates",
+  byline: "byline",
+  notice: "notice",
+  actions: "actions",
+  relations: "relations",
+  case: "case",
+  comments: "comments",
+  rsvp: "rsvp",
+} as const;
+
+/**
+ * One of a detail's own parts.
+ */
+export interface OwnPart {
+  type: OwnPartType;
+}
+
+/**
+ * A bordered group of a detail layout's parts.
+ */
+export interface SectionPartInput {
+  type: "section";
+  props?: SectionProps | null;
+  children?: (
+    | DetailStackPartInput
+    | SectionPartInput
+    | DetailFieldPart
+    | PropertiesPart
+    | PluginPart
+    | OwnPart
+  )[];
+}
+
+export interface DetailStackPartInput {
+  type: "stack";
+  props?: StackProps | null;
+  children?: (
+    | DetailStackPartInput
+    | SectionPartInput
+    | DetailFieldPart
+    | PropertiesPart
+    | PluginPart
+    | OwnPart
+  )[];
+}
+
+/**
+ * How one task (or event) is shown on its own, in three regions, each its
+ * parts in order. A region it leaves out is drawn as shipped, and a field
+ * placed in none of them is drawn in a "More fields" section.
+ */
+export interface DetailLayoutDefinitionInput {
+  header?:
+    | (
+        | DetailStackPartInput
+        | SectionPartInput
+        | DetailFieldPart
+        | PropertiesPart
+        | PluginPart
+        | OwnPart
+      )[]
+    | null;
+  main?:
+    | (
+        | DetailStackPartInput
+        | SectionPartInput
+        | DetailFieldPart
+        | PropertiesPart
+        | PluginPart
+        | OwnPart
+      )[]
+    | null;
+  side?:
+    | (
+        | DetailStackPartInput
+        | SectionPartInput
+        | DetailFieldPart
+        | PropertiesPart
+        | PluginPart
+        | OwnPart
+      )[]
+    | null;
+}
+
+/**
+ * A bordered group of a detail layout's parts.
+ */
+export interface SectionPartOutput {
+  type: "section";
+  props?: SectionProps | null;
+  children?: (
+    | DetailStackPartOutput
+    | SectionPartOutput
+    | DetailFieldPart
+    | PropertiesPart
+    | PluginPart
+    | OwnPart
+  )[];
+}
+
+export interface DetailStackPartOutput {
+  type: "stack";
+  props?: StackProps | null;
+  children?: (
+    | DetailStackPartOutput
+    | SectionPartOutput
+    | DetailFieldPart
+    | PropertiesPart
+    | PluginPart
+    | OwnPart
+  )[];
+}
+
+/**
+ * How one task (or event) is shown on its own, in three regions, each its
+ * parts in order. A region it leaves out is drawn as shipped, and a field
+ * placed in none of them is drawn in a "More fields" section.
+ */
+export interface DetailLayoutDefinitionOutput {
+  header?:
+    | (
+        | DetailStackPartOutput
+        | SectionPartOutput
+        | DetailFieldPart
+        | PropertiesPart
+        | PluginPart
+        | OwnPart
+      )[]
+    | null;
+  main?:
+    | (
+        | DetailStackPartOutput
+        | SectionPartOutput
+        | DetailFieldPart
+        | PropertiesPart
+        | PluginPart
+        | OwnPart
+      )[]
+    | null;
+  side?:
+    | (
+        | DetailStackPartOutput
+        | SectionPartOutput
+        | DetailFieldPart
+        | PropertiesPart
+        | PluginPart
+        | OwnPart
+      )[]
+    | null;
+}
+
+export type DetailLayoutReadKind = (typeof DetailLayoutReadKind)[keyof typeof DetailLayoutReadKind];
+
+export const DetailLayoutReadKind = {
+  task: "task",
+  calendar_event: "calendar_event",
+} as const;
+
+/**
+ * How a target shows one of its items: as shipped until it is changed.
+ */
+export interface DetailLayoutRead {
+  kind: DetailLayoutReadKind;
+  definition: DetailLayoutDefinitionOutput;
+  updated_at: string | null;
+}
+
+export type DetailLayoutWriteKind =
+  (typeof DetailLayoutWriteKind)[keyof typeof DetailLayoutWriteKind];
+
+export const DetailLayoutWriteKind = {
+  task: "task",
+  calendar_event: "calendar_event",
+} as const;
+
+export interface DetailLayoutWrite {
+  kind: DetailLayoutWriteKind;
+  definition: DetailLayoutDefinitionInput;
 }
 
 /**
@@ -5777,36 +6007,54 @@ export interface InitiativeTaskStatusRead {
   projects_total: number;
 }
 
-export type ToolViewSummaryLayout =
-  (typeof ToolViewSummaryLayout)[keyof typeof ToolViewSummaryLayout];
+export type ListLayoutReadKind = (typeof ListLayoutReadKind)[keyof typeof ListLayoutReadKind];
 
-export const ToolViewSummaryLayout = {
+export const ListLayoutReadKind = {
   table: "table",
   board: "board",
   calendar: "calendar",
 } as const;
 
+export type TaskColumnFieldId = (typeof TaskColumnFieldId)[keyof typeof TaskColumnFieldId];
+
+export const TaskColumnFieldId = {
+  title: "title",
+  startDate: "startDate",
+  dueDate: "dueDate",
+  priority: "priority",
+  comments: "comments",
+  tags: "tags",
+} as const;
+
 /**
- * A view as a list of views names it.
+ * How a list draws its items. What it leaves out is drawn as shipped: a
+ * board with no ``card`` draws the shipped card, a table with no ``columns``
+ * the shipped columns.
  */
-export interface ToolViewSummary {
-  name: string;
-  slug: string;
-  layout: ToolViewSummaryLayout;
-  is_default: boolean;
+export interface ListLayoutDefinitionOutput {
+  card?: CardPartOutput | null;
+  columns?: (TaskColumnFieldId | string)[] | null;
 }
 
 /**
- * One instance's views, as its initiative's list of them shows them.
+ * One way a target lists its items: as shipped until it is changed.
  */
-export interface InitiativeToolViewsRead {
+export interface ListLayoutRead {
+  kind: ListLayoutReadKind;
+  is_default: boolean;
+  definition: ListLayoutDefinitionOutput;
+  updated_at: string | null;
+}
+
+/**
+ * One instance's layouts, as its initiative's list of them shows them.
+ */
+export interface InitiativeToolLayoutsRead {
+  layouts: (ListLayoutRead | DetailLayoutRead)[];
+  can_configure: boolean;
   tool: Tool;
   tool_id: number;
   name: string;
-  views: ToolViewSummary[];
-  stored: boolean;
-  has_item_layout: boolean;
-  can_configure: boolean;
 }
 
 export interface InitiativeUpdate {
@@ -5947,188 +6195,6 @@ export const ItemKind = {
   post: "post",
 } as const;
 
-export interface SectionProps {
-  title?: string | null;
-  collapsed?: boolean | null;
-}
-
-export type TaskPageFieldId = (typeof TaskPageFieldId)[keyof typeof TaskPageFieldId];
-
-export const TaskPageFieldId = {
-  title: "title",
-  description: "description",
-  assignees: "assignees",
-  recurrence: "recurrence",
-  checklist: "checklist",
-  priority: "priority",
-  tags: "tags",
-} as const;
-
-export interface PageFieldProps {
-  field: TaskPageFieldId | string;
-}
-
-export interface PageFieldPart {
-  type: "field";
-  props: PageFieldProps;
-}
-
-export type TaskPagePartType = (typeof TaskPagePartType)[keyof typeof TaskPagePartType];
-
-export const TaskPagePartType = {
-  status: "status",
-  dates: "dates",
-  byline: "byline",
-  notice: "notice",
-  actions: "actions",
-  relations: "relations",
-  case: "case",
-  comments: "comments",
-} as const;
-
-/**
- * One of a task page's own parts, which edit or show more than one field:
- * its status, its start and due dates, who made it, its read-only notice, its
- * menu, its relations, its case and its comments.
- */
-export interface TaskPagePart {
-  type: TaskPagePartType;
-}
-
-/**
- * A bordered group of an item page's parts.
- */
-export interface SectionPartInput {
-  type: "section";
-  props?: SectionProps | null;
-  children?: (
-    | PageStackPartInput
-    | SectionPartInput
-    | PageFieldPart
-    | PropertiesPart
-    | PluginPart
-    | TaskPagePart
-  )[];
-}
-
-export interface PageStackPartInput {
-  type: "stack";
-  props?: StackProps | null;
-  children?: (
-    | PageStackPartInput
-    | SectionPartInput
-    | PageFieldPart
-    | PropertiesPart
-    | PluginPart
-    | TaskPagePart
-  )[];
-}
-
-/**
- * An item's page, in three regions, each its parts in order. A region it
- * leaves out is drawn as shipped, and a field placed in none of them is
- * drawn in a "More fields" section.
- */
-export interface ItemLayoutDefinitionInput {
-  header?:
-    | (
-        | PageStackPartInput
-        | SectionPartInput
-        | PageFieldPart
-        | PropertiesPart
-        | PluginPart
-        | TaskPagePart
-      )[]
-    | null;
-  main?:
-    | (
-        | PageStackPartInput
-        | SectionPartInput
-        | PageFieldPart
-        | PropertiesPart
-        | PluginPart
-        | TaskPagePart
-      )[]
-    | null;
-  side?:
-    | (
-        | PageStackPartInput
-        | SectionPartInput
-        | PageFieldPart
-        | PropertiesPart
-        | PluginPart
-        | TaskPagePart
-      )[]
-    | null;
-}
-
-/**
- * A bordered group of an item page's parts.
- */
-export interface SectionPartOutput {
-  type: "section";
-  props?: SectionProps | null;
-  children?: (
-    | PageStackPartOutput
-    | SectionPartOutput
-    | PageFieldPart
-    | PropertiesPart
-    | PluginPart
-    | TaskPagePart
-  )[];
-}
-
-export interface PageStackPartOutput {
-  type: "stack";
-  props?: StackProps | null;
-  children?: (
-    | PageStackPartOutput
-    | SectionPartOutput
-    | PageFieldPart
-    | PropertiesPart
-    | PluginPart
-    | TaskPagePart
-  )[];
-}
-
-/**
- * An item's page, in three regions, each its parts in order. A region it
- * leaves out is drawn as shipped, and a field placed in none of them is
- * drawn in a "More fields" section.
- */
-export interface ItemLayoutDefinitionOutput {
-  header?:
-    | (
-        | PageStackPartOutput
-        | SectionPartOutput
-        | PageFieldPart
-        | PropertiesPart
-        | PluginPart
-        | TaskPagePart
-      )[]
-    | null;
-  main?:
-    | (
-        | PageStackPartOutput
-        | SectionPartOutput
-        | PageFieldPart
-        | PropertiesPart
-        | PluginPart
-        | TaskPagePart
-      )[]
-    | null;
-  side?:
-    | (
-        | PageStackPartOutput
-        | SectionPartOutput
-        | PageFieldPart
-        | PropertiesPart
-        | PluginPart
-        | TaskPagePart
-      )[]
-    | null;
-}
-
 /**
  * Response for checking if a user can leave a guild.
  *
@@ -6159,6 +6225,29 @@ export interface LegalDocumentRead {
 export interface LegalIndexRead {
   documents: LegalDocumentRead[];
   required: string[];
+}
+
+/**
+ * How a list draws its items. What it leaves out is drawn as shipped: a
+ * board with no ``card`` draws the shipped card, a table with no ``columns``
+ * the shipped columns.
+ */
+export interface ListLayoutDefinitionInput {
+  card?: CardPartInput | null;
+  columns?: (TaskColumnFieldId | string)[] | null;
+}
+
+export type ListLayoutWriteKind = (typeof ListLayoutWriteKind)[keyof typeof ListLayoutWriteKind];
+
+export const ListLayoutWriteKind = {
+  table: "table",
+  board: "board",
+  calendar: "calendar",
+} as const;
+
+export interface ListLayoutWrite {
+  kind: ListLayoutWriteKind;
+  definition: ListLayoutDefinitionInput;
 }
 
 /**
@@ -8919,13 +9008,44 @@ export interface RecentItemRead {
   original_filename: string | null;
 }
 
+export type RecentKind = (typeof RecentKind)[keyof typeof RecentKind];
+
+export const RecentKind = {
+  project: "project",
+  file: "file",
+  queue: "queue",
+  counter_group: "counter_group",
+  calendar: "calendar",
+  dashboard: "dashboard",
+  post: "post",
+  gallery: "gallery",
+  wiki: "wiki",
+  task: "task",
+  queue_item: "queue_item",
+  calendar_event: "calendar_event",
+  counter: "counter",
+  gallery_image: "gallery_image",
+  wiki_page: "wiki_page",
+} as const;
+
 /**
- * Response body for POST .../{id}/view, common across entity types.
+ * Where an open came from.
+ */
+export type ViewSource = (typeof ViewSource)[keyof typeof ViewSource];
+
+export const ViewSource = {
+  direct: "direct",
+  search: "search",
+} as const;
+
+/**
+ * Response body for recording an open, common across kinds.
  */
 export interface RecentViewWrite {
-  entity_type: RecentEntityType;
+  entity_type: RecentKind;
   entity_id: number;
   last_viewed_at: string;
+  source: ViewSource;
 }
 
 /**
@@ -9660,17 +9780,6 @@ export interface TaskCaseRead {
   resource_id?: number | null;
 }
 
-export type TaskColumnFieldId = (typeof TaskColumnFieldId)[keyof typeof TaskColumnFieldId];
-
-export const TaskColumnFieldId = {
-  title: "title",
-  startDate: "startDate",
-  dueDate: "dueDate",
-  priority: "priority",
-  comments: "comments",
-  tags: "tags",
-} as const;
-
 export type TaskCreateRecurrenceStrategy =
   (typeof TaskCreateRecurrenceStrategy)[keyof typeof TaskCreateRecurrenceStrategy];
 
@@ -9695,38 +9804,6 @@ export interface TaskCreate {
   /** @maxItems 100 */
   tag_ids?: number[];
   checklist?: ChecklistItemInput[];
-}
-
-export type TaskFilterSpecDue = (typeof TaskFilterSpecDue)[keyof typeof TaskFilterSpecDue] | null;
-
-export const TaskFilterSpecDue = {
-  overdue: "overdue",
-  today: "today",
-  "7_days": "7_days",
-  "30_days": "30_days",
-} as const;
-
-export interface TaskPropertyFilter {
-  property_id: number;
-  op?: FilterOp;
-  value?: unknown;
-}
-
-/**
- * The filter values a task view holds. Unknown keys are rejected.
- */
-export interface TaskFilterSpec {
-  /** @maxItems 50 */
-  status_ids?: number[];
-  status_categories?: TaskStatusCategory[];
-  /** @maxItems 25 */
-  assignees?: string[];
-  /** @maxItems 25 */
-  tag_ids?: number[];
-  /** @maxItems 5 */
-  properties?: TaskPropertyFilter[];
-  due?: TaskFilterSpecDue;
-  include_archived?: boolean;
 }
 
 export interface TaskListResponse {
@@ -9811,16 +9888,6 @@ export interface TaskReorderRequest {
   project_id: number;
   items: TaskReorderItem[];
 }
-
-export type TaskSortFieldId = (typeof TaskSortFieldId)[keyof typeof TaskSortFieldId];
-
-export const TaskSortFieldId = {
-  title: "title",
-  startDate: "startDate",
-  dueDate: "dueDate",
-  priority: "priority",
-  tags: "tags",
-} as const;
 
 export interface TaskStatusCreate {
   /**
@@ -9976,119 +10043,29 @@ export interface ToolDuplicateRequest {
   target_initiative_id?: number | null;
 }
 
-export interface ToolItemLayoutRead {
-  id: number;
-  item_kind: "task";
-  definition: ItemLayoutDefinitionOutput;
-}
+export type ToolLayoutDefaultWriteKind =
+  (typeof ToolLayoutDefaultWriteKind)[keyof typeof ToolLayoutDefaultWriteKind];
 
-export interface ToolItemLayoutWrite {
-  item_kind: "task";
-  definition: ItemLayoutDefinitionInput;
-}
-
-export type ViewLayoutType = (typeof ViewLayoutType)[keyof typeof ViewLayoutType];
-
-export const ViewLayoutType = {
+export const ToolLayoutDefaultWriteKind = {
   table: "table",
   board: "board",
   calendar: "calendar",
 } as const;
 
-export interface ViewLayout {
-  type: ViewLayoutType;
+/**
+ * The list a target opens on.
+ */
+export interface ToolLayoutDefaultWrite {
+  kind: ToolLayoutDefaultWriteKind;
 }
-
-export type ViewSortDirection = (typeof ViewSortDirection)[keyof typeof ViewSortDirection];
-
-export const ViewSortDirection = {
-  asc: "asc",
-  desc: "desc",
-} as const;
-
-export interface ViewSort {
-  field: TaskSortFieldId;
-  direction?: ViewSortDirection;
-}
-
-export type ViewDefinitionOutputOpens =
-  | (typeof ViewDefinitionOutputOpens)[keyof typeof ViewDefinitionOutputOpens]
-  | null;
-
-export const ViewDefinitionOutputOpens = {
-  panel: "panel",
-  page: "page",
-} as const;
 
 /**
- * A view. What it leaves out is drawn as shipped: a view with no ``card``
- * draws the shipped card, one with no ``columns`` the shipped columns.
+ * A target's layouts, one of each kind its tool draws: its lists, then its
+ * items, in the order the tool names them.
  */
-export interface ViewDefinitionOutput {
-  layout: ViewLayout;
-  filters?: TaskFilterSpec | null;
-  card?: CardPartOutput | null;
-  columns?: (TaskColumnFieldId | string)[] | null;
-  sort?: ViewSort[] | null;
-  opens?: ViewDefinitionOutputOpens;
-}
-
-export interface ToolViewRead {
-  id: number | null;
-  name: string;
-  slug: string;
-  position: number;
-  is_default: boolean;
-  definition: ViewDefinitionOutput;
-}
-
-export interface ToolViewSetRead {
-  views: ToolViewRead[];
-  item_layouts: ToolItemLayoutRead[];
-  stored: boolean;
+export interface ToolLayoutSetRead {
+  layouts: (ListLayoutRead | DetailLayoutRead)[];
   can_configure: boolean;
-}
-
-export type ViewDefinitionInputOpens =
-  | (typeof ViewDefinitionInputOpens)[keyof typeof ViewDefinitionInputOpens]
-  | null;
-
-export const ViewDefinitionInputOpens = {
-  panel: "panel",
-  page: "page",
-} as const;
-
-/**
- * A view. What it leaves out is drawn as shipped: a view with no ``card``
- * draws the shipped card, one with no ``columns`` the shipped columns.
- */
-export interface ViewDefinitionInput {
-  layout: ViewLayout;
-  filters?: TaskFilterSpec | null;
-  card?: CardPartInput | null;
-  columns?: (TaskColumnFieldId | string)[] | null;
-  sort?: ViewSort[] | null;
-  opens?: ViewDefinitionInputOpens;
-}
-
-export interface ToolViewWrite {
-  /**
-   * @minLength 1
-   * @maxLength 100
-   */
-  name: string;
-  slug?: string | null;
-  is_default?: boolean;
-  definition: ViewDefinitionInput;
-}
-
-/**
- * A target's whole set, in order. It replaces whatever was stored.
- */
-export interface ToolViewSetWrite {
-  /** @minItems 1 */
-  views: ToolViewWrite[];
-  item_layouts?: ToolItemLayoutWrite[];
 }
 
 export interface TrashItem {
@@ -11847,26 +11824,32 @@ export type ReadProjectParams = {
   include_deleted?: boolean;
 };
 
-export type GetViewsParams = {
+export type GetLayoutsParams = {
   tool: Tool;
   tool_id?: number | null;
   initiative_id?: number | null;
 };
 
-export type PutViewsParams = {
+export type PutLayoutParams = {
   tool: Tool;
   tool_id?: number | null;
   initiative_id?: number | null;
 };
 
-export type DeleteViewsParams = {
-  tool: Tool;
-  tool_id?: number | null;
-  initiative_id?: number | null;
-};
-
-export type GetInitiativeViewsParams = {
+export type GetInitiativeLayoutsParams = {
   initiative_id: number;
+};
+
+export type PutDefaultLayoutParams = {
+  tool: Tool;
+  tool_id?: number | null;
+  initiative_id?: number | null;
+};
+
+export type ResetLayoutParams = {
+  tool: Tool;
+  tool_id?: number | null;
+  initiative_id?: number | null;
 };
 
 export type ListTasksParams = {
@@ -12684,6 +12667,10 @@ export type ListRosterParams = {
 
 export type ExportUsersCsvParams = {
   user_id?: number[] | null;
+};
+
+export type RecordRecentParams = {
+  source?: ViewSource;
 };
 
 export type ListMyTasksParams = {

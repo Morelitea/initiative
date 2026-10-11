@@ -24,7 +24,9 @@ import type {
   HTTPValidationError,
   RecentEntityType,
   RecentItemRead,
+  RecentKind,
   RecentViewWrite,
+  RecordRecentParams,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
@@ -156,22 +158,29 @@ export function useListRecents<
 }
 
 /**
- * Open a tab: record that the caller opened this entity.
+ * Record that the caller opened this: a tool, which becomes a tab, or
+ * something inside one, which does not.
  *
- * Takes read access, the same the entity's own page takes, and refuses in
- * the tool's own words. A PAM grantee's browsing is transient by design and
- * is not stored.
+ * Takes read access, the same the thing's own page takes, and refuses in its
+ * tool's own words. A PAM grantee's browsing is transient by design and is
+ * not stored.
  * @summary Record Recent
  */
 export const recordRecent = (
   communityId: number,
-  entityType: RecentEntityType,
+  entityType: RecentKind,
   entityId: number,
+  params?: RecordRecentParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<RecentViewWrite>(
-    { url: `/api/v1/c/${communityId}/recents/${entityType}/${entityId}`, method: "POST", signal },
+    {
+      url: `/api/v1/c/${communityId}/recents/${entityType}/${entityId}`,
+      method: "POST",
+      params,
+      signal,
+    },
     options
   );
 };
@@ -206,9 +215,9 @@ export const getRecordRecentMutationOptions = <
     Awaited<ReturnType<typeof recordRecent>>,
     RecordRecentMutationVariables
   > = (props) => {
-    const { communityId, entityType, entityId } = props ?? {};
+    const { communityId, entityType, entityId, params } = props ?? {};
 
-    return recordRecent(communityId, entityType, entityId, requestOptions);
+    return recordRecent(communityId, entityType, entityId, params, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -219,8 +228,9 @@ export type RecordRecentMutationResult = NonNullable<Awaited<ReturnType<typeof r
 export type RecordRecentMutationError = ErrorType<HTTPValidationError>;
 export type RecordRecentMutationVariables = {
   communityId: number;
-  entityType: RecentEntityType;
+  entityType: RecentKind;
   entityId: number;
+  params?: RecordRecentParams;
 };
 
 /**

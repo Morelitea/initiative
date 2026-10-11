@@ -6,14 +6,13 @@
  * it, so the three cannot disagree about what the list is showing — they used
  * to, and the loader's prefetch key silently never matched the component's.
  *
- * The spec mirrors `TaskFilterSpec` on the server (what a view holds),
- * so view, stored preference, and query params are all the same object.
+ * A person's filters are their own: saved in their view of the list (a
+ * per-user preference) in the stored shape below, never on a layout.
  */
 
 import type { SortingState } from "@tanstack/react-table";
 
 import type {
-  TaskFilterSpec as ApiTaskFilterSpec,
   FilterCondition,
   FilterGroup,
   ListTasksParams,
@@ -65,13 +64,19 @@ const CATEGORIES: readonly string[] = ["backlog", "todo", "in_progress", "done"]
 const numbers = (raw: unknown): number[] =>
   Array.isArray(raw) ? raw.filter((v): v is number => typeof v === "number") : [];
 
-/** Coerce an API view's `filters` (every key optional) into a full spec. */
-export function specFromApi(raw: ApiTaskFilterSpec | null | undefined): TaskFilterSpec {
+/** A spec as a person's view stores it: every key optional, so what an older
+ *  release stored still reads. */
+export type StoredTaskFilters = Partial<Record<keyof TaskFilterSpec, unknown>>;
+
+/** Coerce stored filters (every key optional) into a full spec. */
+export function specFromStored(raw: StoredTaskFilters | null | undefined): TaskFilterSpec {
   if (!raw) return EMPTY_TASK_FILTERS;
   return {
     status_ids: numbers(raw.status_ids),
     status_categories: Array.isArray(raw.status_categories)
-      ? raw.status_categories.filter((v): v is TaskStatusCategory => CATEGORIES.includes(v))
+      ? raw.status_categories.filter(
+          (v): v is TaskStatusCategory => typeof v === "string" && CATEGORIES.includes(v)
+        )
       : [],
     assignees: Array.isArray(raw.assignees)
       ? raw.assignees.filter((v): v is string => typeof v === "string")
@@ -86,17 +91,6 @@ export function specFromApi(raw: ApiTaskFilterSpec | null | undefined): TaskFilt
     include_archived: raw.include_archived === true,
   };
 }
-
-/** The wire shape a view's filters are saved as. Identical keys — the spec IS the payload. */
-export const specToApi = (spec: TaskFilterSpec): ApiTaskFilterSpec => ({
-  status_ids: spec.status_ids,
-  status_categories: spec.status_categories,
-  assignees: spec.assignees,
-  tag_ids: spec.tag_ids,
-  properties: spec.properties as ApiTaskFilterSpec["properties"],
-  due: spec.due,
-  include_archived: spec.include_archived,
-});
 
 const sameIds = (a: readonly (number | string)[], b: readonly (number | string)[]) =>
   a.length === b.length && a.every((value, index) => value === b[index]);

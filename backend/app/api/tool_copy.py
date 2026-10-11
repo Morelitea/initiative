@@ -60,7 +60,7 @@ from app.services.tenant.relationships import Endpoint
 from app.services.tenant import tags as tags_service
 from app.services.tenant import task_creation
 from app.services.tenant import task_statuses as task_statuses_service
-from app.services.tenant import tool_views as tool_views_service
+from app.services.tenant import tool_layouts as tool_layouts_service
 from app.services.tenant import wikis as wikis_service
 from app.services.tenant.names import copy_name, ensure_name_free
 
@@ -309,15 +309,13 @@ async def _project_contents(
         session, source_project_id=source.id, target_project_id=copy.id
     )
     statuses = await task_statuses_service.ensure_default_statuses(session, copy.id)
-    # Views' status filters name per-project ids, so they go through the
-    # mapping too. A plug-in's copy has the shipped views: views are the
-    # initiative's own layout of its tools, which plug-ins do not read.
+    # A plug-in's copy has the shipped layouts: they are the initiative's own
+    # drawing of its tools, which plug-ins do not read.
     if not isinstance(actor, InstallContext):
-        await tool_views_service.copy_views(
+        await tool_layouts_service.copy_layouts(
             session,
-            tool_views_service.Target(Tool.project, source.id, source.initiative_id),
-            tool_views_service.Target(Tool.project, copy.id, copy.initiative_id),
-            status_mapping=status_mapping,
+            tool_layouts_service.Target(Tool.project, source.id, source.initiative_id),
+            tool_layouts_service.Target(Tool.project, copy.id, copy.initiative_id),
         )
     return await task_creation.copy_project_tasks(
         session,

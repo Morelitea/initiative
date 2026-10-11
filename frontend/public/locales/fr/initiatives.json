@@ -274,16 +274,13 @@
       "turnedOffNote": "Ils n'accordent rien tant que l'outil n'est pas réactivé dans Détails. Rien de ce qu'ils contiennent n'est perdu entre-temps."
     },
     "managerDescription": "Les gestionnaires dirigent cette initiative — ses membres, ses rôles et ses réglages — et peuvent voir et créer dans chaque outil. Les éléments précis qu'ils peuvent ouvrir dépendent toujours du partage de chacun.",
-    "viewsTab": "Vues",
-    "views": {
-      "heading": "Vues",
-      "description": "Les vues de chaque projet, et s'il a sa propre page de tâche. Les vues d'un projet se modifient dans son éditeur.",
-      "noProjects": "Cette initiative n'a pas encore de projet.",
-      "loadError": "Impossible de charger les vues.",
-      "default": "S'ouvre en premier",
-      "shippedViews": "Les vues d'origine",
-      "ownTaskPage": "Sa propre page de tâche",
-      "shippedTaskPage": "La page de tâche d'origine"
+    "layoutsTab": "Dispositions",
+    "layouts": {
+      "heading": "Dispositions",
+      "description": "Comment chaque outil de cette initiative présente ce qu'il contient : chaque disposition, sa dernière modification, et la liste sur laquelle un projet s'ouvre. Elles se modifient dans l'éditeur de chacun.",
+      "noProjects": "Cette initiative n'a encore aucun projet.",
+      "loadError": "Impossible de charger les dispositions.",
+      "calendar": "Calendrier"
     }
   },
   "advancedTools": "Outils",

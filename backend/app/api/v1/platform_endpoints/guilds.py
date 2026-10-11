@@ -103,6 +103,7 @@ from app.schemas.platform.guild import (
 from app.models.platform.auth_provider import AuthProvider
 from app.models.platform.guild_auth_policy import GuildAuthPolicy
 from app.core.guild_auth_options import CommunityAuthOption, effective_options
+from app.services.platform import app_settings as app_settings_service
 from app.services.platform import auth_posture
 from app.services.platform import notification_policy
 from app.services.platform import billing as billing_service
@@ -1135,6 +1136,7 @@ async def _auth_settings_response(
         seat_session, guild_id=guild_id
     )
     platform = await notification_policy.resolve(seat_session, None)
+    settings_row = await app_settings_service.get_app_settings(seat_session)
     return CommunityAuthSettingsRead(
         auth_options=sorted(effective_options(administration.auth_options))
         if administration
@@ -1148,6 +1150,8 @@ async def _auth_settings_response(
         push_allowed_by_platform=platform.push,
         email_allowed_by_platform=platform.email,
         redacted_by_platform=platform.redact,
+        allow_engagement_ranking=guild.allow_engagement_ranking,
+        engagement_ranking_allowed_by_platform=settings_row.engagement_ranking_enabled,
     )
 
 

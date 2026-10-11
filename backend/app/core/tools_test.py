@@ -92,20 +92,6 @@ def test_an_initiative_starts_with_projects_and_files_on():
         assert InitiativeBase.model_fields[tool.view_permission].default is expected
 
 
-def test_recent_entity_types_agree_across_surfaces():
-    # The model's allowed set, the schema enum, and the RLS path registry all
-    # derive from the Tool enum — assert they agree (this also guards someone
-    # re-declaring one of them by hand).
-    from app.db.initiative_rls import RECENT_ENTITY_TABLES
-    from app.models.tenant.recent_view import RECENT_ENTITY_TYPES
-    from app.schemas.tenant.recent_view import RecentEntityType
-
-    derived = {t.value for t in Tool}
-    assert set(RECENT_ENTITY_TYPES) == derived
-    assert set(RECENT_ENTITY_TABLES) == derived
-    assert {e.value for e in RecentEntityType} == derived
-
-
 def test_every_tool_is_commentable():
     # Comments span EVERY tool plus the content-level extras: the service
     # registry, the comments table's parent FKs, the RLS parent declaration,

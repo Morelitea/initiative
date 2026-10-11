@@ -8,25 +8,28 @@ from typing import Optional
 
 from pydantic import AliasChoices, ConfigDict, Field
 
-from app.core.tools import Tool
+from app.core.tools import CONTENT_KINDS
+from app.models.tenant.recent_view import RECENT_TAB_TYPES, ViewSource
 from app.schemas.base import SanitizedBaseModel
 
 
-# Derived from the canonical Tool enum — every tool's string value, as a str
-# enum so FastAPI validates path params and OpenAPI lists the values.
+# As str enums so FastAPI validates path params and OpenAPI lists the values:
+# what becomes a tab (the tools), and every kind opening one records.
 RecentEntityType = Enum(
-    "RecentEntityType", [(t.value, t.value) for t in Tool], type=str
+    "RecentEntityType", [(k, k) for k in RECENT_TAB_TYPES], type=str
 )
+RecentKind = Enum("RecentKind", [(k, k) for k in CONTENT_KINDS], type=str)
 
 
 class RecentViewWrite(SanitizedBaseModel):
-    """Response body for POST .../{id}/view, common across entity types."""
+    """Response body for recording an open, common across kinds."""
 
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
-    entity_type: RecentEntityType
+    entity_type: RecentKind
     entity_id: int
     last_viewed_at: datetime
+    source: ViewSource
 
 
 class RecentItemRead(SanitizedBaseModel):

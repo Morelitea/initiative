@@ -19,14 +19,14 @@ import {
   buildProjectTaskStatus,
   buildPropertySummary,
   buildTask,
+  buildToolLayoutSet,
   buildUser,
 } from "@/__tests__/factories";
 import { readerCan } from "@/__tests__/factories/can";
-import { buildToolViewSet } from "@/__tests__/factories/toolView.factory";
 import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
-import type { ToolItemLayoutRead } from "@/api/generated/initiativeAPI.schemas";
+import type { DetailLayoutRead } from "@/api/generated/initiativeAPI.schemas";
 import {
   type ProjectRead,
   type PropertySummary,
@@ -169,10 +169,10 @@ const renderTaskPage = ({
 /** A field on the page, by its label. */
 /** A task page laid out by its project: a titled section of the description,
  *  and nothing at the side. */
-const LAYOUT: ToolItemLayoutRead[] = [
+const LAYOUT: DetailLayoutRead[] = [
   {
-    id: 1,
-    item_kind: "task",
+    kind: "task",
+    updated_at: "2026-10-01T12:00:00.000Z",
     definition: {
       main: [
         {
@@ -488,10 +488,10 @@ describe("TaskEditPage", () => {
     // still names the one it came from.
     const MOVED_TO = PROJECT_ID + 1;
     server.use(
-      communityHttp.get("/views/", ({ request }) =>
+      communityHttp.get("/layouts/", ({ request }) =>
         HttpResponse.json(
-          buildToolViewSet({
-            item_layouts:
+          buildToolLayoutSet({
+            layouts:
               new URL(request.url).searchParams.get("tool_id") === String(MOVED_TO) ? LAYOUT : [],
           })
         )
