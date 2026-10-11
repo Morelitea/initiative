@@ -42,8 +42,9 @@ import { YearView } from "./views/YearView";
 
 export type CalendarViewMode = "day" | "week" | "month" | "year" | "list";
 
-/** Shared `useViewPreference` scope key so every calendar (initiative events,
- *  My Tasks, Created Tasks) persists and restores the same chosen sub-view. */
+/** Where an older release kept one month, week, day or list for every
+ *  calendar. Each calendar's is now part of a person's view of it, which
+ *  reads this once. */
 export const CALENDAR_VIEW_MODE_KEY = "calendar:view-mode";
 
 export type CalendarEntryAttendee = {

@@ -11,9 +11,9 @@ import { type ReactNode, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
 import { type PropertyDefinitionRead, Tool } from "@/api/generated/initiativeAPI.schemas";
-import { ProjectTasksFilters } from "@/components/projects/ProjectTasksFilters";
 import { PropertyFilter } from "@/components/properties/PropertyFilter";
 import { useScopePrompt } from "@/components/recurrence/OccurrenceScopeDialog";
+import { TaskFilters } from "@/components/tasks/TaskFilters";
 import { TaskStatusPriorityFilters } from "@/components/tasks/TaskStatusPriorityFilters";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
@@ -203,10 +203,13 @@ export const taskPresets = (project: LayoutProject) =>
     kind: TASK_PRESETS,
     empty: EMPTY_TASK_FILTERS,
     controls: (value, onChange) => (
-      <ProjectTasksFilters
-        memberScope={{ type: "canOpen", tool: Tool.project, id: project.id }}
-        taskStatuses={project.statuses}
-        initiativeId={project.initiativeId}
+      <TaskFilters
+        scope={{
+          kind: "project",
+          memberScope: { type: "canOpen", tool: Tool.project, id: project.id },
+          statuses: project.statuses,
+          initiativeId: project.initiativeId,
+        }}
         value={value}
         onChange={onChange}
       />

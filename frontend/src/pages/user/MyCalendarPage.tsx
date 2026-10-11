@@ -38,48 +38,49 @@ import { useAuth } from "@/hooks/useAuth";
 import { useMyCalendarEntries } from "@/hooks/useCalendarEntries";
 import { useMyCalendars } from "@/hooks/useCalendars";
 import { useCommunities } from "@/hooks/useCommunities";
+import {
+  deviceJSON,
+  LIST,
+  type ListViewSpec,
+  NO_PART_VIEW,
+  useListView,
+  viewKey,
+} from "@/hooks/useListView";
 import { useUnreadTree } from "@/hooks/useUnreadTree";
-import { useViewPreference } from "@/hooks/useViewPreference";
 import { communityPath, useCommunityPath } from "@/lib/communityUrl";
 import { getErrorMessage } from "@/lib/errorMessage";
+import {
+  type CalendarViewFilters,
+  type CalendarVisibility,
+  calendarViewFiltersFromStored,
+  carriedCalendarView,
+  EMPTY_CALENDAR_VIEW_FILTERS,
+} from "@/lib/filters/calendarFilters";
 import { getProjectColor } from "@/lib/projectColor";
 import { browserTimezone } from "@/lib/timezones";
 import { entityRefRoute, toolSettingsRoute } from "@/lib/tools";
 
-const STORAGE_KEY = "initiative-my-calendar-prefs";
-const VISIBILITY_KEY = "initiative-my-calendar-visibility";
-
-type StoredPrefs = {
-  calendarViewMode: CalendarViewMode;
-  statusFilters: TaskStatusCategory[];
-  priorityFilters: TaskPriority[];
-  communityFilters: number[];
-};
-
-const PREFS_DEFAULTS: StoredPrefs = {
-  calendarViewMode: "month",
-  // Match the historical My Tasks default: hide done tasks unless the user opts in.
-  statusFilters: ["backlog", "todo", "in_progress"],
-  priorityFilters: [],
-  communityFilters: [],
-};
-
-const sanitizeStoredPrefs = (raw: unknown): StoredPrefs => {
-  if (raw === null || typeof raw !== "object") return PREFS_DEFAULTS;
-  const v = raw as Partial<StoredPrefs>;
-  return {
-    calendarViewMode:
-      typeof v.calendarViewMode === "string"
-        ? (v.calendarViewMode as CalendarViewMode)
-        : PREFS_DEFAULTS.calendarViewMode,
-    statusFilters: Array.isArray(v.statusFilters) ? v.statusFilters : PREFS_DEFAULTS.statusFilters,
-    priorityFilters: Array.isArray(v.priorityFilters)
-      ? v.priorityFilters
-      : PREFS_DEFAULTS.priorityFilters,
-    communityFilters: Array.isArray(v.communityFilters)
-      ? v.communityFilters
-      : PREFS_DEFAULTS.communityFilters,
-  };
+/** Where one person's view of their calendar is kept. What an older release
+ *  kept (its filters and month or week as one preference, what was switched
+ *  off on the device) is carried over. */
+const MY_CALENDAR_VIEW: ListViewSpec<CalendarViewFilters> = {
+  key: viewKey("me", "calendar"),
+  read: calendarViewFiltersFromStored,
+  defaults: {
+    // Match My Tasks: hide done tasks unless the person opts in.
+    filters: {
+      ...EMPTY_CALENDAR_VIEW_FILTERS,
+      status_categories: ["backlog", "todo", "in_progress"],
+    },
+    ...NO_PART_VIEW,
+  },
+  carryOver: (items) => {
+    const carried = carriedCalendarView({
+      prefs: items["initiative-my-calendar-prefs"],
+      visibility: deviceJSON("initiative-my-calendar-visibility"),
+    });
+    return carried && { mode: carried.mode, parts: { [LIST]: { filters: carried.filters } } };
+  },
 };
 
 export const MyCalendarPage = () => {
@@ -91,33 +92,29 @@ export const MyCalendarPage = () => {
 
   const weekStartsOn = (user?.week_starts_on ?? 0) as 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
-  // Calendar-specific state (server-persisted)
-  const [storedPrefsRaw, setStoredPrefs] = useViewPreference<StoredPrefs>(
-    STORAGE_KEY,
-    PREFS_DEFAULTS
-  );
-  const storedPrefs = useMemo(() => sanitizeStoredPrefs(storedPrefsRaw), [storedPrefsRaw]);
-  const { calendarViewMode } = storedPrefs;
-  const setCalendarViewMode = useCallback(
-    (next: CalendarViewMode) =>
-      setStoredPrefs((prev) => ({ ...sanitizeStoredPrefs(prev), calendarViewMode: next })),
-    [setStoredPrefs]
-  );
-  const { statusFilters, priorityFilters, communityFilters } = storedPrefs;
+  // This person's view of their calendar: its mode, its filters, and what is
+  // switched off.
+  const view = useListView(MY_CALENDAR_VIEW);
+  const calendarViewMode = (view.mode ?? "month") as CalendarViewMode;
+  const { setFilters } = view;
+  const setCalendarViewMode = view.setMode as (next: CalendarViewMode) => void;
+  const {
+    status_categories: statusFilters,
+    priorities: priorityFilters,
+    community_ids: communityFilters,
+  } = view.filters;
   const setStatusFilters = useCallback(
-    (next: TaskStatusCategory[]) =>
-      setStoredPrefs((prev) => ({ ...sanitizeStoredPrefs(prev), statusFilters: next })),
-    [setStoredPrefs]
+    (status_categories: TaskStatusCategory[]) =>
+      setFilters((prev) => ({ ...prev, status_categories })),
+    [setFilters]
   );
   const setPriorityFilters = useCallback(
-    (next: TaskPriority[]) =>
-      setStoredPrefs((prev) => ({ ...sanitizeStoredPrefs(prev), priorityFilters: next })),
-    [setStoredPrefs]
+    (priorities: TaskPriority[]) => setFilters((prev) => ({ ...prev, priorities })),
+    [setFilters]
   );
   const setCommunityFilters = useCallback(
-    (next: number[]) =>
-      setStoredPrefs((prev) => ({ ...sanitizeStoredPrefs(prev), communityFilters: next })),
-    [setStoredPrefs]
+    (community_ids: number[]) => setFilters((prev) => ({ ...prev, community_ids })),
+    [setFilters]
   );
   // Closed until asked for. The filter button carries a count of what's set, so
   // a narrowed list still says so with the panel shut — and the fields no
@@ -125,8 +122,16 @@ export const MyCalendarPage = () => {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [focusDate, setFocusDate] = useState(() => new Date());
 
-  // Per-calendar / per-project visibility, across every community.
-  const visibility = useCalendarVisibility(VISIBILITY_KEY);
+  // Per-calendar / per-project visibility, across every community: part of
+  // their filters.
+  const visibility = useCalendarVisibility(
+    view.filters,
+    useCallback(
+      (next: (prev: CalendarVisibility) => CalendarVisibility) =>
+        setFilters((prev) => ({ ...prev, ...next(prev) })),
+      [setFilters]
+    )
+  );
 
   // Badges the filter button while the panel is closed. Hidden calendars count:
   // the reader has narrowed the grid, and nothing else on screen says so.

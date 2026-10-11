@@ -6,11 +6,8 @@ import {
   getListTaskStatusesQueryKey,
   listTaskStatuses,
 } from "@/api/generated/task-statuses/task-statuses";
-import {
-  projectViewsPreferenceKey,
-  resolveProjectView,
-  sanitizeStoredView,
-} from "@/hooks/useProjectTaskView";
+import { keptView } from "@/hooks/useListView";
+import { projectViewSpec, resolveProjectView } from "@/hooks/useProjectTaskView";
 import { tasksQuery } from "@/hooks/useTasks";
 import { listLayouts, projectTarget, toolLayoutsQuery } from "@/hooks/useToolLayouts";
 import { VIEW_PREFERENCES_QUERY_KEY } from "@/hooks/useViewPreference";
@@ -63,11 +60,10 @@ export const Route = createFileRoute(
         const { spec } = resolveProjectView(
           deps,
           listLayouts(set),
-          sanitizeStoredView(
-            queryClient.getQueryData<UserViewPreferencesMap>(VIEW_PREFERENCES_QUERY_KEY)?.items?.[
-              projectViewsPreferenceKey(projectId)
-            ]
-          )
+          keptView(
+            queryClient.getQueryData<UserViewPreferencesMap>(VIEW_PREFERENCES_QUERY_KEY)?.items,
+            projectViewSpec(communityId, projectId)
+          ).view
         );
         const taskParams = buildTaskListParams(spec, { projectId });
 

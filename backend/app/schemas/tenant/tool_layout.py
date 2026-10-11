@@ -65,6 +65,7 @@ DueToken = Literal["overdue", "today", "7_days", "30_days"]
 MAX_STATUS_IDS = 50
 MAX_ASSIGNEES = 25
 MAX_TAG_IDS = 25
+MAX_COMMUNITY_IDS = 50
 
 SLUG_PATTERN = r"^[a-z0-9]+(?:-[a-z0-9]+)*$"
 MAX_SLUG_LENGTH = 64
@@ -84,10 +85,14 @@ class PresetPropertyFilter(_Strict):
 
 
 class TaskFilterSpec(_Strict):
-    """The task filters a preset holds. Unknown keys are refused."""
+    """The task filters a preset holds, the shape every task list filters by.
+    Unknown keys are refused."""
 
     status_ids: List[int] = Field(default_factory=list, max_length=MAX_STATUS_IDS)
     status_categories: List[TaskStatusCategory] = Field(default_factory=list)
+    priorities: List[TaskPriority] = Field(default_factory=list)
+    #: Only a list that holds several communities' tasks narrows by them.
+    community_ids: List[int] = Field(default_factory=list, max_length=MAX_COMMUNITY_IDS)
     assignees: List[str] = Field(default_factory=list, max_length=MAX_ASSIGNEES)
     tag_ids: List[int] = Field(default_factory=list, max_length=MAX_TAG_IDS)
     properties: List[PresetPropertyFilter] = Field(
@@ -104,11 +109,9 @@ class TaskFilterSpec(_Strict):
                 raise ValueError("assignees entries must be a user id, 'me', or 'none'")
         return value
 
-    @field_validator("status_categories")
+    @field_validator("status_categories", "priorities")
     @classmethod
-    def _dedupe_categories(
-        cls, value: List[TaskStatusCategory]
-    ) -> List[TaskStatusCategory]:
+    def _dedupe(cls, value: List[Any]) -> List[Any]:
         return list(dict.fromkeys(value))
 
 

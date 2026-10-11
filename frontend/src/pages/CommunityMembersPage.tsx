@@ -21,7 +21,14 @@ import { useCommunities } from "@/hooks/useCommunities";
 import { useFavoriteContacts, useToggleFavoriteContact } from "@/hooks/useContacts";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useDmPermissions } from "@/hooks/useDirectMessages";
-import { usePersistedColumnVisibility } from "@/hooks/usePersistedColumnVisibility";
+import {
+  deviceJSON,
+  LIST,
+  type ListViewSpec,
+  NO_PART_VIEW,
+  useListView,
+  viewKey,
+} from "@/hooks/useListView";
 import { USER_SEARCH_PAGE_SIZE, useUserSearch } from "@/hooks/useUsers";
 import { isAdminRole } from "@/lib/permissions";
 import type { AppColumnDef } from "@/lib/table";
@@ -43,6 +50,17 @@ import { getUrlHandle, getUserDisplayName } from "@/lib/userDisplay";
  */
 /** How long typing settles before the address and the roster follow it. */
 const SEARCH_SETTLES_MS = 250;
+
+/** Where one person's view of a community's roster is kept: its columns. */
+const membersViewSpec = (communityId: number): ListViewSpec<null> => ({
+  key: viewKey(communityId, "members"),
+  read: () => null,
+  defaults: { filters: null, ...NO_PART_VIEW },
+  carryOver: () => {
+    const columns = deviceJSON("community-members-columns");
+    return columns && typeof columns === "object" ? { parts: { [LIST]: { columns } } } : null;
+  },
+});
 
 export const CommunityMembersPage = () => {
   const { t } = useTranslation("communities");
@@ -113,10 +131,12 @@ export const CommunityMembersPage = () => {
 
   const answers = permissions.data?.permissions ?? {};
 
-  const [columnVisibility, setColumnVisibility] = usePersistedColumnVisibility(
-    "community-members-columns",
-    []
+  // The columns this person shows, kept in their view of the roster. What
+  // this device kept before carries over.
+  const membersView = useListView(
+    useMemo(() => membersViewSpec(Number(communityId)), [communityId])
   );
+  const { columns: columnVisibility, setColumns: setColumnVisibility } = membersView;
 
   const columns = useMemo<AppColumnDef<UserSummary>[]>(
     () => [

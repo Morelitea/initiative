@@ -6067,12 +6067,16 @@ export const TaskFilterSpecDue = {
 } as const;
 
 /**
- * The task filters a preset holds. Unknown keys are refused.
+ * The task filters a preset holds, the shape every task list filters by.
+ * Unknown keys are refused.
  */
 export interface TaskFilterSpec {
   /** @maxItems 50 */
   status_ids?: number[];
   status_categories?: TaskStatusCategory[];
+  priorities?: TaskPriority[];
+  /** @maxItems 50 */
+  community_ids?: number[];
   /** @maxItems 25 */
   assignees?: string[];
   /** @maxItems 25 */

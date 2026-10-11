@@ -1,4 +1,4 @@
-import { useNavigate, useParams, useRouter, useSearch } from "@tanstack/react-router";
+import { useParams, useRouter, useSearch } from "@tanstack/react-router";
 import { format } from "date-fns";
 import { FileDown, Loader2, Plus, Rss, Upload } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -87,56 +87,58 @@ import { useCreateFromSearchParam } from "@/hooks/useCreateFromSearchParam";
 import { useExportJob } from "@/hooks/useExportJob";
 import { useToolCreateAccess } from "@/hooks/useInitiativeAccess";
 import { useInitiative } from "@/hooks/useInitiatives";
+import {
+  deviceJSON,
+  LIST,
+  type ListViewSpec,
+  NO_PART_VIEW,
+  useListView,
+  usePresetLink,
+  viewKey,
+} from "@/hooks/useListView";
 import { useReadOnOpen } from "@/hooks/useNotifications";
 import { useRecordOpen } from "@/hooks/useRecents";
 import { useUpdateTask } from "@/hooks/useTasks";
 import { calendarTarget, listLayouts, useToolLayouts } from "@/hooks/useToolLayouts";
 import { useUnreadTree } from "@/hooks/useUnreadTree";
-import { useViewPreference } from "@/hooks/useViewPreference";
 import { useCommunityPath } from "@/lib/communityUrl";
 import { getErrorMessage } from "@/lib/errorMessage";
-import type { CalendarFilters } from "@/lib/filters/calendarFilters";
+import {
+  type CalendarFilters,
+  type CalendarViewFilters,
+  type CalendarVisibility,
+  calendarViewFiltersFromStored,
+  carriedCalendarView,
+  EMPTY_CALENDAR_VIEW_FILTERS,
+} from "@/lib/filters/calendarFilters";
 import { CALENDAR_PRESETS, type Preset, presetName, presetsOf } from "@/lib/layouts/presets";
 import { getProjectColor } from "@/lib/projectColor";
-import { getItem, setItem } from "@/lib/storage";
 import { browserTimezone } from "@/lib/timezones";
 import { eventRoute, taskRoute, toolListRoute, toolSettingsRoute } from "@/lib/tools";
 
-const STORAGE_KEY = "initiative-calendars-prefs";
-const VISIBILITY_KEY = "initiative-calendar-visibility";
+/** Where a calendar page keeps one person's view: the initiative's calendar,
+ *  one community calendar, or the community's calendars together. What an
+ *  older release kept (the filters every calendar shared, what was switched
+ *  off in the community, and the month or week every calendar shared) is
+ *  carried over. */
+const calendarsViewSpec = (
+  communityId: number,
+  ...names: (string | number)[]
+): ListViewSpec<CalendarViewFilters> => ({
+  key: viewKey(communityId, ...names),
+  read: calendarViewFiltersFromStored,
+  defaults: CALENDAR_VIEW_DEFAULTS,
+  carryOver: (items) => {
+    const carried = carriedCalendarView({
+      prefs: deviceJSON("initiative-calendars-prefs"),
+      visibility: deviceJSON(`initiative-calendar-visibility:${communityId}`),
+      mode: items[CALENDAR_VIEW_MODE_KEY],
+    });
+    return carried && { mode: carried.mode, parts: { [LIST]: { filters: carried.filters } } };
+  },
+});
 
-interface StoredPrefs {
-  statusFilters: TaskStatusCategory[];
-  priorityFilters: TaskPriority[];
-  propertyFilters: PropertyFilterCondition[];
-}
-
-const PREFS_DEFAULTS: StoredPrefs = {
-  statusFilters: [], // Don't apply default status filters - they're custom per community
-  priorityFilters: [],
-  propertyFilters: [],
-};
-
-const readStoredPrefs = (): StoredPrefs => {
-  try {
-    const raw = getItem(STORAGE_KEY);
-    if (!raw) return PREFS_DEFAULTS;
-    const parsed = JSON.parse(raw);
-    return {
-      statusFilters: Array.isArray(parsed?.statusFilters)
-        ? parsed.statusFilters
-        : PREFS_DEFAULTS.statusFilters,
-      priorityFilters: Array.isArray(parsed?.priorityFilters)
-        ? parsed.priorityFilters
-        : PREFS_DEFAULTS.priorityFilters,
-      propertyFilters: Array.isArray(parsed?.propertyFilters)
-        ? parsed.propertyFilters
-        : PREFS_DEFAULTS.propertyFilters,
-    };
-  } catch {
-    return PREFS_DEFAULTS;
-  }
-};
+const CALENDAR_VIEW_DEFAULTS = { filters: EMPTY_CALENDAR_VIEW_FILTERS, ...NO_PART_VIEW };
 
 type CalendarsViewProps = {
   fixedInitiativeId?: number;
@@ -156,21 +158,6 @@ type CalendarsViewProps = {
   communityScope?: boolean;
 };
 
-/** Make a preset's filters the calendar's. */
-const usePresetApplier = (
-  setStatus: (next: TaskStatusCategory[]) => void,
-  setPriority: (next: TaskPriority[]) => void,
-  setProperties: (next: PropertyFilterCondition[]) => void
-) =>
-  useCallback(
-    ({ filters }: Preset<CalendarFilters>) => {
-      setStatus(filters.status_categories);
-      setPriority(filters.priorities);
-      setProperties(filters.properties);
-    },
-    [setStatus, setPriority, setProperties]
-  );
-
 export const CalendarsView = ({
   fixedInitiativeId,
   canCreate,
@@ -180,7 +167,6 @@ export const CalendarsView = ({
 }: CalendarsViewProps) => {
   const { t } = useTranslation(["calendars", "tasks", "common", "access", "exports", "projects"]);
   const router = useRouter();
-  const navigate = useNavigate();
   const { user } = useAuth();
   const gp = useCommunityPath();
   const communityId = useActiveCommunityId();
@@ -215,25 +201,40 @@ export const CalendarsView = ({
   const searchParamsRef = useRef(searchParams);
   searchParamsRef.current = searchParams;
 
-  // Calendar state — view mode persists per-user across all calendars.
-  const [viewMode, setViewMode] = useViewPreference<CalendarViewMode>(
-    CALENDAR_VIEW_MODE_KEY,
-    "month"
+  // This person's view of the calendar: its mode (month, week, …), its
+  // filters, and what is switched off, kept for them on this calendar page.
+  const viewSpec = useMemo(
+    () =>
+      solo
+        ? calendarsViewSpec(communityId, "calendar", soloCalendar.id)
+        : communityScope || initiativeId == null
+          ? calendarsViewSpec(communityId, "calendars")
+          : calendarsViewSpec(communityId, "initiative", initiativeId, "calendar"),
+    [solo, soloCalendar?.id, communityScope, communityId, initiativeId]
   );
+  const view = useListView(viewSpec);
+  const viewMode = (view.mode ?? "month") as CalendarViewMode;
+  const { setMode: setViewMode, setFilters } = view;
   const [focusDate, setFocusDate] = useState(() => new Date());
 
-  // Filter state (persisted)
-  const storedPrefs = useMemo(() => readStoredPrefs(), []);
-  const [statusFilters, setStatusFilters] = useState<TaskStatusCategory[]>(
-    () => storedPrefs.statusFilters
+  const {
+    status_categories: statusFilters,
+    priorities: priorityFilters,
+    properties: propertyFilters,
+  } = view.filters;
+  const setStatusFilters = useCallback(
+    (status_categories: TaskStatusCategory[]) =>
+      setFilters((prev) => ({ ...prev, status_categories })),
+    [setFilters]
   );
-  const [priorityFilters, setPriorityFilters] = useState<TaskPriority[]>(
-    () => storedPrefs.priorityFilters
+  const setPriorityFilters = useCallback(
+    (priorities: TaskPriority[]) => setFilters((prev) => ({ ...prev, priorities })),
+    [setFilters]
   );
-  const [propertyFilters, setPropertyFilters] = useState<PropertyFilterCondition[]>(
-    () => storedPrefs.propertyFilters
+  const setPropertyFilters = useCallback(
+    (properties: PropertyFilterCondition[]) => setFilters((prev) => ({ ...prev, properties })),
+    [setFilters]
   );
-  const applyPreset = usePresetApplier(setStatusFilters, setPriorityFilters, setPropertyFilters);
   // Which days to show and export. Kept for this visit only, like a search:
   // a saved range would leave the grid empty on a later month with no
   // obvious cause.
@@ -243,8 +244,15 @@ export const CalendarsView = ({
   // longer take the top of the page before the list itself.
   const [filtersOpen, setFiltersOpen] = useState(false);
 
-  // Per-calendar / per-project visibility, kept per community.
-  const visibility = useCalendarVisibility(`${VISIBILITY_KEY}:${communityId}`);
+  // Per-calendar / per-project visibility, part of their filters.
+  const visibility = useCalendarVisibility(
+    view.filters,
+    useCallback(
+      (next: (prev: CalendarVisibility) => CalendarVisibility) =>
+        setFilters((prev) => ({ ...prev, ...next(prev) })),
+      [setFilters]
+    )
+  );
   const { showCalendar, tasksHidden } = visibility;
 
   // A deep-linked calendar is always shown, whatever the stored toggles say.
@@ -261,64 +269,26 @@ export const CalendarsView = ({
     () => presetsOf(listLayouts(layoutsQuery.data)[0]?.definition, CALENDAR_PRESETS),
     [layoutsQuery.data]
   );
-  const preset = presets.find((each) => each.slug === searchParams.preset) ?? null;
-
-  /** Name `next` in the URL, or no preset (undefined). The URL is a link to
-   *  the preset while it names one. */
-  const namePreset = useCallback(
-    (next: string | undefined) =>
-      void navigate({
-        to: ".",
-        search: ((prev: Record<string, unknown>) => ({ ...prev, preset: next })) as never,
-        replace: true,
-        resetScroll: false,
-      }),
-    [navigate]
-  );
-
-  // A preset the URL names becomes this person's filters, once per preset;
-  // one the calendar doesn't offer is dropped. Changing them afterwards makes
-  // them their own, and the URL stops naming it.
-  const applied = useRef<string | null>(null);
-  const filtersNow: CalendarFilters = useMemo(
-    () => ({
-      status_categories: statusFilters,
-      priorities: priorityFilters,
-      properties: propertyFilters,
-    }),
-    [statusFilters, priorityFilters, propertyFilters]
-  );
-  useEffect(() => {
-    if (!searchParams.preset) {
-      applied.current = null;
-      return;
-    }
-    if (!layoutsQuery.data) return;
-    if (!preset) {
-      namePreset(undefined);
-      return;
-    }
-    const key = `${initiativeId}:${preset.slug}`;
-    if (applied.current !== key) {
-      applied.current = key;
-      applyPreset(preset);
-    } else if (JSON.stringify(filtersNow) !== JSON.stringify(preset.filters)) {
-      namePreset(undefined);
-    }
-  }, [
-    searchParams.preset,
-    layoutsQuery.data,
-    preset,
-    initiativeId,
-    filtersNow,
-    namePreset,
-    applyPreset,
-  ]);
-
-  // Persist preferences
-  useEffect(() => {
-    setItem(STORAGE_KEY, JSON.stringify({ statusFilters, priorityFilters, propertyFilters }));
-  }, [statusFilters, priorityFilters, propertyFilters]);
+  const { pick: namePreset } = usePresetLink<CalendarFilters>({
+    slug: searchParams.preset,
+    presets,
+    ready: layoutsQuery.data !== undefined && view.loaded,
+    scope: `${initiativeId}`,
+    apply: useCallback(
+      ({ filters }: Preset<CalendarFilters>) => setFilters((prev) => ({ ...prev, ...filters })),
+      [setFilters]
+    ),
+    same: useCallback(
+      ({ filters }: Preset<CalendarFilters>) =>
+        JSON.stringify(filters) ===
+        JSON.stringify({
+          status_categories: statusFilters,
+          priorities: priorityFilters,
+          properties: propertyFilters,
+        }),
+      [statusFilters, priorityFilters, propertyFilters]
+    ),
+  });
 
   // The span the current view renders — the window events + tasks fetch over.
   const visibleRange = useMemo(
@@ -757,12 +727,7 @@ export const CalendarsView = ({
                 },
               ]}
               activeSlug="calendar"
-              modified={
-                filtersNow.status_categories.length +
-                  filtersNow.priorities.length +
-                  filtersNow.properties.length >
-                0
-              }
+              modified={statusFilters.length + priorityFilters.length + propertyFilters.length > 0}
               onSelect={() => undefined}
               label={t("projects:layouts.label")}
               modifiedLabel={t("projects:filters.modified")}
