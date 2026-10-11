@@ -1,7 +1,7 @@
 import { createContext, type ReactNode, useContext, useMemo } from "react";
 
 import { MentionedPeopleScope, ReportMentionedPeople } from "@/hooks/useMentionedPeople";
-import { useSmartChipStates } from "@/hooks/useSmartChips";
+import { useChipStates } from "@/hooks/useSmartChips";
 import { collectCommentReferences } from "@/lib/commentReferences";
 
 interface Resolved {
@@ -42,15 +42,15 @@ export function CommentReferences({
 }) {
   const { refs } = useMemo(() => collectCommentReferences(contents), [contents]);
 
-  const chips = useSmartChipStates(refs, refs.length > 0, communityId);
+  const { states, isFetched } = useChipStates(refs, true, communityId);
 
   const value = useMemo<Resolved>(() => {
     const titles = new Map<string, string>();
-    for (const state of chips.data?.items ?? []) {
+    for (const state of states) {
       if (state.text) titles.set(state.ref, state.text);
     }
-    return { titles, ready: refs.length === 0 || chips.isFetched };
-  }, [chips.data, chips.isFetched, refs.length]);
+    return { titles, ready: isFetched };
+  }, [states, isFetched]);
 
   return (
     <CommentReferencesContext.Provider value={value}>

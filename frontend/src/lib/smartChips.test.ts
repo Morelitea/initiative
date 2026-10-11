@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   SearchEntityType,
@@ -7,7 +7,7 @@ import {
   type SmartChipState,
   SmartChipTone,
 } from "@/api/generated/initiativeAPI.schemas";
-import { currentStates, REFS_PER_REQUEST, referenceBatches } from "@/hooks/useSmartChips";
+import { batchedReader, nextAsk } from "@/hooks/useSmartChips";
 import {
   CHIP_ENTITY_TYPES,
   CHIP_TONE_CLASSES,
@@ -169,54 +169,78 @@ describe("a chip that was answered with nothing", () => {
   });
 });
 
-describe("a page with more references than one request carries", () => {
-  it("splits them into batches the server will accept", () => {
+describe("chips asking for themselves", () => {
+  const answer = (refs: string[]) => refs.map((ref) => state({ ref, text: ref }));
+
+  it("go out as one request for everything asked in the same moment", async () => {
+    const read = vi.fn(async (_communityId: number, refs: string[]) => answer(refs));
+    const load = batchedReader(read, 10);
+
+    const asked = await Promise.all([load(1, "task:1:status"), load(1, "task:2:due")]);
+
+    expect(read).toHaveBeenCalledTimes(1);
+    expect(asked.map((item) => item?.ref)).toEqual(["task:1:status", "task:2:due"]);
+  });
+
+  it("split at what one request may carry", async () => {
     // Past its ceiling the server refuses the request outright rather than
-    // answering part of it, so a page that asked in one go would lose every
-    // reading it has, not just the ones past the line.
-    const refs = Array.from({ length: REFS_PER_REQUEST * 2 + 1 }, (_, i) => `task:${i}:status`);
-    const batches = referenceBatches(refs);
+    // answering part of it, so one moment asking for more sends several.
+    const read = vi.fn(async (_communityId: number, refs: string[]) => answer(refs));
+    const load = batchedReader(read, 2);
 
-    expect(batches).toHaveLength(3);
-    for (const batch of batches) expect(batch.length).toBeLessThanOrEqual(REFS_PER_REQUEST);
-    // Every reference is asked about exactly once, across the batches.
-    expect(batches.flat().sort()).toEqual([...new Set(refs)].sort());
+    await Promise.all(["a:1", "a:2", "a:3", "a:4", "a:5"].map((ref) => load(1, ref)));
+
+    expect(read.mock.calls.map(([, refs]) => refs.length)).toEqual([2, 2, 1]);
   });
 
-  it("asks nothing for a page that refers to nothing", () => {
-    expect(referenceBatches([])).toEqual([]);
+  it("ask about a thing once, however many chips name it", async () => {
+    const read = vi.fn(async (_communityId: number, refs: string[]) => answer(refs));
+    const load = batchedReader(read, 10);
+
+    const [first, second] = await Promise.all([load(1, "task:1"), load(1, "task:1")]);
+
+    expect(read.mock.calls[0][1]).toEqual(["task:1"]);
+    expect(first?.ref).toBe("task:1");
+    expect(second?.ref).toBe("task:1");
   });
 
-  it("splits the same way however the page is ordered", () => {
-    const refs = Array.from({ length: 150 }, (_, i) => `task:${i}:status`);
-    expect(referenceBatches(refs)).toEqual(referenceBatches([...refs].reverse()));
+  it("hear nothing for what the server left out", async () => {
+    // Gone, or not this reader's to see: the server answers the two the same.
+    const load = batchedReader(async () => answer(["task:1"]), 10);
+    expect(await load(1, "task:2")).toBeNull();
   });
 
-  it("asks about a thing once, however many times the page names it", () => {
-    expect(referenceBatches(["task:1:status", "task:1:status"])).toEqual([["task:1:status"]]);
+  it("ask each community separately", async () => {
+    const read = vi.fn(async (_communityId: number, refs: string[]) => answer(refs));
+    const load = batchedReader(read, 10);
+
+    await Promise.all([load(1, "task:1"), load(2, "task:1")]);
+
+    expect(read.mock.calls.map(([communityId]) => communityId).sort()).toEqual([1, 2]);
   });
 });
 
-describe("what the page is currently showing", () => {
-  const answered = (ref: string): SmartChipState => state({ ref, text: "In Progress" });
+describe("a chip whose reading turns at a set time", () => {
+  const BACKSTOP = 5 * 60_000;
+  const now = new Date("2026-10-10T12:00:00Z");
+  const dated = (iso: string | null) => state({ ref: "task:1:due", date: iso });
 
-  it("answers for what the page refers to", () => {
-    const states = currentStates([answered("task:1:status")], ["task:1:status"]);
-    expect(states.get("task:1:status")?.text).toBe("In Progress");
+  afterEach(() => vi.useRealTimers());
+
+  it("asks again just after that moment, when it comes before the backstop", () => {
+    vi.useFakeTimers({ now });
+    expect(nextAsk(dated("2026-10-10T12:02:00Z"))).toBe(2 * 60_000 + 1_000);
   });
 
-  it("drops an answer the page no longer refers to", () => {
-    // Editing a long document repartitions its batches, and a batch holds its
-    // previous answer while the new one loads — so an answer can outlive the
-    // chip that asked for it, and a deleted chip would keep on reading.
-    const states = currentStates(
-      [answered("task:1:status"), answered("task:2:status")],
-      ["task:1:status"]
-    );
-    expect([...states.keys()]).toEqual(["task:1:status"]);
+  it("waits for the backstop when that moment is further off", () => {
+    vi.useFakeTimers({ now });
+    expect(nextAsk(dated("2026-10-11T12:00:00Z"))).toBe(BACKSTOP);
   });
 
-  it("has nothing to show before anything is answered", () => {
-    expect(currentStates([], ["task:1:status"]).size).toBe(0);
+  it("waits for the backstop once that moment has passed, or where there is none", () => {
+    vi.useFakeTimers({ now });
+    expect(nextAsk(dated("2026-10-10T11:00:00Z"))).toBe(BACKSTOP);
+    expect(nextAsk(dated(null))).toBe(BACKSTOP);
+    expect(nextAsk(undefined)).toBe(BACKSTOP);
   });
 });

@@ -10,7 +10,6 @@ import { renderPage } from "@/__tests__/helpers/render";
 import { documentExtension } from "@/components/ui/editor/document-extension";
 import { Plugins } from "@/components/ui/editor/plugins";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { SmartChipScope } from "@/hooks/useSmartChips";
 
 const render = vi.fn(async (_id: string, source: string) => {
   if (source.includes("broken")) {
@@ -35,14 +34,12 @@ function Harness({ readOnly }: { readOnly: boolean }) {
     [readOnly]
   );
   return (
-    <SmartChipScope>
-      <LexicalExtensionComposer extension={extension} contentEditable={null}>
-        <TooltipProvider>
-          <Grab />
-          <Plugins showToolbar={false} readOnly={readOnly} initiativeId={7} />
-        </TooltipProvider>
-      </LexicalExtensionComposer>
-    </SmartChipScope>
+    <LexicalExtensionComposer extension={extension} contentEditable={null}>
+      <TooltipProvider>
+        <Grab />
+        <Plugins showToolbar={false} readOnly={readOnly} initiativeId={7} />
+      </TooltipProvider>
+    </LexicalExtensionComposer>
   );
 }
 

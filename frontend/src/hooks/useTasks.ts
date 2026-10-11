@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
 import { archiveEntity } from "@/api/generated/archive/archive";
@@ -10,20 +10,23 @@ import type {
   GenerateChecklistResponse,
   GenerateDescriptionResponse,
   ListTasksParams,
+  SmartChipState,
   TaskListRead,
   TaskListResponse,
   TaskRead,
   TaskReorderRequest,
-  TaskStatusCategory,
   TaskStatusRead,
   TaskUpdate,
   TaskUpdateScope,
 } from "@/api/generated/initiativeAPI.schemas";
-import { PropertyTarget } from "@/api/generated/initiativeAPI.schemas";
 import {
-  getListTaskStatusesQueryKey,
-  listTaskStatuses,
-} from "@/api/generated/task-statuses/task-statuses";
+  PropertyTarget,
+  SearchEntityType,
+  SmartChipKind,
+  SmartChipTone,
+  TaskStatusCategory,
+} from "@/api/generated/initiativeAPI.schemas";
+import { getListTaskStatusesQueryKey } from "@/api/generated/task-statuses/task-statuses";
 import {
   archiveDoneTasks,
   createTask,
@@ -52,13 +55,13 @@ import {
   useItemFieldSave,
   useShownWithPending,
 } from "@/hooks/useFieldSave";
-import { smartChipsKey } from "@/hooks/useSmartChips";
+import { chipKey } from "@/hooks/useSmartChips";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { fetchAllPages } from "@/lib/fetchAllPages";
 import { toast } from "@/lib/mascotToast";
 import { withZone } from "@/lib/recurrence";
+import { chipRef } from "@/lib/smartChips";
 import { fireTaskCompletionFeedback } from "@/lib/taskCompletionFeedback";
-import { statusForCategory } from "@/lib/taskStatusDefaults";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
 
@@ -306,48 +309,47 @@ export const useTaskFieldSave = (
  * Tick or untick a task from somewhere that is not its project — a file's
  * checkbox. Done is the project's done column; unticked is in progress, the
  * same move the My Tasks box makes. Which column that is belongs to the
- * project, so its columns are read at the moment of ticking.
+ * project, so the server picks it from the category.
+ *
+ * The box shows the answer the moment it is clicked and goes back if the
+ * write is refused.
  */
 export const useSetTaskDone = () => {
-  const { t } = useTranslation("tasks");
   const communityId = useActiveCommunityId();
   const queryClient = useQueryClient();
-  const [resolving, setResolving] = useState(false);
-  const { mutateAsync, isPending } = useUpdateTask({
-    onSuccess: () =>
-      queryClient.invalidateQueries({
-        queryKey: smartChipsKey(communityId),
-      }),
-  });
+  const { mutateAsync, isPending } = useUpdateTask();
 
   const setDone = useCallback(
     async (taskId: number, done: boolean) => {
-      setResolving(true);
-      let targetId: number | null = null;
-      try {
-        const task = await queryClient.fetchQuery({
-          queryKey: getReadTaskQueryKey(communityId, taskId),
-          queryFn: () => readTask(communityId, taskId),
+      const key = chipKey(communityId, chipRef(SmartChipKind["task:checklist"], taskId));
+      await queryClient.cancelQueries({ queryKey: key });
+      const before = queryClient.getQueryData<SmartChipState | null>(key);
+      if (before) {
+        queryClient.setQueryData<SmartChipState>(key, {
+          ...before,
+          ...(done
+            ? { text: "done", tone: SmartChipTone.good }
+            : { text: "", tone: SmartChipTone.neutral }),
         });
-        const statuses = await listTaskStatuses(communityId, task.project_id);
-        targetId = statusForCategory(statuses, done ? "done" : "in_progress")?.id ?? null;
-      } catch (error) {
-        toast.error(getErrorMessage(error, "tasks:errors.statusUpdate"));
-        return;
+      }
+      try {
+        await mutateAsync({
+          taskId,
+          data: {
+            status_category: done ? TaskStatusCategory.done : TaskStatusCategory.in_progress,
+          },
+        });
+      } catch {
+        // A refused write is reported by the update itself.
+        queryClient.setQueryData(key, before);
       } finally {
-        setResolving(false);
+        void invalidate(q.references(SearchEntityType.task, taskId));
       }
-      if (targetId === null) {
-        toast.error(t("errors.statusNoMatch"));
-        return;
-      }
-      // A failed update is reported by the update itself.
-      await mutateAsync({ taskId, data: { task_status_id: targetId } }).catch(() => undefined);
     },
-    [communityId, mutateAsync, queryClient, t]
+    [communityId, mutateAsync, queryClient]
   );
 
-  return { setDone, pending: resolving || isPending };
+  return { setDone, pending: isPending };
 };
 
 /**

@@ -519,6 +519,23 @@ async def update_task(
     previous_description = task.description
     previous_status_category = task.task_status.category if task.task_status else None
     new_status_id = update_data.pop("task_status_id", None)
+    status_category = update_data.pop("status_category", None)
+
+    if (
+        new_status_id is None
+        and status_category is not None
+        and status_category != previous_status_category
+    ):
+        landing = task_statuses_service.first_by_category_preference(
+            await task_statuses_service.list_statuses(session, task.project_id),
+            task_statuses_service.CATEGORY_FALLBACK[status_category],
+        )
+        if landing is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=TaskMessages.STATUS_NOT_FOUND,
+            )
+        new_status_id = landing.id
 
     if new_status_id is not None and new_status_id != task.task_status_id:
         selected_status = await task_statuses_service.get_project_status(

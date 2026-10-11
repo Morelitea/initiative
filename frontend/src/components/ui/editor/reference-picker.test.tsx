@@ -12,7 +12,6 @@ import { renderPage } from "@/__tests__/helpers/render";
 import { documentExtension } from "@/components/ui/editor/document-extension";
 import { Plugins } from "@/components/ui/editor/plugins";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { SmartChipScope } from "@/hooks/useSmartChips";
 
 /**
  * `#` and the smart-chip picker, in a real document.
@@ -44,14 +43,12 @@ function Grab(): null {
 function Harness({ subject }: { subject?: string }) {
   const extension = useMemo(() => documentExtension({ collaborative: false, editable: true }), []);
   return (
-    <SmartChipScope>
-      <LexicalExtensionComposer extension={extension} contentEditable={null}>
-        <TooltipProvider>
-          <Grab />
-          <Plugins showToolbar={false} initiativeId={7} subject={subject} supportsEntityMentions />
-        </TooltipProvider>
-      </LexicalExtensionComposer>
-    </SmartChipScope>
+    <LexicalExtensionComposer extension={extension} contentEditable={null}>
+      <TooltipProvider>
+        <Grab />
+        <Plugins showToolbar={false} initiativeId={7} subject={subject} supportsEntityMentions />
+      </TooltipProvider>
+    </LexicalExtensionComposer>
   );
 }
 

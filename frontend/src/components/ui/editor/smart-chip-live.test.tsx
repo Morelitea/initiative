@@ -1,8 +1,10 @@
 import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { SerializedEditorState } from "lexical";
 import { HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 
+import { buildTask } from "@/__tests__/factories";
 import { communityHttp } from "@/__tests__/helpers/communityHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderPage } from "@/__tests__/helpers/render";
@@ -11,15 +13,18 @@ import { Editor } from "@/components/ui/editor/editor";
 /**
  * A chip is only a chip if it reads.
  *
- * It renders as a Lexical decorator, which the composer portals in itself — so
- * the answers have to reach it from ABOVE the composer. Mounted anywhere inside
- * it, every chip silently falls back to the words stored beside it and the
- * whole feature reads as a static label. Nothing else in the suite sees that,
- * because every other test asks the pieces rather than the page.
+ * It renders as a Lexical decorator, which the composer portals in itself. A
+ * chip that never hears its answer falls back to the words stored beside it,
+ * and the whole feature reads as a static label — so this renders the real
+ * page rather than asking the pieces.
  */
 
-/** A document holding one chip and one plain word. */
-const documentWithAChip = (): SerializedEditorState =>
+/** A document holding one chip. */
+const documentWithAChip = (
+  chipKind = "counter:value",
+  entityId = 4,
+  text = "Launch signups"
+): SerializedEditorState =>
   ({
     root: {
       type: "root",
@@ -38,10 +43,10 @@ const documentWithAChip = (): SerializedEditorState =>
             {
               type: "smart-chip",
               version: 1,
-              chipKind: "counter:value",
-              entityId: 4,
+              chipKind,
+              entityId,
               // What it was called when it was inserted.
-              text: "Launch signups",
+              text,
             },
           ],
         },
@@ -49,10 +54,10 @@ const documentWithAChip = (): SerializedEditorState =>
     },
   }) as unknown as SerializedEditorState;
 
-function DocumentUnderTest() {
+function DocumentUnderTest({ document = documentWithAChip() }) {
   return (
     <Editor
-      editorSerializedState={documentWithAChip()}
+      editorSerializedState={document}
       readOnly
       showToolbar={false}
       initiativeId={7}
@@ -99,5 +104,79 @@ describe("a smart chip in a real document", () => {
     renderPage(DocumentUnderTest);
 
     await waitFor(() => expect(screen.getByText("Launch signups")).toBeInTheDocument());
+  });
+
+  /** A task's box as the server reads it: done once a save says so. */
+  const serveTheBox = (task: { done: boolean }) =>
+    communityHttp.post("/smart-chips/", () =>
+      HttpResponse.json({
+        items: [
+          {
+            ref: "task:12:checklist",
+            entity_type: "task",
+            aspect: "checklist",
+            text: task.done ? "done" : "",
+            title: "Ship it",
+            tone: task.done ? "good" : "neutral",
+            color: null,
+            date: null,
+            number: null,
+            writable: true,
+          },
+        ],
+      })
+    );
+
+  const clickTheBox = async () => {
+    renderPage(() => (
+      <DocumentUnderTest document={documentWithAChip("task:checklist", 12, "Ship it")} />
+    ));
+    const box = await screen.findByRole("checkbox");
+    await waitFor(() => expect(box).toBeEnabled());
+    await userEvent.click(box);
+    return box;
+  };
+
+  it("ticks a task the moment its box is clicked, and asks the server once", async () => {
+    const task = { done: false };
+    let sent: unknown;
+    let answer!: () => void;
+    const answered = new Promise<void>((resolve) => {
+      answer = resolve;
+    });
+    server.use(
+      serveTheBox(task),
+      communityHttp.patch("/tasks/12", async ({ request }) => {
+        sent = await request.json();
+        await answered;
+        task.done = true;
+        return HttpResponse.json(buildTask({ id: 12 }));
+      })
+    );
+
+    const box = await clickTheBox();
+
+    // Ticked before the server has answered, and the project's columns were
+    // never read: the server picks the done column from the category.
+    await waitFor(() => expect(sent).toMatchObject({ status_category: "done" }));
+    expect(box).toBeChecked();
+
+    answer();
+    await waitFor(() => expect(box).toBeEnabled());
+    expect(box).toBeChecked();
+  });
+
+  it("puts the box back when the server refuses the change", async () => {
+    server.use(
+      serveTheBox({ done: false }),
+      communityHttp.patch("/tasks/12", () =>
+        HttpResponse.json({ detail: "TASK_STATUS_NOT_FOUND_FOR_PROJECT" }, { status: 400 })
+      )
+    );
+
+    const box = await clickTheBox();
+
+    await waitFor(() => expect(box).toBeEnabled());
+    expect(box).not.toBeChecked();
   });
 });
