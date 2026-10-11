@@ -12,6 +12,7 @@ from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta, timezone
 
 
+from app.db import cohorts
 from app.models.platform.guild import CommunityRole
 from app.services.tenant.post_publication import publish_due_posts
 from app.testing import (
@@ -26,7 +27,7 @@ from app.testing import (
     create_wiki,
     create_wiki_page,
     lexical_body,
-    route_session_to_guild,
+    route_system,
 )
 
 
@@ -712,9 +713,10 @@ async def test_a_scheduled_notice_is_not_searchable_until_it_goes_up(
 
     assert (await _search(client, a, search="embargoed"))["items"] == []
 
-    await route_session_to_guild(session, a.guild.id)
-    await publish_due_posts(session, now=datetime.now(timezone.utc))
-    await session.commit()
+    async with cohorts.system_session(a.guild.id) as system:
+        await route_system(system, guild_id=a.guild.id)
+        await publish_due_posts(system, now=datetime.now(timezone.utc))
+        await system.commit()
 
     body = await _search(client, a, search="embargoed")
     assert [h["entity_id"] for h in body["items"]] == [draft.id]
