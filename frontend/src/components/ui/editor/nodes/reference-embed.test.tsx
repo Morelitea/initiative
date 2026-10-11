@@ -176,4 +176,23 @@ describe("an embed of the tasks a filter matches", () => {
 
     expect(await screen.findByText("12", {}, { timeout: 4000 })).toBeInTheDocument();
   });
+
+  it("says it could not load them, rather than that none match", async () => {
+    server.use(communityHttp.get("/tasks/", () => HttpResponse.json({}, { status: 500 })));
+
+    renderPage(() => (
+      <Editor
+        editorSerializedState={
+          page(taskEmbed({ mode: "count" }, LAUNCH)) as unknown as SerializedEditorState
+        }
+        readOnly
+        showToolbar={false}
+      />
+    ));
+
+    expect(
+      await screen.findByText("These tasks couldn't be loaded.", {}, { timeout: 6000 })
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
+  });
 });

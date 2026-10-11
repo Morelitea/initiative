@@ -51,6 +51,7 @@ import {
   IndentDecreaseIcon,
   IndentIncreaseIcon,
   ItalicIcon,
+  PanelTop,
   PenTool,
   RectangleEllipsis,
   ScissorsIcon,
@@ -69,6 +70,7 @@ import { INSERT_CALLOUT_COMMAND } from "@/components/ui/editor/extensions/callou
 import { INSERT_EXCALIDRAW_COMMAND } from "@/components/ui/editor/extensions/excalidraw-extension";
 import { INSERT_STATUS_COMMAND } from "@/components/ui/editor/extensions/status-extension";
 import { CalloutIcon } from "@/components/ui/editor/plugins/callout-icon";
+import { EmbedDialog } from "@/components/ui/editor/plugins/embed-dialog";
 import { EmbedConfigs } from "@/components/ui/editor/plugins/embeds/auto-embed-plugin";
 import { InsertImageDialog } from "@/components/ui/editor/plugins/images-plugin";
 import { InsertLayoutDialog } from "@/components/ui/editor/plugins/layout-plugin";
@@ -422,6 +424,17 @@ export const useBlockInsertActions = ({
             activeEditor={activeEditor}
             onClose={onClose}
           />
+        )),
+    });
+    // A thing shown in full, or the tasks a filter matches — what `![[ ]]`
+    // and the `/` menu's Embed make, for whoever reaches for the toolbar.
+    actions.push({
+      id: "reference-embed",
+      label: t("embeds.insert"),
+      icon: <PanelTop className="size-4" />,
+      run: () =>
+        showModal(t("embeds.insert"), (onClose) => (
+          <EmbedDialog initiativeId={initiativeId} activeEditor={activeEditor} onClose={onClose} />
         )),
     });
   }

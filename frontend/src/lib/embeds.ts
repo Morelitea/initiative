@@ -17,6 +17,8 @@ import type {
 } from "@/api/generated/initiativeAPI.schemas";
 import {
   EMPTY_TASK_FILTERS,
+  type StoredTaskFilters,
+  specFromStored,
   type TaskFilterSpec,
   taskSpecConditions,
 } from "@/lib/filters/taskFilters";
@@ -101,7 +103,9 @@ export const readQuery = (value: unknown): TaskQuery | null => {
   return {
     initiative_id: stored.initiative_id,
     project_id: typeof stored.project_id === "number" ? stored.project_id : null,
-    filters: { ...EMPTY_TASK_FILTERS, ...(stored.filters ?? {}) },
-    sort: Array.isArray(stored.sort) ? stored.sort : [],
+    filters: specFromStored(stored.filters as StoredTaskFilters | undefined),
+    sort: Array.isArray(stored.sort)
+      ? stored.sort.filter((entry) => typeof entry?.field === "string")
+      : [],
   };
 };

@@ -4,7 +4,7 @@ import { keepPreviousData } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { $getNodeByKey, type NodeKey } from "lexical";
 import { ChevronDown, ListChecks } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { TaskListRead } from "@/api/generated/initiativeAPI.schemas";
@@ -44,7 +44,7 @@ interface TaskQueryEmbedProps {
  * that refreshes a project's board, and it pages rather than stopping short.
  */
 export function TaskQueryEmbed({ query, display, label, collapsed, nodeKey }: TaskQueryEmbedProps) {
-  const { t, i18n } = useTranslation("editor");
+  const { t, i18n } = useTranslation(["editor", "common"]);
   const [editor] = useLexicalComposerContext();
   const editable = useLexicalEditable();
   const communityId = useActiveCommunityId();
@@ -52,12 +52,23 @@ export function TaskQueryEmbed({ query, display, label, collapsed, nodeKey }: Ta
   const [readerFolded, setReaderFolded] = useState<boolean | null>(null);
   const folded = editable ? collapsed : (readerFolded ?? collapsed);
   const counting = display.mode === "count";
+  // Rendering again at midnight is what rebuilds a due window from the new day.
+  useLocalDay(query.filters.due !== null);
 
-  const { data, isLoading } = useTasks(taskQueryParams(query, page, counting), {
-    placeholderData: keepPreviousData,
-  });
+  const { data, isLoading, isError, isPlaceholderData, refetch } = useTasks(
+    taskQueryParams(query, page, counting),
+    {
+      placeholderData: keepPreviousData,
+    }
+  );
   const tasks = data?.items ?? [];
   const total = data?.total_count ?? 0;
+
+  // Fewer pages than the reader was on — something finished or was moved
+  // while they looked — and the server answers with its last page: follow it.
+  useEffect(() => {
+    if (data && !isPlaceholderData && !counting && data.page !== page) setPage(data.page);
+  }, [data, isPlaceholderData, counting, page]);
 
   const taskHref = useCallback(
     (taskId: number) => communityPath(communityId, entityRefRoute("task", taskId)),
@@ -107,6 +118,13 @@ export function TaskQueryEmbed({ query, display, label, collapsed, nodeKey }: Ta
         </div>
         {isLoading ? (
           <Skeleton className="h-16 w-full" />
+        ) : isError && !data ? (
+          <div className="flex items-center gap-2 text-muted-foreground text-sm">
+            <span>{t("embeds.tasks.error")}</span>
+            <Button type="button" variant="ghost" size="sm" onClick={() => void refetch()}>
+              {t("common:tryAgain")}
+            </Button>
+          </div>
         ) : counting ? (
           <p className="font-semibold text-3xl tabular-nums">
             {numberFormat(i18n.language).format(total)}
@@ -129,6 +147,23 @@ export function TaskQueryEmbed({ query, display, label, collapsed, nodeKey }: Ta
       </div>
     </>
   );
+}
+
+/** Today, as a number that changes at local midnight — while `watch` is on,
+ *  so a page left open over midnight renders, and asks, for the new day. */
+function useLocalDay(watch: boolean): number {
+  const [day, setDay] = useState(() => new Date().setHours(0, 0, 0, 0));
+  useEffect(() => {
+    if (!watch) return;
+    const next = new Date(day);
+    next.setDate(next.getDate() + 1);
+    const timer = setTimeout(
+      () => setDay(new Date().setHours(0, 0, 0, 0)),
+      Math.max(0, next.getTime() - Date.now()) + 1_000
+    );
+    return () => clearTimeout(timer);
+  }, [watch, day]);
+  return day;
 }
 
 interface PagedProps {
@@ -229,6 +264,7 @@ function TaskTable({
       getRowId={(task) => String(task.id)}
       enablePagination
       manualPagination
+      pageSizeOptions={[EMBED_PAGE_SIZE]}
       pageIndex={page - 1}
       pageCount={Math.max(1, Math.ceil(total / EMBED_PAGE_SIZE))}
       rowCount={total}

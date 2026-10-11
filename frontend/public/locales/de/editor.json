@@ -159,7 +159,8 @@
       "label": "Bezeichnung",
       "labelPlaceholder": "Offene Aufgaben für den Start",
       "from": "Aus",
-      "wholeInitiative": "Allen Projekten dieser Initiative"
+      "wholeInitiative": "Allen Projekten dieser Initiative",
+      "error": "Diese Aufgaben konnten nicht geladen werden."
     }
   },
   "outline": {

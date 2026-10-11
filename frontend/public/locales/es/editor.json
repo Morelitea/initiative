@@ -159,7 +159,8 @@
       "label": "Etiqueta",
       "labelPlaceholder": "Tareas abiertas del lanzamiento",
       "from": "De",
-      "wholeInitiative": "Todos los proyectos de esta iniciativa"
+      "wholeInitiative": "Todos los proyectos de esta iniciativa",
+      "error": "No se pudieron cargar estas tareas."
     }
   },
   "outline": {

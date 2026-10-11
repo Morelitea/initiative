@@ -211,4 +211,22 @@ describe("what an embed keeps", () => {
     expect(json.query).toEqual(query);
     expect(json.display).toEqual({ mode: "table", columns: ["title", "dueDate"] });
   });
+
+  it("reads a filter whose values were damaged as the values it can trust", () => {
+    const json = stored({
+      type: "reference-embed",
+      version: 2,
+      entityType: "task",
+      entityId: 0,
+      text: "Open launch tasks",
+      display: { mode: "list" },
+      query: { initiative_id: 3, filters: { properties: null, assignees: ["me", 4] }, sort: "x" },
+    });
+    expect(json.query).toEqual({
+      initiative_id: 3,
+      project_id: null,
+      filters: { ...EMPTY_TASK_FILTERS, assignees: ["me"] },
+      sort: [],
+    });
+  });
 });

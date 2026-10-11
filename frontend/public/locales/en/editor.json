@@ -159,7 +159,8 @@
       "label": "Label",
       "labelPlaceholder": "Open launch tasks",
       "from": "From",
-      "wholeInitiative": "Every project in this initiative"
+      "wholeInitiative": "Every project in this initiative",
+      "error": "These tasks couldn't be loaded."
     }
   },
   "outline": {

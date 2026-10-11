@@ -159,7 +159,8 @@
       "label": "Libellé",
       "labelPlaceholder": "Tâches ouvertes du lancement",
       "from": "Depuis",
-      "wholeInitiative": "Tous les projets de cette initiative"
+      "wholeInitiative": "Tous les projets de cette initiative",
+      "error": "Impossible de charger ces tâches."
     }
   },
   "outline": {

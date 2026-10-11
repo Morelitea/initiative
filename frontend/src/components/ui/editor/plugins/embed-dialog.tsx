@@ -118,12 +118,15 @@ export function EmbedDialog({
   );
   const [label, setLabel] = useState(start?.query ? start.label : "");
 
-  const pick = (suggestion: SearchSuggestion) =>
+  const pick = (suggestion: SearchSuggestion) => {
+    // The details chosen were facts about the last kind of thing.
+    if (suggestion.entity_type !== item?.entityType) setItemDisplay(CARD);
     setItem({
       entityType: suggestion.entity_type,
       entityId: suggestion.entity_id,
       title: suggestion.title,
     });
+  };
 
   const ready = source === "item" ? item !== null : query !== null;
 

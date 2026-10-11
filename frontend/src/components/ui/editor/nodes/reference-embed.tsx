@@ -134,10 +134,10 @@ function ItemEmbed({
     tool_id: null,
   });
 
-  const facts = display.mode === "fields" ? (display.fields ?? []) : [];
-  const showBody =
-    facts.length === 0 && Boolean(embed?.body && hasBody(embed.body) && depth < MAX_BODY_DEPTH);
-  const showDescription = facts.length === 0 && Boolean(embed?.description);
+  const card = display.mode === "card";
+  const facts = card ? [] : (display.fields ?? []);
+  const showBody = card && Boolean(embed?.body && hasBody(embed.body) && depth < MAX_BODY_DEPTH);
+  const showDescription = card && Boolean(embed?.description);
   const foldable = facts.length > 0 || showBody || showDescription;
 
   const toggleFolded = () => {
